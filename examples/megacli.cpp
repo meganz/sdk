@@ -9275,7 +9275,7 @@ void exec_synclist(autocomplete::ACState& s)
             << toHandle(config.mBackupId)
             << "\n";
 
-        auto cloudnode = client->nodeByHandle(config.getRemoteNode());
+        auto cloudnode = client->nodeByHandle(config.mRemoteNode);
         string cloudpath = cloudnode ? cloudnode->displaypath() : "<null>";
 
         // Display source/target mapping.
@@ -9453,7 +9453,6 @@ void exec_syncxable(autocomplete::ACState& s)
 
     string errIdString;
     bool withError = s.extractflagparam("-error", errIdString);
-    withError;
 
     auto targetState = SyncConfig::Run;
 

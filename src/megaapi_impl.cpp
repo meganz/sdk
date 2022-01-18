@@ -13801,7 +13801,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
                 if (found)
                 {
-                    request->setNumber(createdConfig.mLocalFingerprint);
+                    request->setNumber(createdConfig.mFilesystemFingerprint);
                     request->setParentHandle(backupId);
 
                     auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig,
@@ -21407,7 +21407,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (found)
                 {
-                    request->setNumber(createdConfig.mLocalFingerprint);
+                    request->setNumber(createdConfig.mFilesystemFingerprint);
                     request->setParentHandle(backupId);
 
                     auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig,
@@ -21631,7 +21631,7 @@ void MegaApiImpl::sendPendingRequests()
             client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync){
 
                 bool matched = (backupId != UNDEF && c.mBackupId == backupId) ||
-                    (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
+                    (!ISUNDEF(nodehandle) && c.mRemoteNode == nodehandle);
 
                 if (matched && sync)
                 {
@@ -21671,7 +21671,7 @@ void MegaApiImpl::sendPendingRequests()
             client->syncs.disableSelectedSyncs([=](SyncConfig& c, Sync* s)
                 {
                     return (c.mBackupId == backupId) ||
-                           (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
+                           (!ISUNDEF(nodehandle) && c.mRemoteNode == nodehandle);
                 },
                 false, NO_SYNC_ERROR, false, true,
                 [this, request](size_t nDisabled){
@@ -24497,7 +24497,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, bool active, MegaClie
     , mActive(active)
     , mEnabled(config.getEnabled())
 {
-    this->megaHandle = config.getRemoteNode().as8byte();
+    this->megaHandle = config.mRemoteNode.as8byte();
     this->localFolder = NULL;
     setLocalFolder(config.getLocalPath().toPath().c_str());
     this->mName= NULL;
@@ -24513,7 +24513,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, bool active, MegaClie
     this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
 
-    setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
+    setLocalFingerprint(static_cast<long long>(config.mFilesystemFingerprint));
     setLastKnownMegaFolder(config.mOriginalPathOfRemoteRootNode.c_str());
 
     setError(config.mError);

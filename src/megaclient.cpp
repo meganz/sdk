@@ -13023,14 +13023,14 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
-    Node* remotenode = nodeByHandle(syncConfig.getRemoteNode());
+    Node* remotenode = nodeByHandle(syncConfig.mRemoteNode);
     inshare = false;
     if (!remotenode)
     {
         LOG_warn << "Sync root does not exist in the cloud: "
                  << syncConfig.getLocalPath().toPath()
                  << ": "
-                 << LOG_NODEHANDLE(syncConfig.getRemoteNode());
+                 << LOG_NODEHANDLE(syncConfig.mRemoteNode);
 
         syncConfig.mError = REMOTE_NODE_NOT_FOUND;
         syncConfig.mEnabled = false;

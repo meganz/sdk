@@ -664,7 +664,7 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mName(std::move(name))
     , mRemoteNode(remoteNode)
     , mOriginalPathOfRemoteRootNode(remotePath)
-    , mLocalFingerprint(localFingerprint)
+    , mFilesystemFingerprint(localFingerprint)
     , mSyncType(syncType)
     , mError(error)
     , mWarning(warning)
@@ -681,7 +681,7 @@ bool SyncConfig::operator==(const SyncConfig& rhs) const
            && mName == rhs.mName
            && mRemoteNode == rhs.mRemoteNode
            && mOriginalPathOfRemoteRootNode == rhs.mOriginalPathOfRemoteRootNode
-           && mLocalFingerprint == rhs.mLocalFingerprint
+           && mFilesystemFingerprint == rhs.mFilesystemFingerprint
            && mSyncType == rhs.mSyncType
            && mError == rhs.mError
            && mBackupId == rhs.mBackupId
@@ -707,26 +707,6 @@ void SyncConfig::setEnabled(bool enabled)
 const LocalPath& SyncConfig::getLocalPath() const
 {
     return mLocalPath;
-}
-
-NodeHandle SyncConfig::getRemoteNode() const
-{
-    return mRemoteNode;
-}
-
-void SyncConfig::setRemoteNode(NodeHandle remoteNode)
-{
-    mRemoteNode = remoteNode;
-}
-
-handle SyncConfig::getLocalFingerprint() const
-{
-    return mLocalFingerprint;
-}
-
-void SyncConfig::setLocalFingerprint(fsfp_t fingerprint)
-{
-    mLocalFingerprint = fingerprint;
 }
 
 SyncConfig::Type SyncConfig::getType() const
@@ -1051,7 +1031,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     }
 
     // set specified fsfp or get from fs if none
-    const auto cfsfp = mUnifiedSync.mConfig.getLocalFingerprint();
+    const auto cfsfp = mUnifiedSync.mConfig.mFilesystemFingerprint;
     if (cfsfp)
     {
         fsfp = cfsfp;
@@ -2950,7 +2930,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint
 
     if (resetFingerprint)
     {
-        us.mConfig.setLocalFingerprint(0); //This will cause the local filesystem fingerprint to be recalculated
+        us.mConfig.mFilesystemFingerprint = 0; //This will cause the local filesystem fingerprint to be recalculated
     }
 
     LocalPath rootpath;
@@ -3039,9 +3019,9 @@ bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, bool exists, string cloudP
     }
     else //unset remote node: failed!
     {
-        if (!us.mConfig.getRemoteNode().isUndef())
+        if (!us.mConfig.mRemoteNode.isUndef())
         {
-            us.mConfig.setRemoteNode(NodeHandle());
+            us.mConfig.mRemoteNode = NodeHandle();
             changed = true;
         }
     }
@@ -3062,11 +3042,11 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 {
     assert(onSyncThread());
 
-    auto prevFingerprint = us.mConfig.getLocalFingerprint();
+    auto prevFingerprint = us.mConfig.mFilesystemFingerprint;
 
     assert(!us.mSync);
     us.mSync.reset(new Sync(us, debris, localdebris, rootNodeName, inshare, logname));
-    us.mConfig.setLocalFingerprint(us.mSync->fsfp);
+    us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
 
     // Assume we'll encounter an error.
     error e = API_EFAILED;
@@ -3094,12 +3074,12 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
         signalError(UNABLE_TO_ADD_WATCH);
     }
-    else if (prevFingerprint && prevFingerprint != us.mConfig.getLocalFingerprint())
+    else if (prevFingerprint && prevFingerprint != us.mConfig.mFilesystemFingerprint)
     {
         LOG_err << "New sync local fingerprint mismatch. Previous: "
                 << prevFingerprint
                 << "  Current: "
-                << us.mConfig.getLocalFingerprint();
+                << us.mConfig.mFilesystemFingerprint;
 
         signalError(LOCAL_FINGERPRINT_MISMATCH);
     }
@@ -4079,7 +4059,7 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     config.mBackupState = SYNC_BACKUP_NONE;
     config.mEnabled = false;
     config.mError = NO_SYNC_ERROR;
-    config.mLocalFingerprint = 0;
+    config.mFilesystemFingerprint = 0;
     config.mLocalPath = LocalPath::fromAbsolutePath(localPath);
     config.mName = std::move(name);
     config.mOriginalPathOfRemoteRootNode = remotePath;
@@ -4507,10 +4487,10 @@ bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
             // double check we updated fsfp_t
             if (s->mSync)
             {
-                assert(c.mLocalFingerprint == s->mSync->fsfp);
+                assert(c.mFilesystemFingerprint == s->mSync->fsfp);
 
                 // just in case, for now
-                c.mLocalFingerprint = s->mSync->fsfp;
+                c.mFilesystemFingerprint = s->mSync->fsfp;
             }
 
             return true;
@@ -4903,7 +4883,6 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
         // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
         if (notifyApp)
         {
-
             assert(onSyncThread());
             mClient.app->sync_removed(configCopy);
         }
@@ -4915,62 +4894,13 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
                 {
                     mc.reqs.add(new CommandBackupRemove(&mc, configCopy.mBackupId));
 
-/*  todo: possibly incorporate this code from develop
-*
-        // get the node for the backup to be removed
-        auto nh = config.getRemoteNode();
-        if (nh.isUndef()) // can happen when the remote folder has been removed
-        {
-            // unregister this sync/backup from API (backup center)
-            mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
-        }
-
-        else
-        {
-            auto node = mClient.nodeByHandle(nh);
-            if (!node)
-            {
-                LOG_err << "Node not found for the backup to be removed.";
-                return;
-            }
-
-            // check for DeviceId node attribute
-            attr_map am = node->attrs.map;
-            auto idIt = am.find(AttrMap::string2nameid("dev-id"));
-            if (idIt == am.end())
-            {
-                idIt = am.find(AttrMap::string2nameid("drv-id"));
-            }
-
-            if (idIt == am.end())
-            {
-                // just unregister this sync/backup if no DeviceId node attribute was found
-                mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
-            }
-            else
-            {
-                // remove the node attribute and unregister this sync/backup from API (backup center)
-                idIt->second.clear();
-
-                auto completion = [this, &config](NodeHandle, Error e)
-                {
-                    if (e)
+                    if (auto n = mc.nodeByHandle(configCopy.mRemoteNode))
                     {
-                        LOG_err << "Unable to remove sync node attribute for DeviceId";
+                        attr_map m;
+                        m[AttrMap::string2nameid("dev-id")] = "";
+                        m[AttrMap::string2nameid("drv-id")] = "";
+                        mc.setattr(n, move(m), nullptr);
                     }
-                    else
-                    {
-                        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
-                    }
-                };
-
-                if (mClient.setattr(node, std::move(am), mClient.nextreqtag(), nullptr, completion) != API_OK)
-                {
-                    LOG_err << "Unable to update node attributes, to remove DeviceId";
-                    return;
-                }
-            }
-        }*/
                 });
         }
 
@@ -5068,7 +4998,7 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 
                 CloudNode cloudNode;
                 string cloudNodePath;
-                bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
+                bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
                 updateSyncRemoteLocation(*unifiedSync, foundCloudNode, cloudNodePath); //updates cache & notice app of this change
             }
@@ -5088,18 +5018,18 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
-                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
 
                 enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [this, unifiedSync, hadAnError](error e, SyncError se, handle backupId)
                     {
-                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << se;
+                        LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
                         assert(onSyncThread());
                         mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
                     }, "");
             }
             else
             {
-                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
                 assert(onSyncThread());
                 mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
             }
@@ -8992,7 +8922,7 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
             break;
 
         case TYPE_FINGERPRINT:
-            config.mLocalFingerprint = reader.getfp();
+            config.mFilesystemFingerprint = reader.getfp();
             break;
 
         case TYPE_LAST_ERROR:
@@ -9110,7 +9040,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("sp", sourcePath);
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOriginalPathOfRemoteRootNode);
-    writer.arg_fsfp("fp", config.mLocalFingerprint);
+    writer.arg_fsfp("fp", config.mFilesystemFingerprint);
     writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
     writer.arg("lw", config.mWarning);
@@ -9229,7 +9159,7 @@ void Syncs::syncLoop()
             CloudNode cloudNode;
             string cloudNodePath;
             bool inTrash = false;
-            bool foundCloudNode = lookupCloudNode(us->mConfig.getRemoteNode(), cloudNode, &cloudNodePath, &inTrash, nullptr, nullptr, Syncs::FOLDER_ONLY);
+            bool foundCloudNode = lookupCloudNode(us->mConfig.mRemoteNode, cloudNode, &cloudNodePath, &inTrash, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
             // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
             bool pathChanged = updateSyncRemoteLocation(*us, foundCloudNode, cloudNodePath);
