@@ -630,7 +630,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mBackupId = 1;
         config.mEnabled = false;
         config.mError = NO_SYNC_ERROR;
-        config.mLocalFingerprint = 1;
+        config.mFilesystemFingerprint = 1;
         config.mLocalPath = Utilities::randomPathAbsolute();
         config.mName = Utilities::randomBase64();
         config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
@@ -644,7 +644,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mBackupId = 2;
         config.mEnabled = true;
         config.mError = UNKNOWN_ERROR;
-        config.mLocalFingerprint = 2;
+        config.mFilesystemFingerprint = 2;
         config.mLocalPath = Utilities::randomPathAbsolute();
         config.mName = Utilities::randomBase64();
         config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
