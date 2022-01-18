@@ -26818,7 +26818,7 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     // update the internal state
     size_t currentIndex = inpos;
     inpos += len;
-    size_t remaining = inpos - capacity;
+    int remaining = int(inpos - capacity);
     inpos %= capacity;
     size += len;
     free -= len;
@@ -26830,9 +26830,9 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     }
     else
     {
-        size_t num = len - remaining;
+        size_t num = size_t(int(len) - remaining);
         memcpy(buffer + currentIndex, buf, num);
-        memcpy(buffer, buf + num, remaining);
+        memcpy(buffer, buf + num, size_t(remaining));
     }
 
     return len;
