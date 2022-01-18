@@ -29627,7 +29627,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 {
     LOG_debug << "Response headers: " << *headers;
-    httpctx->streamingBuffer.append(headers->data(), static_cast<unsigned>(headers->size()));
+    httpctx->streamingBuffer.append(headers->data(), headers->size());
     uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
     httpctx->size += headers->size();
     httpctx->lastBuffer = resbuf.base;
@@ -29862,7 +29862,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
-    streamingBuffer.append(buffer, static_cast<unsigned>(size));
+    streamingBuffer.append(buffer, size);
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server
@@ -32381,7 +32381,7 @@ bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char 
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
-    streamingBuffer.append(buffer, static_cast<unsigned>(size));
+    streamingBuffer.append(buffer, size);
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server
