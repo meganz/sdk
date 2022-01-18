@@ -1897,7 +1897,7 @@ bool StandardClient::syncSet(handle backupId, SyncInfo& info) const
     SyncConfig c;
     if (client.syncs.syncConfigByBackupId(backupId, c))
     {
-        info.h = c.getRemoteNode();
+        info.h = c.mRemoteNode;
         info.localpath = c.getLocalPath().toPath();
         info.remotepath = c.mOriginalPathOfRemoteRootNode; // bit of a hack
 
@@ -2145,7 +2145,7 @@ bool StandardClient::delSync_inthread(handle backupId, bool keepCache)
     client.syncs.removeSelectedSyncs(
         [&](SyncConfig& c, Sync*)
         {
-            const bool matched = c.getRemoteNode() == handle;
+            const bool matched = c.mRemoteNode == handle;
 
             removed |= matched;
 
@@ -2734,7 +2734,7 @@ bool StandardClient::confirmModel(handle backupId, Model::ModelNode* mnode, cons
     if (!sync)
         return true;
 
-    string statecachename = sync->getConfig().getSyncDbStateCacheName(sync->getConfig().mLocalFingerprint,sync->getConfig().mRemoteNode, client.me);
+    string statecachename = sync->getConfig().getSyncDbStateCacheName(sync->localroot->fsid_lastSynced, sync->getConfig().mRemoteNode, client.me);
 
     StateCacheValidator validator;
 
@@ -14343,8 +14343,11 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
         auto localPath = c.fsBasePath / "s" / FILE_NAME;
         auto cloudPath = "/mega_test_sync/s/" + FILE_NAME;
 
+        ASSERT_EQ(stalls.local.begin()->first.toPath(),
+            localPath.u8string());
+
         ASSERT_EQ(stalls.local.begin()->second.involvedLocalPath.toPath(),
-                  localPath.u8string());
+                  string(""));
 
         ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
                   cloudPath);

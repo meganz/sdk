@@ -2542,9 +2542,12 @@ TEST_F(SdkTest, SdkTestShares)
     int transferError = synchronousStartDownload(1, nNoAuth, "unauthorized_node");
 
     bool hasFailed = (transferError != API_OK);
-    ASSERT_TRUE(hasFailed) << "Download of node without authorization successful! (it should fail)";
+    ASSERT_TRUE(hasFailed) << "Download of node without authorization successful! (it should fail): " << transferError;
 
     MegaNode *nAuth = megaApi[0]->authorizeNode(nNoAuth);
+
+    // make sure target download file doesn't already exist:
+    deleteFile("authorized_node");
 
     transferError = synchronousStartDownload(1, nAuth, "authorized_node");
     ASSERT_EQ(API_OK, transferError) << "Cannot download authorized node (error: " << mApi[1].lastError << ")";
@@ -5101,6 +5104,9 @@ TEST_F(SdkTest, SdkBackupFolder)
     RequestTracker removeTracker(megaApi[0].get());
     megaApi[0]->removeSync(allSyncs->get(0), &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
+
+    // Make sure there's time for dev-id etc attributes to be removed
+    WaitMillisec(5000);
 
     // Test that DeviceId is no longer set for the node of the former backup
     nn.reset(megaApi[0]->getNodeByHandle(snc->getMegaHandle()));

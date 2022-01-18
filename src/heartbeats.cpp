@@ -176,7 +176,7 @@ BackupInfoSync::BackupInfoSync(const SyncConfig& config, const string& device, h
     backupId = config.mBackupId;
     type = getSyncType(config);
     backupName = config.mName,
-    nodeHandle = config.getRemoteNode();
+    nodeHandle = config.mRemoteNode;
     localFolder = config.getLocalPath();
     state = calculatedState;
     subState = config.getError();
@@ -189,7 +189,7 @@ BackupInfoSync::BackupInfoSync(const UnifiedSync &us, bool pauseDown, bool pause
     backupId = us.mConfig.mBackupId;
     type = getSyncType(us.mConfig);
     backupName = us.mConfig.mName,
-    nodeHandle = us.mConfig.getRemoteNode();
+    nodeHandle = us.mConfig.mRemoteNode;
     localFolder = us.mConfig.getLocalPath();
     state = BackupInfoSync::getSyncState(us, pauseDown, pauseUp);
     subState = us.mConfig.getError();
