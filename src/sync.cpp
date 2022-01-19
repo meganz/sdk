@@ -7046,7 +7046,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
                     row.fsNode->fsid, row.fsNode->localname, inshare);
 
-                row.syncNode->queueClientUpload(upload, NoVersioning);  // we'll take care of versioning ourselves ( we take over the putnodes step below)
+                row.syncNode->queueClientUpload(upload, UseLocalVersioningFlag);  // we'll take care of versioning ourselves ( we take over the putnodes step below)
 
                 LOG_debug << syncname << "Sync - sending file " << fullPath.localPath_utf8();
 

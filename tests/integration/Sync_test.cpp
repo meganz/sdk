@@ -7560,7 +7560,7 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     std::ofstream fstream2(SYNC2.localpath / "d" / "file0_d", ios_base::app);
     fstream2 << " plus local change";
     fstream2.close();
-    ASSERT_TRUE(c.uploadFile("remoteFile", "file0_d", SYNC2.remotepath + "/d"));
+    ASSERT_TRUE(c.uploadFile("remoteFile", "file0_d", SYNC2.remotepath + "/d", 30, UseLocalVersioningFlag));
 
     c.setSyncPausedByBackupId(id0, false);
     c.setSyncPausedByBackupId(id1, false);
