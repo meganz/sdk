@@ -7602,7 +7602,14 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     std::string fileName = std::to_string(time(nullptr));
     ASSERT_TRUE(createLocalFile(fs::current_path(), fileName.c_str(), 1024));
     fs::path fp = fs::current_path() / fileName;
-    megaApi[1]->startUpload(fp.u8string().c_str(), n1);
+    megaApi[1]->startUpload(fp.u8string().c_str(),
+                            n1,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*fileName*/,
+                            nullptr /*appData*/,
+                            false   /*isSourceTemporary*/,
+                            false   /*startFirst*/,
+                            nullptr /*cancelToken*/);
 
     // --- Pause transfer, revoke out-share permissions for secondary account and resume transfer ---
     megaApi[0]->pauseTransfers(true);
