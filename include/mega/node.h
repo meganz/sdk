@@ -109,7 +109,11 @@ struct SyncDownload_inClient: public SyncTransfer_inClient
 
     SyncDownload_inClient(CloudNode& n, const LocalPath&, bool fromInshare,
             FileSystemAccess& fsaccess, shared_ptr<SyncThreadsafeState> stss);
+
     ~SyncDownload_inClient();
+
+    // True if we could copy (or move) the download into place.
+    bool wasDistributed = false;
 };
 
 struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this<SyncUpload_inClient>

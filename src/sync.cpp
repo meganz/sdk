@@ -4871,7 +4871,7 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
     {
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
-            syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false, false);
+            syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false, !removeSyncDb);
             assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
@@ -5016,7 +5016,7 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
                 assert(!hadAnError);
 
 #ifdef __APPLE__
-                unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
+                unifiedSync->mConfig.mFilesystemFingerprint = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
 
@@ -7046,7 +7046,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
                     row.fsNode->fsid, row.fsNode->localname, inshare);
 
-                row.syncNode->queueClientUpload(upload, NoVersioning);  // we'll take care of versioning ourselves ( we take over the putnodes step below)
+                row.syncNode->queueClientUpload(upload, UseLocalVersioningFlag);  // we'll take care of versioning ourselves ( we take over the putnodes step below)
 
                 LOG_debug << syncname << "Sync - sending file " << fullPath.localPath_utf8();
 
@@ -7307,6 +7307,9 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                         parentRow.fsAddedSiblings.emplace_back(std::move(*fsNode));
                         row.fsNode = &parentRow.fsAddedSiblings.back();
                     }
+
+                    // Download was moved into place.
+                    downloadPtr->wasDistributed = true;
 
                     // No longer necessary as the transfer's complete.
                     row.syncNode->resetTransfer(nullptr);

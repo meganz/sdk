@@ -7560,7 +7560,7 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     std::ofstream fstream2(SYNC2.localpath / "d" / "file0_d", ios_base::app);
     fstream2 << " plus local change";
     fstream2.close();
-    ASSERT_TRUE(c.uploadFile("remoteFile", "file0_d", SYNC2.remotepath + "/d"));
+    ASSERT_TRUE(c.uploadFile("remoteFile", "file0_d", SYNC2.remotepath + "/d", 30, UseLocalVersioningFlag));
 
     c.setSyncPausedByBackupId(id0, false);
     c.setSyncPausedByBackupId(id1, false);
@@ -14167,63 +14167,6 @@ TEST_F(CloudToLocalFilterFixture, RenameToIgnoredRubbishesRemote)
     // Confirm models.
     ASSERT_TRUE(confirm(*cdu, id, localFS, false));
     ASSERT_TRUE(confirm(*cdu, id, remoteTree));
-}
-
-TEST_F(SyncTest, CorrectlyHandlePreviouslySyncedFiles)
-{
-    auto TESTROOT = makeNewTestRoot();
-    auto TIMEOUT  = std::chrono::seconds(4);
-
-    // Sync client.
-    StandardClient c(TESTROOT, "c");
-
-    // Log callbacks.
-    c.logcb = true;
-
-    // Log in the client.
-    ASSERT_TRUE(c.login_reset("MEGA_EMAIL", "MEGA_PWD"));
-
-    // Convenience.
-    auto lRoot = c.fsBasePath / "s";
-
-    // Prepare the local filesystem.
-    Model model;
-
-    model.addfile("d/f0");
-    model.addfile("d/f1");
-    model.generate(lRoot);
-
-    // Prepare the cloud.
-    {
-        auto rRoot = c.gettestbasenode();
-
-        ASSERT_TRUE(c.uploadFolderTree(lRoot, rRoot));
-        ASSERT_TRUE(c.uploadFilesInTree(lRoot, rRoot));
-    }
-
-    // Tweak the file's modification times.
-
-    // Local d/f0 is more recent.
-    ASSERT_TRUE(adjustLastModificationTime(lRoot / "d" / "f0", 1000));
-
-    // Cloud d/f1 is more recent.
-    ASSERT_TRUE(adjustLastModificationTime(lRoot / "d" / "f1", -1000));
-
-    // Add and start a sync.
-    auto id = c.setupSync_mainthread("s", "s", false, false);
-    ASSERT_NE(id, UNDEF);
-
-    // Wait for the sync to complete.
-    waitonsyncs(TIMEOUT, &c);
-
-    // Local d/f1 should've been moved to the local debris.
-    model.movetosynctrash("d/f1", "");
-
-    // File still exists, though.
-    model.addfile("d/f1");
-
-    // Check everything was synced correctly.
-    ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
 
 struct ReservedNameTest

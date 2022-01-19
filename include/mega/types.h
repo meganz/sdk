@@ -99,6 +99,7 @@ using std::shared_ptr;
 using std::weak_ptr;
 using std::move;
 using std::mutex;
+using std::recursive_mutex;
 using std::lock_guard;
 
 #ifdef WIN32

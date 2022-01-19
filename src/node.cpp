@@ -2363,9 +2363,6 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPat
 
     sourceFsid = fsid;
     sourceLocalname = localname;
-
-    // Make sure we version as appropriate when sendPutnodes(...) is called.
-    mVersioningOption = UseLocalVersioningFlag;
 }
 
 SyncUpload_inClient::~SyncUpload_inClient()
