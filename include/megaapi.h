@@ -7620,7 +7620,12 @@ class MegaApi
             PAYMENT_METHOD_FORTUMO = 6,
             PAYMENT_METHOD_CREDIT_CARD = 8,
             PAYMENT_METHOD_CENTILI = 9,
-            PAYMENT_METHOD_WINDOWS_STORE = 13
+            PAYMENT_METHOD_WINDOWS_STORE = 13,
+            PAYMENT_METHOD_TPAY = 14,
+            PAYMENT_METHOD_DIRECT_RESELLER = 15,
+            PAYMENT_METHOD_ECP = 16,
+            PAYMENT_METHOD_SABADELL = 17,
+            PAYMENT_METHOD_STRIPE = 19
         };
 
         enum {

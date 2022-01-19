@@ -129,6 +129,11 @@ public class MegaApiJava {
     public final static int PAYMENT_METHOD_CREDIT_CARD = MegaApi.PAYMENT_METHOD_CREDIT_CARD;
     public final static int PAYMENT_METHOD_CENTILI = MegaApi.PAYMENT_METHOD_CENTILI;
     public final static int PAYMENT_METHOD_WINDOWS_STORE = MegaApi.PAYMENT_METHOD_WINDOWS_STORE;
+    public final static int PAYMENT_METHOD_TPAY = MegaApi.PAYMENT_METHOD_TPAY;
+    public final static int PAYMENT_METHOD_DIRECT_RESELLER = MegaApi.PAYMENT_METHOD_DIRECT_RESELLER;
+    public final static int PAYMENT_METHOD_ECP = MegaApi.PAYMENT_METHOD_ECP;
+    public final static int PAYMENT_METHOD_SABADELL = MegaApi.PAYMENT_METHOD_SABADELL;
+    public final static int PAYMENT_METHOD_STRIPE = MegaApi.PAYMENT_METHOD_STRIPE;
 
     public final static int TRANSFER_METHOD_NORMAL = MegaApi.TRANSFER_METHOD_NORMAL;
     public final static int TRANSFER_METHOD_ALTERNATIVE_PORT = MegaApi.TRANSFER_METHOD_ALTERNATIVE_PORT;
