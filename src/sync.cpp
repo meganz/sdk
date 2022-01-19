@@ -4871,7 +4871,7 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
     {
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
-            syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false, false);
+            syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false, !removeSyncDb);
             assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
