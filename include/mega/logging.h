@@ -395,11 +395,18 @@ public:
     ~SimpleLogger()
     {
 #ifdef ENABLE_LOG_PERFORMANCE
-        copyToBuffer(" [", 2);
-        logValue(filenameStr);  // put filename and line last, to keep the main text nicely column aligned
-        copyToBuffer(":", 1);
-        logValue(lineNum);
-        copyToBuffer("]", 1);
+
+#ifndef MEGALOGGER_AVOID_FILE_AND_LINES
+        if (lineNum !=-1)
+        {
+            copyToBuffer(" [", 2);
+            logValue(filenameStr);  // put filename and line last, to keep the main text nicely column aligned
+            copyToBuffer(":", 1);
+            logValue(lineNum);
+            copyToBuffer("]", 1);
+        }
+#endif
+
         outputBuffer(true);
 
         if (!mDirectMessages.empty())
