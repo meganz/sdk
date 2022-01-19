@@ -7308,6 +7308,9 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                         row.fsNode = &parentRow.fsAddedSiblings.back();
                     }
 
+                    // Download was moved into place.
+                    downloadPtr->wasDistributed = true;
+
                     // No longer necessary as the transfer's complete.
                     row.syncNode->resetTransfer(nullptr);
 

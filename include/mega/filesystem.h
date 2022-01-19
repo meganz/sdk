@@ -349,7 +349,7 @@ class FileDistributor
     // Note that the file is not always "tmp", one of the target locations
     // may actually be the place it was downlaoded to, rather than a tmp location.
 
-    mutex mMutex;
+    recursive_mutex mMutex;
     LocalPath theFile;
     size_t  numTargets;
     bool actualPathUsed = false;
@@ -367,6 +367,9 @@ public:
 
 
     bool distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, TargetNameExistsResolution, bool& transient_error, bool& name_too_long, Sync* syncForDebris);
+
+    // Remove a pending distribution target.
+    void removeTarget();
 
     // static functions used by distributeTo
     // these will be useful for other cases also

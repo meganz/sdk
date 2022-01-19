@@ -465,6 +465,9 @@ SyncDownload_inClient::~SyncDownload_inClient()
         transfer = nullptr;  // don't try to remove File from Transfer from the wrong thread
     }
 
+    if (!wasDistributed && downloadDistributor)
+        downloadDistributor->removeTarget();
+
     if (wasCompleted)
     {
         syncThreadSafeState->transferComplete(GET, size);

@@ -1859,8 +1859,8 @@ FileDistributor::FileDistributor(const LocalPath& lp, size_t ntargets, m_time_t 
 FileDistributor::~FileDistributor()
 {
     // the last operation clears the name
-    lock_guard<mutex> g(mMutex);
-    assert(theFile.empty());  // todo: if we haven't cleared the name, delete the file.  But we need an fsaccess for this thread which could be sync or client... maybe queue to client thread?
+    lock_guard<recursive_mutex> g(mMutex);
+    assert(theFile.empty()); // todo: if we haven't cleared the name, delete the file.  But we need an fsaccess for this thread which could be sync or client... maybe queue to client thread?
     assert(numTargets == 0);
 }
 
@@ -2002,12 +2002,12 @@ bool FileDistributor::distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, Ta
 {
     transient_error = false;
     name_too_long = false;
-    lock_guard<mutex> g(mMutex);
+    lock_guard<recursive_mutex> g(mMutex);
 
     if (lp == theFile)
     {
         actualPathUsed = true;
-        numTargets -= 1;
+        removeTarget();
         return true;
     }
     else
@@ -2018,9 +2018,8 @@ bool FileDistributor::distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, Ta
             LOG_debug << "Renaming temporary file to target path";
             if (moveTo(theFile, lp, method, fsaccess, transient_error, name_too_long, syncForDebris))
             {
-                theFile.clear();
                 actualPathUsed = true;
-                numTargets -= 1;
+                removeTarget();
                 return true;
             }
         }
@@ -2029,12 +2028,24 @@ bool FileDistributor::distributeTo(LocalPath& lp, FileSystemAccess& fsaccess, Ta
             // otherwise copy
             if (copyTo(theFile, lp, mMtime, method, fsaccess, transient_error, name_too_long, syncForDebris))
             {
-                numTargets -= 1;
+                removeTarget();
                 return true;
             }
         }
         return false;
     }
+}
+
+void FileDistributor::removeTarget()
+{
+    lock_guard<recursive_mutex> guard(mMutex);
+
+    // Call isn't meaningful if the distributor has no targets.
+    assert(numTargets && !theFile.empty());
+
+    // Decrement the count and clear theFile if there are no more targets.
+    if (!--numTargets)
+        theFile.clear();
 }
 
 } // namespace
