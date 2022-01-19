@@ -26818,7 +26818,7 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     // update the internal state
     size_t currentIndex = inpos;
     inpos += len;
-    size_t remaining = inpos - capacity;
+    int remaining = static_cast<int>(inpos - capacity);
     inpos %= capacity;
     size += len;
     free -= len;
@@ -26830,9 +26830,9 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     }
     else
     {
-        size_t num = len - remaining;
+        size_t num = static_cast<size_t>(static_cast<int>(len) - remaining);
         memcpy(buffer + currentIndex, buf, num);
-        memcpy(buffer, buf + num, remaining);
+        memcpy(buffer, buf + num, static_cast<size_t>(remaining));
     }
 
     return len;
@@ -29627,7 +29627,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 {
     LOG_debug << "Response headers: " << *headers;
-    httpctx->streamingBuffer.append(headers->data(), static_cast<unsigned>(headers->size()));
+    httpctx->streamingBuffer.append(headers->data(), headers->size());
     uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
     httpctx->size += headers->size();
     httpctx->lastBuffer = resbuf.base;
@@ -29862,7 +29862,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
-    streamingBuffer.append(buffer, static_cast<unsigned>(size));
+    streamingBuffer.append(buffer, size);
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server
@@ -32381,7 +32381,7 @@ bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char 
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
-    streamingBuffer.append(buffer, static_cast<unsigned>(size));
+    streamingBuffer.append(buffer, size);
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server
