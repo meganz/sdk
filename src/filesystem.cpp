@@ -107,7 +107,7 @@ UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>
 
 #endif // _WIN32
 
-// the case when the strings are over diffent character types (just uses match())
+// the case when the strings are over different character types (just uses match())
 template<typename CharT, typename CharU, typename UnaryOperation>
 int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
                UnicodeCodepointIterator<CharU> first2, bool unescaping2,
@@ -320,7 +320,7 @@ void LocalPath::normalizeAbsolute()
 #ifdef USE_IOS
     // iOS is a tricky case.
     // We need to be able to use and persist absolute paths.  however on iOS app restart,
-    // our app base path may be different.  So, we only record the path beyone that app
+    // our app base path may be different.  So, we only record the path beyond that app
     // base path.   That is what the app supplies for absolute paths, that's what is persisted.
     // Actual filesystem functions passed such an "absolute" path will prepend the app base path
     // unless it already started with /
@@ -407,7 +407,7 @@ bool LocalPath::invariant() const
 #ifdef USE_IOS
     // iOS is a tricky case.
     // We need to be able to use and persist absolute paths.  however on iOS app restart,
-    // our app base path may be different.  So, we only record the path beyone that app
+    // our app base path may be different.  So, we only record the path beyond that app
     // base path.   That is what the app supplies for absolute paths, that's what is persisted.
     // Actual filesystem functions passed such an "absolute" path will prepend the app base path
     // unless it already started with /
