@@ -8,7 +8,7 @@ openssl/c303dd024e2dc03a0665ddffbb12a1077933e649
 openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 windows:off
 openssl-windows/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off windows:on
 
-pcre/c303dd024e2dc03a0665ddffbb12a1077933e649
+pcre/d6bd10b9af6f6197711222a0ac827e52e0247e30
 readline/8.0 all:off osx:on
 sqlite3/c303dd024e2dc03a0665ddffbb12a1077933e649
 zlib/c303dd024e2dc03a0665ddffbb12a1077933e649
