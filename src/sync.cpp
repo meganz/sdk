@@ -1893,6 +1893,9 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             if (sourceSyncNode->type == FILENODE &&
                 checkIfFileIsChanging(*row.fsNode, sourceSyncNode->getLocalPath()))
             {
+                // Make sure we don't sync our sibling until the move is complete.
+                markSiblingSourceRow();
+
                 // if we revist here and the file is still the same after enough time, we'll move it
                 monitor.waitingLocal(sourceSyncNode->getLocalPath(), LocalPath(), string(), SyncWaitReason::WatiingForFileToStopChanging);
                 rowResult = false;
