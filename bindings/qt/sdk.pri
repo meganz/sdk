@@ -90,7 +90,7 @@ CONFIG(USE_MEGAAPI) {
 
 
 !win32 {
-    QMAKE_CXXFLAGS += -std=c++11 -Wextra -Wconversion -Wno-unused-parameter
+    QMAKE_CXXFLAGS += -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter -Werror
 
     unix:!macx {
         GCC_VERSION = $$system("g++ -dumpversion")
