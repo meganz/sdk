@@ -7233,79 +7233,137 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
 
 TEST_F(SyncTest, RenameReplaceFileWithinSync)
 {
-    const auto TESTROOT = makeNewTestRoot();
-    const auto TIMEOUT  = chrono::seconds(4);
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT = std::chrono::seconds(8);
 
-    StandardClient c0(TESTROOT, "c0");
+    // Allocate (recycle) a client for our use.
+    auto c = g_clientManager.getCleanStandardClient(0, TESTROOT);
 
-    // Log callbacks.
-    c0.logcb = true;
+    // Make sure the cloud's in a pristine state.
+    ASSERT_TRUE(c->resetBaseFolderMulticlient());
 
-    // Log in client and clear remote contents.
-    ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s0", 0, 0));
+    // Make sure the sync root exists in the cloud.
+    ASSERT_TRUE(c->makeCloudSubdirs("s", 0, 0));
 
-    // Set up sync.
-    const auto id = c0.setupSync_mainthread("s0", "s0", false, false);
+    // Wait for the client to see the cloud changes.
+    ASSERT_TRUE(CatchupClients(c));
+
+    // Populate model.
+    Model m;
+
+    // Will be rename-replaced to /ft.
+    m.addfile("fs");
+
+    // Will be rename-replaced down to /dd/dt/ft.
+    m.addfile("dd/fs");
+    m.addfolder("dd/dt");
+
+    // Will be rename-replaced up to /du/ft.
+    m.addfile("du/ds/fs");
+
+    // Populate local filesystem.
+    m.generate(c->fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = c->setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
-    // Populate local FS.
-    const auto SYNCROOT = TESTROOT / "c0" / "s0";
+    // Wait for the initial sync to complete.
+    waitonsyncs(TIMEOUT, c);
 
-    Model model;
+    // Make sure the initial sync was successful.
+    ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
 
-    model.addfile("f1");
-    model.generate(SYNCROOT);
+    // Rename/replace across siblings.
+    //
+    // Models this case:
+    //   echo fs > fs
+    //   <synchronize>
+    //   mv fs ft && echo x > fs
+    //   <synchronize>
+    {
+        // Locally move fs to ft.
+        fs::rename(c->fsBasePath / "s" / "fs",
+                   c->fsBasePath / "s" / "ft");
 
-    // Trigger full scan.
-    c0.triggerFullScan(id);
+        m.findnode("fs")->name = "ft";
 
-    // Wait for synchronization to complete.
-    waitonsyncs(TIMEOUT, &c0);
+        // Replace fs.
+        ASSERT_TRUE(createDataFile(c->fsBasePath / "s" / "fs", "x"));
 
-    // Confirm model.
-    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+        m.addfile("fs", "x");
 
-    // Rename /f1 to /f2.
-    // This tests the case where the target is processed after the source.
-    model.addfile("f2", "f1");
-    model.removenode("f1");
+        // For periodic scanning.
+        c->triggerFullScan(id);
 
-    fs::rename(SYNCROOT / "f1", SYNCROOT / "f2");
+        // Wait for the change to be synchronized.
+        waitonsyncs(TIMEOUT, c);
 
-    // Replace /d1.
-    model.addfile("f1", "x");
+        // Was the change correctly synchronized?
+        ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
+    }
 
-    ASSERT_TRUE(createDataFile(SYNCROOT / "f1", "x"));
+    // Rename/replace down the hierarchy.
+    //
+    // Models this case:
+    //   mkdir -p dd/dt
+    //   echo dd/fs > dd/fs
+    //   <synchronize>
+    //   mv dd/fs dd/dt/ft && echo x > dd/fs
+    //   <synchronize>
+    {
+        // Move /dd/fs to /dd/dt/ft.
+        fs::rename(c->fsBasePath / "s" / "dd" / "fs",
+                   c->fsBasePath / "s" / "dd" / "dt" / "ft");
 
-    // Trigger full scan.
-    c0.triggerFullScan(id);
+        m.movenode("dd/fs", "dd/dt");
+        m.findnode("dd/dt/fs")->name = "ft";
 
-    // Wait for synchronization to complete.
-    waitonsyncs(TIMEOUT, &c0);
+        // Replace /dd/fs.
+        ASSERT_TRUE(createDataFile(c->fsBasePath / "s" / "dd" / "fs", "x"));
 
-    // Confirm model.
-    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+        m.addfile("dd/fs", "x");
 
-    // Rename /f2 to /f0.
-    // This tests the case where the target is processed before the source.
-    model.addfile("f0", "f1");
-    model.removenode("f2");
+        // For periodic scanning.
+        c->triggerFullScan(id);
 
-    fs::rename(SYNCROOT / "f2", SYNCROOT / "f0");
+        // Wait for the change to be synchronized.
+        waitonsyncs(TIMEOUT, c);
 
-    // Replace /d2.
-    model.addfile("f2", "y");
+        // Was the change correctly synchronized?
+        ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
+    }
 
-    ASSERT_TRUE(createDataFile(SYNCROOT / "f2", "y"));
+    // Rename/replace up the hierarchy.
+    //
+    // Models this case:
+    //   mkdir -p du/ds
+    //   echo du/ds/fs > du/ds/fs
+    //   <synchronize>
+    //   mv du/ds/fs du/fs && echo x > du/ds/fs
+    //   <synchronize>
+    {
+        // Move du/ds/fs to du/ft.
+        fs::rename(c->fsBasePath / "s" / "du" / "ds" / "fs",
+                   c->fsBasePath / "s" / "du" / "ft");
 
-    // Trigger full scan.
-    c0.triggerFullScan(id);
+        m.movenode("du/ds/fs", "du");
+        m.findnode("du/fs")->name = "ft";
 
-    // Wait for synchronization to complete.
-    waitonsyncs(TIMEOUT, &c0);
+        // Replace du/ds/fs.
+        ASSERT_TRUE(createDataFile(c->fsBasePath / "s" / "du" / "ds" / "fs", "x"));
 
-    // Confirm model.
-    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+        m.addfile("du/ds/fs", "x");
+
+        // For periodic scanning.
+        c->triggerFullScan(id);
+
+        // Wait for the change to be synchronized.
+        waitonsyncs(TIMEOUT, c);
+
+        // Was the change correctly synchronized?
+        ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
+    }
 }
 
 // TODO: re-enable after sync rework is merged
