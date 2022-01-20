@@ -2,10 +2,11 @@
 # direct core dependencies of the SDK
 c-ares/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on ios:c-ares-ios.patch
 cryptopp/c303dd024e2dc03a0665ddffbb12a1077933e649
-curl/7375bb408f2278d2f1875c259beef93332697ba7 
+curl/7375bb408f2278d2f1875c259beef93332697ba7 all:on ios:off
+curl[sectransp]/7375bb408f2278d2f1875c259beef93332697ba7 all:off ios:on
 libsodium/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:libsodium-ios.patch
 openssl/c303dd024e2dc03a0665ddffbb12a1077933e649
-openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 windows:off
+openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 windows:off ios:off
 openssl-windows/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off windows:on
 
 pcre/c303dd024e2dc03a0665ddffbb12a1077933e649

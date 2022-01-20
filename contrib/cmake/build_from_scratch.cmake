@@ -208,7 +208,7 @@ if(WIN32)
             ${_extra_cmake_args}
     )
 
-    foreach(_config "Debug" "Release")
+    foreach(_config "Release" "Debug")
         execute_checked_command(
             COMMAND ${_cmake}
                 --build ${_build_dir}
