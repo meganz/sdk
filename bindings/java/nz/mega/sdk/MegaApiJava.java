@@ -122,18 +122,23 @@ public class MegaApiJava {
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
     public final static int PAYMENT_METHOD_ITUNES = MegaApi.PAYMENT_METHOD_ITUNES;
     public final static int PAYMENT_METHOD_GOOGLE_WALLET = MegaApi.PAYMENT_METHOD_GOOGLE_WALLET;
-    public final static int PAYMENT_METHOD_HUAWEI_WALLET = MegaApi.PAYMENT_METHOD_HUAWEI_WALLET;
     public final static int PAYMENT_METHOD_BITCOIN = MegaApi.PAYMENT_METHOD_BITCOIN;
     public final static int PAYMENT_METHOD_UNIONPAY = MegaApi.PAYMENT_METHOD_UNIONPAY;
     public final static int PAYMENT_METHOD_FORTUMO = MegaApi.PAYMENT_METHOD_FORTUMO;
+    public final static int PAYMENT_METHOD_STRIPE = MegaApi.PAYMENT_METHOD_STRIPE;
     public final static int PAYMENT_METHOD_CREDIT_CARD = MegaApi.PAYMENT_METHOD_CREDIT_CARD;
     public final static int PAYMENT_METHOD_CENTILI = MegaApi.PAYMENT_METHOD_CENTILI;
+    public final static int PAYMENT_METHOD_PAYSAFE_CARD = MegaApi.PAYMENT_METHOD_PAYSAFE_CARD;
+    public final static int PAYMENT_METHOD_ASTROPAY = MegaApi.PAYMENT_METHOD_ASTROPAY;
+    public final static int PAYMENT_METHOD_RESERVED = MegaApi.PAYMENT_METHOD_RESERVED;
     public final static int PAYMENT_METHOD_WINDOWS_STORE = MegaApi.PAYMENT_METHOD_WINDOWS_STORE;
     public final static int PAYMENT_METHOD_TPAY = MegaApi.PAYMENT_METHOD_TPAY;
     public final static int PAYMENT_METHOD_DIRECT_RESELLER = MegaApi.PAYMENT_METHOD_DIRECT_RESELLER;
     public final static int PAYMENT_METHOD_ECP = MegaApi.PAYMENT_METHOD_ECP;
     public final static int PAYMENT_METHOD_SABADELL = MegaApi.PAYMENT_METHOD_SABADELL;
-    public final static int PAYMENT_METHOD_STRIPE = MegaApi.PAYMENT_METHOD_STRIPE;
+    public final static int PAYMENT_METHOD_HUAWEI_WALLET = MegaApi.PAYMENT_METHOD_HUAWEI_WALLET;
+    public final static int PAYMENT_METHOD_STRIPE2 = MegaApi.PAYMENT_METHOD_STRIPE2;
+    public final static int PAYMENT_METHOD_WIRE_TRANSFER = MegaApi.PAYMENT_METHOD_WIRE_TRANSFER;
 
     public final static int TRANSFER_METHOD_NORMAL = MegaApi.TRANSFER_METHOD_NORMAL;
     public final static int TRANSFER_METHOD_ALTERNATIVE_PORT = MegaApi.TRANSFER_METHOD_ALTERNATIVE_PORT;
