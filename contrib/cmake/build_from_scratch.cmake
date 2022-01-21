@@ -6,6 +6,10 @@
 	eg, for getting started on windows:
 	
 		cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
+
+        eg, for getting started on iOS (building for x64 ios simulator) (comment out unused libs in preferred-ports.sdk first):
+
+                cmake -DTRIPLET=x64-ios-mega -DPLATFORM=ios -DEXTRA_ARGS="-DUSE_PDFIUM=0;-DUSE_MEDIAINFO=0;-DUSE_OPENSSL=0;-DUSE_FREEIMAGE=0;-DUSE_FFMPEG=0;-DUSE_PCRE=0;-DMEGA_USE_C_ARES=0" -P build_from_scratch.cmake
 		
     It will set up and build 3rdparty dependencies in a folder next to the SDK folder, and also
     set up the project (Visual Studio on Windows) and bulid it in an SDK subfolder "build-<triplet>"
