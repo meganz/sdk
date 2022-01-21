@@ -427,7 +427,7 @@ public:
     void setSyncTmpFolder(const LocalPath&);
 
 
-    SyncThreadsafeState(handle backupId, MegaClient* client) : mBackupId(backupId), mClient(client) {}
+    SyncThreadsafeState(handle backupId, MegaClient* client) : mClient(client), mBackupId(backupId)  {}
     handle backupId() const { return mBackupId; }
     MegaClient* client() const { return mClient; }
 
@@ -578,7 +578,7 @@ public:
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
 
-    Sync(UnifiedSync&, const string&, const LocalPath&, const string& rootNodeName, bool, const string& logname);
+    Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname);
     ~Sync();
 
     // Should we synchronize this sync?
@@ -908,7 +908,7 @@ struct Syncs
     void purgeRunningSyncs();
     void resumeResumableSyncsOnStartup(bool resetSyncConfigStore, std::function<void(error)>&& completion);
 
-    void enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError)> completion, const string& logname);
+    void enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError)> completion, const string& logname);
     void disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
@@ -1034,7 +1034,7 @@ public:
     void queueClient(QueuedClientFunc&&);
 
     // Update remote location
-    bool updateSyncRemoteLocation(UnifiedSync&, bool exists, string cloudPath);
+    bool checkSyncRemoteLocationChange(UnifiedSync&, bool exists, string cloudPath);
 
     // Trigger a full scan on the specified sync.
     //
@@ -1107,11 +1107,11 @@ private:
 
     // actually start the sync (on sync thread)
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
-        const string& rootNodeName, bool inshare, bool isNetwork, const LocalPath& rootpath,
+        bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error, SyncError, handle)> completion, const string& logname);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
     void resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, std::function<void(error)>);
-    void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname);
     void disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);

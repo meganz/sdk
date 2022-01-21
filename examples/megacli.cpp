@@ -9483,7 +9483,7 @@ void exec_syncxable(autocomplete::ACState& s)
     case SyncConfig::Pause:
     {
         // sync enable id
-        client->syncs.enableSyncByBackupId(backupId, targetState == SyncConfig::Pause, false, true, [](error err, SyncError serr)
+        client->syncs.enableSyncByBackupId(backupId, targetState == SyncConfig::Pause, false, true, true, [](error err, SyncError serr)
             {
                 if (err)
                 {

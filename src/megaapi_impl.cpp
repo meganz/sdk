@@ -8935,7 +8935,7 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
             case MegaSync::RUNSTATE_RUNNING:
             case MegaSync::RUNSTATE_PAUSED:
             {
-                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, false, true, [this, request](error err, SyncError serr)
+                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, false, true, true, [this, request](error err, SyncError serr)
                     {
                         request->setNumDetails(serr);
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err));
@@ -8946,7 +8946,7 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
             case MegaSync::RUNSTATE_SUSPENDED:
             case MegaSync::RUNSTATE_DISABLED:
             {
-                bool keepSyncDb = targetState == SyncConfig::Suspend;
+                bool keepSyncDb = targetState == MegaSync::SyncRunningState(SyncConfig::Suspend);
 
                 client->syncs.disableSyncByBackupId(
                     backupId,
@@ -24434,10 +24434,10 @@ void MegaCurrencyPrivate::setCurrency(std::unique_ptr<CurrencyData> data)
 
 #ifdef ENABLE_SYNC
 MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, MegaClient* client /* never null */)
-    : mType(static_cast<SyncType>(config.getType()))
+    : mRunState(MegaSync::SyncRunningState(config.getRunState()))
+    , mType(static_cast<SyncType>(config.getType()))
 //    , mActive(active)
 //    , mEnabled(config.getEnabled())
-    , mRunState(MegaSync::SyncRunningState(config.getRunState()))
 {
     this->megaHandle = config.mRemoteNode.as8byte();
     this->localFolder = NULL;
@@ -24464,10 +24464,10 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, MegaClient* client /*
 }
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
-    : mType(sync->mType)
+    : mRunState(sync->mRunState)
+    , mType(sync->mType)
 //    , mActive(sync->mActive)
 //    , mEnabled(sync->mEnabled)
-    , mRunState(sync->mRunState)
 {
     this->setBackupId(sync->mBackupId);
     this->localFolder = NULL;

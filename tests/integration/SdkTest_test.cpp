@@ -5971,6 +5971,14 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, ::m
 
     if (sync && sync->getRunState() == runState && sync->getError() == err)
     {
+        if (!sync)
+        {
+            LOG_debug << "sync is now null";
+        }
+        else
+        {
+            LOG_debug << "sync exists but state is " << sync->getRunState() << " and error is " << sync->getError();
+        }
         return sync;
     }
     else
@@ -6519,8 +6527,8 @@ TEST_F(SdkTest, SyncRemoteNode)
         ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_SUSPENDED);
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
-        //LOG_verbose << "SyncRemoteNode :  Restoring remote folder name.";
-        //ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
+        LOG_verbose << "SyncRemoteNode :  Restoring remote folder name.";
+        ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
 
         //WaitMillisec(1000);
 
@@ -6862,7 +6870,7 @@ TEST_F(SdkTest, DISABLED_SyncPaths)
     auto tagID = sync->getBackupId();
     ASSERT_EQ(API_OK, synchronousSetSyncRunState(0, tagID, MegaSync::RUNSTATE_DISABLED)) << "API Error disabling sync";
     sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::RUNSTATE_DISABLED, MegaSync::NO_SYNC_ERROR);
-    ASSERT_TRUE(sync && !sync->isEnabled());
+    ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_DISABLED);
 
     ASSERT_EQ(API_OK, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, (fs::current_path() / "symlink_1A").u8string().c_str(), nullptr, remoteNodeSym->getHandle(), nullptr)) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> syncSym = waitForSyncState(megaApi[0].get(), remoteNodeSym.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);

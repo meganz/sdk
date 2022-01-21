@@ -12869,7 +12869,6 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
 {
-#ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
@@ -12966,9 +12965,6 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
         *isinshare = inshare;
     }
     return API_OK;
-#else
-    return API_EINCOMPLETE;
-#endif
 }
 
 error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId, SyncError *syncError)
@@ -13016,10 +13012,8 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork)
+error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, bool& inshare, bool& isnetwork)
 {
-#ifdef ENABLE_SYNC
-
     // Checking for conditions where we would not even add the sync config
     // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
 
@@ -13040,8 +13034,6 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         syncConfig.mEnabled = false;
         return API_ENOENT;
     }
-
-    rootNodeName = remotenode->displayname();
 
     if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
@@ -13159,10 +13151,6 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     }
 
     return API_OK;
-#else
-    syncConfig.mEnabled = false;
-    return API_EINCOMPLETE;
-#endif
 }
 
 void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
@@ -13312,9 +13300,8 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
-    string remotenodename;
     bool inshare, isnetwork;
-    error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
+    error e = checkSyncConfig(config, rootpath, openedLocalFolder, inshare, isnetwork);
 
     if (e)
     {

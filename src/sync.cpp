@@ -972,7 +972,7 @@ string SyncConfig::getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle us
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const string& cdebris,
-           const LocalPath& clocaldebris, const string& rootNodeName, bool cinshare, const string& logname)
+           const LocalPath& clocaldebris, bool cinshare, const string& logname)
 : syncs(us.syncs)
 , localroot(nullptr)
 , mUnifiedSync(us)
@@ -1393,8 +1393,8 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
                 LOG_debug << "Deleting sync database at: " << dbPath;
                 syncs.fsaccess->unlinklocal(dbPath);
             }
-            mConfig.mDatabaseExists = false;
         }
+        mConfig.mDatabaseExists = false;
     }
 
     mConfig.setError(newSyncError);
@@ -2877,7 +2877,7 @@ UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
 }
 
 
-void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError)> completion, const string& logname)
+void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError)> completion, const string& logname)
 {
     assert(!onSyncThread());
 
@@ -2891,11 +2891,11 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerp
 
     queueSync([=]()
         {
-            enableSyncByBackupId_inThread(backupId, paused, resetFingerprint, notifyApp, clientCompletion, logname);
+            enableSyncByBackupId_inThread(backupId, paused, resetFingerprint, notifyApp, setOriginalPath, clientCompletion, logname);
         });
 }
 
-void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(onSyncThread());
 
@@ -2932,16 +2932,26 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
         us.mConfig.mFilesystemFingerprint = 0; //This will cause the local filesystem fingerprint to be recalculated
     }
 
+    if (setOriginalPath)
+    {
+        CloudNode cloudNode;
+        string cloudNodePath;
+        if (lookupCloudNode(us.mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY))
+        {
+            us.mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
+            saveSyncConfig(us.mConfig);
+        }
+    }
+
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
-    string rootNodeName;
     bool inshare, isnetwork;
 
     error e;
     {
         // todo: even better thead safety
         lock_guard<mutex> g(mClient.nodeTreeMutex);
-        e = mClient.checkSyncConfig(us.mConfig, rootpath, openedLocalFolder, rootNodeName, inshare, isnetwork);
+        e = mClient.checkSyncConfig(us.mConfig, rootpath, openedLocalFolder, inshare, isnetwork);
     }
 
     if (e)
@@ -2996,24 +3006,23 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     us.changedConfigState(notifyApp);
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
-    startSync_inThread(us, debris, localdebris, rootNodeName, inshare, isnetwork, rootpath, completion, logname);
+    startSync_inThread(us, debris, localdebris, inshare, isnetwork, rootpath, completion, logname);
     us.mNextHeartbeat->updateSPHBStatus(us);
 }
 
-bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, bool exists, string cloudPath)
+bool Syncs::checkSyncRemoteLocationChange(UnifiedSync& us, bool exists, string cloudPath)
 {
     assert(onSyncThread());
 
-    bool changed = false;
     bool pathChanged = false;
     if (exists)
     {
         if (cloudPath != us.mConfig.mOriginalPathOfRemoteRootNode)
         {
+            // the sync will be suspended. Should the user manually start it again,
+            // then the recorded path will be updated to whatever path the Node is then at.
             LOG_debug << "Sync root path changed!  Was: " << us.mConfig.mOriginalPathOfRemoteRootNode << " now: " << cloudPath;
-            us.mConfig.mOriginalPathOfRemoteRootNode = cloudPath;
-            changed = true;
-             pathChanged = true;
+            pathChanged = true;
         }
     }
     else //unset remote node: failed!
@@ -3021,22 +3030,14 @@ bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, bool exists, string cloudP
         if (!us.mConfig.mRemoteNode.isUndef())
         {
             us.mConfig.mRemoteNode = NodeHandle();
-            changed = true;
         }
-    }
-
-    if (changed)
-    {
-        assert(onSyncThread());
-        mClient.app->syncupdate_remote_root_changed(us.mConfig);
-        saveSyncConfig(us.mConfig);
     }
 
     return pathChanged;
 }
 
 void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
-    const string& rootNodeName, bool inshare, bool isNetwork, const LocalPath& rootpath,
+    bool inshare, bool isNetwork, const LocalPath& rootpath,
     std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(onSyncThread());
@@ -3044,7 +3045,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     auto prevFingerprint = us.mConfig.mFilesystemFingerprint;
 
     assert(!us.mSync);
-    us.mSync.reset(new Sync(us, debris, localdebris, rootNodeName, inshare, logname));
+    us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname));
     us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
 
     // Assume we'll encounter an error.
@@ -4469,7 +4470,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         return;
     }
 
-    enableSyncByBackupId_inThread(c.mBackupId, false, false, notifyApp, completion, logname);
+    enableSyncByBackupId_inThread(c.mBackupId, false, false, notifyApp, true, completion, logname);
 }
 
 Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
@@ -4976,14 +4977,16 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
     {
         if (!unifiedSync->mSync)
         {
-            if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
+            if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty())
             {
-
+                // this should only happen on initial migraion from from old caches
                 CloudNode cloudNode;
                 string cloudNodePath;
-                bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
-
-                updateSyncRemoteLocation(*unifiedSync, foundCloudNode, cloudNodePath); //updates cache & notice app of this change
+                if (lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY))
+                {
+                    unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
+                    saveSyncConfig(unifiedSync->mConfig);
+                }
             }
 
             bool hadAnError = unifiedSync->mConfig.getError() != NO_SYNC_ERROR;
@@ -5003,7 +5006,7 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, [this, unifiedSync, hadAnError](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [this, unifiedSync, hadAnError](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
                         assert(onSyncThread());
@@ -9150,7 +9153,7 @@ void Syncs::syncLoop()
                 bool foundCloudNode = lookupCloudNode(us->mConfig.mRemoteNode, cloudNode, &cloudNodePath, &inTrash, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
                 // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
-                bool pathChanged = updateSyncRemoteLocation(*us, foundCloudNode, cloudNodePath);
+                bool pathChanged = checkSyncRemoteLocationChange(*us, foundCloudNode, cloudNodePath);
 
                 if (!foundCloudNode)
                 {
@@ -9166,6 +9169,7 @@ void Syncs::syncLoop()
                 {
                     LOG_debug << "Detected sync root node is now at a different path.";
                     sync->changestate(SYNC_FAILED, REMOTE_PATH_HAS_CHANGED, false, true, true);
+                    mClient.app->syncupdate_remote_root_changed(sync->getConfig());
                 }
             }
         };
