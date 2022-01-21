@@ -138,15 +138,22 @@ AC_ARG_ENABLE(debug,
     AS_HELP_STRING([--enable-debug], [enable support for running in debug mode]),
     [], [enable_debug=no])
 
-CXXFLAGS="$CXXFLAGS -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter -Werror"
 # Enable debug flags / build
 if test "x$enable_debug" = "xyes" ; then
     AM_CXXFLAGS="-Wall -g -ggdb3 -O0"
-    CXXFLAGS="$CXXFLAGS -g -ggdb3 -O0"
+    CXXFLAGS="$CXXFLAGS -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter -g -ggdb3 -O0"
     AC_SUBST([AM_CXXFLAGS])
     AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
 else
     CXXFLAGS="$CXXFLAGS -DNDEBUG=1"
+fi
+
+# Warnings as errors
+AC_ARG_ENABLE(werror,
+    AS_HELP_STRING([--enable-werror], [enable warnings promotion to errors]),
+    [], [enable_werror=no])
+if test "x$enable_werror" = "xyes" ; then
+    CXXFLAGS="$CXXFLAGS -Werror"
 fi
 
 # Check if we can use -fPIC flag

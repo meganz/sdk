@@ -1095,5 +1095,12 @@ if (WIN32)
     endif()
 
 else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter -Werror")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")
+
+    if (ENABLE_WERROR)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+        message(STATUS, "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+        message(STATUS, "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
+    endif(ENABLE_WERROR)
 endif()

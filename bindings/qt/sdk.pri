@@ -88,9 +88,8 @@ CONFIG(USE_MEGAAPI) {
   }
 }
 
-
 !win32 {
-    QMAKE_CXXFLAGS += -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter -Werror
+    QMAKE_CXXFLAGS += -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter
 
     unix:!macx {
         GCC_VERSION = $$system("g++ -dumpversion")
@@ -99,8 +98,19 @@ CONFIG(USE_MEGAAPI) {
         }
     }
 }
+else {
+    # flags synced with contrib/cmake/CMakeLists.txt
+    QMAKE_CXXFLAGS += /W4 /wd4201 /wd4100 /wd4706 /wd4458 /wd4324 /wd4456 /wd4266
+}
 
-
+CONFIG(ENABLE_WERROR_COMPILATION) {
+    !win32 {
+        QMAKE_CXXFLAGS += -Werror
+    }
+    else {
+        QMAKE_CXXFLAGS += /WX
+    }
+}
 
 CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
   SOURCES += src/rotativeperformancelogger.cpp
