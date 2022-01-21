@@ -42,7 +42,7 @@ struct MEGA_API File: public FileFingerprint
     virtual void completed(Transfer*, putsource_t source);
 
     // transfer terminated before completion (cancelled, failed too many times)
-    virtual void terminated();
+    virtual void terminated(error e);
 
     // transfer failed
     virtual bool failed(error, MegaClient*);

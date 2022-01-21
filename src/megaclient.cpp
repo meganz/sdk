@@ -459,11 +459,12 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
             {
                 if (n->isbelow(rootHandle))
                 {
-                    LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                        return c.mRemoteNode == rootHandle;
-                    }, true, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
-
+                    SyncConfig sc;
+                    if (syncs.configByRootNode(rootHandle, sc))  // todo: could have gotten all configs above
+                    {
+                        LOG_warn << "Existing inbound share sync or part thereof lost full access";
+                        syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
+                    }
                 }
             }
 
@@ -476,9 +477,12 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     !checkaccess(root, FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
-                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                        return c.mRemoteNode == rootHandle;
-                    }, true, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
+
+                    SyncConfig sc;
+                    if (syncs.configByRootNode(rootHandle, sc))
+                    {
+                        syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
+                    }
                 }
             };
         }
@@ -4752,7 +4756,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
         if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
         {
-            syncs.disableSyncs(STORAGE_OVERQUOTA, false);
+            syncs.disableSyncs(STORAGE_OVERQUOTA, false, true);
         }
 #endif
 
@@ -6617,7 +6621,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(BUSINESS_EXPIRED, false);
+            syncs.disableSyncs(BUSINESS_EXPIRED, false, true);
         }
 #endif
     }
@@ -11159,7 +11163,7 @@ void MegaClient::block(bool fromServerClientResponse)
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
 #ifdef ENABLE_SYNC
-    syncs.disableSyncs(ACCOUNT_BLOCKED, false);
+    syncs.disableSyncs(ACCOUNT_BLOCKED, false, true);
 #endif
 }
 
@@ -11833,16 +11837,16 @@ void MegaClient::fetchnodes(bool nocache)
         // don't allow to start new sc requests yet
         scsn.clear();
 
-#ifdef ENABLE_SYNC
-        // If there are syncs present at this time, this is a reload-account request.
-        // We will start by fetching a cached tree which likely won't match our current
-        // state/scsn.  And then we will apply actionpackets until we are up to date.
-        // Those actionpackets may be repeats of actionpackets already applied to the sync
-        // or they may be new ones that were not previously applied.
-        // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
-        // TODO: the sync rework branch, when ready, will be able to cope with this situation.
-        syncs.disableSyncs(WHOLE_ACCOUNT_REFETCHED, false);
-#endif
+//#ifdef ENABLE_SYNC
+//        // If there are syncs present at this time, this is a reload-account request.
+//        // We will start by fetching a cached tree which likely won't match our current
+//        // state/scsn.  And then we will apply actionpackets until we are up to date.
+//        // Those actionpackets may be repeats of actionpackets already applied to the sync
+//        // or they may be new ones that were not previously applied.
+//        // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
+//        // TODO: the sync rework branch, when ready, will be able to cope with this situation.
+//        syncs.disableSyncs(WHOLE_ACCOUNT_REFETCHED, false);
+//#endif
 
         if (!loggedinfolderlink())
         {
@@ -14589,28 +14593,6 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
 
     return value;
 }
-
-#ifdef ENABLE_SYNC
-
-void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError syncError, bool newEnabledFlag)
-{
-    if (Node* n = nodeByHandle(nodeHandle))
-    {
-        auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
-        for (NodeHandle rootHandle : activeSyncRootHandles)
-        {
-            if (n->isbelow(rootHandle))
-            {
-                LOG_warn << "Disabling sync containing node " << n->displaypath();
-                syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                    return c.mRemoteNode == rootHandle;
-                }, false, syncError, newEnabledFlag, true, nullptr);
-            }
-        }
-    }
-}
-
-#endif
 
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file

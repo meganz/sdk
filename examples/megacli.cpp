@@ -310,7 +310,7 @@ void AppFileGet::completed(Transfer*, putsource_t source)
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFileGet::terminated()
+void AppFileGet::terminated(error)
 {
     delete this;
 }
@@ -324,7 +324,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFilePut::terminated()
+void AppFilePut::terminated(error)
 {
     delete this;
 }
@@ -436,13 +436,10 @@ void DemoApp::transfer_prepare(Transfer* t)
 
 void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 {
-    conlock(cout) << "Sync config updated: " << toHandle(config.mBackupId) << endl;
-}
-
-
-void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
-{
-    conlock(cout) << "Sync is now active: " << active << endl;
+    conlock(cout) << "Sync config updated: " << toHandle(config.mBackupId)
+        << " state: " << config.getRunState()
+        << " error: " << config.getError()
+        << endl;
 }
 
 void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
@@ -9288,7 +9285,7 @@ void exec_synclist(autocomplete::ACState& s)
 
 
         string runStateName;
-        switch (config.runState())
+        switch (config.getRunState())
         {
         case SyncConfig::Run: runStateName = "RUNNING"; break;
         case SyncConfig::Pause: runStateName = "PAUSED"; break;
@@ -9471,7 +9468,7 @@ void exec_syncxable(autocomplete::ACState& s)
         return;
     }
 
-    auto curState = config.runState();
+    auto curState = config.getRunState();
 
     if (curState == targetState)
     {
@@ -9484,23 +9481,9 @@ void exec_syncxable(autocomplete::ACState& s)
     {
     case SyncConfig::Run:
     case SyncConfig::Pause:
-
-        if (curState == SyncConfig::Pause)
-        {
-            auto future = client->syncs.setSyncPausedByBackupId(backupId, false);
-            bool result = future.get();
-            cout << "Sync " << toHandle(backupId) << " resume success: " << result << endl;
-            return;
-        }
-        else if (curState == SyncConfig::Run) {
-            auto future = client->syncs.setSyncPausedByBackupId(backupId, true);
-            bool result = future.get();
-            cout << "Sync " << toHandle(backupId) << " pause success: " << result << endl;
-            return;
-        }
-
+    {
         // sync enable id
-        client->syncs.enableSyncByBackupId(backupId, false, true, [](error err)
+        client->syncs.enableSyncByBackupId(backupId, targetState == SyncConfig::Pause, false, true, [](error err, SyncError serr)
             {
                 if (err)
                 {
@@ -9510,35 +9493,26 @@ void exec_syncxable(autocomplete::ACState& s)
                 }
                 else
                 {
-                    cout << "sync enabled" << endl;
+                    cout << "Sync Enabled." << endl;
                 }
             }, "");
 
-        return;
-
+        break;
+    }
     case SyncConfig::Suspend:
     case SyncConfig::Disable:
     {
         bool keepSyncDb = targetState == SyncConfig::Suspend;
 
-        client->syncs.disableSelectedSyncs(
-            [backupId](SyncConfig& config, Sync*)
-            {
-                return config.mBackupId == backupId;
-            },
+        client->syncs.disableSyncByBackupId(
+            backupId,
             withError, // true == fail, false == disable
             static_cast<SyncError>(withError ? atoi(errIdString.c_str()) : 0),
-            false, keepSyncDb,
-            [](size_t nDisabled){
-                if (nDisabled != 1)
-                {
-                    cout << "Disable failed! " << nDisabled << endl;
-                }
-                else
-                {
-                    cout << "Disable complete." << endl;
-                }
-        });
+            false,
+            keepSyncDb,
+            [](){
+                cout << "Sync Disabled." << endl;
+                });
         break;
     }}
 

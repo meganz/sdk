@@ -88,7 +88,7 @@ struct SyncTransfer_inClient: public File
 {
     // self-destruct after completion
     void completed(Transfer*, putsource_t) override;
-    void terminated() override;
+    void terminated(error) override;
 
     shared_ptr<SyncTransfer_inClient> selfKeepAlive;
     shared_ptr<SyncThreadsafeState> syncThreadSafeState;

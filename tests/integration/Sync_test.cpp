@@ -2567,13 +2567,16 @@ Sync* StandardClient::syncByBackupId(handle backupId)
 
 bool StandardClient::setSyncPausedByBackupId(handle id, bool pause)
 {
-    return client.syncs.setSyncPausedByBackupId(id, pause).get();
+    PromiseBoolSP result;
+    client.syncs.enableSyncByBackupId(id, true, false, false,
+        [result](error e, SyncError){ result->set_value(!e); }, "");
+    return result.get();
 }
 
 void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
 {
-    client.syncs.enableSyncByBackupId(id, false, false,
-        [result](error e){ result->set_value(!e); }, logname);
+    client.syncs.enableSyncByBackupId(id, false, false, false,
+        [result](error e, SyncError){ result->set_value(!e); }, logname);
 }
 
 bool StandardClient::enableSyncByBackupId(handle id, const string& logname)
@@ -2829,17 +2832,13 @@ void StandardClient::catchup_result()
 
 void StandardClient::disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB, PromiseBoolSP result)
 {
-    client.syncs.disableSelectedSyncs(
-        [id](SyncConfig& config, Sync*)
-        {
-            return config.mBackupId == id;
-        },
+    client.syncs.disableSyncByBackupId(id,
         false,
         error,
         enabled,
         keepSyncDB,
-        [result](size_t nDisabled){
-            result->set_value(!!nDisabled);
+        [result](){
+            result->set_value(true);
         });
 }
 
@@ -10071,7 +10070,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
             ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
 
             // Disable the sync.
-            cb.client.syncs.disableSyncs(NO_SYNC_ERROR, true);
+            cb.client.syncs.disableSyncs(NO_SYNC_ERROR, true, true);
 
             // Callback's done its job.
             cb.mOnFileAdded = nullptr;

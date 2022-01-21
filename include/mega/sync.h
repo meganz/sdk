@@ -93,7 +93,7 @@ public:
     bool operator!=(const SyncConfig &rhs) const;
 
     // Deduced from other memebers
-    SyncRunState runState();
+    SyncRunState getRunState() const;
 
     // the local path of the sync root folder
     const LocalPath& getLocalPath() const;
@@ -170,7 +170,7 @@ public:
     SyncBackupState mBackupState;
 
     // Current running state.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
-    syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no assoicated mSync
+    syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no associated mSync
 
     // Whether recursiveSync() is called.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
     bool mTemporarilyPaused = false;
@@ -403,6 +403,9 @@ class SyncThreadsafeState
     // know where the sync's tmp folder is
     LocalPath mSyncTmpFolder;
 
+    MegaClient* mClient = nullptr;
+    handle mBackupId = 0;
+
 public:
     // Remember which Nodes we created from upload,
     // until the corresponding LocalNodes are updated.
@@ -422,6 +425,12 @@ public:
 
     LocalPath syncTmpFolder() const;
     void setSyncTmpFolder(const LocalPath&);
+
+
+    SyncThreadsafeState(handle backupId, MegaClient* client) : mBackupId(backupId), mClient(client) {}
+    handle backupId() const { return mBackupId; }
+    MegaClient* client() const { return mClient; }
+
 };
 
 
@@ -880,9 +889,6 @@ struct Syncs
     // only for use in tests; not really thread safe
     Sync* runningSyncByBackupIdForTests(handle backupId) const;
 
-    // Pause/unpause a sync. Returns a future for async operation.
-    std::future<bool> setSyncPausedByBackupId(handle id, bool pause);
-
     void transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused);
 
     // returns a copy of the config, for thread safety
@@ -902,13 +908,11 @@ struct Syncs
     void purgeRunningSyncs();
     void resumeResumableSyncsOnStartup(bool resetSyncConfigStore, std::function<void(error)>&& completion);
 
-    void enableSyncByBackupId(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error)> completion, const string& logname);
+    void enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError)> completion, const string& logname);
+    void disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
-    void disableSyncs(SyncError syncError, bool newEnabledFlag);
-
-    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void(size_t)> completion);
+    void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
@@ -926,6 +930,7 @@ struct Syncs
     SyncConfigVector configsForDrive(const LocalPath& drive) const;
     SyncConfigVector allConfigs() const;
     bool configById(handle backupId, SyncConfig&) const;
+    bool configByRootNode(NodeHandle syncroot, SyncConfig&) const;
 
 
     // synchronous for now as that's a constraint from the intermediate layer
@@ -1104,10 +1109,10 @@ private:
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
         const string& rootNodeName, bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error, SyncError, handle)> completion, const string& logname);
-    void disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void(size_t)> completion);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
     void resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, std::function<void(error)>);
-    void enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
