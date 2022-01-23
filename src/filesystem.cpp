@@ -1878,6 +1878,7 @@ bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetN
     transient_error = fsAccess.transient_error;
     name_too_long = fsAccess.target_name_too_long;
 
+#ifdef ENABLE_SYNC
     if (method == MoveReplacedFileToSyncDebris)
     {
         // Move the obstruction to the local debris.
@@ -1895,7 +1896,9 @@ bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetN
         }
         return result;
     }
-    else if (method == RenameWithBracketedNumber)
+#endif // ENABLE_SYNC
+
+    if (method == RenameWithBracketedNumber)
     {
         // the destination path already exists
         // add an (x) suffix until there's no clash
@@ -1945,6 +1948,7 @@ bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_
     transient_error = fsAccess.transient_error;
     name_too_long = fsAccess.target_name_too_long;
 
+#ifdef ENABLE_SYNC
     if (method == MoveReplacedFileToSyncDebris)
     {
         // Move the obstruction to the local debris.
@@ -1962,7 +1966,9 @@ bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_
         }
         return result;
     }
-    else if (method == RenameWithBracketedNumber)
+#endif // ENABLE_SYNC
+
+    if (method == RenameWithBracketedNumber)
     {
         // the destination path already exists
         // add an (x) suffix until there's no clash

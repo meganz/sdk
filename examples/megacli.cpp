@@ -4805,7 +4805,10 @@ void exec_open(autocomplete::ACState& s)
 #endif
 
             auto fsNotificationsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+
+#ifdef ENABLE_SYNC
             fsNotificationsAccess->initFilesystemNotificationSystem(gFilesystemEventsFd);
+#endif // ENABLE_SYNC
 
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
@@ -8750,7 +8753,10 @@ int main(int argc, char* argv[])
 
     // Needed so we can get the cwd.
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+
+#ifdef ENABLE_SYNC
     fsAccess->initFilesystemNotificationSystem(gFilesystemEventsFd);
+#endif // ENABLE_SYNC
 
     // Where are we?
     if (!fsAccess->cwd(*startDir))

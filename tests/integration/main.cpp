@@ -24,7 +24,11 @@ std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
 string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
 
+#ifdef ENABLE_SYNC
+
 ClientManager g_clientManager;
+
+#endif // ENABLE_SYNC
 
 void WaitMillisec(unsigned n)
 {
@@ -322,7 +326,10 @@ int main (int argc, char *argv[])
     auto ret = RUN_ALL_TESTS();
 
     // shut down reusable clients before the logger goes out of scope
+#ifdef ENABLE_SYNC
     g_clientManager.shutdown();
+#endif // ENABLE_SYNC
+
     SimpleLogger::setOutputClass(nullptr);
 
     return ret;
@@ -458,10 +465,12 @@ fs::path makeReusableClientFolder(const string& subfolder)
 std::unique_ptr<::mega::FileSystemAccess> makeFsAccess(bool forNotifications)
 {
     auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
+
+#ifdef ENABLE_SYNC
     if (forNotifications)
-    {
         fsa->initFilesystemNotificationSystem(gFseventsFd);
-    }
+#endif // ENABLE_SYNC
+
     return fsa;
 }
 
