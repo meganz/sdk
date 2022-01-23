@@ -118,6 +118,8 @@ fs::path makeReusableClientFolder(const string& subfolder);
 
 std::unique_ptr<::mega::FileSystemAccess> makeFsAccess(bool forNotifications);
 
+#ifdef ENABLE_SYNC
+
 template<typename T>
 using shared_promise = std::shared_ptr<promise<T>>;
 
@@ -679,4 +681,5 @@ public:
 
 extern ClientManager g_clientManager;
 
+#endif // ENABLE_SYNC
 

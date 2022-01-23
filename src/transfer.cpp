@@ -881,6 +881,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 // pass the distribution responsibility to the sync, for sync requested downloads
                 if (f->syncxfer)
                 {
+#ifdef ENABLE_SYNC
                     auto dl = dynamic_cast<SyncDownload_inClient*>(f);
                     assert(dl);
                     dl->downloadDistributor = downloadDistributor;
@@ -890,6 +891,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     f->transfer = NULL;
                     f->completed(this, PUTNODES_SYNC);
                     it = files.erase(it);
+#endif // ENABLE_SYNC
                 }
                 else it++;
             }

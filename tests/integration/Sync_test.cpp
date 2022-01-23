@@ -30,14 +30,13 @@
 using namespace ::mega;
 using namespace ::std;
 
+#ifdef ENABLE_SYNC
 
 template<typename T>
 shared_promise<T> makeSharedPromise()
 {
     return shared_promise<T>(new promise<T>());
 }
-
-#ifdef ENABLE_SYNC
 
 bool suppressfiles = false;
 
