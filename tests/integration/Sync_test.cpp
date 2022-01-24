@@ -2567,10 +2567,10 @@ Sync* StandardClient::syncByBackupId(handle backupId)
 
 bool StandardClient::setSyncPausedByBackupId(handle id, bool pause)
 {
-    PromiseBoolSP result;
-    client.syncs.enableSyncByBackupId(id, true, false, false, false,
+    PromiseBoolSP result = makeSharedPromise<bool>();
+    client.syncs.enableSyncByBackupId(id, pause, false, false, false,
         [result](error e, SyncError){ result->set_value(!e); }, "");
-    return result.get();
+    return result->get_future().get();
 }
 
 void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)

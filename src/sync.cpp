@@ -2936,7 +2936,8 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     {
         CloudNode cloudNode;
         string cloudNodePath;
-        if (lookupCloudNode(us.mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY))
+        if (lookupCloudNode(us.mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY)
+            &&  us.mConfig.mOriginalPathOfRemoteRootNode != cloudNodePath)
         {
             us.mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
             saveSyncConfig(us.mConfig);
