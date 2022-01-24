@@ -16638,7 +16638,6 @@ void MegaApiImpl::fireOnReloadNeeded()
 
 void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 {
-    assert(threadId == std::this_thread::get_id());
     LOG_debug << "Sending " << event->getEventString() << " to app." << event->getValidDataToString();
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
