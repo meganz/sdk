@@ -23,16 +23,21 @@ typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
     MEGAPaymentMethodPaypal = 1,
     MEGAPaymentMethodItunes = 2,
     MEGAPaymentMethodGoogleWallet = 3,
-    MEGAPaymentMethodHuaweiWallet = 18,
     MEGAPaymentMethodBitcoin = 4,
     MEGAPaymentMethodUnionPay = 5,
     MEGAPaymentMethodFortumo = 6,
+    MEGAPaymentMethodStripe = 7,
     MEGAPaymentMethodCreditCard = 8,
     MEGAPaymentMethodCentili = 9,
+    MEGAPaymentMethodPaysafeCard = 10,
+    MEGAPaymentMethodAstropay = 11,
+    MEGAPaymentMethodReserved = 12,
     MEGAPaymentMethodWindowsStore = 13,
     MEGAPaymentMethodTpay = 14,
     MEGAPaymentMethodDirectReseller = 15,
     MEGAPaymentMethodECP = 16,
     MEGAPaymentMethodSabadell = 17,
-    MEGAPaymentMethodStripe = 19
+    MEGAPaymentMethodHuaweiWallet = 18,
+    MEGAPaymentMethodStripe2 = 19,
+    MEGAPaymentMethodWireTransfer = 999
 };

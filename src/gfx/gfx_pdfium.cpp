@@ -72,7 +72,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
         init();
     }
 
-    FPDF_DOCUMENT pdf_doc = FPDF_LoadDocument(path.toPath(*fa).c_str(), nullptr);
+    FPDF_DOCUMENT pdf_doc = FPDF_LoadDocument(path.toPath().c_str(), nullptr);
 #ifdef _WIN32
     LocalPath tmpFilePath;
     bool removetemporaryfile = false;
@@ -90,10 +90,10 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
                 {
                     LocalPath originPath = path;
                     tmpFilePath = workingDirFolder;
-                    tmpFilePath.appendWithSeparator(LocalPath::fromPath(".megapdftmp", *fa),false);
+                    tmpFilePath.appendWithSeparator(LocalPath::fromRelativePath(".megapdftmp"),false);
                     if (fa->copylocal(originPath, tmpFilePath, pdfFile->mtime))
                     {
-                        pdf_doc = FPDF_LoadDocument(tmpFilePath.toPath(*fa).c_str(), nullptr);
+                        pdf_doc = FPDF_LoadDocument(tmpFilePath.toPath().c_str(), nullptr);
                         removetemporaryfile = true;
                     }
                 }
@@ -131,11 +131,11 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
                 {
                     if (!w || !h)
                     {
-                        LOG_err << "Error reading PDF page size for " << path.toPath(*fa).c_str();
+                        LOG_err << "Error reading PDF page size for " << path.toPath().c_str();
                     }
                     else
                     {
-                        LOG_err << "Page size too large. Skipping PDF preview for " << path.toPath(*fa).c_str();
+                        LOG_err << "Page size too large. Skipping PDF preview for " << path.toPath().c_str();
                     }
                     FPDF_ClosePage(page);
                     FPDF_CloseDocument(pdf_doc);
@@ -183,18 +183,18 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
             else
             {
                 FPDF_CloseDocument(pdf_doc);
-                LOG_err << "Error loading PDF page to create thumb for " << path.toPath(*fa).c_str();
+                LOG_err << "Error loading PDF page to create thumb for " << path;
             }
         }
         else
         {
             FPDF_CloseDocument(pdf_doc);
-            LOG_err << "Error getting number of pages for " << path.toPath(*fa).c_str();
+            LOG_err << "Error getting number of pages for " << path;
         }
     }
     else
     {
-        LOG_err << "Error loading PDF to create thumbnail for " << path.toPath(*fa).c_str() << " " << FPDF_GetLastError();
+        LOG_err << "Error loading PDF to create thumbnail for " << path << " " << FPDF_GetLastError();
     }
 
 #ifdef _WIN32

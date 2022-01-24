@@ -14,10 +14,12 @@
 
 
 if (WIN32)
-cmake_minimum_required(VERSION 3.15)
-cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
+  cmake_minimum_required(VERSION 3.15)
+  cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
 else()
-cmake_minimum_required(VERSION 3.13)
+  cmake_minimum_required(VERSION 3.13)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Useful for make or ninja
+  message( "CMAKE_EXPORT_COMPILE_COMMANDS ON")
 endif()
 
 project(MegaSDK)
@@ -396,7 +398,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 #find_package(CURL CONFIG REQUIRED PATHS "${vcpkg_dir}/share/curl" NO_DEFAULT_PATH )
             ENDIF()
         ENDIF()
-        IF(USE_CURL)
+        IF(MEGA_USE_C_ARES)
             ImportStdVcpkgLibrary(cares       cares cares libcares libcares)
         ENDIF()
 
@@ -417,8 +419,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
 
-        ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
+        IF (NOT IOS)
+	ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
         ImportStdVcpkgLibrary(gmock           gmockd gmock libgmockd libgmock)
+	ENDIF()
 
         IF(USE_MEDIAINFO)
             IF(CMAKE_HOST_APPLE)
@@ -609,6 +613,11 @@ ELSE(WIN32)
 
     IF(APPLE)
         SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm)
+
+        # if building all-static megacli for mac, you will need these (uncomment to enable)
+        #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework LDAP")
+        #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "libresolv.dylib")
+
     ENDIF()
 
     IF(USE_DRIVE_NOTIFICATIONS)
@@ -916,6 +925,7 @@ if(IOS)
         ${MegaDir}/bindings/ios/MEGAChildrenLists.mm
         ${MegaDir}/bindings/ios/MEGAContactRequest.mm
         ${MegaDir}/bindings/ios/MEGAContactRequestList.mm
+	${MegaDir}/bindings/ios/MEGACurrency.mm
         ${MegaDir}/bindings/ios/MEGAError.mm
         ${MegaDir}/bindings/ios/MEGAEvent.mm
         ${MegaDir}/bindings/ios/MEGAFolderInfo.mm
@@ -1054,6 +1064,9 @@ configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
 # actual apps
 
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
+if (APPLE)
+    add_executable(megacli_fsloader ${MegaDir}/examples/fsevents_loader_megacli_maconly.cpp)
+endif()
 target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
     target_link_libraries(megacli ${readline_LIBRARIES})
@@ -1082,6 +1095,8 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")  # declaration hides previous local declaration
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4266")  # derived class did not override all overloads of a virtual function
     #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
+
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")  # Sync_test.cpp : fatal error C1128: number of sections exceeded object file format limit: compile with /bigobj
 
     set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET megacli PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
