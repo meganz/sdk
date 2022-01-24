@@ -2287,9 +2287,14 @@ void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
     }
 }
 
-void SyncTransfer_inClient::terminated()
+void SyncTransfer_inClient::terminated(error e)
 {
-    File::terminated();
+    File::terminated(e);
+
+    if (e == API_EOVERQUOTA)
+    {
+        syncThreadSafeState->client()->syncs.disableSyncByBackupId(syncThreadSafeState->backupId(), true, FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
+    }
 
     wasTerminated = true;
     selfKeepAlive.reset();  // deletes this object! (if abandoned by sync)
@@ -2320,16 +2325,28 @@ void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
 
 void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
 {
+
+    weak_ptr<SyncTransfer_inClient> self = selfKeepAlive;
+
     File::sendPutnodes(client,
         uploadHandle,
         uploadToken,
         fileNodeKey,
         PUTNODES_SYNC,
         ovHandle,
-        [client](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride){
-            if (e == API_EACCESS)
+        [self](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride){
+
+            if (auto s = self.lock())
             {
-                client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
+                auto client = s->syncThreadSafeState->client();
+                if (e == API_EACCESS)
+                {
+                    client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
+                }
+                else if (e == API_EOVERQUOTA)
+                {
+                    client->syncs.disableSyncByBackupId(s->syncThreadSafeState->backupId(), true, FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
+                }
             }
         });
 }

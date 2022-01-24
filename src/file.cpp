@@ -386,7 +386,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
     }
 }
 
-void File::terminated()
+void File::terminated(error)
 {
 
 }

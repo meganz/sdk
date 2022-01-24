@@ -1275,15 +1275,6 @@ bool CommandPutNodes::procresult(Result r)
             {
                 client->activateoverquota(0, false);
             }
-#ifdef ENABLE_SYNC
-            else    // the target's account is overquota
-            {
-                if (source == PUTNODES_SYNC)
-                {
-                    client->disableSyncContainingNode(targethandle, FOREIGN_TARGET_OVERSTORAGE, false);
-                }
-            }
-#endif
         }
 
         performAppCallback(r.errorOrOK());

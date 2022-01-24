@@ -725,7 +725,7 @@ void SyncConfig::setError(SyncError value)
     mError = value;
 }
 
-SyncConfig::SyncRunState SyncConfig::runState()
+SyncConfig::SyncRunState SyncConfig::getRunState() const
 {
     if (mRunningState >= SYNC_INITIALSCAN)
     {
@@ -972,12 +972,12 @@ string SyncConfig::getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle us
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const string& cdebris,
-           const LocalPath& clocaldebris, const string& rootNodeName, bool cinshare, const string& logname)
+           const LocalPath& clocaldebris, bool cinshare, const string& logname)
 : syncs(us.syncs)
 , localroot(nullptr)
 , mUnifiedSync(us)
 , syncscanbt(us.syncs.rng)
-, threadSafeState(new SyncThreadsafeState)
+, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient))
 {
     assert(syncs.onSyncThread());
     assert(cdebris.empty() || clocaldebris.empty());
@@ -1056,6 +1056,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
             // Note, we opened dbaccess in thread-safe mode
             statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED));
+            us.mConfig.mDatabaseExists = true;
 
             localroot->fsid_lastSynced = fas->fsid;
             readstatecache();
@@ -1083,7 +1084,7 @@ Sync::~Sync()
     // unlock tmp lock
     tmpfa.reset();
 
-    // The database is closed; deleting localnodes will not remove them
+    // Deleting localnodes after this will not remove them from the db.
     statecachetable.reset();
 
     // This will recursively delete all LocalNodes in the sync.
@@ -1380,7 +1381,7 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
         }
         else
         {
-
+            // delete the database file directly since we don't have an object for it
             auto fas = syncs.fsaccess->newfileaccess(false);
             if (fas->fopen(mConfig.mLocalPath, true, false))
             {
@@ -1392,14 +1393,13 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
                 LOG_debug << "Deleting sync database at: " << dbPath;
                 syncs.fsaccess->unlinklocal(dbPath);
             }
-            mConfig.mDatabaseExists = false;
         }
+        mConfig.mDatabaseExists = false;
     }
 
     mConfig.setError(newSyncError);
     mConfig.setEnabled(newEnableFlag);
 
-    bool makeActiveCallback = false;
     bool nowActive = false;
 
     if (newstate != mConfig.mRunningState)
@@ -1414,7 +1414,6 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
             if (wasActive != nowActive)
             {
                 assert(syncs.onSyncThread());
-                makeActiveCallback = true;
             }
         }
     }
@@ -1423,12 +1422,6 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
     {
         changedConfigState(notifyApp);
         mNextHeartbeat->updateSPHBStatus(*this);
-    }
-
-    if (makeActiveCallback)
-    {
-        // Per MegaApi documentation, this callback occurs after the changed-state callback
-        syncs.mClient.app->syncupdate_active(mConfig, nowActive);
     }
 }
 
@@ -2884,25 +2877,25 @@ UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
 }
 
 
-void Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error)> completion, const string& logname)
+void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError)> completion, const string& logname)
 {
     assert(!onSyncThread());
 
-    auto clientCompletion = [=](error e, SyncError, handle)
+    auto clientCompletion = [=](error e, SyncError se, handle)
         {
-            queueClient([completion, e](MegaClient&, DBTableTransactionCommitter&)
+            queueClient([completion, e, se](MegaClient&, DBTableTransactionCommitter&)
                 {
-                    if (completion) completion(e);
+                    if (completion) completion(e, se);
                 });
         };
 
     queueSync([=]()
         {
-            enableSyncByBackupId_inThread(backupId, resetFingerprint, notifyApp, clientCompletion, logname);
+            enableSyncByBackupId_inThread(backupId, paused, resetFingerprint, notifyApp, setOriginalPath, clientCompletion, logname);
         });
 }
 
-void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(onSyncThread());
 
@@ -2918,16 +2911,19 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint
 
     if (!usPtr)
     {
-        if (completion) completion(API_ENOENT, NO_SYNC_ERROR, backupId);
-        return;
-    }
-    else if (usPtr->mSync)
-    {
-        if (completion) completion(API_EEXIST, NO_SYNC_ERROR, backupId);
+        if (completion) completion(API_ENOENT, UNKNOWN_ERROR, backupId);
         return;
     }
 
     UnifiedSync& us = *usPtr;
+
+    if (us.mSync)
+    {
+        // it's already running, just set whether it's paused or not.
+        us.mConfig.mTemporarilyPaused = paused;
+        if (completion) completion(API_OK, NO_SYNC_ERROR, backupId);
+        return;
+    }
 
     us.mConfig.mError = NO_SYNC_ERROR;
 
@@ -2936,16 +2932,27 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint
         us.mConfig.mFilesystemFingerprint = 0; //This will cause the local filesystem fingerprint to be recalculated
     }
 
+    if (setOriginalPath)
+    {
+        CloudNode cloudNode;
+        string cloudNodePath;
+        if (lookupCloudNode(us.mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY)
+            &&  us.mConfig.mOriginalPathOfRemoteRootNode != cloudNodePath)
+        {
+            us.mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
+            saveSyncConfig(us.mConfig);
+        }
+    }
+
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
-    string rootNodeName;
     bool inshare, isnetwork;
 
     error e;
     {
         // todo: even better thead safety
         lock_guard<mutex> g(mClient.nodeTreeMutex);
-        e = mClient.checkSyncConfig(us.mConfig, rootpath, openedLocalFolder, rootNodeName, inshare, isnetwork);
+        e = mClient.checkSyncConfig(us.mConfig, rootpath, openedLocalFolder, inshare, isnetwork);
     }
 
     if (e)
@@ -3000,23 +3007,22 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool resetFingerprint
     us.changedConfigState(notifyApp);
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
-    startSync_inThread(us, debris, localdebris, rootNodeName, inshare, isnetwork, rootpath, completion, logname);
+    startSync_inThread(us, debris, localdebris, inshare, isnetwork, rootpath, completion, logname);
     us.mNextHeartbeat->updateSPHBStatus(us);
 }
 
-bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, bool exists, string cloudPath)
+bool Syncs::checkSyncRemoteLocationChange(UnifiedSync& us, bool exists, string cloudPath)
 {
     assert(onSyncThread());
 
-    bool changed = false;
     bool pathChanged = false;
     if (exists)
     {
         if (cloudPath != us.mConfig.mOriginalPathOfRemoteRootNode)
         {
+            // the sync will be suspended. Should the user manually start it again,
+            // then the recorded path will be updated to whatever path the Node is then at.
             LOG_debug << "Sync root path changed!  Was: " << us.mConfig.mOriginalPathOfRemoteRootNode << " now: " << cloudPath;
-            us.mConfig.mOriginalPathOfRemoteRootNode = cloudPath;
-            changed = true;
             pathChanged = true;
         }
     }
@@ -3025,22 +3031,14 @@ bool Syncs::updateSyncRemoteLocation(UnifiedSync& us, bool exists, string cloudP
         if (!us.mConfig.mRemoteNode.isUndef())
         {
             us.mConfig.mRemoteNode = NodeHandle();
-            changed = true;
         }
-    }
-
-    if (changed)
-    {
-        assert(onSyncThread());
-        mClient.app->syncupdate_remote_root_changed(us.mConfig);
-        saveSyncConfig(us.mConfig);
     }
 
     return pathChanged;
 }
 
 void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
-    const string& rootNodeName, bool inshare, bool isNetwork, const LocalPath& rootpath,
+    bool inshare, bool isNetwork, const LocalPath& rootpath,
     std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(onSyncThread());
@@ -3048,7 +3046,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     auto prevFingerprint = us.mConfig.mFilesystemFingerprint;
 
     assert(!us.mSync);
-    us.mSync.reset(new Sync(us, debris, localdebris, rootNodeName, inshare, logname));
+    us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname));
     us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
 
     // Assume we'll encounter an error.
@@ -3238,6 +3236,23 @@ bool Syncs::configById(handle backupId, SyncConfig& configResult) const
     for (auto& s : mSyncVec)
     {
         if (s->mConfig.mBackupId == backupId)
+        {
+            configResult = s->mConfig;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Syncs::configByRootNode(NodeHandle syncroot, SyncConfig& configResult) const
+{
+    assert(!onSyncThread());
+
+    lock_guard<mutex> g(mSyncVecMutex);
+
+    for (auto& s : mSyncVec)
+    {
+        if (s->mConfig.mRemoteNode == syncroot)
         {
             configResult = s->mConfig;
             return true;
@@ -4456,7 +4471,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         return;
     }
 
-    enableSyncByBackupId_inThread(c.mBackupId, false, notifyApp, completion, logname);
+    enableSyncByBackupId_inThread(c.mBackupId, false, false, notifyApp, true, completion, logname);
 }
 
 Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
@@ -4501,56 +4516,6 @@ bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
     }
 
     return false;
-}
-
-std::future<bool> Syncs::setSyncPausedByBackupId(handle id, bool pause)
-{
-    assert(!onSyncThread());
-
-    using PromiseType = std::promise<bool>;
-    using PromisePtr  = std::shared_ptr<PromiseType>;
-
-    auto promise = PromisePtr(new PromiseType());
-    auto future = promise->get_future();
-
-    queueSync([this, id, pause, promise]() {
-
-        assert(onSyncThread());
-        lock_guard<mutex> g(mSyncVecMutex);
-
-        bool found = false;
-
-        for (auto& us : mSyncVec)
-        {
-            // Skip syncs that aren't active.
-            if (!us || !us->mSync)
-                continue;
-
-            // Skip syncs that don't match the specified ID.
-            if (us->mConfig.mBackupId != id)
-                continue;
-
-            // Update the sync's pause state.
-            us->mSync->setSyncPaused(pause);
-
-            // Let the caller know we found the desired sync.
-            found = true;
-
-            // Are we unpausing the sync?
-            if (!pause)
-            {
-                // Make sure we re-examine the sync.
-                us->mSync->localroot->setSyncAgain(false, true, true);
-
-                // Let the engine know it has work to do.
-                waiter.notify();
-            }
-        }
-
-        promise->set_value(found);
-    });
-
-    return future;
 }
 
 void Syncs::transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused)
@@ -4705,54 +4670,67 @@ void Syncs::renameSync_inThread(handle backupId, const string& newname, std::fun
     completion(API_EEXIST);
 }
 
-void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
+void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb)
 {
     assert(!onSyncThread());
 
-    disableSelectedSyncs([&](SyncConfig& config, Sync*)
+    queueSync([this, syncError, newEnabledFlag, keepSyncDb]()
         {
-            return config.getEnabled();
-        },
-        false,
-        syncError,
-        newEnabledFlag,
-        true,
-        [=](size_t nDisabled) {
-            LOG_info << "Disabled " << nDisabled << " syncs. error = " << syncError;
             assert(onSyncThread());
-            if (nDisabled) mClient.app->syncs_disabled(syncError);
+            SyncConfigVector v = allConfigs();
+
+            int nEnabled = 0;
+            for (auto& c : v)
+            {
+                if (c.getEnabled()) ++nEnabled;
+            }
+
+            for (auto& c : v)
+            {
+                if (c.getEnabled())
+                {
+
+                    std::function<void()> completion = nullptr;
+                    if (!--nEnabled)
+                    {
+                        completion = [=](){
+                            LOG_info << "Disabled syncs. error = " << syncError;
+                            mClient.app->syncs_disabled(syncError);
+                        };
+                    }
+
+                    disableSyncByBackupId_inThread(c.mBackupId, false, syncError, newEnabledFlag, keepSyncDb, completion);
+                }
+            }
         });
 }
 
-void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void(size_t)> completion)
+void Syncs::disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion)
 {
     assert(!onSyncThread());
-    queueSync([this, selector, disableIsFail, syncError, newEnabledFlag, keepSyncDb, completion]()
+    queueSync([this, backupId, disableIsFail, syncError, newEnabledFlag, keepSyncDb, completion]()
     {
-        disableSelectedSyncs_inThread(selector, disableIsFail, syncError, newEnabledFlag, keepSyncDb, completion);
+            disableSyncByBackupId_inThread(backupId, disableIsFail, syncError, newEnabledFlag, keepSyncDb, completion);
     });
 }
 
-void Syncs::disableSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void(size_t)> completion)
+void Syncs::disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion)
 {
     assert(onSyncThread());
 
-    size_t nDisabled = 0;
     for (auto i = mSyncVec.size(); i--; )
     {
         auto& us = *mSyncVec[i];
         auto& config = us.mConfig;
-        auto* sync = us.mSync.get();
 
-        if (selector(config, sync))
+        if (config.mBackupId == backupId)
         {
             us.changeState(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true, keepSyncDb); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
-            nDisabled += 1;
 
             mHeartBeatMonitor->updateOrRegisterSync(*mSyncVec[i]);
         }
     }
-    if (completion) completion(nDisabled);
+    if (completion) completion();
 }
 
 void Syncs::syncRun(std::function<void()> f)
@@ -4836,10 +4814,14 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
     {
         // Special case backward compatibility for MEGAsync
         // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-        disableSelectedSyncs_inThread(
-            [&](SyncConfig& config, Sync*){return config.getEnabled();},
-            false, LOGGED_OUT, false, false, nullptr);
 
+        for (auto& us : mSyncVec)
+        {
+            if (us->mConfig.getEnabled())
+            {
+                disableSyncByBackupId_inThread(us->mConfig.mBackupId, true, LOGGED_OUT, false, false, nullptr);
+            }
+        }
         syncConfigStoreFlush();
     }
     else if (mSyncConfigStore)
@@ -4996,14 +4978,16 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
     {
         if (!unifiedSync->mSync)
         {
-            if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
+            if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty())
             {
-
+                // this should only happen on initial migraion from from old caches
                 CloudNode cloudNode;
                 string cloudNodePath;
-                bool foundCloudNode = lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
-
-                updateSyncRemoteLocation(*unifiedSync, foundCloudNode, cloudNodePath); //updates cache & notice app of this change
+                if (lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY))
+                {
+                    unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
+                    saveSyncConfig(unifiedSync->mConfig);
+                }
             }
 
             bool hadAnError = unifiedSync->mConfig.getError() != NO_SYNC_ERROR;
@@ -5023,7 +5007,7 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, [this, unifiedSync, hadAnError](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [this, unifiedSync, hadAnError](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
                         assert(onSyncThread());
@@ -9162,16 +9146,16 @@ void Syncs::syncLoop()
         // this loop adapted from the old notifypurge()
         for (auto& us : mSyncVec)
         {
-            CloudNode cloudNode;
-            string cloudNodePath;
-            bool inTrash = false;
-            bool foundCloudNode = lookupCloudNode(us->mConfig.mRemoteNode, cloudNode, &cloudNodePath, &inTrash, nullptr, nullptr, Syncs::FOLDER_ONLY);
-
-            // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
-            bool pathChanged = updateSyncRemoteLocation(*us, foundCloudNode, cloudNodePath);
-
             if (Sync* sync = us->mSync.get())
             {
+                CloudNode cloudNode;
+                string cloudNodePath;
+                bool inTrash = false;
+                bool foundCloudNode = lookupCloudNode(us->mConfig.mRemoteNode, cloudNode, &cloudNodePath, &inTrash, nullptr, nullptr, Syncs::FOLDER_ONLY);
+
+                // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
+                bool pathChanged = checkSyncRemoteLocationChange(*us, foundCloudNode, cloudNodePath);
+
                 if (!foundCloudNode)
                 {
                     LOG_debug << "Detected sync root node no longer exists";
@@ -9186,6 +9170,7 @@ void Syncs::syncLoop()
                 {
                     LOG_debug << "Detected sync root node is now at a different path.";
                     sync->changestate(SYNC_FAILED, REMOTE_PATH_HAS_CHANGED, false, true, true);
+                    mClient.app->syncupdate_remote_root_changed(sync->getConfig());
                 }
             }
         };

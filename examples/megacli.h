@@ -56,7 +56,7 @@ struct AppFileGet : public AppFile
     void start() override;
     void update();
     void completed(Transfer*, putsource_t) override;
-    void terminated() override;
+    void terminated(error) override;
 
     AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
@@ -67,7 +67,7 @@ struct AppFilePut : public AppFile
     void start() override;
     void update();
     void completed(Transfer*, putsource_t) override;
-    void terminated() override;
+    void terminated(error) override;
 
     void displayname(string*);
 
@@ -204,7 +204,6 @@ struct DemoApp : public MegaApp
 
 #ifdef ENABLE_SYNC
     void syncupdate_stateconfig(const SyncConfig& config) override;
-    void syncupdate_active(const SyncConfig& config, bool active) override;
     void sync_auto_resume_result(const SyncConfig&, bool attempted, bool hadAnError) override;
     void sync_removed(const SyncConfig& config) override;
 

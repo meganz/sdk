@@ -101,7 +101,7 @@ Transfer::~Transfer()
         }
 
         (*it)->transfer = NULL;
-        (*it)->terminated();
+        (*it)->terminated(API_OK);
     }
 
     if (!mOptimizedDelete)
@@ -391,7 +391,7 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
     transfer->files.erase(f->file_it);
     client->app->file_removed(f, e);
     f->transfer = NULL;
-    f->terminated();
+    f->terminated(e);
 }
 
 // transfer attempt failed, notify all related files, collect request on
@@ -459,13 +459,6 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
                 && client->isForeignNode((*it)->h))
         {
             File *f = (*it++);
-
-#ifdef ENABLE_SYNC
-            if (f->syncxfer)
-            {
-                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE, false);
-            }
-#endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
             continue;
         }
@@ -549,7 +542,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
+                client->syncs.disableSyncs(BUSINESS_EXPIRED, false, true);
                 alreadyDisabled = true;
             }
 #endif
@@ -858,7 +851,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #endif
                     client->app->file_removed(f, API_EWRITE);
                     f->transfer = NULL;
-                    f->terminated();
+                    f->terminated(API_EWRITE);
                 }
                 else
                 {

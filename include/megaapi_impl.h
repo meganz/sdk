@@ -1003,7 +1003,7 @@ protected:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const SyncConfig& config, bool active, MegaClient* client);
+    MegaSyncPrivate(const SyncConfig& config, MegaClient* client);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -1025,17 +1025,17 @@ public:
 
     int getError() const override;
     void setError(int error);
-    int getWarning() const override;
-    void setWarning(int warning);
+    //int getWarning() const override;
+    //void setWarning(int warning);
 
     int getType() const override;
     void setType(SyncType type);
 
-    void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
+    //void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
 
-    bool isEnabled() const override; //enabled by user
-    bool isActive() const override; //not disabled by user nor failed (nor being removed)
-    bool isTemporaryDisabled() const override; //disabled automatically for a transient reason
+    int getRunState() const override;
+
+    MegaSync::SyncRunningState mRunState = SyncRunningState::RUNSTATE_DISABLED;
 
 protected:
     MegaHandle megaHandle;
@@ -1048,12 +1048,13 @@ protected:
 
     //holds error cause
     int mError = NO_SYNC_ERROR;
-    int mWarning = NO_SYNC_WARNING;
+    //int mWarning = NO_SYNC_WARNING;
 
     handle mBackupId = UNDEF;
 
-    bool mActive = false;
-    bool mEnabled = false;
+    //bool mActive = false;
+    //bool mEnabled = false;
+
 };
 
 
@@ -1086,6 +1087,10 @@ class MegaRequestPrivate : public MegaRequest
 	public:
         MegaRequestPrivate(int type, MegaRequestListener *listener = NULL);
         MegaRequestPrivate(MegaRequestPrivate *request);
+
+        // Set this action to be executed in sendPendingRequests()
+        // instead of the huge switch, as a structural improvement
+        std::function<void()> action;
 
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
@@ -1937,7 +1942,7 @@ struct MegaFileGet : public MegaFile
     void updatelocalname() override;
     void progress() override;
     void completed(Transfer*, putsource_t source) override;
-    void terminated() override;
+    void terminated(error) override;
     MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType);
     MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath);
     ~MegaFileGet() {}
@@ -1952,7 +1957,7 @@ private:
 struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, putsource_t source) override;
-    void terminated() override;
+    void terminated(error) override;
     MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}
 
@@ -2521,11 +2526,10 @@ class MegaApiImpl : public MegaApp
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void importSyncConfigs(const char* configs, MegaRequestListener* listener);
         const char* exportSyncConfigs();
-        void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
-        void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
-        void disableSyncById(handle backupId, MegaRequestListener *listener = NULL);
-        void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
+
+        void setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener);
+
         void rescanSync(MegaHandle backupId);
         MegaSyncList *getSyncs();
 
@@ -2966,9 +2970,7 @@ protected:
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
         void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
-        void fireOnSyncDisabled(MegaSyncPrivate *sync);
-        void fireOnSyncEnabled(MegaSyncPrivate *sync);
-        void fireonSyncDeleted(MegaSyncPrivate *sync);
+        void fireOnSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
 
@@ -3283,9 +3285,6 @@ protected:
 
         // calls fireOnSyncStateChanged
         void syncupdate_stateconfig(const SyncConfig& config) override;
-
-        // calls firOnSyncDisabled or fireOnSyncEnabled
-        void syncupdate_active(const SyncConfig& config, bool active) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
         void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override;

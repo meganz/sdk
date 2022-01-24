@@ -1708,10 +1708,6 @@ void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
 void MegaListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
 { }
-void MegaListener::onSyncDisabled(MegaApi *, MegaSync *)
-{ }
-void MegaListener::onSyncEnabled(MegaApi *, MegaSync *)
-{ }
 void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
 void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
@@ -3403,44 +3399,14 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
-{
-    pImpl->removeSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
-}
-
-void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
-{
-    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
-}
-
 void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
 {
     pImpl->removeSyncById(backupId, listener);
 }
 
-void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
+void MegaApi::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningState targetState, MegaRequestListener *listener)
 {
-    pImpl->disableSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
-}
-
-void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
-{
-    pImpl->disableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
-}
-
-void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
-{
-    pImpl->enableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
-}
-
-void MegaApi::enableSync(MegaHandle backupId, MegaRequestListener *listener)
-{
-    pImpl->enableSyncById(backupId, listener);
-}
-
-void MegaApi::disableSync(MegaHandle backupId, MegaRequestListener *listener)
-{
-    pImpl->disableSyncById(backupId, listener);
+    pImpl->setSyncRunState(backupId, targetState, listener);
 }
 
 void MegaApi::rescanSync(MegaHandle backupId)
@@ -5957,29 +5923,19 @@ int MegaSync::getError() const
     return MegaSync::Error::NO_SYNC_ERROR;
 }
 
-int MegaSync::getWarning() const
-{
-    return MegaSync::Warning::NO_SYNC_WARNING;
-}
+//int MegaSync::getWarning() const
+//{
+//    return MegaSync::Warning::NO_SYNC_WARNING;
+//}
 
 int MegaSync::getType() const
 {
     return MegaSync::SyncType::TYPE_UNKNOWN;
 }
 
-bool MegaSync::isEnabled() const
+int MegaSync::getRunState() const
 {
-    return true;
-}
-
-bool MegaSync::isActive() const
-{
-    return false;
-}
-
-bool MegaSync::isTemporaryDisabled() const
-{
-    return false;
+    return 0;
 }
 
 const char* MegaSync::getMegaSyncErrorCode()
@@ -5992,25 +5948,25 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
     return MegaApi::strdup(SyncConfig::syncErrorToStr(static_cast<SyncError>(errorCode)).c_str());
 }
 
-const char* MegaSync::getMegaSyncWarningCode()
-{
-    return MegaSync::getMegaSyncWarningCode(getWarning());
-}
-
-const char* MegaSync::getMegaSyncWarningCode(int warningCode)
-{
-    switch(warningCode)
-    {
-    case MegaSync::Warning::NO_SYNC_WARNING:
-        return "No error";
-    case MegaSync::Warning::LOCAL_IS_FAT:
-        return "Local filesystem is FAT";
-    case MegaSync::Warning::LOCAL_IS_HGFS:
-        return "Local filesystem is HGFS";
-    default:
-        return "Undefined warning";
-    }
-}
+//const char* MegaSync::getMegaSyncWarningCode()
+//{
+//    return MegaSync::getMegaSyncWarningCode(getWarning());
+//}
+//
+//const char* MegaSync::getMegaSyncWarningCode(int warningCode)
+//{
+//    switch(warningCode)
+//    {
+//    case MegaSync::Warning::NO_SYNC_WARNING:
+//        return "No error";
+//    case MegaSync::Warning::LOCAL_IS_FAT:
+//        return "Local filesystem is FAT";
+//    case MegaSync::Warning::LOCAL_IS_HGFS:
+//        return "Local filesystem is HGFS";
+//    default:
+//        return "Undefined warning";
+//    }
+//}
 
 MegaSyncList *MegaSyncList::createInstance()
 {
