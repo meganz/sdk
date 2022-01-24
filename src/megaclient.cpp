@@ -8562,7 +8562,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
 
                 // NodeManager takes n ownership
-                mNodeManager.addNode(n, fetchingnodes);
+                mNodeManager.addNode(n, notify,  fetchingnodes);
 
                 if (!ISUNDEF(su))
                 {
@@ -8659,6 +8659,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 notifynode(n);
             }
 
+            // From this point n is invalid
+            mNodeManager.saveNode(*n);
             n = nullptr;    // ownership is taken by NodeManager upon addNode()
         }
     }
@@ -12030,7 +12032,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    necessaryCommit = true;
                    // Add nodes from old data base structure to nodes on demand structure
                    // When all nodes are loaded we force a commit
-                   mNodeManager.addNode(n, true); // DB
+                   mNodeManager.addNode(n, false, true); // DB
                    sctable->del(id);
                 }
                 else
@@ -16763,7 +16765,7 @@ bool NodeManager::setrootnode(Node* node)
     }
 }
 
-bool NodeManager::addNode(Node *node, bool isFetching)
+bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 {
     // 'isFetching' is true only when CommandFetchNodes is in flight and/or it has been received,
     // but it's been complemented with actionpackets. It's false when loaded from DB.
@@ -16788,13 +16790,14 @@ bool NodeManager::addNode(Node *node, bool isFetching)
     }
 
     // TODO nodes on demand: we should also keep in RAM the inshares (when fetching nodes)
-    if (mKeepAllNodesInMemory || rootNode || isFolderLink || !isFetching)
+    if (mKeepAllNodesInMemory || rootNode || isFolderLink || !isFetching || notify)
     {
         saveNodeInRAM(node);
     }
     else
     {
-        saveNodeInDataBase(node);
+        updateCountersWithNode(*node);
+        mNodesToRemoveOnlyDB[node->nodeHandle()] = node;
     }
 
     return true;
@@ -17789,8 +17792,12 @@ void NodeManager::notifyPurge()
 
             if (n->changed.removed)
             {
-                // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
-                subtractFromRootCounter(*n);
+                if (n->parent)
+                {
+                    // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
+                    subtractFromRootCounter(*n);
+                }
+
                 mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
 
                 removeFingerprint(n);
@@ -17901,10 +17908,6 @@ void NodeManager::saveNodeInRAM(Node *node)
 {
     mNodes[node->nodeHandle()] = node;
 
-    // do not wait for notifypurge() to dump to disk / DB, since
-    // some operations rely on DB queries (ie. NodeCounters)
-    mTable->put(node);
-
     // In case of folder link it isn't neccesary to add to mNodesWithMissingParent
     if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE
             && node->nodeHandle() != mClient.rootnodes.files)
@@ -17928,41 +17931,6 @@ void NodeManager::saveNodeInRAM(Node *node)
             }
 
             mNodesWithMissingParent.erase(it);
-        }
-    }
-}
-
-void NodeManager::saveNodeInDataBase(Node *node)
-{
-    mTable->put(node);
-
-    NodeHandle firstValidAncestor = getFirstAncestor(node->parentHandle());
-    firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : node->parentHandle();
-
-    if (firstValidAncestor != UNDEF)
-    {
-        increaseCounter(node, firstValidAncestor);
-
-        auto it = mNodeCounters.find(node->nodeHandle());
-        if (it != mNodeCounters.end())
-        {
-            if (node->type == FILENODE)
-            {
-                // file versions may have been counted as files instead of versions upon
-                // processing fetchnodes from API. In result, if the parent was unknown (not
-                // processed yet), it's not possible to differentiate between a file and a version
-                // --> if this node is a file, child nodes were versions
-                it->second.versions += it->second.files;
-                it->second.versionStorage += it->second.storage;
-                it->second.files = 0;
-                it->second.storage = 0;
-            }
-            mNodeCounters[firstValidAncestor].files += it->second.files;
-            mNodeCounters[firstValidAncestor].storage += it->second.storage;
-            mNodeCounters[firstValidAncestor].folders += it->second.folders;
-            mNodeCounters[firstValidAncestor].versions += it->second.versions;
-            mNodeCounters[firstValidAncestor].versionStorage += it->second.versionStorage;
-            mNodeCounters.erase(it);
         }
     }
 }
@@ -18153,6 +18121,27 @@ FingerprintMapPosition NodeManager::getInvalidPosition()
     return mFingerPrints.end();
 }
 
+void NodeManager::saveNode(Node &node)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return;
+    }
+
+    // do not wait for notifypurge() to dump to disk / DB, since
+    // some operations rely on DB queries (ie. NodeCounters)
+    mTable->put(&node);
+
+    auto it = mNodesToRemoveOnlyDB.find(node.nodeHandle());
+    if (it != mNodesToRemoveOnlyDB.end())
+    {
+        mNodesToRemoveOnlyDB.erase(it);
+        assert(mNodes.find(node.nodeHandle()) == mNodes.end());
+        delete &node;
+    }
+}
+
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
 {
     if (!mTable)
@@ -18169,6 +18158,40 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     }
 
     return node;
+}
+
+void NodeManager::updateCountersWithNode(const Node &node)
+{
+    NodeHandle firstValidAncestor = getFirstAncestor(node.parentHandle());
+    firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : node.nodeHandle();
+
+    if (firstValidAncestor != UNDEF)
+    {
+        increaseCounter(&node, firstValidAncestor);
+
+        auto it = mNodeCounters.find(node.nodeHandle());
+        if (it != mNodeCounters.end())
+        {
+            if (node.type == FILENODE)
+            {
+                // file versions may have been counted as files instead of versions upon
+                // processing fetchnodes from API. In result, if the parent was unknown (not
+                // processed yet), it's not possible to differentiate between a file and a version
+                // --> if this node is a file, child nodes were versions
+                it->second.versions += it->second.files;
+                it->second.versionStorage += it->second.storage;
+                it->second.files = 0;
+                it->second.storage = 0;
+            }
+
+            mNodeCounters[firstValidAncestor].files += it->second.files;
+            mNodeCounters[firstValidAncestor].storage += it->second.storage;
+            mNodeCounters[firstValidAncestor].folders += it->second.folders;
+            mNodeCounters[firstValidAncestor].versions += it->second.versions;
+            mNodeCounters[firstValidAncestor].versionStorage += it->second.versionStorage;
+            mNodeCounters.erase(it);
+        }
+    }
 }
 
 size_t NodeManager::nodeNotifySize() const
