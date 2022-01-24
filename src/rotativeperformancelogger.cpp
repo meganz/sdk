@@ -166,7 +166,7 @@ public:
         std::ifstream file(localPath.localpath.c_str(), std::ofstream::out);
         if (!file.is_open())
         {
-            std::cerr << "Unable to open log file for reading: " << localPath.toPath() << std::endl;
+            LOG_err << "Unable to open log file for reading: " << localPath;
             return;
         }
 
@@ -178,7 +178,7 @@ public:
     #endif
         if (!gzfile)
         {
-            std::cerr << "Unable to open gzfile for writing: " << localPath.toPath() << std::endl;
+            LOG_err << "Unable to open gzfile for writing: " << localPath;
             return;
         }
 
@@ -188,7 +188,7 @@ public:
             line.push_back('\n');
             if (gzputs(gzfile.get(), line.c_str()) == -1)
             {
-                std::cerr << "Unable to compress log file: " << localPath.toPath() << std::endl;
+                LOG_err << "Unable to compress log file: " << localPath;
                 return;
             }
         }
@@ -215,7 +215,7 @@ private:
 
             if (!mFsAccess->unlinklocal(toDeletePath))
             {
-                std::cerr << "Error removing log file " << i << std::endl;
+                LOG_err << "Error removing log file " << i;
             }
         }
     }
@@ -235,7 +235,7 @@ private:
                 {
                     if (!mFsAccess->unlinklocal(toRenamePath))
                     {
-                        std::cerr << "Error removing log file " << i << std::endl;
+                        LOG_err << "Error removing log file " << i;
                     }
                 }
                 else
@@ -245,7 +245,7 @@ private:
                     nextPath.appendWithSeparator(nextFileName, false);
                     if (!mFsAccess->renamelocal(toRenamePath, nextPath, true))
                     {
-                        std::cerr << "Error renaming log file " << i << std::endl;
+                        LOG_err << "Error renaming log file " << i;
                     }
                 }
             }
@@ -298,7 +298,7 @@ private:
             leafNameFullPath.appendWithSeparator(leafNamePath, false);
             if (!mFsAccess->unlinklocal(leafNameFullPath))
             {
-                std::cerr << "Error removing log file " << leafNameFullPath.toPath() << std::endl;
+                LOG_err << "Error removing log file " << leafNameFullPath;
             }
         });
     }
@@ -328,7 +328,7 @@ private:
                 {
                     if (!mFsAccess->unlinklocal(leafNameFullPath))
                     {
-                        std::cerr << "Error removing log file " << leafNameFullPath.toPath() << std::endl;
+                        LOG_err << "Error removing log file " << leafNameFullPath;
                     }
                 }
                 else
@@ -353,7 +353,7 @@ private:
                 LocalPath& leafNameFullPathToDelete = archivedTimestampsPathPair.second;
                 if (!mFsAccess->unlinklocal(leafNameFullPathToDelete))
                 {
-                    std::cerr << "Error removing log file " << leafNameFullPathToDelete.toPath() << std::endl;
+                    LOG_err << "Error removing log file " << leafNameFullPathToDelete;
                 }
                 else
                 {
@@ -416,7 +416,7 @@ private:
 
                 if (!mFsAccess->unlinklocal(fileNameFullPath))
                 {
-                    std::cerr << "Error removing log file " << fileNameFullPath.toPath() << std::endl;
+                    LOG_err << "Error removing log file " << fileNameFullPath;
                 }
 
                 outputFile.open(fileNameFullPath.localpath.c_str(), std::ofstream::out);
