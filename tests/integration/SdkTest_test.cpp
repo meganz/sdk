@@ -7440,26 +7440,22 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     megaApi[1]->pauseTransfers(false);
     // --- Wait for transfer completion
 
-
     // in fact we get EACCESS - maybe this API feature is not migrated to live yet?
-    ASSERT_EQ(API_EACCESS, ErrorCodes(tt.waitForResult(600))) << "Upload transfer failed";
-
-    //ASSERT_TRUE(mApi[1].lastTransferError == MegaError::API_OK && mApi[1].lastError == MegaError::API_OK)
-    //        << "Upload transfer failed with error: " << mApi[1].lastTransferError;
+    ASSERT_EQ(API_OK, ErrorCodes(tt.waitForResult(600))) << "Upload transfer failed";
 
     //// --- Check that node has been created in rubbish bin ---
-    //std::unique_ptr <MegaNode> n (mApi[1].megaApi->getNodeByHandle(tt.resultNodeHandle));
-    //ASSERT_TRUE(n) << "Error retrieving new created node";
+    std::unique_ptr <MegaNode> n (mApi[1].megaApi->getNodeByHandle(tt.resultNodeHandle));
+    ASSERT_TRUE(n) << "Error retrieving new created node";
 
-    //std::unique_ptr <MegaNode> rubbishNode (mApi[1].megaApi->getRubbishNode());
-    //ASSERT_TRUE(rubbishNode) << "Error retrieving rubbish bin node";
+    std::unique_ptr <MegaNode> rubbishNode (mApi[1].megaApi->getRubbishNode());
+    ASSERT_TRUE(rubbishNode) << "Error retrieving rubbish bin node";
 
-    //ASSERT_TRUE(n->getParentHandle() == rubbishNode->getHandle())
-    //        << "Error: new node parent handle: " << Base64Str<MegaClient::NODEHANDLE>(n->getParentHandle())
-    //        << " doesn't match with rubbish bin node handle: " << Base64Str<MegaClient::NODEHANDLE>(rubbishNode->getHandle());
+    ASSERT_TRUE(n->getParentHandle() == rubbishNode->getHandle())
+            << "Error: new node parent handle: " << Base64Str<MegaClient::NODEHANDLE>(n->getParentHandle())
+            << " doesn't match with rubbish bin node handle: " << Base64Str<MegaClient::NODEHANDLE>(rubbishNode->getHandle());
 
     //// --- Clean rubbish bin for secondary account ---
-    //auto err = synchronousCleanRubbishBin(1);
-    //ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
+    auto err = synchronousCleanRubbishBin(1);
+    ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
 }
 #endif
