@@ -3,7 +3,9 @@
 
 #include <QCoreApplication>
 
-using namespace mega;
+namespace mega
+{
+
 using namespace std;
 
 QTMegaListener::QTMegaListener(QObject& eventPostTarget) : mEventPostTarget(eventPostTarget)
@@ -139,20 +141,6 @@ void QTMegaListener::onSyncAdded(MegaApi *api, MegaSync *sync, int additionState
     QCoreApplication::postEvent(&mEventPostTarget, event, INT_MIN);
 }
 
-void QTMegaListener::onSyncDisabled(MegaApi *api, MegaSync *sync)
-{
-    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncDisabled);
-    event->setSync(sync->copy());
-    QCoreApplication::postEvent(&mEventPostTarget, event, INT_MIN);
-}
-
-void QTMegaListener::onSyncEnabled(MegaApi *api, MegaSync *sync)
-{
-    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncEnabled);
-    event->setSync(sync->copy());
-    QCoreApplication::postEvent(&mEventPostTarget, event, INT_MIN);
-}
-
 void QTMegaListener::onSyncDeleted(MegaApi *api, MegaSync *sync)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncDeleted);
@@ -165,6 +153,8 @@ void QTMegaListener::onGlobalSyncStateChanged(MegaApi *api)
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnGlobalSyncStateChanged);
     QCoreApplication::postEvent(&mEventPostTarget, event, INT_MIN);
 }
+
 #endif
 
+}
 
