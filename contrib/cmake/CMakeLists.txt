@@ -398,7 +398,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 #find_package(CURL CONFIG REQUIRED PATHS "${vcpkg_dir}/share/curl" NO_DEFAULT_PATH )
             ENDIF()
         ENDIF()
-        IF(USE_CURL)
+        IF(MEGA_USE_C_ARES)
             ImportStdVcpkgLibrary(cares       cares cares libcares libcares)
         ENDIF()
 
@@ -419,8 +419,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
 
-        ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
+        IF (NOT IOS)
+	ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
         ImportStdVcpkgLibrary(gmock           gmockd gmock libgmockd libgmock)
+	ENDIF()
 
         IF(USE_MEDIAINFO)
             IF(CMAKE_HOST_APPLE)
@@ -925,6 +927,7 @@ if(IOS)
         ${MegaDir}/bindings/ios/MEGAChildrenLists.mm
         ${MegaDir}/bindings/ios/MEGAContactRequest.mm
         ${MegaDir}/bindings/ios/MEGAContactRequestList.mm
+	${MegaDir}/bindings/ios/MEGACurrency.mm
         ${MegaDir}/bindings/ios/MEGAError.mm
         ${MegaDir}/bindings/ios/MEGAEvent.mm
         ${MegaDir}/bindings/ios/MEGAFolderInfo.mm

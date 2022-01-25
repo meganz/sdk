@@ -985,6 +985,7 @@ error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
             return API_EREAD;
         }
     }
+    else return API_EREAD;
 
     return API_OK;
 }
@@ -998,7 +999,7 @@ error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
     // Try and create the backup configuration directory
     if (!(fsaccess->mkdirlocal(pd, false, false) || fsaccess->target_exists))
     {
-        LOG_err << "Unable to create config DB directory: " << pd.toPath();
+        LOG_err << "Unable to create config DB directory: " << pd;
 
         // Couldn't create the directory and it doesn't exist.
         return API_EWRITE;
@@ -1010,14 +1011,14 @@ error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
     auto fa = fsaccess->newfileaccess(false);
     if (!fa->fopen(pd, false, true))
     {
-        LOG_err << "Unable to open file to write drive-id: " << pd.toPath();
+        LOG_err << "Unable to open file to write drive-id: " << pd;
         return API_EWRITE;
     }
 
     // Write the drive-id to file
     if (!fa->fwrite((byte*)&driveId, sizeof(driveId), 0))
     {
-        LOG_err << "Unable to write drive-id to file: " << pd.toPath();
+        LOG_err << "Unable to write drive-id to file: " << pd;
         return API_EWRITE;
     }
 
@@ -1221,7 +1222,7 @@ void MegaClient::init()
     mOptimizePurgeNodes = false;
 }
 
-MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAccess> notification_fsa, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
+MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAccess>&& notification_fsa, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
    : mAsyncQueue(*w, workerThreadCount)
    , mCachedStatus(this)
    , useralerts(*this)
@@ -1300,7 +1301,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     init();
 
-    auto f = new FSACCESS_CLASS();
+    auto f = unique_ptr<FSACCESS_CLASS>(new FSACCESS_CLASS());
     f->waiter = w;
     transferlist.client = this;
 
@@ -1311,7 +1312,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
-    fsaccess = f;
+    fsaccess = move(f);
     dbaccess = d;
 
     if ((gfx = g))
@@ -1363,7 +1364,6 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete badhostcs;
     delete dbaccess;
-    delete fsaccess;
     LOG_debug << clientname << "~MegaClient completing";
 }
 
@@ -2850,7 +2850,7 @@ int MegaClient::preparewait()
     }
 #endif
 
-    waiter->wakeupby(fsaccess, Waiter::NEEDEXEC);
+    waiter->wakeupby(fsaccess.get(), Waiter::NEEDEXEC);
 
 #ifdef MEGA_MEASURE_CODE
     if (waiter->maxds == 0 && !reasonGiven)
@@ -3160,6 +3160,7 @@ void MegaClient::dispatchTransfers()
                 {
                     (*it)->prepare(*fsaccess);
                 }
+                assert(nexttransfer->localfilename.isAbsolute());
 
                 // app-side transfer preparations (populate localname, create thumbnail...)
                 app->transfer_prepare(nexttransfer);
@@ -3188,7 +3189,7 @@ void MegaClient::dispatchTransfers()
                     if (!nexttransfer->asyncopencontext)
                     {
                         LOG_debug << "Starting async open: "
-                                  << nexttransfer->localfilename.toPath();
+                                  << nexttransfer->localfilename;
 
                         // try to open file (PUT transfers: open in nonblocking mode)
                         nexttransfer->asyncopencontext = (nexttransfer->type == PUT)
@@ -3200,7 +3201,7 @@ void MegaClient::dispatchTransfers()
                     if (nexttransfer->asyncopencontext->finished)
                     {
                         LOG_debug << "Async open finished: "
-                                  << nexttransfer->localfilename.toPath();
+                                  << nexttransfer->localfilename;
 
                         openok = !nexttransfer->asyncopencontext->failed;
                         openfinished = true;
@@ -3224,7 +3225,7 @@ void MegaClient::dispatchTransfers()
                 {
                     // try to open file (PUT transfers: open in nonblocking mode)
                     LOG_debug << "Sync open: "
-                              << nexttransfer->localfilename.toPath();
+                              << nexttransfer->localfilename;
 
                     openok = (nexttransfer->type == PUT)
                         ? ts->fa->fopen(nexttransfer->localfilename)
@@ -3278,7 +3279,7 @@ void MegaClient::dispatchTransfers()
                         {
                             LOG_warn << "Modification detected starting upload."
                                      << " Path: "
-                                     << nexttransfer->localfilename.toPath()
+                                     << nexttransfer->localfilename
                                      << " Size: "
                                      << nexttransfer->size
                                      << " Mtime: "
@@ -13026,7 +13027,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     if (!remotenode)
     {
         LOG_warn << "Sync root does not exist in the cloud: "
-                 << syncConfig.getLocalPath().toPath()
+                 << syncConfig.getLocalPath()
                  << ": "
                  << LOG_NODEHANDLE(syncConfig.mRemoteNode);
 

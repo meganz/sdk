@@ -81,7 +81,9 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
+// only meaningful for __APPLE__
 int gFilesystemEventsFd = -1;
+
 
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
@@ -6904,7 +6906,7 @@ void exec_mediainfo(autocomplete::ACState& s)
         string ext;
         if (client->fsaccess->getextension(localFilename, ext) && MediaProperties::isMediaFilenameExt(ext))
         {
-            mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess);
+            mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess.get());
                                 uint32_t dummykey[4] = { 1, 2, 3, 4 };  // check encode/decode
                                 string attrs = mp.convertMediaPropertyFileAttributes(dummykey, client->mediaFileInfo);
                                 MediaProperties dmp = MediaProperties::decodeMediaPropertiesAttributes(":" + attrs, dummykey);
@@ -8715,8 +8717,9 @@ int main(int argc, char* argv[])
     registerSignalHandlers();
 #endif // NO_READLINE
 
-
-
+    // On Mac, we need to be passed a special file descriptor that has permissions allowing filesystem notifications.
+    // This is how MEGAsync and the integration tests work.  (running a sudo also works but then the program has too much power)
+    // The program megacli_fsloader in CMakeLists is the one that gets the special descriptor and starts megacli (mac only).
     std::vector<char*> myargv1(argv, argv + argc);
 
     for (auto it = myargv1.begin(); it != myargv1.end(); ++it)

@@ -1901,7 +1901,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             {
                 SYNC_verbose << syncname << "Move detected by fsid " << toHandle(row.fsNode->fsid) << " but something else with that name (" << row.cloudNode->name << ") is already here in the cloud. Type: " << row.cloudNode->type
                     << " new path: " << fullPath.localPath_utf8()
-                    << " old localnode: " << sourceSyncNode->localnodedisplaypath()
+                    << " old localnode: " << sourceSyncNode->getLocalPath()
                     << logTriplet(row, fullPath);
 
                 // but, is it ok to overwrite that thing?  If that's what happened locally to a synced file, and the cloud item was also synced and is still there, then it's legit
@@ -1950,7 +1950,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             {
                 LOG_debug << syncname << "Move detected by fsid " << toHandle(row.fsNode->fsid) << ". Type: " << sourceSyncNode->type
                     << " new path: " << fullPath.localPath_utf8()
-                    << " old localnode: " << sourceSyncNode->localnodedisplaypath()
+                    << " old localnode: " << sourceSyncNode->getLocalPath()
                     << logTriplet(row, fullPath);
 
                 if (belowRemovedCloudNode)
@@ -2357,7 +2357,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             SYNC_verbose << syncname << "Move detected by nodehandle, but something else with that name is already here locally. Type: " << row.fsNode->type
                 << " moved node: " << fullPath.cloudPath
-                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath() : "<null>")
+                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->getLocalPath().toPath() : "<null>")
                 << logTriplet(row, fullPath);
 
             if (row.syncNode)
@@ -2381,11 +2381,11 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         {
             LOG_debug << syncname << "Move detected by nodehandle. Type: " << sourceSyncNode->type
                 << " moved node: " << fullPath.cloudPath
-                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath() : "<null>")
+                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->getLocalPath().toPath() : "<null>")
                 << logTriplet(row, fullPath);
 
             LOG_debug << "Sync - remote move " << fullPath.cloudPath <<
-                " from corresponding " << (sourceSyncNode->parent ? sourceSyncNode->parent->localnodedisplaypath() : "<null>") <<
+                " from corresponding " << (sourceSyncNode->parent ? sourceSyncNode->parent->getLocalPath().toPath() : "<null>") <<
                 " to " << parentRow.cloudNode->name;
 
             sourceSyncNode->moveApplyingToLocal = true;
@@ -2607,7 +2607,7 @@ dstime Sync::procextraq()
 #ifdef DEBUG
         if (nearest->scanAgain < TREE_ACTION_HERE)
         {
-            SYNC_verbose << "Trigger scan flag by delayed notification on " << nearest->localnodedisplaypath();
+            SYNC_verbose << "Trigger scan flag by delayed notification on " << nearest->getLocalPath();
         }
 #endif
         nearest->setScanAgain(false, true, !remainder.empty(), SCANNING_DELAY_DS);
@@ -2725,7 +2725,7 @@ dstime Sync::procscanq()
 #ifdef DEBUG
         //if (nearest->scanAgain < TREE_ACTION_HERE)
         {
-            SYNC_verbose << "Trigger scan flag by fs notification on " << nearest->localnodedisplaypath();
+            SYNC_verbose << "Trigger scan flag by fs notification on " << nearest->getLocalPath();
         }
 #endif
 
@@ -3346,7 +3346,7 @@ error Syncs::backupOpenDrive_inThread(LocalPath drivePath)
     if (!store)
     {
         LOG_err << "Couldn't restore "
-                << drivePath.toPath()
+                << drivePath
                 << " as there is no config store.";
 
         // Nope and we can't do anything without it.
@@ -3357,7 +3357,7 @@ error Syncs::backupOpenDrive_inThread(LocalPath drivePath)
     if (store->driveKnown(drivePath))
     {
         LOG_debug << "Skipped restore of "
-                  << drivePath.toPath()
+                  << drivePath
                   << " as it has already been opened.";
 
         // Then we don't have to do anything.
@@ -3373,7 +3373,7 @@ error Syncs::backupOpenDrive_inThread(LocalPath drivePath)
     if (result == API_OK)
     {
         LOG_debug << "Attempting to restore backup syncs from "
-                  << drivePath.toPath();
+                  << drivePath;
 
         size_t numRestored = 0;
 
@@ -3391,9 +3391,9 @@ error Syncs::backupOpenDrive_inThread(LocalPath drivePath)
                 {
 				    skip = true;
                     LOG_err << "Skipping restore of backup "
-                            << config.mLocalPath.toPath()
+                            << config.mLocalPath
                             << " on "
-                            << drivePath.toPath()
+                            << drivePath
                             << " as a sync already exists with the backup id "
                             << toHandle(config.mBackupId);
                 }
@@ -3414,14 +3414,14 @@ error Syncs::backupOpenDrive_inThread(LocalPath drivePath)
                   << " out of "
                   << configs.size()
                   << " backup(s) from "
-                  << drivePath.toPath();
+                  << drivePath;
 
         return API_OK;
     }
 
     // Couldn't open the database.
     LOG_warn << "Failed to restore "
-             << drivePath.toPath()
+             << drivePath
              << " as we couldn't open its config database.";
 
     return result;
@@ -7943,7 +7943,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         else
         {
             SYNC_verbose << syncname << "This file/folder was moved, letting destination node at "
-                         << movedLocalNode->localnodedisplaypath() << " process this first: " << logTriplet(row, fullPath);
+                         << movedLocalNode->getLocalPath() << " process this first: " << logTriplet(row, fullPath);
         }
         // todo: do we need an equivalent to row.recurseToScanforNewLocalNodesOnly = true;  (in resolve_cloudNodeGone)
         monitor.waitingLocal(fullPath.localPath, movedLocalNode->getLocalPath(), string(), SyncWaitReason::MoveNeedsDestinationNodeProcessing);
@@ -8190,7 +8190,7 @@ void Syncs::processTriggerHandles()
                 for (auto it = range.first; it != range.second; ++it)
                 {
                     auto& syncs = *this;
-                    SYNC_verbose << mClient.clientname << "Triggering sync flag for " << it->second->localnodedisplaypath() << (recurse ? " recursive" : "");
+                    SYNC_verbose << mClient.clientname << "Triggering sync flag for " << it->second->getLocalPath() << (recurse ? " recursive" : "");
                     it->second->setSyncAgain(false, true, recurse);
                 }
             }

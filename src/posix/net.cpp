@@ -2290,6 +2290,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                 // check httpstatus and response length
                 req->status = (req->httpstatus == 200
+                               && errorCode != CURLE_PARTIAL_FILE
                                && (req->contentlength < 0
                                    || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
                         ? REQ_SUCCESS : REQ_FAILURE;
@@ -2302,8 +2303,12 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
                 else
                 {
-                    LOG_warn << req->logname << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
-                             << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
+                    LOG_warn << req->logname << "REQ_FAILURE."
+                             << " Status: " << req->httpstatus
+                             << " CURLcode: " << errorCode
+                             << "  Content-Length: " << req->contentlength
+                             << "  buffer? " << (req->buf != NULL)
+                             << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
                 }
 
                 if (req->httpstatus)

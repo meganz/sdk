@@ -2298,11 +2298,11 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
     {
         if (n->syncedCloudNodeHandle.isUndef())
         {
-            EXPECT_TRUE(!n->syncedCloudNodeHandle.isUndef()) << "expected synced non-undef handle at localnode: " << n->localnodedisplaypath();
+            EXPECT_TRUE(!n->syncedCloudNodeHandle.isUndef()) << "expected synced non-undef handle at localnode: " << n->getLocalPath().toPath();
         }
         if (!client.nodeByHandle(n->syncedCloudNodeHandle))
         {
-            EXPECT_TRUE(!!client.nodeByHandle(n->syncedCloudNodeHandle)) << "expected synced handle that looks up node at localnode: " << n->localnodedisplaypath();;
+            EXPECT_TRUE(!!client.nodeByHandle(n->syncedCloudNodeHandle)) << "expected synced handle that looks up node at localnode: " << n->getLocalPath().toPath();
         }
     }
     Node* syncedNode = client.nodeByHandle(n->syncedCloudNodeHandle);
@@ -3511,10 +3511,9 @@ bool StandardClient::backupOpenDrive(const fs::path& drivePath)
 
 void StandardClient::wouldBeEscapedOnDownload(fs::path root, string remoteName, PromiseBoolSP result)
 {
-    auto fsAccess = client.fsaccess;
     auto localRoot = LocalPath::fromAbsolutePath(root.u8string());
-    auto type = fsAccess->getlocalfstype(localRoot);
-    auto localName = LocalPath::fromRelativeName(remoteName, *fsAccess, type);
+    auto type = client.fsaccess->getlocalfstype(localRoot);
+    auto localName = LocalPath::fromRelativeName(remoteName, *client.fsaccess, type);
 
     result->set_value(localName.toPath() != remoteName);
 }

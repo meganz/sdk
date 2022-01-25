@@ -50,7 +50,6 @@ void WaitMillisec(unsigned n)
 #endif
 }
 
-
 LogStream::~LogStream()
 {
     auto data = mBuffer.str();

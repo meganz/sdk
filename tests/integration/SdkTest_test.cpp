@@ -2892,7 +2892,7 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
     return itemlocalname.leafName().toPath();
 }
 
-LocalPath fspathToLocal(const fs::path& p, FileSystemAccess& fsa)
+LocalPath fspathToLocal(const fs::path& p)
 {
     string path(p.u8string());
     return LocalPath::fromAbsolutePath(path);
@@ -3005,7 +3005,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         std::map<std::string, FileAccessFields > iterate_follow_fopen;
 
         auto fsa = makeFsAccess(false);
-        auto localdir = fspathToLocal(iteratePath, *fsa);
+        auto localdir = fspathToLocal(iteratePath);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
         ASSERT_TRUE(fopen_directory->fopen(localdir, true, false));
@@ -3127,7 +3127,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         ASSERT_TRUE(plain_fopen.find("filelink.txt") == plain_fopen.end());
 
         // check the glob flag
-        auto localdirGlob = fspathToLocal(iteratePath / "glob1*", *fsa);
+        auto localdirGlob = fspathToLocal(iteratePath / "glob1*");
         std::unique_ptr<DirAccess> da2(fsa->newdiraccess());
         if (da2->dopen(&localdirGlob, NULL, true))
         {
