@@ -96,6 +96,11 @@ GfxProcFreeImage::~GfxProcFreeImage()
 bool GfxProcFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
 {
     const pair<string, string>& cover = MediaProperties::getCoverFromId3v2(imagePath.localpath);
+    if (cover.first.empty())
+    {
+        return false;
+    }
+
     FREE_IMAGE_FORMAT format = FIF_UNKNOWN;
     int flags = 0;
     if (cover.second == "jpg")
@@ -108,8 +113,10 @@ bool GfxProcFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
         format = FIF_PNG;
     }
 
-    if (cover.first.empty() || format == FIF_UNKNOWN)
+    if (format == FIF_UNKNOWN)
     {
+        // It either didn't have a cover, or there was a problem reading it,
+        // in which case it should have been already logged by now.
         return false;
     }
 

@@ -613,15 +613,13 @@ template<class T>
 std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const T& file)
 {
     MediaInfoLib::MediaInfo mi;
-    std::string data;
-    std::string syntheticExt;
-
     mi.Option(__T("Cover_Data"), __T("base64")); // set this _before_ opening the file
+
     ZenLib::Ztring zFile(file.c_str()); // make this work with both narrow and wide std strings
     if (!mi.Open(zFile))
     {
         LOG_err << "MediaInfo: could not open local file to retrieve Cover: " << zFile.To_UTF8();
-        return std::make_pair(data, syntheticExt);
+        return std::make_pair(std::string(), std::string());
     }
 
     // MIME (type/subtype) of the cover image.
@@ -629,10 +627,7 @@ std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const T& 
     // Supported values are one of {"image/jpeg", "image/png"}.
     // However, allow "image/jpg" variant too because it occured for flac (MediaInfo bug?).
     const MediaInfoLib::String& coverMime = mi.Get(MediaInfoLib::Stream_General, 0, __T("Cover_Mime"));
-    if (coverMime.empty())
-    {
-        return std::make_pair(std::string(), std::string());
-    }
+    std::string syntheticExt;
     if (coverMime == __T("image/jpeg") || coverMime == __T("image/jpg"))
     {
         syntheticExt = "jpg";
@@ -641,13 +636,22 @@ std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const T& 
     {
         syntheticExt = "png";
     }
+    else
+    {
+        if (!coverMime.empty())
+        {
+            LOG_warn << "MediaInfo: Cover_Mime contained garbage, ignored Cover for file " << zFile.To_UTF8();
+        }
+
+        return std::make_pair(std::string(), std::string());
+    }
 
     // Cover data: binary data, base64 encoded.
     ZenLib::Ztring coverData = mi.Get(MediaInfoLib::Stream_General, 0, __T("Cover_Data"));
-    data = coverData.To_UTF8();
+    std::string data = coverData.To_UTF8();
     if (data.empty())
     {
-        return std::make_pair(data, syntheticExt);
+        return std::make_pair(std::string(), std::string());
     }
     data = mega::Base64::atob(data);
 
