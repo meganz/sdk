@@ -617,8 +617,10 @@ std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const T& 
     std::string syntheticExt;
 
     mi.Option(__T("Cover_Data"), __T("base64")); // set this _before_ opening the file
-    if (!mi.Open(ZenLib::Ztring(file.c_str()))) // make this work with both narrow and wide std strings
+    ZenLib::Ztring zFile(file.c_str()); // make this work with both narrow and wide std strings
+    if (!mi.Open(zFile))
     {
+        LOG_err << "MediaInfo: could not open local file to retrieve Cover: " << zFile.To_UTF8();
         return std::make_pair(data, syntheticExt);
     }
 
