@@ -156,7 +156,6 @@ public:
 
     bool empty() const;
     void clear();
-    void erase();
     void truncate(size_t bytePos);
     LocalPath leafName() const;
     void append(const LocalPath& additionalPath);
@@ -186,7 +185,7 @@ public:
     bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
     bool hasNextPathComponent(size_t index) const;
 
-    // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
+    // Return a utf8 representation of the LocalPath
     // No escaping or unescaping is done.
     string toPath() const;
 

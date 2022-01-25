@@ -1556,7 +1556,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         // Have we recovered?
         if (fsNode && fsNode->type != TYPE_UNKNOWN && !fsNode->isBlocked)
         {
-            LOG_verbose << sync->syncname << "Recovered from being scan blocked: " << localnodedisplaypath();
+            LOG_verbose << sync->syncname << "Recovered from being scan blocked: " << getLocalPath();
 
             type = fsNode->type; // original scan may not have been able to discern type, fix it now
             setScannedFsid(UNDEF, sync->syncs.localnodeByScannedFsid, fsNode->localname, FileFingerprint());
@@ -1583,7 +1583,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
     {
         // We were not able to get details of the filesystem item when scanning the directory.
         // Consider it a blocked file, and we'll rescan the folder from time to time.
-        LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath();
+        LOG_verbose << sync->syncname << "File/folder was blocked when reading directory, retry later: " << getLocalPath();
 
         // Setting node as scan-blocked. The main loop will check it regularly by weak_ptr
         initiateScanBlocked(true, false);
@@ -2097,7 +2097,7 @@ LocalPath LocalNode::getLocalPath() const
 
 void LocalNode::getlocalpath(LocalPath& path) const
 {
-    path.erase();
+    path.clear();
 
     for (const LocalNode* l = this; l != nullptr; l = l->parent)
     {
@@ -2106,13 +2106,6 @@ void LocalNode::getlocalpath(LocalPath& path) const
         // sync root has absolute path, the rest are just their leafname
         path.prependWithSeparator(l->localname);
     }
-}
-
-string LocalNode::localnodedisplaypath() const
-{
-    LocalPath local;
-    getlocalpath(local);
-    return local.toPath();
 }
 
 string LocalNode::getCloudPath() const

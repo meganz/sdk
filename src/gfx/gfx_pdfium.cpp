@@ -183,18 +183,18 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
             else
             {
                 FPDF_CloseDocument(pdf_doc);
-                LOG_err << "Error loading PDF page to create thumb for " << path.toPath().c_str();
+                LOG_err << "Error loading PDF page to create thumb for " << path;
             }
         }
         else
         {
             FPDF_CloseDocument(pdf_doc);
-            LOG_err << "Error getting number of pages for " << path.toPath().c_str();
+            LOG_err << "Error getting number of pages for " << path;
         }
     }
     else
     {
-        LOG_err << "Error loading PDF to create thumbnail for " << path.toPath().c_str() << " " << FPDF_GetLastError();
+        LOG_err << "Error loading PDF to create thumbnail for " << path << " " << FPDF_GetLastError();
     }
 
 #ifdef _WIN32

@@ -5254,6 +5254,7 @@ void MegaFileGet::prepare(FileSystemAccess&)
     if (transfer->localfilename.empty())
     {
         transfer->localfilename = getLocalname();
+        assert(transfer->localfilename.isAbsolute());
 
         size_t leafIndex = transfer->localfilename.getLeafnameByteIndex();
         transfer->localfilename.truncate(leafIndex);
@@ -5551,7 +5552,6 @@ MegaApiImpl::~MegaApiImpl()
     assert(transferMap.empty());
 
     delete gfxAccess;
-    delete fsAccess;
     delete waiter;
 
 #ifndef DONT_RELEASE_HTTPIO
@@ -10557,9 +10557,15 @@ void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
 
 void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)
 {
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+
     MegaStringMapPrivate stringMap;
     stringMap.set("h", Base64Str<MegaClient::NODEHANDLE>(nodehandle));
-    setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, &stringMap, listener);
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER);
+    request->setNodeHandle(nodehandle);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getMyBackupsFolder(MegaRequestListener *listener)
@@ -25975,7 +25981,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
     }
     else
     {
-        LOG_warn << " Backup folder created while not ONGOING: " << localPath.toPath();
+        LOG_warn << " Backup folder created while not ONGOING: " << localPath;
     }
 
     delete parent;
@@ -26538,7 +26544,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath&
         if (!client->fsaccess->mkdirlocal(localpath, false, true))
         {
             da.reset();
-            LOG_err << "Unable to create folder: " << localpath.toPath();
+            LOG_err << "Unable to create folder: " << localpath;
 
             recursive--;
             mLastError = API_EWRITE;
@@ -26549,12 +26555,12 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath&
     }
     else if (da->type != FILENODE)
     {
-        LOG_debug << "Already existing folder detected: " << localpath.toPath();
+        LOG_debug << "Already existing folder detected: " << localpath;
     }
     else
     {
         da.reset();
-        LOG_err << "Local file detected where there should be a folder: " << localpath.toPath();
+        LOG_err << "Local file detected where there should be a folder: " << localpath;
 
         recursive--;
         mLastError = API_EEXIST;
@@ -26578,7 +26584,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath&
 
     if (!children)
     {
-        LOG_err << "Child nodes not found: " << localpath.toPath();
+        LOG_err << "Child nodes not found: " << localpath;
         recursive--;
         mLastError = API_ENOENT;
         mIncompleteTransfers++;
@@ -26729,7 +26735,7 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     // update the internal state
     size_t currentIndex = inpos;
     inpos += len;
-    size_t remaining = inpos - capacity;
+    int remaining = static_cast<int>(inpos - capacity);
     inpos %= capacity;
     size += len;
     free -= len;
@@ -26741,9 +26747,9 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     }
     else
     {
-        size_t num = len - remaining;
+        size_t num = static_cast<size_t>(static_cast<int>(len) - remaining);
         memcpy(buffer + currentIndex, buf, num);
-        memcpy(buffer, buf + num, remaining);
+        memcpy(buffer, buf + num, static_cast<size_t>(remaining));
     }
 
     return len;
@@ -29536,7 +29542,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 {
     LOG_debug << "Response headers: " << *headers;
-    httpctx->streamingBuffer.append(headers->data(), static_cast<unsigned>(headers->size()));
+    httpctx->streamingBuffer.append(headers->data(), headers->size());
     uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
     httpctx->size += headers->size();
     httpctx->lastBuffer = resbuf.base;
@@ -29771,7 +29777,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
-    streamingBuffer.append(buffer, static_cast<unsigned>(size));
+    streamingBuffer.append(buffer, size);
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server
@@ -32288,7 +32294,7 @@ bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char 
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
-    streamingBuffer.append(buffer, static_cast<unsigned>(size));
+    streamingBuffer.append(buffer, size);
     uv_mutex_unlock(&mutex);
 
     // notify the HTTP server

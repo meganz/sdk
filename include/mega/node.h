@@ -719,7 +719,6 @@ struct MEGA_API LocalNode
     // build full local path to this node
     void getlocalpath(LocalPath&) const;
     LocalPath getLocalPath() const;
-    string localnodedisplaypath() const;
 
     // build full remote path to this node (might not exist anymore, of course)
     string getCloudPath() const;

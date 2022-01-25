@@ -1287,13 +1287,6 @@ void LocalPath::clear()
     assert(invariant());
 }
 
-void LocalPath::erase()
-{
-    // wipes the buffer clean for reuse (hopefully without any allocations)
-    assert(invariant());
-    localpath.erase(0, string::npos);
-    assert(invariant());
-}
 
 void LocalPath::truncate(size_t bytePos)
 {
@@ -1549,6 +1542,7 @@ string LocalPath::toName(const FileSystemAccess& fsaccess) const
 
 LocalPath LocalPath::fromAbsolutePath(const string& path)
 {
+    assert(!path.empty());
     LocalPath p;
     path2local(&path, &p.localpath);
     p.normalizeAbsolute();

@@ -7745,13 +7745,23 @@ class MegaApi
             PAYMENT_METHOD_PAYPAL = 1,
             PAYMENT_METHOD_ITUNES = 2,
             PAYMENT_METHOD_GOOGLE_WALLET = 3,
-            PAYMENT_METHOD_HUAWEI_WALLET = 18,
             PAYMENT_METHOD_BITCOIN = 4,
             PAYMENT_METHOD_UNIONPAY = 5,
             PAYMENT_METHOD_FORTUMO = 6,
+            PAYMENT_METHOD_STRIPE = 7,          // credit-card (stripe)
             PAYMENT_METHOD_CREDIT_CARD = 8,
             PAYMENT_METHOD_CENTILI = 9,
-            PAYMENT_METHOD_WINDOWS_STORE = 13
+            PAYMENT_METHOD_PAYSAFE_CARD = 10,
+            PAYMENT_METHOD_ASTROPAY = 11,
+            PAYMENT_METHOD_RESERVED = 12,       // TBD
+            PAYMENT_METHOD_WINDOWS_STORE = 13,
+            PAYMENT_METHOD_TPAY = 14,
+            PAYMENT_METHOD_DIRECT_RESELLER = 15,
+            PAYMENT_METHOD_ECP = 16,
+            PAYMENT_METHOD_SABADELL = 17,
+            PAYMENT_METHOD_HUAWEI_WALLET = 18,
+            PAYMENT_METHOD_STRIPE2 = 19,        // credit-card (stripe)
+            PAYMENT_METHOD_WIRE_TRANSFER = 999
         };
 
         enum {
