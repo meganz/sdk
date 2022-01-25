@@ -31,8 +31,24 @@ id<MEGALoggerDelegate>DelegateMEGALoggerListener::getUserListener() {
     return listener;
 }
 
-void DelegateMEGALoggerListener::log(const char *time, int logLevel, const char *source, const char *message) {
-    if (listener != nil && [listener respondsToSelector:@selector(logWithTime:logLevel:source:message:)]) {        
+#ifdef ENABLE_LOG_PERFORMANCE
+void DelegateMEGALoggerListener::log(const char *time, int logLevel, const char *source, const char *message
+        , const char ** directMessages, size_t * directMessagesSizes, int numberMessages
+    ) {
+    if (listener != nil && [listener respondsToSelector:@selector(logWithTime:logLevel:source:message:)]) {
+        [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : nil) logLevel:(MEGALogLevel)logLevel source:(source ? [NSString stringWithUTF8String:source] : nil) message:(message ? [NSString stringWithUTF8String:message] : nil)
+            directMessages: directMessages, directMessagesSizes : directMessagesSizes, numberMessages: numberMessages];
+    }
+}
+
+#else
+
+void DelegateMEGALoggerListener::log(const char *time, int logLevel, const char *source, const char *message
+    ) {
+    if (listener != nil && [listener respondsToSelector:@selector(logWithTime:logLevel:source:message:)]) {
         [listener logWithTime:(time ? [NSString stringWithUTF8String:time] : nil) logLevel:(MEGALogLevel)logLevel source:(source ? [NSString stringWithUTF8String:source] : nil) message:(message ? [NSString stringWithUTF8String:message] : nil)];
     }
 }
+#endif
+
+
