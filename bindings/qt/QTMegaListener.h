@@ -30,8 +30,6 @@ public:
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override;
     void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState) override;
     void onSyncAdded(MegaApi *api,  MegaSync *sync, int additionState) override;
-    void onSyncDisabled(MegaApi *api,  MegaSync *sync) override;
-    void onSyncEnabled(MegaApi *api,  MegaSync *sync) override;
     void onSyncDeleted(MegaApi *api,  MegaSync *sync) override;
     void onGlobalSyncStateChanged(MegaApi* api) override;
 #endif
