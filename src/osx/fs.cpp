@@ -212,6 +212,7 @@ MacDirNotify::~MacDirNotify()
     --mOwner.mNumNotifiers;
 }
 
+
 void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
                             std::size_t numEvents,
                             const char** paths)
@@ -224,6 +225,14 @@ void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
         // Skip leading seperator.
         if (*path == '/')
             ++path;
+
+        // Has the root path been invalidated?
+        if ((flag & kFSEventStreamEventFlagRootChanged))
+            setFailed(EINVAL, "The root path has been invalidated.");
+
+        // Has a device been unmounted below the root?
+        if ((flag & kFSEventStreamEventFlagUnmount))
+            setFailed(EINVAL, "A device has been unmounted below the root path.");
 
         auto scanFlags = Notification::NEEDS_SCAN_UNKNOWN;
 
