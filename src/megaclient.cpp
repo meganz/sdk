@@ -18143,6 +18143,11 @@ void NodeManager::saveNode(Node &node)
     }
 }
 
+uint64_t NodeManager::getNumberNodesInRam() const
+{
+    return mNodes.size();
+}
+
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
 {
     if (!mTable)

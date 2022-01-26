@@ -378,6 +378,9 @@ public:
     // Node has received last updates and it's ready to store
     void saveNode(Node &node);
 
+    // This method only can be used in Megacli for tester propose
+    // TODO remve when NOD will be merged into develop
+    uint64_t getNumberNodesInRam() const;
 
 private:
     // TODO Nodes on demand remove reference
