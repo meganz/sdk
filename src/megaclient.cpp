@@ -16791,7 +16791,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     }
 
     // TODO nodes on demand: we should also keep in RAM the inshares (when fetching nodes)
-    if (mKeepAllNodesInMemory || rootNode || isFolderLink || !isFetching || notify)
+    if (mKeepAllNodesInMemory || rootNode || isFolderLink || !isFetching || notify || node->parentHandle() == mClient.rootnodes.files)
     {
         saveNodeInRAM(node);
     }
