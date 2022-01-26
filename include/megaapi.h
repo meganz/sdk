@@ -9894,7 +9894,7 @@ class MegaApi
          * of the moment when they are created. For more information about log archive
          * control see RotativePerformanceLogger::setArchiveTimestamps().
          *
-         * @param logPath Log base directory for both active log file and archived logs
+         * @param logPath Absolute path pointing to the base directory for both active log file and archived logs
          * @param logFileName Log file name (without path).¡
          * @param logToStdOut if true, logs are also output to standard output
          * @param archivedFilesAgeSeconds Number of seconds before archived files are removed. Defaults to one month.
