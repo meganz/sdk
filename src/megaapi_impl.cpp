@@ -18376,6 +18376,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setPath(wLocalPath.toPath().c_str());
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
+                            totalDownloads++;
+                            pendingDownloads++;
                             fireOnTransferStart(transfer);
                             if (node)
                             {
@@ -18390,6 +18392,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setSpeed(0);
                             transfer->setMeanSpeed(0);
                             transfer->setState(MegaTransfer::STATE_COMPLETED);
+                            pendingDownloads--;
                             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_OK), committer);
                             break;
                         }
