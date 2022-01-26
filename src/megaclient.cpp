@@ -12091,6 +12091,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
     {
         // Force commit in case of old cache has ben modified in new cache
         sctable->commit();
+        // It's necessary begin a transction after commit to set autocommit disable
+        sctable->begin();
     }
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
