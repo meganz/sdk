@@ -12431,6 +12431,8 @@ class MegaApi
          *          5 for Contact/Sharing Issue
          *          6 for MEGAsync Issue
          *          7 for Missing/Invisible Data
+         *          8 for help-centre clarifications
+         *          9 for iOS issue
          * @param listener MegaRequestListener to track this request
          */
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
