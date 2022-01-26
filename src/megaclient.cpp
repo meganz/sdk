@@ -12032,7 +12032,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    necessaryCommit = true;
                    // Add nodes from old data base structure to nodes on demand structure
                    // When all nodes are loaded we force a commit
-                   mNodeManager.addNode(n, false, true); // DB
+                   mNodeManager.addNode(n, false);
+                   mNodeManager.saveNode(*n);
                    sctable->del(id);
                 }
                 else
@@ -17792,9 +17793,9 @@ void NodeManager::notifyPurge()
 
             if (n->changed.removed)
             {
+                // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
                 if (n->parent)
                 {
-                    // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
                     subtractFromRootCounter(*n);
                 }
 
