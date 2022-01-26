@@ -847,7 +847,7 @@ bool FileSystemAccess::fsStableIDs(const LocalPath&) const
 
 #ifdef ENABLE_SYNC
 
-bool FileSystemAccess::initFilesystemNotificationSystem(int)
+bool FileSystemAccess::initFilesystemNotificationSystem()
 {
     return true;
 }

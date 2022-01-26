@@ -43,7 +43,7 @@ public:
     int checkevents(Waiter* waiter) override;
 
 #ifdef ENABLE_SYNC
-    bool initFilesystemNotificationSystem(int) override;
+    bool initFilesystemNotificationSystem() override;
 
     DirNotify* newdirnotify(LocalNode& root,
                             const LocalPath& rootPath,

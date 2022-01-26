@@ -39,7 +39,7 @@ int MacFileSystemAccess::checkevents(Waiter*)
 
 #ifdef ENABLE_SYNC
 
-bool MacFileSystemAccess::initFilesystemNotificationSystem(int)
+bool MacFileSystemAccess::initFilesystemNotificationSystem()
 {
     // So we can wait until the worker is initialized.
     std::promise<CFRunLoopRef> ready;

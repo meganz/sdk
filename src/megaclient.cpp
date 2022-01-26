@@ -1222,7 +1222,7 @@ void MegaClient::init()
     mOptimizePurgeNodes = false;
 }
 
-MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAccess>&& notification_fsa, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
+MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
    : mAsyncQueue(*w, workerThreadCount)
    , mCachedStatus(this)
    , useralerts(*this)
@@ -1233,7 +1233,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
    , btsc(rng)
    , btpfa(rng)
 #ifdef ENABLE_SYNC
-    , syncs(*this, move(notification_fsa))
+    , syncs(*this)
 #endif
 {
     sctable = NULL;

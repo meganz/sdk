@@ -3118,12 +3118,14 @@ void UnifiedSync::changedConfigState(bool notifyApp)
     }
 }
 
-Syncs::Syncs(MegaClient& mc, unique_ptr<FileSystemAccess> notification_fsa)
+Syncs::Syncs(MegaClient& mc)
   : mClient(mc)
-  , fsaccess(move(notification_fsa))
+  , fsaccess(::mega::make_unique<FSACCESS_CLASS>())
   , mSyncFlags(new SyncFlags)
   , mScanService(new ScanService(waiter))
 {
+    fsaccess->initFilesystemNotificationSystem();
+
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
     syncThread = std::thread([this]() { syncLoop(); });
 }

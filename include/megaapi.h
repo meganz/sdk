@@ -7911,50 +7911,6 @@ class MegaApi
          */
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
 
-#ifdef ENABLE_SYNC
-        /**
-         * @brief Special constructor to allow non root synchronization on OSX
-         *
-         * The synchronization engine needs to read filesystem notifications from /dev/fsevents to work efficiently.
-         * Only root can open this file, so if you want to use the synchronization engine on OSX you will have to
-         * run the application as root, or to use this constructor to provide an open file descriptor to /dev/fsevents
-         *
-         * You could open /dev/fsevents in a minimal loader with root permissions and provide the file descriptor
-         * to a new executable that uses this constructor. Here you have an example implementation of the loader:
-         *
-         * int main(int argc, char *argv[])
-         * {
-         *     char buf[16];
-         *     int fd = open("/dev/fsevents", O_RDONLY);
-         *     seteuid(getuid());
-         *     snprintf(buf, sizeof(buf), "%d", fd);
-         *     execl("executablePath", buf, NULL);
-         *     return 0;
-         * }
-         *
-         * If you use another constructor. The synchronization engine will still work on OSX, but it will scan all files
-         * regularly so it will be much less efficient.
-         *
-         * @param appKey AppKey of your application
-         * You can generate your AppKey for free here:
-         * - https://mega.nz/#sdk
-         *
-         * @param basePath Base path to store the local cache
-         * If you pass NULL to this parameter, the SDK won't use any local cache.
-         *
-         * @param userAgent User agent to use in network requests
-         * If you pass NULL to this parameter, a default user agent will be used
-         *
-         * @param fseventsfd Open file descriptor of /dev/fsevents
-         *
-         * @param workerThreadCount The number of worker threads for encryption or other operations
-         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
-         * and uploads and downloads can proceed more quickly on very fast connections.
-         *
-         */
-        MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount = 1);
-#endif
-
 #ifdef HAVE_MEGAAPI_RPC
         MegaApi();
 #endif

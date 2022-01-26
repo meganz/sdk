@@ -747,7 +747,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool fsStableIDs(const LocalPath& path) const;
 
 #ifdef ENABLE_SYNC
-    virtual bool initFilesystemNotificationSystem(int notificationFd);
+    virtual bool initFilesystemNotificationSystem();
 #endif // ENABLE_SYNC
 };
 

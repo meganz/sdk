@@ -81,10 +81,6 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
-// only meaningful for __APPLE__
-int gFilesystemEventsFd = -1;
-
-
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
@@ -4803,18 +4799,11 @@ void exec_open(autocomplete::ACState& s)
             gfx->startProcessingThread();
 #endif
 
-            auto fsNotificationsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-
-#ifdef ENABLE_SYNC
-            fsNotificationsAccess->initFilesystemNotificationSystem(gFilesystemEventsFd);
-#endif // ENABLE_SYNC
-
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
             clientFolder = new MegaClient(new DemoAppFolder,
                                           client->waiter,
                                           client->httpio,
-                                          move(fsNotificationsAccess),
                 #ifdef DBACCESS_CLASS
                                           new DBACCESS_CLASS(*startDir),
                 #else
@@ -8722,23 +8711,6 @@ int main(int argc, char* argv[])
     // The program megacli_fsloader in CMakeLists is the one that gets the special descriptor and starts megacli (mac only).
     std::vector<char*> myargv1(argv, argv + argc);
 
-    for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
-    {
-#ifdef __APPLE__
-        if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
-        {
-            int fseventsFd = std::stoi(std::string(*it).substr(13));
-            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
-                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
-                return 1;
-            }
-
-            gFilesystemEventsFd = fseventsFd;
-            std::cout << "Using filesystem events notification handle passed from loader: " << gFilesystemEventsFd << std::endl;
-        }
-#endif
-    }
-
     SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&gLogger);
 
@@ -8751,18 +8723,17 @@ int main(int argc, char* argv[])
     mega::GfxProc* gfx = nullptr;
 #endif
 
-    // Needed so we can get the cwd.
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-
-#ifdef ENABLE_SYNC
-    fsAccess->initFilesystemNotificationSystem(gFilesystemEventsFd);
-#endif // ENABLE_SYNC
-
-    // Where are we?
-    if (!fsAccess->cwd(*startDir))
+    // Determine the current working directory.
     {
-        cerr << "Unable to determine current working directory." << endl;
-        return EXIT_FAILURE;
+        // Needed so we can get the cwd.
+        auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+
+        // Where are we?
+        if (!fsAccess->cwd(*startDir))
+        {
+            cerr << "Unable to determine current working directory." << endl;
+            return EXIT_FAILURE;
+        }
     }
 
     auto httpIO = new HTTPIO_CLASS;
@@ -8788,7 +8759,6 @@ int main(int argc, char* argv[])
     client = new MegaClient(demoApp,
                             waiter,
                             httpIO,
-                            move(fsAccess),
                             dbAccess,
                             gfx,
                             "Gk8DyQBS",

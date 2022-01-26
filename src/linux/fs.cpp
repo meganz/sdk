@@ -147,7 +147,7 @@ int LinuxFileSystemAccess::checkevents(Waiter* waiter)
 
 #ifdef ENABLE_SYNC
 
-bool LinuxFileSystemAccess::initFilesystemNotificationSystem(int)
+bool LinuxFileSystemAccess::initFilesystemNotificationSystem()
 {
     mNotifyFd = inotify_init1(IN_NONBLOCK);
 
