@@ -375,7 +375,7 @@ public:
     void removeFingerprint(Node* node);
     FingerprintMapPosition getInvalidPosition();
 
-    // Node has received last updates and it's ready to store
+    // Node has received last updates and it's ready to store in DB
     void saveNode(Node &node);
 
     // This method only can be used in Megacli for tester propose
@@ -427,7 +427,7 @@ private:
 
     Node* getNodeFromDataBase(NodeHandle handle);
 
-    // This method is called to add a node in to counter that it's going to be stored only at DB
+    // This method is called to increase a counters with a node that it's going to be stored only at DB
     void updateCountersWithNode(const Node& node);
 
     // keep nodes that we have to stored at DB but they aren't saved at DB yet
