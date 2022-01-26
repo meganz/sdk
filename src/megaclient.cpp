@@ -12026,7 +12026,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
             case CACHEDNODE:
                 LOG_info << "Loading nodes from old cache";
-                assert(!mNodeManager.isNodesOnDemandReady());
                 if ((n = mNodeManager.unserializeNode(&data, true)))
                 {
                    necessaryCommit = true;
