@@ -24010,8 +24010,8 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
         message = "";
     }
 
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
+#ifdef ENABLE_LOG_PERFORMANCE
+    lock_guard<std::recursive_mutex> g(mutex);
 #endif
     for (auto logger : megaLoggers)
     {
@@ -24024,17 +24024,14 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 
     if (logToConsole)
     {
-#ifdef ENABLE_LOG_PERFORMANCE
-        mutex.lock();
-#endif
-        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << std::endl;
-#ifdef ENABLE_LOG_PERFORMANCE
-        mutex.unlock();
-#endif
+        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
+        if (message) std::cout << message;
+        for (unsigned i = 0; i < numberMessages; ++i)
+        {
+            std::cout.write(directMessages[i], directMessagesSizes[i]);
+        }
+        std::cout << std::endl;
     }
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
 }
 
 
