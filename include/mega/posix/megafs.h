@@ -91,9 +91,6 @@ public:
     bool getextension(const LocalPath&, std::string&) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
 
-    void addevents(Waiter*, int) override;
-    int checkevents(Waiter*) override;
-
     void osversion(string*, bool includeArchitecture) const override;
     void statsid(string*) const override;
 
@@ -105,7 +102,6 @@ public:
     void setdefaultfolderpermissions(int);
 
     PosixFileSystemAccess();
-    ~PosixFileSystemAccess();
 
     static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
@@ -186,8 +182,6 @@ class LinuxFileSystemAccess
 public:
     friend class LinuxDirNotify;
 
-    LinuxFileSystemAccess();
-
     ~LinuxFileSystemAccess();
 
     void addevents(Waiter* waiter, int flags) override;
@@ -207,7 +201,7 @@ private:
     list<DirNotify*> mNotifiers;
 
     // Inotify descriptor.
-    int mNotifyFd;
+    int mNotifyFd = -EINVAL;
 
     // Tracks which nodes are associated with what inotify handle.
     WatchMap mWatches;

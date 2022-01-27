@@ -28,7 +28,7 @@ AM_CPPFLAGS = \
 include m4/aminclude.am
 
 if ANDROID
-AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/linux
+AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/posix
 endif
 
 if DARWIN

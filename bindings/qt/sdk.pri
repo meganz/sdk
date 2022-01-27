@@ -676,7 +676,6 @@ win32 {
 }
 
 unix:!macx {
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/linux
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
    LIBS += -lsqlite3 -lrt
 
