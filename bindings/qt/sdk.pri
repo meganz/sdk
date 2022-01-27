@@ -105,9 +105,7 @@ else {
 
 CONFIG(ENABLE_WERROR_COMPILATION) {
     !win32 {
-        debug {
-            QMAKE_CXXFLAGS += -Werror
-        }
+        QMAKE_CXXFLAGS += -Werror
     }
     else {
         QMAKE_CXXFLAGS += /WX
