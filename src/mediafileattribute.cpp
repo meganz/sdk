@@ -594,6 +594,11 @@ const char* MediaProperties::supportedformatsMediaInfo()
         ".mka.mks.mlp.mov.mp1.mp1v.mp2.mp2v.mp3.mp4.mp4v.mpa1.mpa2.mpeg.mpg.mpgv.mpv.mqv.ogg.ogm.ogv"
         ".omg.opus.qt.sls.spx.thd.tmf.trp.ts.ty.vc1.vob.vr.w64.wav.webm.wma.wmv.";
 
+    static_assert(sizeof(supportedformats) > 1 &&
+                  supportedformats[0] == '.' &&
+                  supportedformats[sizeof(supportedformats) - 2] == '.',
+                  "Supported formats need to start and end with '.'");
+
     return supportedformats;
 }
 
