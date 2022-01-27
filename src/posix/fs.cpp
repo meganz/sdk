@@ -755,7 +755,7 @@ void LinuxFileSystemAccess::addevents(Waiter* waiter, int flags)
 }
 
 // read all pending inotify events and queue them for processing
-int LinuxFileSystemAccess::checkevents(Waiter* w)
+int LinuxFileSystemAccess::checkevents(Waiter* waiter)
 {
     int result = 0;
 
