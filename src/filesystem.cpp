@@ -559,11 +559,11 @@ bool LocalPath::invariant() const
 #elif WIN32
     if (isFromRoot)
     {
-        // must contain a drive letter
+        // if it starts with \\ then it's absolute, either by us or provided
+        if (localpath.size() >= 2 && localpath[0] == '\\' && localpath[1] == '\\') return true;
+        // otherwise it must contain a drive letter
         if (localpath.find(L":") == string_type::npos) return false;
-        // must start "\\"
-        if (localpath.size() < 4) return false;
-        if (localpath.substr(0, 2) != L"\\\\") return false;
+        // ok so probably relative then, but double check:
         if (PathIsRelativeW(localpath.c_str())) return false;
     }
     else

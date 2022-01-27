@@ -1706,7 +1706,7 @@ void MegaGlobalListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
-void MegaListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
+void MegaListener::onSyncAdded(MegaApi *, MegaSync *)
 { }
 void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }

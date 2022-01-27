@@ -906,7 +906,8 @@ struct Syncs
     vector<NodeHandle> getSyncRootHandles(bool mustBeActive);
 
     void purgeRunningSyncs();
-    void resumeResumableSyncsOnStartup(bool resetSyncConfigStore, std::function<void(error)>&& completion);
+    void loadSyncConfigsOnLogin(bool resetSyncConfigStore);
+    void resumeSyncsOnStateCurrent();
 
     void enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError)> completion, const string& logname);
     void disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
@@ -1066,7 +1067,7 @@ public:
     bool syncConflictState = false;
 
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
-    bool isEmpty = true;
+    bool mSyncVecIsEmpty = true;
 
     // directly accessed flag that makes sync-related logging a lot more detailed
     bool mDetailedSyncLogging = false;
@@ -1110,7 +1111,8 @@ private:
         bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error, SyncError, handle)> completion, const string& logname);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
-    void resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, std::function<void(error)>);
+    void loadSyncConfigsOnLogin_inThread(bool resetSyncConfigStore);
+    void resumeSyncsOnStateCurrent_inThread();
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname);
     void disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);

@@ -133,11 +133,10 @@ void QTMegaListener::onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string
     QCoreApplication::postEvent(&mEventPostTarget, event, INT_MIN);
 }
 
-void QTMegaListener::onSyncAdded(MegaApi *api, MegaSync *sync, int additionState)
+void QTMegaListener::onSyncAdded(MegaApi *api, MegaSync *sync)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncAdded);
     event->setSync(sync->copy());
-    event->setNewState(additionState);
     QCoreApplication::postEvent(&mEventPostTarget, event, INT_MIN);
 }
 

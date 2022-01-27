@@ -4335,7 +4335,7 @@ void Syncs::clear_inThread()
         lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.clear();
     }
-    isEmpty = true;
+    mSyncVecIsEmpty = true;
     syncKey.setkey((byte*)"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0");
     stallReport = SyncStallInfo();
     triggerHandles.clear();
@@ -4407,7 +4407,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
 {
     assert(onSyncThread());
 
-    isEmpty = false;
+    mSyncVecIsEmpty = false;
     {
         lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
@@ -4891,7 +4891,7 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
 
         lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.erase(mSyncVec.begin() + index);
-        isEmpty = mSyncVec.empty();
+        mSyncVecIsEmpty = mSyncVec.empty();
     }
 }
 
@@ -4916,7 +4916,7 @@ void Syncs::unloadSyncByIndex(size_t index)
 
         lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.erase(mSyncVec.begin() + index);
-        isEmpty = mSyncVec.empty();
+        mSyncVecIsEmpty = mSyncVec.empty();
     }
 }
 
@@ -4930,23 +4930,27 @@ void Syncs::saveSyncConfig(const SyncConfig& config)
     }
 }
 
-void Syncs::resumeResumableSyncsOnStartup(bool resetSyncConfigStore, std::function<void(error)>&& completion)
+void Syncs::loadSyncConfigsOnLogin(bool resetSyncConfigStore)
 {
     assert(!onSyncThread());
 
-    if (mClient.loggedin() != FULLACCOUNT)
-    {
-        if (completion) completion(API_EACCESS);
-        return;
-    }
-
-    syncThreadActions.pushBack([this, resetSyncConfigStore, completion]()
+    syncThreadActions.pushBack([this, resetSyncConfigStore]()
         {
-            resumeResumableSyncsOnStartup_inThread(resetSyncConfigStore, completion);
+            loadSyncConfigsOnLogin_inThread(resetSyncConfigStore);
         });
 }
 
-void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, std::function<void(error)> clientCompletion)
+void Syncs::resumeSyncsOnStateCurrent()
+{
+    assert(!onSyncThread());
+
+    syncThreadActions.pushBack([this]()
+        {
+            resumeSyncsOnStateCurrent_inThread();
+        });
+}
+
+void Syncs::loadSyncConfigsOnLogin_inThread(bool resetSyncConfigStore)
 {
     assert(onSyncThread());
 
@@ -4967,12 +4971,28 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
     // There should be no syncs yet.
     assert(mSyncVec.empty());
 
-    for (auto& config : configs)
     {
         lock_guard<mutex> g(mSyncVecMutex);
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
-        isEmpty = false;
+        for (auto& config : configs)
+        {
+            mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
+            mSyncVecIsEmpty = false;
+        }
     }
+
+    for (auto& us : mSyncVec)
+    {
+        mClient.app->sync_auto_loaded(us->mConfig);
+    }
+
+    // Let the app know that we have restored all syncs (which may be 0)
+    // So the app knows this async process is complete, and it's into normal operation
+    mClient.app->syncs_restored(NO_SYNC_ERROR);
+}
+
+void Syncs::resumeSyncsOnStateCurrent_inThread()
+{
+    assert(onSyncThread());
 
     for (auto& unifiedSync : mSyncVec)
     {
@@ -5010,22 +5030,14 @@ void Syncs::resumeResumableSyncsOnStartup_inThread(bool resetSyncConfigStore, st
                 enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [this, unifiedSync, hadAnError](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
-                        assert(onSyncThread());
-                        mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
                     }, "");
             }
             else
             {
                 LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
-                assert(onSyncThread());
-                mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
             }
         }
     }
-
-    // Let the app know that we have restored all syncs (which may be 0)
-    // So the app knows this async process is complete, and it's into normal operation
-    mClient.app->syncs_restored(NO_SYNC_ERROR);
 }
 
 bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)

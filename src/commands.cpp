@@ -1845,6 +1845,9 @@ bool CommandLogin::procresult(Result r)
 
                 client->openStatusTable(true);
                 client->app->login_result(API_OK);
+
+                client->syncs.loadSyncConfigsOnLogin(true);
+
                 return true;
 
             default:

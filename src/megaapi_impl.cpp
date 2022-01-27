@@ -13323,40 +13323,13 @@ void MegaApiImpl::sync_removed(const SyncConfig& config)
     fireOnSyncDeleted(msp_ptr.get());
 }
 
-void MegaApiImpl::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
+void MegaApiImpl::sync_auto_loaded(const SyncConfig& config)
 {
     mCachedMegaSyncPrivate.reset();
 
     auto megaSync = cachedMegaSyncPrivateByBackupId(config);
 
-    int additionState = MegaSync::FROM_CACHE;
-    if (attempted) // tried to auto-resume
-    {
-        if (config.mRunningState >= 0) // succeeded
-        {
-            if (hadAnError) // succeed to resume, despite it failed due to a temporary error in the past
-            {
-                additionState = MegaSync::FROM_CACHE_REENABLED;
-            }
-            else // regular resumption succeded
-            {
-                additionState = MegaSync::FROM_CACHE;
-            }
-        }
-        else // could not resume
-        {
-           if (hadAnError) // had a temporary error in the past: attempted to be reenabled but failed
-           {
-               additionState = MegaSync::REENABLED_FAILED;
-           }
-           else // regular resumption failed
-           {
-               additionState = MegaSync::FROM_CACHE_FAILED_TO_RESUME;
-           }
-        }
-    }
-
-    fireOnSyncAdded(megaSync, additionState);
+    fireOnSyncAdded(megaSync);
 }
 
 void MegaApiImpl::syncupdate_remote_root_changed(const SyncConfig &config)
@@ -13805,7 +13778,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
                     auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig, client);
 
-                    fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
+                    fireOnSyncAdded(sync.get());
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }, "");
@@ -16501,12 +16474,12 @@ void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
     }
 }
 
-void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
+void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync)
 {
     assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
-        (*it++)->onSyncAdded(api, sync, additionState);
+        (*it++)->onSyncAdded(api, sync);
     }
 }
 
@@ -21399,7 +21372,7 @@ void MegaApiImpl::sendPendingRequests()
 
                     auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig, client);
 
-                    fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
+                    fireOnSyncAdded(sync.get());
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }, "");

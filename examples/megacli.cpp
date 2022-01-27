@@ -444,21 +444,11 @@ void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
         << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
+void DemoApp::sync_auto_loaded(const SyncConfig& config)
 {
     handle backupId = config.mBackupId;
-    if (attempted)
-    {
-        conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath()  << " enabled: "
-             << config.getEnabled()  << " syncError: " << config.getError()
-             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
-    }
-    else
-    {
-        conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
-            << config.getEnabled() << " syncError: " << config.getError()
-            << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
-    }
+    conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
+        << config.getEnabled() << " syncError: " << config.getError() << " " << config.getRunState();
 }
 
 void DemoApp::sync_removed(const SyncConfig& config)

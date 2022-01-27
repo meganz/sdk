@@ -4041,7 +4041,7 @@ bool MegaClient::procsc()
                         // Don't start sync activity until `statecurrent` as it could take actions based on old state
                         // The reworked sync code can figure out what to do once fully up to date.
                         nodeTreeIsChanging.unlock();
-                        syncs.resumeResumableSyncsOnStartup(false, nullptr);
+                        syncs.resumeSyncsOnStateCurrent();
 #endif
 
                         if (notifyStorageChangeOnStateCurrent)
@@ -9018,6 +9018,9 @@ void MegaClient::login(string session)
                 checkForResumeableSCDatabase();
                 openStatusTable(true);
                 app->login_result(API_OK);
+
+                syncs.loadSyncConfigsOnLogin(true);
+
                 reportLoggedInChanges();
             }
         }

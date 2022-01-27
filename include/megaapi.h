@@ -5242,23 +5242,6 @@ public:
         UNABLE_TO_RETRIEVE_ROOT_FSID = 39       // Unable to retrieve a sync root's FSID.
     };
 
-    //enum Warning
-    //{
-    //    NO_SYNC_WARNING = 0,
-    //    LOCAL_IS_FAT = 1, // Found FAT (not a failure per se)
-    //    LOCAL_IS_HGFS= 2, // Found HGFS (not a failure per se)
-    //};
-
-    enum SyncAdded
-    {
-        NEW  = 1, //new sync added and activated
-        FROM_CACHE = 2, // just restored from cache (keeping its former state: active if it was active)
-        FROM_CACHE_FAILED_TO_RESUME = 3, // restored from cache, but activation failed: implies change in state
-        FROM_CACHE_REENABLED  = 4, // restored from cache: reenabled after some failure: implies change in state
-        REENABLED_FAILED = 5, //attempt to reenable lead to a failure: might not imply change in state, and does not change "active" state
-        NEW_TEMP_DISABLED = 6, // new sync added as temporarily disabled due to a temporary error
-    };
-
     enum SyncType
     {
         TYPE_UNKNOWN = 0x00,
@@ -7117,26 +7100,6 @@ class MegaListener
      *
      * Notice that adding a sync will not cause onSyncStateChanged to be called.
      *
-     * As to the additionState can be:
-     * - MegaSync::SyncAdded::NEW = 1
-     * Sync added anew and activated
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE = 2
-     * Sync loaded from cache. If the sync was enabled, it will be enabled.
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE_FAILED_TO_RESUME = 3
-     * Sync loaded from cache, but failed to be resumed.
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE_REENABLED = 4
-     * Sync loaded from cache, and reenabled. The sync was temporary disabled but could be succesfully
-     * resumed
-     *
-     * - MegaSync::SyncAdded::REENABLED_FAILED = 5
-     * Sync loaded from cache and attempted to be reenabled. The sync will have the error for that
-     *
-     * - MegaSync::SyncAdded::NEW_DISABLED = 6
-     * Sync added anew, but set as temporarily disabled due to a temporary error
-     *
      * The SDK retains the ownership of the sync parameter.
      * Don't use it after this functions returns.
      *
@@ -7144,7 +7107,7 @@ class MegaListener
      * @param api MegaApi object that is synchronizing files
      * @param additionState conditions in which the sync is added
      */
-    virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState);
+    virtual void onSyncAdded(MegaApi *api, MegaSync *sync);
 
     /**
      * @brief This callback will be called when a sync is removed.
@@ -7185,7 +7148,7 @@ class MegaListener
      *
      * - The sdk tries resumes a sync that had been temporarily disabled
      *
-     * 
+     *
      * The SDK retains the ownership of the sync parameter.
      * Don't use it after this functions returns.
      *
