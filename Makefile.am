@@ -35,10 +35,6 @@ if DARWIN
 AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/osx
 endif
 
-if LINUX
-AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/linux
-endif
-
 if WIN32
 AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/win32
 else

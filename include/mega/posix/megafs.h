@@ -21,10 +21,6 @@
 #ifndef MEGA_POSIX_FS_H
 #define MEGA_POSIX_FS_H
 
-#ifndef FSACCESS_CLASS
-#define FSACCESS_CLASS PosixFileSystemAccess
-#endif // ! FSACCESS_CLASS
-
 #ifdef  __APPLE__
 // Apple calls it sendfile, but it isn't
 #undef HAVE_SENDFILE
@@ -179,6 +175,78 @@ private:
     bool mFollowSymLinks = true;
 
 };
+
+#ifdef __linux__
+
+#define FSACCESS_CLASS LinuxFileSystemAccess
+
+class LinuxFileSystemAccess
+  : public PosixFileSystemAccess
+{
+public:
+    friend class LinuxDirNotify;
+
+    LinuxFileSystemAccess();
+
+    ~LinuxFileSystemAccess();
+
+    void addevents(Waiter* waiter, int flags) override;
+
+    int checkevents(Waiter* waiter) override;
+
+#ifdef ENABLE_SYNC
+
+    bool initFilesystemNotificationSystem() override;
+
+    DirNotify* newdirnotify(LocalNode& root,
+                            const LocalPath& rootPath,
+                            Waiter* waiter) override;
+
+private:
+    // Tracks which notifiers were created by this instance.
+    list<DirNotify*> mNotifiers;
+
+    // Inotify descriptor.
+    int mNotifyFd;
+
+    // Tracks which nodes are associated with what inotify handle.
+    WatchMap mWatches;
+
+#endif // ENABLE_SYNC
+}; // LinuxFileSystemAccess
+
+#ifdef ENABLE_SYNC
+
+// Convenience.
+using AddWatchResult = pair<WatchMapIterator, WatchResult>;
+
+class LinuxDirNotify
+  : public DirNotify
+{
+public:
+    LinuxDirNotify(LinuxFileSystemAccess& owner,
+                   LocalNode& root,
+                   const LocalPath& rootPath);
+
+    ~LinuxDirNotify();
+
+    AddWatchResult addWatch(LocalNode& node,
+                            const LocalPath& path,
+                            handle fsid);
+
+    void removeWatch(WatchMapIterator entry);
+
+private:
+    // The LFSA that we are associated with.
+    LinuxFileSystemAccess& mOwner;
+
+    // Our position in our owner's mNotifiers list.
+    list<DirNotify*>::iterator mNotifiersIt;
+}; // LinuxDirNotify
+
+#endif // ENABLE_SYNC
+
+#endif // __linux__
 
 } // namespace
 

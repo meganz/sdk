@@ -49,7 +49,6 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/crypto/cryptopp.cpp  \
     sdk/src/crypto/sodium.cpp  \
     sdk/src/db/sqlite.cpp  \
-    sdk/src/linux/fs.cpp \
     sdk/src/posix/net.cpp  \
     sdk/src/posix/fs.cpp  \
     sdk/src/posix/waiter.cpp \
@@ -105,7 +104,6 @@ HEADERS= sdk/include/mega.h \
 	    sdk/include/mega/db/sqlite.h  \
 	    sdk/include/megaapi.h \
 	    sdk/include/megaapi_impl.h \
-            sdk/include/mega/linux/megafs.h \
 	    sdk/include/mega/posix/meganet.h  \
         sdk/include/mega/posix/megasys.h  \
         sdk/include/mega/posix/megafs.h  \

@@ -643,9 +643,6 @@ ELSE(WIN32)
                                            ${MegaDir}/include/mega/posix/drivenotifyposix.h
                                            ${MegaDir}/src/posix/drivenotifyposix.cpp)
         ENDIF ()
-
-        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
-                                       ${MegaDir}/src/linux/fs.cpp)
     ENDIF ()
 
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
@@ -671,9 +668,6 @@ ELSE(WIN32)
                    resolv)
        endif()
     ELSE()
-        SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/linux
-                                          ${Mega_PlatformSpecificIncludes})
-
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
     ENDIF()
 

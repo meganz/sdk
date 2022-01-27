@@ -154,14 +154,9 @@ endif
 
 if ANDROID
 src_libmega_la_SOURCES += src/mega_glob.c
-src_libmega_la_SOURCES += src/linux/fs.cpp
 endif
 
 if DARWIN
 src_libmega_la_SOURCES += src/osx/fs.cpp
-endif
-
-if LINUX
-src_libmega_la_SOURCES += src/linux/fs.cpp
 endif
 

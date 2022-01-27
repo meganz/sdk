@@ -10,7 +10,7 @@ ENV_MEGA_USE_C_ARES=$$(MEGA_USE_C_ARES)
 DEFINES += MEGA_USE_C_ARES
 }
 
-THIRDPARTY_VCPKG_PATH = $$THIRDPARTY_VCPKG_BASE_PATH/vcpkg/installed/$$VCPKG_TRIPLET
+THIRDPARTY_VCPKG_PATH = $$(THIRDPARTY_VCPKG_BASE_PATH)/vcpkg/installed/$$(VCPKG_TRIPLET)
 exists($$THIRDPARTY_VCPKG_PATH) {
    CONFIG += vcpkg
 }
@@ -679,9 +679,6 @@ unix:!macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/linux
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
    LIBS += -lsqlite3 -lrt
-
-   HEADERS += include/mega/linux/megafs.h
-   SOURCES += src/linux/fs.cpp
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
     LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a
