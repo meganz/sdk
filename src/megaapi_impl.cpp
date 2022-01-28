@@ -24026,10 +24026,12 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
     {
         std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
         if (message) std::cout << message;
+#ifdef ENABLE_LOG_PERFORMANCE
         for (unsigned i = 0; i < numberMessages; ++i)
         {
             std::cout.write(directMessages[i], directMessagesSizes[i]);
         }
+#endif
         std::cout << std::endl;
     }
 }
