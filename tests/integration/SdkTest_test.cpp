@@ -7263,4 +7263,28 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     Cleanup();
 }
 
+/**
+ * @brief TEST_F SdkTestAudioFileThumbnail
+ *
+ * Tests extracting thumbnail for uploaded audio file.
+ */
+TEST_F(SdkTest, SdkTestAudioFileThumbnail)
+{
+    LOG_info << "___TEST Audio File Thumbnail___";
+
+    const char* bufPathToMp3 = getenv("MEGA_DIR_PATH_TO_MP3");
+    ASSERT_TRUE(bufPathToMp3 && *bufPathToMp3) << "MEGA_DIR_PATH_TO_MP3 env var must be defined";
+    string mp3 = bufPathToMp3;
+    if (mp3.back() != FileSystemAccess::getPathSeparator()[0])
+        mp3 += FileSystemAccess::getPathSeparator()[0];
+    mp3 += "test_cover_png.mp3";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, mp3.c_str(), rootnode.get())) << "Cannot upload test file " << mp3;
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
+}
 #endif
