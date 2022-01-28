@@ -463,7 +463,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     if (syncs.configByRootNode(rootHandle, sc))  // todo: could have gotten all configs above
                     {
                         LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                        syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
+                        syncs.disableSyncByBackupId(sc.mBackupId, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
                     }
                 }
             }
@@ -481,7 +481,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     SyncConfig sc;
                     if (syncs.configByRootNode(rootHandle, sc))
                     {
-                        syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
+                        syncs.disableSyncByBackupId(sc.mBackupId, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
                     }
                 }
             };
@@ -12889,7 +12889,11 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     {
         if (Node* syncRoot = nodeByHandle(rootHandle))
         {
-            if (syncRoot->isbelow(remotenode))
+            if (syncRoot->nodeHandle() == remotenode->nodeHandle())
+            {
+                continue;
+            }
+            else if (syncRoot->isbelow(remotenode))
             {
                 if (syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
                 return API_EEXIST;
@@ -12996,7 +13000,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
-            if (config.getEnabled() && !config.getError() &&
+            if (config.getEnabled() && !config.mError &&
                     ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )

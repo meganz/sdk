@@ -72,8 +72,6 @@ public:
         TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
 
-    enum SyncRunState { Run, Pause, Suspend, Disable };
-
     SyncConfig() = default;
 
     SyncConfig(LocalPath localPath,
@@ -100,15 +98,6 @@ public:
 
     // returns the type of the sync
     Type getType() const;
-
-    // This is where the remote root node was, last time we checked
-
-    // error code or warning (errors mean the sync was stopped)
-    SyncError getError() const;
-    void setError(SyncError value);
-
-    //SyncWarning getWarning() const;
-    //void setWarning(SyncWarning value);
 
     // If the sync is enabled, we will auto-start it
     bool getEnabled() const;
@@ -169,14 +158,17 @@ public:
     // Whether this backup is monitoring or mirroring.
     SyncBackupState mBackupState;
 
-    // Current running state.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
-    syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no associated mSync
+    // records whether there is an mSync (which can't be checked directly from other threads)
+    bool mRunning = false;
 
     // Whether recursiveSync() is called.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
     bool mTemporarilyPaused = false;
 
     // If the database exists then its running/paused/suspended.  Not serialized.
     bool mDatabaseExists = false;
+
+    // Just the Pending, Loading, Running sequence
+    SyncRunState mLoadState = SyncRunState::Pending;
 
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
@@ -188,7 +180,7 @@ public:
     unsigned mScanIntervalSec = 0;
 
     // enum to string conversion
-    static const char* syncstatename(const syncstate_t state);
+    //static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
     static bool synctypefromname(const string& name, Type& type);
 
@@ -228,7 +220,7 @@ struct UnifiedSync
     UnifiedSync(Syncs&, const SyncConfig&);
 
     // Update state and signal to application
-    void changeState(syncstate_t, SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
+    void changeState(SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
 
 
 private:
@@ -464,9 +456,6 @@ public:
 
     FileSystemType mFilesystemType = FS_UNKNOWN;
 
-    // current state
-    syncstate_t& state() { return getConfig().mRunningState; }
-
     // syncing to an inbound share?
     bool inshare = false;
 
@@ -491,7 +480,7 @@ public:
     //const string& statecachename() const;
 
     // change state, signal to application
-    void changestate(syncstate_t, SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
+    void changestate(SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
 
     //// skip duplicates and self-caused
     //bool checkValidNotification(int q, Notification& notification);
@@ -581,9 +570,6 @@ public:
     Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname);
     ~Sync();
 
-    // Should we synchronize this sync?
-    bool active() const;
-
     // pause synchronization.  Syncs are still "active" but we don't call recursiveSync for them.
     void setSyncPaused(bool pause);
     bool isSyncPaused();
@@ -629,7 +615,7 @@ public:
     shared_ptr<SyncThreadsafeState> threadSafeState;
 
 protected :
-    bool readstatecache();
+    void readstatecache();
 
 private:
     LocalPath mLocalPath;
@@ -910,7 +896,7 @@ struct Syncs
     void resumeSyncsOnStateCurrent();
 
     void enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError)> completion, const string& logname);
-    void disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
+    void disableSyncByBackupId(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
@@ -1078,7 +1064,7 @@ public:
 private:
 
     // functions for internal use on-thread only
-    void stopCancelledFailedDisabled();
+    void stopSyncsInErrorState();
 
     void processTriggerHandles();
 
@@ -1114,7 +1100,7 @@ private:
     void loadSyncConfigsOnLogin_inThread(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent_inThread();
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname);
-    void disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
+    void disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
@@ -1194,7 +1180,7 @@ private:
 
             auto predicate = [&](const UnifiedSync& us) {
                 return us.mConfig.mBackupId == mBackupID
-                       && us.mConfig.mRunningState >= SYNC_INITIALSCAN;
+                       && !!us.mSync;
             };
 
             if (syncs.syncMatching(std::move(predicate), false))

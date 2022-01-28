@@ -255,9 +255,9 @@ struct StandardClient : public ::mega::MegaApp
 
     void onCallback();
 
-    std::function<void(const SyncConfig&, bool, bool)> onAutoResumeResult;
+    std::function<void(const SyncConfig&)> onAutoResumeResult;
 
-    void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override;
+    void sync_auto_loaded(const SyncConfig& config) override;
 
     bool received_syncs_restored = false;
     void syncs_restored(SyncError syncError) override;

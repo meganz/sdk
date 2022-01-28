@@ -2004,8 +2004,7 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h)
 
 LocalNode::~LocalNode()
 {
-    if (!sync->mDestructorRunning && dbid && (
-        sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN))
+    if (!sync->mDestructorRunning && dbid)
     {
         sync->statecachedel(this);
     }
@@ -2286,7 +2285,7 @@ void SyncTransfer_inClient::terminated(error e)
 
     if (e == API_EOVERQUOTA)
     {
-        syncThreadSafeState->client()->syncs.disableSyncByBackupId(syncThreadSafeState->backupId(), true, FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
+        syncThreadSafeState->client()->syncs.disableSyncByBackupId(syncThreadSafeState->backupId(), FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
     }
 
     wasTerminated = true;
@@ -2338,7 +2337,7 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
                 }
                 else if (e == API_EOVERQUOTA)
                 {
-                    client->syncs.disableSyncByBackupId(s->syncThreadSafeState->backupId(), true, FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
+                    client->syncs.disableSyncByBackupId(s->syncThreadSafeState->backupId(),  FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
                 }
             }
         });

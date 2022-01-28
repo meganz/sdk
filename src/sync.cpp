@@ -714,39 +714,33 @@ SyncConfig::Type SyncConfig::getType() const
     return mSyncType;
 }
 
-
-SyncError SyncConfig::getError() const
+SyncRunState SyncConfig::getRunState() const
 {
-    return mError;
-}
-
-void SyncConfig::setError(SyncError value)
-{
-    mError = value;
-}
-
-SyncConfig::SyncRunState SyncConfig::getRunState() const
-{
-    if (mRunningState >= SYNC_INITIALSCAN)
+    if (mRunning)
     {
-        if (mTemporarilyPaused)
+        if (mLoadState == SyncRunState::Run)
         {
-            return Pause;
+            return mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
         }
         else
         {
-            return Run;
+            assert(mLoadState < SyncRunState::Run);
+            return mLoadState;
         }
     }
     else
     {
-        if (mDatabaseExists)
+        if (mEnabled && mLoadState == SyncRunState::Pending)
         {
-            return Suspend;
+            return SyncRunState::Pending;
+        }
+        else if (mDatabaseExists)
+        {
+            return SyncRunState::Suspend;
         }
         else
         {
-            return Disable;
+            return SyncRunState::Disable;
         }
     }
 }
@@ -818,8 +812,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Remote node moved to Rubbish Bin";
     case SHARE_NON_FULL_ACCESS:
         return "Share without full access";
-    case LOCAL_FINGERPRINT_MISMATCH:
-        return "Local fingerprint mismatch";
+    case LOCAL_FILESYSTEM_MISMATCH:
+        return "Local filesystem mismatch";
     case PUT_NODES_ERROR:
         return "Put nodes error";
     case ACTIVE_SYNC_BELOW_PATH:
@@ -884,25 +878,6 @@ void SyncConfig::setBackupState(SyncBackupState state)
 SyncBackupState SyncConfig::getBackupState() const
 {
     return mBackupState;
-}
-
-const char* SyncConfig::syncstatename(const syncstate_t state)
-{
-    switch (state)
-    {
-    case SYNC_DISABLED:
-        return "DISABLED";
-    case SYNC_FAILED:
-        return "FAILED";
-    case SYNC_CANCELED:
-        return "CANCELED";
-    case SYNC_INITIALSCAN:
-        return "INITIALSCAN";
-    case SYNC_ACTIVE:
-        return "ACTIVE";
-    default:
-        return "UNKNOWN";
-    }
 }
 
 const char* SyncConfig::synctypename(const SyncConfig::Type type)
@@ -998,7 +973,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     localnodes[FILENODE] = 0;
     localnodes[FOLDERNODE] = 0;
 
-    state() = SYNC_INITIALSCAN;
+    mUnifiedSync.mConfig.mRunning = true;
 
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
@@ -1080,6 +1055,7 @@ Sync::~Sync()
 
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     mDestructorRunning = true;
+    mUnifiedSync.mConfig.mRunning = false;
 
     // unlock tmp lock
     tmpfa.reset();
@@ -1154,11 +1130,6 @@ bool Sync::isSyncPaused() {
     return getConfig().mTemporarilyPaused;
 }
 
-bool Sync::active() const
-{
-    return getConfig().mRunningState >= SYNC_INITIALSCAN;
-}
-
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
 {
     assert(syncs.onSyncThread());
@@ -1214,49 +1185,42 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
     }
 }
 
-bool Sync::readstatecache()
+void Sync::readstatecache()
 {
     assert(syncs.onSyncThread());
 
-    if (statecachetable && state() == SYNC_INITIALSCAN)
+    string cachedata;
+    idlocalnode_map tmap;
+    uint32_t cid;
+    LocalNode* l;
+
+    LOG_debug << syncname << "Sync " << toHandle(getConfig().mBackupId) << " about to load from db";
+
+    statecachetable->rewind();
+    unsigned numLocalNodes = 0;
+
+    // bulk-load cached nodes into tmap
+    assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
+    while (statecachetable->next(&cid, &cachedata, &syncs.syncKey))
     {
-        string cachedata;
-        idlocalnode_map tmap;
-        uint32_t cid;
-        LocalNode* l;
+        uint32_t parentID = 0;
 
-        LOG_debug << syncname << "Sync " << toHandle(getConfig().mBackupId) << " about to load from db";
-
-        statecachetable->rewind();
-        unsigned numLocalNodes = 0;
-
-        // bulk-load cached nodes into tmap
-        assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
-        while (statecachetable->next(&cid, &cachedata, &syncs.syncKey))
+        if ((l = LocalNode::unserialize(*this, cachedata, parentID).release()))
         {
-            uint32_t parentID = 0;
-
-            if ((l = LocalNode::unserialize(*this, cachedata, parentID).release()))
-            {
-                l->dbid = cid;
-                tmap.emplace(parentID, l);
-                numLocalNodes += 1;
-            }
+            l->dbid = cid;
+            tmap.emplace(parentID, l);
+            numLocalNodes += 1;
         }
-
-        // recursively build LocalNode tree
-        LocalPath pathBuffer = localroot->localname; // don't let localname be appended during recurse
-        addstatecachechildren(0, &tmap, pathBuffer, localroot.get(), 100);
-        cachenodes();
-
-        LOG_debug << syncname << "Sync " << toHandle(getConfig().mBackupId) << " loaded from db with " << numLocalNodes << " sync nodes";
-
-        localroot->setScanAgain(false, true, true, 0);
-
-        return true;
     }
 
-    return false;
+    // recursively build LocalNode tree
+    LocalPath pathBuffer = localroot->localname; // don't let localname be appended during recurse
+    addstatecachechildren(0, &tmap, pathBuffer, localroot.get(), 100);
+    cachenodes();
+
+    LOG_debug << syncname << "Sync " << toHandle(getConfig().mBackupId) << " loaded from db with " << numLocalNodes << " sync nodes";
+
+    localroot->setScanAgain(false, true, true, 0);
 }
 
 SyncConfig& Sync::getConfig()
@@ -1274,7 +1238,7 @@ void Sync::statecachedel(LocalNode* l)
 {
     assert(syncs.onSyncThread());
 
-    if (state() == SYNC_CANCELED)
+    if (!statecachetable)
     {
         return;
     }
@@ -1293,7 +1257,7 @@ void Sync::statecacheadd(LocalNode* l)
 {
     assert(syncs.onSyncThread());
 
-    if (state() == SYNC_CANCELED)
+    if (!statecachetable)
     {
         return;
     }
@@ -1312,8 +1276,7 @@ void Sync::cachenodes()
         return;
     }
 
-    if (state() == SYNC_ACTIVE ||
-       (state() == SYNC_INITIALSCAN && insertq.size()))
+    if (insertq.size())
     {
         LOG_debug << syncname << "Saving LocalNode database with " << insertq.size() << " additions";
 
@@ -1352,21 +1315,19 @@ void Sync::cachenodes()
     }
 }
 
-void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb)
+void Sync::changestate(SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb)
 {
-    mUnifiedSync.changeState(newstate, newSyncError, newEnableFlag, notifyApp, keepSyncDb);
+    mUnifiedSync.changeState(newSyncError, newEnableFlag, notifyApp, keepSyncDb);
 }
 
-void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb)
+void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb)
 {
     assert(syncs.onSyncThread());
 
-    // Transitioning to a 'stopped' state...
-    if (newstate < SYNC_INITIALSCAN)
-    {
-        // Should "user-disable" external backups...
-        newEnableFlag &= mConfig.isInternal();
-    }
+    // External backups should not auto-start
+    newEnableFlag &= mConfig.isInternal();
+
+    assert(!(newSyncError == DECONFIGURING_SYNC && keepSyncDb));
 
     if (!keepSyncDb)
     {
@@ -1397,28 +1358,23 @@ void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool
         mConfig.mDatabaseExists = false;
     }
 
-    mConfig.setError(newSyncError);
-    mConfig.setEnabled(newEnableFlag);
-
-    bool nowActive = false;
-
-    if (newstate != mConfig.mRunningState)
+    if (newSyncError != NO_SYNC_ERROR && mSync && mSync->statecachetable)
     {
-        auto oldstate = mConfig.mRunningState;
-        mConfig.mRunningState = newstate;
-
-        if (notifyApp)
-        {
-            bool wasActive = oldstate == SYNC_ACTIVE || oldstate == SYNC_INITIALSCAN;
-            nowActive = newstate == SYNC_ACTIVE;
-            if (wasActive != nowActive)
-            {
-                assert(syncs.onSyncThread());
-            }
-        }
+        // if we are keeping the db and unloading the sync,
+        // prevent any more changes to it from this point
+        mSync->cachenodes();
+        mSync->statecachetable.reset();
     }
 
-    if (newstate != SYNC_CANCELED)
+    mConfig.mError = newSyncError;
+    mConfig.setEnabled(newEnableFlag);
+
+    if (newSyncError)
+    {
+        mConfig.mRunning = false;
+    }
+
+    if (newSyncError != DECONFIGURING_SYNC)
     {
         changedConfigState(notifyApp);
         mNextHeartbeat->updateSPHBStatus(*this);
@@ -2125,7 +2081,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                     // todo: work out the right sync error code
 
                                     // todo: find another place to detect this condition?   Or, is this something that might happen anyway due to async changes and race conditions, we should be able to reevaluate.
-                                    //changestate(SYNC_FAILED, COULD_NOT_MOVE_CLOUD_NODES, false, true);
+                                    //changestate(COULD_NOT_MOVE_CLOUD_NODES, false, true);
                                 }
                             }
 
@@ -2274,7 +2230,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         if (isBackup())
         {
             // Backups must not change the local
-            changestate(SYNC_FAILED, BACKUP_MODIFIED, false, true, false);
+            changestate(BACKUP_MODIFIED, false, true, false);
             rowResult = false;
             return true;
         }
@@ -2926,6 +2882,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     }
 
     us.mConfig.mError = NO_SYNC_ERROR;
+    us.mConfig.mLoadState = SyncRunState::Pending;
 
     if (resetFingerprint)
     {
@@ -2983,7 +2940,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
 
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mEnabled = true;
-    us.mConfig.mRunningState = SYNC_INITIALSCAN; // for initial 'sp' state
+    us.mConfig.mLoadState = SyncRunState::Pending;
 
     // If we're a backup sync...
     if (us.mConfig.isBackup())
@@ -3046,17 +3003,22 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     auto prevFingerprint = us.mConfig.mFilesystemFingerprint;
 
     assert(!us.mSync);
+
+    us.mConfig.mLoadState = SyncRunState::Loading;
+    mClient.app->syncupdate_stateconfig(us.mConfig);
+
     us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname));
     us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
+
+    us.mConfig.mLoadState = SyncRunState::Run;
+    mClient.app->syncupdate_stateconfig(us.mConfig);
 
     // Assume we'll encounter an error.
     error e = API_EFAILED;
 
     // Reduce duplication.
     auto signalError = [&](SyncError error) {
-        us.mSync->changestate(SYNC_FAILED, error, false, true, true);
-        us.mConfig.mError = error;
-        us.mConfig.mEnabled = false;
+        us.changeState(error, false, true, true);
         us.mSync.reset();
     };
 
@@ -3082,7 +3044,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
                 << "  Current: "
                 << us.mConfig.mFilesystemFingerprint;
 
-        signalError(LOCAL_FINGERPRINT_MISMATCH);
+        signalError(LOCAL_FILESYSTEM_MISMATCH);
     }
     else
     {
@@ -3091,6 +3053,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         saveSyncConfig(us.mConfig);
         mSyncFlags->isInitialPass = true;
         e = API_OK;
+
     }
 
     if (completion) completion(e, us.mConfig.mError, us.mConfig.mBackupId);
@@ -4081,7 +4044,6 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     config.mLocalPath = LocalPath::fromAbsolutePath(localPath);
     config.mName = std::move(name);
     config.mOriginalPathOfRemoteRootNode = remotePath;
-    config.mWarning = NO_SYNC_WARNING;
 
     // Set node handle if possible.
     if (const auto* root = mClient.nodeByPath(remotePath.c_str()))
@@ -4375,11 +4337,10 @@ vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
     vector<NodeHandle> v;
     for (auto& s : mSyncVec)
     {
-        if (mustBeActive && (!s->mSync || !s->mSync->active()))
+        if (!mustBeActive || s->mSync)
         {
-            continue;
+            v.emplace_back(s->mConfig.mRemoteNode);
         }
-        v.emplace_back(s->mConfig.mRemoteNode);
     }
     return v;
 }
@@ -4585,16 +4546,16 @@ bool Syncs::forEachRunningSync_shortcircuit(bool includePaused, std::function<bo
     return true;
 }
 
-void Syncs::stopCancelledFailedDisabled()
+void Syncs::stopSyncsInErrorState()
 {
     assert(onSyncThread());
 
+    // An error has occurred, and it's time to destroy the in-RAM structures
+    // If the sync db should be kept, then we already null'd the sync->syncstatecache
     for (auto& unifiedSync : mSyncVec)
     {
-        if (unifiedSync->mSync && (
-            unifiedSync->mSync->state() == SYNC_CANCELED ||
-            unifiedSync->mSync->state() == SYNC_FAILED ||
-            unifiedSync->mSync->state() == SYNC_DISABLED))
+        if (unifiedSync->mSync &&
+            unifiedSync->mConfig.mError != NO_SYNC_ERROR)
         {
             unifiedSync->mSync.reset();
         }
@@ -4699,22 +4660,22 @@ void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSync
                         };
                     }
 
-                    disableSyncByBackupId_inThread(c.mBackupId, false, syncError, newEnabledFlag, keepSyncDb, completion);
+                    disableSyncByBackupId_inThread(c.mBackupId, syncError, newEnabledFlag, keepSyncDb, completion);
                 }
             }
         });
 }
 
-void Syncs::disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion)
+void Syncs::disableSyncByBackupId(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion)
 {
     assert(!onSyncThread());
-    queueSync([this, backupId, disableIsFail, syncError, newEnabledFlag, keepSyncDb, completion]()
+    queueSync([this, backupId, syncError, newEnabledFlag, keepSyncDb, completion]()
     {
-            disableSyncByBackupId_inThread(backupId, disableIsFail, syncError, newEnabledFlag, keepSyncDb, completion);
+            disableSyncByBackupId_inThread(backupId, syncError, newEnabledFlag, keepSyncDb, completion);
     });
 }
 
-void Syncs::disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion)
+void Syncs::disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion)
 {
     assert(onSyncThread());
 
@@ -4725,9 +4686,14 @@ void Syncs::disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, 
 
         if (config.mBackupId == backupId)
         {
-            us.changeState(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true, keepSyncDb); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+            if (syncError == NO_SYNC_ERROR)
+            {
+                syncError = UNLOADING_SYNC;
+            }
 
-            mHeartBeatMonitor->updateOrRegisterSync(*mSyncVec[i]);
+            us.changeState(syncError, newEnabledFlag, true, keepSyncDb); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+
+            mHeartBeatMonitor->updateOrRegisterSync(us);
         }
     }
     if (completion) completion();
@@ -4819,7 +4785,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
         {
             if (us->mConfig.getEnabled())
             {
-                disableSyncByBackupId_inThread(us->mConfig.mBackupId, true, LOGGED_OUT, false, false, nullptr);
+                disableSyncByBackupId_inThread(us->mConfig.mBackupId, LOGGED_OUT, false, false, nullptr);
             }
         }
         syncConfigStoreFlush();
@@ -4856,7 +4822,7 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
     {
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
-            syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false, !removeSyncDb);
+            syncPtr->changestate(DECONFIGURING_SYNC, false, false, !removeSyncDb);
             assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
@@ -4905,7 +4871,7 @@ void Syncs::unloadSyncByIndex(size_t index)
         {
             // if it was running, the app gets a callback saying it's no longer active
             // SYNC_CANCELED is a special value that means we are shutting it down without changing config
-            syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false, true);
+            syncPtr->changestate(UNLOADING_SYNC, false, false, true);
             assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
@@ -5010,7 +4976,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 }
             }
 
-            bool hadAnError = unifiedSync->mConfig.getError() != NO_SYNC_ERROR;
+            bool hadAnError = unifiedSync->mConfig.mError != NO_SYNC_ERROR;
 
             if (unifiedSync->mConfig.getEnabled())
             {
@@ -5025,7 +4991,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #ifdef __APPLE__
                 unifiedSync->mConfig.mFilesystemFingerprint = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
-                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
                 enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [this, unifiedSync, hadAnError](error e, SyncError se, handle backupId)
                     {
@@ -5034,7 +5000,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
             }
             else
             {
-                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
             }
         }
     }
@@ -5669,7 +5635,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     assert(syncs.onSyncThread());
 
     // in case of sync failing while we recurse
-    if (state() < 0) return false;
+    if (getConfig().mError) return false;
     (void)depth;  // just useful for setting conditional breakpoints when debugging
 
     assert(row.syncNode);
@@ -5824,7 +5790,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     auto& childRow = childRows[i];
 
                     // in case of sync failing while we recurse
-                    if (state() < 0) return false;
+                    if (getConfig().mError) return false;
 
                     if (syncs.mSyncFlags->earlyRecurseExitRequested)
                     {
@@ -6001,7 +5967,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
 
                                 // Any fatal errors while adding the watch?
                                 if (result == WR_FATAL)
-                                    changestate(SYNC_FAILED, UNABLE_TO_ADD_WATCH, false, true, true);
+                                    changestate(UNABLE_TO_ADD_WATCH, false, true, true);
                             }
 
                             if (!recursiveSync(childRow, fullPath, belowRemovedCloudNode || childRow.recurseBelowRemovedCloudNode, belowRemovedFsNode || childRow.recurseBelowRemovedFsNode, depth+1))
@@ -7200,7 +7166,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
     if (isBackup())
     {
         // Backups must not change the local
-        changestate(SYNC_FAILED, BACKUP_MODIFIED, false, true, false);
+        changestate(BACKUP_MODIFIED, false, true, false);
         return false;
     }
 
@@ -7583,7 +7549,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
         if (isBackup())
         {
             // Backups must not change the local
-            changestate(SYNC_FAILED, BACKUP_MODIFIED, false, true, false);
+            changestate(BACKUP_MODIFIED, false, true, false);
             return false;
         }
 
@@ -9045,7 +9011,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_fsfp("fp", config.mFilesystemFingerprint);
     writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
-    writer.arg("lw", config.mWarning);
+//    writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);
     writer.arg("en", config.mEnabled);
     writer.arg("bs", config.mBackupState);
@@ -9113,81 +9079,49 @@ void Syncs::syncLoop()
         {
             if (Sync* sync = us->mSync.get())
             {
-                if (sync->state() != SYNC_FAILED && sync->fsfp)
+                if (us->mConfig.mError != NO_SYNC_ERROR)
+                {
+                    continue;
+                }
+
+                if (sync->fsfp)
                 {
                     fsfp_t current = fsaccess->fsFingerprint(sync->localroot->localname);
                     if (sync->fsfp != current)
                     {
-                        LOG_err << "Local fingerprint mismatch. Previous: " << sync->fsfp
+                        LOG_err << "Local filesystem mismatch. Previous: " << sync->fsfp
                             << "  Current: " << current;
-                        sync->changestate(SYNC_FAILED, current ? LOCAL_FINGERPRINT_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true, true);
+                        sync->changestate(current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true, true);
+                        continue;
                     }
                 }
 
-                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle, sync->cloudRoot, &sync->cloudRootPath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
-
-                if (!foundRootNode && sync->state() != SYNC_FAILED)
-                {
-                    LOG_err << "The remote root node doesn't exist";
-                    sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true, true);
-                }
-            }
-        }
-
-        //// sync timer: try to transition into monitoring mode.
-        //if (mSyncMonitorRetry && mSyncMonitorTimer.armed())
-        //{
-        //    mSyncMonitorRetry = false;
-        //    //            syncdownrequired = true;
-        //}
-
-        //// sync timer: file change upload delay timeouts (Nagle algorithm)
-        //if (syncnagleretry && syncnaglebt.armed())
-        //{
-        //    syncnagleretry = false;
-        //    //syncops = true;
-        //}
-
-        //if (syncextraretry && syncextrabt.armed())
-        //{
-        //    syncextraretry = false;
-        //    syncops = true;
-        //}
-
-
-        // this loop adapted from the old notifypurge()
-        for (auto& us : mSyncVec)
-        {
-            if (Sync* sync = us->mSync.get())
-            {
-                CloudNode cloudNode;
-                string cloudNodePath;
                 bool inTrash = false;
-                bool foundCloudNode = lookupCloudNode(us->mConfig.mRemoteNode, cloudNode, &cloudNodePath, &inTrash, nullptr, nullptr, Syncs::FOLDER_ONLY);
+                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle, sync->cloudRoot, &sync->cloudRootPath, &inTrash, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
                 // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
-                bool pathChanged = checkSyncRemoteLocationChange(*us, foundCloudNode, cloudNodePath);
+                bool pathChanged = checkSyncRemoteLocationChange(*us, foundRootNode, sync->cloudRootPath);
 
-                if (!foundCloudNode)
+                if (!foundRootNode)
                 {
-                    LOG_debug << "Detected sync root node no longer exists";
-                    sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true, true);
+                    LOG_err << "Detected sync root node no longer exists";
+                    sync->changestate(REMOTE_NODE_NOT_FOUND, false, true, true);
                 }
                 else if (inTrash)
                 {
-                    LOG_debug << "Detected sync root node is now in trash";
-                    sync->changestate(SYNC_FAILED, REMOTE_NODE_MOVED_TO_RUBBISH, false, true, true);
+                    LOG_err << "Detected sync root node is now in trash";
+                    sync->changestate(REMOTE_NODE_MOVED_TO_RUBBISH, false, true, true);
                 }
                 else if (pathChanged /*&& us->mConfig.isBackup()*/)  // TODO: decide if we cancel non-backup syncs unnecessarily.  Users may like to move some high level folders around, without breaking contained syncs.
                 {
-                    LOG_debug << "Detected sync root node is now at a different path.";
-                    sync->changestate(SYNC_FAILED, REMOTE_PATH_HAS_CHANGED, false, true, true);
+                    LOG_err << "Detected sync root node is now at a different path.";
+                    sync->changestate(REMOTE_PATH_HAS_CHANGED, false, true, true);
                     mClient.app->syncupdate_remote_root_changed(sync->getConfig());
                 }
             }
         };
 
-        stopCancelledFailedDisabled();
+        stopSyncsInErrorState();
 
         // Clear the context if the associated sync is no longer active.
         mIgnoreFileFailureContext.reset(*this);
@@ -9269,7 +9203,7 @@ void Syncs::syncLoop()
         {
             Sync* sync = us->mSync.get();
 
-            if (sync && sync->state() >= SYNC_INITIALSCAN)
+            if (sync && !us->mConfig.mError)
             {
                 // Does this sync rely on filesystem notifications?
                 if (auto* notifier = sync->dirnotify.get())
@@ -9301,7 +9235,7 @@ void Syncs::syncLoop()
                                 << reason
                                 << ")";
 
-                        sync->changestate(SYNC_FAILED, NOTIFICATION_SYSTEM_UNAVAILABLE, false, true, true);
+                        sync->changestate(NOTIFICATION_SYSTEM_UNAVAILABLE, false, true, true);
                     }
                 }
                 else
@@ -9369,12 +9303,6 @@ void Syncs::syncLoop()
 
                     if (!earlyExit)
                     {
-                        bool doneScanning = sync->localroot->scanAgain == TREE_RESOLVED;
-                        if (doneScanning && sync->state() == SYNC_INITIALSCAN)
-                        {
-                            sync->changestate(SYNC_ACTIVE, NO_SYNC_ERROR, true, true, true);
-                        }
-
                         if (sync->isBackupAndMirroring() &&
                             !sync->localroot->scanRequired() &&
                             !sync->localroot->mightHaveMoves() &&
@@ -9555,7 +9483,7 @@ bool Syncs::isAnySyncSyncing(bool includePausedSyncs)
         {
             if (includePausedSyncs || !us->mConfig.mTemporarilyPaused)
             {
-                if (sync->active() &&
+                if (!us->mConfig.mError &&
                     (sync->localroot->scanRequired()
                         || sync->localroot->mightHaveMoves()
                         || sync->localroot->syncRequired()))
@@ -9578,7 +9506,7 @@ bool Syncs::isAnySyncScanning(bool includePausedSyncs)
         {
             if (includePausedSyncs || !us->mConfig.mTemporarilyPaused)
             {
-                if (sync->active() &&
+                if (!us->mConfig.mError &&
                     sync->localroot->scanRequired())
                 {
                     return true;
@@ -9599,7 +9527,7 @@ bool Syncs::mightAnySyncsHaveMoves(bool includePausedSyncs)
         {
             if (includePausedSyncs || !us->mConfig.mTemporarilyPaused)
             {
-                if (sync->active() &&
+                if (!us->mConfig.mError &&
                     (sync->localroot->mightHaveMoves()
                         || sync->localroot->scanRequired()))
                 {
@@ -9742,7 +9670,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
 
         for (auto & us : mSyncVec)
         {
-            if (us->mSync && us->mSync->active() && !us->mConfig.mTemporarilyPaused)
+            if (us->mSync && !us->mConfig.mError && !us->mConfig.mTemporarilyPaused)
             {
                 activeSyncHandles.emplace_back(us->mConfig.mRemoteNode, us->mSync.get());
             }

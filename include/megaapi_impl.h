@@ -2542,7 +2542,7 @@ class MegaApiImpl : public MegaApp
         long long getNumLocalNodes();
         bool isInsideSync(MegaNode *node);
         int isNodeSyncable(MegaNode *megaNode);
-        bool isIndexing();
+        bool isScanning();
         bool isSyncing();
 
         bool receivedStallFlag = false;

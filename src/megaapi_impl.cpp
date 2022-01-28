@@ -1171,22 +1171,10 @@ int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
     return e;
 }
 
-bool MegaApiImpl::isIndexing()
+bool MegaApiImpl::isScanning()
 {
-    if(client->syncs.syncscanstate)
-    {
-        return true;
-    }
-
-    // syncs has its own mutexes
-    for (auto& config : client->syncs.allConfigs())
-    {
-        if (config.mRunningState == SYNC_INITIALSCAN)
-        {
-            return true;
-        }
-    }
-    return false;
+    // this flag purposely doesn't need locking
+    return client->syncs.syncscanstate;
 }
 
 bool MegaApiImpl::isSyncing()
@@ -8744,7 +8732,7 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
     {
         if (config.mLocalPath.isContainingPathOf(localpath))
         {
-            if (!config.mEnabled || config.mRunningState < SYNC_INITIALSCAN)
+            if (!config.mEnabled || !config.mRunning)
             {
                 return MegaApi::STATE_IGNORED;
             }
@@ -8932,6 +8920,11 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
 
         switch (targetState)
         {
+            case MegaSync::RUNSTATE_PENDING:
+            case MegaSync::RUNSTATE_LOADING:
+                assert(false);
+                break;
+
             case MegaSync::RUNSTATE_RUNNING:
             case MegaSync::RUNSTATE_PAUSED:
             {
@@ -8946,11 +8939,10 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
             case MegaSync::RUNSTATE_SUSPENDED:
             case MegaSync::RUNSTATE_DISABLED:
             {
-                bool keepSyncDb = targetState == MegaSync::SyncRunningState(SyncConfig::Suspend);
+                bool keepSyncDb = targetState == MegaSync::SyncRunningState(SyncRunState::Suspend);
 
                 client->syncs.disableSyncByBackupId(
                     backupId,
-                    false, // true == fail, false == disable
                     NO_SYNC_ERROR,
                     false,
                     keepSyncDb,
@@ -15859,8 +15851,8 @@ void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const cha
         request->setTag(nextTag);
         requestMap[nextTag] = request;
 
-        sessiontype_t sessionType = client->loggedin();
-        assert(sessionType == EPHEMERALACCOUNT || sessionType == EPHEMERALACCOUNTPLUSPLUS);
+        assert(client->loggedin() == EPHEMERALACCOUNT ||
+               client->loggedin() == EPHEMERALACCOUNTPLUSPLUS);
 
         client->confirmsignuplink((const byte*)signupcode.data(), int(signupcode.size()), MegaClient::stringhash64(&signupemail,&pwcipher));
     }
@@ -21480,7 +21472,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (temporaryDisabled)
             {
-                syncConfig.setError(syncError);
+                syncConfig.mError = syncError;
             }
 
             client->ensureSyncUserAttributes([this, request, syncConfig](Error e){
@@ -24437,7 +24429,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, MegaClient* client /*
     setLocalFingerprint(static_cast<long long>(config.mFilesystemFingerprint));
     setLastKnownMegaFolder(config.mOriginalPathOfRemoteRootNode.c_str());
 
-    setError(config.mError);
+    setError(config.mError < 0 ? 0 : config.mError);
     //setWarning(config.mWarning);
     setBackupId(config.mBackupId);
 }

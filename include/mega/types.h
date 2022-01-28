@@ -412,13 +412,8 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 // maps handle-index pairs to file attribute handle.  map value is (file attribute handle, tag)
 typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
-typedef enum {
-    SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
-    SYNC_FAILED = -2,
-    SYNC_CANCELED = -1, // being deleted
-    SYNC_INITIALSCAN = 0,
-    SYNC_ACTIVE
-} syncstate_t;
+
+enum class SyncRunState { Pending, Loading, Run, Pause, Suspend, Disable };
 
 typedef enum
 {
@@ -432,6 +427,8 @@ typedef enum
 SyncBackupState;
 
 enum SyncError {
+    UNLOADING_SYNC = -2,
+    DECONFIGURING_SYNC = -1,
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
     UNSUPPORTED_FILE_SYSTEM = 2,            // File system type is not supported
@@ -447,7 +444,7 @@ enum SyncError {
     REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
     REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
     SHARE_NON_FULL_ACCESS = 14,             // Existing inbound share sync or part thereof lost full access
-    LOCAL_FINGERPRINT_MISMATCH = 15,        // Filesystem fingerprint does not match the one stored for the synchronization
+    LOCAL_FILESYSTEM_MISMATCH = 15,        // Filesystem fingerprint does not match the one stored for the synchronization
     PUT_NODES_ERROR = 16,                   // Error processing put nodes result
     ACTIVE_SYNC_BELOW_PATH = 17,            // There's a synced node below the path to be synced
     ACTIVE_SYNC_ABOVE_PATH = 18,            // There's a synced node above the path to be synced
