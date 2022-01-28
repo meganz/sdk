@@ -8732,7 +8732,7 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
     {
         if (config.mLocalPath.isContainingPathOf(localpath))
         {
-            if (!config.mEnabled || !config.mRunning)
+            if (!config.mEnabled || config.mRunState != SyncRunState::Run)
             {
                 return MegaApi::STATE_IGNORED;
             }
@@ -24405,10 +24405,8 @@ void MegaCurrencyPrivate::setCurrency(std::unique_ptr<CurrencyData> data)
 
 #ifdef ENABLE_SYNC
 MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, MegaClient* client /* never null */)
-    : mRunState(MegaSync::SyncRunningState(config.getRunState()))
+    : mRunState(MegaSync::SyncRunningState(config.mRunState))
     , mType(static_cast<SyncType>(config.getType()))
-//    , mActive(active)
-//    , mEnabled(config.getEnabled())
 {
     this->megaHandle = config.mRemoteNode.as8byte();
     this->localFolder = NULL;

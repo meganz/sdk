@@ -220,7 +220,7 @@ CommandBackupPut::SPState BackupInfoSync::calculatePauseActiveState(bool pauseDo
 CommandBackupPut::SPState BackupInfoSync::getSyncState(const UnifiedSync& us, bool pauseDown, bool pauseUp)
 {
     return getSyncState(us.mConfig.mError,
-                        us.mConfig.getRunState(),
+                        us.mConfig.mRunState,
                         pauseDown, pauseUp);
 }
 

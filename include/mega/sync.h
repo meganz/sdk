@@ -90,9 +90,6 @@ public:
     bool operator==(const SyncConfig &rhs) const;
     bool operator!=(const SyncConfig &rhs) const;
 
-    // Deduced from other memebers
-    SyncRunState getRunState() const;
-
     // the local path of the sync root folder
     const LocalPath& getLocalPath() const;
 
@@ -158,17 +155,14 @@ public:
     // Whether this backup is monitoring or mirroring.
     SyncBackupState mBackupState;
 
-    // records whether there is an mSync (which can't be checked directly from other threads)
-    bool mRunning = false;
-
     // Whether recursiveSync() is called.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
     bool mTemporarilyPaused = false;
 
     // If the database exists then its running/paused/suspended.  Not serialized.
     bool mDatabaseExists = false;
 
-    // Just the Pending, Loading, Running sequence
-    SyncRunState mLoadState = SyncRunState::Pending;
+    // Maintained as we transition
+    SyncRunState mRunState = SyncRunState::Pending;
 
     // Name of this sync's state cache.
     string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;

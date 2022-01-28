@@ -714,37 +714,6 @@ SyncConfig::Type SyncConfig::getType() const
     return mSyncType;
 }
 
-SyncRunState SyncConfig::getRunState() const
-{
-    if (mRunning)
-    {
-        if (mLoadState == SyncRunState::Run)
-        {
-            return mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
-        }
-        else
-        {
-            assert(mLoadState < SyncRunState::Run);
-            return mLoadState;
-        }
-    }
-    else
-    {
-        if (mEnabled && mLoadState == SyncRunState::Pending)
-        {
-            return SyncRunState::Pending;
-        }
-        else if (mDatabaseExists)
-        {
-            return SyncRunState::Suspend;
-        }
-        else
-        {
-            return SyncRunState::Disable;
-        }
-    }
-}
-
 bool SyncConfig::isBackup() const
 {
     return mSyncType == TYPE_BACKUP;
@@ -973,7 +942,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     localnodes[FILENODE] = 0;
     localnodes[FOLDERNODE] = 0;
 
-    mUnifiedSync.mConfig.mRunning = true;
+    mUnifiedSync.mConfig.mRunState = SyncRunState::Loading;
 
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
@@ -1055,7 +1024,7 @@ Sync::~Sync()
 
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     mDestructorRunning = true;
-    mUnifiedSync.mConfig.mRunning = false;
+    mUnifiedSync.mConfig.mRunState = mUnifiedSync.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
 
     // unlock tmp lock
     tmpfa.reset();
@@ -1371,7 +1340,7 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
 
     if (newSyncError)
     {
-        mConfig.mRunning = false;
+        mConfig.mRunState = mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
     }
 
     if (newSyncError != DECONFIGURING_SYNC)
@@ -2882,7 +2851,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     }
 
     us.mConfig.mError = NO_SYNC_ERROR;
-    us.mConfig.mLoadState = SyncRunState::Pending;
+    us.mConfig.mRunState = SyncRunState::Loading;
 
     if (resetFingerprint)
     {
@@ -2940,7 +2909,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
 
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mEnabled = true;
-    us.mConfig.mLoadState = SyncRunState::Pending;
+    us.mConfig.mRunState = SyncRunState::Loading;
 
     // If we're a backup sync...
     if (us.mConfig.isBackup())
@@ -3004,13 +2973,13 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     assert(!us.mSync);
 
-    us.mConfig.mLoadState = SyncRunState::Loading;
+    us.mConfig.mRunState = SyncRunState::Loading;
     mClient.app->syncupdate_stateconfig(us.mConfig);
 
     us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname));
     us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
 
-    us.mConfig.mLoadState = SyncRunState::Run;
+    us.mConfig.mRunState = SyncRunState::Run;
     mClient.app->syncupdate_stateconfig(us.mConfig);
 
     // Assume we'll encounter an error.
