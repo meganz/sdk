@@ -84,6 +84,11 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
     }
 }
 
+SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp)
+{
+    return s << lp.toPath();
+}
+
 
 string backupTypeToStr(BackupType type)
 {
@@ -1157,7 +1162,7 @@ bool TextChat::setFlag(bool value, uint8_t offset)
         return false;
     }
 
-    flags ^= (1U << offset);
+    flags ^= byte(1U << offset);
     changed.flags = true;
 
     return true;
@@ -2655,8 +2660,15 @@ void MegaClientAsyncQueue::asyncThreadLoop()
     }
 }
 
-bool islchex(const int c)
+bool islchex_high(const int c)
 {
+    // this one constrains two characters to the 0..127 range
+    return (c >= '0' && c <= '7');
+}
+
+bool islchex_low(const int c)
+{
+    // this one is the low nibble, unconstrained
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 

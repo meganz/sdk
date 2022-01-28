@@ -874,7 +874,7 @@ void MediaProperties::extractMediaPropertyFileAttributes(LocalPath& localFilenam
 
                 if (SimpleLogger::logCurrentLevel >= logDebug)
                 {
-                    LOG_debug << "MediaInfo on " << localFilename.toPath(*fsa) << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
+                    LOG_debug << "MediaInfo on " << localFilename.toPath() << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
                 }
             }
         }
