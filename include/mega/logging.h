@@ -397,7 +397,7 @@ public:
 #ifdef ENABLE_LOG_PERFORMANCE
 
 #ifndef MEGALOGGER_AVOID_FILE_AND_LINES
-        if (lineNum !=-1)
+        if (filenameStr && lineNum != -1)
         {
             copyToBuffer(" [", 2);
             logValue(filenameStr);  // put filename and line last, to keep the main text nicely column aligned
