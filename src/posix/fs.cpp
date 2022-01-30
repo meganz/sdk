@@ -1528,6 +1528,7 @@ void PosixFileSystemAccess::statsid(string *id) const
 }
 
 #if defined(ENABLE_SYNC)
+#if defined(__linux__)
 
 LinuxDirNotify::LinuxDirNotify(LinuxFileSystemAccess& owner,
     LocalNode& root,
@@ -1639,6 +1640,7 @@ void LinuxDirNotify::removeWatch(WatchMapIterator entry)
 }
 
 #endif // USE_INOTIFY
+#endif // __linux__
 
 fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
