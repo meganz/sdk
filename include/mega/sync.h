@@ -382,6 +382,15 @@ struct SyncTransferCounts
     SyncTransferCount mUploads;
 }; // SyncTransferCounts
 
+struct SyncStatusInfo
+{
+    handle mBackupID = UNDEF;
+    string mName;
+    size_t mTotalSyncedBytes = 0;
+    size_t mTotalSyncedNodes = 0;
+    SyncTransferCounts mTransferCounts;
+}; // SyncStatusInfo
+
 class SyncThreadsafeState
 {
     // This class contains things that are read/written from either the Syncs thread,
@@ -947,6 +956,17 @@ struct Syncs
                          bool detailed);
 
     void getSyncProblems_inThread(SyncProblems& problems, bool detailed);
+
+    // Retrieve status information about sync(s).
+    using SyncStatusInfoCompletion =
+      std::function<void(vector<SyncStatusInfo>)>;
+
+    void getSyncStatusInfo(handle backupID,
+                           SyncStatusInfoCompletion completion,
+                           bool completionInClient);
+
+    void getSyncStatusInfoInThread(handle backupID,
+                                   SyncStatusInfoCompletion completion);
 
     /**
      * @brief route the request to the sync thread for fulfillment.

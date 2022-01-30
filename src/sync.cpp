@@ -3174,6 +3174,114 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems, bool detailed)
     problems.mStalls = stallReport;
 }
 
+void Syncs::getSyncStatusInfo(handle backupID,
+                              SyncStatusInfoCompletion completion,
+                              bool completionInClient)
+{
+    // No completion? No work to be done!
+    if (!completion)
+        return;
+
+    // Convenience.
+    using DBTC = DBTableTransactionCommitter;
+    using MC = MegaClient;
+    using SV = vector<SyncStatusInfo>;
+
+    // Is it up to the client to call the completion function?
+    if (completionInClient)
+        completion = [completion, this](SV info) {
+            // Necessary as we can't move-capture before C++14.
+            auto temp = std::make_shared<SV>(std::move(info));
+
+            // Delegate to the user's completion function.
+            queueClient([completion, temp](MC&, DBTC&) mutable {
+                completion(std::move(*temp));
+            });
+        };
+
+    // Queue the request on the sync thread.
+    queueSync([backupID, completion, this]() {
+        getSyncStatusInfoInThread(backupID, std::move(completion));
+    });
+}
+
+void Syncs::getSyncStatusInfoInThread(handle backupID,
+                                      SyncStatusInfoCompletion completion)
+{
+    // Make sure we're running on the right thread.
+    assert(onSyncThread());
+
+    // Make sure no one's changing the syncs beneath our feet.
+    lock_guard<mutex> guard(mSyncVecMutex);
+
+    // Gathers information about a specific sync.
+    struct gather
+    {
+        gather(const Sync& sync)
+          : mSync(sync)
+        {
+        }
+
+        operator SyncStatusInfo() const
+        {
+            SyncStatusInfo info;
+
+            auto& config = mSync.getConfig();
+
+            info.mBackupID = config.mBackupId;
+            info.mName = config.mName;
+            info.mTransferCounts = mSync.transferCounts();
+
+            tally(info, *mSync.localroot);
+
+            return info;
+        }
+
+        void tally(SyncStatusInfo& info, const LocalNode& node) const
+        {
+            // Not synced? Not interested.
+            if (node.parent && node.syncedCloudNodeHandle.isUndef())
+                return;
+
+            ++info.mTotalSyncedNodes;
+
+            // Directories don't have a size.
+            if (node.type == FILENODE)
+                info.mTotalSyncedBytes += node.syncedFingerprint.size;
+
+            // Process children, if any.
+            for (auto& childIt : node.children)
+                tally(info, *childIt.second);
+        }
+
+        const Sync& mSync;
+    }; // gather
+
+    // Status info collected from syncs.
+    vector<SyncStatusInfo> info;
+
+    // Gather status information from active syncs.
+    for (auto& us : mSyncVec)
+    {
+        // Not active? Not interested.
+        if (!us->mSync)
+            continue;
+
+        // Convenience.
+        auto& config = us->mConfig;
+
+        // Is this sync something we're interested in?
+        if (backupID != UNDEF && backupID != config.mBackupId)
+            continue;
+
+        // Gather status information about this sync.
+        info.emplace_back(gather(*us->mSync));
+    }
+
+    // Pass the information to the caller.
+    completion(std::move(info));
+}
+
 void Syncs::getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> completionClosure,
         bool completionInClient)
 {

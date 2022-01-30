@@ -3332,6 +3332,11 @@ autocomplete::ACN autocompleteSyntax()
                     text("remove"),
                     param("id")));
 
+    p->Add(exec_syncstatus,
+           sequence(text("sync"),
+                    text("status"),
+                    opt(param("id"))));
+
     p->Add(exec_syncxable, sequence(text("sync"),
             either(text("run"), text("pause"), text("suspend"), text("disable")),
             opt(sequence(flag("-error"), param("errorID"))),
@@ -9444,6 +9449,127 @@ void exec_syncremove(autocomplete::ACState& s)
              << Base64Str<sizeof(handle)>(backupId)
              << endl;
         return;
+    }
+}
+
+void exec_syncstatus(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to display the status of syncs."
+             << endl;
+        return;
+    }
+
+    // sync status [id]
+    handle id = UNDEF;
+
+    // Is the user interested in a particular sync?
+    if (s.words.size() == 3)
+        Base64::atob(s.words[2].s.c_str(),
+                     reinterpret_cast<byte*>(&id),
+                     sizeof(id));
+
+    // Compute the aggregate transfer speed of the specified syncs.
+    map<handle, size_t> speeds;
+
+    for (auto* slot : client->tslots)
+    {
+        // No FA? Not in progress.
+        if (!slot->fa)
+            continue;
+
+        // Determine the transfer's current speed.
+        auto speed = slot->mTransferSpeed.calculateSpeed();
+
+        // Find out which syncs, if any, are related to this transfer.
+        for (auto* file : slot->transfer->files)
+        {
+            // Not a sync transfer? Not interested!
+            if (!file->syncxfer)
+                continue;
+
+            // Get our hands on this sync's thread-safe state.
+            auto state = static_cast<SyncTransfer_inClient*>(file)->syncThreadSafeState;
+
+            // Is it a sync we're interested in?
+            if (id != UNDEF && id != state->backupId())
+                continue;
+
+            // Make sure the speed's never negative.
+            speed = std::max<m_off_t>(0, speed);
+
+            // Add this transfer's speed to the sync's aggregate total.
+            speeds[state->backupId()] += static_cast<size_t>(speed);
+        }
+    }
+
+    // Convenience.
+    using SV = vector<SyncStatusInfo>;
+
+    std::promise<SV> waiter;
+
+    // Retrieve status information from the engine.
+    client->syncs.getSyncStatusInfo(id, [&](SV info) {
+        waiter.set_value(std::move(info));
+    }, false);
+
+    // Wait for the engine to gather our information.
+    auto results = waiter.get_future().get();
+
+    // Was anything actually retrieved?
+    if (results.empty())
+    {
+        // Was the user interested in a specific sync?
+        if (id != UNDEF)
+        {
+            cerr << "Couldn't find an active sync with the ID: "
+                 << toHandle(id)
+                 << endl;
+            return;
+        }
+
+        // User was interested in all active syncs.
+        cerr << "There are no active syncs to report on."
+             << endl;
+        return;
+    }
+    
+    // Translate size to a suffixed string.
+    auto toSuffixedString = [](size_t value) {
+        if (value < 1024)
+            return std::to_string(value) + "B";
+
+        const char* suffix = "?KMGTPE";
+
+        while (value >= 1024)
+            ++suffix, value /= 1024;
+
+        return std::to_string(value) + *suffix + "B";
+    };
+
+    // Display status information to the user.
+    for (auto& info : results)
+    {
+        cout << "Sync "
+             << toHandle(info.mBackupID)
+             << ":\n"
+             << "  Name: "
+             << info.mName
+             << "\n"
+             << "  Total number of synced nodes: "
+             << info.mTotalSyncedNodes
+             << "\n"
+             << "  Total size of synced files: "
+             << toSuffixedString(info.mTotalSyncedBytes)
+             << "\n"
+             << "  Transfer progress: "
+             << info.mTransferCounts.progress() * 100.0
+             << "%\n"
+             << "  Transfer speed: "
+             << toSuffixedString(speeds[info.mBackupID])
+             << "/s\n";
     }
 }
 
