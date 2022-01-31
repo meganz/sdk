@@ -391,6 +391,7 @@ void exec_syncimport(autocomplete::ACState& s);
 void exec_syncopendrive(autocomplete::ACState& s);
 void exec_synclist(autocomplete::ACState& s);
 void exec_syncremove(autocomplete::ACState& s);
+void exec_syncstatus(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
