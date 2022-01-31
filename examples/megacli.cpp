@@ -439,7 +439,7 @@ void DemoApp::transfer_prepare(Transfer* t)
 void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 {
     conlock(cout) << "Sync config updated: " << toHandle(config.mBackupId)
-        << " state: " << int(config.getRunState())
+        << " state: " << int(config.mRunState)
         << " error: " << config.mError
         << endl;
 }
@@ -448,7 +448,7 @@ void DemoApp::sync_auto_loaded(const SyncConfig& config)
 {
     handle backupId = config.mBackupId;
     conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
-        << config.getEnabled() << " syncError: " << config.mError << " " << int(config.getRunState());
+        << config.getEnabled() << " syncError: " << config.mError << " " << int(config.mRunState);
 }
 
 void DemoApp::sync_removed(const SyncConfig& config)
@@ -9284,7 +9284,7 @@ void exec_synclist(autocomplete::ACState& s)
 
 
         string runStateName;
-        switch (config.getRunState())
+        switch (config.mRunState)
         {
         case SyncRunState::Pending: runStateName = "PENDING"; break;
         case SyncRunState::Loading: runStateName = "LOADING"; break;
@@ -9468,9 +9468,7 @@ void exec_syncxable(autocomplete::ACState& s)
         return;
     }
 
-    auto curState = config.getRunState();
-
-    if (curState == targetState)
+    if (config.mRunState == targetState)
     {
         cout << "Sync is already in that state" << endl;
         return;
