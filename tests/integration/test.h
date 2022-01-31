@@ -72,7 +72,6 @@ extern bool gRunningInCI;
 extern bool gTestingInvalidArgs;
 extern bool gResumeSessions;
 extern bool gScanOnly;
-extern int gFseventsFd;
 
 extern bool WaitFor(std::function<bool()>&& f, unsigned millisec);
 
@@ -115,8 +114,6 @@ private:
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
 fs::path makeReusableClientFolder(const string& subfolder);
-
-std::unique_ptr<::mega::FileSystemAccess> makeFsAccess(bool forNotifications);
 
 #ifdef ENABLE_SYNC
 

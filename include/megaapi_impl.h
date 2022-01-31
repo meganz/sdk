@@ -92,11 +92,11 @@ class MegaGfxProc : public GfxProcExternal {};
 #else
     #ifdef __APPLE__
     typedef CurlHttpIO MegaHttpIO;
-    typedef PosixFileSystemAccess MegaFileSystemAccess;
+    typedef MacFileSystemAccess MegaFileSystemAccess;
     typedef PosixWaiter MegaWaiter;
     #else
     class MegaHttpIO : public CurlHttpIO {};
-    class MegaFileSystemAccess : public PosixFileSystemAccess {};
+    class MegaFileSystemAccess : public LinuxFileSystemAccess {};
     class MegaWaiter : public PosixWaiter {};
     #endif
 #endif
@@ -2216,7 +2216,6 @@ class MegaApiImpl : public MegaApp
     public:
         MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
         MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
-        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount = 1);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -2946,7 +2945,7 @@ class MegaApiImpl : public MegaApp
         bool tryLockMutexFor(long long time);
 
 protected:
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, int fseventsfd /*= -1*/, unsigned clientWorkerThreadCount /*= 1*/);
+        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);
         static ExternalLogger externalLogger;

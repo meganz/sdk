@@ -171,11 +171,7 @@ bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
 
 MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-#if defined(ENABLE_SYNC) && defined(__APPLE__)
-    return new MegaApi(appKey, basePath, userAgent, gFseventsFd, workerThreadCount);
-#else
     return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
-#endif
 }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
@@ -3004,7 +3000,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         std::map<std::string, FileAccessFields > plain_follow_fopen;
         std::map<std::string, FileAccessFields > iterate_follow_fopen;
 
-        auto fsa = makeFsAccess(false);
+        auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
         auto localdir = fspathToLocal(iteratePath);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
@@ -3982,7 +3978,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
         "GA4CWmAdW1TwQ-bddEIKTmSDv0b2QQAypo7",
     };
 
-    auto fsa = makeFsAccess(false);
+    auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
     string name = "testfile";
     LocalPath localname = LocalPath::fromAbsolutePath(name);
 
@@ -5514,7 +5510,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     LOG_info << "___TEST invalidFileNames___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    auto fsa =makeFsAccess(false);
+    auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
     auto aux = LocalPath::fromAbsolutePath(fs::current_path().u8string());
 
 #if defined (__linux__) || defined (__ANDROID__)
@@ -7138,8 +7134,12 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     // create apis to exported folders
     for (int index = 0 ; index < howMany; index++ )
     {
-        exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index + 10 /*so as not to clash with megaApi[0]*/).c_str(),
-                                                    USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+        exportedFolderApis[index].reset(
+            newMegaApi(APP_KEY.c_str(),
+                       megaApiCacheFolder(index + 10).c_str(),
+                       USER_AGENT.c_str(),
+                       static_cast<unsigned>(THREADS_PER_MEGACLIENT)));
+
         // reduce log level to something beareable
         exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
     }
@@ -7272,8 +7272,12 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     // create apis to exported folders
     for (unsigned index = 0 ; index < howMany; index++ )
     {
-        exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(static_cast<int>(index) + 10 /*so as not to clash with megaApi[0]*/).c_str(),
-                                                    USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+        exportedFolderApis[index].reset(
+            newMegaApi(APP_KEY.c_str(),
+                       megaApiCacheFolder(static_cast<int>(index) + 10).c_str(),
+                       USER_AGENT.c_str(),
+                       static_cast<unsigned>(THREADS_PER_MEGACLIENT)));
+
         // reduce log level to something beareable
         exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
     }

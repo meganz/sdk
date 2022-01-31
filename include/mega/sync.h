@@ -948,7 +948,7 @@ struct Syncs
     // synchronous and requires first locking mLocalNodeChangeMutex
     treestate_t getSyncStateForLocalPath(handle backupId, const LocalPath&);
 
-    Syncs(MegaClient& mc, unique_ptr<FileSystemAccess> notification_fsa);
+    Syncs(MegaClient& mc);
     ~Syncs();
 
     void getSyncProblems(std::function<void(SyncProblems&)> completion,

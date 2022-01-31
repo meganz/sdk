@@ -92,6 +92,8 @@ class MEGA_API LocalPath
     friend class PosixFileSystemAccess;
     friend struct WinDirAccess;
     friend struct WinDirNotify;
+    friend class LinuxDirNotify;
+    friend class MacDirNotify;
     friend class PosixDirNotify;
     friend class WinFileAccess;
     friend class PosixFileAccess;
@@ -552,7 +554,13 @@ struct Notification
     bool fromDebris(const Sync& sync) const;
     bool invalidated() const;
 
-    enum ScanRequirement { NEEDS_SCAN_UNKNOWN, NEEDS_PARENT_SCAN, FOLDER_NEEDS_SELF_SCAN };
+    enum ScanRequirement
+    {
+        NEEDS_SCAN_RECURSIVE,
+        NEEDS_SCAN_UNKNOWN,
+        NEEDS_PARENT_SCAN,
+        FOLDER_NEEDS_SELF_SCAN
+    };
 
     dstime timestamp;
     ScanRequirement scanRequirement = NEEDS_SCAN_UNKNOWN;
@@ -739,7 +747,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool fsStableIDs(const LocalPath& path) const;
 
 #ifdef ENABLE_SYNC
-    virtual bool initFilesystemNotificationSystem(int notificationFd);
+    virtual bool initFilesystemNotificationSystem();
 #endif // ENABLE_SYNC
 };
 

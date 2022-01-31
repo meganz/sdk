@@ -847,7 +847,7 @@ bool FileSystemAccess::fsStableIDs(const LocalPath&) const
 
 #ifdef ENABLE_SYNC
 
-bool FileSystemAccess::initFilesystemNotificationSystem(int)
+bool FileSystemAccess::initFilesystemNotificationSystem()
 {
     return true;
 }
@@ -1823,6 +1823,9 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
 #ifdef ENABLE_SYNC
 bool Notification::fromDebris(const Sync& sync) const
 {
+    // Must not be the root.
+    if (path.empty()) return false;
+
     // Must have an associated local node.
     if (!localnode) return false;
 

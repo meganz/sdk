@@ -18,7 +18,7 @@ bool gResumeSessions = false;
 bool gScanOnly = false;
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
-int gFseventsFd = -1;
+
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
@@ -279,19 +279,6 @@ int main (int argc, char *argv[])
             gResumeSessions = true;
             argc -= 1;
         }
-#ifdef __APPLE__
-        else if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
-        {
-            int fseventsFd = std::stoi(std::string(*it).substr(13));
-            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
-                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
-                return 1;
-            }
-
-            gFseventsFd = fseventsFd;
-            argc -= 1;
-        }
-#endif
         else
         {
             myargv2.push_back(*it);
@@ -459,17 +446,5 @@ fs::path makeReusableClientFolder(const string& subfolder)
     fs::create_directories(p);
     assert(b);
     return p;
-}
-
-std::unique_ptr<::mega::FileSystemAccess> makeFsAccess(bool forNotifications)
-{
-    auto fsa = ::mega::make_unique<FSACCESS_CLASS>();
-
-#ifdef ENABLE_SYNC
-    if (forNotifications)
-        fsa->initFilesystemNotificationSystem(gFseventsFd);
-#endif // ENABLE_SYNC
-
-    return fsa;
 }
 

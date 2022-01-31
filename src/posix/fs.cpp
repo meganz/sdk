@@ -676,112 +676,37 @@ PosixFileSystemAccess::PosixFileSystemAccess()
 #endif
 }
 
+#ifdef __linux__
 #ifdef ENABLE_SYNC
 
-bool PosixFileSystemAccess::initFilesystemNotificationSystem(int fseventsfd)
+bool LinuxFileSystemAccess::initFilesystemNotificationSystem()
 {
-#ifdef USE_INOTIFY
-    notifyfd = inotify_init1(IN_NONBLOCK);
-    if (notifyfd < 0)
-        return mNotificationError = errno, false;
+    mNotifyFd = inotify_init1(IN_NONBLOCK);
+
+    if (mNotifyFd < 0)
+        return mNotifyFd = -errno, false;
 
     return true;
-#endif
-
-#ifdef __MACH__
-#if __LP64__
-    typedef struct fsevent_clone_args {
-       int8_t *event_list;
-       int32_t num_events;
-       int32_t event_queue_depth;
-       int32_t *fd;
-    } fsevent_clone_args;
-#else
-    typedef struct fsevent_clone_args {
-       int8_t *event_list;
-       int32_t pad1;
-       int32_t num_events;
-       int32_t event_queue_depth;
-       int32_t *fd;
-       int32_t pad2;
-    } fsevent_clone_args;
-#endif
-
-#define FSE_IGNORE 0
-#define FSE_REPORT 1
-#define FSEVENTS_CLONE _IOW('s', 1, fsevent_clone_args)
-#define FSEVENTS_WANT_EXTENDED_INFO _IO('s', 102)
-
-    int8_t event_list[] = { // action to take for each event
-                              FSE_REPORT,  // FSE_CREATE_FILE,
-                              FSE_REPORT,  // FSE_DELETE,
-                              FSE_REPORT,  // FSE_STAT_CHANGED,
-                              FSE_REPORT,  // FSE_RENAME,
-                              FSE_REPORT,  // FSE_CONTENT_MODIFIED,
-                              FSE_REPORT,  // FSE_EXCHANGE,
-                              FSE_IGNORE,  // FSE_FINDER_INFO_CHANGED,
-                              FSE_REPORT,  // FSE_CREATE_DIR,
-                              FSE_REPORT,  // FSE_CHOWN,
-                              FSE_IGNORE,  // FSE_XATTR_MODIFIED,
-                              FSE_IGNORE,  // FSE_XATTR_REMOVED,
-                          };
-
-    // for this to succeed, geteuid() must be 0, or an existing /dev/fsevents fd must have
-    // been passed to the constructor
-    if (fseventsfd < 0)
-    {
-        // we didn't get any special permissioned fd.
-        // try to open one (program needs to run sudo)
-        if ((notifyfd = open("/dev/fsevents", O_RDONLY)) < 0)
-        {
-            mNotificationError = errno;
-            return false;
-        }
-        // notifyfd will be closed by destructor
-        return true;
-    }
-
-    // we have been passed a special permissioned fd in fseventsfd.
-    // Clone it for this instance.
-
-    fsevent_clone_args fca;
-    int nfd;
-
-    fca.event_list = (int8_t*)event_list;
-    fca.num_events = sizeof event_list/sizeof(int8_t);
-    fca.event_queue_depth = 4096;
-    fca.fd = &nfd;
-
-    if (ioctl(fseventsfd, FSEVENTS_CLONE, (char*)&fca) >= 0)
-    {
-        if (ioctl(nfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
-        {
-            // notifyfd will be closed by destructor
-            notifyfd = nfd;
-            return true;
-        }
-
-        mNotificationError = errno;
-        close(nfd);
-    }
-    else
-    {
-        mNotificationError = errno;
-    }
-
-    return false;
-#endif
 }
-
 #endif // ENABLE_SYNC
 
-PosixFileSystemAccess::~PosixFileSystemAccess()
+LinuxFileSystemAccess::~LinuxFileSystemAccess()
 {
-    if (notifyfd >= 0)
-    {
-        close(notifyfd);
-    }
+#ifdef ENABLE_SYNC
+
+    // Make sure there are no active notifiers.
+    assert(mNotifiers.empty());
+
+    // Release inotify descriptor, if any.
+    if (mNotifyFd >= 0)
+        close(mNotifyFd);
+
+#endif // ENABLE_SYNC
 }
+
+
+#endif //  __linux__
+
 
 bool PosixFileSystemAccess::cwd(LocalPath& path) const
 {
@@ -810,286 +735,130 @@ bool PosixFileSystemAccess::cwd_static(LocalPath& path)
 }
 
 // wake up from filesystem updates
-void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
+
+#ifdef __linux__
+void LinuxFileSystemAccess::addevents(Waiter* waiter, int flags)
 {
-    if (notifyfd >= 0)
-    {
-        PosixWaiter* pw = (PosixWaiter*)w;
+#ifdef ENABLE_SYNC
 
-        MEGA_FD_SET(notifyfd, &pw->rfds);
-        MEGA_FD_SET(notifyfd, &pw->ignorefds);
+    if (mNotifyFd < 0)
+        return;
 
-        pw->bumpmaxfd(notifyfd);
-    }
+    auto w = static_cast<PosixWaiter*>(waiter);
+
+    MEGA_FD_SET(mNotifyFd, &w->rfds);
+    MEGA_FD_SET(mNotifyFd, &w->ignorefds);
+
+    w->bumpmaxfd(mNotifyFd);
+
+#endif // ENABLE_SYNC
 }
 
 // read all pending inotify events and queue them for processing
-int PosixFileSystemAccess::checkevents(Waiter* w)
+int LinuxFileSystemAccess::checkevents(Waiter* waiter)
 {
-    int r = 0;
-    if (notifyfd < 0)
-    {
-        return r;
-    }
+    int result = 0;
 
 #ifdef ENABLE_SYNC
+
+    if (mNotifyFd < 0)
+        return result;
+
     // Called so that related syncs perform a rescan.
     auto notifyTransientFailure = [&]() {
         for (auto* notifier : mNotifiers)
             ++notifier->mErrorCount;
     };
 
-#ifdef USE_INOTIFY
-    PosixWaiter* pw = (PosixWaiter*)w;
+    auto* w = static_cast<PosixWaiter*>(waiter);
 
-    if (MEGA_FD_ISSET(notifyfd, &pw->rfds))
+    if (!MEGA_FD_ISSET(mNotifyFd, &w->rfds))
+        return result;
+
+    char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
+    ssize_t p, l;
+    inotify_event* in;
+    WatchMapIterator it;
+    string localpath;
+
+    auto notifyAll = [&](int handle, const string& name)
     {
-        char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
-        ssize_t p, l;
-        inotify_event* in;
-        WatchMapIterator it;
-        string localpath;
+        // Loop over and notify all associated nodes.
+        auto associated = mWatches.equal_range(handle);
 
-        auto notifyAll = [&](int handle, const string& name)
+        for (auto i = associated.first; i != associated.second;)
         {
-            // Loop over and notify all associated nodes.
-            auto associated = mWatches.equal_range(handle);
-            for (auto i = associated.first; i != associated.second;)
+            // Convenience.
+            using std::move;
+            auto& node = *i->second.first;
+            auto& sync = *node.sync;
+            auto& notifier = *sync.dirnotify;
+
+            LOG_debug << "Filesystem notification:"
+                << " Root: "
+                << node.localname.toPath()
+                << " Path: "
+                << name;
+
+            if ((in->mask & IN_DELETE_SELF))
             {
-                // Convenience.
-                using std::move;
-                auto& node = *i->second.first;
-                auto& sync = *node.sync;
-                auto& notifier = *sync.dirnotify;
-
-                LOG_debug << "Filesystem notification:"
-                          << " Root: "
-                          << node.localname.toPath()
-                          << " Path: "
-                          << name;
-
-                if((in->mask & IN_DELETE_SELF)) { // The FS directory watched is gone
-                    node.mWatchHandle.invalidate();
-                    i = mWatches.erase(i); // Remove it form the container (C++11 and up)
-                } else {
-                    ++i;
-                }
-
-                auto localName = LocalPath::fromPlatformEncodedRelative(name);
-                notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
-                r |= Waiter::NEEDEXEC;
+                // The FS directory watched is gone
+                node.mWatchHandle.invalidate();
+                // Remove it from the container (C++11 and up)
+                i = mWatches.erase(i);
             }
-        };
-
-        while ((l = read(notifyfd, buf, sizeof buf)) > 0)
-        {
-            for (p = 0; p < l; p += offsetof(inotify_event, name) + in->len)
+            else
             {
-                in = (inotify_event*)(buf + p);
+                ++i;
+            }
 
-                if ((in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT)))
-                {
-                    LOG_err << "inotify "
-                            << (in->mask & IN_Q_OVERFLOW ? "IN_Q_OVERFLOW" : "IN_UNMOUNT");
+            auto localName = LocalPath::fromPlatformEncodedRelative(name);
+            notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
+            result |= Waiter::NEEDEXEC;
+        }
+    };
 
-                    notifyTransientFailure();
-                }
+    while ((l = read(mNotifyFd, buf, sizeof buf)) > 0)
+    {
+        for (p = 0; p < l; p += offsetof(inotify_event, name) + in->len)
+        {
+            in = (inotify_event*)(buf + p);
 
-// this flag was introduced in glibc 2.13 and Linux 2.6.36 (released October 20, 2010)
+            if ((in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT)))
+            {
+                LOG_err << "inotify "
+                    << (in->mask & IN_Q_OVERFLOW ? "IN_Q_OVERFLOW" : "IN_UNMOUNT");
+
+                notifyTransientFailure();
+            }
+
+            // this flag was introduced in glibc 2.13 and Linux 2.6.36 (released October 20, 2010)
 #ifndef IN_EXCL_UNLINK
 #define IN_EXCL_UNLINK 0x04000000
 #endif
-                if ((in->mask & (IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM
-                              | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK)))
+            if ((in->mask & (IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM
+                | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK)))
+            {
+                LOG_verbose << "Filesystem notification:"
+                    << "event: " << std::hex << in->mask;
+                it = mWatches.find(in->wd);
+
+                if (it != mWatches.end())
                 {
-                    LOG_verbose << "Filesystem notification:"
-                                << "event: " << std::hex << in->mask;
-                    it = mWatches.find(in->wd);
-
-                    if (it != mWatches.end())
-                    {
-                        // What nodes are associated with this handle?
-                        notifyAll(it->first, in->len? in->name : "");
-                    }
-
+                    // What nodes are associated with this handle?
+                    notifyAll(it->first, in->len? in->name : "");
                 }
             }
         }
     }
-#endif
 
-#ifdef __MACH__
-#define FSE_MAX_ARGS 12
-#define FSE_MAX_EVENTS 11
-#define FSE_ARG_DONE 0xb33f
-#define FSE_EVENTS_DROPPED 999
-#define FSE_TYPE_MASK 0xfff
-#define FSE_ARG_STRING 2
-#define FSE_RENAME 3
-#define FSE_GET_FLAGS(type) (((type) >> 12) & 15)
+#endif // ENABLE_SYNC
 
-    struct kfs_event_arg {
-        u_int16_t type;         // argument type
-        u_int16_t len;          // size of argument data that follows this field
-        union {
-            struct vnode *vp;
-            char *str;
-            void *ptr;
-            int32_t int32;
-            dev_t dev;
-            ino_t ino;
-            int32_t mode;
-            uid_t uid;
-            gid_t gid;
-            uint64_t timestamp;
-        } data;
-    };
-
-    struct kfs_event {
-        int32_t type; // event type
-        pid_t pid;  // pid of the process that performed the operation
-        kfs_event_arg args[FSE_MAX_ARGS]; // event arguments
-    };
-
-    // MacOS /dev/fsevents delivers all filesystem events as a unified stream,
-    // which we filter
-    int pos, avail;
-    int off;
-    int i, n;
-    kfs_event* kfse;
-    kfs_event_arg* kea;
-    char buffer[131072];
-    const char* paths[2];
-    Sync* pathsync[2];
-    mega_fd_set_t rfds;
-    timeval tv = { 0, 0 };
-    struct stat statbuf;
-    static char rsrc[] = "/..namedfork/rsrc";
-    static size_t rsrcsize = sizeof(rsrc) - 1;
-
-    auto IsResourceFork = [&](const char* path, size_t length) {
-        if (rsrcsize >= length) return false;
-        return !memcmp(path + length - rsrcsize, rsrc, rsrcsize);
-    };
-
-    for (;;)
-    {
-        MEGA_FD_ZERO(&rfds);
-        MEGA_FD_SET(notifyfd, &rfds);
-
-        // ensure nonblocking behaviour
-        if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;
-
-        if ((avail = read(notifyfd, buffer, int(sizeof buffer))) < 0)
-        {
-            notifyTransientFailure();
-            break;
-        }
-
-        for (pos = 0; pos < avail; )
-        {
-            kfse = (kfs_event*)(buffer + pos);
-
-            pos += sizeof(int32_t) + sizeof(pid_t);
-
-            if (kfse->type == FSE_EVENTS_DROPPED)
-            {
-                // force a full rescan
-                notifyTransientFailure();
-                pos += sizeof(u_int16_t);
-                continue;
-            }
-
-            n = 0;
-
-            for (kea = kfse->args; pos < avail; kea = (kfs_event_arg*)((char*)kea + off))
-            {
-                // no more arguments
-                if (kea->type == FSE_ARG_DONE)
-                {
-                    pos += sizeof(u_int16_t);
-                    break;
-                }
-
-                off = sizeof(kea->type) + sizeof(kea->len) + kea->len;
-                pos += off;
-
-                if (kea->type == FSE_ARG_STRING && n < 2)
-                {
-                    paths[n++] = ((char*)&(kea->data.str))-4;
-                }
-            }
-
-            // always skip paths that are outside synced fs trees or in a sync-local rubbish folder
-            for (i = n; i--; )
-            {
-                const auto* path = paths[i];
-                const auto psize = strlen(path);
-
-                // Assume we can't locate any match.
-                paths[i] = nullptr;
-
-                // Skip notifications about resource forks.
-                if (IsResourceFork(path, psize)) continue;
-
-                // Determine which node the notification is relative to.
-                for (const auto &j : mRoots)
-                {
-                    // Root used for filesystem events.
-                    const auto& rootPath = j.first;
-
-                    // Is the notification coming from within this root?
-                    if (!IsContainingLocalPathOf(rootPath, path, psize))
-                    {
-                        continue;
-                    }
-
-                    // Is it about a symbolic link?
-                    if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
-                    {
-                        LOG_debug << "Link skipped: " << path;
-                        continue;
-                    }
-
-                    // We've got a match.
-                    paths[i] = path + rootPath.size() + 1;
-                    pathsync[i] = j.second;
-
-                    // Stop searching.
-                    break;
-                }
-            }
-
-            // for rename/move operations, skip source if both paths are synced
-            // (to handle rapid a -> b, b -> c without overwriting b).
-            if (n == 2 && paths[0] && paths[1] && (kfse->type & FSE_TYPE_MASK) == FSE_RENAME)
-            {
-                paths[0] = NULL;
-            }
-
-            for (i = n; i--; )
-            {
-                if (paths[i])
-                {
-                    LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->localname.toPath() << "   Path: " << paths[i];
-
-                    auto& dirnotify = *pathsync[i]->dirnotify;
-
-                    dirnotify.notify(dirnotify.fsEventq,
-                                     pathsync[i]->localroot.get(),
-                                     Notification::NEEDS_SCAN_UNKNOWN,
-                                     LocalPath::fromPlatformEncodedRelative(paths[i]),
-                                     strlen(paths[i]));
-
-                    r |= Waiter::NEEDEXEC;
-                }
-            }
-        }
-    }
-#endif
-#endif
-    return r;
+    return result;
 }
+
+#endif //  __linux__
+
 
 // no legacy DOS garbage here...
 bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
@@ -1759,91 +1528,34 @@ void PosixFileSystemAccess::statsid(string *id) const
 }
 
 #if defined(ENABLE_SYNC)
+#if defined(__linux__)
 
-PosixDirNotify::PosixDirNotify(PosixFileSystemAccess& fsAccess, LocalNode& root, const LocalPath& rootPath)
-  : DirNotify(rootPath)
-  , fsaccess(&fsAccess)
-#ifdef __MACH__
-  , mRootsIt(fsAccess.mRoots.end())
-#endif // __MACH__
-  , mNotifiersIt(fsAccess.mNotifiers.insert(fsAccess.mNotifiers.end(), this))
+LinuxDirNotify::LinuxDirNotify(LinuxFileSystemAccess& owner,
+    LocalNode& root,
+    const LocalPath& rootPath)
+    : DirNotify(rootPath)
+    , mOwner(owner)
+    , mNotifiersIt(owner.mNotifiers.insert(owner.mNotifiers.end(), this))
 {
-    // Assume no errors are reported.
-    setFailed(0, "");
+    // Assume our owner couldn't initialize.
+    setFailed(-owner.mNotifyFd, "Unable to create filesystem monitor.");
 
-    if (fsAccess.notifyfd < 0)
-    {
-        setFailed(fsAccess.mNotificationError, "Unable to create filesystem monitor.");
-    }
-
-#ifdef __MACH__
-    // Assume FS events are relative to the sync root.
-    auto eventsPath = rootPath.platformEncoded();
-
-    // Are we running on Catalina or newer?
-    if (macOSmajorVersion() >= 19)
-    {
-        auto rootCheckPath = "/System/Volumes/Data" + eventsPath;
-
-        LOG_debug << "MacOS 10.15+ filesystem detected.";
-        LOG_debug << "Checking FSEvents path: " << rootCheckPath;
-
-        bool usingEvents = false;
-
-        // Check for presence of volume metadata.
-        auto fd = open(rootCheckPath.c_str(), O_RDONLY);
-
-        if (fd >= 0)
-        {
-            // Make sure it's actually about the root.
-            if (char buf[MAXPATHLEN]; fcntl(fd, F_GETPATH, buf) >= 0)
-            {
-                // Awesome, let's use the FSEvents path.
-                usingEvents = true;
-                eventsPath = std::move(rootCheckPath);
-            }
-
-            close(fd);
-        }
-        else
-        {
-            LOG_debug << "Unable to open FSEvents path.";
-        }
-
-        LOG_debug << "Using "
-                  << (usingEvents ? "FSEvents" : "standard")
-                  << " paths for detecting filesystem notifications: "
-                  << eventsPath;
-    }
-
-    // Link the filesystem event path to the sync root.
-    auto result = fsAccess.mRoots.emplace(eventsPath, root.sync);
-
-    // Sanity;
-    assert(result.second);
-
-    // Remember where we were placed for later removal.
-    mRootsIt = result.first;
-#endif
+    // Did our owner initialize correctly?
+    if (owner.mNotifyFd >= 0)
+        setFailed(0, "");
 }
 
-PosixDirNotify::~PosixDirNotify()
+LinuxDirNotify::~LinuxDirNotify()
 {
-    // Remove ourselves from the FSA's notifier list.
-    fsaccess->mNotifiers.erase(mNotifiersIt);
-
-#ifdef __MACH__
-    // Sanity.
-    assert(mRootsIt != fsaccess->mRoots.end());
-
-    // Remove the link.
-    fsaccess->mRoots.erase(mRootsIt);
-#endif // __MACH__
+    // Remove ourselves from our owner's list of notiifers.
+    mOwner.mNotifiers.erase(mNotifiersIt);
 }
 
 #if defined(USE_INOTIFY)
 
-pair<WatchMapIterator, WatchResult> PosixDirNotify::addWatch(LocalNode& node, const LocalPath& path, handle fsid)
+AddWatchResult LinuxDirNotify::addWatch(LocalNode& node,
+    const LocalPath& path,
+    handle fsid)
 {
     using std::forward_as_tuple;
     using std::piecewise_construct;
@@ -1851,36 +1563,36 @@ pair<WatchMapIterator, WatchResult> PosixDirNotify::addWatch(LocalNode& node, co
     assert(node.type == FOLDERNODE);
 
     // Convenience.
-    auto& watches = fsaccess->mWatches;
+    auto& watches = mOwner.mWatches;
 
     auto handle =
-      inotify_add_watch(fsaccess->notifyfd,
-                        path.localpath.c_str(),
-                        IN_CLOSE_WRITE
-                        | IN_CREATE
-                        | IN_DELETE
-                        | IN_DELETE_SELF
-                        | IN_EXCL_UNLINK
-                        | IN_MOVED_FROM // event->cookie set as IN_MOVED_TO
-                        | IN_MOVED_TO
-                        | IN_ONLYDIR);
+        inotify_add_watch(mOwner.mNotifyFd,
+            path.localpath.c_str(),
+            IN_CLOSE_WRITE
+            | IN_CREATE
+            | IN_DELETE
+            | IN_DELETE_SELF
+            | IN_EXCL_UNLINK
+            | IN_MOVED_FROM // event->cookie set as IN_MOVED_TO
+            | IN_MOVED_TO
+            | IN_ONLYDIR);
 
     if (handle >= 0)
     {
         auto entry =
-          watches.emplace(piecewise_construct,
-                          forward_as_tuple(handle),
-                          forward_as_tuple(&node, fsid));
+            watches.emplace(piecewise_construct,
+                forward_as_tuple(handle),
+                forward_as_tuple(&node, fsid));
 
         return make_pair(entry, WR_SUCCESS);
     }
 
     LOG_warn << "Unable to monitor path for filesystem notifications: "
-             << path.localpath.c_str()
-             << ": Descriptor: "
-             << fsaccess->notifyfd
-             << ": Error: "
-             << errno;
+        << path.localpath.c_str()
+        << ": Descriptor: "
+        << mOwner.mNotifyFd
+        << ": Error: "
+        << errno;
 
     if (errno == ENOMEM || errno == ENOSPC)
         return make_pair(watches.end(), WR_FATAL);
@@ -1888,40 +1600,47 @@ pair<WatchMapIterator, WatchResult> PosixDirNotify::addWatch(LocalNode& node, co
     return make_pair(watches.end(), WR_FAILURE);
 }
 
-void PosixDirNotify::removeWatch(WatchMapIterator entry)
+void LinuxDirNotify::removeWatch(WatchMapIterator entry)
 {
     LOG_verbose << "[" << std::this_thread::get_id() << "]"
-                <<  " removeWatch for handle: " << entry->first;
-    auto& watches = fsaccess->mWatches;
+        <<  " removeWatch for handle: " << entry->first;
+    auto& watches = mOwner.mWatches;
 
     auto handle = entry->first;
     assert(handle >= 0);
 
     watches.erase(entry); // Removes first instance
 
-    if (watches.find(handle) != watches.end()) {
-      LOG_warn << "[" << std::this_thread::get_id() << "]"
-               << " There are more watches under handle: " << handle;
-      auto it = watches.find(handle);
-      while(it!=watches.end() && it->first == handle)
-      {
+    if (watches.find(handle) != watches.end())
+    {
         LOG_warn << "[" << std::this_thread::get_id() << "]"
-                 << " handle: " << handle << " fsid:" << it->second.second;
+            << " There are more watches under handle: " << handle;
 
-        ++it;
-      }
-      return;
+        auto it = watches.find(handle);
+
+        while (it!=watches.end() && it->first == handle)
+        {
+            LOG_warn << "[" << std::this_thread::get_id() << "]"
+                << " handle: " << handle << " fsid:" << it->second.second;
+
+            ++it;
+        }
+
+        return;
     }
 
-    auto const removedResult = inotify_rm_watch(fsaccess->notifyfd, handle);
-    if(removedResult){
-      LOG_verbose << "[" << std::this_thread::get_id() << "]"
-                  <<  "inotify_rm_watch for handle: " << handle
-                  <<  " error no: " << errno;
+    auto const removedResult = inotify_rm_watch(mOwner.mNotifyFd, handle);
+
+    if (removedResult)
+    {
+        LOG_verbose << "[" << std::this_thread::get_id() << "]"
+            <<  "inotify_rm_watch for handle: " << handle
+            <<  " error no: " << errno;
     }
 }
 
 #endif // USE_INOTIFY
+#endif // __linux__
 
 fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
@@ -1939,23 +1658,19 @@ fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 
 bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
-    struct statfs statfsbuf;
+    FileSystemType type;
 
-    if (statfs(path.localpath.c_str(), &statfsbuf))
+    if (!getlocalfstype(path, type))
     {
-        LOG_err << "Failed to get filesystem type. Error code: " << errno;
+        LOG_err << "Failed to get filesystem type. Error code:"
+                << errno;
+
         return true;
     }
 
-    LOG_info << "Filesystem type: " << statfsbuf.f_type;
-
-#ifdef __APPLE__
-    return statfsbuf.f_type != 0x1c // FAT32
-        && statfsbuf.f_type != 0x1d; // exFAT
-#else
-    return statfsbuf.f_type != 0x4d44 // FAT
-        && statfsbuf.f_type != 0x65735546; // FUSE
-#endif
+    return type != FS_EXFAT
+           && type != FS_FAT32
+           && type != FS_FUSE;
 }
 
 #endif // ENABLE_SYNC
@@ -1970,11 +1685,15 @@ DirAccess* PosixFileSystemAccess::newdiraccess()
     return new PosixDirAccess();
 }
 
+#ifdef __linux__
 #ifdef ENABLE_SYNC
-DirNotify* PosixFileSystemAccess::newdirnotify(LocalNode& root, const LocalPath& rootPath, Waiter*)
+DirNotify* LinuxFileSystemAccess::newdirnotify(LocalNode& root,
+    const LocalPath& rootPath,
+    Waiter*)
 {
-    return new PosixDirNotify(*this, root, rootPath);
+    return new LinuxDirNotify(*this, root, rootPath);
 }
+#endif
 #endif
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
@@ -2033,10 +1752,13 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
 
 #if defined(__APPLE__) || defined(USE_IOS)
     static const map<string, FileSystemType> filesystemTypes = {
-        {"apfs",  FS_APFS},
-        {"hfs",   FS_HFS},
-        {"msdos", FS_FAT32},
-        {"ntfs",  FS_NTFS}
+        {"apfs",        FS_APFS},
+        {"exfat",       FS_EXFAT},
+        {"hfs",         FS_HFS},
+        {"msdos",       FS_FAT32},
+        {"ntfs",        FS_NTFS}, // Apple NTFS
+        {"tuxera_ntfs", FS_NTFS}, // Tuxera NTFS for Mac
+        {"ufsd_NTFS",   FS_NTFS}  // Paragon NTFS for Mac
     }; /* filesystemTypes */
 
     struct statfs statbuf;
