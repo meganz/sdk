@@ -548,7 +548,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     if (client->fsaccess->getextension(localname, extension))
     {
 #ifdef USE_MEDIAINFO
-        if (MediaProperties::isMediaFilenameExt(extension))
+        if (MediaProperties::isMediaFilenameExtAudio(extension))
         {
             return readbitmapMediaInfo(localname);
         }

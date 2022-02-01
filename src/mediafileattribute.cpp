@@ -585,21 +585,49 @@ MediaProperties MediaProperties::decodeMediaPropertiesAttributes(const std::stri
 
 #ifdef USE_MEDIAINFO
 
+const char* MediaProperties::supportedformatsMediaInfoAudio()
+{
+    // list compiled from https://github.com/MediaArea/MediaInfoLib/blob/v19.09/Source/Resource/Text/DataBase/Format.csv
+    static constexpr char audioformats[] =
+        ".aa3.aac.aacp.aaf.ac3.act.adts.aes3.aif.aifc.aiff.als.amr.ape.at3.at9.atrac.atrac3.atrac9.au.caf"
+        ".dd+.dts.dtshd.eac3.ec3.fla.flac.kar.la.m1a.m2a.mac.mid.midi.mlp.mp1.mp2.mp3.mpa.mpa1.mpa2.mtv"
+        ".oga.ogg.oma.omg.opus.mpc.mp+.qcp.ra.rka.s3m.shn.spdif.spx.tak.thd.vqf.w64.wav.wma.wv.wvc.xm.";
+
+    static_assert(sizeof(audioformats) > 1 &&
+                  audioformats[0] == '.' &&
+                  audioformats[sizeof(audioformats) - 2] == '.',
+                  "Supported audio formats need to start and end with '.'");
+
+    return audioformats;
+}
+
+bool MediaProperties::isMediaFilenameExtAudio(const std::string& ext)
+{
+    for (const char* ptr = supportedformatsMediaInfoAudio(); (ptr = strstr(ptr, ext.c_str())); ptr += ext.size())
+    {
+        if (ptr[ext.size()] == '.')
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 const char* MediaProperties::supportedformatsMediaInfo()
 {
-    static constexpr char supportedformats[] =
-        ".264.265.3g2.3ga.3gp.3gpa.3gpp.3gpp2.aac.aacp.ac3.act.adts.aif.aifc.aiff.als.apl.at3.avc"
-        ".avi.dd+.dde.divx.dts.dtshd.eac3.ec3.evo.f4a.f4b.f4v.flac.gvi.h261.h263.h264.h265.hevc.isma"
-        ".ismt.ismv.ivf.jpm.k3g.m1a.m1v.m2a.m2p.m2s.m2t.m2v.m4a.m4b.m4p.m4s.m4t.m4v.m4v.mac.mkv.mk3d"
-        ".mka.mks.mlp.mov.mp1.mp1v.mp2.mp2v.mp3.mp4.mp4v.mpa1.mpa2.mpeg.mpg.mpgv.mpv.mqv.ogg.ogm.ogv"
-        ".omg.opus.qt.sls.spx.thd.tmf.trp.ts.ty.vc1.vob.vr.w64.wav.webm.wma.wmv.";
+    static constexpr char nonaudioformats[] =
+        ".264.265.3g2.3ga.3gp.3gpa.3gpp.3gpp2.apl.avc.avi.dde.divx.evo.f4a.f4b.f4v.gvi.h261.h263.h264.h265.hevc"
+        ".isma.ismt.ismv.ivf.jpm.k3g.m1v.m2p.m2s.m2t.m2v.m4a.m4b.m4p.m4s.m4t.m4v.mk3d.mka.mks.mkv.mov.mp1v.mp2v"
+        ".mp4.mp4v.mpeg.mpg.mpgv.mpv.mqv.ogm.ogv.qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
 
-    static_assert(sizeof(supportedformats) > 1 &&
-                  supportedformats[0] == '.' &&
-                  supportedformats[sizeof(supportedformats) - 2] == '.',
+    static_assert(sizeof(nonaudioformats) > 1 &&
+                  nonaudioformats[0] == '.' &&
+                  nonaudioformats[sizeof(nonaudioformats) - 2] == '.',
                   "Supported formats need to start and end with '.'");
 
-    return supportedformats;
+    static const std::string allFormats = string(nonaudioformats) + supportedformatsMediaInfoAudio(); // this is thread safe in C++11
+
+    return allFormats.c_str();
 }
 
 bool MediaProperties::isMediaFilenameExt(const std::string& ext)
