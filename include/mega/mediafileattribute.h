@@ -71,9 +71,11 @@ struct MEGA_API MediaProperties
     static MediaProperties decodeMediaPropertiesAttributes(const std::string& attrs, uint32_t filekey[4]);
 
 #ifdef USE_MEDIAINFO
+    static const char* supportedformatsMediaInfoAudio();
     static const char* supportedformatsMediaInfo();
 
     // return true if the filename extension is one that mediainfoLib can process
+    static bool isMediaFilenameExtAudio(const std::string& ext);
     static bool isMediaFilenameExt(const std::string& ext);
 
     // Open the specified local file with mediainfoLib and get its video parameters.  This function fills in the names but not the IDs
