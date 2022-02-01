@@ -548,9 +548,9 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     if (client->fsaccess->getextension(localname, extension))
     {
 #ifdef USE_MEDIAINFO
-        if (MediaProperties::isMediaFilenameExt(extension) && readbitmapMediaInfo(localname))
+        if (MediaProperties::isMediaFilenameExt(extension))
         {
-            return true; // otherwise fallback to ffmpeg
+            return readbitmapMediaInfo(localname);
         }
 #endif
 #ifdef HAVE_FFMPEG
