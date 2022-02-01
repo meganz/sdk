@@ -7354,17 +7354,30 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
  * @brief TEST_F SdkTestAudioFileThumbnail
  *
  * Tests extracting thumbnail for uploaded audio file.
+ *
+ * The file to be uploaded must exist or the test will fail.
+ * If environment variable MEGA_DIR_PATH_TO_INPUT_FILES is defined, the file is expected to be in that folder. Otherwise,
+ * a relative path will be checked. Currently, the relative path is dependent on the building tool
  */
 TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 {
     LOG_info << "___TEST Audio File Thumbnail___";
 
-    const char* bufPathToMp3 = getenv("MEGA_DIR_PATH_TO_MP3");
-    ASSERT_TRUE(bufPathToMp3 && *bufPathToMp3) << "MEGA_DIR_PATH_TO_MP3 env var must be defined";
-    string mp3 = bufPathToMp3;
+    const char* bufPathToMp3 = getenv("MEGA_DIR_PATH_TO_INPUT_FILES");
+    static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
+
+    string mp3 = (bufPathToMp3) ? bufPathToMp3 : "./tests/integration/";
+
     if (mp3.back() != LocalPath::localPathSeparator_utf8)
         mp3 += LocalPath::localPathSeparator_utf8;
-    mp3 += "test_cover_png.mp3";
+
+    mp3 += AUDIO_FILENAME;
+    if (!bufPathToMp3 && !fileexists(mp3))
+    {
+        // try with CMake's path (i.e. local to build dir) if Autotools' failed
+        mp3 = AUDIO_FILENAME;
+    }
+    ASSERT_TRUE(fileexists(mp3)) << mp3 << " file does not exist";
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
 
