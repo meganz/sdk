@@ -7720,8 +7720,8 @@ void MegaApiImpl::abortPendingActions(error preverror)
 
     }
 
-    resetTotalDownloads();
-    resetTotalUploads();
+    resetCompletedDownloads();
+    resetCompletedUploads();
 }
 
 bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const
@@ -9062,17 +9062,17 @@ int MegaApiImpl::getTotalDownloads()
     return totalDownloads;
 }
 
-void MegaApiImpl::resetTotalDownloads()
+void MegaApiImpl::resetCompletedDownloads()
 {
-    totalDownloads = 0;
-    totalDownloadBytes = 0;
+    totalDownloads = pendingDownloads;
+    totalDownloadBytes = totalDownloadBytes - totalDownloadedBytes;
     totalDownloadedBytes = 0;
 }
 
-void MegaApiImpl::resetTotalUploads()
+void MegaApiImpl::resetCompletedUploads()
 {
-    totalUploads = 0;
-    totalUploadBytes = 0;
+    totalUploads = pendingUploads;
+    totalUploadBytes = totalUploadBytes - totalUploadedBytes;
     totalUploadedBytes = 0;
 }
 

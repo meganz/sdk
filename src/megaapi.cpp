@@ -3557,14 +3557,14 @@ int MegaApi::getTotalDownloads()
     return pImpl->getTotalDownloads();
 }
 
-void MegaApi::resetTotalDownloads()
+void MegaApi::resetCompletedDownloads()
 {
-    pImpl->resetTotalDownloads();
+    pImpl->resetCompletedDownloads();
 }
 
-void MegaApi::resetTotalUploads()
+void MegaApi::resetCompletedUploads()
 {
-    pImpl->resetTotalUploads();
+    pImpl->resetCompletedUploads();
 }
 
 MegaNode *MegaApi::getRootNode()
