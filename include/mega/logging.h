@@ -395,8 +395,6 @@ public:
     ~SimpleLogger()
     {
 #ifdef ENABLE_LOG_PERFORMANCE
-
-#ifndef MEGALOGGER_AVOID_FILE_AND_LINES
         if (filenameStr && lineNum != -1)
         {
             copyToBuffer(" [", 2);
@@ -405,7 +403,6 @@ public:
             logValue(lineNum);
             copyToBuffer("]", 1);
         }
-#endif
 
         outputBuffer(true);
 
