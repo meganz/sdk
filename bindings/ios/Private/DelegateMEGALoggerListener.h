@@ -27,7 +27,11 @@ public:
     DelegateMEGALoggerListener(id<MEGALoggerDelegate> listener);
     id<MEGALoggerDelegate>getUserListener();
     
-    void log(const char *time, int logLevel, const char *source, const char *message);
+    void log(const char *time, int logLevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+    , const char **directMessages, size_t *directMessagesSizes, int numberMessages
+#endif
+    );
     
 private:
     MEGASdk *megaSDK;
