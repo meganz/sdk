@@ -14321,7 +14321,27 @@ class MegaApi
         int getTotalDownloads();
 
         /**
+         * @brief Reset the number of total downloads
+         * This function resets the number returned by MegaApi::getTotalDownloads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         *
+         */
+        void resetTotalDownloads();
+
+        /**
+         * @brief Reset the number of total uploads
+         * This function resets the number returned by MegaApi::getTotalUploads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         */
+        void resetTotalUploads();
+
+        /**
          * @brief Get the number of completed uploads since the last call to MegaApi::resetCompletedUploads
+         * * The number of completed uploads does not include the cancelled transfers
          * @return Number of completed uploads since the last call to MegaApi::resetCompletedUploads
          *
          * @deprecated Function related to statistics will be reviewed in future updates to
@@ -14331,6 +14351,7 @@ class MegaApi
 
         /**
          * @brief Get the number of completed downloads since the last call to MegaApi::resetCompletedDownloads
+         * The number of completed downloads does not include the cancelled transfers
          * @return Number of completed downloads since the last call to MegaApi::resetCompletedDownloads
          *
          * @deprecated Function related to statistics will be reviewed in future updates to

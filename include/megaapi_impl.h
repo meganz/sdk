@@ -2441,6 +2441,8 @@ class MegaApiImpl : public MegaApp
         int getNumPendingDownloads();
         int getTotalUploads();
         int getTotalDownloads();
+        void resetTotalDownloads();
+        void resetTotalUploads();
         size_t getCompletedUploads();
         size_t getCompletedDownloads();
         void resetCompletedDownloads();
