@@ -381,6 +381,8 @@ public:
     // This method only can be used in Megacli for testing purposes
     uint64_t getNumberNodesInRam() const;
 
+    void cancelSearch();
+
 private:
     // TODO Nodes on demand remove reference
     MegaClient& mClient;

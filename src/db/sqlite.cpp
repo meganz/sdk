@@ -618,6 +618,16 @@ bool SqliteAccountState::removeNodes()
     return sqlResult == SQLITE_OK;
 }
 
+void SqliteAccountState::interruptQuery()
+{
+    if (!db)
+    {
+        return;
+    }
+
+    sqlite3_interrupt(db);
+}
+
 bool SqliteAccountState::put(Node *node)
 {
     if (!db)

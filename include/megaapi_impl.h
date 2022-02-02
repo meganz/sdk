@@ -1502,9 +1502,12 @@ public:
 
     void cancel(bool newValue = true) override;
     bool isCancelled() const override;
+    void setMegaClient(MegaClient& megaClient);
+    void setSearchEnded();
 
 private:
     std::atomic_bool cancelFlag { false };
+    MegaClient* mMegaClient = nullptr;
 };
 
 #ifdef ENABLE_CHAT

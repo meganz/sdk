@@ -11804,7 +11804,14 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
-    if (cancelToken && cancelToken->isCancelled())
+    MegaCancelTokenPrivate* cancelTokenPrivate = nullptr;
+    if (cancelToken)
+    {
+        cancelTokenPrivate = static_cast<MegaCancelTokenPrivate*>(cancelToken);
+        cancelTokenPrivate->setMegaClient(*client);
+    }
+
+    if (cancelTokenPrivate && cancelTokenPrivate->isCancelled())
     {
         return new MegaNodeListPrivate();
     }
@@ -11939,6 +11946,11 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
         sortByComparatorFunction(result, order, *client);
         nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
+    }
+
+    if (cancelTokenPrivate)
+    {
+        cancelTokenPrivate->setSearchEnded();
     }
 
     return nodeList;
@@ -33809,11 +33821,26 @@ MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
 void MegaCancelTokenPrivate::cancel(bool newValue)
 {
     cancelFlag = newValue;
+    if (mMegaClient && cancelFlag)
+    {
+        mMegaClient->mNodeManager.cancelSearch();
+    }
 }
 
 bool MegaCancelTokenPrivate::isCancelled() const
 {
     return cancelFlag;
+}
+
+void MegaCancelTokenPrivate::setMegaClient(MegaClient &megaClient)
+{
+    mMegaClient = &megaClient;
+}
+
+void MegaCancelTokenPrivate::setSearchEnded()
+{
+    cancelFlag = true;
+    mMegaClient = nullptr;
 }
 
 }
