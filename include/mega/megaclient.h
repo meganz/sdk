@@ -378,8 +378,7 @@ public:
     // Node has received last updates and it's ready to store in DB
     void saveNodeInDb(Node *node);
 
-    // This method only can be used in Megacli for tester propose
-    // TODO remve when NOD will be merged into develop
+    // This method only can be used in Megacli for testing purposes
     uint64_t getNumberNodesInRam() const;
 
 private:

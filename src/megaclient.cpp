@@ -8659,6 +8659,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 notifynode(n);
             }
 
+            // do not wait for notifypurge() to dump to disk / DB, since
+            // some operations rely on DB queries (ie. NodeCounters)
             mNodeManager.saveNodeInDb(n);
             n = nullptr;    // ownership is taken by NodeManager upon addNode()
         }
@@ -12010,7 +12012,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
     // Used to update to nodes on demand cache
-    bool necessaryCommit = false;
+    bool isDbUpgraded = false;
 
     while (hasNext)
     {
@@ -12027,11 +12029,13 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 LOG_info << "Loading nodes from old cache";
                 if ((n = mNodeManager.unserializeNode(&data, true)))
                 {
-                   necessaryCommit = true;
-                   // Add nodes from old data base structure to nodes on demand structure
-                   // When all nodes are loaded we force a commit
+                    // When all nodes are loaded we force a commit
+                   isDbUpgraded = true;
+
+                   // Add nodes from old DB schema to the new table 'nodes' in the
+                   // new DB schema for nodes on demand
                    mNodeManager.addNode(n, false);
-                   mNodeManager.saveNodeInDb(n);       // dump to new DB table for 'nodes'
+                   mNodeManager.saveNodeInDb(n);    // dump to new DB table for 'nodes'
                    sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else
@@ -12086,11 +12090,10 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
-    if (necessaryCommit)
+    if (isDbUpgraded)
     {
-        // Force commit in case of old cache has ben modified in new cache
+        // force commit in case of old DB has been upgraded to new schema for NOD
         sctable->commit();
-        // It's necessary begin a transction after commit to set autocommit disable
         sctable->begin();
     }
     WAIT_CLASS::bumpds();
@@ -16768,8 +16771,15 @@ bool NodeManager::setrootnode(Node* node)
 
 bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 {
+    // ownership of 'node' is taken by NodeManager::mNodes if node is kept in memory,
+    // and by NodeManager::mNodesToWriteInDB if node is only written to DB. In the latter,
+    // the 'node' is deleted upon saveNodeInDb()
+
     // 'isFetching' is true only when CommandFetchNodes is in flight and/or it has been received,
     // but it's been complemented with actionpackets. It's false when loaded from DB.
+
+    // 'notify' is false when loading nodes from API or DB. True when node is received from
+    // actionpackets and/or from response of CommandPutnodes
 
     if (!mTable)
     {
@@ -16785,13 +16795,22 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 
     // mClient.rootnodes.files is always set for folder links before adding any node (upon login)
     bool isFolderLink = mClient.rootnodes.files == node->nodeHandle();
+
+    // add counter only for rootnodes
     if (rootNode || isFolderLink)
     {
         addCounter(node->nodeHandle());
     }
 
     // TODO nodes on demand: we should also keep in RAM the inshares (when fetching nodes)
-    if (mKeepAllNodesInMemory || rootNode || isFolderLink || !isFetching || notify || node->parentHandle() == mClient.rootnodes.files)
+    bool keepNodeInMemory = mKeepAllNodesInMemory
+            || rootNode
+            || isFolderLink
+            || !isFetching
+            || notify
+            || node->parentHandle() == mClient.rootnodes.files; // first level of children for CloudDrive
+
+    if (keepNodeInMemory)
     {
         saveNodeInRAM(node, rootNode || isFolderLink);   // takes ownership
     }
@@ -17796,7 +17815,8 @@ void NodeManager::notifyPurge()
             if (n->changed.removed)
             {
                 // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
-                if (n->parent)
+
+                if (n->parent)  // only process node counters for subtrees not deleted already
                 {
                     subtractFromRootCounter(*n);
                 }
@@ -17909,7 +17929,7 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
 
 void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 {
-    mNodes[node->nodeHandle()] = node;
+    mNodes[node->nodeHandle()] = node;   // takes ownership
 
     // In case of rootnode, no need to add to mNodesWithMissingParent
     if (!isRootnode)
