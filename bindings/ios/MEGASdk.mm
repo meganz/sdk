@@ -2245,6 +2245,18 @@ using namespace mega;
     return transfer ? [[MEGATransfer alloc] initWithMegaTransfer:transfer cMemoryOwn:YES] : nil;
 }
 
+- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->startUploadForSupport(localPath.UTF8String, isSourceTemporary, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary {
+    if (self.megaApi) {
+        self.megaApi->startUploadForSupport(localPath.UTF8String, isSourceTemporary);
+    }
+}
+
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
