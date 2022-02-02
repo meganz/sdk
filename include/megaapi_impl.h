@@ -2445,8 +2445,8 @@ class MegaApiImpl : public MegaApp
         size_t getCompletedDownloads();
         void resetCompletedDownloads();
         void resetCompletedUploads();
-        void clearCompletedUpload(int transferTag);
-        void clearCompletedDownload(int transferTag);
+        void removeCompletedUpload(int transferTag);
+        void removeCompletedDownload(int transferTag);
         void updateStats();
         long long getNumNodes();
         long long getTotalDownloadedBytes();

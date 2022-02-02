@@ -9088,7 +9088,7 @@ void MegaApiImpl::resetCompletedUploads()
     totalUploadedBytes = 0;
 }
 
-void MegaApiImpl::clearCompletedUpload(int transferTag)
+void MegaApiImpl::removeCompletedUpload(int transferTag)
 {
     auto itr = completedUploads.find(transferTag);
     if (itr != completedUploads.end())
@@ -9100,7 +9100,7 @@ void MegaApiImpl::clearCompletedUpload(int transferTag)
     }
 }
 
-void MegaApiImpl::clearCompletedDownload(int transferTag)
+void MegaApiImpl::removeCompletedDownload(int transferTag)
 {
     auto itr = completedDownloads.find(transferTag);
     if (itr != completedDownloads.end())
@@ -16287,8 +16287,8 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
         LOG_info << "Transfer (" << transfer->getTransferString() << ") finished. File: " << transfer->getFileName();
     }
 
-    //Only for file type transfers
-    if(!transfer->isFolderTransfer())
+    //Only for file type transfers and not cancelled transfers
+    if(!transfer->isFolderTransfer() && transfer->getState() != MegaTransfer::STATE_CANCELLED)
     {
         if (transfer->getType() == GET)
         {
