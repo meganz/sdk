@@ -16793,7 +16793,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     // TODO nodes on demand: we should also keep in RAM the inshares (when fetching nodes)
     if (mKeepAllNodesInMemory || rootNode || isFolderLink || !isFetching || notify || node->parentHandle() == mClient.rootnodes.files)
     {
-        saveNodeInRAM(node);
+        saveNodeInRAM(node, rootNode || isFolderLink);   // takes ownership
     }
     else
     {
@@ -17907,13 +17907,12 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
     return nullptr;
 }
 
-void NodeManager::saveNodeInRAM(Node *node)
+void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 {
     mNodes[node->nodeHandle()] = node;
 
-    // In case of folder link it isn't neccesary to add to mNodesWithMissingParent
-    if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE
-            && node->nodeHandle() != mClient.rootnodes.files)
+    // In case of rootnode, no need to add to mNodesWithMissingParent
+    if (!isRootnode)
     {
         Node *parent = nullptr;
         if ((parent = getNodeByHandle(node->parentHandle())))

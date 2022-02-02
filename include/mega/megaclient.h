@@ -409,7 +409,7 @@ private:
     std::map<NodeHandle, node_set> mNodesWithMissingParent;
 
     Node* getNodeInRAM(NodeHandle handle);
-    void saveNodeInRAM(Node* node);
+    void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
     bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
 
