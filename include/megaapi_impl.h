@@ -2441,8 +2441,12 @@ class MegaApiImpl : public MegaApp
         int getNumPendingDownloads();
         int getTotalUploads();
         int getTotalDownloads();
+        size_t getCompletedUploads();
+        size_t getCompletedDownloads();
         void resetCompletedDownloads();
         void resetCompletedUploads();
+        void clearCompletedUpload(int transferTag);
+        void clearCompletedDownload(int transferTag);
         void updateStats();
         long long getNumNodes();
         long long getTotalDownloadedBytes();
@@ -2896,6 +2900,10 @@ protected:
         int pendingDownloads;
         int totalUploads;
         int totalDownloads;
+        //key: transfer tag - value: transferred bytes
+        map<int, long long> completedUploads;
+        //key: transfer tag - value: transferred bytes
+        map<int, long long> completedDownloads;
         long long totalDownloadedBytes;
         long long totalUploadedBytes;
         long long totalDownloadBytes;

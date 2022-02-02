@@ -3557,9 +3557,29 @@ int MegaApi::getTotalDownloads()
     return pImpl->getTotalDownloads();
 }
 
+size_t MegaApi::getCompletedUploads()
+{
+    return pImpl->getCompletedUploads();
+}
+
+size_t MegaApi::getCompletedDownloads()
+{
+    return pImpl->getCompletedDownloads();
+}
+
 void MegaApi::resetCompletedDownloads()
 {
     pImpl->resetCompletedDownloads();
+}
+
+void MegaApi::clearCompletedUpload(int transferTag)
+{
+    pImpl->clearCompletedUpload(transferTag);
+}
+
+void MegaApi::clearCompletedDownload(int transferTag)
+{
+    pImpl->clearCompletedDownload(transferTag);
 }
 
 void MegaApi::resetCompletedUploads()
