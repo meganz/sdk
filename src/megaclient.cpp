@@ -8659,8 +8659,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 notifynode(n);
             }
 
-            // From this point n is invalid
-            mNodeManager.saveNode(*n);
+            mNodeManager.saveNodeInDb(n);
             n = nullptr;    // ownership is taken by NodeManager upon addNode()
         }
     }
@@ -12032,8 +12031,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    // Add nodes from old data base structure to nodes on demand structure
                    // When all nodes are loaded we force a commit
                    mNodeManager.addNode(n, false);
-                   mNodeManager.saveNode(*n);
-                   sctable->del(id);
+                   mNodeManager.saveNodeInDb(n);       // dump to new DB table for 'nodes'
+                   sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else
                 {
@@ -18123,7 +18122,7 @@ FingerprintMapPosition NodeManager::getInvalidPosition()
     return mFingerPrints.end();
 }
 
-void NodeManager::saveNode(Node &node)
+void NodeManager::saveNodeInDb(Node *node)
 {
     if (!mTable)
     {
@@ -18131,9 +18130,7 @@ void NodeManager::saveNode(Node &node)
         return;
     }
 
-    // do not wait for notifypurge() to dump to disk / DB, since
-    // some operations rely on DB queries (ie. NodeCounters)
-    mTable->put(&node);
+    mTable->put(node);
 
     auto it = mNodesToRemoveOnlyDB.find(node.nodeHandle());
     if (it != mNodesToRemoveOnlyDB.end())
