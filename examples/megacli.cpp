@@ -3177,6 +3177,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
     p->Add(exec_nodecounter, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
+    p->Add(exec_numberofnodes, sequence(text("nn")));
+
 
 #ifdef ENABLE_SYNC
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
@@ -9209,3 +9211,15 @@ void exec_syncxable(autocomplete::ACState& s)
 }
 
 #endif // ENABLE_SYNC
+
+void exec_numberofnodes(autocomplete::ACState &s)
+{
+    uint64_t numberOfNodes = client->mNodeManager.getNodeCount();
+    // We have to add RootNode, Incoming and rubbish
+    if (!client->loggedinfolderlink())
+    {
+        numberOfNodes += 3;
+    }
+    cout << "Total nodes: " << numberOfNodes << endl;
+    cout << "Total nodes in RAM: " << client->mNodeManager.getNumberNodesInRam() << endl << endl;
+}

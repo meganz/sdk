@@ -253,7 +253,7 @@ public:
     void reset();
 
     // Take node ownership
-    bool addNode(Node* node, bool isFetching = false);
+    bool addNode(Node* node, bool notify, bool isFetching = false);
     bool updateNode(Node* node);
     // removeNode() --> it's done through notifypurge()
 
@@ -375,6 +375,11 @@ public:
     void removeFingerprint(Node* node);
     FingerprintMapPosition getInvalidPosition();
 
+    // Node has received last updates and it's ready to store in DB
+    void saveNodeInDb(Node *node);
+
+    // This method only can be used in Megacli for testing purposes
+    uint64_t getNumberNodesInRam() const;
 
 private:
     // TODO Nodes on demand remove reference
@@ -403,8 +408,7 @@ private:
     std::map<NodeHandle, node_set> mNodesWithMissingParent;
 
     Node* getNodeInRAM(NodeHandle handle);
-    void saveNodeInRAM(Node* node);
-    void saveNodeInDataBase(Node* node);
+    void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
     bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
 
@@ -421,6 +425,12 @@ private:
     FingerprintMap mFingerPrints;
 
     Node* getNodeFromDataBase(NodeHandle handle);
+
+    // This method is called to increase a counters with a node that it's going to be stored only at DB
+    void updateCountersWithNode(const Node& node);
+
+    // node temporary in memory, which will be removed upon write to DB
+    Node *mNodeToWriteInDb = nullptr;
 };
 
 class MEGA_API MegaClient

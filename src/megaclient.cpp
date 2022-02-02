@@ -8562,7 +8562,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 }
 
                 // NodeManager takes n ownership
-                mNodeManager.addNode(n, fetchingnodes);
+                mNodeManager.addNode(n, notify,  fetchingnodes);
 
                 if (!ISUNDEF(su))
                 {
@@ -8659,6 +8659,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 notifynode(n);
             }
 
+            // do not wait for notifypurge() to dump to disk / DB, since
+            // some operations rely on DB queries (ie. NodeCounters)
+            mNodeManager.saveNodeInDb(n);
             n = nullptr;    // ownership is taken by NodeManager upon addNode()
         }
     }
@@ -12009,7 +12012,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
     // Used to update to nodes on demand cache
-    bool necessaryCommit = false;
+    bool isDbUpgraded = false;
 
     while (hasNext)
     {
@@ -12024,14 +12027,16 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
             case CACHEDNODE:
                 LOG_info << "Loading nodes from old cache";
-                assert(!mNodeManager.isNodesOnDemandReady());
                 if ((n = mNodeManager.unserializeNode(&data, true)))
                 {
-                   necessaryCommit = true;
-                   // Add nodes from old data base structure to nodes on demand structure
-                   // When all nodes are loaded we force a commit
-                   mNodeManager.addNode(n, true); // DB
-                   sctable->del(id);
+                    // When all nodes are loaded we force a commit
+                   isDbUpgraded = true;
+
+                   // Add nodes from old DB schema to the new table 'nodes' in the
+                   // new DB schema for nodes on demand
+                   mNodeManager.addNode(n, false);
+                   mNodeManager.saveNodeInDb(n);    // dump to new DB table for 'nodes'
+                   sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else
                 {
@@ -12085,10 +12090,11 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
-    if (necessaryCommit)
+    if (isDbUpgraded)
     {
-        // Force commit in case of old cache has ben modified in new cache
+        // force commit in case of old DB has been upgraded to new schema for NOD
         sctable->commit();
+        sctable->begin();
     }
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
@@ -16763,10 +16769,17 @@ bool NodeManager::setrootnode(Node* node)
     }
 }
 
-bool NodeManager::addNode(Node *node, bool isFetching)
+bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 {
+    // ownership of 'node' is taken by NodeManager::mNodes if node is kept in memory,
+    // and by NodeManager::mNodesToWriteInDB if node is only written to DB. In the latter,
+    // the 'node' is deleted upon saveNodeInDb()
+
     // 'isFetching' is true only when CommandFetchNodes is in flight and/or it has been received,
     // but it's been complemented with actionpackets. It's false when loaded from DB.
+
+    // 'notify' is false when loading nodes from API or DB. True when node is received from
+    // actionpackets and/or from response of CommandPutnodes
 
     if (!mTable)
     {
@@ -16782,19 +16795,31 @@ bool NodeManager::addNode(Node *node, bool isFetching)
 
     // mClient.rootnodes.files is always set for folder links before adding any node (upon login)
     bool isFolderLink = mClient.rootnodes.files == node->nodeHandle();
+
+    // add counter only for rootnodes
     if (rootNode || isFolderLink)
     {
         addCounter(node->nodeHandle());
     }
 
     // TODO nodes on demand: we should also keep in RAM the inshares (when fetching nodes)
-    if (mKeepAllNodesInMemory || rootNode || isFolderLink || !isFetching)
+    bool keepNodeInMemory = mKeepAllNodesInMemory
+            || rootNode
+            || isFolderLink
+            || !isFetching
+            || notify
+            || node->parentHandle() == mClient.rootnodes.files; // first level of children for CloudDrive
+
+    if (keepNodeInMemory)
     {
-        saveNodeInRAM(node);
+        saveNodeInRAM(node, rootNode || isFolderLink);   // takes ownership
     }
     else
     {
-        saveNodeInDataBase(node);
+        updateCountersWithNode(*node);
+
+        // still keep it in memory temporary, until saveNodeInDb()
+        mNodeToWriteInDb = node; // takes ownership
     }
 
     return true;
@@ -17790,7 +17815,12 @@ void NodeManager::notifyPurge()
             if (n->changed.removed)
             {
                 // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
-                subtractFromRootCounter(*n);
+
+                if (n->parent)  // only process node counters for subtrees not deleted already
+                {
+                    subtractFromRootCounter(*n);
+                }
+
                 mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
 
                 removeFingerprint(n);
@@ -17897,17 +17927,12 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
     return nullptr;
 }
 
-void NodeManager::saveNodeInRAM(Node *node)
+void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 {
-    mNodes[node->nodeHandle()] = node;
+    mNodes[node->nodeHandle()] = node;   // takes ownership
 
-    // do not wait for notifypurge() to dump to disk / DB, since
-    // some operations rely on DB queries (ie. NodeCounters)
-    mTable->put(node);
-
-    // In case of folder link it isn't neccesary to add to mNodesWithMissingParent
-    if (node->type != ROOTNODE && node->type != RUBBISHNODE && node->type != INCOMINGNODE
-            && node->nodeHandle() != mClient.rootnodes.files)
+    // In case of rootnode, no need to add to mNodesWithMissingParent
+    if (!isRootnode)
     {
         Node *parent = nullptr;
         if ((parent = getNodeByHandle(node->parentHandle())))
@@ -17928,41 +17953,6 @@ void NodeManager::saveNodeInRAM(Node *node)
             }
 
             mNodesWithMissingParent.erase(it);
-        }
-    }
-}
-
-void NodeManager::saveNodeInDataBase(Node *node)
-{
-    mTable->put(node);
-
-    NodeHandle firstValidAncestor = getFirstAncestor(node->parentHandle());
-    firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : node->parentHandle();
-
-    if (firstValidAncestor != UNDEF)
-    {
-        increaseCounter(node, firstValidAncestor);
-
-        auto it = mNodeCounters.find(node->nodeHandle());
-        if (it != mNodeCounters.end())
-        {
-            if (node->type == FILENODE)
-            {
-                // file versions may have been counted as files instead of versions upon
-                // processing fetchnodes from API. In result, if the parent was unknown (not
-                // processed yet), it's not possible to differentiate between a file and a version
-                // --> if this node is a file, child nodes were versions
-                it->second.versions += it->second.files;
-                it->second.versionStorage += it->second.storage;
-                it->second.files = 0;
-                it->second.storage = 0;
-            }
-            mNodeCounters[firstValidAncestor].files += it->second.files;
-            mNodeCounters[firstValidAncestor].storage += it->second.storage;
-            mNodeCounters[firstValidAncestor].folders += it->second.folders;
-            mNodeCounters[firstValidAncestor].versions += it->second.versions;
-            mNodeCounters[firstValidAncestor].versionStorage += it->second.versionStorage;
-            mNodeCounters.erase(it);
         }
     }
 }
@@ -18153,6 +18143,29 @@ FingerprintMapPosition NodeManager::getInvalidPosition()
     return mFingerPrints.end();
 }
 
+void NodeManager::saveNodeInDb(Node *node)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return;
+    }
+
+    mTable->put(node);
+
+    if (mNodeToWriteInDb)   // not to be kept in memory
+    {
+        assert(mNodeToWriteInDb->nodeHandle() == node->nodeHandle());
+        delete mNodeToWriteInDb;
+        mNodeToWriteInDb = nullptr;
+    }
+}
+
+uint64_t NodeManager::getNumberNodesInRam() const
+{
+    return mNodes.size();
+}
+
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
 {
     if (!mTable)
@@ -18169,6 +18182,40 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     }
 
     return node;
+}
+
+void NodeManager::updateCountersWithNode(const Node &node)
+{
+    NodeHandle firstValidAncestor = getFirstAncestor(node.parentHandle());
+    firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : node.nodeHandle();
+
+    if (firstValidAncestor != UNDEF)
+    {
+        increaseCounter(&node, firstValidAncestor);
+
+        auto it = mNodeCounters.find(node.nodeHandle());
+        if (it != mNodeCounters.end())
+        {
+            if (node.type == FILENODE)
+            {
+                // file versions may have been counted as files instead of versions upon
+                // processing fetchnodes from API. In result, if the parent was unknown (not
+                // processed yet), it's not possible to differentiate between a file and a version
+                // --> if this node is a file, child nodes were versions
+                it->second.versions += it->second.files;
+                it->second.versionStorage += it->second.storage;
+                it->second.files = 0;
+                it->second.storage = 0;
+            }
+
+            mNodeCounters[firstValidAncestor].files += it->second.files;
+            mNodeCounters[firstValidAncestor].storage += it->second.storage;
+            mNodeCounters[firstValidAncestor].folders += it->second.folders;
+            mNodeCounters[firstValidAncestor].versions += it->second.versions;
+            mNodeCounters[firstValidAncestor].versionStorage += it->second.versionStorage;
+            mNodeCounters.erase(it);
+        }
+    }
 }
 
 size_t NodeManager::nodeNotifySize() const
