@@ -7363,20 +7363,33 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 {
     LOG_info << "___TEST Audio File Thumbnail___";
 
-    const char* bufPathToMp3 = getenv("MEGA_DIR_PATH_TO_INPUT_FILES");
+    const char* bufPathToMp3 = getenv("MEGA_DIR_PATH_TO_INPUT_FILES"); // needs platform-specific path separators
     static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
 
-    string mp3 = (bufPathToMp3) ? bufPathToMp3 : "./tests/integration/";
+    // Attempt to get the test audio file from these locations:
+    // 1. dedicated env var;
+    // 2. subtree location, like the one in the repo;
+    // 3. current working directory
+    LocalPath mp3LP;
 
-    if (mp3.back() != LocalPath::localPathSeparator_utf8)
-        mp3 += LocalPath::localPathSeparator_utf8;
-
-    mp3 += AUDIO_FILENAME;
-    if (!bufPathToMp3 && !fileexists(mp3))
+    if (bufPathToMp3)
     {
-        // try with CMake's path (i.e. local to build dir) if Autotools' failed
-        mp3 = AUDIO_FILENAME;
+        mp3LP = LocalPath::fromAbsolutePath(bufPathToMp3);
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
     }
+    else
+    {
+        mp3LP.append(LocalPath::fromRelativePath("."));
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath("tests"), false);
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath("integration"), false);
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
+
+        if (!fileexists(mp3LP.toPath()))
+            mp3LP = LocalPath::fromRelativePath(AUDIO_FILENAME);
+    }
+
+    const std::string& mp3 = mp3LP.toPath();
+
     ASSERT_TRUE(fileexists(mp3)) << mp3 << " file does not exist";
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
