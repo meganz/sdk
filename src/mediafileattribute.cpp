@@ -651,7 +651,7 @@ std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const T& 
     ZenLib::Ztring zFile(file.c_str()); // make this work with both narrow and wide std strings
     if (!mi.Open(zFile))
     {
-        LOG_err << "MediaInfo: could not open local file to retrieve Cover.";
+        LOG_err << "MediaInfo: could not open local file to retrieve Cover: " << zFile.To_UTF8();
         return std::make_pair(std::string(), std::string());
     }
 
@@ -673,7 +673,7 @@ std::pair<std::string, std::string> MediaProperties::getCoverFromId3v2(const T& 
     {
         if (!coverMime.empty())
         {
-            LOG_warn << "MediaInfo: Cover_Mime contained garbage, ignored Cover for audio file.";
+            LOG_warn << "MediaInfo: Cover_Mime contained garbage, ignored Cover for file " << zFile.To_UTF8();
         }
 
         return std::make_pair(std::string(), std::string());
