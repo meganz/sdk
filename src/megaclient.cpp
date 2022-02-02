@@ -16798,7 +16798,9 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     else
     {
         updateCountersWithNode(*node);
-        mNodesToRemoveOnlyDB[node->nodeHandle()] = node;
+
+        // still keep it in memory temporary, until saveNodeInDb()
+        mNodeToWriteInDb = node; // takes ownership
     }
 
     return true;
@@ -18132,12 +18134,11 @@ void NodeManager::saveNodeInDb(Node *node)
 
     mTable->put(node);
 
-    auto it = mNodesToRemoveOnlyDB.find(node.nodeHandle());
-    if (it != mNodesToRemoveOnlyDB.end())
+    if (mNodeToWriteInDb)   // not to be kept in memory
     {
-        mNodesToRemoveOnlyDB.erase(it);
-        assert(mNodes.find(node.nodeHandle()) == mNodes.end());
-        delete &node;
+        assert(mNodeToWriteInDb->nodeHandle() == node->nodeHandle());
+        delete mNodeToWriteInDb;
+        mNodeToWriteInDb = nullptr;
     }
 }
 

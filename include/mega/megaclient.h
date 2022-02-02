@@ -430,8 +430,8 @@ private:
     // This method is called to increase a counters with a node that it's going to be stored only at DB
     void updateCountersWithNode(const Node& node);
 
-    // keep nodes that we have to stored at DB but they aren't saved at DB yet
-    node_map mNodesToRemoveOnlyDB;
+    // node temporary in memory, which will be removed upon write to DB
+    Node *mNodeToWriteInDb = nullptr;
 };
 
 class MEGA_API MegaClient
