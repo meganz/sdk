@@ -16341,8 +16341,8 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
         LOG_info << "Transfer (" << transfer->getTransferString() << ") finished. File: " << transfer->getFileName();
     }
 
-    //Only for file type transfers and not cancelled transfers
-    if(!transfer->isFolderTransfer() && transfer->getState() != MegaTransfer::STATE_CANCELLED)
+    // Only for file type transfers and not cancelled transfers
+    if (!transfer->isFolderTransfer() && transfer->getState() != MegaTransfer::STATE_CANCELLED)
     {
         if (transfer->getType() == GET)
         {
