@@ -3503,6 +3503,18 @@ using namespace mega;
     }
 }
 
+- (void)createSupportTicketWithMessage:(NSString *)message type:(NSInteger)type delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->createSupportTicket(message.UTF8String, (int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)createSupportTicketWithMessage:(NSString *)message type:(NSInteger)type {
+    if (self.megaApi) {
+        self.megaApi->createSupportTicket(message.UTF8String, (int)type);
+    }
+}
+
 #pragma mark - Private methods
 
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener {

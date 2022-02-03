@@ -63,6 +63,7 @@ fs::path patchPath;
 string triplet;
 
 map<string, string> ports;
+map<string, string> featurePackages;
 map<string, fs::path> patches;
 
 fs::path initialDir = fs::current_path();
@@ -205,9 +206,9 @@ try
             for (auto portPair : ports)
             {
                 #ifdef WIN32
-                    execute("vcpkg install --triplet " + triplet + " " + portPair.first);
+                    execute("vcpkg install --triplet " + triplet + " " + portPair.first + featurePackages[portPair.first]);
                 #else
-                    execute("./vcpkg install --triplet " + triplet + " " + portPair.first);
+                    execute("./vcpkg install --triplet " + triplet + " " + portPair.first + featurePackages[portPair.first]);
                 #endif
             }
         }
@@ -430,6 +431,15 @@ cout << "build with patch " << patchFile << endl;
         string portname = s.substr(0, slashpos);
         string portversion = s.substr(slashpos + 1);
 
+	// extract featurePackage
+	string featurePackage;
+	auto featurePackagePos = portname.find("[");
+	if (featurePackagePos != string::npos)
+	{
+ 		featurePackage = portname.substr(featurePackagePos);
+		portname = portname.substr(0, featurePackagePos);
+	}
+
         auto existing = ports.find(portname);
         if (existing != ports.end() && existing->second != portversion)
         {
@@ -437,6 +447,7 @@ cout << "build with patch " << patchFile << endl;
             return 1;
         }
         ports[portname] = portversion;
+        featurePackages[portname] = featurePackage;
 
         if (build) continue;
 
