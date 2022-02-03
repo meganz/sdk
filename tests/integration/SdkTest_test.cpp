@@ -4986,9 +4986,6 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupFolder___";
 
-    // create My Backups folder
-    MegaHandle mh = syncTestMyBackupsRemoteFolder(0);
-
     // look for Device Name attr
     string deviceName;
     if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
@@ -5011,6 +5008,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
 #ifdef ENABLE_SYNC
+    // create My Backups folder
+    MegaHandle mh = syncTestMyBackupsRemoteFolder(0);
 
     // Create a test root directory
     fs::path localBasePath = makeNewTestRoot();

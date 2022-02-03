@@ -11805,7 +11805,9 @@ void MegaClient::fetchnodes(bool nocache)
 
             loadAuthrings();
 
+#ifdef ENABLE_SYNC
             syncs.loadSyncConfigsOnFetchnodesComplete(true);
+#endif
 
             WAIT_CLASS::bumpds();
             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;

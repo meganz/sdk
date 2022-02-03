@@ -5846,8 +5846,9 @@ bool CommandFetchNodes::procresult(Result r)
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
                 client->fnstats.nodesCached = client->nodes.size();
-
+#ifdef ENABLE_SYNC
                 client->syncs.loadSyncConfigsOnFetchnodesComplete(true);
+#endif
                 return true;
             }
             default:
