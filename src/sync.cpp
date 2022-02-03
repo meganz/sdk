@@ -4034,6 +4034,7 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     config.mLocalPath = LocalPath::fromAbsolutePath(localPath);
     config.mName = std::move(name);
     config.mOriginalPathOfRemoteRootNode = remotePath;
+    config.mWarning = NO_SYNC_WARNING;
 
     // Set node handle if possible.
     if (const auto* root = mClient.nodeByPath(remotePath.c_str()))
@@ -8989,7 +8990,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_fsfp("fp", config.mFilesystemFingerprint);
     writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
-//    writer.arg("lw", config.mWarning);
+    writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);
     writer.arg("en", config.mEnabled);
     writer.arg("bs", config.mBackupState);

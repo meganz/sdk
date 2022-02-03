@@ -9477,6 +9477,8 @@ void exec_syncxable(autocomplete::ACState& s)
 
     switch (targetState)
     {
+    case SyncRunState::Pending:
+    case SyncRunState::Loading:
     case SyncRunState::Run:
     case SyncRunState::Pause:
     {
@@ -9511,8 +9513,8 @@ void exec_syncxable(autocomplete::ACState& s)
                 cout << "Sync Disabled." << endl;
                 });
         break;
-    }}
-
+    }
+    }
 }
 
 #endif // ENABLE_SYNC
