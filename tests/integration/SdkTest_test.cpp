@@ -4982,9 +4982,6 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupFolder___";
 
-    // create My Backups folder
-    MegaHandle mh = syncTestMyBackupsRemoteFolder(0);
-
     // look for Device Name attr
     string deviceName;
     if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
@@ -5007,6 +5004,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
 #ifdef ENABLE_SYNC
+    // create My Backups folder
+    MegaHandle mh = syncTestMyBackupsRemoteFolder(0);
 
     // Create a test root directory
     fs::path localBasePath = makeNewTestRoot();
@@ -6160,7 +6159,7 @@ struct SyncListener : MegaListener
 
     // map by tag for now, should be backupId when that is available
 
-    enum syncstate_t { nonexistent, added, enabled, disabled, deleted};
+    enum syncstate_t { nonexistent, added, deleted};
 
     std::map<handle, syncstate_t> stateMap;
 
@@ -6211,7 +6210,7 @@ struct SyncListener : MegaListener
         //out() << "onSyncFileStateChanged " << sync << newState;
     }
 
-    void onSyncAdded(MegaApi* api, MegaSync* sync, int additionState) override
+    void onSyncAdded(MegaApi* api, MegaSync* sync) override
     {
         out() << "onSyncAdded " << toHandle(sync->getBackupId());
         check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
@@ -6223,7 +6222,7 @@ struct SyncListener : MegaListener
     void onSyncDeleted(MegaApi* api, MegaSync* sync) override
     {
         out() << "onSyncDeleted " << toHandle(sync->getBackupId());
-        check(state(sync) == disabled || state(sync) == added || state(sync) == enabled);
+        check(state(sync) != nonexistent && state(sync) != deleted);
         state(sync) = nonexistent;
     }
 
@@ -6272,9 +6271,6 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    SyncListener syncListener0, syncListener1;
-    MegaListenerDeregisterer mld1(megaApi[0].get(), &syncListener0), mld2(megaApi[1].get(), &syncListener1);
-
     // This test has several issues:
     // 1. Remote nodes may not be committed to the sctable database in time for fetchnodes which
     //    then fails adding syncs because the remotes are missing. For this reason we wait until
@@ -6292,6 +6288,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     const auto sync4Path = fs::current_path() / basePath / "sync4"; // stays active
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
+
+    SyncListener syncListener0, syncListener1;
+    MegaListenerDeregisterer mld1(megaApi[0].get(), &syncListener0), mld2(megaApi[1].get(), &syncListener1);
 
     fs::create_directories(sync1Path);
     fs::create_directories(sync2Path);
@@ -6420,7 +6419,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_FALSE(checkSyncOK(sync4Path));
 
+    resetlastEvent();
     fetchnodes(0, maxTimeout); // auto-resumes two active syncs
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_SYNCS_RESTORED); }, 10000));
 
     WaitMillisec(1000); // give them a chance to start on the sync thread
 

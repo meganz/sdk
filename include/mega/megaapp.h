@@ -299,14 +299,14 @@ struct MEGA_API MegaApp
     // after a root node of a sync changed its path
     virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
 
-    // after all (enabled) syncs have been restored on startup
+    // after all sync configs have been loaded on startup
     virtual void syncs_restored(SyncError) { }
 
     // after all syncs have been disabled, eg due to overquota
     virtual void syncs_disabled(SyncError) { }
 
-    // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) { }
+    // the sync could be auto-loaded on start, or one the user added
+    virtual void sync_added(const SyncConfig& config) { }
 
     // after a sync has been removed
     virtual void sync_removed(const SyncConfig& config) { }

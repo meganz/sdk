@@ -463,7 +463,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     if (syncs.configByRootNode(rootHandle, sc))  // todo: could have gotten all configs above
                     {
                         LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                        syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
+                        syncs.disableSyncByBackupId(sc.mBackupId, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
                     }
                 }
             }
@@ -481,7 +481,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     SyncConfig sc;
                     if (syncs.configByRootNode(rootHandle, sc))
                     {
-                        syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
+                        syncs.disableSyncByBackupId(sc.mBackupId, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
                     }
                 }
             };
@@ -4041,7 +4041,7 @@ bool MegaClient::procsc()
                         // Don't start sync activity until `statecurrent` as it could take actions based on old state
                         // The reworked sync code can figure out what to do once fully up to date.
                         nodeTreeIsChanging.unlock();
-                        syncs.resumeResumableSyncsOnStartup(false, nullptr);
+                        syncs.resumeSyncsOnStateCurrent();
 #endif
 
                         if (notifyStorageChangeOnStateCurrent)
@@ -11805,6 +11805,10 @@ void MegaClient::fetchnodes(bool nocache)
 
             loadAuthrings();
 
+#ifdef ENABLE_SYNC
+            syncs.loadSyncConfigsOnFetchnodesComplete(true);
+#endif
+
             WAIT_CLASS::bumpds();
             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
         };
@@ -12886,6 +12890,8 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     {
         if (Node* syncRoot = nodeByHandle(rootHandle))
         {
+            // We cannot use this function re-test an existing sync
+            // This is just for testing whether we can create a new one with `remotenode`
             if (syncRoot->isbelow(remotenode))
             {
                 if (syncError) *syncError = ACTIVE_SYNC_BELOW_PATH;
@@ -12993,7 +12999,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
-            if (config.getEnabled() && !config.getError() &&
+            if (config.getEnabled() && !config.mError &&
                     ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
@@ -13038,6 +13044,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
     if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
+        LOG_debug << "Node is not syncable for sync add";
         syncConfig.mEnabled = false;
         return e;
     }
@@ -13048,6 +13055,8 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         // Have they specfied a valid scan interval?
         if (!syncConfig.mScanIntervalSec)
         {
+            LOG_debug << "No scan interval for periodic sync add";
+
             syncConfig.mEnabled = false;
             syncConfig.mError = INVALID_SCAN_INTERVAL;
 
@@ -13069,6 +13078,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         // Source must be on the drive.
         if (!drivePath.isContainingPathOf(sourcePath))
         {
+            LOG_debug << "Drive path inconsistent for sync add";
             syncConfig.mEnabled = false;
             syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
 
@@ -13134,18 +13144,21 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     // the order is important here: a user needs to resolve blocked in order to resolve storage
     if (overStorage)
     {
+        LOG_debug << "Overstorage for sync add";
         syncConfig.mError = STORAGE_OVERQUOTA;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
     else if (businessExpired)
     {
+        LOG_debug << "Business expired for sync add";
         syncConfig.mError = BUSINESS_EXPIRED;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
     else if (blocked)
     {
+        LOG_debug << "Account blocked for sync add";
         syncConfig.mError = ACCOUNT_BLOCKED;
         syncConfig.mEnabled = false;
         return API_EFAILED;
@@ -13293,7 +13306,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
@@ -13307,7 +13320,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
     if (e)
     {
         completion(e, config.mError, UNDEF);
-        return e;
+        return;
     }
 
     // Are we adding an external backup?
@@ -13318,8 +13331,9 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
         e = readDriveId(p.c_str(), driveId);
         if (e != API_OK)
         {
+            LOG_debug << "readDriveId failed for sync add";
             completion(e, config.mError, UNDEF);
-            return e;
+            return;
         }
     }
 
@@ -13331,6 +13345,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
                                    [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
         if (ISUNDEF(backupId) && !e)
         {
+            LOG_debug << "Request for backupId failed for sync add";
             e = API_EFAILED;
         }
 
@@ -13346,8 +13361,6 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
             syncs.appendNewSync(config, true, notifyApp, completion, true, logname);
         }
     }));
-
-    return e;
 }
 
 

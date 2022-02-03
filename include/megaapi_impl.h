@@ -2541,7 +2541,7 @@ class MegaApiImpl : public MegaApp
         long long getNumLocalNodes();
         bool isInsideSync(MegaNode *node);
         int isNodeSyncable(MegaNode *megaNode);
-        bool isIndexing();
+        bool isScanning();
         bool isSyncing();
 
         bool receivedStallFlag = false;
@@ -2968,7 +2968,7 @@ protected:
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
-        void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
+        void fireOnSyncAdded(MegaSyncPrivate *sync);
         void fireOnSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
@@ -3285,8 +3285,8 @@ protected:
         // calls fireOnSyncStateChanged
         void syncupdate_stateconfig(const SyncConfig& config) override;
 
-        // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override;
+        // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded
+        void sync_added(const SyncConfig& config) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;

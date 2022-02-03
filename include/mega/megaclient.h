@@ -646,10 +646,9 @@ public:
      * It will persist the sync configuration if its call to checkSyncConfig succeeds
      * @param syncConfig the Config to attempt to add
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
-     * @param completion Completion function
-     * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
+     * @param completion Completion function.  Completion function is the way to know success/failure.
      */
-    error addsync(SyncConfig& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void addsync(SyncConfig& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 

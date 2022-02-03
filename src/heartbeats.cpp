@@ -81,7 +81,7 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 
     if (us.mSync)
     {
-        if (us.mSync->active())
+        if (!us.mConfig.mError)
         {
             if (us.syncs.syncStallState ||
                 us.mConfig.mTemporarilyPaused)
@@ -179,7 +179,7 @@ BackupInfoSync::BackupInfoSync(const SyncConfig& config, const string& device, h
     nodeHandle = config.mRemoteNode;
     localFolder = config.getLocalPath();
     state = calculatedState;
-    subState = config.getError();
+    subState = config.mError;
     deviceId = device;
     driveId = drive;
 }
@@ -192,7 +192,7 @@ BackupInfoSync::BackupInfoSync(const UnifiedSync &us, bool pauseDown, bool pause
     nodeHandle = us.mConfig.mRemoteNode;
     localFolder = us.mConfig.getLocalPath();
     state = BackupInfoSync::getSyncState(us, pauseDown, pauseUp);
-    subState = us.mConfig.getError();
+    subState = us.mConfig.mError;
     deviceId = us.syncs.mClient.getDeviceidHash();
     driveId = BackupInfoSync::getDriveId(us);
     assert(!(us.mConfig.isBackup() && us.mConfig.isExternal())  // not an external backup...
@@ -219,34 +219,35 @@ CommandBackupPut::SPState BackupInfoSync::calculatePauseActiveState(bool pauseDo
 
 CommandBackupPut::SPState BackupInfoSync::getSyncState(const UnifiedSync& us, bool pauseDown, bool pauseUp)
 {
-    return getSyncState(us.mConfig.getError(),
-                        us.mConfig.mRunningState,
+    return getSyncState(us.mConfig.mError,
+                        us.mConfig.mRunState,
                         pauseDown, pauseUp);
 }
 
-CommandBackupPut::SPState BackupInfoSync::getSyncState(SyncError error, syncstate_t state, bool pauseDown, bool pauseUp)
+CommandBackupPut::SPState BackupInfoSync::getSyncState(SyncError error, SyncRunState s, bool pauseDown, bool pauseUp)
 {
-    if (state == SYNC_DISABLED && error != NO_SYNC_ERROR)
+    switch (s)
     {
-        return CommandBackupPut::TEMPORARY_DISABLED;
+        case SyncRunState::Pending:
+        case SyncRunState::Loading:
+        case SyncRunState::Run:
+            return calculatePauseActiveState(pauseDown, pauseUp);
+
+        case SyncRunState::Pause:
+            return CommandBackupPut::TEMPORARY_DISABLED;
+
+        case SyncRunState::Suspend:
+        case SyncRunState::Disable:
+
+            return error != NO_SYNC_ERROR ? CommandBackupPut::FAILED : CommandBackupPut::DISABLED;
     }
-    else if (state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED)
-    {
-        return calculatePauseActiveState(pauseDown, pauseUp);
-    }
-    else if (!(state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_SYNC_ERROR)))
-    {
-        return CommandBackupPut::DISABLED;
-    }
-    else
-    {
-        return CommandBackupPut::FAILED;
-    }
+
+    return CommandBackupPut::DISABLED;
 }
 
 CommandBackupPut::SPState BackupInfoSync::getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp)
 {
-    auto error = config.getError();
+    auto error = config.mError;
     if (!error)
     {
         if (config.getEnabled())

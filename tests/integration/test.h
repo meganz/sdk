@@ -252,9 +252,9 @@ struct StandardClient : public ::mega::MegaApp
 
     void onCallback();
 
-    std::function<void(const SyncConfig&, bool, bool)> onAutoResumeResult;
+    std::function<void(const SyncConfig&)> onAutoResumeResult;
 
-    void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override;
+    void sync_added(const SyncConfig& config) override;
 
     bool received_syncs_restored = false;
     void syncs_restored(SyncError syncError) override;
@@ -458,7 +458,7 @@ struct StandardClient : public ::mega::MegaApp
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
 
-    bool backupAdd_inthread(const string& drivePath,
+    void backupAdd_inthread(const string& drivePath,
         string sourcePath,
         const string& targetPath,
         std::function<void(error, SyncError, handle)> completion,
@@ -467,12 +467,12 @@ struct StandardClient : public ::mega::MegaApp
         const string& sourcePath,
         const string& targetPath,
         const string& logname);
-    bool setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
+    void setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
         std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);
     void importSyncConfigs(string configs, PromiseBoolSP result);
     bool importSyncConfigs(string configs);
     string exportSyncConfigs();
-    bool delSync_inthread(handle backupId, bool keepCache);
+    bool delSync_inthread(handle backupId);
 
     struct CloudNameLess
     {
@@ -594,7 +594,7 @@ struct StandardClient : public ::mega::MegaApp
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false);
     bool login_fetchnodes(const string& session);
     handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, bool isBackup = false, bool uploadIgnoreFirst = true);
-    bool delSync_mainthread(handle backupId, bool keepCache = false);
+    bool delSync_mainthread(handle backupId);
     bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false, bool skipIgnoreFile = true);
     bool match(handle id, const Model::ModelNode* source);
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);

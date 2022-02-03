@@ -1140,7 +1140,7 @@ string StandardClient::lp(LocalNode* ln) { return ln->getLocalPath().toName(*cli
 
 void StandardClient::onCallback() { lastcb = chrono::steady_clock::now(); };
 
-void StandardClient::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
+void StandardClient::sync_added(const SyncConfig& config)
 {
     onCallback();
 
@@ -1149,17 +1149,13 @@ void StandardClient::sync_auto_resume_result(const SyncConfig& config, bool atte
         lock_guard<mutex> guard(om);
 
         out() << clientname
-                << "sync_auto_resume_result(): id: "
-                << toHandle(config.mBackupId)
-                << ", attempted: "
-                << attempted
-                << ", hadAnError: "
-                << hadAnError;
+                << "sync_added(): id: "
+                << toHandle(config.mBackupId);
     }
 
     if (onAutoResumeResult)
     {
-        onAutoResumeResult(config, attempted, hadAnError);
+        onAutoResumeResult(config);
     }
 }
 
@@ -1976,7 +1972,7 @@ vector<Node*> StandardClient::drillchildnodesbyname(Node* n, const string& path)
     }
 }
 
-bool StandardClient::backupAdd_inthread(const string& drivePath,
+void StandardClient::backupAdd_inthread(const string& drivePath,
                         string sourcePath,
                         const string& targetPath,
                         std::function<void(error, SyncError, handle)> completion,
@@ -1987,7 +1983,7 @@ bool StandardClient::backupAdd_inthread(const string& drivePath,
     // Root isn't in the cloud.
     if (!rootNode)
     {
-        return false;
+        return;
     }
 
     auto* targetNode = drillchildnodebyname(rootNode, targetPath);
@@ -1995,7 +1991,7 @@ bool StandardClient::backupAdd_inthread(const string& drivePath,
     // Target path doesn't exist.
     if (!targetNode)
     {
-        return false;
+        return;
     }
 
     // Generate drive ID if necessary.
@@ -2011,7 +2007,7 @@ bool StandardClient::backupAdd_inthread(const string& drivePath,
     if (result != API_OK)
     {
         completion(result, NO_SYNC_ERROR, UNDEF);
-        return false;
+        return;
     }
 
     auto config =
@@ -2035,8 +2031,8 @@ bool StandardClient::backupAdd_inthread(const string& drivePath,
         config.mScanIntervalSec = SCAN_INTERVAL_SEC;
     }
 
-    // Try and add the backup.
-    return client.addsync(config, true, completion, logname) == API_OK;
+    // Try and add the backup.  Result via completion
+    client.addsync(config, true, completion, logname);
 }
 
 handle StandardClient::backupAdd_mainthread(const string& drivePath,
@@ -2070,7 +2066,7 @@ handle StandardClient::backupAdd_mainthread(const string& drivePath,
     return result.get();
 }
 
-bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
+void StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
     std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
 {
     if (Node* n = client.nodebyhandle(basefolderhandle))
@@ -2098,12 +2094,11 @@ bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::p
                 syncConfig.mScanIntervalSec = SCAN_INTERVAL_SEC;
             }
 
-            error e = client.addsync(syncConfig, true, addSyncCompletion, logname);
-            return !e;
+            client.addsync(syncConfig, true, addSyncCompletion, logname);
+            return;
         }
     }
     assert(false);
-    return false;
 }
 
 void StandardClient::importSyncConfigs(string configs, PromiseBoolSP result)
@@ -2135,7 +2130,7 @@ string StandardClient::exportSyncConfigs()
     return result.get();
 }
 
-bool StandardClient::delSync_inthread(handle backupId, bool keepCache)
+bool StandardClient::delSync_inthread(handle backupId)
 {
     const auto handle = syncSet(backupId).h;
     bool removed = false;
@@ -2148,7 +2143,7 @@ bool StandardClient::delSync_inthread(handle backupId, bool keepCache)
             removed |= matched;
 
             return matched;
-        }, !keepCache, !keepCache, !keepCache); // in the tests we are going to resume the syncs on session resume
+        }, false, false, true); // in the tests we are going to resume the syncs on session resume
 
     return removed;
 }
@@ -2831,7 +2826,6 @@ void StandardClient::catchup_result()
 void StandardClient::disableSync(handle id, SyncError error, bool enabled, bool keepSyncDB, PromiseBoolSP result)
 {
     client.syncs.disableSyncByBackupId(id,
-        false,
         error,
         enabled,
         keepSyncDB,
@@ -3049,8 +3043,7 @@ void StandardClient::waitonsyncs(chrono::seconds d)
             mc.client.syncs.forEachRunningSync(false,
                 [&](Sync* s)
                 {
-                    if (s->active() &&
-                        (s->localroot->scanRequired()
+                    if ((s->localroot->scanRequired()
                             || s->localroot->mightHaveMoves()
                             || s->localroot->syncRequired()))
                     {
@@ -3224,7 +3217,7 @@ void StandardClient::cleanupForTestReuse()
         // currently synchronous
         sc.client.syncs.removeSelectedSyncs(
             [](SyncConfig&, Sync*){ return true; },
-            true, false, true);
+            false, false, true);
 
         pb->set_value(true);
     });
@@ -3364,9 +3357,9 @@ handle StandardClient::setupSync_mainthread(const std::string& localsyncrootfold
     return fb.get();
 }
 
-bool StandardClient::delSync_mainthread(handle backupId, bool keepCache)
+bool StandardClient::delSync_mainthread(handle backupId)
 {
-    future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId, keepCache)); });
+    future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId)); });
     return fb.get();
 }
 
@@ -3604,8 +3597,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                           {
                               any_running_at_all = true;
 
-                              if (s->active() &&
-                                  (s->localroot->scanRequired()
+                              if ((s->localroot->scanRequired()
                                       || s->localroot->mightHaveMoves()
                                       || s->localroot->syncRequired()))
                               {
@@ -5790,7 +5782,7 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
         waiting->emplace(id1);
 
         // Return effective callback.
-        return [&notify, waiting](const SyncConfig& config, bool, bool) {
+        return [&notify, waiting](const SyncConfig& config) {
             // This sync's been resumed.
             waiting->erase(config.mBackupId);
 
@@ -7772,7 +7764,7 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         // Hook onAutoResumeResult callback.
         promise<void> notify;
 
-        c->onAutoResumeResult = [&](const SyncConfig&, bool, bool) {
+        c->onAutoResumeResult = [&](const SyncConfig&) {
             notify.set_value();
         };
 
@@ -8318,7 +8310,7 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
     // Hook resume callbacks.
     promise<void> notify;
 
-    c.onAutoResumeResult = [&notify](const SyncConfig&, bool, bool) {
+    c.onAutoResumeResult = [&notify](const SyncConfig&) {
         notify.set_value();
     };
 
@@ -9285,7 +9277,6 @@ struct TwoWaySyncSymmetryCase
         else
         {
             EXPECT_NE(sync, (Sync*)nullptr);
-            EXPECT_TRUE(sync && sync->state() == SYNC_ACTIVE);
 
             bool localfs = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true, false, false); // todo: later enable debris checks
             bool localnode = client1().confirmModel(backupId, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true, false, false); // todo: later enable debris checks
@@ -9294,7 +9285,7 @@ struct TwoWaySyncSymmetryCase
             EXPECT_EQ(localnode, remote);
             EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
 
-            finalResult = localfs && localnode && remote && sync && sync->state() == SYNC_ACTIVE;
+            finalResult = localfs && localnode && remote && sync;
         }
 
     }
@@ -9734,7 +9725,7 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     // Hook onAutoResumeResult callback.
     promise<void> notify;
 
-    c.onAutoResumeResult = [&notify](const SyncConfig&, bool, bool) {
+    c.onAutoResumeResult = [&notify](const SyncConfig&) {
         notify.set_value();
     };
 
@@ -10157,10 +10148,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     promise<void> notifier;
 
     // Hook the onAutoResumeResult callback.
-    cb.onAutoResumeResult = [&](const SyncConfig&, bool, bool error) {
-        // Shouldn't encounter any errors while resuming.
-        EXPECT_FALSE(error);
-
+    cb.onAutoResumeResult = [&](const SyncConfig&) {
         // Let waiters know we've restored the sync.
         notifier.set_value();
     };
@@ -10312,7 +10300,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     // Hook onAutoResumeResult callback.
     promise<void> notify;
 
-    cb.onAutoResumeResult = [&notify](const SyncConfig&, bool, bool) {
+    cb.onAutoResumeResult = [&notify](const SyncConfig&) {
         notify.set_value();
     };
 

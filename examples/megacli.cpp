@@ -435,26 +435,16 @@ void DemoApp::transfer_prepare(Transfer* t)
 void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 {
     conlock(cout) << "Sync config updated: " << toHandle(config.mBackupId)
-        << " state: " << config.getRunState()
-        << " error: " << config.getError()
+        << " state: " << int(config.mRunState)
+        << " error: " << config.mError
         << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
+void DemoApp::sync_added(const SyncConfig& config)
 {
     handle backupId = config.mBackupId;
-    if (attempted)
-    {
-        conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath()  << " enabled: "
-             << config.getEnabled()  << " syncError: " << config.getError()
-             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
-    }
-    else
-    {
-        conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
-            << config.getEnabled() << " syncError: " << config.getError()
-            << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
-    }
+    conlock(cout) << "Sync - added " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
+        << config.getEnabled() << " syncError: " << config.mError << " " << int(config.mRunState);
 }
 
 void DemoApp::sync_removed(const SyncConfig& config)
@@ -9269,17 +9259,18 @@ void exec_synclist(autocomplete::ACState& s)
 
 
         string runStateName;
-        switch (config.getRunState())
+        switch (config.mRunState)
         {
-        case SyncConfig::Run: runStateName = "RUNNING"; break;
-        case SyncConfig::Pause: runStateName = "PAUSED"; break;
-        case SyncConfig::Suspend: runStateName = "SUSPENDED"; break;
-        case SyncConfig::Disable: runStateName = "DISABLED"; break;
+        case SyncRunState::Pending: runStateName = "PENDING"; break;
+        case SyncRunState::Loading: runStateName = "LOADING"; break;
+        case SyncRunState::Run: runStateName = "RUNNING"; break;
+        case SyncRunState::Pause: runStateName = "PAUSED"; break;
+        case SyncRunState::Suspend: runStateName = "SUSPENDED"; break;
+        case SyncRunState::Disable: runStateName = "DISABLED"; break;
         }
 
         // Display status info.
         cout << "  State: " << runStateName << " "
-            << SyncConfig::syncstatename(config.mRunningState)
             << (config.mTemporarilyPaused ? " (paused)" : "")
             << "\n";
 
@@ -9556,12 +9547,12 @@ void exec_syncxable(autocomplete::ACState& s)
     string errIdString;
     bool withError = s.extractflagparam("-error", errIdString);
 
-    auto targetState = SyncConfig::Run;
+    auto targetState = SyncRunState::Run;
 
-    if (s.words[1].s == "run") targetState = SyncConfig::Run;
-    else if (s.words[1].s == "pause") targetState = SyncConfig::Pause;
-    else if (s.words[1].s == "suspend") targetState = SyncConfig::Suspend;
-    else if (s.words[1].s == "disable") targetState = SyncConfig::Disable;
+    if (s.words[1].s == "run") targetState = SyncRunState::Run;
+    else if (s.words[1].s == "pause") targetState = SyncRunState::Pause;
+    else if (s.words[1].s == "suspend") targetState = SyncRunState::Suspend;
+    else if (s.words[1].s == "disable") targetState = SyncRunState::Disable;
 
     handle backupId = 0;
     Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
@@ -9573,9 +9564,7 @@ void exec_syncxable(autocomplete::ACState& s)
         return;
     }
 
-    auto curState = config.getRunState();
-
-    if (curState == targetState)
+    if (config.mRunState == targetState)
     {
         cout << "Sync is already in that state" << endl;
         return;
@@ -9584,11 +9573,13 @@ void exec_syncxable(autocomplete::ACState& s)
 
     switch (targetState)
     {
-    case SyncConfig::Run:
-    case SyncConfig::Pause:
+    case SyncRunState::Pending:
+    case SyncRunState::Loading:
+    case SyncRunState::Run:
+    case SyncRunState::Pause:
     {
         // sync enable id
-        client->syncs.enableSyncByBackupId(backupId, targetState == SyncConfig::Pause, false, true, true, [](error err, SyncError serr)
+        client->syncs.enableSyncByBackupId(backupId, targetState == SyncRunState::Pause, false, true, true, [](error err, SyncError serr)
             {
                 if (err)
                 {
@@ -9604,14 +9595,13 @@ void exec_syncxable(autocomplete::ACState& s)
 
         break;
     }
-    case SyncConfig::Suspend:
-    case SyncConfig::Disable:
+    case SyncRunState::Suspend:
+    case SyncRunState::Disable:
     {
-        bool keepSyncDb = targetState == SyncConfig::Suspend;
+        bool keepSyncDb = targetState == SyncRunState::Suspend;
 
         client->syncs.disableSyncByBackupId(
             backupId,
-            withError, // true == fail, false == disable
             static_cast<SyncError>(withError ? atoi(errIdString.c_str()) : 0),
             false,
             keepSyncDb,
@@ -9619,8 +9609,8 @@ void exec_syncxable(autocomplete::ACState& s)
                 cout << "Sync Disabled." << endl;
                 });
         break;
-    }}
-
+    }
+    }
 }
 
 #endif // ENABLE_SYNC
