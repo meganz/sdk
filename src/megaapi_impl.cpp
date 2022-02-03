@@ -9044,28 +9044,28 @@ bool MegaApiImpl::isInsideSync(MegaNode *node)
 
 int MegaApiImpl::getNumPendingUploads()
 {
-    SdkMutexGuard lock(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
 
     return pendingUploads;
 }
 
 int MegaApiImpl::getNumPendingDownloads()
 {
-    SdkMutexGuard lock(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
 
     return pendingDownloads;
 }
 
 int MegaApiImpl::getTotalUploads()
 {
-    SdkMutexGuard lock(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
 
     return totalUploads;
 }
 
 int MegaApiImpl::getTotalDownloads()
 {
-    SdkMutexGuard lock(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
 
     return totalDownloads;
 }
@@ -9086,42 +9086,42 @@ void MegaApiImpl::resetTotalUploads()
 
 size_t MegaApiImpl::getCompletedUploads()
 {
-    SdkMutexGuard lock(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
 
     return completedUploads.size();
 }
 
 size_t MegaApiImpl::getCompletedDownloads()
 {
-    SdkMutexGuard lock(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
 
     return completedDownloads.size();
 }
 
 void MegaApiImpl::resetCompletedDownloads()
 {
-    SdkMutexGuard lock(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
 
     resetCompletedDownloadsImpl();
 }
 
 void MegaApiImpl::resetCompletedUploads()
 {
-    SdkMutexGuard lock(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
 
     resetCompletedUploadsImpl();
 }
 
 void MegaApiImpl::removeCompletedUpload(int transferTag)
 {
-    SdkMutexGuard lock(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
 
     removeCompletedUploadImpl(transferTag);
 }
 
 void MegaApiImpl::removeCompletedDownload(int transferTag)
 {
-    SdkMutexGuard lock(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
 
     removeCompletedDownloadImpl(transferTag);
 }
