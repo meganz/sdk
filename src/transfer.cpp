@@ -1453,27 +1453,9 @@ bool DirectReadSlot::doio()
         {
             if (req->httpstatus == 509)
             {
-                if (req->timeleft < 0)
-                {
-                    int creqtag = dr->drn->client->reqtag;
-                    dr->drn->client->reqtag = 0;
-                    dr->drn->client->sendevent(99408, "Overquota without timeleft");
-                    dr->drn->client->reqtag = creqtag;
-                }
-
-                dstime backoff;
-
                 LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
-                if (req->timeleft > 0)
-                {
-                    backoff = dstime(req->timeleft * 10);
-                }
-                else
-                {
-                    // default retry interval
-                    backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
-                }
 
+                dstime backoff = Utils::overTransferQuotaBackoff(dr->drn->client, req);
                 dr->drn->retry(API_EOVERQUOTA, backoff);
             }
             else

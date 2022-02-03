@@ -1863,6 +1863,7 @@ bool CommandLogin::procresult(Result r)
 
                 client->openStatusTable(true);
                 client->app->login_result(API_OK);
+                client->getaccountdetails(new AccountDetails, false, false, true, false, false, false);
                 return true;
 
             default:
@@ -4814,6 +4815,7 @@ bool CommandGetUserQuota::procresult(Result r)
             case MAKENAMEID5('u', 't', 'y', 'p', 'e'):
             // PRO type. 0 means Free; 4 is Pro Lite as it was added late; 100 indicates a business.
                 details->pro_level = (int)client->json.getint();
+                client->mMyAccount.setProLevel(static_cast<AccountType>(details->pro_level));
                 break;
 
             case MAKENAMEID5('s', 't', 'y', 'p', 'e'):
@@ -4875,6 +4877,7 @@ bool CommandGetUserQuota::procresult(Result r)
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
             // Time the last active PRO plan will expire (may be different from current one)
                 details->pro_until = client->json.getint();
+                client->mMyAccount.setProUntil(static_cast<m_time_t>(details->pro_until));
                 break;
 
             case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):

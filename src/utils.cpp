@@ -1983,6 +1983,37 @@ long long abs(long long n)
     return n >= 0 ? n : -n;
 }
 
+dstime Utils::overTransferQuotaBackoff(MegaClient* client, HttpReq* req)
+{
+    bool isuserpro = client->mMyAccount.getProLevel() > AccountType::ACCOUNT_TYPE_FREE;
+
+    // if user is pro, subscription's remaining time is used
+    // otherwise, use limit per IP coming from the header X-MEGA-Time-Left response header
+    m_time_t timeleft = (isuserpro) ? client->mMyAccount.getTimeLeft() : req->timeleft;
+
+    // send event only for negative timelefts received in the request header
+    if (!isuserpro && (timeleft < 0))
+    {
+        int creqtag = client->reqtag;
+        client->reqtag = 0;
+        client->sendevent(99408, "Overquota without timeleft");
+        client->reqtag = creqtag;
+    }
+
+    dstime backoff;
+    if (timeleft > 0)
+    {
+        backoff = dstime(timeleft * 10);
+    }
+    else
+    {
+        // default retry interval
+        backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
+    }
+
+    return backoff;
+}
+
 struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
     // works for 32 or 64 bit time_t
