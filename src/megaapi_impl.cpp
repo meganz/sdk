@@ -14610,6 +14610,8 @@ void MegaApiImpl::logout_result(error e)
         pendingDownloads = 0;
         totalUploads = 0;
         totalDownloads = 0;
+        completedUploads.clear();
+        completedDownloads.clear();
         waitingRequest = RETRY_NONE;
         excludedNames.clear();
         excludedPaths.clear();
