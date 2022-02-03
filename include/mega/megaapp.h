@@ -305,8 +305,8 @@ struct MEGA_API MegaApp
     // after all syncs have been disabled, eg due to overquota
     virtual void syncs_disabled(SyncError) { }
 
-    // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_loaded(const SyncConfig& config) { }
+    // the sync could be auto-loaded on start, or one the user added
+    virtual void sync_added(const SyncConfig& config) { }
 
     // after a sync has been removed
     virtual void sync_removed(const SyncConfig& config) { }

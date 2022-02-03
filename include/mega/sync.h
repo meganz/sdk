@@ -108,7 +108,7 @@ public:
     bool isInternal() const;
 
     // check if we need to notify the App about error/enable flag changes
-    bool errorOrEnabledChanged();
+    bool stateFieldsChanged();
 
     string syncErrorToStr();
     static string syncErrorToStr(SyncError errorCode);
@@ -187,6 +187,7 @@ private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
     SyncError mKnownError = NO_SYNC_ERROR;
     bool mKnownEnabled = false;
+    SyncRunState mKnownRunState = SyncRunState::Pending;
 };
 
 // Convenience.
@@ -220,7 +221,7 @@ struct UnifiedSync
 private:
     friend class Sync;
     friend struct Syncs;
-    void changedConfigState(bool notifyApp);
+    void changedConfigState(bool save, bool notifyApp);
 };
 
 enum SyncRowType : unsigned {
@@ -669,7 +670,7 @@ private:
     struct DriveInfo
     {
         // Directory on the drive containing the database.
-        LocalPath dbPath;
+        //LocalPath dbPath;
 
         // Path to the drive itself.
         LocalPath drivePath;
@@ -886,7 +887,7 @@ struct Syncs
     vector<NodeHandle> getSyncRootHandles(bool mustBeActive);
 
     void purgeRunningSyncs();
-    void loadSyncConfigsOnLogin(bool resetSyncConfigStore);
+    void loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent();
 
     void enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError)> completion, const string& logname);
@@ -897,10 +898,10 @@ struct Syncs
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
-	     bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat);
+	     bool keepSyncDb, bool notifyApp, bool unregisterHeartbeat);
 
     // removes the sync from RAM; the config will be flushed to disk
-    void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+    void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool newEnabledFlag);
 
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
@@ -1072,10 +1073,10 @@ private:
 
 
     // remove the Sync and its config from memory - optionally also other aspects
-    void removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, bool unresg);
+    void removeSyncByIndex(size_t index, bool keepSyncDb, bool notifyApp, bool unresg);
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
-    void unloadSyncByIndex(size_t index);
+    void unloadSyncByIndex(size_t index, bool newEnabledFlag);
 
     void proclocaltree(LocalNode* n, LocalTreeProc* tp);
 
@@ -1091,7 +1092,7 @@ private:
         bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error, SyncError, handle)> completion, const string& logname);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
-    void loadSyncConfigsOnLogin_inThread(bool resetSyncConfigStore);
+    void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent_inThread();
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname);
     void disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
@@ -1099,7 +1100,7 @@ private:
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
     void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector,
-	     bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat);
+	     bool keepSyncDb, bool notifyApp, bool unregisterHeartbeat);
     void purgeRunningSyncs_inThread();
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
     error backupOpenDrive_inThread(LocalPath drivePath);

@@ -204,7 +204,7 @@ struct DemoApp : public MegaApp
 
 #ifdef ENABLE_SYNC
     void syncupdate_stateconfig(const SyncConfig& config) override;
-    void sync_auto_loaded(const SyncConfig&) override;
+    void sync_added(const SyncConfig&) override;
     void sync_removed(const SyncConfig& config) override;
 
     void syncs_restored(SyncError syncError) override;

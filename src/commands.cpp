@@ -1845,9 +1845,6 @@ bool CommandLogin::procresult(Result r)
 
                 client->openStatusTable(true);
                 client->app->login_result(API_OK);
-
-                client->syncs.loadSyncConfigsOnLogin(true);
-
                 return true;
 
             default:
@@ -5849,6 +5846,8 @@ bool CommandFetchNodes::procresult(Result r)
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
                 client->fnstats.nodesCached = client->nodes.size();
+
+                client->syncs.loadSyncConfigsOnFetchnodesComplete(true);
                 return true;
             }
             default:

@@ -3287,7 +3287,7 @@ protected:
         void syncupdate_stateconfig(const SyncConfig& config) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded
-        void sync_auto_loaded(const SyncConfig& config) override;
+        void sync_added(const SyncConfig& config) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;

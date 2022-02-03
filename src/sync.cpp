@@ -729,15 +729,17 @@ bool SyncConfig::isInternal() const
     return mExternalDrivePath.empty();
 }
 
-bool SyncConfig::errorOrEnabledChanged()
+bool SyncConfig::stateFieldsChanged()
 {
     bool changed = mError != mKnownError ||
-                   mEnabled != mKnownEnabled;
+                   mEnabled != mKnownEnabled ||
+                   mKnownRunState != mRunState;
 
     if (changed)
     {
         mKnownError = mError;
         mKnownEnabled = mEnabled;
+        mKnownRunState = mRunState;
     }
     return changed;
 }
@@ -988,13 +990,17 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
     fsstableids = syncs.fsaccess->fsStableIDs(mLocalPath);
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    // load LocalNodes from cache (only for internal syncs)
-    // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
-    if (syncs.mClient.dbaccess && !us.mConfig.isExternal())
-    {
-        auto fas = syncs.fsaccess->newfileaccess(false);
 
-        if (fas->fopen(mLocalPath, true, false))
+    auto fas = syncs.fsaccess->newfileaccess(false);
+
+    if (fas->fopen(mLocalPath, true, false))
+    {
+        // get the fsid of the synced folder
+        localroot->fsid_lastSynced = fas->fsid;
+
+        // load LocalNodes from cache (only for internal syncs)
+        // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
+        if (syncs.mClient.dbaccess && !us.mConfig.isExternal())
         {
             string dbname = config.getSyncDbStateCacheName(fas->fsid, config.mRemoteNode, syncs.mClient.me);
 
@@ -1002,20 +1008,10 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED));
             us.mConfig.mDatabaseExists = true;
 
-            localroot->fsid_lastSynced = fas->fsid;
             readstatecache();
         }
     }
-    else
-    {
-        // we still need the fsid of the synced folder
-        auto fas = syncs.fsaccess->newfileaccess(false);
-
-        if (fas->fopen(mLocalPath, true, false))
-        {
-            localroot->fsid_lastSynced = fas->fsid;
-        }
-    }
+    us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
 }
 
 Sync::~Sync()
@@ -1343,9 +1339,10 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
         mConfig.mRunState = mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
     }
 
-    if (newSyncError != DECONFIGURING_SYNC)
+    if (newSyncError != DECONFIGURING_SYNC &&
+        newSyncError != UNLOADING_SYNC)
     {
-        changedConfigState(notifyApp);
+        changedConfigState(true, notifyApp);
         mNextHeartbeat->updateSPHBStatus(*this);
     }
 }
@@ -2836,6 +2833,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
 
     if (!usPtr)
     {
+        LOG_debug << "Enablesync could not find sync";
         if (completion) completion(API_ENOENT, UNKNOWN_ERROR, backupId);
         return;
     }
@@ -2845,7 +2843,9 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     if (us.mSync)
     {
         // it's already running, just set whether it's paused or not.
+        LOG_debug << "Sync pause/unpause set to " << us.mConfig.mTemporarilyPaused;
         us.mConfig.mTemporarilyPaused = paused;
+        us.mConfig.mRunState = paused? SyncRunState::Pause : SyncRunState::Run;
         if (completion) completion(API_OK, NO_SYNC_ERROR, backupId);
         return;
     }
@@ -2884,7 +2884,11 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     if (e)
     {
         // error and enable flag were already changed
-        us.changedConfigState(notifyApp);
+        LOG_debug << "Enablesync checks resulted in error: " << e;
+
+        us.mConfig.mRunState = us.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
+
+        us.changedConfigState(true, notifyApp);
         if (completion) completion(e, us.mConfig.mError, backupId);
         return;
     }
@@ -2895,10 +2899,13 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
         // Try and create the missing ignore file.
         if (!mDefaultFilterChain.create(us.mConfig.mLocalPath, *fsaccess))
         {
+            LOG_debug << "Failed to create ignore file for sync without one";
+
             us.mConfig.mError = COULD_NOT_CREATE_IGNORE_FILE;
             us.mConfig.mEnabled = false;
+            us.mConfig.mRunState = us.mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
 
-            us.changedConfigState(notifyApp);
+            us.changedConfigState(true, notifyApp);
 
             if (completion)
                 completion(API_EWRITE, us.mConfig.mError, backupId);
@@ -2930,7 +2937,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     string debris = DEBRISFOLDER;
     auto localdebris = LocalPath();
 
-    us.changedConfigState(notifyApp);
+    us.changedConfigState(true, notifyApp);
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
     startSync_inThread(us, debris, localdebris, inshare, isnetwork, rootpath, completion, logname);
@@ -2974,13 +2981,13 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     assert(!us.mSync);
 
     us.mConfig.mRunState = SyncRunState::Loading;
-    mClient.app->syncupdate_stateconfig(us.mConfig);
+    us.changedConfigState(false, true);
 
     us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname));
     us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
 
     us.mConfig.mRunState = SyncRunState::Run;
-    mClient.app->syncupdate_stateconfig(us.mConfig);
+    us.changedConfigState(false, true);
 
     // Assume we'll encounter an error.
     error e = API_EFAILED;
@@ -3025,28 +3032,32 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     }
 
+    LOG_debug << "Final error for sync start: " << e;
+
     if (completion) completion(e, us.mConfig.mError, us.mConfig.mBackupId);
 }
 
-void UnifiedSync::changedConfigState(bool notifyApp)
+void UnifiedSync::changedConfigState(bool save, bool notifyApp)
 {
     assert(syncs.onSyncThread());
 
-    if (mConfig.errorOrEnabledChanged())
+    if (mConfig.stateFieldsChanged())
     {
-        LOG_debug << "Sync " << toHandle(mConfig.mBackupId) << " enabled/error changed to " << mConfig.mEnabled << "/" << mConfig.mError;
+        LOG_debug << "Sync " << toHandle(mConfig.mBackupId)
+                  << " now in runState: " << int(mConfig.mRunState)
+                  << " enabled: " << mConfig.mEnabled
+                  << " error: " << mConfig.mError;
 
-        syncs.saveSyncConfig(mConfig);
+        if (save)
+        {
+            syncs.saveSyncConfig(mConfig);
+        }
+
         if (notifyApp)
         {
             assert(syncs.onSyncThread());
             syncs.mClient.app->syncupdate_stateconfig(mConfig);
         }
-
-        syncs.queueClient([](MegaClient& mc, DBTableTransactionCommitter& committer)
-            {
-                mc.abortbackoff(false);
-            });
     }
 }
 
@@ -3241,7 +3252,7 @@ error Syncs::backupCloseDrive_inThread(LocalPath drivePath)
       [&](SyncConfig& config, Sync*)
       {
           return config.mExternalDrivePath == drivePath;
-      });
+      }, false);
 
     return result;
 }
@@ -3607,6 +3618,16 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
                     LocalPath dbPath;
                     c.mDatabaseExists = mClient.dbaccess->checkDbFileAndAdjustLegacy(*fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED, dbPath);
                 }
+
+                if (c.mEnabled)
+                {
+                    c.mRunState = SyncRunState::Pending;
+                }
+                else
+                {
+                    c.mRunState = c.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
+                }
+
             }
 
             return API_OK;
@@ -4337,12 +4358,6 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
 {
     assert(onSyncThread());
 
-    mSyncVecIsEmpty = false;
-    {
-        lock_guard<mutex> g(mSyncVecMutex);
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
-    }
-
     // Get our hands on the sync config store.
     auto* store = syncConfigStore();
 
@@ -4367,6 +4382,8 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         // Are we adding an internal sync?
         if (c.isInternal())
         {
+            LOG_debug << "Drive for internal syncs not known: " << c.mExternalDrivePath;
+
             // Then signal failure as the internal drive isn't available.
             if (completion)
                 completion(API_EFAILED, UNKNOWN_DRIVE_PATH, c.mBackupId);
@@ -4393,7 +4410,15 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         }
     }
 
+    {
+        lock_guard<mutex> g(mSyncVecMutex);
+        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
+        mSyncVecIsEmpty = false;
+    }
+
     saveSyncConfig(c);
+
+    mClient.app->sync_added(c);
 
     if (!startSync)
     {
@@ -4683,13 +4708,13 @@ void Syncs::syncRun(std::function<void()> f)
     synchronous.get_future().get();
 }
 
-void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat)
+void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool keepSyncDb, bool notifyApp, bool unregisterHeartbeat)
 {
     assert(!onSyncThread());
-    syncRun([&](){ removeSelectedSyncs_inThread(selector, removeSyncDb, notifyApp, unregisterHeartbeat); });
+    syncRun([&](){ removeSelectedSyncs_inThread(selector, keepSyncDb, notifyApp, unregisterHeartbeat); });
 }
 
-void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat)
+void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool keepSyncDb, bool notifyApp, bool unregisterHeartbeat)
 {
     assert(onSyncThread());
 
@@ -4697,12 +4722,12 @@ void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)>
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
-            removeSyncByIndex(i, removeSyncDb, notifyApp, unregisterHeartbeat);
+            removeSyncByIndex(i, keepSyncDb, notifyApp, unregisterHeartbeat);
         }
     }
 }
 
-void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
+void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool newEnabledFlag)
 {
     assert(onSyncThread());
 
@@ -4710,7 +4735,7 @@ void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
-            unloadSyncByIndex(i);
+            unloadSyncByIndex(i, newEnabledFlag);
         }
     }
 }
@@ -4741,11 +4766,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
         }
     }
 
-    if (!removecaches)
-    {
-        syncConfigStoreFlush();
-    }
-    else if (keepSyncsConfigFile)
+    if (removecaches && keepSyncsConfigFile)
     {
         // Special case backward compatibility for MEGAsync
         // The syncs will be disabled, if the user logs back in they can then manually re-enable.
@@ -4757,33 +4778,32 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
                 disableSyncByBackupId_inThread(us->mConfig.mBackupId, LOGGED_OUT, false, false, nullptr);
             }
         }
-        syncConfigStoreFlush();
     }
-    else if (mSyncConfigStore)
-    {
-        mSyncConfigStore->write(LocalPath(), SyncConfigVector());
 
-        // Remove all drives.
-        for (auto& drive : mSyncConfigStore->knownDrives())
+    if (mSyncConfigStore)
+    {
+        if (!keepSyncsConfigFile)
         {
-            // Never remove internal drive.
-            if (!drive.empty())
-            {
-                // This does not flush.
-                mSyncConfigStore->removeDrive(drive);
-            }
+            mSyncConfigStore->write(LocalPath(), SyncConfigVector());
+        }
+        else
+        {
+            syncConfigStoreFlush();
         }
     }
     mSyncConfigStore.reset();
 
-    // Remove all syncs from RAM only.
-    removeSelectedSyncs_inThread([](SyncConfig&, Sync*) { return true; }, false, false, false);
+    // Remove all syncs from RAM.
+    unloadSelectedSyncs([](SyncConfig&, Sync*) { return true; }, true);
+
+    // make sure we didn't resurrect the store, singleton style
+    assert(!mSyncConfigStore);
 
     clear_inThread();
     mExecutingLocallogout = false;
 }
 
-void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, bool unregisterHeartbeat)
+void Syncs::removeSyncByIndex(size_t index, bool keepSyncDb, bool notifyApp, bool unregisterHeartbeat)
 {
     assert(onSyncThread());
 
@@ -4791,7 +4811,7 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
     {
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
-            syncPtr->changestate(DECONFIGURING_SYNC, false, false, !removeSyncDb);
+            syncPtr->changestate(DECONFIGURING_SYNC, false, false, keepSyncDb);
             assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
@@ -4830,7 +4850,7 @@ void Syncs::removeSyncByIndex(size_t index, bool removeSyncDb, bool notifyApp, b
     }
 }
 
-void Syncs::unloadSyncByIndex(size_t index)
+void Syncs::unloadSyncByIndex(size_t index, bool newEnabledFlag)
 {
     assert(onSyncThread());
 
@@ -4840,7 +4860,7 @@ void Syncs::unloadSyncByIndex(size_t index)
         {
             // if it was running, the app gets a callback saying it's no longer active
             // SYNC_CANCELED is a special value that means we are shutting it down without changing config
-            syncPtr->changestate(UNLOADING_SYNC, false, false, true);
+            mSyncVec[index]->changeState(UNLOADING_SYNC, newEnabledFlag, false, true);
             assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }
@@ -4865,13 +4885,13 @@ void Syncs::saveSyncConfig(const SyncConfig& config)
     }
 }
 
-void Syncs::loadSyncConfigsOnLogin(bool resetSyncConfigStore)
+void Syncs::loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore)
 {
     assert(!onSyncThread());
 
     syncThreadActions.pushBack([this, resetSyncConfigStore]()
         {
-            loadSyncConfigsOnLogin_inThread(resetSyncConfigStore);
+            loadSyncConfigsOnFetchnodesComplete_inThread(resetSyncConfigStore);
         });
 }
 
@@ -4885,7 +4905,7 @@ void Syncs::resumeSyncsOnStateCurrent()
         });
 }
 
-void Syncs::loadSyncConfigsOnLogin_inThread(bool resetSyncConfigStore)
+void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore)
 {
     assert(onSyncThread());
 
@@ -4917,12 +4937,8 @@ void Syncs::loadSyncConfigsOnLogin_inThread(bool resetSyncConfigStore)
 
     for (auto& us : mSyncVec)
     {
-        mClient.app->sync_auto_loaded(us->mConfig);
+        mClient.app->sync_added(us->mConfig);
     }
-
-    // Let the app know that we have restored all syncs (which may be 0)
-    // So the app knows this async process is complete, and it's into normal operation
-    mClient.app->syncs_restored(NO_SYNC_ERROR);
 }
 
 void Syncs::resumeSyncsOnStateCurrent_inThread()
@@ -4945,24 +4961,15 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 }
             }
 
-            bool hadAnError = unifiedSync->mConfig.mError != NO_SYNC_ERROR;
-
             if (unifiedSync->mConfig.getEnabled())
             {
-                // Right now, syncs are disabled upon all errors but, after sync-rework, syncs
-                // could be kept as enabled but failed due to a temporary/recoverable error and
-                // the SDK may auto-resume them if the error condition vanishes
-                // (ie. an expired business account automatically disable syncs, but once
-                // the user has paid, we may auto-resume).
-                // TODO: remove assertion if it no longer applies:
-                assert(!hadAnError);
 
 #ifdef __APPLE__
                 unifiedSync->mConfig.mFilesystemFingerprint = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [this, unifiedSync, hadAnError](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [this, unifiedSync](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
                     }, "");
@@ -4973,6 +4980,8 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
             }
         }
     }
+
+    mClient.app->syncs_restored(NO_SYNC_ERROR);
 }
 
 bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
@@ -8239,12 +8248,12 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
 {
     assert(drivePath.empty() || drivePath.isAbsolute());
     DriveInfo driveInfo;
-    driveInfo.dbPath = dbPath(drivePath);
+    //driveInfo.dbPath = dbPath(drivePath);
     driveInfo.drivePath = drivePath;
 
     vector<unsigned int> confSlots;
 
-    auto result = mIOContext.getSlotsInOrder(driveInfo.dbPath, confSlots);
+    auto result = mIOContext.getSlotsInOrder(dbPath(driveInfo.drivePath), confSlots);
 
     if (result == API_OK)
     {
@@ -8287,7 +8296,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 
     if (configs.empty())
     {
-        error e = mIOContext.remove(drive.dbPath);
+        error e = mIOContext.remove(dbPath(drive.drivePath));
         if (e)
         {
             LOG_warn << "Unable to remove sync configs at: "
@@ -8300,7 +8309,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         JSONWriter writer;
         mIOContext.serialize(configs, writer);
 
-        error e = mIOContext.write(drive.dbPath,
+        error e = mIOContext.write(dbPath(drive.drivePath),
             writer.getstring(),
             drive.slot);
 
@@ -8316,7 +8325,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         drive.slot = (drive.slot + 1) % NUM_CONFIG_SLOTS;
 
         // remove the existing slot (if any), since it is obsolete now
-        mIOContext.remove(drive.dbPath, drive.slot);
+        mIOContext.remove(dbPath(drive.drivePath), drive.slot);
 
         return API_OK;
     }
@@ -8326,17 +8335,17 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
                              unsigned int slot, bool isExternal)
 {
-    const auto& dbPath = driveInfo.dbPath;
+    auto dbp = dbPath(driveInfo.drivePath);
     string data;
 
-    if (mIOContext.read(dbPath, data, slot) != API_OK)
+    if (mIOContext.read(dbp, data, slot) != API_OK)
     {
         return API_EREAD;
     }
 
     JSON reader(data);
 
-    if (!mIOContext.deserialize(dbPath, configs, reader, slot, isExternal))
+    if (!mIOContext.deserialize(dbp, configs, reader, slot, isExternal))
     {
         return API_EREAD;
     }

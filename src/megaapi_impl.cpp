@@ -13315,7 +13315,7 @@ void MegaApiImpl::sync_removed(const SyncConfig& config)
     fireOnSyncDeleted(msp_ptr.get());
 }
 
-void MegaApiImpl::sync_auto_loaded(const SyncConfig& config)
+void MegaApiImpl::sync_added(const SyncConfig& config)
 {
     mCachedMegaSyncPrivate.reset();
 
@@ -13767,10 +13767,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                 {
                     request->setNumber(createdConfig.mFilesystemFingerprint);
                     request->setParentHandle(backupId);
-
-                    auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig, client);
-
-                    fireOnSyncAdded(sync.get());
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }, "");
@@ -21324,6 +21320,7 @@ void MegaApiImpl::sendPendingRequests()
             Node *node = client->nodebyhandle(request->getNodeHandle());
             if(!node || (node->type==FILENODE) || !localPath)
             {
+                LOG_debug << "Node not found for sync add";
                 e = API_EARGS;
                 break;
             }
@@ -21333,6 +21330,7 @@ void MegaApiImpl::sendPendingRequests()
             std::unique_ptr<char[]> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
             {
+                LOG_debug << "Node path not found for sync add";
                 e = API_ENOENT;
                 request->setNumDetails(REMOTE_NODE_NOT_FOUND);
                 break;
@@ -21354,6 +21352,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (!e && !found)
                 {
+                    LOG_debug << "Correcting error to API_ENOENT for sync add";
                     e = API_ENOENT;
                 }
 
@@ -21361,10 +21360,6 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     request->setNumber(createdConfig.mFilesystemFingerprint);
                     request->setParentHandle(backupId);
-
-                    auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig, client);
-
-                    fireOnSyncAdded(sync.get());
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }, "");
@@ -21547,7 +21542,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; }, true, true, true );
+            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; }, false, true, true );
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
@@ -21578,7 +21573,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 found = found || matched;
                 return matched;
-            }, true, true, true);
+            }, false, true, true);
 
             if (!found)
             {

@@ -444,10 +444,10 @@ void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
         << endl;
 }
 
-void DemoApp::sync_auto_loaded(const SyncConfig& config)
+void DemoApp::sync_added(const SyncConfig& config)
 {
     handle backupId = config.mBackupId;
-    conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
+    conlock(cout) << "Sync - added " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
         << config.getEnabled() << " syncError: " << config.mError << " " << int(config.mRunState);
 }
 
