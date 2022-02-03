@@ -57,7 +57,6 @@ LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
 SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
 {
     sqlite3 *db = nullptr;
-    std::string dbPathStr;
     auto dbPath = databasePath(fsAccess, name, DB_VERSION);
     if (!openDBAndCreateStatecache(&db, fsAccess, name, dbPath, flags))
     {
@@ -133,7 +132,6 @@ const LocalPath& SqliteDbAccess::rootPath() const
 
 bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &fsAccess, const string &name, LocalPath &dbPath, const int flags)
 {
-    dbPath = databasePath(fsAccess, name, DB_VERSION);
     auto upgraded = true;
 
     {
