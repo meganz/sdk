@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "mega/mediafileattribute.h"
 #include <cctype>
+#include <ctime>
 #include <algorithm>
 #include <functional>
 #include <future>
@@ -16864,6 +16865,15 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
     return s.str();
 }
 #endif
+
+m_time_t MegaClient::MyAccountData::getTimeLeft()
+{
+    auto timeleft = mProUntil - static_cast<m_time_t>(std::time(nullptr));
+    auto isuserpro = mProLevel > AccountType::ACCOUNT_TYPE_FREE;
+
+    return ( isuserpro ? timeleft : -1);
+};
+
 
 FetchNodesStats::FetchNodesStats()
 {

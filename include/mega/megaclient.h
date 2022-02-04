@@ -1930,7 +1930,7 @@ struct MyAccountData
 
     // returns remaining time for the current pro-level plan
     // keep in mind that free plans do not have a remaining time; instead, the IP bandwidth is reset after a back off period
-    m_time_t getTimeLeft() { return ((mProLevel > AccountType::ACCOUNT_TYPE_FREE) ? (mProUntil - static_cast<m_time_t>(std::time(nullptr))) : -1); };
+    m_time_t getTimeLeft();
 
 private:
     AccountType mProLevel = AccountType::ACCOUNT_TYPE_UNKNOWN;
