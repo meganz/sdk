@@ -14610,6 +14610,8 @@ void MegaApiImpl::logout_result(error e)
         pendingDownloads = 0;
         totalUploads = 0;
         totalDownloads = 0;
+        completedUploads.clear();
+        completedDownloads.clear();
         waitingRequest = RETRY_NONE;
         excludedNames.clear();
         excludedPaths.clear();
@@ -16344,13 +16346,13 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     // Only for file type transfers and not cancelled transfers
     if (!transfer->isFolderTransfer() && transfer->getState() != MegaTransfer::STATE_CANCELLED)
     {
-        if (transfer->getType() == GET)
-        {
-            completedDownloads[transfer->getTag()] = transfer->getTransferredBytes();
-        }
-        else
+        if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)
         {
             completedUploads[transfer->getTag()] = transfer->getTransferredBytes();
+        }
+        else    // TYPE_DOWNLOAD and TYPE_LOCAL_TCP_DOWNLOAD
+        {
+            completedDownloads[transfer->getTag()] = transfer->getTransferredBytes();
         }
     }
 

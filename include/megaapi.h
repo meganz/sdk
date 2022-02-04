@@ -14303,8 +14303,8 @@ class MegaApi
         int getNumPendingDownloads();
 
         /**
-         * @brief Get the number of queued uploads since the last call to MegaApi::resetCompletedUploads
-         * @return Number of queued uploads since the last call to MegaApi::resetCompletedUploads
+         * @brief Get the number of queued uploads since the last call to MegaApi::resetTotalUploads
+         * @return Number of queued uploads since the last call to MegaApi::resetTotalUploads
          *
          * @deprecated Function related to statistics will be reviewed in future updates to
          * provide more data and avoid race conditions. They could change or be removed in the current form.
@@ -14312,11 +14312,11 @@ class MegaApi
         int getTotalUploads();
 
         /**
-         * @brief Get the number of queued downloads since the last call to MegaApi::resetCompletedDownloads
-         * @return Number of queued downloads since the last call to MegaApi::resetCompletedDownloads
+         * @brief Get the number of queued downloads since the last call to MegaApi::resetTotalUploads
+         * @return Number of queued downloads since the last call to MegaApi::resetTotalUploads
          *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         * @deprecated Function related to statistics will be reviewed in future updates. They
+         * could change or be removed in the current form.
          */
         int getTotalDownloads();
 
@@ -14343,9 +14343,6 @@ class MegaApi
          * @brief Get the number of completed uploads since the last call to MegaApi::resetCompletedUploads
          * * The number of completed uploads does not include the cancelled transfers
          * @return Number of completed uploads since the last call to MegaApi::resetCompletedUploads
-         *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
         size_t getCompletedUploads();
 
@@ -14353,9 +14350,6 @@ class MegaApi
          * @brief Get the number of completed downloads since the last call to MegaApi::resetCompletedDownloads
          * The number of completed downloads does not include the cancelled transfers
          * @return Number of completed downloads since the last call to MegaApi::resetCompletedDownloads
-         *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
         size_t getCompletedDownloads();
 
@@ -14374,12 +14368,14 @@ class MegaApi
         /**
          * @brief Reduced by one the number of completed uploads
          * This function reduces the number returned by MegaApi::getCompletedUploads
+         * @param transferTag Tag of the upload to remove from the list of uploads.
          */
         void removeCompletedUpload(int transferTag);
 
         /**
          * @brief Reduced by one the number of completed downloads
          * This function reduces the number returned by MegaApi::getCompletedDownloads
+         * @param transferTag Tag of the download to remove from the list of uploads.
          */
         void removeCompletedDownload(int transferTag);
 
