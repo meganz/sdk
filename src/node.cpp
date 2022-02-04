@@ -2317,8 +2317,7 @@ void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
 
 void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
 {
-
-    weak_ptr<SyncTransfer_inClient> self = selfKeepAlive;
+    weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
 
     File::sendPutnodes(client,
         uploadHandle,
@@ -2326,19 +2325,23 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
         fileNodeKey,
         PUTNODES_SYNC,
         ovHandle,
-        [self](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride){
+        [stts](const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride){
 
-            if (auto s = self.lock())
+            if (auto s = stts.lock())
             {
-                auto client = s->syncThreadSafeState->client();
+                auto client = s->client();
                 if (e == API_EACCESS)
                 {
                     client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
                 }
                 else if (e == API_EOVERQUOTA)
                 {
-                    client->syncs.disableSyncByBackupId(s->syncThreadSafeState->backupId(),  FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
+                    client->syncs.disableSyncByBackupId(s->backupId(),  FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
                 }
+
+                // since we used a completion function, putnodes_result is not called.
+                // but the intermediate layer still needs that in order to call the client app back:
+                client->app->putnodes_result(e, t, nn, targetOverride);
             }
         });
 }
