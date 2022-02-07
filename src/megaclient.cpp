@@ -5013,7 +5013,7 @@ void MegaClient::sc_updatenode()
 
 void MegaClient::CacheableStatusMap::loadCachedStatus(CacheableStatus::Type type, int64_t value)
 {
-#ifdef DEBUG
+#ifndef NDEBUG
     auto it =
 #endif
     insert(pair<int64_t, CacheableStatus>(type, CacheableStatus(type, value)));
