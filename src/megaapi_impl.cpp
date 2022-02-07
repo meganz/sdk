@@ -21398,7 +21398,7 @@ void MegaApiImpl::sendPendingRequests()
                       fireOnRequestFinish(request, std::move(error));
                   };
 
-                client->importSyncConfigs(configs, std::move(completion));
+                client->importSyncConfigs(configs, std::move(completion), false);
                 break;
             }
 
