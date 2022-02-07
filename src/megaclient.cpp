@@ -11505,7 +11505,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
     }
 }
 
-void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
+void MegaClient::getaccountdetails(std::shared_ptr<AccountDetails> ad, bool storage,
                                    bool transfer, bool pro, bool transactions,
                                    bool purchases, bool sessions, int source)
 {

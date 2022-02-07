@@ -1863,7 +1863,7 @@ bool CommandLogin::procresult(Result r)
 
                 client->openStatusTable(true);
                 client->app->login_result(API_OK);
-                client->getaccountdetails(new AccountDetails, false, false, true, false, false, false);
+                client->getaccountdetails(std::make_shared<AccountDetails>(), false, false, true, false, false, false);
                 return true;
 
             default:
@@ -4619,7 +4619,7 @@ bool CommandGetMiscFlags::procresult(Result r)
     return error(e) != API_EINTERNAL;
 }
 
-CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
+CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
     mStorage = storage;
@@ -4656,7 +4656,7 @@ bool CommandGetUserQuota::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
-        client->app->account_details(details, r.errorOrOK());
+        client->app->account_details(details.get(), r.errorOrOK());
         return true;
     }
 
@@ -4952,13 +4952,13 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
 
-                client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
+                client->app->account_details(details.get(), mStorage, mTransfer, mPro, false, false, false);
                 return true;
 
             default:
                 if (!client->json.storeobject())
                 {
-                    client->app->account_details(details, API_EINTERNAL);
+                    client->app->account_details(details.get(), API_EINTERNAL);
                     return false;
                 }
         }
@@ -4991,7 +4991,7 @@ bool CommandQueryTransferQuota::procresult(Result r)
     return true;
 }
 
-CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, AccountDetails* ad)
+CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, std::shared_ptr<AccountDetails> ad)
 {
     cmd("utt");
 
@@ -5025,11 +5025,11 @@ bool CommandGetUserTransactions::procresult(Result r)
         client->json.leavearray();
     }
 
-    client->app->account_details(details, false, false, false, false, true, false);
+    client->app->account_details(details.get(), false, false, false, false, true, false);
     return true;
 }
 
-CommandGetUserPurchases::CommandGetUserPurchases(MegaClient* client, AccountDetails* ad)
+CommandGetUserPurchases::CommandGetUserPurchases(MegaClient* client, std::shared_ptr<AccountDetails> ad)
 {
     cmd("utp");
 
@@ -5067,11 +5067,11 @@ bool CommandGetUserPurchases::procresult(Result r)
         client->json.leavearray();
     }
 
-    client->app->account_details(details, false, false, false, true, false, false);
+    client->app->account_details(details.get(), false, false, false, true, false, false);
     return true;
 }
 
-CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, AccountDetails* ad)
+CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, std::shared_ptr<AccountDetails> ad)
 {
     cmd("usl");
     arg("x", 1); // Request the additional id and alive information
@@ -5106,7 +5106,7 @@ bool CommandGetUserSessions::procresult(Result r)
         client->json.leavearray();
     }
 
-    client->app->account_details(details, false, false, false, false, false, true);
+    client->app->account_details(details.get(), false, false, false, false, false, true);
     return true;
 }
 

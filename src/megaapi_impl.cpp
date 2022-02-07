@@ -3219,11 +3219,11 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 
     if (type == MegaRequest::TYPE_ACCOUNT_DETAILS)
     {
-        this->accountDetails = new AccountDetails();
+        this->accountDetails = std::make_shared<AccountDetails>();
     }
     else
     {
-        this->accountDetails = NULL;
+        this->accountDetails.reset();
     }
 
     if (type == MegaRequest::TYPE_GET_ACHIEVEMENTS)
@@ -3316,10 +3316,10 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->megaPricing = (MegaPricingPrivate *)request->getPricing();
     this->megaCurrency = (MegaCurrencyPrivate *)request->getCurrency();
 
-    this->accountDetails = NULL;
+    this->accountDetails.reset();
     if(request->getAccountDetails())
     {
-        this->accountDetails = new AccountDetails();
+        this->accountDetails = std::make_shared<AccountDetails>();
         *(this->accountDetails) = *(request->getAccountDetails());
     }
 
@@ -3347,7 +3347,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
 }
 
-AccountDetails *MegaRequestPrivate::getAccountDetails() const
+std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
 {
     return accountDetails;
 }
@@ -3523,7 +3523,7 @@ MegaAccountDetails *MegaRequestPrivate::getMegaAccountDetails() const
 {
     if(accountDetails)
     {
-        return MegaAccountDetailsPrivate::fromAccountDetails(accountDetails);
+        return MegaAccountDetailsPrivate::fromAccountDetails(accountDetails.get());
     }
     return NULL;
 }
@@ -3539,7 +3539,6 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete [] sessionKey;
     delete publicNode;
     delete [] file;
-    delete accountDetails;
     delete megaPricing;
     delete megaCurrency;
     delete achievementsDetails;

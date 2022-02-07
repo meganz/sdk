@@ -467,7 +467,7 @@ public:
     bool areCredentialsVerified(handle uh);
 
     // retrieve user details
-    void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
+    void getaccountdetails(std::shared_ptr<AccountDetails>, bool, bool, bool, bool, bool, bool, int source = -1);
 
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
