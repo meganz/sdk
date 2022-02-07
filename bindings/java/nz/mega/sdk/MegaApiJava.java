@@ -7622,28 +7622,59 @@ public class MegaApiJava {
     }
 
     /**
-     * Reset the number of total downloads.
-     * <p>
-     * This function resets the number returned by MegaApiJava.getTotalDownloads().
+     * Get the number of completed uploads since the last call to MegaApi::resetCompletedUploads
+     * The number of completed uploads does not include the cancelled transfers
      *
-     * Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
-     *
+     * @return Number of completed uploads since the last call to MegaApi::resetCompletedUploads
      */
-    public void resetTotalDownloads() {
-        megaApi.resetTotalDownloads();
+    public long getCompletedUploads() {
+        return megaApi.getCompletedUploads();
     }
 
     /**
-     * Reset the number of total uploads.
-     * <p>
-     * This function resets the number returned by MegaApiJava.getTotalUploads().
+     * Get the number of completed downloads since the last call to MegaApi::resetCompletedDownloads
+     * The number of completed downloads does not include the cancelled transfers
      *
-     * Function related to statistics will be reviewed in future updates to
-     *             provide more data and avoid race conditions. They could change or be removed in the current form.
+     * @return Number of completed downloads since the last call to MegaApi::resetCompletedDownloads
      */
-    public void resetTotalUploads() {
-        megaApi.resetTotalUploads();
+    public long getCompletedDownloads() {
+        return megaApi.getCompletedDownloads();
+    }
+
+    /**
+     * Reset the number of completed uploads (total uploads = pending uploads)
+     * This function resets the number returned by MegaApi::getTotalUploads
+     */
+    public void resetCompletedUploads() {
+        megaApi.resetCompletedUploads();
+    }
+
+    /**
+     * Reset the number of completed downloads (total downloads = pending downloads)
+     * This function resets the number returned by MegaApi::getTotalDownloads
+     */
+    public void resetCompletedDownloads() {
+        megaApi.resetCompletedDownloads();
+    }
+
+    /**
+     * Reduced by one the number of completed uploads
+     * This function reduces the number returned by MegaApi::getCompletedUploads
+     *
+     * @param transferTag Tag of the upload to remove from the list of uploads.
+     */
+    public void removeCompletedUpload(int transferTag) {
+        megaApi.removeCompletedUpload(transferTag);
+    }
+
+    /**
+     * Reduced by one the number of completed downloads
+     * This function reduces the number returned by MegaApi::getCompletedDownloads
+     *
+     * @param transferTag Tag of the download to remove from the list of uploads.
+     */
+    public void removeCompletedDownload(int transferTag) {
+        megaApi.removeCompletedDownload(transferTag);
     }
 
     /**
