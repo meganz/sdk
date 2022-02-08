@@ -16820,6 +16820,9 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 
         // still keep it in memory temporary, until saveNodeInDb()
         mNodeToWriteInDb = node; // takes ownership
+
+        // If keepNodInMemory is active, we call NodeManager::addChild in Node::setParent
+        addChild(node->parentHandle(), node->nodeHandle());
     }
 
     return true;
@@ -16875,42 +16878,30 @@ node_list NodeManager::getChildren(const Node *parent)
         return childrenList;
     }
 
-    // get children's handles and serialized nodes from cache
-    std::map<NodeHandle, NodeSerialized> childrenMap;
-    mTable->getChildren(parent->nodeHandle(), childrenMap);
-
-    // get children nodes loaded in RAM (which may not be in cache yet)
-    // (upon node's modification, nodes are added to the notification queue (mNodeNotify), but
-    // changes are not dumped to DB cache until the notification is done in 'notifyPurge()')
-    for (Node* node : mNodeNotify)
+    auto it = mNodeChildrens.find(parent->nodeHandle());
+    if (it != mNodeChildrens.end())
     {
-        if (parent->nodeHandle().eq(node->parenthandle))
+        std::set<NodeHandle>& children = it->second;
+        for (const auto childHandle : children)
         {
-            childrenList.push_back(node);
-            childrenMap.erase(node->nodeHandle()); // if node doesn't exist yet in DB, erase doesn't fail
+            Node* n;
+            auto nodeIt = mNodes.find(childHandle);
+            if (nodeIt == mNodes.end())
+            {
+                n = getNodeFromDataBase(childHandle);
+            }
+            else
+            {
+                n = nodeIt->second;
+            }
+
+            if (n)
+            {
+                childrenList.push_back(n);
+            }
         }
     }
 
-    // for each children, check if loaded in RAM. Otherwise, unserialize the record from cache
-    for (const auto child : childrenMap)
-    {
-        Node* n;
-        auto nodeIt = mNodes.find(child.first);
-        if (nodeIt == mNodes.end())
-        {
-            assert(child.second.mNode.length());
-            n = unserializeNode(&child.second.mNode, child.second.mDecrypted);
-        }
-        else
-        {
-            n = nodeIt->second;
-        }
-
-        if (n->parenthandle == parent->nodehandle)
-        {
-            childrenList.push_back(n);
-        }
-    }
 
     return childrenList;
 }
@@ -17178,41 +17169,6 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
     return nodes;
 }
 
-std::set<NodeHandle> NodeManager::getChildrenHandlesFromNode(NodeHandle nodehandle)
-{
-    std::set<NodeHandle> children;
-    if (!mTable)
-    {
-        assert(false);
-        return children;
-    }
-
-    mTable->getChildrenHandles(nodehandle, children);
-
-    for (auto it = children.begin(); it != children.end();)
-    {
-        auto itNodeMap = mNodes.find(*it);
-        if (itNodeMap != mNodes.end() && itNodeMap->second->parentHandle() != nodehandle)
-        {
-            it = children.erase(it);
-        }
-        else
-        {
-            it++;
-        }
-    }
-
-    for (const auto& it : mNodeNotify)
-    {
-        if (it->parentHandle() == nodehandle)
-        {
-            children.insert(it->nodeHandle());
-        }
-    }
-
-    return children;
-}
-
 void NodeManager::increaseCounter(const Node *node, NodeHandle firstAncestorHandle)
 {
     if (node->type == FILENODE)
@@ -17266,7 +17222,11 @@ NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t
     nodetype_t nodeType = node ? node->type : mTable->getNodeType(nodehandle);
 
     std::set<NodeHandle> children;
-    children = getChildrenHandlesFromNode(nodehandle);
+    auto it = mNodeChildrens.find(nodehandle);
+    if (it != mNodeChildrens.end())
+    {
+        children = it->second;
+    }
 
     for (const NodeHandle &h : children)
     {
@@ -17814,11 +17774,12 @@ void NodeManager::notifyPurge()
 
             if (n->changed.removed)
             {
-                // remove item from related maps, etc. (mNodeCounters, mFingerprints...)
-
+                // remove item from related maps, etc. (mNodeCounters, mFingerprints, mNodeChildrens, ...)
                 if (n->parent)  // only process node counters for subtrees not deleted already
                 {
                     subtractFromRootCounter(*n);
+
+                    removeChildRelationship(n->parentHandle(), n->nodeHandle());
                 }
 
                 mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
@@ -17832,6 +17793,8 @@ void NodeManager::notifyPurge()
                 {
                     child->parent = nullptr;
                 }
+
+                mNodeChildrens.erase(n->nodeHandle());
 
                 // effectively delete node from RAM
                 mNodesWithMissingParent.erase(n->nodeHandle());
@@ -17883,6 +17846,15 @@ void NodeManager::loadNodes()
         rootnodes.insert(rootnodes.end(), inSharesNodes.begin(), inSharesNodes.end());
     }
 
+    // Load map with fingerprints to speed up searching by fingerprint
+    std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent;
+    mTable->loadFingerprintsAndChildren(mFingerPrints, nodeAndParent);
+
+    for (auto pair : nodeAndParent)
+    {
+        mNodeChildrens[pair.first].insert(pair.second);
+    }
+
     if (mKeepAllNodesInMemory)
     {
         for (auto &node : rootnodes)
@@ -17898,9 +17870,6 @@ void NodeManager::loadNodes()
     }
     else // load only first level
     {
-        // Load map with fingerprints to speed up searching by fingerprint
-        mTable->getFingerPrints(mFingerPrints);
-
         for (auto &node : rootnodes)
         {
             getChildren(node);
@@ -18164,6 +18133,20 @@ void NodeManager::saveNodeInDb(Node *node)
 uint64_t NodeManager::getNumberNodesInRam() const
 {
     return mNodes.size();
+}
+
+void NodeManager::addChild(NodeHandle parent, NodeHandle child)
+{
+    mNodeChildrens[parent].insert(child);
+}
+
+void NodeManager::removeChildRelationship(NodeHandle parent, NodeHandle child)
+{
+    auto it = mNodeChildrens.find(parent);
+    if (it != mNodeChildrens.end())
+    {
+        it->second.erase(child);
+    }
 }
 
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)

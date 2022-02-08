@@ -754,9 +754,17 @@ bool Node::setparent(Node* p, bool updateNodeCounters)
     }
 
     Node *oldparent = parent;
+    if (oldparent)
+    {
+        client->mNodeManager.removeChildRelationship(oldparent->nodeHandle(), nodeHandle());
+    }
 
     parenthandle = p ? p->nodehandle : UNDEF;
     parent = p;
+    if (parent)
+    {
+        client->mNodeManager.addChild(parent->nodeHandle(), nodeHandle());
+    }
 
     if (updateNodeCounters)
     {
