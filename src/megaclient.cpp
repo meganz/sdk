@@ -17847,12 +17847,12 @@ void NodeManager::loadNodes()
     }
 
     // Load map with fingerprints to speed up searching by fingerprint
-    std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent;
+    std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
     mTable->loadFingerprintsAndChildren(mFingerPrints, nodeAndParent);
 
     for (auto pair : nodeAndParent)
     {
-        mNodeChildrens[pair.first].insert(pair.second);
+        addChild(pair.first, pair.second);
     }
 
     if (mKeepAllNodesInMemory)
