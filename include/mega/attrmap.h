@@ -67,6 +67,8 @@ struct MEGA_API AttrMap
 
     // overwrite entries in map (or remove them if the value is empty)
     void applyUpdates(const attr_map& updates);
+
+    bool hasUpdate(const attr_map& updates, nameid attrId) const;
 };
 } // namespace
 

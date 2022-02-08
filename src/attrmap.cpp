@@ -156,6 +156,13 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
     return ptr;
 }
 
+bool AttrMap::hasUpdate(const attr_map& updates, nameid attrId) const
+{
+    auto curIt = map.find(attrId);
+    auto updIt = updates.find(attrId);
+    return curIt != map.end() && updIt != updates.end() && curIt->second != updIt->second;
+}
+
 void AttrMap::applyUpdates(const attr_map& updates)
 {
     for (auto& u : updates)

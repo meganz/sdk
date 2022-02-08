@@ -720,7 +720,12 @@ void Node::setattr()
 
             if (name == 'n')
             {
+                changed.name = true;
                 LocalPath::utf8_normalize(t);
+            }
+            else if (name == AttrMap::string2nameid("fav"))
+            {
+                changed.favourite = true;
             }
         }
 
