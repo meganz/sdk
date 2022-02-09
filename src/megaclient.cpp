@@ -18186,7 +18186,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
 
 void NodeManager::updateCountersWithNode(const Node &node)
 {
-    NodeHandle firstValidAncestor = getFirstAncestor(node.parentHandle());
+    NodeHandle firstValidAncestor = getFirstAncestor(node.nodeHandle());
     firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : node.nodeHandle();
 
     if (firstValidAncestor != UNDEF)
