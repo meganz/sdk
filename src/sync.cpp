@@ -5886,7 +5886,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
         // We must process things in a particular order
         //    - first, check all rows for involvement in moves (case 0)
         //      such a row is excluded from further checks
-        //    - second, check all remainging rows for sync actions on that row (case 1)
+        //    - second, check all remaining rows for sync actions on that row (case 1)
         //    - third, recurse into each folder (case 2)
         //      there are various reasons we may skip that, based on flags set by earlier steps
         //    - zeroth, we perform first->third for any .megaignore file before any others
@@ -5942,7 +5942,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 syncs.setScannedFsidReused(f->fsid);
                                 s->setScannedFsid(f->fsid, syncs.localnodeByScannedFsid, f->localname, f->fingerprint);
                             }
-							else if (s->scannedFingerprint != f->fingerprint)
+                            else if (s->scannedFingerprint != f->fingerprint)
                             {
                                 // Maintain the scanned fingerprint.
                                 s->scannedFingerprint = f->fingerprint;
