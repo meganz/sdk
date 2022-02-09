@@ -4313,17 +4313,7 @@ bool CommandGetUserData::procresult(Result r)
 
                 if (!myBackupsFolder.empty())
                 {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&myBackupsFolder, &client->key));
-                    if (tlvRecords)
-                    {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, tlvString.get(), &versionMyBackupsFolder);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_MY_BACKUPS_FOLDER";
-                    }
+                    changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, &myBackupsFolder, &versionMyBackupsFolder);
                 }
 
                 if (aliases.size())
