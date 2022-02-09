@@ -5360,16 +5360,40 @@ bool syncRow::hasReservedName(const FileSystemAccess& fsAccess) const
 
 bool syncRow::isIgnoreFile() const
 {
+    struct Predicate
+    {
+        bool operator()(const CloudNode& node) const
+        {
+            // So to avoid ambiguity.
+            const string& name = IGNORE_FILE_NAME;
+
+            return node.type == FILENODE
+                   && !platformCompareUtf(node.name, true, name, false);
+        }
+
+        bool operator()(const FSNode& node) const
+        {
+            const LocalPath& name = IGNORE_FILE_NAME;
+
+            return node.type == FILENODE
+                   && !platformCompareUtf(node.localname, true, name, false);
+        }
+    } predicate;
+
     if (auto* s = syncNode)
         return s->isIgnoreFile();
 
     if (auto* f = fsNode)
-        return f->type == FILENODE
-               && f->localname == IGNORE_FILE_NAME;
+        return predicate(*f);
+
+    if (!fsClashingNames.empty())
+        return predicate(*fsClashingNames.front());
 
     if (auto* c = cloudNode)
-        return c->type == FILENODE
-               && c->name == IGNORE_FILE_NAME;
+        return predicate(*c);
+
+    if (!cloudClashingNames.empty())
+        return predicate(*cloudClashingNames.front());
 
     return false;
 }
@@ -6291,24 +6315,46 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
             row.fsNode->fsid != UNDEF && row.fsNode->fsid == row.syncNode->fsid_lastSynced)
         {
             SYNC_verbose << syncname << "Name clashes at this already-synced folder.  We will sync nodes below though." << logTriplet(row, fullPath);
+            return false;
         }
-        else
+
+        // Is this clash due to multiple ignore files being present in the cloud?
+        auto isIgnoreFileClash = [](const syncRow& row) {
+            // Any clashes in the cloud?
+            if (row.cloudClashingNames.empty())
+                return false;
+
+            // Any clashes on the local disk?
+            if (!row.fsClashingNames.empty())
+                return false;
+
+            if (!(row.fsNode || row.syncNode))
+                return false;
+
+            // Row represents an ignore file?
+            return row.isIgnoreFile();
+        };
+
+        if (isIgnoreFileClash(row))
+            return false;
+
+        LOG_debug << syncname << "Multple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
+
+        if (row.syncNode)
         {
-            LOG_debug << syncname << "Multple names clash here.  Excluding this node from sync for now." << logTriplet(row, fullPath);
-            row.suppressRecursion = true;
-            if (row.syncNode)
-            {
-                row.syncNode->scanAgain = TREE_RESOLVED;
-                row.syncNode->checkMovesAgain = TREE_RESOLVED;
-                row.syncNode->syncAgain = TREE_RESOLVED;
-            }
-            row.itemProcessed = true;
-            return true;
+            row.syncNode->scanAgain = TREE_RESOLVED;
+            row.syncNode->checkMovesAgain = TREE_RESOLVED;
+            row.syncNode->syncAgain = TREE_RESOLVED;
         }
+
+        row.itemProcessed = true;
+        row.suppressRecursion = true;
+
+        return true;
     }
+
     return false;
 }
-
 
 bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 {
@@ -6520,6 +6566,16 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     case SRT_XSF:
     {
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSF);
+
+        // Any clashing names in the cloud?
+        if (!row.cloudClashingNames.empty())
+        {
+            // Then we should only get here if we're an ignore file.
+            assert(row.isIgnoreFile());
+
+            // Consider us synced.
+            return true;
+        }
 
         // cloud item absent
         if (isBackupAndMirroring())
