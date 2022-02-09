@@ -358,6 +358,45 @@ class SimpleLogger
         logValue(error(value));
     }
 
+    void logValue(const std::error_code& value)
+    {
+        logValue(value.category().name());
+        logValue(":");
+        logValue(value.message());
+    }
+
+    void logValue(const std::system_error& se)
+    {
+        logValue(se.code().category().name());
+        logValue(": ");
+        logValue(se.what());
+    }
+
+    template <typename T>
+    void logValue(const std::unique_ptr<T>& ptr)
+    {
+        if (!ptr)
+        {
+            logValue("<empty unique ptr>");
+        }
+        else
+        {
+            logValue(*ptr.get());
+        }
+    }
+
+    template <typename T>
+    void logValue(const std::shared_ptr<T>& ptr)
+    {
+        if (!ptr)
+        {
+            logValue("<empty shared ptr>");
+        }
+        else
+        {
+            logValue(*ptr.get());
+        }
+    }
 #endif
 
 public:
