@@ -2845,9 +2845,9 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
     pImpl->getMyChatFilesFolder(listener);
 }
 
-void MegaApi::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+void MegaApi::setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener)
 {
-    pImpl->setMyBackupsFolder(nodehandle, listener);
+    pImpl->setMyBackupsFolder(localizedName, listener);
 }
 
 void MegaApi::getMyBackupsFolder(MegaRequestListener *listener)

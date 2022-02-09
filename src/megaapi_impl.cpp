@@ -4036,6 +4036,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
+        case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
     }
     return "UNKNOWN";
 }
@@ -10615,22 +10616,12 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     waiter->notify();
 }
 
-void MegaApiImpl::getMyBackupsFolder(MegaRequestListener *listener)
+void MegaApiImpl::setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_MY_BACKUPS, listener);
+    request->setText(localizedName);
     requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
-{
-    Base64Str<MegaClient::NODEHANDLE> b64Handle(nodehandle);
-
-    MegaStringMapPrivate stringMap;
-    stringMap.set("h", b64Handle);
-
-    setUserAttribute(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER, &stringMap, listener);
 }
 
 void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
@@ -23068,6 +23059,32 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
+        case MegaRequest::TYPE_SET_MY_BACKUPS:
+        {
+            if (client->ownuser()->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+            {
+                // cannot set a new folder if it already exists
+                e = API_EACCESS;
+                break;
+            }
+
+            const char* filename = request->getText();
+            if (!filename)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+
+            // TODO:
+            // 1. prepare the NewNode and create it via putnodes(), with flag `ibw:1`
+            // 2. upon completion of putnodes(), set the user's attribute `^!bak`
+            // to store the new node's handle in B64.
+            // Note: this request should not finish until the user's attribute is set successfully
+
+
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
