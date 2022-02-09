@@ -268,8 +268,10 @@ struct StandardClient : public ::mega::MegaApp
     void syncupdate_scanning(bool b) override;
 
     std::atomic<bool> mStallDetected{false};
+    std::atomic<bool> mConflictsDetected{false};
 
-    void syncupdate_stalled(bool b) override;
+    void syncupdate_conflicts(bool state) override;
+    void syncupdate_stalled(bool state) override;
     void file_added(File* file) override;
     void file_complete(File* file) override;
     void syncupdate_filter_error(const SyncConfig& config) override;
@@ -608,8 +610,8 @@ struct StandardClient : public ::mega::MegaApp
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;
     function<void(const SyncConfig&)> mOnFilterError;
-    function<void(bool)>  mOnStall;
-
+    function<void(bool)> mOnStall;
+    function<void(bool)> mOnConflictsDetected;
 };
 
 
