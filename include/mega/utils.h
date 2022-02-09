@@ -60,9 +60,11 @@ std::string toHandle(handle h);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
 class SimpleLogger;
+class LocalPath;
 SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
 SimpleLogger& operator<<(SimpleLogger&, UploadHandle h);
 SimpleLogger& operator<<(SimpleLogger&, NodeOrUploadHandle h);
+SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp);
 
 std::string backupTypeToStr(BackupType type);
 
@@ -896,7 +898,8 @@ inline int hexval(const int c)
     return ((c & 0xf) + (c >> 6)) | ((c >> 3) & 0x8);
 }
 
-bool islchex(const int c);
+bool islchex_high(const int c);
+bool islchex_low(const int c);
 
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);

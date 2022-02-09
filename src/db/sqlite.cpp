@@ -48,7 +48,7 @@ LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
     LocalPath path = mRootPath;
 
     path.appendWithSeparator(
-      LocalPath::fromPath(osstream.str(), fsAccess),
+      LocalPath::fromRelativePath(osstream.str()),
       false);
 
     return path;
@@ -57,8 +57,8 @@ LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
 SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
 {
     sqlite3 *db = nullptr;
-    std::string dbPathStr;
-    if (!openDBAndCreateStatecache(&db, fsAccess, name, dbPathStr, flags))
+    auto dbPath = databasePath(fsAccess, name, DB_VERSION);
+    if (!openDBAndCreateStatecache(&db, fsAccess, name, dbPath, flags))
     {
         return nullptr;
     }
@@ -66,15 +66,15 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
     return new SqliteDbTable(rng,
                              db,
                              fsAccess,
-                             dbPathStr,
+                             dbPath,
                              (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
 }
 
 DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags)
 {
     sqlite3 *db = nullptr;
-    std::string dbPathStr;
-    if (!openDBAndCreateStatecache(&db, fsAccess, name, dbPathStr, flags))
+    auto dbPath = databasePath(fsAccess, name, DB_VERSION);
+    if (!openDBAndCreateStatecache(&db, fsAccess, name, dbPath, flags))
     {
         return nullptr;
     }
@@ -105,7 +105,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
-                                dbPathStr,
+                                dbPath,
                                 (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
 }
 
@@ -130,9 +130,8 @@ const LocalPath& SqliteDbAccess::rootPath() const
     return mRootPath;
 }
 
-bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &fsAccess, const string &name, std::string &dbPathStr, const int flags)
+bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &fsAccess, const string &name, LocalPath &dbPath, const int flags)
 {
-    auto dbPath = databasePath(fsAccess, name, DB_VERSION);
     auto upgraded = true;
 
     {
@@ -141,7 +140,7 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
 
         if (fileAccess->fopen(legacyPath))
         {
-            LOG_debug << "Found legacy database at: " << legacyPath.toPath(fsAccess);
+            LOG_debug << "Found legacy database at: " << legacyPath;
 
             if (currentDbVersion == LEGACY_DB_VERSION)
             {
@@ -155,13 +154,13 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
 
                 if (fsAccess.renamelocal(legacyPath, dbPath, false))
                 {
-                    auto suffix = LocalPath::fromPath("-shm", fsAccess);
+                    auto suffix = LocalPath::fromRelativePath("-shm");
                     auto from = legacyPath + suffix;
                     auto to = dbPath + suffix;
 
                     fsAccess.renamelocal(from, to);
 
-                    suffix = LocalPath::fromPath("-wal", fsAccess);
+                    suffix = LocalPath::fromRelativePath("-wal");
                     from = legacyPath + suffix;
                     to = dbPath + suffix;
 
@@ -185,12 +184,11 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
 
     if (upgraded)
     {
-        LOG_debug << "Using an upgraded DB: " << dbPath.toPath(fsAccess);
+        LOG_debug << "Using an upgraded DB: " << dbPath;
         currentDbVersion = DB_VERSION;
     }
 
-    dbPathStr = dbPath.toPath(fsAccess);
-    int result = sqlite3_open_v2(dbPathStr.c_str(), db,
+    int result = sqlite3_open_v2(dbPath.toPath().c_str(), db,
         SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
         | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used withou restriction. (Required to avoid failure at SyncTest)
         , nullptr);
@@ -224,9 +222,10 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
     }
 
     return true;
+
 }
 
-SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
+SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted)
   : DbTable(rng, checkAlwaysTransacted)
   , db(db)
   , pStmt(nullptr)
@@ -258,11 +257,6 @@ SqliteDbTable::~SqliteDbTable()
 bool SqliteDbTable::inTransaction() const
 {
     return sqlite3_get_autocommit(db) == 0;
-}
-
-LocalPath SqliteDbTable::dbFile() const
-{
-    return LocalPath::fromPath(dbfile, *fsaccess);
 }
 
 // set cursor to first record
@@ -531,11 +525,10 @@ void SqliteDbTable::remove()
 
     db = NULL;
 
-    auto localpath = LocalPath::fromPath(dbfile, *fsaccess);
-    fsaccess->unlinklocal(localpath);
+    fsaccess->unlinklocal(dbfile);
 }
 
-SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
+SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted)
     : SqliteDbTable(rng, pdb, fsAccess, path, checkAlwaysTransacted)
 {
 
