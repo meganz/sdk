@@ -5107,8 +5107,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     // verify node attribute
     std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(mApi[0].h));
     const char* deviceIdFromNode = backupNode->getDeviceId();
-    std::unique_ptr<const char[]> deviceIdFromApi{ megaApi[0]->getDeviceId() };
-    ASSERT_STREQ(deviceIdFromNode, deviceIdFromApi.get());
+    ASSERT_TRUE(!deviceIdFromNode || !*deviceIdFromNode);
 
     // Verify that the remote path was created as expected
     unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };

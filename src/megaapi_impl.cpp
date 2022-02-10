@@ -1527,7 +1527,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     newnodes.emplace_back();
     NewNode& backupNameNode = newnodes.back();
 
-    client->putnodes_prepareOneFolder(&backupNameNode, backupName, nullptr);    // backup node should not include dev-id/drv-id
+    client->putnodes_prepareOneFolder(&backupNameNode, backupName);    // backup node should not include dev-id/drv-id
     if (!deviceNameNode)
     {
         // Set parent handle if part of the new nodes array (it cannot be from an existing node)
