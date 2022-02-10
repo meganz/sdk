@@ -467,8 +467,8 @@ class MegaNode
             TYPE_FILE       = 0,
             TYPE_FOLDER     = 1,
             TYPE_ROOT       = 2,
-            TYPE_INCOMING   = 3,    // kept for backwards-compatibility (renamed to Vault)
             TYPE_VAULT      = 3,
+            TYPE_INCOMING   = TYPE_VAULT,    // kept for backwards-compatibility (renamed to Vault)
             TYPE_RUBBISH    = 4
 		};
 
@@ -15449,6 +15449,11 @@ class MegaApi
         MegaNode *getVaultNode();
 
         /**
+         * @deprecated Renamed to getVaultNode(). Should be replaced in external bindings before being removed here.
+         */
+        MegaNode* getInboxNode() { return getVaultNode(); }
+
+        /**
          * @brief Returns the rubbish node of the account
          *
          * You take the ownership of the returned value
@@ -15493,6 +15498,11 @@ class MegaApi
          * @return True if the node is in the Vault
          */
         bool isInVault(MegaNode *node);
+
+        /**
+         * @deprecated Renamed to isInVault(). Should be replaced in external bindings before being removed here.
+         */
+        bool isInInbox(MegaNode* node) { return isInVault(node); }
 
         /**
          * @brief Set default permissions for new files
