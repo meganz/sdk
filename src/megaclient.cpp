@@ -6192,7 +6192,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_MY_BACKUPS_FOLDER:
                                     // there should be no actionpackets for this attribute. It is
                                     // created and never updated afterwards
-                                    assert(false);
+                                    assert(type != ATTR_MY_BACKUPS_FOLDER);
                                     //fall-through
                                     case ATTR_AUTHRING:              // fall-through
                                     case ATTR_AUTHCU255:             // fall-through
