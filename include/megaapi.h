@@ -14284,39 +14284,30 @@ class MegaApi
         int areServersBusy();
 
         /**
-         * @brief Get the number of pending uploads
+         * @brief Get the number of pending uploads.
          *
-         * @return Pending uploads
-         *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         * @return Pending uploads.
          */
         int getNumPendingUploads();
 
         /**
-         * @brief Get the number of pending downloads
-         * @return Pending downloads
+         * @brief Get the number of pending downloads.
          *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         * @return Pending downloads.
          */
         int getNumPendingDownloads();
 
         /**
-         * @brief Get the number of queued uploads since the last call to MegaApi::resetTotalUploads
-         * @return Number of queued uploads since the last call to MegaApi::resetTotalUploads
+         * @brief Get the number of queued uploads since the last call to MegaApi::resetCompletedUploads.
          *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         * @return Number of queued uploads since the last call to MegaApi::resetCompletedUploads.
          */
         int getTotalUploads();
 
         /**
-         * @brief Get the number of queued downloads since the last call to MegaApi::resetTotalUploads
-         * @return Number of queued downloads since the last call to MegaApi::resetTotalUploads
+         * @brief Get the number of queued downloads since the last call to MegaApi::resetCompletedDownloads.
          *
-         * @deprecated Function related to statistics will be reviewed in future updates. They
-         * could change or be removed in the current form.
+         * @return Number of queued downloads since the last call to MegaApi::resetCompletedDownloads.
          */
         int getTotalDownloads();
 
@@ -14340,100 +14331,94 @@ class MegaApi
         void resetTotalUploads();
 
         /**
-         * @brief Get the number of completed uploads since the last call to MegaApi::resetCompletedUploads
-         * * The number of completed uploads does not include the cancelled transfers
-         * @return Number of completed uploads since the last call to MegaApi::resetCompletedUploads
+         * @brief Get the number of completed uploads since the last call to MegaApi::resetCompletedUploads.
+         * The number of completed uploads does not include the cancelled transfers.
+         *
+         * @return Number of completed uploads since the last call to MegaApi::resetCompletedUploads.
          */
         size_t getCompletedUploads();
 
         /**
-         * @brief Get the number of completed downloads since the last call to MegaApi::resetCompletedDownloads
-         * The number of completed downloads does not include the cancelled transfers
-         * @return Number of completed downloads since the last call to MegaApi::resetCompletedDownloads
+         * @brief Get the number of completed downloads since the last call to MegaApi::resetCompletedDownloads.
+         * The number of completed downloads does not include the cancelled transfers.
+         *
+         * @return Number of completed downloads since the last call to MegaApi::resetCompletedDownloads.
          */
         size_t getCompletedDownloads();
 
         /**
-         * @brief Reset the number of completed uploads (total uploads = pending uploads)
-         * This function resets the number returned by MegaApi::getTotalUploads
+         * @brief Reset the number of completed uploads (total uploads = pending uploads).
+         * This function resets the number returned by MegaApi::getTotalUploads.
          */
         void resetCompletedUploads();
 
         /**
-         * @brief Reset the number of completed downloads (total downloads = pending downloads)
-         * This function resets the number returned by MegaApi::getTotalDownloads
+         * @brief Reset the number of completed downloads (total downloads = pending downloads).
+         * This function resets the number returned by MegaApi::getTotalDownloads.
          */
         void resetCompletedDownloads();
 
         /**
-         * @brief Reduced by one the number of completed uploads
-         * This function reduces the number returned by MegaApi::getCompletedUploads
+         * @brief Reduced by one the number of completed uploads.
+         * This function reduces the number returned by MegaApi::getCompletedUploads.
+         *
          * @param transferTag Tag of the upload to remove from the list of uploads.
          */
         void removeCompletedUpload(int transferTag);
 
         /**
-         * @brief Reduced by one the number of completed downloads
-         * This function reduces the number returned by MegaApi::getCompletedDownloads
-         * @param transferTag Tag of the download to remove from the list of uploads.
+         * @brief Reduced by one the number of completed downloads.
+         * This function reduces the number returned by MegaApi::getCompletedDownloads.
+         *
+         * @param transferTag Tag of the download to remove from the list of downloads.
          */
         void removeCompletedDownload(int transferTag);
 
         /**
-         * @brief Get the total downloaded bytes
-         * @return Total downloaded bytes
+         * @brief Get the total downloaded bytes.
          *
-         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetCompletedDownloads
          * or just before a log in or a log out.
          *
          * Only regular downloads are taken into account, not streaming nor folder transfers.
          *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         * @return Total downloaded bytes.
          */
         long long getTotalDownloadedBytes();
 
         /**
-         * @brief Get the total uploaded bytes
-         * @return Total uploaded bytes
+         * @brief Get the total uploaded bytes.
          *
-         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetCompletedUploads
          * or just before a log in or a log out.
          *
          * Only regular uploads are taken into account, not folder transfers.
          *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
-         *
+         * @return Total uploaded bytes.
          */
         long long getTotalUploadedBytes();
 
         /**
-         * @brief Get the total bytes of started downloads
-         * @return Total bytes of started downloads
+         * @brief Get the total bytes of started downloads.
          *
-         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetCompletedDownloads
          * or just before a log in or a log out.
          *
          * Only regular downloads are taken into account, not streaming nor folder transfers.
          *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         * @return Total bytes of started downloads.
          */
         long long getTotalDownloadBytes();
 
         /**
-         * @brief Get the total bytes of started uploads
-         * @return Total bytes of started uploads
+         * @brief Get the total bytes of started uploads.
          *
-         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetCompletedUploads
          * or just before a log in or a log out.
          *
          * Only regular uploads are taken into account, not folder transfers.
          *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
-         *
+         * @return Total bytes of started uploads.
          */
         long long getTotalUploadBytes();
 
