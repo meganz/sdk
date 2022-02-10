@@ -265,6 +265,9 @@ struct StandardClient : public ::mega::MegaApp
     void nodes_updated(Node** nodes, int numNodes) override;
     bool waitForNodesUpdated(unsigned numSeconds);
     void syncupdate_stateconfig(const SyncConfig& config) override;
+
+    std::function<void(const SyncConfig&)> mOnSyncStateConfig;
+
     void syncupdate_scanning(bool b) override;
 
     std::atomic<bool> mStallDetected{false};
