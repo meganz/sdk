@@ -338,9 +338,9 @@ typedef list<struct File*> file_list;
 // FILE - regular file nodes
 // FOLDER - regular folder nodes
 // ROOT - the cloud drive root node
-// INCOMING - inbox
+// VAULT - vault, for "My backups" and other special folders
 // RUBBISH - rubbish bin
-typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
+typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, VAULTNODE, RUBBISHNODE } nodetype_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
@@ -368,7 +368,7 @@ typedef uint64_t nameid;
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
 // FULL - all operations that do not require ownership permitted
-// OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
+// OWNER - node is in caller's ROOT, VAULT or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
 // operations for outgoing pending contacts
