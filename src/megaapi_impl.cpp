@@ -1453,12 +1453,8 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
     if (!handleContainerStr) { return API_EACCESS; }
 
-    string buffer;
-    std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &client->key));
-    if (!tlvRecords || !tlvRecords->get("h", buffer) || buffer.size() != MegaClient::NODEHANDLE) { return API_EINTERNAL; }
-
     handle h = 0; // make sure top two bytes are 0
-    memcpy(&h, buffer.c_str(), MegaClient::NODEHANDLE);
+    Base64::atob(handleContainerStr->c_str(), (byte*)&h, MegaClient::NODEHANDLE);
 
     if (!h || h == UNDEF) { return API_ENOENT; }
 
@@ -1512,7 +1508,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
         if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
 
         string deviceName;
-        tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
+        std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
         if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty()) { return API_EINCOMPLETE; }
 
         // add a new node for it
@@ -5939,7 +5935,6 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
-        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
         case MegaApi::USER_ATTR_DRIVE_NAMES:
             scope = '*';
             break;
@@ -5953,6 +5948,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_STORAGE_STATE:
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         case MegaApi::USER_ATTR_COOKIE_SETTINGS:
+        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
             scope = '^';
             break;
 
@@ -19989,31 +19985,6 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(type), &client->key));
                     }
-                }
-                else if (type == ATTR_MY_BACKUPS_FOLDER)
-                {
-                    // get back the handle value
-                    handle nodeHandle = 0;
-                    Base64::atob(stringMap->get("h"), (byte*)&nodeHandle, MegaClient::NODEHANDLE);
-
-                    MegaNode* node = getNodeByHandle(nodeHandle);
-
-                    // a valid folder cannot be outside current account or in Rubbish
-                    if (!client->isPrivateNode(NodeHandle().set6byte(nodeHandle)) || isInRootnode(node, 2)
-#ifdef ENABLE_SYNC
-                        // or in a synced folder
-                        || isInsideSync(node)
-#endif
-                        )
-                    {
-                        e = API_EACCESS;
-                        break;
-                    }
-
-                    const string* attr = ownUser->getattr(type);
-                    if (attr)  tlv.reset(TLVstore::containerToTLVrecords(attr, &client->key));
-
-                    if (!tlv) { tlv.reset(new TLVstore); }
                 }
                 else
                 {
