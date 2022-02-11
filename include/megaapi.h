@@ -1054,6 +1054,17 @@ class MegaNode
         virtual std::string* getNodeKey();
 
         /**
+         * @brief Returns true if the node key is decrypted
+         *
+         * For nodes in shared folders, there could be missing keys. Also, faulty
+         * clients might create invalid keys. In those cases, the node's key might
+         * not be decrypted successfully.
+         *
+         * @return True if the node key is decrypted
+         */
+        virtual bool isNodeKeyDecrypted();
+
+        /**
          * @brief Returns the file attributes related to the node
          *
          * The return value is only valid for nodes attached in a chatroom. In all other cases this function
