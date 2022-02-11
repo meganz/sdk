@@ -563,7 +563,7 @@ bool MegaClient::isPrivateNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode == rootnodes.files || rootnode == rootnodes.inbox || rootnode == rootnodes.rubbish);
+    return (rootnode == rootnodes.files || rootnode == rootnodes.vault || rootnode == rootnodes.rubbish);
 }
 
 bool MegaClient::isForeignNode(NodeHandle h)
@@ -575,7 +575,7 @@ bool MegaClient::isForeignNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode != rootnodes.files && rootnode != rootnodes.inbox && rootnode != rootnodes.rubbish);
+    return (rootnode != rootnodes.files && rootnode != rootnodes.vault && rootnode != rootnodes.rubbish);
 }
 
 SCSN::SCSN()
@@ -1202,7 +1202,7 @@ void MegaClient::init()
 #endif
 
     rootnodes.files = NodeHandle();
-    rootnodes.inbox = NodeHandle();
+    rootnodes.vault = NodeHandle();
     rootnodes.rubbish = NodeHandle();
 
     pendingsc.reset();
@@ -3216,7 +3216,7 @@ void MegaClient::exec()
     NodeCounter storagesum;
     for (auto& nc : mNodeCounters)
     {
-        if (nc.first == rootnodes.files || nc.first == rootnodes.inbox || nc.first == rootnodes.rubbish)
+        if (nc.first == rootnodes.files || nc.first == rootnodes.vault || nc.first == rootnodes.rubbish)
         {
             storagesum += nc.second;
         }
@@ -6192,7 +6192,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_MY_BACKUPS_FOLDER:
                                     // there should be no actionpackets for this attribute. It is
                                     // created and never updated afterwards
-                                    assert(false);
+                                    assert(type != ATTR_MY_BACKUPS_FOLDER);
                                     //fall-through
                                     case ATTR_AUTHRING:              // fall-through
                                     case ATTR_AUTHCU255:             // fall-through
@@ -7674,7 +7674,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             {
                 if (c[2] == "in")
                 {
-                    n = nodeByHandle(rootnodes.inbox);
+                    n = nodeByHandle(rootnodes.vault);
                 }
                 else if (c[2] == "bin")
                 {
@@ -7948,7 +7948,7 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
     reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
 }
 
-// drop nodes into a user's inbox (must have RSA keypair)
+// drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
 void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag)
 {
     User* u;
@@ -9251,7 +9251,7 @@ void MegaClient::applykeys()
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
     int noKeyExpected = (rootnodes.files.isUndef() ? 0 : 1)
-                      + (rootnodes.inbox.isUndef() ? 0 : 1)
+                      + (rootnodes.vault.isUndef() ? 0 : 1)
                       + (rootnodes.rubbish.isUndef() ? 0 : 1);
 
     if (nodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
@@ -13592,7 +13592,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
 {
 #ifdef ENABLE_SYNC
-    // cannot sync files, rubbish bins or inboxes
+    // cannot sync files, rubbish bins or vault
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
         if(syncError)

@@ -3602,9 +3602,9 @@ MegaNode *MegaApi::getRootNode()
     return pImpl->getRootNode();
 }
 
-MegaNode* MegaApi::getInboxNode()
+MegaNode *MegaApi::getVaultNode()
 {
-    return pImpl->getInboxNode();
+    return pImpl->getVaultNode();
 }
 
 MegaNode* MegaApi::getRubbishNode()
@@ -3627,7 +3627,7 @@ bool MegaApi::isInRubbish(MegaNode *node)
     return pImpl->isInRootnode(node, 2);
 }
 
-bool MegaApi::isInInbox(MegaNode *node)
+bool MegaApi::isInVault(MegaNode *node)
 {
     return pImpl->isInRootnode(node, 1);
 }

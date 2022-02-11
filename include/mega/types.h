@@ -338,9 +338,9 @@ typedef list<struct File*> file_list;
 // FILE - regular file nodes
 // FOLDER - regular folder nodes
 // ROOT - the cloud drive root node
-// INCOMING - inbox
+// VAULT - vault, for "My backups" and other special folders
 // RUBBISH - rubbish bin
-typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
+typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, VAULTNODE, RUBBISHNODE } nodetype_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
@@ -368,7 +368,7 @@ typedef uint64_t nameid;
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
 // FULL - all operations that do not require ownership permitted
-// OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
+// OWNER - node is in caller's ROOT, VAULT or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
 // operations for outgoing pending contacts
@@ -656,13 +656,13 @@ typedef enum {
     ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
-    ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
+    ATTR_PUSH_SETTINGS = 25,                // private - non-encrypted - char array in B64 - non-versioned
     ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
     ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
-    ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encripted - char array in B64 - non-versioned
+    ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encrypted - char array in B64 - non-versioned
     //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned

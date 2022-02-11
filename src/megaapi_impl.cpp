@@ -601,8 +601,8 @@ const char* MegaNodePrivate::getName()
     {
         case ROOTNODE:
             return "Cloud Drive";
-        case INCOMINGNODE:
-            return "Inbox";
+        case VAULTNODE:
+            return "Vault";
         case RUBBISHNODE:
             return "Rubbish Bin";
         default:
@@ -1523,7 +1523,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     newnodes.emplace_back();
     NewNode& backupNameNode = newnodes.back();
 
-    client->putnodes_prepareOneFolder(&backupNameNode, backupName, addAttrsFunc);
+    client->putnodes_prepareOneFolder(&backupNameNode, backupName);    // backup node should not include dev-id/drv-id
     if (!deviceNameNode)
     {
         // Set parent handle if part of the new nodes array (it cannot be from an existing node)
@@ -9171,10 +9171,10 @@ MegaNode *MegaApiImpl::getRootNode()
     return result;
 }
 
-MegaNode* MegaApiImpl::getInboxNode()
+MegaNode* MegaApiImpl::getVaultNode()
 {
     sdkMutex.lock();
-    MegaNode *result = MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.inbox));
+    MegaNode *result = MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.vault));
     sdkMutex.unlock();
     return result;
 }
@@ -9218,7 +9218,7 @@ bool MegaApiImpl::isInRootnode(MegaNode *node, int index)
     if (MegaNode *rootnode = getRootNode(node))
     {
         ret = (index == 0 && rootnode->getHandle() == client->rootnodes.files.as8byte()) ||
-              (index == 1 && rootnode->getHandle() == client->rootnodes.inbox.as8byte()) ||
+              (index == 1 && rootnode->getHandle() == client->rootnodes.vault.as8byte()) ||
               (index == 2 && rootnode->getHandle() == client->rootnodes.rubbish.as8byte());
         delete rootnode;
     }
@@ -11296,7 +11296,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
     };
 
     if (!(cancelToken && cancelToken->isCancelled())) searchRoot(client->rootnodes.files);
-    if (!(cancelToken && cancelToken->isCancelled())) searchRoot(client->rootnodes.inbox);
+    if (!(cancelToken && cancelToken->isCancelled())) searchRoot(client->rootnodes.vault);
     if (!(cancelToken && cancelToken->isCancelled())) searchRoot(client->rootnodes.rubbish);
 
 
@@ -11866,7 +11866,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
         if (target == MegaApi::SEARCH_TARGET_ROOTNODE || target == MegaApi::SEARCH_TARGET_ALL)
         {
-            // Search on rootnode (cloud, excludes Inbox and Rubbish)
+            // Search on rootnode (cloud, excludes Vault and Rubbish)
             node = client->nodeByHandle(client->rootnodes.files);
 
             SearchTreeProcessor searchProcessor(client, searchString, type);
@@ -18247,6 +18247,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                             if (uploadToInbox)
                             {
+                                // obsolete feature, kept for sending logs to helpdesk
                                 client->putnodes(inboxTarget, move(tc.nn), nextTag);
                             }
                             else
@@ -18970,7 +18971,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (node->type == ROOTNODE
-                    || node->type == INCOMINGNODE
+                    || node->type == VAULTNODE
                     || node->type == RUBBISHNODE
                     || !node->parent) // rootnodes cannot be moved
             {
@@ -19399,7 +19400,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (node->type == ROOTNODE
-                    || node->type == INCOMINGNODE
+                    || node->type == VAULTNODE
                     || node->type == RUBBISHNODE) // rootnodes cannot be deleted
             {
                 e = API_EACCESS;

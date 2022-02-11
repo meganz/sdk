@@ -331,7 +331,7 @@ void File::completed(Transfer* t, LocalNode* l)
 
         if (targetuser.size())
         {
-            // drop file into targetuser's inbox
+            // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
             t->client->putnodes(targetuser.c_str(), move(newnodes), tag);
         }
         else

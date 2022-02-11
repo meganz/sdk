@@ -3983,7 +3983,7 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(deviceNames, versionDeviceNames);
             break;
 
-        case MAKENAMEID5('*', '!', 'b', 'a', 'k'):
+        case MAKENAMEID5('^', '!', 'b', 'a', 'k'):
             parseUserAttribute(myBackupsFolder, versionMyBackupsFolder);
             break;
 
