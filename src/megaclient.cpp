@@ -16892,7 +16892,7 @@ node_list NodeManager::getChildren(const Node *parent)
     }
 
     // for each children, check if loaded in RAM. Otherwise, unserialize the record from cache
-    for (const auto child : childrenMap)
+    for (const auto& child : childrenMap)
     {
         Node* n;
         auto nodeIt = mNodes.find(child.first);
@@ -16994,7 +16994,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         }
     }
 
-    for (const auto nodeMapIt : nodeMap)
+    for (const auto& nodeMapIt : nodeMap)
     {
         Node* n;
         auto nodeIt = mNodes.find(nodeMapIt.first);
@@ -18185,7 +18185,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
 
 void NodeManager::updateCountersWithNode(const Node &node)
 {
-    NodeHandle firstValidAncestor = getFirstAncestor(node.parentHandle());
+    NodeHandle firstValidAncestor = getFirstAncestor(node.nodeHandle());
     firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : node.nodeHandle();
 
     if (firstValidAncestor != UNDEF)
