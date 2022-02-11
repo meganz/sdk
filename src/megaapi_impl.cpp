@@ -23062,28 +23062,13 @@ void MegaApiImpl::sendPendingRequests()
 #endif
         case MegaRequest::TYPE_SET_MY_BACKUPS:
         {
-            if (client->ownuser()->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+            int nextTag = client->nextreqtag();
+            e = client->setbackupfolder(request->getText(), nextTag);
+            if (e == API_OK)
             {
-                // cannot set a new folder if it already exists
-                e = API_EACCESS;
-                break;
+                request->setTag(nextTag);
+                requestMap[nextTag] = request;
             }
-
-            const char* filename = request->getText();
-            if (!filename)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-
-            // TODO:
-            // 1. prepare the NewNode and create it via putnodes(), with flag `ibw:1`
-            // 2. upon completion of putnodes(), set the user's attribute `^!bak`
-            // to store the new node's handle in B64.
-            // Note: this request should not finish until the user's attribute is set successfully
-
-
             break;
         }
         default:

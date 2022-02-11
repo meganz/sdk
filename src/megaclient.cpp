@@ -504,6 +504,44 @@ bool MegaClient::setlang(string *code)
     return false;
 }
 
+error MegaClient::setbackupfolder(const char* foldername, int tag)
+{
+    if (!foldername)
+    {
+        return API_EARGS;
+    }
+
+    if (ownuser()->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    {
+        // cannot set a new folder if it already exists
+        return API_EACCESS;
+    }
+
+    // 1. prepare the NewNode and create it via putnodes(), with flag `ibw:1`
+    vector<NewNode> newnodes(1);
+    NewNode& newNode = newnodes.back();
+    putnodes_prepareOneFolder(&newNode, foldername);
+
+    // 2. upon completion of putnodes(), set the user's attribute `^!bak`
+    auto addua = [this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool targetOverride)
+    {
+        if (e != API_OK)
+            return;
+
+        assert(handletype == NODE_HANDLE &&
+            nodes.size() == 1 &&
+            rootnodes.vault.eq(nodes.back().parenthandle) &&
+            nodes.back().nodehandle != UNDEF);
+
+        putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().nodehandle, sizeof(nodes.back().nodehandle));
+    };
+
+    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua);
+    // Note: this request should not finish until the user's attribute is set successfully
+
+    return API_OK;
+}
+
 void MegaClient::setFolderLinkAccountAuth(const char *auth)
 {
     if (auth)
