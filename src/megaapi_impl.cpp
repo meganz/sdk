@@ -6540,18 +6540,18 @@ Error MegaApiImpl::createLocalFolder_unlocked(LocalPath & localPath,  FileSystem
     {
         if (!fsaccess.mkdirlocal(localPath, false, false))
         {
-            LOG_err << "Unable to create folder: " << localPath.toPath(fsaccess);
+            LOG_err << "Unable to create folder: " << localPath.toPath();
             return API_EWRITE;
         }
     }
     else if (da->type == FILENODE)
     {
-        LOG_err << "Local file detected where there should be a folder: " << localPath.toPath(fsaccess);
+        LOG_err << "Local file detected where there should be a folder: " << localPath.toPath();
         return API_EARGS;
     }
     else
     {
-        LOG_debug << "Already existing folder detected: " << localPath.toPath(fsaccess);
+        LOG_debug << "Already existing folder detected: " << localPath.toPath();
         return API_EEXIST;
     }
     return API_OK;
@@ -8501,7 +8501,7 @@ void MegaApiImpl::startDownload (bool startFirst, MegaNode *node, const char* lo
 
 MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    FileSystemType fsType = fsAccess->getlocalfstype(LocalPath::fromPath(localPath, *fsAccess));
+    FileSystemType fsType = fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(localPath));
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
     if(localPath)
@@ -25571,7 +25571,7 @@ bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
     unique_ptr<DirAccess> da(fsaccess->newdiraccess());
     if (!da->dopen(&localPath, nullptr, false))
     {
-        LOG_err << "Can't open local directory" << localPath.toPath(*fsaccess);
+        LOG_err << "Can't open local directory" << localPath.toPath();
         recursive--;
         return false;
     }
@@ -25590,7 +25590,7 @@ bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
         {
             // generate new subtree
             unique_ptr<Tree> newTreeNode(new Tree);
-            newTreeNode->folderName = localname.toName(*fsaccess, tree.fsType);
+            newTreeNode->folderName = localname.toName(*fsaccess);
             newTreeNode->fsType = fsaccess->getlocalfstype(localPath);
 
             // generate fresh random key and node attributes
@@ -25734,7 +25734,7 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 
     for (const auto& localpath : tree.files)
     {
-        MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.toPath(*fsaccess).c_str(),
+        MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.toPath().c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
                                                                       -1, tag, false, NULL, false, false, tree.fsType, transfer->getCancelToken(), this);
         transferQueue.push(subTransfer);
@@ -27198,7 +27198,7 @@ bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
         else
         {
             ScopedLengthRestore restoreLen(localpath);
-            localpath.appendWithSeparator(LocalPath::fromName(child->getName(), *fsaccess, fsType), true);
+            localpath.appendWithSeparator(LocalPath::fromRelativeName(child->getName(), *fsaccess, fsType), true);
             if (!scanFolder(child, localpath, fsType))
             {
                 recursive--;
@@ -27252,8 +27252,8 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
 
              MegaNode &node = *(childrenNodes.at(i).get());
              ScopedLengthRestore restoreLen(localpath);
-             localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *fsaccess, fsType), true);
-             string utf8path = localpath.toPath(*fsaccess);
+             localpath.appendWithSeparator(LocalPath::fromRelativeName(node.getName(), *fsaccess, fsType), true);
+             string utf8path = localpath.toPath();
              MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), transfer->getCancelToken(), this);
              transferQueue.push(transferDownload);
              pendingTransfers++;

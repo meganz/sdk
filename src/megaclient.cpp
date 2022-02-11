@@ -1175,7 +1175,7 @@ Node* MegaClient::childNodeTypeByName(Node *p, const char *name, nodetype_t type
 
     Node *found = nullptr;
     string nname = name;
-    fsaccess->normalize(&nname);
+    LocalPath::utf8_normalize(&nname);
     for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
     {
         // if name and node type matches
