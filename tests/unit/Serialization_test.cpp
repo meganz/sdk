@@ -228,8 +228,7 @@ namespace {
 struct MockClient
 {
     mega::MegaApp app;
-    ::mega::FSACCESS_CLASS fs;
-    std::shared_ptr<mega::MegaClient> cli = mt::makeClient(app, fs);
+    std::shared_ptr<mega::MegaClient> cli = mt::makeClient(app);
 };
 
 }

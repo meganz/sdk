@@ -8803,6 +8803,53 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 */
 - (void)sendEvent:(NSInteger)eventType message:(NSString *)message;
 
+/**
+ * @brief Create a new ticket for support with attached description
+ *
+ * The associated request type with this request is MEGARequestTypeSupportTicket
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the type of the ticket
+ * - [MEGARequest text] - Returns the description of the issue
+ *
+ * @param message Description of the issue for support
+ * @param type Ticket type. These are the available types:
+ *          0 for General Enquiry
+ *          1 for Technical Issue
+ *          2 for Payment Issue
+ *          3 for Forgotten Password
+ *          4 for Transfer Issue
+ *          5 for Contact/Sharing Issue
+ *          6 for MEGAsync Issue
+ *          7 for Missing/Invisible Data
+ *          8 for help-centre clarifications
+ *          9 for iOS issue
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)createSupportTicketWithMessage:(NSString *)message type:(NSInteger)type delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Create a new ticket for support with attached description
+ *
+ * The associated request type with this request is MEGARequestTypeSupportTicket
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the type of the ticket
+ * - [MEGARequest text] - Returns the description of the issue
+ *
+ * @param message Description of the issue for support
+ * @param type Ticket type. These are the available types:
+ *          0 for General Enquiry
+ *          1 for Technical Issue
+ *          2 for Payment Issue
+ *          3 for Forgotten Password
+ *          4 for Transfer Issue
+ *          5 for Contact/Sharing Issue
+ *          6 for MEGAsync Issue
+ *          7 for Missing/Invisible Data
+ *          8 for help-centre clarifications
+ *          9 for iOS issue
+ */
+- (void)createSupportTicketWithMessage:(NSString *)message type:(NSInteger)type;
+
 #pragma mark - Banner
 
 /**
