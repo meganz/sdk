@@ -2850,11 +2850,6 @@ void MegaApi::setMyBackupsFolder(const char *localizedName, MegaRequestListener 
     pImpl->setMyBackupsFolder(localizedName, listener);
 }
 
-void MegaApi::getMyBackupsFolder(MegaRequestListener *listener)
-{
-    pImpl->getMyBackupsFolder(listener);
-}
-
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 {
     pImpl->getUserAlias(uh, listener);
