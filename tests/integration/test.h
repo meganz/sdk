@@ -469,8 +469,8 @@ struct StandardClient : public ::mega::MegaApp
         const string& logname);
     void setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
         std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);
-    void importSyncConfigs(string configs, PromiseBoolSP result);
-    bool importSyncConfigs(string configs);
+    void importSyncConfigs(string configs, bool startSync, PromiseBoolSP result);
+    bool importSyncConfigs(string configs, bool startSync);
     string exportSyncConfigs();
     bool delSync_inthread(handle backupId);
 

@@ -998,7 +998,7 @@ public:
     string exportSyncConfigs(const SyncConfigVector configs) const;
     string exportSyncConfigs() const;
 
-    void importSyncConfigs(const char* data, std::function<void(error)> completion);
+    void importSyncConfigs(const char* data, std::function<void(error)> completion, bool startSyncs);
 
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;

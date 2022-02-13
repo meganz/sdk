@@ -3775,7 +3775,7 @@ string Syncs::exportSyncConfigs() const
     return exportSyncConfigs(configsForDrive(LocalPath()));
 }
 
-void Syncs::importSyncConfigs(const char* data, std::function<void(error)> completion)
+void Syncs::importSyncConfigs(const char* data, std::function<void(error)> completion, bool startSyncs)
 {
     assert(!onSyncThread());
 
@@ -3869,9 +3869,24 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                 // Yep, add them to the sync.
                 for (const auto& config : context->mConfigs)
                 {
-                    std::promise<bool> synchronous;
-                    syncs.appendNewSync(config, false, false, [&](error, SyncError, handle){ synchronous.set_value(true); }, false, "");
-                    synchronous.get_future().get();
+                    // So we can wait for the sync to be added.
+                    std::promise<void> waiter;
+
+                    // Called when the engine has added the sync.
+                    auto completion = [&waiter](error, SyncError, handle) {
+                        waiter.set_value();
+                    };
+
+                    // Add the new sync, optionally enabling it.
+                    syncs.appendNewSync(config,
+                                        context->mStartSyncs,
+                                        false,
+                                        std::move(completion),
+                                        false,
+                                        config.mName); 
+
+                    // Wait for this sync to be added.
+                    waiter.get_future().get();
                 }
 
                 LOG_debug << context->mConfigs.size()
@@ -3914,6 +3929,9 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
         // Who we're adding the configs to.
         Syncs* mSyncs;
+
+        // Whether we should start the syncs we've imported.
+        bool mStartSyncs;
     }; // Context
 
     // Sanity.
@@ -3980,6 +3998,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
     context->mConfig = context->mConfigs.begin();
     context->mDeviceHash = mClient.getDeviceidHash();
     context->mSyncs = this;
+    context->mStartSyncs = startSyncs;
 
     LOG_debug << "Attempting to generate backup IDs for "
               << context->mConfigs.size()
