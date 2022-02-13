@@ -2117,7 +2117,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
  }
 
 
- #ifdef DEBUG
+ #ifndef NDEBUG
  handle debug_getfsid(const LocalPath& p, FileSystemAccess& fsa)
  {
     auto fa = fsa.newfileaccess();
