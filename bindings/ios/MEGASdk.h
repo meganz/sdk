@@ -1106,50 +1106,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)loginWithEmail:(NSString *)email password:(NSString *)password;
 
 /**
- * @brief Log in to a MEGA account using precomputed keys.
- *
- * The associated request type with this request is MEGARequestTypeLogin.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the first parameter
- * - [MEGARequest password] - Returns the second parameter
- * - [MEGARequest privateKey] - Returns the third parameter
- *
- * If the email/stringHash/base64pwKey aren't valid the error code provided in onRequestFinish is
- * MEGAErrorTypeApiENoent.
- *
- * @param email Email of the user.
- * @param stringHash Hash of the email returned by [MEGASdk hashForBase64pwkey:email:].
- * @param base64pwKey Private key calculated using [MEGASdk base64PwKeyWithPassword:].
- * @param delegate Delegate to track this request.
- *
- * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
- * one soon. Please use [MEGASdk loginWithEmail:password:delegate:] or [MEGASdk fastLoginWithSession:delegate]
- * instead when possible.
- */
-- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("The parameter stringHash is no longer for new accounts so this function will be replaced by another one soon. Please use [MEGASdk loginWithEmail:password:delegate:] or [MEGASdk fastLoginWithSession:delegate:] instead when possible.")));
-
-/**
- * @brief Log in to a MEGA account using precomputed keys.
- *
- * The associated request type with this request is MEGARequestTypeLogin.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the first parameter
- * - [MEGARequest password] - Returns the second parameter
- * - [MEGARequest privateKey] - Returns the third parameter
- *
- * If the email/stringHash/base64pwKey aren't valid the error code provided in onRequestFinish is
- * MEGAErrorTypeApiENoent.
- *
- * @param email Email of the user.
- * @param stringHash Hash of the email returned by [MEGASdk hashForBase64pwkey:email:].
- * @param base64pwKey Private key calculated using [MEGASdk base64PwKeyWithPassword:].
- *
- * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
- * one soon. Please use [MEGASdk loginWithEmail:password:] or [MEGASdk fastLoginWithSession:] instead when possible.
- */
-- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey __attribute__((deprecated("The parameter stringHash is no longer for new accounts so this function will be replaced by another one soon. Please use [MEGASdk loginWithEmail:password:] or [MEGASdk fastLoginWithSession:] instead when possible.")));
-
-/**
  * @brief Log in to a MEGA account using a session key.
  *
  * The associated request type with this request is MEGARequestTypeFastLogin.
@@ -1770,37 +1726,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param password Password for the account
  */
 - (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password;
-
-/**
- * @brief Sends the confirmation email for a new account
- *
- * This function is useful to send the confirmation link again or to send it to a different
- * email address, in case the user mistyped the email at the registration form.
- *
- * @param email Email for the account
- * @param name Firstname of the user
- * @param base64pwkey key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
- * @param delegate MEGARequestDelegate to track this request
- *
- * @deprecated This function only works using the old registration method and will be removed soon.
- * Please use [MEGASdk sendSignupLinkWithEmail:name:password:delegate:] instead.
- */
-- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("This function only works using the old registration method and will be removed soon. Please use [MEGASdk sendSignupLinkWithEmail:name:password:delegate:] instead.")));
-
-/**
- * @brief Sends the confirmation email for a new account
- *
- * This function is useful to send the confirmation link again or to send it to a different
- * email address, in case the user mistyped the email at the registration form.
- *
- * @param email Email for the account
- * @param name Firstname of the user
- * @param base64pwkey key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
- *
- * @deprecated This function only works using the old registration method and will be removed soon.
- * Please use [MEGASdk sendSignupLinkWithEmail:name:password:] instead.
- */
-- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name __attribute__((deprecated("This function only works using the old registration method and will be removed soon. Please use [MEGASdk sendSignupLinkWithEmail:name:password:] instead.")));
 
 /**
  * @brief Get information about a confirmation link or a new signup link.

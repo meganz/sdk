@@ -672,18 +672,6 @@ using namespace mega;
     }
 }
 
-- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey {
-    if (self.megaApi) {
-        self.megaApi->fastLogin(email.UTF8String, stringHash.UTF8String, base64pwKey.UTF8String);
-    }
-}
-
-- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->fastLogin(email.UTF8String, stringHash.UTF8String, base64pwKey.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
 - (void)fastLoginWithSession:(NSString *)session {
     if (self.megaApi) {
         self.megaApi->fastLogin(session.UTF8String);
@@ -896,18 +884,6 @@ using namespace mega;
 - (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password {
     if (self.megaApi) {
         self.megaApi->sendSignupLink(email.UTF8String, name.UTF8String, password.UTF8String);
-    }
-}
-
-- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->fastSendSignupLink(email.UTF8String, base64pwkey.UTF8String, name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name {
-    if (self.megaApi) {
-        self.megaApi->fastSendSignupLink(email.UTF8String, base64pwkey.UTF8String, name.UTF8String);
     }
 }
 
