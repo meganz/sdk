@@ -18015,7 +18015,7 @@ void NodeManager::addCounter(const NodeHandle &h)
 void NodeManager::calculateCounter(const Node& n)
 {
     NodeHandle h = n.nodeHandle();
-    if (!mKeepAllNodesInMemory && mClient.fetchingnodes) // In this case, node counters are calculated in NodeManager::addNode
+    if (!mKeepAllNodesInMemory && mClient.fetchingnodes && !n.notified) // In this case, node counters are calculated in NodeManager::addNode
     {
         return;
     }
