@@ -2443,6 +2443,12 @@ class MegaApiImpl : public MegaApp
         int getTotalDownloads();
         void resetTotalDownloads();
         void resetTotalUploads();
+        size_t getCompletedUploads();
+        size_t getCompletedDownloads();
+        void resetCompletedDownloads();
+        void resetCompletedUploads();
+        void removeCompletedUpload(int transferTag);
+        void removeCompletedDownload(int transferTag);
         void updateStats();
         long long getNumNodes();
         long long getTotalDownloadedBytes();
@@ -2896,6 +2902,10 @@ protected:
         int pendingDownloads;
         int totalUploads;
         int totalDownloads;
+        //key: transfer tag - value: transferred bytes
+        map<int, long long> completedUploads;
+        //key: transfer tag - value: transferred bytes
+        map<int, long long> completedDownloads;
         long long totalDownloadedBytes;
         long long totalUploadedBytes;
         long long totalDownloadBytes;
@@ -3251,6 +3261,12 @@ protected:
 private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
+
+        void resetCompletedDownloadsImpl();
+        void resetCompletedUploadsImpl();
+        void removeCompletedUploadImpl(int transferTag);
+        void removeCompletedDownloadImpl(int transferTag);
+
 #ifdef ENABLE_SYNC
         error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
 #endif
