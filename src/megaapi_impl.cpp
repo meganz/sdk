@@ -523,7 +523,7 @@ bool MegaNodePrivate::serialize(string *d)
 
     bool hasOriginalFingerprint = originalfingerprint && originalfingerprint[0];
 
-    w.serializeexpansionflags(hasChatAuth, hasOwner, hasOriginalFingerprint);
+    w.serializeexpansionflags(hasChatAuth, hasOwner, hasOriginalFingerprint, mIsNodeKeyDecrypted);
 
     if (hasChatAuth)
     {
@@ -537,6 +537,7 @@ bool MegaNodePrivate::serialize(string *d)
     {
         w.serializecstr(originalfingerprint, false);
     }
+    // 4th boolean in expansion flags will be set to the boolean value directly
 
     return true;
 }
@@ -547,7 +548,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     string name, fingerprint, originalfingerprint, attrstring, nodekey, privauth, pubauth, chatauth;
     int64_t size, ctime, mtime;
     MegaHandle nodehandle, parenthandle, owner = INVALID_HANDLE;
-    bool isPublicNode, foreign;
+    bool isPublicNode, foreign, isNodeKeyDecrypted;
     unsigned char expansions[8];
     string fileattrstring; // fileattrstring is not serialized
     if (!r.unserializecstr(name, true) ||
@@ -563,7 +564,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         !r.unserializestring(pubauth) ||
         !r.unserializebool(isPublicNode) ||
         !r.unserializebool(foreign) ||
-        !r.unserializeexpansionflags(expansions, 3) ||
+        !r.unserializeexpansionflags(expansions, 4) ||
         (expansions[0] && !r.unserializecstr(chatauth, false)) ||
         (expansions[1] && !r.unserializehandle(owner)) ||
         (expansions[2] && !r.unserializecstr(originalfingerprint, false)))
@@ -571,6 +572,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         LOG_err << "MegaNode unserialization failed at field " << r.fieldnum;
         return NULL;
     }
+    isNodeKeyDecrypted = expansions[3]; // the expansion flag is used to represent its value
 
     r.eraseused(*d);
 
@@ -578,7 +580,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
                                mtime, nodehandle, &nodekey, &fileattrstring,
                                fingerprint.empty() ? NULL : fingerprint.c_str(), originalfingerprint.empty() ? NULL : originalfingerprint.c_str(),
                                owner, parenthandle, privauth.c_str(), pubauth.c_str(),
-                               isPublicNode, foreign, chatauth.empty() ? NULL : chatauth.c_str());
+                               isPublicNode, foreign, chatauth.empty() ? NULL : chatauth.c_str(), isNodeKeyDecrypted);
 }
 
 char *MegaNodePrivate::getBase64Handle()
