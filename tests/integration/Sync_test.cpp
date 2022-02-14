@@ -3330,23 +3330,21 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_1" / "a";
 
-    // Alter MAC but leave fingerprint untouched.
-    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
-
     ASSERT_TRUE(createDataFile(path0, data0));
     waitOnSyncs();
 
-    auto result0 =
-      client0->thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
-                         {
-                             p->set_value(
-                                 createDataFileWithTimestamp(
-                                 path1,
-                                 data1,
-                                 fs::last_write_time(path0)));
-                         });
+    // Alter MAC but leave fingerprint untouched.
+    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
 
-    ASSERT_TRUE(waitonresults(&result0));
+    // Prepare the file outside of the sync's view.
+    auto stamp = fs::last_write_time(path0);
+
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, stamp));
+
+    // Move the file into place.
+    fs::rename(client0->fsBasePath / "a", path1);
+
+    // Wait for the engine to process changes.
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
@@ -3365,22 +3363,21 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_0" / "b";
 
-    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
-
     ASSERT_TRUE(createDataFile(path0, data0));
     waitOnSyncs();
 
-    auto result0 =
-      client0->thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
-                         {
-                             p->set_value(
-                                 createDataFileWithTimestamp(
-                                 path1,
-                                 data1,
-                                 fs::last_write_time(path0)));
-                         });
+    // Alter MAC but leave fingerprint untouched.
+    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
 
-    ASSERT_TRUE(waitonresults(&result0));
+    // Prepare the file outside of the engine's view.
+    auto stamp = fs::last_write_time(path0);
+
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, stamp));
+
+    // Move the file into place.
+    fs::rename(client0->fsBasePath / "a", path1);
+
+    // Wait for the engine to process our change.
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
@@ -3401,17 +3398,15 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     ASSERT_TRUE(createDataFile(path0, data0));
     waitOnSyncs();
 
-    auto result0 =
-      client0->thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
-                         {
-                            p->set_value(
-                                 createDataFileWithTimestamp(
-                                 path1,
-                                 data0,
-                                 fs::last_write_time(path0)));
-                         });
+    // Build the file somewhere the sync won't notice.
+    auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(waitonresults(&result0));
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "b", data0, stamp));
+
+    // Move file into place.
+    fs::rename(client0->fsBasePath / "b", path1);
+
+    // Wait for the engine to process our changes.
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
