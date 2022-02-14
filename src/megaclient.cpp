@@ -434,7 +434,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
                             n->inshare->user->sharing.insert(n->nodehandle);
                             NodeHandle nodeHandle;
                             nodeHandle.set6byte(n->nodehandle);
-                            mNodeManager.addCounter(nodeHandle);
+                            // Avoid to add nested in shares
+                            if (!n->parent)
+                            {
+                                mNodeManager.calculateCounter(*n);
+                            }
                         }
 
                         if (notify)
@@ -18011,12 +18015,28 @@ void NodeManager::addCounter(const NodeHandle &h)
 void NodeManager::calculateCounter(const Node& n)
 {
     NodeHandle h = n.nodeHandle();
+    if (!mKeepAllNodesInMemory && mClient.fetchingnodes) // In this case, node counters are calculated in NodeManager::addNode
+    {
+        return;
+    }
+
     assert(mNodeCounters.find(h) == mNodeCounters.end());
     // this method is called only for rootnodes and inshares, where
     // the parent node can be FOLDERNODE (for nested inshares), or TYPE_UNKNOWN
     // (for inshares and rootnodes). The purpose of the type is to differentiate
     // between rootnodes, folders and files, so we can pass the own node's type
     mNodeCounters[h] = getNodeCounter(n);
+
+    // Remove nested inShares
+    for (const auto& counter : mNodeCounters)
+    {
+        NodeHandle ancestor = getFirstAncestor(counter.first);
+        if (counter.first != ancestor && ancestor == n.nodeHandle())
+        {
+            mNodeCounters.erase(counter.first);
+            break;
+        }
+    }
 }
 
 void NodeManager::subtractFromRootCounter(const Node& n)
