@@ -1268,6 +1268,11 @@ bool MegaTransfer::getTargetOverride() const
     return false;
 }
 
+MegaCancelToken* MegaTransfer::getCancelToken() const
+{
+    return NULL;
+}
+
 const char* MegaTransfer::stageToString(unsigned stage)
 {
     switch (stage)

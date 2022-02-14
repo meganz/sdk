@@ -4498,6 +4498,31 @@ class MegaTransfer
         virtual bool getTargetOverride() const;
 
         /**
+         * @brief Returns a pointer to the cancel token associated to a MegaTransfer in case it exists.
+         *
+         * CancelToken can be used to cancel a batch of transfers (upload or download) that contains at least one folder.
+         *
+         * When user wants to upload/download a batch of items that at least contains one folder, SDK mutex will be partially
+         * locked until:
+         *  - we have received onTransferStart for every file in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+         *    for every folder in the batch
+         *
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+         * This method will cancel all transfers(not finished yet).
+         *
+         * Important considerations:
+         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+         *    of those transfers.
+         *
+         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
+         *    that shares the same cancel token instance.
+         *
+         * @return A pointer to the cancelToken instance associated to the transfer in case it exists
+         */
+        virtual MegaCancelToken* getCancelToken() const;
+
+        /**
          * @brief Returns a string that identify the recursive operation stage
          *
          * @return A string that identify the recursive operation stage
