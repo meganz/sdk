@@ -12601,6 +12601,22 @@ class MegaApi
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
          *
+         * When user wants to upload/download a batch of items that at least contains one folder, SDK mutex will be partially
+         * locked until:
+         *  - we have received onTransferStart for every file in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+         *    for every folder in the batch
+         *
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+         * This method will cancel all transfers(not finished yet).
+         *
+         * Important considerations:
+         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+         *    of those transfers.
+         *
+         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
+         *    that shares the same cancel token instance.
+         *
          * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
          * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
          * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
@@ -12629,8 +12645,8 @@ class MegaApi
          * @param startFirst puts the transfer on top of the upload queue
          *  + If you don't need this param provide false as value
          * @param cancelToken MegaCancelToken to be able to cancel a folder/file upload process.
-         * This param is required to be able to cancel the transfer safely by calling MegaCancelToken::cancel(true)
-         * You preserve the ownership of this param.
+         * This param is required to be able to cancel the transfer safely.
+         * App retains the ownership of this param.
          * @param listener MegaTransferListener to track this transfer
          */
         void startUpload(const char *localPath, MegaNode *parent, int64_t mtime, const char *appData, const char *fileName, bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener=NULL);
@@ -12671,6 +12687,22 @@ class MegaApi
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
          *
+         * When user wants to upload/download a batch of items that at least contains one folder, SDK mutex will be partially
+         * locked until:
+         *  - we have received onTransferStart for every file in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+         *    for every folder in the batch
+         *
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+         * This method will cancel all transfers(not finished yet).
+         *
+         * Important considerations:
+         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+         *    of those transfers.
+         *
+         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
+         *    that shares the same cancel token instance.
+         *
          * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
          * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
          * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
@@ -12692,8 +12724,8 @@ class MegaApi
          * @param startFirst puts the transfer on top of the download queue
          *  + If you don't need this param provide false as value
          * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
-         * This param is required to be able to cancel the transfer safely by calling MegaCancelToken::cancel(true)
-         * You preserve the ownership of this param.
+         * This param is required to be able to cancel transfers safely.
+         * App retains the ownership of this param.
          * @param listener MegaTransferListener to track this transfer
          */
         void startDownload(MegaNode* node, const char* localPath, const char *appData,  const char *customName, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener = NULL);
