@@ -3285,7 +3285,7 @@ int MegaApi::syncPathState(string* path)
 
 MegaNode *MegaApi::getSyncedNode(string *path)
 {
-    return pImpl->getSyncedNode(LocalPath::fromPlatformEncoded(*path));
+    return pImpl->getSyncedNode(LocalPath::fromPlatformEncodedAbsolute(*path));
 }
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3528,6 +3528,36 @@ void MegaApi::resetTotalDownloads()
 void MegaApi::resetTotalUploads()
 {
     pImpl->resetTotalUploads();
+}
+
+size_t MegaApi::getCompletedUploads()
+{
+    return pImpl->getCompletedUploads();
+}
+
+size_t MegaApi::getCompletedDownloads()
+{
+    return pImpl->getCompletedDownloads();
+}
+
+void MegaApi::resetCompletedDownloads()
+{
+    pImpl->resetCompletedDownloads();
+}
+
+void MegaApi::removeCompletedUpload(int transferTag)
+{
+    pImpl->removeCompletedUpload(transferTag);
+}
+
+void MegaApi::removeCompletedDownload(int transferTag)
+{
+    pImpl->removeCompletedDownload(transferTag);
+}
+
+void MegaApi::resetCompletedUploads()
+{
+    pImpl->resetCompletedUploads();
 }
 
 MegaNode *MegaApi::getRootNode()

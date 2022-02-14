@@ -26,7 +26,7 @@ AC_DEFUN([CHECK_ATOMIC], [
       AC_MSG_RESULT([yes])
     ],[
       AC_MSG_RESULT([no])
-      LDFLAGS="$LDFLAGS -latomic"
+      LIBS="$LIBS -latomic"
       AC_MSG_CHECKING([whether std::atomic needs -latomic])
       AC_LINK_IFELSE([AC_LANG_SOURCE([_CHECK_ATOMIC_testbody])],[
           AC_MSG_RESULT([yes])
