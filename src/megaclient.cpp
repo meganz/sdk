@@ -7833,8 +7833,8 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
         return API_EKEY;
     }
 
-    n->changed.name = n->attrs.hasUpdate(updates, 'n');
-    n->changed.favourite = n->attrs.hasUpdate(updates, AttrMap::string2nameid("fav"));
+    n->changed.name = n->attrs.hasUpdate('n', updates);
+    n->changed.favourite = n->attrs.hasUpdate(AttrMap::string2nameid("fav"), updates);
 
     // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
     n->attrs.applyUpdates(updates);

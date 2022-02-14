@@ -711,6 +711,7 @@ void Node::setattr()
         nameid name;
         string* t;
 
+        AttrMap oldAttrs(attrs);
         attrs.map.clear();
         json.begin((char*)buf + 5);
 
@@ -720,14 +721,12 @@ void Node::setattr()
 
             if (name == 'n')
             {
-                changed.name = true;
                 LocalPath::utf8_normalize(t);
             }
-            else if (name == AttrMap::string2nameid("fav"))
-            {
-                changed.favourite = true;
-            }
         }
+
+        changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
+        changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
 
         setfingerprint();
 
