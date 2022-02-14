@@ -156,13 +156,13 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
     return ptr;
 }
 
-bool AttrMap::hasUpdate(const attr_map& updates, nameid attrId) const
+bool AttrMap::hasUpdate(nameid attrId, const attr_map& updates) const
 {
-    // An attribute will only be touched if it was included in `updates` map.
-    // Even for removing it, it should be present there with an empty value.
     auto curIt = map.find(attrId);
     auto updIt = updates.find(attrId);
-    return curIt != map.end() && (updIt == updates.end() || curIt->second != updIt->second);
+    return updIt != updates.end() && // is present in updates AND
+           ((curIt == map.end() && !updIt->second.empty()) || // is not present here and has non-empty value in updates OR
+            (curIt != map.end() && curIt->second != updIt->second)); // is present here but has different value in updates
 }
 
 void AttrMap::applyUpdates(const attr_map& updates)
