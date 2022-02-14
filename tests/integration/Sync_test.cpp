@@ -1198,7 +1198,24 @@ bool StandardClient::waitForNodesUpdated(unsigned numSeconds)
 void StandardClient::syncupdate_stateconfig(const SyncConfig& config) { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << "syncupdate_stateconfig() " << toHandle(config.mBackupId); } }
 void StandardClient::syncupdate_scanning(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_scanning()" << b; } }
 
-void StandardClient::syncupdate_stalled(bool b)
+void StandardClient::syncupdate_conflicts(bool state)
+{
+    if (logcb)
+    {
+        onCallback();
+
+        lock_guard<mutex> guard(om);
+
+        out() << clientname << "syncupdate_conflicts()" << state;
+    }
+
+    mConflictsDetected.store(state);
+
+    if (mOnConflictsDetected)
+        mOnConflictsDetected(state);
+}
+
+void StandardClient::syncupdate_stalled(bool state)
 {
     if (logcb)
     {
@@ -1206,13 +1223,13 @@ void StandardClient::syncupdate_stalled(bool b)
 
         lock_guard<mutex> g(om);
 
-        out() << clientname << "syncupdate_stalled()" << b;
+        out() << clientname << "syncupdate_stalled()" << state;
     }
 
-    mStallDetected.store(b);
+    mStallDetected.store(state);
 
     if (mOnStall)
-        mOnStall(b);
+        mOnStall(state);
 }
 
 void StandardClient::file_added(File* file)
@@ -3549,6 +3566,13 @@ SyncWaitPredicate SyncStallState(bool state)
 {
     return [state](StandardClient& client) {
         return client.mStallDetected == state;
+    };
+}
+
+SyncWaitPredicate SyncConflictState(bool state)
+{
+    return [state](StandardClient& client) {
+        return client.mConflictsDetected == state;
     };
 }
 
@@ -11478,6 +11502,126 @@ public:
     }
 }; /* LocalToCloudFilterFixture */
 
+TEST_F(LocalToCloudFilterFixture, AcceptableFilterNameClash)
+{
+    const auto TIMEOUT = std::chrono::seconds(16);
+
+    // Log in, taking care to reset the cloud's content.
+    ASSERT_TRUE(cu->login_reset_makeremotenodes("s"));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("dl/fe");
+    model.addfile("dl/fi");
+    model.addfile(".megaignore", "-:fe");
+    model.generate(cu->fsBasePath / "s");
+
+    // Populate the cloud.
+    {
+        // Convenience.
+        auto ignoreFilePath = cu->fsBasePath / ".megaignore";
+
+        // Create an ignore file for us to upload.
+        ASSERT_TRUE(createDataFile(ignoreFilePath, "#"));
+
+        // Upload the ignore file twice so to create a remote name clash.
+        ASSERT_TRUE(cu->uploadFile(ignoreFilePath, "/mega_test_sync/s"));
+        ASSERT_TRUE(cu->uploadFile(ignoreFilePath, "/mega_test_sync/s"));
+    }
+
+    // Add and start a sync.
+    auto id = setupSync(*cu, "s", "s", false);
+    ASSERT_NE(id, UNDEF);
+
+    // Give the engine some time to detect the name clash.
+    waitOnSyncs(cu.get());
+
+    // Wait for the engine to detect the name clash.
+    ASSERT_TRUE(cu->waitFor(SyncConflictState(true), TIMEOUT));
+
+    // Make sure the clash is due to the ignore files.
+    {
+        list<NameConflict> conflicts;
+
+        // Ask the engine what clashes it has detected.
+        ASSERT_TRUE(cu->conflictsDetected(conflicts));
+
+        // Clashes present?
+        ASSERT_FALSE(conflicts.empty());
+
+        const auto& conflict = conflicts.front();
+
+        // Present at the sync root?
+        ASSERT_EQ(conflict.cloudPath, "/mega_test_sync/s");
+
+        // Two clashing names?
+        ASSERT_EQ(conflict.clashingCloudNames.size(), 2u);
+
+        // Both ignore files?
+        ASSERT_EQ(conflict.clashingCloudNames[0], IGNORE_FILE_NAME);
+        ASSERT_EQ(conflict.clashingCloudNames[1], IGNORE_FILE_NAME);
+    }
+
+    // Check that the engine uploaded what we expect.
+    auto* root = cu->gettestbasenode();
+
+    // Get our hands on the cloud root.
+    root = cu->drillchildnodebyname(root, "s");
+    ASSERT_NE(root, nullptr);
+
+    // Check that the directory "dl" has been uploaded.
+    auto *dl = cu->drillchildnodebyname(root, "dl");
+    ASSERT_NE(dl, nullptr);
+
+    // Check that the file "dl/fi" has been uploaded.
+    ASSERT_NE(cu->drillchildnodebyname(dl, "fi"), nullptr);
+
+    // Check that the file "dl/fe" has been skipped.
+    ASSERT_EQ(cu->drillchildnodebyname(dl, "fe"), nullptr);
+
+    // Locally removing the ignore file should clear any loaded filters.
+    fs::remove(cu->fsBasePath / "s" / ".megaignore");
+
+    // Give the engine some time to react to our changes.
+    waitOnSyncs(cu.get());
+    
+    // Add a new file for the engine to try and synchronize.
+    model.addfile("dl/fx");
+    model.removenode(".megaignore");
+    model.generate(cu->fsBasePath / "s");
+
+    // Give the engine some time to process our changes.
+    waitOnSyncs(cu.get());
+
+    // "dl/fx" should not be synchronized.
+    //
+    // This is because there is no local ignore file present but there are
+    // two ignore files in the cloud and the engine can't decide which of
+    // the two it should download and read.
+    //
+    // That is, the filter state is undefined.
+    //
+    // The engine will not synchronize anything until the issue is resolved.
+    ASSERT_EQ(cu->drillchildnodebyname(dl, "fx"), nullptr);
+
+    // Remove one of the ignore files in the cloud.
+    ASSERT_TRUE(cu->deleteremote("s/.megaignore"));
+
+    // Wait for the engine to process the changes.
+    waitOnSyncs(cu.get());
+
+    // Wait for the name clash to be resolved.
+    ASSERT_TRUE(cu->waitFor(SyncConflictState(false), TIMEOUT));
+
+    // Ignore file's been downloaded.
+    model.addfile(".megaignore", "#");
+    model.ensureLocalDebrisTmpLock("");
+
+    // No filters should be in effect and all files should be synchronized.
+    ASSERT_TRUE(confirm(*cu, id, model, false));
+}
+
 TEST_F(LocalToCloudFilterFixture, DoesntDownloadIgnoredNodes)
 {
     // Set up cloud.
@@ -12410,6 +12554,67 @@ TEST_F(LocalToCloudFilterFixture, FilterMovedUpHierarchy)
     // Confirm models.
     ASSERT_TRUE(confirm(*cu, id, localFS));
     ASSERT_TRUE(confirm(*cu, id, remoteTree));
+}
+
+TEST_F(LocalToCloudFilterFixture, FilterNameClash)
+{
+    auto TIMEOUT = std::chrono::seconds(16);
+
+    // Log in the client and clear the cloud.
+    ASSERT_TRUE(cu->login_reset_makeremotenodes("s"));
+
+    Model model;
+
+    // Populate the local filesystem.
+    model.addfolder("d");
+    model.addfile(".megaignore", "#");
+    model.addfile(".megaignore", "#")->fsName(".%6degaignore");
+    model.generate(cu->fsBasePath / "s");
+
+    // Add and start a sync.
+    auto id = setupSync(*cu, "s", "s", false);
+    ASSERT_NE(id, UNDEF);
+
+    // Give the engine some time to detect the name conflicts.
+    waitOnSyncs(cu.get());
+
+    // Wait for the engine to detect the name conflicts.
+    ASSERT_TRUE(cu->waitFor(SyncConflictState(true), TIMEOUT));
+
+    list<NameConflict> conflicts;
+
+    // Ask the engine what name conflicts it has detected.
+    ASSERT_TRUE(cu->conflictsDetected(conflicts));
+
+    // Make sure the list of conflicts isn't empty.
+    ASSERT_FALSE(conflicts.empty());
+
+    // Make sure the conflcit is due to the ignore files.
+    const auto& conflict = conflicts.front();
+
+    // Detected at sync root?
+    ASSERT_EQ(conflict.localPath.toPath(),
+              (cu->fsBasePath / "s").u8string());
+
+    // Two local name clashes detected?
+    ASSERT_EQ(conflict.clashingLocalNames.size(), 2u);
+
+    // Both ignore files?
+    {
+        auto isIgnoreFile = [](const LocalPath& name) {
+            // No ambiguity, thanks.
+            const LocalPath& ignoreFileName = IGNORE_FILE_NAME;
+
+            // Compare the name, taking care to decode any escapes.
+            return !platformCompareUtf(name, true, ignoreFileName, false);
+        };
+
+        ASSERT_TRUE(isIgnoreFile(conflict.clashingLocalNames[0]));
+        ASSERT_TRUE(isIgnoreFile(conflict.clashingLocalNames[1]));
+    }
+
+    // Make sure we didn't upload the "d" directory.
+    ASSERT_EQ(cu->drillchildnodebyname(cu->gettestbasenode(), "s/d"), nullptr);
 }
 
 TEST_F(LocalToCloudFilterFixture, FilterOverwritten)
@@ -13930,6 +14135,68 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
     // Confirm models.
     ASSERT_TRUE(confirm(*cd, id, localFS));
     ASSERT_TRUE(confirm(*cd, id, remoteTree));
+}
+
+TEST_F(CloudToLocalFilterFixture, FilterNameClash)
+{
+    auto TIMEOUT = std::chrono::seconds(16);
+
+    // Set up cloud.
+    {
+        // Create the cloud root.
+        ASSERT_TRUE(cdu->login_reset_makeremotenodes("s"));
+
+        // Convenience.
+        auto ignoreFilePath = cdu->fsBasePath / ".megaignore";
+
+        // Create a dummy ignore file for us to upload.
+        ASSERT_TRUE(createDataFile(ignoreFilePath, "#"));
+
+        // Upload the ignore file, twice.
+        // This is so we have a cloud name clash.
+        ASSERT_TRUE(cdu->uploadFile(ignoreFilePath, "/mega_test_sync/s"));
+        ASSERT_TRUE(cdu->uploadFile(ignoreFilePath, "/mega_test_sync/s"));
+    }
+
+    // Make sure local root exists.
+    fs::create_directories(cdu->fsBasePath / "s");
+
+    // Create a directory for the engine to synchronize.
+    fs::create_directories(cdu->fsBasePath / "s" / "d");
+
+    // Add and start a new sync.
+    auto id = setupSync(*cdu, "s", "s", false);
+    ASSERT_NE(id, UNDEF);
+
+    // Give the engine some time to detect the name conflict.
+    waitOnSyncs(cdu.get());
+
+    // Wait for the engine to detect a name conflict.
+    ASSERT_TRUE(cdu->waitFor(SyncConflictState(true), TIMEOUT));
+
+    std::list<NameConflict> conflicts;
+
+    // Ask the engine which name conflicts were detected.
+    ASSERT_TRUE(cdu->conflictsDetected(conflicts));
+
+    // Make sure the list of conflicts isn't empty.
+    ASSERT_FALSE(conflicts.empty());
+
+    // Make sure the conflicts are due to the ignore files.
+    const auto& conflict = conflicts.front();
+
+    // Detected at the sync root?
+    ASSERT_EQ(conflict.cloudPath, "/mega_test_sync/s");
+
+    // Two remote name clashes detected?
+    ASSERT_EQ(conflict.clashingCloudNames.size(), 2u);
+
+    // Both ignore files?
+    ASSERT_EQ(conflict.clashingCloudNames[0], IGNORE_FILE_NAME);
+    ASSERT_EQ(conflict.clashingCloudNames[1], IGNORE_FILE_NAME);
+
+    // Make sure the engine didn't upload the "d" directory.
+    ASSERT_EQ(cdu->drillchildnodebyname(cdu->gettestbasenode(), "s/d"), nullptr);
 }
 
 TEST_F(CloudToLocalFilterFixture, FilterRemoved)
