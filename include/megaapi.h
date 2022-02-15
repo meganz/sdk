@@ -12022,7 +12022,7 @@ class MegaApi
         /**
          * @brief Creates the special folder for backups ("My backups")
          *
-         * It creates a new folder inside the INBOX rootnode and later stores the node's
+         * It creates a new folder inside the Vault rootnode and later stores the node's
          * handle in a user's attribute, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER.
          *
          * Apps should first check if this folder exists already, by calling
@@ -12040,9 +12040,6 @@ class MegaApi
          *
          * @param localizedName Localized name for "My backups" folder
          * @param listener MegaRequestListener to track this request
-         *
-         * // TODO: revamp code to create the folder and chain it
-         * // with the set of the user's attribute.
          */
         void setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener = nullptr);
 

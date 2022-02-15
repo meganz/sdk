@@ -15159,6 +15159,14 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         }
         break;
 
+        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
+        {
+            handle h = 0;
+            memcpy(&h, data, len);
+            request->setNodeHandle(h);
+        }
+        break;
+
         // byte arrays with possible nulls in the middle --> to Base64
         case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY: // fall-through
         {
@@ -15168,13 +15176,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 request->setPassword(fingerprint.c_str());
                 break;
             }
-        }
-        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
-        {
-            handle h = 0;
-            memcpy(&h, data, len);
-            request->setNodeHandle(h);
-            break;
         }
         // fall through
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
