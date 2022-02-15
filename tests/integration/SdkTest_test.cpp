@@ -5439,7 +5439,8 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 {
     mApi[apiIdx].h = UNDEF;
     int err = synchronousGetUserAttribute(apiIdx, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
-    EXPECT_EQ(err, MegaError::API_OK) << "Failed to get USER_ATTR_MY_BACKUPS_FOLDER";
+    EXPECT_TRUE(err == MegaError::API_OK
+                || err == MegaError::API_ENOENT) << "Failed to get USER_ATTR_MY_BACKUPS_FOLDER";
 
     if (mApi[apiIdx].h == UNDEF)
     {

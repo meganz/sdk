@@ -504,7 +504,7 @@ bool MegaClient::setlang(string *code)
     return false;
 }
 
-error MegaClient::setbackupfolder(const char* foldername, int tag, std::function<void(Error)> uacompletion)
+error MegaClient::setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion)
 {
     if (!foldername)
     {
@@ -523,17 +523,20 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     putnodes_prepareOneFolder(&newNode, foldername);
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
-    auto addua = [uacompletion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/)
+    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/)
     {
         if (e != API_OK)
+        {
+            addua_completion(e);
             return;
+        }
 
         assert(handletype == NODE_HANDLE &&
             nodes.size() == 1 &&
             nodes.back().mAddedHandle != UNDEF);
 
-        putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().mAddedHandle, sizeof(nodes.back().mAddedHandle),
-            -1, UNDEF, 0, 0, uacompletion);
+        putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().mAddedHandle, NODEHANDLE,
+            -1, UNDEF, 0, 0, addua_completion);
     };
 
     putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua);

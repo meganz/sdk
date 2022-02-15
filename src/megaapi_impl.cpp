@@ -1454,7 +1454,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     if (!handleContainerStr) { return API_EACCESS; }
 
     handle h = 0; // make sure top two bytes are 0
-    Base64::atob(handleContainerStr->c_str(), (byte*)&h, MegaClient::NODEHANDLE);
+    memcpy(&h, handleContainerStr->data(), handleContainerStr->size());
 
     if (!h || h == UNDEF) { return API_ENOENT; }
 
@@ -15169,6 +15169,13 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 break;
             }
         }
+        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
+        {
+            handle h = 0;
+            memcpy(&h, data, len);
+            request->setNodeHandle(h);
+            break;
+        }
         // fall through
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
@@ -23063,12 +23070,20 @@ void MegaApiImpl::sendPendingRequests()
 #endif
         case MegaRequest::TYPE_SET_MY_BACKUPS:
         {
-            auto putua_completion = [request, this](Error e)
+            auto addua_completion = [request, this](Error e)
             {
+                if (e == API_OK)
+                {
+                    const string *buf = client->ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
+                    handle h = 0;
+                    memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
+
+                    request->setNodeHandle(h);
+                }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             };
 
-            e = client->setbackupfolder(request->getText(), nextTag, putua_completion);
+            e = client->setbackupfolder(request->getText(), nextTag, addua_completion);
             break;
         }
         default:
