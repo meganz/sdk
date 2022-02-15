@@ -1047,11 +1047,23 @@ class MegaNode
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
          * of the MegaNode object.
          *
+         * @warning This method is not suitable for programming languages that require auto-generated bindings,
+         * due to the lack of mapping of string pointers to objects in different languages.
+         *
          * @return Decryption key of the file (in binary format)
-         * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-         * Use MegaNode::getBase64Key instead
          */
         virtual std::string* getNodeKey();
+
+        /**
+         * @brief Returns true if the node key is decrypted
+         *
+         * For nodes in shared folders, there could be missing keys. Also, faulty
+         * clients might create invalid keys. In those cases, the node's key might
+         * not be decrypted successfully.
+         *
+         * @return True if the node key is decrypted
+         */
+        virtual bool isNodeKeyDecrypted();
 
         /**
          * @brief Returns the file attributes related to the node
