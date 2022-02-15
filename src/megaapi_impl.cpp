@@ -23063,7 +23063,12 @@ void MegaApiImpl::sendPendingRequests()
 #endif
         case MegaRequest::TYPE_SET_MY_BACKUPS:
         {
-            e = client->setbackupfolder(request->getText(), nextTag);
+            auto putua_completion = [request, this](Error e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            };
+
+            e = client->setbackupfolder(request->getText(), nextTag, putua_completion);
             break;
         }
         default:

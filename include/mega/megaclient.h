@@ -1758,7 +1758,7 @@ public:
 
     bool setlang(string *code);
 
-    error setbackupfolder(const char* foldername, int tag);
+    error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> uacompletion);
 
     // sets the auth token to be used when logged into a folder link
     void setFolderLinkAccountAuth(const char *auth);

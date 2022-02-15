@@ -504,7 +504,7 @@ bool MegaClient::setlang(string *code)
     return false;
 }
 
-error MegaClient::setbackupfolder(const char* foldername, int tag)
+error MegaClient::setbackupfolder(const char* foldername, int tag, std::function<void(Error)> uacompletion)
 {
     if (!foldername)
     {
@@ -523,7 +523,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag)
     putnodes_prepareOneFolder(&newNode, foldername);
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
-    auto addua = [this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool targetOverride)
+    auto addua = [uacompletion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool targetOverride)
     {
         if (e != API_OK)
             return;
@@ -533,7 +533,8 @@ error MegaClient::setbackupfolder(const char* foldername, int tag)
             // nodes.back().parenthandle is still UNDEF, is this expected??
             nodes.back().mAddedHandle != UNDEF);
 
-        putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().mAddedHandle, sizeof(nodes.back().mAddedHandle));
+        putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().mAddedHandle, sizeof(nodes.back().mAddedHandle),
+            -1, UNDEF, 0, 0, uacompletion);
     };
 
     putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua);
