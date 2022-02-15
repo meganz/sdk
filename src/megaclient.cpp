@@ -517,20 +517,19 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
         return API_EACCESS;
     }
 
-    // 1. prepare the NewNode and create it via putnodes(), with flag `ibw:1`
+    // 1. prepare the NewNode and create it via putnodes(), with flag `vw:1`
     vector<NewNode> newnodes(1);
     NewNode& newNode = newnodes.back();
     putnodes_prepareOneFolder(&newNode, foldername);
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
-    auto addua = [uacompletion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool targetOverride)
+    auto addua = [uacompletion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/)
     {
         if (e != API_OK)
             return;
 
         assert(handletype == NODE_HANDLE &&
             nodes.size() == 1 &&
-            // nodes.back().parenthandle is still UNDEF, is this expected??
             nodes.back().mAddedHandle != UNDEF);
 
         putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().mAddedHandle, sizeof(nodes.back().mAddedHandle),

@@ -5456,6 +5456,7 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
     }
 
     EXPECT_NE(mApi[apiIdx].h, UNDEF);
+    // TODO: check the node actually exists in the account (nodebyhandle())
 }
 
 TEST_F(SdkTest, DISABLED_SdkUserAlias)
