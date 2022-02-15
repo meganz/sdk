@@ -2939,6 +2939,8 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_MOVE]))
         << "Move operation failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Moving shared file (not owned) to Rubbish bin failed (error: " << mApi[1].lastError << ")";
+    ++ownedNodeCount; // node sent to Rubbish is now owned
+    --inSharedNodeCount;
 
     // --- Test that file in Rubbish bin can be restored ---
     MegaNode* nodeMovedFile = megaApi[1]->getNodeByHandle(mApi[1].h);
