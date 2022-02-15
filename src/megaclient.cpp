@@ -530,10 +530,10 @@ error MegaClient::setbackupfolder(const char* foldername, int tag)
 
         assert(handletype == NODE_HANDLE &&
             nodes.size() == 1 &&
-            rootnodes.vault.eq(nodes.back().parenthandle) &&
-            nodes.back().nodehandle != UNDEF);
+            // nodes.back().parenthandle is still UNDEF, is this expected??
+            nodes.back().mAddedHandle != UNDEF);
 
-        putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().nodehandle, sizeof(nodes.back().nodehandle));
+        putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().mAddedHandle, sizeof(nodes.back().mAddedHandle));
     };
 
     putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua);

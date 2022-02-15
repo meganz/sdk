@@ -14898,6 +14898,7 @@ void MegaApiImpl::putua_result(error e)
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
         || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER &&
+            request->getType() != MegaRequest::TYPE_SET_MY_BACKUPS &&
             request->getType() != MegaRequest::TYPE_VERIFY_CREDENTIALS))
     {
         return;
@@ -23062,13 +23063,7 @@ void MegaApiImpl::sendPendingRequests()
 #endif
         case MegaRequest::TYPE_SET_MY_BACKUPS:
         {
-            int nextTag = client->nextreqtag();
             e = client->setbackupfolder(request->getText(), nextTag);
-            if (e == API_OK)
-            {
-                request->setTag(nextTag);
-                requestMap[nextTag] = request;
-            }
             break;
         }
         default:

@@ -5437,30 +5437,25 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
 
 void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 {
-    // Attempt to get My Backups folder;
-    // make this work even before the remote API has support for My Backups folder
-    synchronousGetMyBackupsFolder(apiIdx);
-    MegaHandle mh = mApi[apiIdx].h;
+    mApi[apiIdx].h = UNDEF;
+    int err = synchronousGetUserAttribute(apiIdx, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+    EXPECT_EQ(err, MegaError::API_OK) << "Failed to get USER_ATTR_MY_BACKUPS_FOLDER";
 
-    // create My Backups folder
-    unique_ptr<MegaNode> myBkpsNode{ mh && mh != INVALID_HANDLE ? megaApi[apiIdx]->getNodeByHandle(mh) : nullptr };
-    if (!myBkpsNode)
+    if (mApi[apiIdx].h == UNDEF)
     {
-        // create My Backups folder (default name, just for testing)
-        unique_ptr<MegaNode> rootnode{ megaApi[apiIdx]->getRootNode() };
         const char* folderName = "My Backups";
-        mh = createFolder(apiIdx, folderName, rootnode.get());
-        ASSERT_NE(mh, UNDEF);
 
-        // set My Backups handle attr
-        int err = synchronousSetMyBackupsFolder(apiIdx, mh);
-        ASSERT_TRUE(err == MegaError::API_OK) << "Setting handle for My Backup folder failed (error: " << err << ")";
-        // read the attribute to make sure it was set
-        mApi[apiIdx].h = 0; // reset this to test its value later
-        err = synchronousGetMyBackupsFolder(apiIdx);
-        ASSERT_TRUE(err == MegaError::API_OK);
-        ASSERT_EQ(mh, mApi[apiIdx].h) << "Getting handle for My Backup folder failed";
+        mApi[apiIdx].userUpdated = false;
+        int err = synchronousSetMyBackupsFolder(apiIdx, folderName);
+        ASSERT_EQ(err, MegaError::API_OK) << "Failed to set backups folder to " << folderName;
+        ASSERT_TRUE(waitForResponse(&mApi[apiIdx].userUpdated)) << "User attribute update not received after " << maxTimeout << " seconds";
+
+        unique_ptr<MegaUser> myUser(megaApi[apiIdx]->getMyUser());
+        err = synchronousGetUserAttribute(apiIdx, myUser.get(), MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+        ASSERT_EQ(err, MegaError::API_OK) << "Failed to get user attribute USER_ATTR_MY_BACKUPS_FOLDER";
     }
+
+    EXPECT_NE(mApi[apiIdx].h, UNDEF);
 }
 
 TEST_F(SdkTest, DISABLED_SdkUserAlias)
