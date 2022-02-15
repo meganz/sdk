@@ -23,6 +23,10 @@
 #include "mega/posix/meganet.h"
 #include "mega/logging.h"
 
+#if defined(USE_OPENSSL)
+#include <openssl/err.h>
+#endif
+
 #if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
 #include <jni.h>
 extern JavaVM *MEGAjvm;
@@ -1821,7 +1825,18 @@ int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t siz
     if (type == CURLINFO_TEXT && size)
     {
         data[size - 1] = 0;
-        NET_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data;
+        std::string errnoInfo;
+        if (strstr(data, "SSL_ERROR_SYSCALL"))
+        {
+            // This function is called quite early by curl code, and hopefully no other call would have
+            // modified errno in the meantime.
+            errnoInfo = " (System errno: " + std::to_string(errno) +
+#if defined(USE_OPENSSL)
+                        "; OpenSSL last err: " + std::to_string(ERR_peek_last_error()) +
+#endif
+                        ")";
+        }
+        NET_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data << errnoInfo;
     }
 
     return 0;
