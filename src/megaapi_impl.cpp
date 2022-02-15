@@ -7864,8 +7864,8 @@ void MegaApiImpl::abortPendingActions(error preverror)
 
     }
 
-    resetTotalDownloads();
-    resetTotalUploads();
+    resetCompletedDownloadsImpl();
+    resetCompletedUploadsImpl();
 }
 
 bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const
@@ -9041,21 +9041,29 @@ bool MegaApiImpl::isInsideSync(MegaNode *node)
 
 int MegaApiImpl::getNumPendingUploads()
 {
+    SdkMutexGuard g(sdkMutex);
+
     return pendingUploads;
 }
 
 int MegaApiImpl::getNumPendingDownloads()
 {
+    SdkMutexGuard g(sdkMutex);
+
     return pendingDownloads;
 }
 
 int MegaApiImpl::getTotalUploads()
 {
+    SdkMutexGuard g(sdkMutex);
+
     return totalUploads;
 }
 
 int MegaApiImpl::getTotalDownloads()
 {
+    SdkMutexGuard g(sdkMutex);
+
     return totalDownloads;
 }
 
@@ -9071,6 +9079,88 @@ void MegaApiImpl::resetTotalUploads()
     totalUploads = 0;
     totalUploadBytes = 0;
     totalUploadedBytes = 0;
+}
+
+size_t MegaApiImpl::getCompletedUploads()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    return completedUploads.size();
+}
+
+size_t MegaApiImpl::getCompletedDownloads()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    return completedDownloads.size();
+}
+
+void MegaApiImpl::resetCompletedDownloads()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    resetCompletedDownloadsImpl();
+}
+
+void MegaApiImpl::resetCompletedUploads()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    resetCompletedUploadsImpl();
+}
+
+void MegaApiImpl::removeCompletedUpload(int transferTag)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    removeCompletedUploadImpl(transferTag);
+}
+
+void MegaApiImpl::removeCompletedDownload(int transferTag)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    removeCompletedDownloadImpl(transferTag);
+}
+
+void MegaApiImpl::resetCompletedDownloadsImpl()
+{
+    completedDownloads.clear();
+    totalDownloads = pendingDownloads;
+    totalDownloadBytes = totalDownloadBytes - totalDownloadedBytes;
+    totalDownloadedBytes = 0;
+}
+
+void MegaApiImpl::resetCompletedUploadsImpl()
+{
+    completedUploads.clear();
+    totalUploads = pendingUploads;
+    totalUploadBytes = totalUploadBytes - totalUploadedBytes;
+    totalUploadedBytes = 0;
+}
+
+void MegaApiImpl::removeCompletedUploadImpl(int transferTag)
+{
+    auto itr = completedUploads.find(transferTag);
+    if (itr != completedUploads.end())
+    {
+        totalUploads--;
+        totalUploadedBytes -= itr->second;
+        totalUploadBytes -= itr->second;
+        completedUploads.erase(itr);
+    }
+}
+
+void MegaApiImpl::removeCompletedDownloadImpl(int transferTag)
+{
+    auto itr = completedDownloads.find(transferTag);
+    if (itr != completedDownloads.end())
+    {
+        totalDownloads--;
+        totalDownloadedBytes -= itr->second;
+        totalDownloadBytes -= itr->second;
+        completedDownloads.erase(itr);
+    }
 }
 
 MegaNode *MegaApiImpl::getRootNode()
@@ -14500,6 +14590,8 @@ void MegaApiImpl::logout_result(error e)
         pendingDownloads = 0;
         totalUploads = 0;
         totalDownloads = 0;
+        completedUploads.clear();
+        completedDownloads.clear();
         waitingRequest = RETRY_NONE;
 
         delete mPushSettings;
@@ -16231,6 +16323,19 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     else
     {
         LOG_info << "Transfer (" << transfer->getTransferString() << ") finished. File: " << transfer->getFileName();
+    }
+
+    // Only for file type transfers and not cancelled transfers
+    if (!transfer->isFolderTransfer() && transfer->getState() != MegaTransfer::STATE_CANCELLED)
+    {
+        if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+        {
+            completedUploads[transfer->getTag()] = transfer->getTransferredBytes();
+        }
+        else    // TYPE_DOWNLOAD and TYPE_LOCAL_TCP_DOWNLOAD
+        {
+            completedDownloads[transfer->getTag()] = transfer->getTransferredBytes();
+        }
     }
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
@@ -18343,6 +18448,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setPath(wLocalPath.toPath().c_str());
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
+                            totalDownloads++;
+                            pendingDownloads++;
                             fireOnTransferStart(transfer);
                             if (node)
                             {
@@ -18357,6 +18464,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setSpeed(0);
                             transfer->setMeanSpeed(0);
                             transfer->setState(MegaTransfer::STATE_COMPLETED);
+                            pendingDownloads--;
                             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_OK), committer);
                             break;
                         }
@@ -21789,7 +21897,7 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getParamType();
             const char *message = request->getText();
 
-            if ((type < 0 || type > 7) || !message)
+            if ((type < 0 || type > 9) || !message)
             {
                 e = API_EARGS;
                 break;
