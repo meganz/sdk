@@ -5457,7 +5457,6 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
     }
 
     EXPECT_NE(mApi[apiIdx].h, UNDEF);
-    // TODO: check the node actually exists in the account (nodebyhandle())
     unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].h));
     EXPECT_NE(n, nullptr);
 }
