@@ -163,12 +163,10 @@ public:
 
     static void gzipCompressOnRotate(LocalPath localPath, LocalPath destinationLocalPath)
     {
-        std::unique_ptr<MegaFileSystemAccess> fsAccess(new MegaFileSystemAccess());
-
         std::ifstream file(localPath.localpath.c_str(), std::ofstream::out);
         if (!file.is_open())
         {
-            std::cerr << "Unable to open log file for reading: " << localPath.toPath(*fsAccess) << std::endl;
+            LOG_err << "Unable to open log file for reading: " << localPath;
             return;
         }
 
@@ -180,7 +178,7 @@ public:
     #endif
         if (!gzfile)
         {
-            std::cerr << "Unable to open gzfile for writing: " << localPath.toPath(*fsAccess) << std::endl;
+            LOG_err << "Unable to open gzfile for writing: " << localPath;
             return;
         }
 
@@ -190,19 +188,20 @@ public:
             line.push_back('\n');
             if (gzputs(gzfile.get(), line.c_str()) == -1)
             {
-                std::cerr << "Unable to compress log file: " << localPath.toPath(*fsAccess) << std::endl;
+                LOG_err << "Unable to compress log file: " << localPath;
                 return;
             }
         }
 
-        fsAccess->unlinklocal(localPath);
+        MegaFileSystemAccess fsAccess;
+        fsAccess.unlinklocal(localPath);
     }
 
 private:
     LocalPath logArchiveNumbered_getFilename(const LocalPath& baseFileName, int logNumber)
     {
         LocalPath newFileName = baseFileName;
-        newFileName.append(LocalPath::fromPlatformEncoded("." + SSTR(logNumber) + ".gz"));
+        newFileName.append(LocalPath::fromPlatformEncodedRelative("." + SSTR(logNumber) + ".gz"));
         return newFileName;
     }
 
@@ -216,7 +215,7 @@ private:
 
             if (!mFsAccess->unlinklocal(toDeletePath))
             {
-                std::cerr << "Error removing log file " << i << std::endl;
+                LOG_err << "Error removing log file " << i;
             }
         }
     }
@@ -236,7 +235,7 @@ private:
                 {
                     if (!mFsAccess->unlinklocal(toRenamePath))
                     {
-                        std::cerr << "Error removing log file " << i << std::endl;
+                        LOG_err << "Error removing log file " << i;
                     }
                 }
                 else
@@ -246,7 +245,7 @@ private:
                     nextPath.appendWithSeparator(nextFileName, false);
                     if (!mFsAccess->renamelocal(toRenamePath, nextPath, true))
                     {
-                        std::cerr << "Error renaming log file " << i << std::endl;
+                        LOG_err << "Error renaming log file " << i;
                     }
                 }
             }
@@ -257,7 +256,7 @@ private:
     {
         std::time_t timestamp = std::time(nullptr);
         LocalPath newFileName = baseFileName;
-        newFileName.append(LocalPath::fromPlatformEncoded("." + SSTR(timestamp) + ".gz"));
+        newFileName.append(LocalPath::fromPlatformEncodedRelative("." + SSTR(timestamp) + ".gz"));
         return newFileName;
     }
 
@@ -265,29 +264,28 @@ private:
             const LocalPath& logsPath, const LocalPath& fileName,
             const std::function< void(const LocalPath&, const LocalPath&) > & walker)
     {
-        FileSystemType fsType = mFsAccess->getlocalfstype(logsPath);
-         std::string logFileName = fileName.toName(*mFsAccess, fsType);
-         if (!logFileName.empty())
-         {
-             LocalPath leafNamePath;
-             DirAccess* da = mFsAccess->newdiraccess();
-             nodetype_t dirEntryType;
-             LocalPath logsPathCopy(logsPath);
-             da->dopen(&logsPathCopy, NULL, false);
-             while (da->dnext(logsPathCopy, leafNamePath, false, &dirEntryType))
-             {
-                 std::string leafName = leafNamePath.toName(*mFsAccess, fsType);
-                 if (leafName.size() > logFileName.size())
-                 {
-                     auto res = std::mismatch(logFileName.begin(), logFileName.end(), leafName.begin());
-                     if (res.first == logFileName.end())
-                     { // logFileName is prefix of leafName
-                         walker(logsPath, leafNamePath);
-                     }
-                 }
-             }
-             delete da;
-         }
+        std::string logFileName = fileName.toName(*mFsAccess);
+        if (!logFileName.empty())
+        {
+            LocalPath leafNamePath;
+            DirAccess* da = mFsAccess->newdiraccess();
+            nodetype_t dirEntryType;
+            LocalPath logsPathCopy(logsPath);
+            da->dopen(&logsPathCopy, NULL, false);
+            while (da->dnext(logsPathCopy, leafNamePath, false, &dirEntryType))
+            {
+                std::string leafName = leafNamePath.toName(*mFsAccess);
+                if (leafName.size() > logFileName.size())
+                {
+                    auto res = std::mismatch(logFileName.begin(), logFileName.end(), leafName.begin());
+                    if (res.first == logFileName.end())
+                    { // logFileName is prefix of leafName
+                        walker(logsPath, leafNamePath);
+                    }
+                }
+            }
+            delete da;
+        }
     }
 
     void logArchiveTimestamp_cleanUpFiles(const LocalPath& logsPath, const LocalPath& fileName)
@@ -300,7 +298,7 @@ private:
             leafNameFullPath.appendWithSeparator(leafNamePath, false);
             if (!mFsAccess->unlinklocal(leafNameFullPath))
             {
-                std::cerr << "Error removing log file " << leafNameFullPath.toPath(*mFsAccess) << std::endl;
+                LOG_err << "Error removing log file " << leafNameFullPath;
             }
         });
     }
@@ -316,7 +314,7 @@ private:
                     logsPath, fileName,
                     [this, currentTimestamp, archiveMaxFileAgeSeconds, &archivedTimestampsPathPairs](const LocalPath& logsPath,const LocalPath& leafNamePath)
         {
-            std::string leafName = leafNamePath.toPath(*mFsAccess);
+            std::string leafName = leafNamePath.toPath();
             std::regex rgx(".*\\.([0-9]+)\\.gz");
             std::smatch match;
             if (std::regex_match(leafName, match, rgx)
@@ -330,7 +328,7 @@ private:
                 {
                     if (!mFsAccess->unlinklocal(leafNameFullPath))
                     {
-                        std::cerr << "Error removing log file " << leafNameFullPath.toPath(*mFsAccess) << std::endl;
+                        LOG_err << "Error removing log file " << leafNameFullPath;
                     }
                 }
                 else
@@ -355,7 +353,7 @@ private:
                 LocalPath& leafNameFullPathToDelete = archivedTimestampsPathPair.second;
                 if (!mFsAccess->unlinklocal(leafNameFullPathToDelete))
                 {
-                    std::cerr << "Error removing log file " << leafNameFullPathToDelete.toPath(*mFsAccess) << std::endl;
+                    LOG_err << "Error removing log file " << leafNameFullPathToDelete;
                 }
                 else
                 {
@@ -418,7 +416,7 @@ private:
 
                 if (!mFsAccess->unlinklocal(fileNameFullPath))
                 {
-                    std::cerr << "Error removing log file " << fileNameFullPath.toPath(*mFsAccess) << std::endl;
+                    LOG_err << "Error removing log file " << fileNameFullPath;
                 }
 
                 outputFile.open(fileNameFullPath.localpath.c_str(), std::ofstream::out);
@@ -435,7 +433,7 @@ private:
                 auto newNameDone = logsPath;
                 newNameDone.appendWithSeparator(logArchive_getNewFilename(fileName), false);
                 auto newNameZipping = newNameDone;
-                newNameZipping.append(LocalPath::fromPlatformEncoded(".zipping"));
+                newNameZipping.append(LocalPath::fromPlatformEncodedRelative(".zipping"));
 
                 outputFile.close();
                 mFsAccess->unlinklocal(newNameZipping);
@@ -534,12 +532,16 @@ private:
 
 };
 
-
 RotativePerformanceLogger::RotativePerformanceLogger()
 {
 }
 
 RotativePerformanceLogger::~RotativePerformanceLogger()
+{
+    stopLogger();
+}
+
+void RotativePerformanceLogger::stopLogger()
 {
     MegaApi::removeLoggerObject(this); // after this no more calls to RotativePerformanceLogger::log
     {
@@ -553,14 +555,18 @@ RotativePerformanceLogger::~RotativePerformanceLogger()
 
 void RotativePerformanceLogger::initialize(const char * logsPath, const char * logFileName, bool logToStdout)
 {
-    auto logsPathLocalPath = LocalPath::fromPlatformEncoded(logsPath);
-    auto logFileNameLocalPath = LocalPath::fromPlatformEncoded(logFileName);
+    auto logsPathLocalPath = LocalPath::fromPlatformEncodedAbsolute(logsPath);
+    auto logFileNameLocalPath = LocalPath::fromPlatformEncodedRelative(logFileName);
 
     mLogToStdout = logToStdout;
 
     unique_ptr<MegaFileSystemAccess> fsAccess(new MegaFileSystemAccess());
     fsAccess->mkdirlocal(logsPathLocalPath, false, false);
 
+    if (mLoggingThread)
+    {
+        stopLogger();
+    }
     mLoggingThread.reset(new RotativePerformanceLoggerLoggingThread());
     mLoggingThread->startLoggingThread(logsPathLocalPath, logFileNameLocalPath);
 
