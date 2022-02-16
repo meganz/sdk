@@ -1195,8 +1195,32 @@ bool StandardClient::waitForNodesUpdated(unsigned numSeconds)
     return received_node_actionpackets;
 }
 
-void StandardClient::syncupdate_stateconfig(const SyncConfig& config) { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << "syncupdate_stateconfig() " << toHandle(config.mBackupId); } }
-void StandardClient::syncupdate_scanning(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_scanning()" << b; } }
+void StandardClient::syncupdate_stateconfig(const SyncConfig& config)
+{
+    onCallback();
+    
+    if (logcb)
+    {
+        lock_guard<mutex> g(om);
+        
+        out() << clientname << "syncupdate_stateconfig() " << toHandle(config.mBackupId);
+    }
+
+    if (mOnSyncStateConfig)
+        mOnSyncStateConfig(config);
+}
+
+void StandardClient::syncupdate_scanning(bool b)
+{
+    if (logcb)
+    {
+        onCallback();
+        
+        lock_guard<mutex> g(om);
+        
+        out() << clientname << "syncupdate_scanning()" << b;
+    }
+}
 
 void StandardClient::syncupdate_conflicts(bool state)
 {
@@ -5797,8 +5821,8 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
     // So we can wait until the syncs are resumed.
     promise<void> notify;
 
-    // Hook onAutoResumeResult callback.
-    c1.onAutoResumeResult = ([id0, id1, &notify]() {
+    // Hook OnSyncStateConfig callback.
+    c1.mOnSyncStateConfig = ([id0, id1, &notify]() {
         auto waiting = std::make_shared<set<handle>>();
 
         // Track the syncs we're waiting for.
@@ -5807,11 +5831,16 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
 
         // Return effective callback.
         return [&notify, waiting](const SyncConfig& config) {
+            // Is the sync running?
+            if (config.mRunState != SyncRunState::Run)
+                return;
+
             // This sync's been resumed.
             waiting->erase(config.mBackupId);
 
             // Are we still waiting for any syncs to resume?
-            if (!waiting->empty()) return;
+            if (!waiting->empty())
+                return;
 
             // Let the waiter know the syncs are up.
             notify.set_value();
@@ -8334,8 +8363,9 @@ TEST_F(SyncTest, ReplaceParentWithEmptyChild)
     // Hook resume callbacks.
     promise<void> notify;
 
-    c.onAutoResumeResult = [&notify](const SyncConfig&) {
-        notify.set_value();
+    c.mOnSyncStateConfig = [&notify](const SyncConfig& config) {
+        if (config.mRunState == SyncRunState::Run)
+            notify.set_value();
     };
 
     // Resume client.
@@ -9749,8 +9779,9 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     // Hook onAutoResumeResult callback.
     promise<void> notify;
 
-    c.onAutoResumeResult = [&notify](const SyncConfig&) {
-        notify.set_value();
+    c.mOnSyncStateConfig = [&notify](const SyncConfig& config) {
+        if (config.mRunState == SyncRunState::Run)
+            notify.set_value();
     };
 
     // Log in client resuming prior session.
@@ -10104,7 +10135,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 
             ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
             ASSERT_EQ(config.mEnabled, true);
-            ASSERT_EQ(config.mError, NO_SYNC_ERROR);
+            ASSERT_EQ(config.mError, UNLOADING_SYNC);
         }
 
         // Get our hands on sync root's cloud handle.
@@ -10171,10 +10202,11 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     // So we can pause execution until al the syncs are restored.
     promise<void> notifier;
 
-    // Hook the onAutoResumeResult callback.
-    cb.onAutoResumeResult = [&](const SyncConfig&) {
+    // Hook the OnSyncStateConfig callback.
+    cb.mOnSyncStateConfig = [&](const SyncConfig& config) {
         // Let waiters know we've restored the sync.
-        notifier.set_value();
+        if (config.mRunState == SyncRunState::Run)
+            notifier.set_value();
     };
 
     // Log in client, resuming prior session.
@@ -10254,7 +10286,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
             ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
             ASSERT_EQ(config.mEnabled, true);
-            ASSERT_EQ(config.mError, NO_SYNC_ERROR);
+            ASSERT_EQ(config.mError, UNLOADING_SYNC);
         }
 
         // Get our hands on the sync's root handle.
@@ -10324,8 +10356,16 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     // Hook onAutoResumeResult callback.
     promise<void> notify;
 
-    cb.onAutoResumeResult = [&notify](const SyncConfig&) {
+    cb.mOnSyncStateConfig = [&cb, &notify](const SyncConfig& config) {
+        // Is the sync up and running?
+        if (config.mRunState != SyncRunState::Run)
+            return;
+
+        // Then let our waiter know it can proceed.
         notify.set_value();
+
+        // We're not interested in any further callbacks.
+        cb.mOnSyncStateConfig = nullptr;
     };
 
     // Log in the client.
