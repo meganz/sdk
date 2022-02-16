@@ -16882,7 +16882,7 @@ node_list NodeManager::getChildren(const Node *parent)
     if (it != mNodeChildrens.end())
     {
         std::set<NodeHandle>& children = it->second;
-        for (const auto childHandle : children)
+        for (const auto &childHandle : children)
         {
             Node* n;
             auto nodeIt = mNodes.find(childHandle);
