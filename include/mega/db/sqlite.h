@@ -83,7 +83,7 @@ public:
     bool removeNodes() override;
     bool getFingerPrints(std::map<FileFingerprint, std::map<NodeHandle, Node*>>& fingerprints) override;
 
-    void interruptQuery() override;
+    void cancelQuery() override;
 
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
 

@@ -610,7 +610,7 @@ bool SqliteAccountState::removeNodes()
     return sqlResult == SQLITE_OK;
 }
 
-void SqliteAccountState::interruptQuery()
+void SqliteAccountState::cancelQuery()
 {
     if (!db)
     {

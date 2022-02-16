@@ -17977,7 +17977,7 @@ void NodeManager::cancelSearch()
         return;
     }
 
-    mTable->interruptQuery();
+    mTable->cancelQuery();
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()

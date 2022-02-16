@@ -142,7 +142,7 @@ public:
     virtual m_off_t getNodeSize(NodeHandle node) = 0;
     virtual nodetype_t getNodeType(NodeHandle node) = 0;
 
-    virtual void interruptQuery() = 0;
+    virtual void cancelQuery() = 0;
 
 };
 

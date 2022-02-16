@@ -125,7 +125,7 @@ public:
     {
         return false;
     }
-    void interruptQuery() override
+    void cancelQuery() override
     {
 
     }
