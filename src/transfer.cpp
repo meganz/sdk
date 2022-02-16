@@ -1455,7 +1455,7 @@ bool DirectReadSlot::doio()
             {
                 LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
 
-                dstime backoff = Utils::overTransferQuotaBackoff(dr->drn->client, req);
+                dstime backoff = dr->drn->client->overTransferQuotaBackoff(req);
                 dr->drn->retry(API_EOVERQUOTA, backoff);
             }
             else

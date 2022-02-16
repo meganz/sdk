@@ -441,21 +441,6 @@ public:
     static int pcasecmp(const std::wstring& lhs,
                         const std::wstring& rhs,
                         const size_t length);
-    /**
-     * @brief This function calculates the time (in deciseconds) that a user
-     * transfer request must wait for a retry.
-     *
-     * A pro user who has reached the limit must wait for the renewal or
-     * an upgrade on the pro plan.
-     *
-     * @param client a MegaClient*
-     * @param req a HttpReq*
-     * @note a 99408 event is sent for non-pro clients with a negative
-     * timeleft in the request header
-     *
-     * @return returns the backoff time in dstime
-     */
-    static dstime overTransferQuotaBackoff(MegaClient* client, HttpReq* req);
 };
 
 // for pre-c++11 where this version is not defined yet.

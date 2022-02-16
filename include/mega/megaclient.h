@@ -1916,6 +1916,21 @@ public:
     // return API_OK if success, otherwise error code
     error writeDriveId(const char *pathToDrive, handle driveId);
 
+    /**
+     * @brief This function calculates the time (in deciseconds) that a user
+     * transfer request must wait for a retry.
+     *
+     * A pro user who has reached the limit must wait for the renewal or
+     * an upgrade on the pro plan.
+     *
+     * @param req Pointer to HttpReq object
+     * @note a 99408 event is sent for non-pro clients with a negative
+     * timeleft in the request header
+     *
+     * @return returns the backoff time in dstime
+     */
+    dstime overTransferQuotaBackoff(HttpReq* req);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, unique_ptr<FileSystemAccess>&&, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 

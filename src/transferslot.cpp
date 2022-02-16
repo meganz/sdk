@@ -1014,7 +1014,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     {
                         LOG_warn << "Bandwidth overquota from storage server";
 
-                        dstime backoff = Utils::overTransferQuotaBackoff(client, reqs[i].get());
+                        dstime backoff = client->overTransferQuotaBackoff(reqs[i].get());
 
                         return transfer->failed(API_EOVERQUOTA, committer, backoff);
                     }
