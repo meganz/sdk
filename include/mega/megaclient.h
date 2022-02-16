@@ -381,7 +381,8 @@ public:
     // This method only can be used in Megacli for testing purposes
     uint64_t getNumberNodesInRam() const;
 
-    void cancelSearch();
+    // Cancel all DB queries in progress in same sql connection
+    void cancelDbQuery();
 
 private:
     // TODO Nodes on demand remove reference

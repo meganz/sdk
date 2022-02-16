@@ -33739,7 +33739,7 @@ void MegaCancelTokenPrivate::cancel(bool newValue)
         {
             case Usage::USAGE_SEARCH:
             {
-                mMegaClient->mNodeManager.cancelSearch();
+                mMegaClient->mNodeManager.cancelDbQuery();
             }
                 break;
 

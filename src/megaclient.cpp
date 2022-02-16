@@ -17969,7 +17969,7 @@ bool NodeManager::isRootNode(NodeHandle h) const
             || h == mClient.rootnodes.rubbish;
 }
 
-void NodeManager::cancelSearch()
+void NodeManager::cancelDbQuery()
 {
     if (!mTable)
     {
