@@ -11717,13 +11717,13 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
     MegaCancelTokenPrivate* cancelTokenPrivate = nullptr;
     if (cancelToken)
     {
+        if (cancelToken->isCancelled())
+        {
+            return new MegaNodeListPrivate();
+        }
+
         cancelTokenPrivate = static_cast<MegaCancelTokenPrivate*>(cancelToken);
         cancelTokenPrivate->startProcessing(MegaCancelTokenPrivate::Usage::USAGE_SEARCH, client);
-    }
-
-    if (cancelTokenPrivate && cancelTokenPrivate->isCancelled())
-    {
-        return new MegaNodeListPrivate();
     }
 
     SdkMutexGuard g(sdkMutex);
