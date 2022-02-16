@@ -494,7 +494,9 @@ class MegaNode
             CHANGE_TYPE_PARENT          = 0x80,
             CHANGE_TYPE_PENDINGSHARE    = 0x100,
             CHANGE_TYPE_PUBLIC_LINK     = 0x200,
-            CHANGE_TYPE_NEW             = 0x400
+            CHANGE_TYPE_NEW             = 0x400,
+            CHANGE_TYPE_NAME            = 0x800,
+            CHANGE_TYPE_FAVOURITE       = 0x1000,
         };
 
         static const int INVALID_DURATION = -1;
@@ -945,6 +947,12 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_NEW             = 0x400
          * Check if the node is new
          *
+         * - MegaNode::CHANGE_TYPE_NAME            = 0x800
+         * Check if the node name has changed
+         *
+         * - MegaNode::CHANGE_TYPE_FAVOURITE        = 0x1000
+         * Check if the node was added to or removed from favorites
+         *
          */
         virtual int getChanges();
 
@@ -1047,11 +1055,23 @@ class MegaNode
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
          * of the MegaNode object.
          *
+         * @warning This method is not suitable for programming languages that require auto-generated bindings,
+         * due to the lack of mapping of string pointers to objects in different languages.
+         *
          * @return Decryption key of the file (in binary format)
-         * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-         * Use MegaNode::getBase64Key instead
          */
         virtual std::string* getNodeKey();
+
+        /**
+         * @brief Returns true if the node key is decrypted
+         *
+         * For nodes in shared folders, there could be missing keys. Also, faulty
+         * clients might create invalid keys. In those cases, the node's key might
+         * not be decrypted successfully.
+         *
+         * @return True if the node key is decrypted
+         */
+        virtual bool isNodeKeyDecrypted();
 
         /**
          * @brief Returns the file attributes related to the node
