@@ -3709,7 +3709,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
         if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(1))
         {
-            out() << "Waiting for syncing to stop timed out at 5 minutes";
+            out() << "Waiting for syncing to stop timed out at 1 minutes";
             return result;
         }
     }
@@ -14984,6 +14984,85 @@ TEST_F(SyncTest, BasicSync_RapidLocalChangesWhenUploadCompletes)
 
     // check we ended up with the final file
     ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
+}
+
+TEST_F(SyncTest, MaximumTreeDepthBehavior)
+{
+    auto TIMEOUT = std::chrono::seconds(16);
+
+    // Allocate a new client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud is clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Get our hands on the cloud root.
+    auto* root = client->gettestbasenode();
+    ASSERT_NE(root, nullptr);
+
+    // Create a deep hierarchy in the cloud.
+    string remoteRootPath = "00";
+
+    {
+        vector<NewNode> nodes(Sync::MAX_DEPTH - root->depth() - 1);
+
+        client->client.putnodes_prepareOneFolder(&nodes[0], "00");
+
+        nodes[0].nodehandle = 1;
+        nodes[0].parenthandle = UNDEF;
+
+        for (auto i = 1u; i < nodes.size(); ++i)
+        {
+            string buffer(2, '0');
+
+            sprintf(&buffer[0], "%02x", i);
+
+            remoteRootPath.append(1, '/');
+            remoteRootPath.append(buffer);
+
+            client->client.putnodes_prepareOneFolder(&nodes[i], std::move(buffer));
+
+            nodes[i].nodehandle = i + 1;
+            nodes[i].parenthandle = i;
+        }
+
+        ASSERT_TRUE(client->putnodes(root->nodeHandle(), NoVersioning, std::move(nodes)));
+    }
+
+    // Add and start a new sync.
+    auto id = client->setupSync_mainthread("00", remoteRootPath);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure we haven't stalled.
+    SyncStallInfo stalls;
+
+    ASSERT_FALSE(client->client.syncs.syncStallDetected(stalls));
+
+    // Add a new directory.
+    //
+    // Trying to synchronize this directory should trigger a stall as
+    // doing so would violate the node depth limit.
+    fs::create_directories(client->fsBasePath / "00" / "x");
+
+    // Wait for the engine to detect a stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+
+    // Make sure the engine's actually recorded the stall.
+    ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+    ASSERT_FALSE(stalls.empty());
+
+    // Check that the stall is due to the deep hierarchy.
+    ASSERT_EQ(stalls.local.begin()->second.reason,
+              SyncWaitReason::SyncItemExceedsSupportedTreeDepth);
+
+    // Removing the directory should correct the stall.
+    fs::remove_all(client->fsBasePath / "00" / "x");
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
 }
 
 #endif
