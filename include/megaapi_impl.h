@@ -1498,15 +1498,27 @@ private:
 class MegaCancelTokenPrivate : public MegaCancelToken
 {
 public:
+    enum Usage {
+        USAGE_GENERIC,  //
+        USAGE_SEARCH,   // adapt the behavior to cancel ongoing search
+    };
+
     ~MegaCancelTokenPrivate() override;
 
     void cancel(bool newValue = true) override;
     bool isCancelled() const override;
-    void setMegaClient(MegaClient& megaClient);
-    void setSearchEnded();
+
+    // if usage other than generic, call this method to set the specific usage
+    void startProcessing(MegaCancelTokenPrivate::Usage usage, MegaClient *c);
+    void endProcessing();
 
 private:
     std::atomic_bool cancelFlag { false };
+    std::atomic_bool processing { false };  // only required for specific usages
+
+    Usage mUsage = USAGE_GENERIC;
+
+    // required for cancel searches
     MegaClient* mMegaClient = nullptr;
 };
 

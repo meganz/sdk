@@ -11718,7 +11718,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
     if (cancelToken)
     {
         cancelTokenPrivate = static_cast<MegaCancelTokenPrivate*>(cancelToken);
-        cancelTokenPrivate->setMegaClient(*client);
+        cancelTokenPrivate->startProcessing(MegaCancelTokenPrivate::Usage::USAGE_SEARCH, client);
     }
 
     if (cancelTokenPrivate && cancelTokenPrivate->isCancelled())
@@ -11860,7 +11860,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
     if (cancelTokenPrivate)
     {
-        cancelTokenPrivate->setSearchEnded();
+        cancelTokenPrivate->endProcessing();
     }
 
     return nodeList;
@@ -33732,9 +33732,28 @@ MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
 void MegaCancelTokenPrivate::cancel(bool newValue)
 {
     cancelFlag = newValue;
-    if (mMegaClient && cancelFlag)
+
+    if (cancelFlag && processing)
     {
-        mMegaClient->mNodeManager.cancelSearch();
+        switch (mUsage)
+        {
+            case Usage::USAGE_SEARCH:
+            {
+                mMegaClient->mNodeManager.cancelSearch();
+            }
+                break;
+
+            default:    // nothing to do for generic usage
+                break;
+        }
+
+        endProcessing();
+    }
+
+    if (!cancelFlag)    // reset
+    {
+        mUsage = Usage::USAGE_GENERIC;
+        mMegaClient = nullptr;
     }
 }
 
@@ -33743,15 +33762,19 @@ bool MegaCancelTokenPrivate::isCancelled() const
     return cancelFlag;
 }
 
-void MegaCancelTokenPrivate::setMegaClient(MegaClient &megaClient)
+void MegaCancelTokenPrivate::startProcessing(MegaCancelTokenPrivate::Usage usage, MegaClient *c)
 {
-    mMegaClient = &megaClient;
+    assert(usage != Usage::USAGE_SEARCH || c);
+
+    mUsage = usage;
+    mMegaClient = c;
+
+    processing = true;
 }
 
-void MegaCancelTokenPrivate::setSearchEnded()
+void MegaCancelTokenPrivate::endProcessing()
 {
-    cancelFlag = true;
-    mMegaClient = nullptr;
+    processing = false;
 }
 
 }
