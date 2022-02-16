@@ -240,22 +240,6 @@ int compareUtf(const LocalPath& s1, bool unescaping1, const LocalPath& s2, bool 
         caseInsensitive ? Utils::toUpper: detail::identity);
 }
 
-bool isCaseInsensitive(const FileSystemType type)
-{
-    if    (type == FS_EXFAT
-        || type == FS_FAT32
-        || type == FS_NTFS
-        || type == FS_UNKNOWN)
-    {
-        return true;
-    }
-#ifdef WIN32
-    return true;
-#else
-    return false;
-#endif
-}
-
 RemotePath::RemotePath(const string& path)
   : mPath(path)
 {

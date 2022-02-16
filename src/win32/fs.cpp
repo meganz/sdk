@@ -390,7 +390,7 @@ void WinFileAccess::asyncsysopen(AsyncIOContext *context)
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
-    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false);
+    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false, false);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -514,17 +514,16 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes)
+bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck)
 {
-    return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes);
+    return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes, skipcasecheck);
 }
 
-bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes)
+bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
     BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
-    bool skipcasecheck = false;
 
     if (write)
     {

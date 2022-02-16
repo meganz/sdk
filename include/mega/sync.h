@@ -460,6 +460,9 @@ public:
 
     FileSystemType mFilesystemType = FS_UNKNOWN;
 
+    // We test the sync root folder, and assume the rest of the filesystem tree has the same case sensitivity
+    bool mCaseInsensitive = false;
+
     // syncing to an inbound share?
     bool inshare = false;
 
@@ -599,10 +602,6 @@ public:
     // Note that the depth is from the cloud root, not from the sync root.
     static const unsigned MAX_DEPTH;
 
-    //// Change state to (DISABLED, BACKUP_MODIFIED).
-    //// Always returns false.
-    //bool backupModified();
-
     // Whether this is a backup sync.
     bool isBackup() const;
 
@@ -633,6 +632,9 @@ private:
 
     // permanent lock on the debris/tmp folder
     void createDebrisTmpLockOnce();
+
+    // actually test the filesystem to be sure
+    bool determineCaseInsenstivity(bool secondTry);
 
     // permanent lock on the debris/tmp folder
     unique_ptr<FileAccess> tmpfa;
