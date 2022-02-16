@@ -2392,7 +2392,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
             continue;
         }
 
-        auto er = equal_range_utf8EscapingCompare(ns, m_iter->first, true, true, isCaseInsensitive(n->sync->mFilesystemType));
+        auto er = equal_range_utf8EscapingCompare(ns, m_iter->first, true, true, n->sync->mCaseInsensitive);
         //auto er = ns.equal_range(m_iter->first);
         auto next_m = m_iter;
         ++next_m;
