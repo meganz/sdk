@@ -16821,7 +16821,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
         // still keep it in memory temporary, until saveNodeInDb()
         mNodeToWriteInDb = node; // takes ownership
 
-        // If keepNodInMemory is active, we call NodeManager::addChild in Node::setParent
+        // when keepNodeInMemory is true, NodeManager::addChild is called by Node::setParent (from NodeManager::saveNodeInRAM)
         addChild(node->parentHandle(), node->nodeHandle());
     }
 
