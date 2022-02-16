@@ -5135,8 +5135,9 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
         arg("w", "1");
     }
 
-    if (megaHosted && n->sharekey)
+    if (megaHosted)
     {
+        assert(n->sharekey && "attempting to share a key that is not set");
         arg("sk", n->sharekey->key, SymmCipher::KEYLENGTH);
     }
 }

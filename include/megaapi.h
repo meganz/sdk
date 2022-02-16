@@ -11245,7 +11245,7 @@ class MegaApi
          * @param node MegaNode to get the public link
          * @param expireTime Unix timestamp until the public link will be valid
          * @param writable if the link should be writable.
-         * @param megaHosted if the share key should be share with MEGA
+         * @param megaHosted if the share key should be shared with MEGA
          * @param listener MegaRequestListener to track this request
          */
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
