@@ -494,7 +494,9 @@ class MegaNode
             CHANGE_TYPE_PARENT          = 0x80,
             CHANGE_TYPE_PENDINGSHARE    = 0x100,
             CHANGE_TYPE_PUBLIC_LINK     = 0x200,
-            CHANGE_TYPE_NEW             = 0x400
+            CHANGE_TYPE_NEW             = 0x400,
+            CHANGE_TYPE_NAME            = 0x800,
+            CHANGE_TYPE_FAVOURITE       = 0x1000,
         };
 
         static const int INVALID_DURATION = -1;
@@ -944,6 +946,12 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_NEW             = 0x400
          * Check if the node is new
+         *
+         * - MegaNode::CHANGE_TYPE_NAME            = 0x800
+         * Check if the node name has changed
+         *
+         * - MegaNode::CHANGE_TYPE_FAVOURITE        = 0x1000
+         * Check if the node was added to or removed from favorites
          *
          */
         virtual int getChanges();
