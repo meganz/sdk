@@ -1783,9 +1783,9 @@ ScopedLengthRestore::~ScopedLengthRestore()
 
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
 {
-    auto localName = localPath.leafName().toPath();
+    auto localName = localPath.leafName();
 
-    if (localName != remoteName)
+    if (compareUtf(localName, false, remoteName, false, true))
     {
         return FILENAME_ANOMALY_NAME_MISMATCH;
     }
