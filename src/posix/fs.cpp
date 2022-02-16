@@ -484,7 +484,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool)
+bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool, bool skipcasecheck)
 {
     struct stat statbuf;
 
@@ -540,10 +540,13 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
             }
             rnamesize = strlen(rname) + 1;
 
-            if (rnamesize == fnamesize && memcmp(fname, rname, fnamesize))
+            if (!skipcasecheck)
             {
-                LOG_warn << "fopen failed due to invalid case: " << fstr;
-                return false;
+                if (rnamesize == fnamesize && memcmp(fname, rname, fnamesize))
+                {
+                    LOG_warn << "fopen failed due to invalid case: " << fstr;
+                    return false;
+                }
             }
         }
     }

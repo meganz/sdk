@@ -1825,6 +1825,63 @@ size_t Utils::utf8SequenceSize(unsigned char c)
     }
 }
 
+string  Utils::toUpperUtf8(const string& text)
+{
+    string result;
+
+    auto n = utf8proc_ssize_t(text.size());
+    auto d = text.data();
+
+    for (;;)
+    {
+        utf8proc_int32_t c;
+        auto nn = utf8proc_iterate((utf8proc_uint8_t *)d, n, &c);
+
+        if (nn == 0) break;
+
+        assert(nn <= n);
+        d += nn;
+        n -= nn;
+
+        c = utf8proc_toupper(c);
+
+        char buff[8];
+        auto charLen = utf8proc_encode_char(c, (utf8proc_uint8_t *)buff);
+        result.append(buff, charLen);
+    }
+
+    return result;
+}
+
+string  Utils::toLowerUtf8(const string& text)
+{
+    string result;
+
+    auto n = utf8proc_ssize_t(text.size());
+    auto d = text.data();
+
+    for (;;)
+    {
+        utf8proc_int32_t c;
+        auto nn = utf8proc_iterate((utf8proc_uint8_t *)d, n, &c);
+
+        if (nn == 0) break;
+
+        assert(nn <= n);
+        d += nn;
+        n -= nn;
+
+        c = utf8proc_tolower(c);
+
+        char buff[8];
+        auto charLen = utf8proc_encode_char(c, (utf8proc_uint8_t *)buff);
+        result.append(buff, charLen);
+    }
+
+    return result;
+}
+
+
 bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
 {
     uint8_t utf8cp1;

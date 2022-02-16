@@ -424,6 +424,9 @@ public:
         return utf8proc_toupper(c);
     }
 
+    static string toUpperUtf8(const string& text);
+    static string toLowerUtf8(const string& text);
+
     // Platform-independent case-insensitive comparison.
     static int icasecmp(const std::string& lhs,
                         const std::string& rhs,

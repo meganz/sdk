@@ -1021,6 +1021,9 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
         }
     }
     us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
+
+    mCaseInsensitive = determineCaseInsenstivity(false);
+    LOG_debug << "Sync case insensitivity for " << mLocalPath << " is " << mCaseInsensitive;
 }
 
 Sync::~Sync()
@@ -1041,13 +1044,6 @@ Sync::~Sync()
     // If they have transfers associated, the SyncUpload_inClient and <tbd> will have their wasRequesterAbandoned flag set true
     localroot.reset();
 }
-
-//bool Sync::backupModified()
-//{
-//    assert(syncs.onSyncThread());
-//    changestate(SYNC_DISABLED, BACKUP_MODIFIED, false, true);
-//    return false;
-//}
 
 bool Sync::isBackup() const
 {
@@ -1429,6 +1425,69 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     }
     return l;
 }
+
+bool Sync::determineCaseInsenstivity(bool secondTry)
+{
+    assert(mLocalPath == getConfig().mLocalPath);
+
+    auto da = syncs.fsaccess->newdiraccess();
+    auto lp = mLocalPath;
+    if (da->dopen(&lp, NULL, false))
+    {
+        LocalPath leafName;
+        nodetype_t dirEntryType;
+        while (da->dnext(lp, leafName, false, &dirEntryType))
+        {
+            auto uc = Utils::toUpperUtf8(leafName.toPath());
+            auto lc = Utils::toLowerUtf8(leafName.toPath());
+
+            if (uc == lc) continue;
+
+            auto lpuc = mLocalPath;
+            auto lplc = mLocalPath;
+
+            lpuc.appendWithSeparator(LocalPath::fromRelativePath(uc), true);
+            lplc.appendWithSeparator(LocalPath::fromRelativePath(lc), true);
+
+            LOG_debug << "Testing sync case sensitivity with " << lpuc << " vs " << lplc;
+
+            auto fa1 = syncs.fsaccess->newfileaccess();
+            auto fa2 = syncs.fsaccess->newfileaccess();
+
+            bool opened1 = fa1->fopen(lpuc, true, false, nullptr, false, true);
+            fa1->closef();
+            bool opened2 = fa2->fopen(lplc, true, false, nullptr, false, true);
+            fa2->closef();
+
+            opened1 = opened1 && fa1->fsidvalid;
+            opened2 = opened2 && fa2->fsidvalid;
+
+            if (!opened1 && !opened2) continue;
+
+            if (opened1 != opened2) return false;
+
+            return fa1->fsidvalid && fa2->fsidvalid && fa1->fsid == fa1->fsid;
+        }
+    }
+
+    if (secondTry)
+    {
+        // If we didn't figure it out, it may be a read-only empty folder, in which case it's irrelevant whether the fs is case insensitive
+        LOG_debug << "We could not determine case sensitivity even after attempting to create a local sync .debris folder.  Using platform default";
+#if defined(WIN32) || defined(__APPLE__)
+        return true;
+#else
+        return false;
+#endif
+    }
+
+    // we didn't find any files/folders that could be tested for case sensitivity.
+    // so create the debris folder (if we can) and retry
+    createDebrisTmpLockOnce();
+    return determineCaseInsenstivity(true);
+}
+
+
 
 void Sync::createDebrisTmpLockOnce()
 {
@@ -3892,7 +3951,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                                         false,
                                         std::move(completion),
                                         false,
-                                        config.mName); 
+                                        config.mName);
 
                     // Wait for this sync to be added.
                     waiter.get_future().get();
@@ -5598,7 +5657,7 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
     for (auto& sn : syncParent.children) triplets.emplace_back(nullptr, sn.second, nullptr);
     for (auto& fsn : fsNodes)            triplets.emplace_back(nullptr, nullptr, &fsn);
 
-    bool caseInsensitive = isCaseInsensitive(mFilesystemType);
+    bool caseInsensitive = mCaseInsensitive;
 
     auto tripletCompare = [=](const syncRow& lhs, const syncRow& rhs) -> int {
 
@@ -6543,18 +6602,6 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
     auto rowType = row.type();
 
-    //if (rowType != SRT_CSF && row.cloudNode &&
-    //    threadSafeState->isNodeHandleFromCompletedUpload(row.cloudNode->handle))
-    //{
-    //    // pretend we didn't see the cloud node which is a result of upload
-    //    // when that node's source may have moved (until we've double checked etc)
-    //    // this covers the case of eg. removing the old LocalNode pre-rename/move
-    //    LOG_debug << "converting type " << rowType << " to ignore uploading-resolving cloud node." << logTriplet(row, fullPath);
-    //    row.cloudNode = nullptr;
-    //    rowType = row.type();
-    //    if (rowType == SRT_XXX) return false;
-    //}
-
     switch (rowType)
     {
     case SRT_CSF:
@@ -6872,15 +6919,9 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 {
     assert(syncs.onSyncThread());
 
-    //if (threadSafeState->isNodeHandleFromCompletedUpload(row.cloudNode->handle))
-    //{
-    //    SYNC_verbose << syncname << "Node is a recent upload, skipping LN match for test: " << fullPath.cloudPath << logTriplet(row, fullPath);
-    //    return false;
-    //}
-
     // these comparisons may need to be adjusted for UTF, escapes
-    assert(row.syncNode->fsid_lastSynced != row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
-    assert(row.syncNode->fsid_lastSynced == row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)));
+    assert(row.syncNode->fsid_lastSynced != row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, mCaseInsensitive));
+    assert(row.syncNode->fsid_lastSynced == row.fsNode->fsid || 0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, mCaseInsensitive));
 
     assert((!!row.syncNode->slocalname == !!row.fsNode->shortname) &&
             (!row.syncNode->slocalname ||
@@ -6888,7 +6929,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
     if (row.syncNode->fsid_lastSynced != row.fsNode->fsid ||
         row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle ||
-        0 != compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, isCaseInsensitive(mFilesystemType)))
+        0 != compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, mCaseInsensitive))
     {
         if (row.syncNode->hasRare() && row.syncNode->rare().moveToHere)
         {

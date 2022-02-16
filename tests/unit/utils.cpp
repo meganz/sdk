@@ -81,19 +81,19 @@ mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, mega
     return *n;
 }
 
-void collectAllFsNodes(std::map<mega::LocalPath, const mt::FsNode*>& nodes, const mt::FsNode& node)
-{
-    const auto path = node.getPath();
-    assert(nodes.find(path) == nodes.end());
-    nodes[path] = &node;
-    if (node.getType() == mega::FOLDERNODE)
-    {
-        for (const auto child : node.getChildren())
-        {
-            collectAllFsNodes(nodes, *child);
-        }
-    }
-}
+//void collectAllFsNodes(std::map<mega::LocalPath, const mt::FsNode*>& nodes, const mt::FsNode& node)
+//{
+//    const auto path = node.getPath();
+//    assert(nodes.find(path) == nodes.end());
+//    nodes[path] = &node;
+//    if (node.getType() == mega::FOLDERNODE)
+//    {
+//        for (const auto child : node.getChildren())
+//        {
+//            collectAllFsNodes(nodes, *child);
+//        }
+//    }
+//}
 
 std::uint16_t nextRandomInt()
 {
