@@ -16821,7 +16821,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
         // still keep it in memory temporary, until saveNodeInDb()
         mNodeToWriteInDb = node; // takes ownership
 
-        // If keepNodInMemory is active, we call NodeManager::addChild in Node::setParent
+        // when keepNodeInMemory is true, NodeManager::addChild is called by Node::setParent (from NodeManager::saveNodeInRAM)
         addChild(node->parentHandle(), node->nodeHandle());
     }
 
@@ -16882,7 +16882,7 @@ node_list NodeManager::getChildren(const Node *parent)
     if (it != mNodeChildrens.end())
     {
         std::set<NodeHandle>& children = it->second;
-        for (const auto childHandle : children)
+        for (const auto &childHandle : children)
         {
             Node* n;
             auto nodeIt = mNodes.find(childHandle);
@@ -17841,7 +17841,7 @@ void NodeManager::loadNodes()
         rootnodes.insert(rootnodes.end(), inSharesNodes.begin(), inSharesNodes.end());
     }
 
-    // Load map with fingerprints to speed up searching by fingerprint
+    // Load map with fingerprints to speed up searching by fingerprint, as well as children
     std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
     mTable->loadFingerprintsAndChildren(mFingerPrints, nodeAndParent);
 
