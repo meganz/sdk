@@ -10568,9 +10568,9 @@ class MegaApi
          * MegaApi::USER_ATTR_COOKIE_SETTINGS = 33
          * Get whether user has Cookie Settings enabled
          * MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA = 34
-         * Get
+         * Get name and key to cypher sync-configs file
          * MegaApi::USER_ATTR_DRIVE_NAMES = 35
-         * Get
+         * Get external drive names by id
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
          *
