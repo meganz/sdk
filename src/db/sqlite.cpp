@@ -558,7 +558,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, T &nodes)
 
     if (sqlResult == SQLITE_ERROR)
     {
-        // In case of interrupt db query, this finishes with an error but it's not a real erro
+        // In case of interrupt db query, it will finish with (expected) error
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_debug << "Unable to processSqlQueryNodes from database (maybe query has been interrupted): " << dbfile << err;
     }
