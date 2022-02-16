@@ -1132,7 +1132,7 @@ private:
 
     enum WhichCloudVersion { EXACT_VERSION, LATEST_VERSION, FOLDER_ONLY };
     bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
-            bool* nodeIsInActiveSync, bool* nodeIsDefinitelyExcluded, WhichCloudVersion);
+            bool* nodeIsInActiveSync, bool* nodeIsDefinitelyExcluded, unsigned* depth, WhichCloudVersion);
 
     bool lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren);
 

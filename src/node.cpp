@@ -2129,7 +2129,7 @@ string LocalNode::getCloudPath() const
         CloudNode cn;
         string fullpath;
         if (sync->syncs.lookupCloudNode(l->syncedCloudNodeHandle, cn, l->parent ? nullptr : &fullpath,
-            nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
+            nullptr, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
         {
             name = cn.name;
         }
