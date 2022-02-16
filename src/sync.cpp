@@ -941,7 +941,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
                           nullptr,
                           nullptr,
                           nullptr,
-                          &mRootDepth,
+                          nullptr,
                           Syncs::FOLDER_ONLY);
 
     isnetwork = false;
@@ -5783,14 +5783,14 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     assert(row.syncNode->type != FILENODE);
     assert(row.syncNode->getLocalPath() == fullPath.localPath);
 
-    if (depth + mRootDepth >= MAX_DEPTH)
+    if (depth + mCurrentRootDepth == MAX_DEPTH)
     {
         ProgressingMonitor monitor(syncs);
 
         LOG_debug << "Attempting to synchronize overly deep directory: "
                   << logTriplet(row, fullPath)
                   << ": Effective depth is "
-                  << depth + mRootDepth;
+                  << depth + mCurrentRootDepth;
 
         monitor.waitingLocal(fullPath.localPath,
                              LocalPath(),
@@ -9288,7 +9288,14 @@ void Syncs::syncLoop()
                 }
 
                 bool inTrash = false;
-                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle, sync->cloudRoot, &sync->cloudRootPath, &inTrash, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
+                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle,
+                                                     sync->cloudRoot,
+                                                     &sync->cloudRootPath,
+                                                     &inTrash,
+                                                     nullptr,
+                                                     nullptr,
+                                                     &sync->mCurrentRootDepth,
+                                                     Syncs::FOLDER_ONLY);
 
                 // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
                 bool pathChanged = checkSyncRemoteLocationChange(*us, foundRootNode, sync->cloudRootPath);

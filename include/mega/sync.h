@@ -572,7 +572,7 @@ public:
     bool mDestructorRunning = false;
 
     // How deep is this sync's cloud root?
-    unsigned mRootDepth = 0;
+    unsigned mCurrentRootDepth = 0;
 
     Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname);
     ~Sync();
