@@ -17734,9 +17734,8 @@ void NodeManager::notifyPurge()
         DBTableTransactionCommitter committer(mClient.tctable);
 
         // check all notified nodes for removed status and purge
-        for (auto it = mNodeNotify.begin(); it != mNodeNotify.end(); )
+        for (auto n : mNodeNotify)
         {
-            Node *n = *it;
             if (n->attrstring)
             {
                 // make this just a warning to avoid auto test failure
@@ -17786,8 +17785,6 @@ void NodeManager::notifyPurge()
 
                 removeFingerprint(n);
 
-                // Avoid to take into account removed nodes in 'getChildren'
-                it = mNodeNotify.erase(it);
                 node_list children = getChildren(n);
                 for (auto child : children)
                 {
@@ -17804,13 +17801,11 @@ void NodeManager::notifyPurge()
             }
             else
             {
-                it++;
                 // TODO nodes on demand: avoid to write to DB if the only change
                 // is 'changed.newnode', since the node is already written to DB
                 // when it is received from API, in 'saveNodeInRam()'
                 mTable->put(n);
             }
-
         }
 
         mNodeNotify.clear();
