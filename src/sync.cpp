@@ -5783,7 +5783,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     assert(row.syncNode->type != FILENODE);
     assert(row.syncNode->getLocalPath() == fullPath.localPath);
 
-    if (depth + mCurrentRootDepth == MAX_DEPTH)
+    if (depth + mCurrentRootDepth == MAX_DEPTH - 1)
     {
         ProgressingMonitor monitor(syncs);
 
