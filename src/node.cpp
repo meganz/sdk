@@ -1029,6 +1029,17 @@ const Node* Node::latestFileVersion() const
     return n;
 }
 
+unsigned Node::depth() const
+{
+    auto* node = latestFileVersion();
+    unsigned depth = 0u;
+
+    for ( ; node->parent; node = node->parent)
+        ++depth;
+
+    return depth;
+}
+
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
 {
@@ -2118,7 +2129,7 @@ string LocalNode::getCloudPath() const
         CloudNode cn;
         string fullpath;
         if (sync->syncs.lookupCloudNode(l->syncedCloudNodeHandle, cn, l->parent ? nullptr : &fullpath,
-            nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
+            nullptr, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
         {
             name = cn.name;
         }

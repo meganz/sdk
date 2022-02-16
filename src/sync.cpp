@@ -41,6 +41,8 @@ const int Sync::FILE_UPDATE_DELAY_DS = 30;
 const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
 const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
+const unsigned Sync::MAX_DEPTH = 64;
+
 #define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
 
 std::atomic<size_t> ScanService::mNumServices(0);
@@ -518,7 +520,7 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
         cloudPath += row.cloudNode->name;
     }
     else if (row.syncNode && syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle, cn,
-        nullptr, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
+        nullptr, nullptr, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION))
     {
         cloudPath += cn.name;
     }
@@ -933,7 +935,14 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
     const SyncConfig& config = us.mConfig;
 
-    syncs.lookupCloudNode(config.mRemoteNode, cloudRoot, &cloudRootPath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
+    syncs.lookupCloudNode(config.mRemoteNode,
+                          cloudRoot,
+                          &cloudRootPath,
+                          nullptr,
+                          nullptr,
+                          nullptr,
+                          nullptr,
+                          Syncs::FOLDER_ONLY);
 
     isnetwork = false;
     inshare = cinshare;
@@ -1865,8 +1874,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             //    before we can be sure we can remove nodes or upload/download.
             CloudNode sourceCloudNode, targetCloudNode;
             string sourceCloudNodePath, targetCloudNodePath;
-            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION);
-            bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
+            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION);
+            bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
             if (foundSourceCloudNode && foundTargetCloudNode)
             {
@@ -2862,7 +2871,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     {
         CloudNode cloudNode;
         string cloudNodePath;
-        if (lookupCloudNode(us.mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY)
+        if (lookupCloudNode(us.mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY)
             &&  us.mConfig.mOriginalPathOfRemoteRootNode != cloudNodePath)
         {
             us.mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
@@ -5084,7 +5093,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 // this should only happen on initial migraion from from old caches
                 CloudNode cloudNode;
                 string cloudNodePath;
-                if (lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY))
+                if (lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY))
                 {
                     unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
                     saveSyncConfig(unifiedSync->mConfig);
@@ -5773,6 +5782,23 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     assert(row.syncNode);
     assert(row.syncNode->type != FILENODE);
     assert(row.syncNode->getLocalPath() == fullPath.localPath);
+
+    if (depth + mCurrentRootDepth == MAX_DEPTH - 1)
+    {
+        ProgressingMonitor monitor(syncs);
+
+        LOG_debug << "Attempting to synchronize overly deep directory: "
+                  << logTriplet(row, fullPath)
+                  << ": Effective depth is "
+                  << depth + mCurrentRootDepth;
+
+        monitor.waitingLocal(fullPath.localPath,
+                             LocalPath(),
+                             fullPath.cloudPath,
+                             SyncWaitReason::SyncItemExceedsSupportedTreeDepth);
+
+        return true;
+    }
 
     // nothing to do for this subtree? Skip traversal
     if (!(row.syncNode->scanRequired() || row.syncNode->mightHaveMoves() || row.syncNode->syncRequired()))
@@ -7640,6 +7666,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
                                       nullptr,
                                       &active,
                                       &nodeIsDefinitelyExcluded,
+                                      nullptr,
                                       Syncs::LATEST_VERSION);
 
         // Remote doesn't exist under an active sync or is excluded.
@@ -8312,7 +8339,7 @@ void Syncs::processTriggerHandles()
                 CloudNode cloudNode;
                 string cloudNodePath;
                 bool isInTrash = false;
-                bool found = lookupCloudNode(h, cloudNode, &cloudNodePath, &isInTrash, nullptr, nullptr, Syncs::EXACT_VERSION);
+                bool found = lookupCloudNode(h, cloudNode, &cloudNodePath, &isInTrash, nullptr, nullptr, nullptr, Syncs::EXACT_VERSION);
                 if (found && !isInTrash)
                 {
                     // if the parent is a file, then it's just old versions being mentioned in the actionpackets, ignore
@@ -9261,7 +9288,14 @@ void Syncs::syncLoop()
                 }
 
                 bool inTrash = false;
-                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle, sync->cloudRoot, &sync->cloudRootPath, &inTrash, nullptr, nullptr, Syncs::FOLDER_ONLY);
+                bool foundRootNode = lookupCloudNode(sync->localroot->syncedCloudNodeHandle,
+                                                     sync->cloudRoot,
+                                                     &sync->cloudRootPath,
+                                                     &inTrash,
+                                                     nullptr,
+                                                     nullptr,
+                                                     &sync->mCurrentRootDepth,
+                                                     Syncs::FOLDER_ONLY);
 
                 // update path in sync configuration (if moved)  (even if no mSync - tests require this currently)
                 bool pathChanged = checkSyncRemoteLocationChange(*us, foundRootNode, sync->cloudRootPath);
@@ -9816,7 +9850,7 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 }
 
 bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
-        bool* nodeIsInActiveUnpausedSyncQuery, bool* nodeIsDefinitelyExcluded, WhichCloudVersion whichVersion)
+        bool* nodeIsInActiveUnpausedSyncQuery, bool* nodeIsDefinitelyExcluded, unsigned* depth, WhichCloudVersion whichVersion)
 {
     // we have to avoid doing these lookups when the client thread might be changing the Node tree
     // so we use the mutex to prevent access during that time - which is only actionpacket processing.
@@ -9884,6 +9918,9 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
         }
 
         if (cloudPath) *cloudPath = n->displaypath();
+
+        if (depth) *depth = n->depth();
+
         cn = CloudNode(*n);
 
         if (nodeIsInActiveUnpausedSyncQuery)

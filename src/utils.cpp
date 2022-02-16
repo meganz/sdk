@@ -2843,6 +2843,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::CantFingrprintFileYet:                         return "CantFingrprintFileYet";
         case SyncWaitReason::FolderContainsLockedFiles:                     return "FolderContainsLockedFiles";
         case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
+        case SyncWaitReason::SyncItemExceedsSupportedTreeDepth:             return "SyncItemExceedsSupportedTreeDepth";
     }
     return "<out of range>";
 }

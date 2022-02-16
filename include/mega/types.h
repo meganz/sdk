@@ -1066,7 +1066,8 @@ enum class SyncWaitReason {
     MoveTargetHasReservedName,
     CantFingrprintFileYet,
     FolderContainsLockedFiles,
-    LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose
+    LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
+    SyncItemExceedsSupportedTreeDepth
 };
 
 string syncWaitReasonString(SyncWaitReason);
