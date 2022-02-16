@@ -41,6 +41,8 @@ const int Sync::FILE_UPDATE_DELAY_DS = 30;
 const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
 const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
+const unsigned Sync::MAX_DEPTH = 64;
+
 #define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
 
 std::atomic<size_t> ScanService::mNumServices(0);
@@ -5780,6 +5782,23 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     assert(row.syncNode);
     assert(row.syncNode->type != FILENODE);
     assert(row.syncNode->getLocalPath() == fullPath.localPath);
+
+    if (depth + mRootDepth >= MAX_DEPTH)
+    {
+        ProgressingMonitor monitor(syncs);
+
+        LOG_debug << "Attempting to synchronize overly deep directory: "
+                  << logTriplet(row, fullPath)
+                  << ": Effective depth is "
+                  << depth + mRootDepth;
+
+        monitor.waitingLocal(fullPath.localPath,
+                             LocalPath(),
+                             fullPath.cloudPath,
+                             SyncWaitReason::SyncItemExceedsSupportedTreeDepth);
+
+        return true;
+    }
 
     // nothing to do for this subtree? Skip traversal
     if (!(row.syncNode->scanRequired() || row.syncNode->mightHaveMoves() || row.syncNode->syncRequired()))

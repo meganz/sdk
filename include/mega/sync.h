@@ -571,6 +571,9 @@ public:
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
 
+    // How deep is this sync's cloud root?
+    unsigned mRootDepth = 0;
+
     Sync(UnifiedSync&, const string&, const LocalPath&, bool, const string& logname);
     ~Sync();
 
@@ -591,6 +594,10 @@ public:
     static const int FILE_UPDATE_DELAY_DS;
     static const int FILE_UPDATE_MAX_DELAY_SECS;
     static const dstime RECENT_VERSION_INTERVAL_SECS;
+
+    // We don't officially support the synchronization of trees greater than this depth.
+    // Note that the depth is from the cloud root, not from the sync root.
+    static const unsigned MAX_DEPTH;
 
     //// Change state to (DISABLED, BACKUP_MODIFIED).
     //// Always returns false.
