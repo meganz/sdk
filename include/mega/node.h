@@ -268,6 +268,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // If this is a file, and has a file for a parent, it's not the latest version
     const Node* latestFileVersion() const;
 
+    // Node's depth, counting from the cloud root.
+    unsigned depth() const;
+
     // try to resolve node key string
     bool applykey();
 

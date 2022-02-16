@@ -1029,6 +1029,17 @@ const Node* Node::latestFileVersion() const
     return n;
 }
 
+unsigned Node::depth() const
+{
+    auto* node = latestFileVersion();
+    unsigned depth = 0u;
+
+    for ( ; node->parent; node = node->parent)
+        ++depth;
+
+    return depth;
+}
+
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
 {
