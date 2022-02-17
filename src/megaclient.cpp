@@ -18141,6 +18141,11 @@ void NodeManager::removeChild(NodeHandle parent, NodeHandle child)
     if (it != mNodeChildren.end())
     {
         it->second.erase(child);
+        // Remove nodes without children. Only keep in mNodeChildren nodes with children
+        if (it->second.empty())
+        {
+            mNodeChildren.erase(it);
+        }
     }
 }
 
