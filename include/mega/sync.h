@@ -915,8 +915,7 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
-	     bool keepSyncDb, bool notifyApp, bool unregisterHeartbeat);
+    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool notifyApp, bool unregisterHeartbeat);
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool newEnabledFlag);
@@ -1102,7 +1101,7 @@ private:
 
 
     // remove the Sync and its config from memory - optionally also other aspects
-    void removeSyncByIndex(size_t index, bool keepSyncDb, bool notifyApp, bool unresg);
+    void removeSyncByIndex(size_t index, bool notifyApp, bool unresg);
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
     void unloadSyncByIndex(size_t index, bool newEnabledFlag);
@@ -1128,8 +1127,7 @@ private:
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
-    void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector,
-	     bool keepSyncDb, bool notifyApp, bool unregisterHeartbeat);
+    void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool notifyApp, bool unregisterHeartbeat);
     void purgeRunningSyncs_inThread();
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
     error backupOpenDrive_inThread(LocalPath drivePath);
