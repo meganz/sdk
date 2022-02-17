@@ -7231,6 +7231,20 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             {
                 LOG_debug << syncname << "Sync - local file addition detected: " << fullPath.localPath.toPath();
 
+                if (checkIfFileIsChanging(*row.fsNode, fullPath.localPath))
+                {
+                    LOG_debug << syncname
+                              << "Waiting for file to stabilize before uploading: "
+                              << fullPath.localPath.toPath();
+
+                    monitor.waitingLocal(fullPath.localPath,
+                                         LocalPath(),
+                                         string(),
+                                         SyncWaitReason::WatiingForFileToStopChanging);
+
+                    return false;
+                }
+
                 LOG_debug << syncname << "Uploading file " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
                 assert(row.syncNode->scannedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint
                 assert(row.syncNode->scannedFingerprint == row.fsNode->fingerprint);
