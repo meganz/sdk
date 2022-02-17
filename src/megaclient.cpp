@@ -18028,7 +18028,9 @@ void NodeManager::calculateCounter(const Node& n)
     // between rootnodes, folders and files, so we can pass the own node's type
     mNodeCounters[h] = getNodeCounter(n);
 
-    // Remove nested inShares
+    // if a node counter is added for a parent an existing one, then the
+    // counter of the child should be removed (ie. when a the parent of an
+    // existing in-share is also shared)
     for (const auto& counter : mNodeCounters)
     {
         NodeHandle ancestor = getFirstAncestor(counter.first);
