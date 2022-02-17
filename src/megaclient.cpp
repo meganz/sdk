@@ -17778,7 +17778,7 @@ void NodeManager::notifyPurge()
                 {
                     subtractFromRootCounter(*n);
 
-                    removeChildRelationship(n->parentHandle(), n->nodeHandle());
+                    removeChild(n->parentHandle(), n->nodeHandle());
                 }
 
                 mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
@@ -18135,7 +18135,7 @@ void NodeManager::addChild(NodeHandle parent, NodeHandle child)
     mNodeChildrens[parent].insert(child);
 }
 
-void NodeManager::removeChildRelationship(NodeHandle parent, NodeHandle child)
+void NodeManager::removeChild(NodeHandle parent, NodeHandle child)
 {
     auto it = mNodeChildrens.find(parent);
     if (it != mNodeChildrens.end())

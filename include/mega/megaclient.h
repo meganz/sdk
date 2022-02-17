@@ -384,7 +384,7 @@ public:
     // Add new relationship between parent and child
     void addChild(NodeHandle parent, NodeHandle child);
     // remove relationship between parent and child
-    void removeChildRelationship(NodeHandle parent, NodeHandle child);
+    void removeChild(NodeHandle parent, NodeHandle child);
 
 private:
     // TODO Nodes on demand remove reference
