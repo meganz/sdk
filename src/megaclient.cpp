@@ -302,14 +302,14 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
                 TreeProcDel td;
                 proctree(n, &td, true);
 
-                // if there are shared below this deleted inshare
+                // if there are other shares below this deleted inshare (nested inshares)
                 if (n->inshare->user->sharing.size() > 1)
                 {
-                    // Recalculate node counters for nested in-shares
-                    // Iterate over the tree, nodes are removed at notify purge
-                    // child relationship is valid
-                    // If we find an in-share we can stop to search in that branch
-                    // other in-shares will be nested
+                    // recalculate node counter(s) for any nested in-share below deleted one
+                    // Scan the tree downwards for nested in-shares. Note that deleted in-share(s)
+                    // are effectively removed at notify purge, so the child relationship is valid
+                    // If we find an in-share, stop scanning that branch, since an share below will
+                    // be considered a nested in-share (no node counter for it)
                     std::stack<Node*> nodeStack;
                     node_list children = getChildren(n);
                     for (auto child : children)
@@ -18027,9 +18027,9 @@ void NodeManager::addCounter(const NodeHandle &h)
 
 void NodeManager::calculateCounter(const Node& n)
 {
-    // During command f processing, the node counter for in-shares are added to the map
-    // via NodeManager::addNode. Afterwards, mergeNewShare call this method, but it shouldn't
-    // add a new counter
+    // while processing command f (fetchnodes), node counters for in-shares are first added
+    // via NodeManager::addNode. Later, MegaClient::mergeNewShare call this method, but the
+    // counter is already there. Need to skip adding it again here for this case
     if (!mKeepAllNodesInMemory && mClient.fetchingnodes && !n.notified)
     {
         return;
@@ -18043,7 +18043,7 @@ void NodeManager::calculateCounter(const Node& n)
     // between rootnodes, folders and files, so we can pass the own node's type
     mNodeCounters[h] = getNodeCounter(n);
 
-    // if a node counter is added for a parent an existing one, then the
+    // if a node counter is added for the parent of an existing one, then the
     // counter of the child should be removed (ie. when a the parent of an
     // existing in-share is also shared)
     for (const auto& counter : mNodeCounters)
