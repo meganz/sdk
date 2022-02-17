@@ -1316,8 +1316,8 @@ MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
             return MegaSyncStall::SyncStallReason::DeleteOrMoveWaitingOnScanning;
         case SyncWaitReason::DeleteWaitingOnMoves:
             return MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves;
-        case SyncWaitReason::WatiingForFileToStopChanging:
-            return MegaSyncStall::SyncStallReason::WatiingForFileToStopChanging;
+        case SyncWaitReason::WaitingForFileToStopChanging:
+            return MegaSyncStall::SyncStallReason::WaitingForFileToStopChanging;
         case SyncWaitReason::MovingDownloadToTarget:
             return MegaSyncStall::SyncStallReason::MovingDownloadToTarget;
         case SyncWaitReason::MovingExistingDownloadTargetToDebris:
@@ -1386,8 +1386,8 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "DeleteOrMoveWaitingOnScanning";
         case MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves:
             return "DeleteWaitingOnMoves";
-        case MegaSyncStall::SyncStallReason::WatiingForFileToStopChanging:
-            return "WatiingForFileToStopChanging";
+        case MegaSyncStall::SyncStallReason::WaitingForFileToStopChanging:
+            return "WaitingForFileToStopChanging";
         case MegaSyncStall::SyncStallReason::MovingDownloadToTarget:
             return "MovingDownloadToTarget";
         case MegaSyncStall::SyncStallReason::MovingExistingDownloadTargetToDebris:

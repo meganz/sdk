@@ -2879,7 +2879,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::DownsyncNeedsTargetFolder:                     return "DownsyncNeedsTargetFolder";
         case SyncWaitReason::DeleteOrMoveWaitingOnScanning:                 return "DeleteOrMoveWaitingOnScanning";
         case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
-        case SyncWaitReason::WatiingForFileToStopChanging:                  return "WatiingForFileToStopChanging";
+        case SyncWaitReason::WaitingForFileToStopChanging:                  return "WaitingForFileToStopChanging";
         case SyncWaitReason::MovingDownloadToTarget:                        return "MovingDownloadToTarget";
         case SyncWaitReason::MovingExistingDownloadTargetToDebris:          return "MovingExistingDownloadTargetToDebris";
         case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
