@@ -302,35 +302,39 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
                 TreeProcDel td;
                 proctree(n, &td, true);
 
-                // Recalculate node counters for nested in-shares
-                // Iterate over the tree, nodes are removed at notify purge
-                // child relationship is valid
-                // If we find an in-share we can stop to search in that branch
-                // other in-shares will be nested
-                std::stack<Node*> nodeStack;
-                node_list children = getChildren(n);
-                for (auto child : children)
+                // if there are shared below this deleted inshare
+                if (n->inshare->user->sharing.size() > 1)
                 {
-                    nodeStack.push(child);
-                }
-
-                while (nodeStack.size())
-                {
-                    Node* node = nodeStack.top();
-                    nodeStack.pop();
-                    if (node->inshare)
+                    // Recalculate node counters for nested in-shares
+                    // Iterate over the tree, nodes are removed at notify purge
+                    // child relationship is valid
+                    // If we find an in-share we can stop to search in that branch
+                    // other in-shares will be nested
+                    std::stack<Node*> nodeStack;
+                    node_list children = getChildren(n);
+                    for (auto child : children)
                     {
-                        if (!node->changed.removed)
-                        {
-                            mNodeManager.calculateCounter(*node);
-                        }
+                        nodeStack.push(child);
                     }
-                    else
+
+                    while (nodeStack.size())
                     {
-                        node_list children = getChildren(node);
-                        for (auto child : children)
+                        Node* node = nodeStack.top();
+                        nodeStack.pop();
+                        if (node->inshare)
                         {
-                            nodeStack.push(child);
+                            if (!node->changed.removed)
+                            {
+                                mNodeManager.calculateCounter(*node);
+                            }
+                        }
+                        else
+                        {
+                            node_list children = getChildren(node);
+                            for (auto child : children)
+                            {
+                                nodeStack.push(child);
+                            }
                         }
                     }
                 }
