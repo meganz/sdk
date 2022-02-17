@@ -2343,7 +2343,12 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
     Node* syncedNode = client.nodeByHandle(n->syncedCloudNodeHandle);
     if (depth && syncedNode)
     {
-        EXPECT_TRUE(0 == compareUtf(syncedNode->displayname(), false, n->localname, true, false)) << "Localnode's associated Node vs model node name mismatch: '" << syncedNode->displayname() << "', '" << n->localname.toPath() << "'";
+        EXPECT_EQ(compareUtf(mn->cloudName(), false, syncedNode->displayname(), false, false), 0)
+            << "Localnode's associated Node vs model node name mismatch: '"
+            << syncedNode->displayname()
+            << "', '"
+            << mn->cloudName()
+            << "'";
     }
     if (depth && mn->parent)
     {
@@ -6811,6 +6816,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
 
     model.addfile("d/f");
     model.addfile("f");
+    model.addfile("g", "g");
     model.generate(root);
 
     // Trigger a full scan.
@@ -6825,6 +6831,17 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     // Rename d/f -> d/g.
     model.findnode("d/f")->name = "g";
     fs::rename(root / "d" / "f", root / "d" / "g");
+
+    // Rename g -> G.
+    model.findnode("g")->name = "G";
+#if defined(_WIN32) || defined(__APPLE__)
+    model.findnode("G")->mCloudName = "g";
+#endif // _WIN32 || __APPLE__
+    fs::rename(root / "g", root / "G");
+
+    // Update G's content.
+    model.findnode("G")->content = "G";
+    ASSERT_TRUE(createDataFile(root / "G", "G"));
 
     // Trigger a scan.
     cx.triggerFullScan(id);
@@ -6910,6 +6927,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
 
     model.addfile("d/f");
     model.addfile("f");
+    model.addfile("g", "g");
     model.generate(root);
 
     // Trigger full scan.
@@ -6921,10 +6939,10 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     // Verify upload.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
-    // Rename d/f -> d/g.
     auto* s = cr.client.nodeByHandle(cx.syncSet(id).h);
     ASSERT_TRUE(s);
 
+    // Rename d/f -> d/g.
     auto* d = cr.drillchildnodebyname(s, "d");
     ASSERT_TRUE(d);
 
@@ -6933,15 +6951,45 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
         ASSERT_TRUE(f);
 
         ASSERT_TRUE(cr.setattr(f, attr_map('n', "g")));
+
+        model.findnode("d/f")->name = "g";
+    }
+
+    // Rename g -> G.
+    {
+        auto* g = cr.drillchildnodebyname(s, "g");
+        ASSERT_NE(g, nullptr);
+
+        ASSERT_TRUE(cr.setattr(g, attr_map('n', "G")));
+
+#if defined(_WIN32) || defined(__APPLE__)
+        model.findnode("g")->mCloudName = "G";
+#else // _WIN32 || __APPLE__
+        model.findnode("g")->name = "G";
+#endif // !(_WIN32 || __APPLE__)
     }
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cx);
 
-    // Update model.
-    model.findnode("d/f")->name = "g";
-
     // Verify rename.
+    ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
+
+    // There should be no anomalies.
+    ASSERT_TRUE(reporter->mAnomalies.empty());
+
+    // Update g's content.
+#if defined(_WIN32) || defined(__APPLE__)
+    model.findnode("g")->content = "G";
+#else // _WIN32 || __APPLE__
+    model.findnode("G")->content = "G";
+#endif // ! (_WIN32 || __APPLE__)
+    ASSERT_TRUE(createDataFile(root / "G", "G"));
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cx);
+
+    // Verify upload.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
     // There should be no anomalies.
@@ -6953,13 +7001,12 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
         ASSERT_TRUE(g);
 
         ASSERT_TRUE(cr.setattr(g, attr_map('n', "g/0")));
+
+        model.findnode("d/g")->fsName("g%2f0").name = "g/0";
     }
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cx);
-
-    // Update model.
-    model.findnode("d/g")->fsName("g%2f0").name = "g/0";
 
     // Verify rename.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
