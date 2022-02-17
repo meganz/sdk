@@ -1046,7 +1046,7 @@ enum class SyncWaitReason {
     DownsyncNeedsTargetFolder,
     DeleteOrMoveWaitingOnScanning,
     DeleteWaitingOnMoves,
-    WatiingForFileToStopChanging,
+    WaitingForFileToStopChanging,
     MovingDownloadToTarget,
     MovingExistingDownloadTargetToDebris,
     LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,

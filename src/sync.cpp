@@ -1880,7 +1880,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 markSiblingSourceRow();
 
                 // if we revist here and the file is still the same after enough time, we'll move it
-                monitor.waitingLocal(sourceSyncNode->getLocalPath(), LocalPath(), string(), SyncWaitReason::WatiingForFileToStopChanging);
+                monitor.waitingLocal(sourceSyncNode->getLocalPath(), LocalPath(), string(), SyncWaitReason::WaitingForFileToStopChanging);
                 rowResult = false;
                 return true;
             }
@@ -7240,7 +7240,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     monitor.waitingLocal(fullPath.localPath,
                                          LocalPath(),
                                          string(),
-                                         SyncWaitReason::WatiingForFileToStopChanging);
+                                         SyncWaitReason::WaitingForFileToStopChanging);
 
                     return false;
                 }

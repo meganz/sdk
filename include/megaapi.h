@@ -5545,7 +5545,7 @@ class MegaSyncStall
             DownsyncNeedsTargetFolder,
             DeleteOrMoveWaitingOnScanning,
             DeleteWaitingOnMoves,
-            WatiingForFileToStopChanging,
+            WaitingForFileToStopChanging,
             MovingDownloadToTarget,
             MovingExistingDownloadTargetToDebris,
             LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
