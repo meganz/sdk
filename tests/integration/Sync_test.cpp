@@ -112,26 +112,6 @@ string parentpath(const string& p)
     return n == string::npos ? "" : p.substr(0, n-1);
 }
 
-void WaitMillisec(unsigned n)
-{
-#ifdef _WIN32
-    if (n > 1000)
-    {
-        for (int i = 0; i < 10; ++i)
-        {
-            // better for debugging, with breakpoints, pauses, etc
-            Sleep(n/10);
-        }
-    }
-    else
-    {
-        Sleep(n);
-    }
-#else
-    usleep(n * 1000);
-#endif
-}
-
 bool createFile(const fs::path &path, const void *data, const size_t data_length)
 {
 #if (__cplusplus >= 201700L)
@@ -674,7 +654,6 @@ struct StandardClient : public MegaApp
 
     string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
-    std::unique_ptr<FileSystemAccess> fsaccess;
     std::recursive_mutex clientMutex;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
@@ -799,13 +778,12 @@ struct StandardClient : public MegaApp
     StandardClient(const fs::path& basepath, const string& name)
         : client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
-        , fsaccess(new FSACCESS_CLASS(makeFsAccess_<FSACCESS_CLASS>()))
         , client(this,
                  &waiter,
                  httpio.get(),
-                 fsaccess.get(),
+                 makeFsAccess(),
 #ifdef DBACCESS_CLASS
-                 new DBACCESS_CLASS(LocalPath::fromPath(client_dbaccess_path, *fsaccess)),
+                 new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
 #else
                  NULL,
 #endif
@@ -863,7 +841,7 @@ struct StandardClient : public MegaApp
     bool logcb = false;
     chrono::steady_clock::time_point lastcb = std::chrono::steady_clock::now();
 
-    string lp(LocalNode* ln) { return ln->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN); }
+    string lp(LocalNode* ln) { return ln->getLocalPath().toName(*client.fsaccess); }
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
@@ -1198,7 +1176,7 @@ struct StandardClient : public MegaApp
                 string attrstring;
                 key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
                 attrs = n1->attrs;
-                client.fsaccess->normalize(&newname);
+                LocalPath::utf8_normalize(&newname);
                 attrs.map['n'] = newname;
                 attrs.getjson(&attrstring);
                 client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
@@ -1290,7 +1268,7 @@ struct StandardClient : public MegaApp
 
         file->h = node.nodeHandle();
         file->hprivate = true;
-        file->localname = LocalPath::fromPath(destination.u8string(), *client.fsaccess);
+        file->localname = LocalPath::fromAbsolutePath(destination.u8string());
         file->name = node.displayname();
         file->result = std::move(result);
 
@@ -1339,7 +1317,7 @@ struct StandardClient : public MegaApp
         unique_ptr<File> file(new FilePut());
 
         file->h = parent->nodeHandle();
-        file->localname = LocalPath::fromPath(path.u8string(), *client.fsaccess);
+        file->localname = LocalPath::fromAbsolutePath(path.u8string());
         file->name = name;
 
         client.startxfer(PUT, file.release(), committer, false, false, false, vo);
@@ -1658,7 +1636,7 @@ struct StandardClient : public MegaApp
         if (client.syncs.syncConfigByBackupId(backupId, c))
         {
             info.h = c.getRemoteNode();
-            info.localpath = c.getLocalPath().toPath(*client.fsaccess);
+            info.localpath = c.getLocalPath().toPath();
 
             return true;
         }
@@ -1673,7 +1651,7 @@ struct StandardClient : public MegaApp
         out() << "looking up id " << backupId;
 
         client.syncs.forEachUnifiedSync([](UnifiedSync& us){
-            out() << " ids are: " << us.mConfig.mBackupId << " with local path '" << us.mConfig.getLocalPath().toPath(*us.mClient.fsaccess);
+            out() << " ids are: " << us.mConfig.mBackupId << " with local path '" << us.mConfig.getLocalPath().toPath();
         });
 
         bool found = syncSet(backupId, result);
@@ -1775,12 +1753,12 @@ struct StandardClient : public MegaApp
         }
 
         auto config =
-          SyncConfig(LocalPath::fromPath(sourcePath, *client.fsaccess),
+          SyncConfig(LocalPath::fromAbsolutePath(sourcePath),
                      sourcePath,
                      targetNode->nodeHandle(),
                      targetNode->displaypath(),
                      0,
-                     LocalPath::fromPath(drivePath, *client.fsaccess),
+                     LocalPath::fromAbsolutePath(drivePath),
                      //string_vector(),
                      true,
                      SyncConfig::TYPE_BACKUP);
@@ -1833,7 +1811,7 @@ struct StandardClient : public MegaApp
             {
                 out() << clientname << "Setting up sync from " << m->displaypath() << " to " << localpath;
                 auto syncConfig =
-                    SyncConfig(LocalPath::fromPath(localpath.u8string(), *client.fsaccess),
+                    SyncConfig(LocalPath::fromAbsolutePath(localpath.u8string()),
                                localpath.u8string(),
                                NodeHandle().set6byte(m->nodehandle),
                                m->displaypath(),
@@ -2033,8 +2011,8 @@ struct StandardClient : public MegaApp
             return false;
         }
 
-        auto localpath = n->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN);
-        string n_localname = n->localname.toName(*client.fsaccess, FS_UNKNOWN);
+        auto localpath = n->getLocalPath().toName(*client.fsaccess);
+        string n_localname = n->localname.toName(*client.fsaccess);
         if (n_localname.size())
         {
             EXPECT_EQ(n->name, n_localname);
@@ -2052,7 +2030,7 @@ struct StandardClient : public MegaApp
             EXPECT_EQ(mn->parent->type, Model::ModelNode::folder);
             EXPECT_EQ(n->parent->type, FOLDERNODE);
 
-            string parentpath = n->parent->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN);
+            string parentpath = n->parent->getLocalPath().toName(*client.fsaccess);
             EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
         }
         if (n->node && n->parent && n->parent->node)
@@ -2275,7 +2253,7 @@ struct StandardClient : public MegaApp
 
     void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result)
     {
-        auto localPath = LocalPath::fromPath(path.u8string(), *client.fsaccess);
+        auto localPath = LocalPath::fromAbsolutePath(path.u8string());
         auto id = UNDEF;
 
         client.syncs.forEachSyncConfig(
@@ -2997,7 +2975,7 @@ struct StandardClient : public MegaApp
 
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
     {
-        auto localDrivePath = LocalPath::fromPath(drivePath.u8string(), *client.fsaccess);
+        auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
         result->set_value(client.syncs.backupOpenDrive(localDrivePath) == API_OK);
     }
 };
@@ -4428,7 +4406,7 @@ string makefa(const string& name, int fakecrc, int mtime)
 Node* makenode(MegaClient& mc, NodeHandle parent, ::mega::nodetype_t type, m_off_t size, handle owner, const string& attrs, ::mega::byte* key)
 {
     static handle handlegenerator = 10;
-    auto newnode = new Node(mc, ++handlegenerator, parent.as8byte(), type, size, owner, nullptr, 1);
+    auto newnode = new Node(mc, NodeHandle().set6byte(++handlegenerator), parent, type, size, owner, nullptr, 1);
 
     newnode->setkey(key);
     newnode->attrstring.reset(new string);
@@ -4817,7 +4795,7 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
           auto fileAccess = fsAccess.newfileaccess(false);
 
           // Translate input path into something useful.
-          auto path = LocalPath::fromPath(fsPath.u8string(), fsAccess);
+          auto path = LocalPath::fromAbsolutePath(fsPath.u8string());
 
           // Try and open file for reading.
           if (fileAccess->fopen(path, true, false))
@@ -4980,8 +4958,8 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
         config1.mBackupId = UNDEF;
 
         // Update path for c1.
-        config0.mLocalPath = LocalPath::fromPath(root0.u8string(), fsAccess);
-        config1.mLocalPath = LocalPath::fromPath(root1.u8string(), fsAccess);
+        config0.mLocalPath = LocalPath::fromAbsolutePath(root0.u8string());
+        config1.mLocalPath = LocalPath::fromAbsolutePath(root1.u8string());
 
         // Make sure local sync roots exist.
         fs::create_directories(root0);
@@ -5606,16 +5584,16 @@ public:
     }
 
     void anomalyDetected(FilenameAnomalyType type,
-                         const string& localPath,
+                         const LocalPath& localPath,
                          const string& remotePath) override
     {
-        assert(startsWith(localPath, mLocalRoot));
+        assert(startsWith(localPath.toPath(), mLocalRoot));
         assert(startsWith(remotePath, mRemoteRoot));
 
         mAnomalies.emplace_back();
 
         auto& anomaly = mAnomalies.back();
-        anomaly.localPath = localPath.substr(mLocalRoot.size());
+        anomaly.localPath = localPath.toPath().substr(mLocalRoot.size());
         anomaly.remotePath = remotePath.substr(mRemoteRoot.size());
         anomaly.type = type;
     }
@@ -7573,7 +7551,7 @@ struct TwoWaySyncSymmetryCase
         string attrstring;
         key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
         attrs = n1->attrs;
-        client1().client.fsaccess->normalize(&newname);
+        LocalPath::utf8_normalize(&newname);
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());

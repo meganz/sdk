@@ -1401,7 +1401,7 @@ public:
     HttpIO* httpio;
 
     // directory change notification
-    struct FileSystemAccess* fsaccess;
+    unique_ptr<FileSystemAccess> fsaccess;
 
     // bitmap graphics handling
     GfxProc* gfx;
@@ -1786,7 +1786,7 @@ public:
 
     // unlink the LocalNode from the corresponding node
     // if the associated local file or folder still exists
-    void unlinkifexists(LocalNode*, FileAccess*, LocalPath& reuseBuffer);
+    void unlinkifexists(LocalNode*, FileAccess*);
 #endif
 
     // recursively cancel transfers in a subtree
@@ -2123,10 +2123,10 @@ public:
     // return API_OK if success, otherwise error code
     error writeDriveId(const char *pathToDrive, handle driveId);
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, unique_ptr<FileSystemAccess>&&, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
-    void filenameAnomalyDetected(FilenameAnomalyType type, const string& localPath, const string& remotePath);
+    void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);
     unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
 
 private:

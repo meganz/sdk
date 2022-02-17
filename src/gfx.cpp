@@ -294,7 +294,7 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
 {
     if (SimpleLogger::logCurrentLevel >= logDebug)
     {
-        LOG_debug << "Creating thumb/preview for " << localfilename.toPath(*client->fsaccess);
+        LOG_debug << "Creating thumb/preview for " << localfilename;
     }
 
     GfxJob *job = new GfxJob();

@@ -32,7 +32,7 @@ class MEGA_API SqliteDbTable : public DbTable
 protected:
     sqlite3* db = nullptr;
     sqlite3_stmt* pStmt;
-    string dbfile;
+    LocalPath dbfile;
     FileSystemAccess *fsaccess;
 
 public:
@@ -47,12 +47,10 @@ public:
     void abort() override;
     void remove() override;
 
-    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
+    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted);
     virtual ~SqliteDbTable();
 
     bool inTransaction() const override;
-
-    LocalPath dbFile() const;
 };
 
 /**
@@ -85,7 +83,7 @@ public:
     bool removeNodes() override;
     bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>>& fingerprints, std::vector<std::pair<NodeHandle, NodeHandle>>& nodeAndParent) override;
 
-    SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
+    SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
 
 private:
     // Iterate over a SQL query row by row and fill the map
@@ -118,7 +116,7 @@ public:
     const LocalPath& rootPath() const override;
 
 private:
-    bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, std::string& dbPathStr, const int flags);
+    bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
 };
 
 } // namespace
