@@ -16878,8 +16878,8 @@ node_list NodeManager::getChildren(const Node *parent)
         return childrenList;
     }
 
-    auto it = mNodeChildrens.find(parent->nodeHandle());
-    if (it != mNodeChildrens.end())
+    auto it = mNodeChildren.find(parent->nodeHandle());
+    if (it != mNodeChildren.end())
     {
         std::set<NodeHandle>& children = it->second;
         for (const auto &childHandle : children)
@@ -17222,8 +17222,8 @@ NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t
     nodetype_t nodeType = node ? node->type : mTable->getNodeType(nodehandle);
 
     std::set<NodeHandle> children;
-    auto it = mNodeChildrens.find(nodehandle);
-    if (it != mNodeChildrens.end())
+    auto it = mNodeChildren.find(nodehandle);
+    if (it != mNodeChildren.end())
     {
         children = it->second;
     }
@@ -17773,7 +17773,7 @@ void NodeManager::notifyPurge()
 
             if (n->changed.removed)
             {
-                // remove item from related maps, etc. (mNodeCounters, mFingerprints, mNodeChildrens, ...)
+                // remove item from related maps, etc. (mNodeCounters, mFingerprints, mNodeChildren, ...)
                 if (n->parent)  // only process node counters for subtrees not deleted already
                 {
                     subtractFromRootCounter(*n);
@@ -17791,7 +17791,7 @@ void NodeManager::notifyPurge()
                     child->parent = nullptr;
                 }
 
-                mNodeChildrens.erase(n->nodeHandle());
+                mNodeChildren.erase(n->nodeHandle());
 
                 // effectively delete node from RAM
                 mNodesWithMissingParent.erase(n->nodeHandle());
@@ -18132,13 +18132,13 @@ uint64_t NodeManager::getNumberNodesInRam() const
 
 void NodeManager::addChild(NodeHandle parent, NodeHandle child)
 {
-    mNodeChildrens[parent].insert(child);
+    mNodeChildren[parent].insert(child);
 }
 
 void NodeManager::removeChild(NodeHandle parent, NodeHandle child)
 {
-    auto it = mNodeChildrens.find(parent);
-    if (it != mNodeChildrens.end())
+    auto it = mNodeChildren.find(parent);
+    if (it != mNodeChildren.end())
     {
         it->second.erase(child);
     }

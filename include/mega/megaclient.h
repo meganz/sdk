@@ -434,7 +434,7 @@ private:
     Node *mNodeToWriteInDb = nullptr;
 
     // store relationship between nodes and their children
-    std::map<NodeHandle, std::set<NodeHandle>> mNodeChildrens;
+    std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
 };
 
 class MEGA_API MegaClient
