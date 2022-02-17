@@ -386,6 +386,9 @@ public:
     // remove relationship between parent and child
     void removeChild(NodeHandle parent, NodeHandle child);
 
+    // Cancel all DB queries in progress in same sql connection
+    void cancelDbQuery();
+
 private:
     // TODO Nodes on demand remove reference
     MegaClient& mClient;
