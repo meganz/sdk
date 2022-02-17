@@ -17978,12 +17978,15 @@ void NodeManager::addCounter(const NodeHandle &h)
 
 void NodeManager::calculateCounter(const Node& n)
 {
-    NodeHandle h = n.nodeHandle();
-    if (!mKeepAllNodesInMemory && mClient.fetchingnodes && !n.notified) // In this case, node counters are calculated in NodeManager::addNode
+    // During command f processing, the node counter for in-shares are added to the map
+    // via NodeManager::addNode. Afterwards, mergeNewShare call this method, but it shouldn't
+    // add a new counter
+    if (!mKeepAllNodesInMemory && mClient.fetchingnodes && !n.notified)
     {
         return;
     }
 
+    NodeHandle h = n.nodeHandle();
     assert(mNodeCounters.find(h) == mNodeCounters.end());
     // this method is called only for rootnodes and inshares, where
     // the parent node can be FOLDERNODE (for nested inshares), or TYPE_UNKNOWN
