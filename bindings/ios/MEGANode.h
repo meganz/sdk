@@ -51,7 +51,9 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
     MEGANodeChangeTypeParent         = 0x80,
     MEGANodeChangeTypePendingShare   = 0x100,
     MEGANodeChangeTypePublicLink     = 0x200,
-    MEGANodeChangeTypeNew            = 0x400
+    MEGANodeChangeTypeNew            = 0x400,
+    MEGANodeChangeTypeName           = 0x800,
+    MEGANodeChangeTypeFavourite      = 0x1000,
 };
 
 NS_ASSUME_NONNULL_BEGIN
