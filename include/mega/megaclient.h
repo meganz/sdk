@@ -381,6 +381,11 @@ public:
     // This method only can be used in Megacli for testing purposes
     uint64_t getNumberNodesInRam() const;
 
+    // Add new relationship between parent and child
+    void addChild(NodeHandle parent, NodeHandle child);
+    // remove relationship between parent and child
+    void removeChild(NodeHandle parent, NodeHandle child);
+
 private:
     // TODO Nodes on demand remove reference
     MegaClient& mClient;
@@ -412,10 +417,6 @@ private:
     bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
 
-    // get children handles loaded in RAM (which may not be in cache yet)
-    // (upon node's modification, nodes are added to the notification queue (mNodeNotify), but
-    // changes are not dumped to DB cache until the notification is done in 'notifyPurge()')
-    std::set<NodeHandle> getChildrenHandlesFromNode(NodeHandle nodehandle);
     // Increase node counters with a node type and values
     void increaseCounter(const Node *node, NodeHandle firstAncestorHandle);
     // Load nodes recursively and update nodeCounters
@@ -431,6 +432,9 @@ private:
 
     // node temporary in memory, which will be removed upon write to DB
     Node *mNodeToWriteInDb = nullptr;
+
+    // store relationship between nodes and their children (nodes without children are not in the map)
+    std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
 };
 
 class MEGA_API MegaClient
