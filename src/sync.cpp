@@ -4906,13 +4906,13 @@ void Syncs::syncRun(std::function<void()> f)
     synchronous.get_future().get();
 }
 
-void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool keepSyncDb, bool notifyApp, bool unregisterHeartbeat)
+void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool notifyApp, bool unregisterHeartbeat)
 {
     assert(!onSyncThread());
-    syncRun([&](){ removeSelectedSyncs_inThread(selector, keepSyncDb, notifyApp, unregisterHeartbeat); });
+    syncRun([&](){ removeSelectedSyncs_inThread(selector, notifyApp, unregisterHeartbeat); });
 }
 
-void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool keepSyncDb, bool notifyApp, bool unregisterHeartbeat)
+void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool notifyApp, bool unregisterHeartbeat)
 {
     assert(onSyncThread());
 
@@ -4920,7 +4920,7 @@ void Syncs::removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)>
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
-            removeSyncByIndex(i, keepSyncDb, notifyApp, unregisterHeartbeat);
+            removeSyncByIndex(i, notifyApp, unregisterHeartbeat);
         }
     }
 }
@@ -5001,7 +5001,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
     mExecutingLocallogout = false;
 }
 
-void Syncs::removeSyncByIndex(size_t index, bool keepSyncDb, bool notifyApp, bool unregisterHeartbeat)
+void Syncs::removeSyncByIndex(size_t index, bool notifyApp, bool unregisterHeartbeat)
 {
     assert(onSyncThread());
 
@@ -5009,7 +5009,7 @@ void Syncs::removeSyncByIndex(size_t index, bool keepSyncDb, bool notifyApp, boo
     {
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
-            syncPtr->changestate(DECONFIGURING_SYNC, false, false, keepSyncDb);
+            syncPtr->changestate(DECONFIGURING_SYNC, false, false, false);
             assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
         }

@@ -2184,7 +2184,7 @@ bool StandardClient::delSync_inthread(handle backupId)
             removed |= matched;
 
             return matched;
-        }, false, false, true); // in the tests we are going to resume the syncs on session resume
+        }, false, true); // in the tests we are going to resume the syncs on session resume
 
     return removed;
 }
@@ -3263,7 +3263,7 @@ void StandardClient::cleanupForTestReuse()
         // currently synchronous
         sc.client.syncs.removeSelectedSyncs(
             [](SyncConfig&, Sync*){ return true; },
-            false, false, true);
+            false, true);
 
         pb->set_value(true);
     });
