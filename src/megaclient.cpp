@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <functional>
 #include <future>
+#include <stack>
 #include "mega/heartbeats.h"
 
 #undef min // avoid issues with std::min and std::max
@@ -300,6 +301,43 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
             {
                 TreeProcDel td;
                 proctree(n, &td, true);
+
+                // if there are other shares below this deleted inshare (nested inshares)
+                if (n->inshare->user->sharing.size() > 1)
+                {
+                    // recalculate node counter(s) for any nested in-share below deleted one
+                    // Scan the tree downwards for nested in-shares. Note that deleted in-share(s)
+                    // are effectively removed at notify purge, so the child relationship is valid
+                    // If we find an in-share, stop scanning that branch, since an share below will
+                    // be considered a nested in-share (no node counter for it)
+                    std::stack<Node*> nodeStack;
+                    node_list children = getChildren(n);
+                    for (auto child : children)
+                    {
+                        nodeStack.push(child);
+                    }
+
+                    while (nodeStack.size())
+                    {
+                        Node* node = nodeStack.top();
+                        nodeStack.pop();
+                        if (node->inshare)
+                        {
+                            if (!node->changed.removed)
+                            {
+                                mNodeManager.calculateCounter(*node);
+                            }
+                        }
+                        else
+                        {
+                            node_list children = getChildren(node);
+                            for (auto child : children)
+                            {
+                                nodeStack.push(child);
+                            }
+                        }
+                    }
+                }
             }
             else
             {
@@ -434,7 +472,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
                             n->inshare->user->sharing.insert(n->nodehandle);
                             NodeHandle nodeHandle;
                             nodeHandle.set6byte(n->nodehandle);
-                            mNodeManager.addCounter(nodeHandle);
+                            // Avoid to add nested in shares
+                            if (!n->parent)
+                            {
+                                mNodeManager.calculateCounter(*n);
+                            }
                         }
 
                         if (notify)
@@ -17985,6 +18027,14 @@ void NodeManager::addCounter(const NodeHandle &h)
 
 void NodeManager::calculateCounter(const Node& n)
 {
+    // while processing command f (fetchnodes), node counters for in-shares are first added
+    // via NodeManager::addNode. Later, MegaClient::mergeNewShare call this method, but the
+    // counter is already there. Need to skip adding it again here for this case
+    if (!mKeepAllNodesInMemory && mClient.fetchingnodes && !n.notified)
+    {
+        return;
+    }
+
     NodeHandle h = n.nodeHandle();
     assert(mNodeCounters.find(h) == mNodeCounters.end());
     // this method is called only for rootnodes and inshares, where
@@ -17992,6 +18042,19 @@ void NodeManager::calculateCounter(const Node& n)
     // (for inshares and rootnodes). The purpose of the type is to differentiate
     // between rootnodes, folders and files, so we can pass the own node's type
     mNodeCounters[h] = getNodeCounter(n);
+
+    // if a node counter is added for the parent of an existing one, then the
+    // counter of the child should be removed (ie. when a the parent of an
+    // existing in-share is also shared)
+    for (const auto& counter : mNodeCounters)
+    {
+        NodeHandle ancestor = getFirstAncestor(counter.first);
+        if (counter.first != ancestor && ancestor == n.nodeHandle())
+        {
+            mNodeCounters.erase(counter.first);
+            break;
+        }
+    }
 }
 
 void NodeManager::subtractFromRootCounter(const Node& n)
