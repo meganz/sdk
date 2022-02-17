@@ -17362,6 +17362,7 @@ void NodeManager::cleanNodes()
     mNodes.clear();
     mNodeCounters.clear();
     mNodesWithMissingParent.clear();
+    mNodeChildren.clear();
 
     if (mTable)
         mTable->removeNodes();
