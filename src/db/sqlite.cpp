@@ -558,10 +558,9 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, T &nodes)
 
     if (sqlResult == SQLITE_ERROR)
     {
+        // In case of interrupt db query, it will finish with (expected) error
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to processSqlQueryNodes from database: " << dbfile << err;
-        assert(!"Unable to processSqlQueryNodes from database.");
-        return false;
+        LOG_debug << "Unable to processSqlQueryNodes from database (maybe query has been interrupted): " << dbfile << err;
     }
 
     return true;
@@ -609,6 +608,16 @@ bool SqliteAccountState::removeNodes()
     }
 
     return sqlResult == SQLITE_OK;
+}
+
+void SqliteAccountState::cancelQuery()
+{
+    if (!db)
+    {
+        return;
+    }
+
+    sqlite3_interrupt(db);
 }
 
 bool SqliteAccountState::put(Node *node)

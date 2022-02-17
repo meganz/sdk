@@ -17969,6 +17969,17 @@ bool NodeManager::isRootNode(NodeHandle h) const
             || h == mClient.rootnodes.rubbish;
 }
 
+void NodeManager::cancelDbQuery()
+{
+    if (!mTable)
+    {
+        assert(false);
+        return;
+    }
+
+    mTable->cancelQuery();
+}
+
 NodeCounter NodeManager::getCounterOfRootNodes()
 {
     NodeCounter c;

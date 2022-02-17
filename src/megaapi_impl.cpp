@@ -11714,9 +11714,16 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
-    if (cancelToken && cancelToken->isCancelled())
+    MegaCancelTokenPrivate* cancelTokenPrivate = nullptr;
+    if (cancelToken)
     {
-        return new MegaNodeListPrivate();
+        if (cancelToken->isCancelled())
+        {
+            return new MegaNodeListPrivate();
+        }
+
+        cancelTokenPrivate = static_cast<MegaCancelTokenPrivate*>(cancelToken);
+        cancelTokenPrivate->startProcessing(MegaCancelTokenPrivate::Usage::USAGE_SEARCH, client);
     }
 
     SdkMutexGuard g(sdkMutex);
@@ -11849,6 +11856,11 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
         sortByComparatorFunction(result, order, *client);
         nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
+    }
+
+    if (cancelTokenPrivate)
+    {
+        cancelTokenPrivate->endProcessing();
     }
 
     return nodeList;
@@ -33720,11 +33732,49 @@ MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
 void MegaCancelTokenPrivate::cancel(bool newValue)
 {
     cancelFlag = newValue;
+
+    if (cancelFlag && processing)
+    {
+        switch (mUsage)
+        {
+            case Usage::USAGE_SEARCH:
+            {
+                mMegaClient->mNodeManager.cancelDbQuery();
+            }
+                break;
+
+            default:    // nothing to do for generic usage
+                break;
+        }
+
+        endProcessing();
+    }
+
+    if (!cancelFlag)    // reset
+    {
+        mUsage = Usage::USAGE_GENERIC;
+        mMegaClient = nullptr;
+    }
 }
 
 bool MegaCancelTokenPrivate::isCancelled() const
 {
     return cancelFlag;
+}
+
+void MegaCancelTokenPrivate::startProcessing(MegaCancelTokenPrivate::Usage usage, MegaClient *c)
+{
+    assert(usage != Usage::USAGE_SEARCH || c);
+
+    mUsage = usage;
+    mMegaClient = c;
+
+    processing = true;
+}
+
+void MegaCancelTokenPrivate::endProcessing()
+{
+    processing = false;
 }
 
 }

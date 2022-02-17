@@ -20003,6 +20003,9 @@ public:
      * @brief Creates an object which can be passed as parameter for some MegaApi methods in order to
      * request the cancellation of the processing associated to the function. @see MegaApi::search
      *
+     * The instance of MegaCancelToken can be reset (@see cancel) for reuse for future calls, but
+     * it should not be used for more than one operation at the same time.
+     *
      * You take ownership of the returned value.
      *
      * @return A pointer to an object that allows to cancel the processing of some functions.
