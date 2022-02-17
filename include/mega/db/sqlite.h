@@ -81,7 +81,7 @@ public:
     bool put(Node* node) override;
     bool remove(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
-    bool getFingerPrints(std::map<FileFingerprint, std::map<NodeHandle, Node*>>& fingerprints) override;
+    bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>>& fingerprints, std::vector<std::pair<NodeHandle, NodeHandle>>& nodeAndParent) override;
 
     void cancelQuery() override;
 
