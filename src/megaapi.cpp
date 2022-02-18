@@ -3562,16 +3562,6 @@ int MegaApi::getTotalDownloads()
     return pImpl->getTotalDownloads();
 }
 
-void MegaApi::resetTotalDownloads()
-{
-    pImpl->resetTotalDownloads();
-}
-
-void MegaApi::resetTotalUploads()
-{
-    pImpl->resetTotalUploads();
-}
-
 size_t MegaApi::getCompletedUploads()
 {
     return pImpl->getCompletedUploads();

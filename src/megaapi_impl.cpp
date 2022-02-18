@@ -9084,20 +9084,6 @@ int MegaApiImpl::getTotalDownloads()
     return totalDownloads;
 }
 
-void MegaApiImpl::resetTotalDownloads()
-{
-    totalDownloads = 0;
-    totalDownloadBytes = 0;
-    totalDownloadedBytes = 0;
-}
-
-void MegaApiImpl::resetTotalUploads()
-{
-    totalUploads = 0;
-    totalUploadBytes = 0;
-    totalUploadedBytes = 0;
-}
-
 size_t MegaApiImpl::getCompletedUploads()
 {
     return completedUploads.size();
