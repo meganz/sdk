@@ -532,12 +532,16 @@ private:
 
 };
 
-
 RotativePerformanceLogger::RotativePerformanceLogger()
 {
 }
 
 RotativePerformanceLogger::~RotativePerformanceLogger()
+{
+    stopLogger();
+}
+
+void RotativePerformanceLogger::stopLogger()
 {
     MegaApi::removeLoggerObject(this); // after this no more calls to RotativePerformanceLogger::log
     {
@@ -559,6 +563,10 @@ void RotativePerformanceLogger::initialize(const char * logsPath, const char * l
     unique_ptr<MegaFileSystemAccess> fsAccess(new MegaFileSystemAccess());
     fsAccess->mkdirlocal(logsPathLocalPath, false, false);
 
+    if (mLoggingThread)
+    {
+        stopLogger();
+    }
     mLoggingThread.reset(new RotativePerformanceLoggerLoggingThread());
     mLoggingThread->startLoggingThread(logsPathLocalPath, logFileNameLocalPath);
 
