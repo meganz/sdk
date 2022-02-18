@@ -14350,8 +14350,8 @@ class MegaApi
         int getNumPendingDownloads();
 
         /**
-         * @brief Get the number of queued uploads since the last call to MegaApi::resetCompletedUploads
-         * @return Number of queued uploads since the last call to MegaApi::resetCompletedUploads
+         * @brief Get the number of queued uploads since the last call to MegaApi::resetTotalUploads
+         * @return Number of queued uploads since the last call to MegaApi::resetTotalUploads
          *
          * @deprecated Function related to statistics will be reviewed in future updates to
          * provide more data and avoid race conditions. They could change or be removed in the current form.
@@ -14359,25 +14359,32 @@ class MegaApi
         int getTotalUploads();
 
         /**
-         * @brief Get the number of queued downloads since the last call to MegaApi::resetCompletedDownloads
-         * @return Number of queued downloads since the last call to MegaApi::resetCompletedDownloads
+         * @brief Get the number of queued uploads since the last call to MegaApi::resetTotalDownloads
+         * @return Number of queued uploads since the last call to MegaApi::resetTotalDownloads
          *
-         * @deprecated Function related to statistics will be reviewed in future updates to
-         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         * @deprecated Function related to statistics will be reviewed in future updates. They
+         * could change or be removed in the current form.
          */
         int getTotalDownloads();
 
         /**
-         * @brief Reset the number of completed uploads (total uploads = pending uploads)
-         * This function resets the number returned by MegaApi::getTotalUploads
+         * @brief Reset the number of total downloads
+         * This function resets the number returned by MegaApi::getTotalDownloads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         *
          */
-        void resetCompletedUploads();
+        void resetTotalDownloads();
 
         /**
-         * @brief Reset the number of completed downloads (total downloads = pending downloads)
-         * This function resets the number returned by MegaApi::getTotalDownloads
+         * @brief Reset the number of total uploads
+         * This function resets the number returned by MegaApi::getTotalUploads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
-        void resetCompletedDownloads();
+        void resetTotalUploads();
 
         /**
          * @brief Get the total downloaded bytes
