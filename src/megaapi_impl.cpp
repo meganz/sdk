@@ -7742,8 +7742,8 @@ void MegaApiImpl::abortPendingActions(error preverror)
 
     }
 
-    resetCompletedDownloadsImpl();
-    resetCompletedUploadsImpl();
+    resetCompletedDownloads();
+    resetCompletedUploads();
 }
 
 bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const
@@ -9110,41 +9110,13 @@ size_t MegaApiImpl::getCompletedDownloads()
 
 void MegaApiImpl::resetCompletedDownloads()
 {
-    SdkMutexGuard lock(sdkMutex);
-
-    resetCompletedDownloadsImpl();
-}
-
-void MegaApiImpl::resetCompletedUploads()
-{
-    SdkMutexGuard lock(sdkMutex);
-
-    resetCompletedUploadsImpl();
-}
-
-void MegaApiImpl::removeCompletedUpload(int transferTag)
-{
-    SdkMutexGuard lock(sdkMutex);
-
-    removeCompletedUploadImpl(transferTag);
-}
-
-void MegaApiImpl::removeCompletedDownload(int transferTag)
-{
-    SdkMutexGuard lock(sdkMutex);
-
-    removeCompletedDownloadImpl(transferTag);
-}
-
-void MegaApiImpl::resetCompletedDownloadsImpl()
-{
     completedDownloads.clear();
     totalDownloads = pendingDownloads;
     totalDownloadBytes = totalDownloadBytes - totalDownloadedBytes;
     totalDownloadedBytes = 0;
 }
 
-void MegaApiImpl::resetCompletedUploadsImpl()
+void MegaApiImpl::resetCompletedUploads()
 {
     completedUploads.clear();
     totalUploads = pendingUploads;
@@ -9152,7 +9124,7 @@ void MegaApiImpl::resetCompletedUploadsImpl()
     totalUploadedBytes = 0;
 }
 
-void MegaApiImpl::removeCompletedUploadImpl(int transferTag)
+void MegaApiImpl::removeCompletedUpload(int transferTag)
 {
     auto itr = completedUploads.find(transferTag);
     if (itr != completedUploads.end())
@@ -9164,7 +9136,7 @@ void MegaApiImpl::removeCompletedUploadImpl(int transferTag)
     }
 }
 
-void MegaApiImpl::removeCompletedDownloadImpl(int transferTag)
+void MegaApiImpl::removeCompletedDownload(int transferTag)
 {
     auto itr = completedDownloads.find(transferTag);
     if (itr != completedDownloads.end())

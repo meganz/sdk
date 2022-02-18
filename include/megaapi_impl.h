@@ -3263,12 +3263,6 @@ protected:
 private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
-
-        void resetCompletedDownloadsImpl();
-        void resetCompletedUploadsImpl();
-        void removeCompletedUploadImpl(int transferTag);
-        void removeCompletedDownloadImpl(int transferTag);
-
 #ifdef ENABLE_SYNC
         error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
 #endif
