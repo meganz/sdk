@@ -371,32 +371,6 @@ class SimpleLogger
         logValue(": ");
         logValue(se.what());
     }
-
-    template <typename T>
-    void logValue(const std::unique_ptr<T>& ptr)
-    {
-        if (!ptr)
-        {
-            logValue("<empty unique ptr>");
-        }
-        else
-        {
-            logValue(*ptr.get());
-        }
-    }
-
-    template <typename T>
-    void logValue(const std::shared_ptr<T>& ptr)
-    {
-        if (!ptr)
-        {
-            logValue("<empty shared ptr>");
-        }
-        else
-        {
-            logValue(*ptr.get());
-        }
-    }
 #endif
 
 public:
@@ -559,6 +533,56 @@ public:
     }
 #endif
 
+    template <typename T>
+    SimpleLogger& operator<<(const std::unique_ptr<T>& ptr)
+    {
+#ifdef ENABLE_LOG_PERFORMANCE
+        if (!ptr)
+        {
+            logValue("<empty unique ptr>");
+        }
+        else
+        {
+            logValue(*ptr.get());
+        }
+#else
+        if (!ptr)
+        {
+            ostr << "<empty unique ptr>";
+        }
+        else
+        {
+            ostr << *ptr.get();
+        }
+#endif
+        return *this;
+    }
+
+    template <typename T>
+    SimpleLogger& operator<<(const std::shared_ptr<T>& ptr)
+    {
+#ifdef ENABLE_LOG_PERFORMANCE
+        if (!ptr)
+        {
+            logValue("<empty shared ptr>");
+        }
+        else
+        {
+            logValue(*ptr.get());
+        }
+#else
+        if (!ptr)
+        {
+            ostr << "<empty shared ptr>";
+        }
+        else
+        {
+            ostr << *ptr.get();
+        }
+#endif
+        return *this;
+    }
+
     SimpleLogger& operator<<(const DirectMessage &obj)
     {
 #ifndef ENABLE_LOG_PERFORMANCE
@@ -617,11 +641,14 @@ public:
 template<std::size_t N> inline const char* log_file_leafname( const char (&fullpath)[N]) {
     for (auto i = N - 1; --i; )
     {
-        if (fullpath[i] == '/' || fullpath[i] == '\\') 
+        if (fullpath[i] == '/' || fullpath[i] == '\\')
             return &fullpath[i+1];
     }
     return fullpath;
 }
+
+std::ostream& operator <<(std::ostream&, const std::system_error&);
+std::ostream& operator <<(std::ostream&, const std::error_code&);
 
 #define LOG_verbose \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
