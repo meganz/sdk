@@ -9496,7 +9496,7 @@ void exec_syncstatus(autocomplete::ACState& s)
              << endl;
         return;
     }
-    
+
     // Translate size to a suffixed string.
     auto toSuffixedString = [](size_t value) {
         if (value < 1024)
@@ -9605,8 +9605,8 @@ void exec_syncxable(autocomplete::ACState& s)
             static_cast<SyncError>(withError ? atoi(errIdString.c_str()) : 0),
             false,
             keepSyncDb,
-            [](){
-                cout << "Sync Disabled." << endl;
+            [targetState](){
+                cout << (targetState == SyncRunState::Suspend ? "Sync Suspended." : "Sync Disabled.") << endl;
                 });
         break;
     }

@@ -2465,9 +2465,11 @@ bool LocalNodeCore::write(string& destination, uint32_t parentID)
 
     // first flag indicates we are storing slocalname.
     // Storing it is much, much faster than looking it up on startup.
-    w.serializeexpansionflags(1);
+    w.serializeexpansionflags(1, 1);
     auto tmpstr = slocalname ? slocalname->platformEncoded() : string();
     w.serializepstr(slocalname ? &tmpstr : nullptr);
+
+    w.serializebool(namesSynchronized);
 
     return true;
 }
@@ -2560,6 +2562,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     memset(crc, 0, sizeof crc);
     byte syncable = 1;
     unsigned char expansionflags[8] = { 0 };
+    bool ns = false;
 
     if (!r.unserializehandle(fsid) ||
         !r.unserializeu32(parentID) ||
@@ -2568,8 +2571,9 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
         (type == FILENODE && !r.unserializecompressed64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
-        (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 1)) ||
-        (expansionflags[0] && !r.unserializecstr(shortname, false)))
+        (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 2)) ||
+        (expansionflags[0] && !r.unserializecstr(shortname, false)) ||
+        (expansionflags[1] && !r.unserializebool(ns)))
     {
         LOG_err << "LocalNode unserialization failed at field " << r.fieldnum;
         assert(false);
@@ -2583,6 +2587,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     this->localname = LocalPath::fromPlatformEncodedRelative(localname);
     this->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncodedRelative(shortname)));
     this->slocalname_in_db = 0 != expansionflags[0];
+    this->namesSynchronized = ns;
 
     memcpy(this->syncedFingerprint.crc.data(), crc, sizeof crc);
 

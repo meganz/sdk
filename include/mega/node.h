@@ -489,6 +489,11 @@ struct MEGA_API LocalNodeCore
 
     // FILENODE or FOLDERNODE
     nodetype_t type = TYPE_UNKNOWN;
+
+    // Once the local and remote names match exactly (taking into account escaping), we will keep them matching
+    // This is so users can, for example, change uppercase/lowercase and have that synchronized.
+    bool namesSynchronized = false;
+
 }; // LocalNodeCore
 
 struct MEGA_API LocalNode
