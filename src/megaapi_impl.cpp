@@ -9112,24 +9112,24 @@ void MegaApiImpl::resetCompletedUploads()
 
 void MegaApiImpl::clearCompletedUpload(int transferTag)
 {
-    auto itr = completedUploads.find(transferTag);
+    map<int, long long>::iterator itr = completedUploads.find(transferTag) ;
     if (itr != completedUploads.end())
     {
         totalUploads--;
-        totalUploadedBytes -= itr->second;
-        totalUploadBytes -= itr->second;
+        totalUploadedBytes = totalUploadedBytes - itr->second;
+        totalUploadBytes = totalUploadBytes - itr->second;
         completedUploads.erase(itr);
     }
 }
 
 void MegaApiImpl::clearCompletedDownload(int transferTag)
 {
-    auto itr = completedDownloads.find(transferTag);
+    map<int, long long>::iterator itr = completedDownloads.find(transferTag) ;
     if (itr != completedDownloads.end())
     {
         totalDownloads--;
-        totalDownloadedBytes -= itr->second;
-        totalDownloadBytes -= itr->second;
+        totalDownloadedBytes = totalDownloadedBytes - itr->second;
+        totalDownloadBytes = totalDownloadBytes - itr->second;
         completedDownloads.erase(itr);
     }
 }
@@ -16344,6 +16344,8 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     }
 
     transferMap.erase(transfer->getTag());
+
+
     if (transfer->isFolderTransfer())
     {
         folderTransferMap.erase(transfer->getTag());
