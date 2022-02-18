@@ -156,6 +156,24 @@ const char* AttrMap::unserialize(const char* ptr , const char *end)
     return ptr;
 }
 
+bool AttrMap::hasUpdate(nameid attrId, const attr_map& updates) const
+{
+    auto curIt = map.find(attrId);
+    auto updIt = updates.find(attrId);
+    return updIt != updates.end() && // is present in updates AND
+           ((curIt == map.end() && !updIt->second.empty()) || // is not present here and has non-empty value in updates OR
+            (curIt != map.end() && curIt->second != updIt->second)); // is present here but has different value in updates
+}
+
+bool AttrMap::hasDifferentValue(nameid attrId, const attr_map& otherAttrs) const
+{
+    auto curIt = map.find(attrId);
+    auto otherIt = otherAttrs.find(attrId);
+    return (curIt != map.end() && otherIt == otherAttrs.end()) || // present only here OR
+           (curIt == map.end() && otherIt != otherAttrs.end()) || // present only in other attrs OR
+           (curIt != map.end() && otherIt != otherAttrs.end() && curIt->second != otherIt->second); // have different values
+}
+
 void AttrMap::applyUpdates(const attr_map& updates)
 {
     for (auto& u : updates)

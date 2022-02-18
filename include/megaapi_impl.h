@@ -429,7 +429,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
-                        bool isForeign = false, const char *chatauth = NULL);
+                        bool isForeign = false, const char *chatauth = NULL, bool isNodeDecrypted = true);
 
         MegaNodePrivate(MegaNode *node);
         ~MegaNodePrivate() override;
@@ -456,7 +456,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getHandle() override;
         MegaHandle getRestoreHandle() override;
         MegaHandle getParentHandle() override;
-        std::string* getNodeKey() override;
+        std::string* getNodeKey() override;        
+        bool isNodeKeyDecrypted() override;
         char *getBase64Key() override;
         char* getFileAttrString() override;
         int64_t getExpirationTime() override;
@@ -545,6 +546,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle owner;
         bool mFavourite;
         nodelabel_t mLabel;
+        bool mIsNodeKeyDecrypted = false;
 };
 
 

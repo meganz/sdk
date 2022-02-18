@@ -602,6 +602,11 @@ string *MegaNode::getNodeKey()
     return NULL;
 }
 
+bool MegaNode::isNodeKeyDecrypted()
+{
+    return false;
+}
+
 char *MegaNode::getFileAttrString()
 {
     return NULL;

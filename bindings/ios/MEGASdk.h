@@ -135,8 +135,11 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeAlias                   = 27, // private - char array
     MEGAUserAttributeDeviceNames             = 30, // private - byte array
     MEGAUserAttributeBackupsFolder           = 31, // private - byte array
-    MEGAUserAttributeBackupNames             = 32, // private - byte array
-    MEGAUserAttributeCookieSettings          = 33 // private - byte array
+    // MEGAUserAttributeBackupNames             = 32, (deprecated) // private - byte array
+    MEGAUserAttributeCookieSettings          = 33, // private - byte array
+    MEGAUserAttributeJsonSyncConfigData      = 34, // private - byte array
+    MEGAUserAttributeDrivesName              = 35, // private - byte array
+    MEGAUserAttributeNoCallKit               = 36  // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -4088,6 +4091,26 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Get the state of the storage (private non-encrypted)
  * MEGAUserAttributeGeolocation = 22
  * Get whether the user has enabled send geolocation messages (private)
+ * MEGAUserAttributeCameraUploadsFolder = 23
+ * Get the target folder for Camera Uploads (private)
+ * MEGAUserAttributeMyChatFilesFolder = 24
+ * Get the target folder for My chat files (private)
+ * MEGAUserAttributePushSettings = 25
+ * Get whether user has push settings enabled (private)
+ * MEGAUserAttributeAlias = 27
+ * Get the list of the users's aliases (private)
+ * MEGAUserAttributeDeviceNames = 30
+ * Get the list of device names (private)
+ * MEGAUserAttributeBackupsFolder = 31
+ * Get the target folder for My Backups (private)
+ * MEGAUserAttributeCookieSettings = 33
+ * Get whether user has Cookie Settings enabled
+ * MEGAUserAttributeJsonSyncConfigData = 34
+ * Get name and key to cypher sync-configs file
+ * MEGAUserAttributeDrivesName = 35
+ * Get external drive names by id
+ * MEGAUserAttributeNoCallKit = 36
+ * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
  *
  */
 - (void)getUserAttributeForUser:(nullable MEGAUser *)user type:(MEGAUserAttribute)type;
@@ -4141,6 +4164,26 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Get the state of the storage (private non-encrypted)
  * MEGAUserAttributeGeolocation = 22
  * Get whether the user has enabled send geolocation messages (private)
+ * MEGAUserAttributeCameraUploadsFolder = 23
+ * Get the target folder for Camera Uploads (private)
+ * MEGAUserAttributeMyChatFilesFolder = 24
+ * Get the target folder for My chat files (private)
+ * MEGAUserAttributePushSettings = 25
+ * Get whether user has push settings enabled (private)
+ * MEGAUserAttributeAlias = 27
+ * Get the list of the users's aliases (private)
+ * MEGAUserAttributeDeviceNames = 30
+ * Get the list of device names (private)
+ * MEGAUserAttributeBackupsFolder = 31
+ * Get the target folder for My Backups (private)
+ * MEGAUserAttributeCookieSettings = 33
+ * Get whether user has Cookie Settings enabled
+ * MEGAUserAttributeJsonSyncConfigData = 34
+ * Get name and key to cypher sync-configs file
+ * MEGAUserAttributeDrivesName = 35
+ * Get external drive names by id
+ * MEGAUserAttributeNoCallKit = 36
+ * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -4198,6 +4241,26 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Get the state of the storage (private non-encrypted)
  * MEGAUserAttributeGeolocation = 22
  * Get whether the user has enabled send geolocation messages (private)
+ * MEGAUserAttributeCameraUploadsFolder = 23
+ * Get the target folder for Camera Uploads (private)
+ * MEGAUserAttributeMyChatFilesFolder = 24
+ * Get the target folder for My chat files (private)
+ * MEGAUserAttributePushSettings = 25
+ * Get whether user has push settings enabled (private)
+ * MEGAUserAttributeAlias = 27
+ * Get the list of the users's aliases (private)
+ * MEGAUserAttributeDeviceNames = 30
+ * Get the list of device names (private)
+ * MEGAUserAttributeBackupsFolder = 31
+ * Get the target folder for My Backups (private)
+ * MEGAUserAttributeCookieSettings = 33
+ * Get whether user has Cookie Settings enabled
+ * MEGAUserAttributeJsonSyncConfigData = 34
+ * Get name and key to cypher sync-configs file
+ * MEGAUserAttributeDrivesName = 35
+ * Get external drive names by id
+ * MEGAUserAttributeNoCallKit = 36
+ * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
  *
  */
 - (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type;
@@ -4254,6 +4317,26 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Get the state of the storage (private non-encrypted)
  * MEGAUserAttributeGeolocation = 22
  * Get whether the user has enabled send geolocation messages (private)
+ * MEGAUserAttributeCameraUploadsFolder = 23
+ * Get the target folder for Camera Uploads (private)
+ * MEGAUserAttributeMyChatFilesFolder = 24
+ * Get the target folder for My chat files (private)
+ * MEGAUserAttributePushSettings = 25
+ * Get whether user has push settings enabled (private)
+ * MEGAUserAttributeAlias = 27
+ * Get the list of the users's aliases (private)
+ * MEGAUserAttributeDeviceNames = 30
+ * Get the list of device names (private)
+ * MEGAUserAttributeBackupsFolder = 31
+ * Get the target folder for My Backups (private)
+ * MEGAUserAttributeCookieSettings = 33
+ * Get whether user has Cookie Settings enabled
+ * MEGAUserAttributeJsonSyncConfigData = 34
+ * Get name and key to cypher sync-configs file
+ * MEGAUserAttributeDrivesName = 35
+ * Get external drive names by id
+ * MEGAUserAttributeNoCallKit = 36
+ * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -4309,6 +4392,26 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Get the state of the storage (private non-encrypted)
  * MEGAUserAttributeGeolocation = 22
  * Get whether the user has enabled send geolocation messages (private)
+ * MEGAUserAttributeCameraUploadsFolder = 23
+ * Get the target folder for Camera Uploads (private)
+ * MEGAUserAttributeMyChatFilesFolder = 24
+ * Get the target folder for My chat files (private)
+ * MEGAUserAttributePushSettings = 25
+ * Get whether user has push settings enabled (private)
+ * MEGAUserAttributeAlias = 27
+ * Get the list of the users's aliases (private)
+ * MEGAUserAttributeDeviceNames = 30
+ * Get the list of device names (private)
+ * MEGAUserAttributeBackupsFolder = 31
+ * Get the target folder for My Backups (private)
+ * MEGAUserAttributeCookieSettings = 33
+ * Get whether user has Cookie Settings enabled
+ * MEGAUserAttributeJsonSyncConfigData = 34
+ * Get name and key to cypher sync-configs file
+ * MEGAUserAttributeDrivesName = 35
+ * Get external drive names by id
+ * MEGAUserAttributeNoCallKit = 36
+ * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
  *
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
@@ -4363,6 +4466,26 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Get the state of the storage (private non-encrypted)
  * MEGAUserAttributeGeolocation = 22
  * Get whether the user has enabled send geolocation messages (private)
+ * MEGAUserAttributeCameraUploadsFolder = 23
+ * Get the target folder for Camera Uploads (private)
+ * MEGAUserAttributeMyChatFilesFolder = 24
+ * Get the target folder for My chat files (private)
+ * MEGAUserAttributePushSettings = 25
+ * Get whether user has push settings enabled (private)
+ * MEGAUserAttributeAlias = 27
+ * Get the list of the users's aliases (private)
+ * MEGAUserAttributeDeviceNames = 30
+ * Get the list of device names (private)
+ * MEGAUserAttributeBackupsFolder = 31
+ * Get the target folder for My Backups (private)
+ * MEGAUserAttributeCookieSettings = 33
+ * Get whether user has Cookie Settings enabled
+ * MEGAUserAttributeJsonSyncConfigData = 34
+ * Get name and key to cypher sync-configs file
+ * MEGAUserAttributeDrivesName = 35
+ * Get external drive names by id
+ * MEGAUserAttributeNoCallKit = 36
+ * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -4386,6 +4509,8 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Set the lastname of the user
  * MEGAUserAttributeRubbishTime = 19
  * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ * MEGAUserAttributeNoCallKit = 36
+ * Set whether user has iOS CallKit disabled or enabled (private, non-encrypted)
  *
  * If the MEGA account is a sub-user business account, and the value of the parameter
  * type is equal to MEGAUserAttributeFirstname or MEGAUserAttributeLastname
@@ -4394,6 +4519,36 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param value New attribute value
  */
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value;
+
+/**
+ * @brief Set an attribute of the current user.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest text] - Return the new value for the attibute
+ *
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Set the firstname of the user
+ * MEGAUserAttributeLastname = 2
+ * Set the lastname of the user
+ * MEGAUserAttributeRubbishTime = 19
+ * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ * MEGAUserAttributeNoCallKit = 36
+ * Set whether user has iOS CallKit disabled or enabled (private, non-encrypted) 
+ *
+ * If the MEGA account is a sub-user business account, and the value of the parameter
+ * type is equal to MEGAUserAttributeFirstname or MEGAUserAttributeLastname
+ * be called with the error code MEGAErrorTypeApiEMasterOnly.
+ *
+ * @param value New attribute value
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Gets the alias for an user
@@ -4462,34 +4617,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param handle Handle of the contact
  */
 - (void)setUserAlias:(nullable NSString *)alias forHandle:(uint64_t)handle;
-
-/**
- * @brief Set an attribute of the current user.
- *
- * The associated request type with this request is MEGARequestTypeSetAttrUser
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type
- * - [MEGARequest text] - Return the new value for the attibute
- *
- * @param type Attribute type
- *
- * Valid values are:
- *
- * MEGAUserAttributeFirstname = 1
- * Set the firstname of the user
- * MEGAUserAttributeLastname = 2
- * Set the lastname of the user
- * MEGAUserAttributeRubbishTime = 19
- * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
- *
- * If the MEGA account is a sub-user business account, and the value of the parameter
- * type is equal to MEGAUserAttributeFirstname or MEGAUserAttributeLastname
- * be called with the error code MEGAErrorTypeApiEMasterOnly.
- *
- * @param value New attribute value
- * @param delegate MEGARequestDelegate to track this request
- */
-- (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate;
 
 #pragma mark - Account management Requests
 
