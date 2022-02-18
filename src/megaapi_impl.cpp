@@ -9066,29 +9066,21 @@ bool MegaApiImpl::isInsideSync(MegaNode *node)
 
 int MegaApiImpl::getNumPendingUploads()
 {
-    SdkMutexGuard lock(sdkMutex);
-
     return pendingUploads;
 }
 
 int MegaApiImpl::getNumPendingDownloads()
 {
-    SdkMutexGuard lock(sdkMutex);
-
     return pendingDownloads;
 }
 
 int MegaApiImpl::getTotalUploads()
 {
-    SdkMutexGuard lock(sdkMutex);
-
     return totalUploads;
 }
 
 int MegaApiImpl::getTotalDownloads()
 {
-    SdkMutexGuard lock(sdkMutex);
-
     return totalDownloads;
 }
 
@@ -9108,15 +9100,11 @@ void MegaApiImpl::resetTotalUploads()
 
 size_t MegaApiImpl::getCompletedUploads()
 {
-    SdkMutexGuard lock(sdkMutex);
-
     return completedUploads.size();
 }
 
 size_t MegaApiImpl::getCompletedDownloads()
 {
-    SdkMutexGuard lock(sdkMutex);
-
     return completedDownloads.size();
 }
 
