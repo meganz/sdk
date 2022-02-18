@@ -3577,14 +3577,14 @@ void MegaApi::resetCompletedDownloads()
     pImpl->resetCompletedDownloads();
 }
 
-void MegaApi::removeCompletedUpload(int transferTag)
+void MegaApi::clearCompletedUpload(int transferTag)
 {
-    pImpl->removeCompletedUpload(transferTag);
+    pImpl->clearCompletedUpload(transferTag);
 }
 
-void MegaApi::removeCompletedDownload(int transferTag)
+void MegaApi::clearCompletedDownload(int transferTag)
 {
-    pImpl->removeCompletedDownload(transferTag);
+    pImpl->clearCompletedDownload(transferTag);
 }
 
 void MegaApi::resetCompletedUploads()

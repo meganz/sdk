@@ -14401,13 +14401,13 @@ class MegaApi
          * @brief Reduced by one the number of completed uploads
          * This function reduces the number returned by MegaApi::getCompletedUploads
          */
-        void removeCompletedUpload(int transferTag);
+        void clearCompletedUpload(int transferTag);
 
         /**
          * @brief Reduced by one the number of completed downloads
          * This function reduces the number returned by MegaApi::getCompletedDownloads
          */
-        void removeCompletedDownload(int transferTag);
+        void clearCompletedDownload(int transferTag);
 
         /**
          * @brief Get the total downloaded bytes
