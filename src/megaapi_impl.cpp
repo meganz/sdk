@@ -9084,19 +9084,8 @@ int MegaApiImpl::getTotalDownloads()
     return totalDownloads;
 }
 
-size_t MegaApiImpl::getCompletedUploads()
-{
-    return completedUploads.size();
-}
-
-size_t MegaApiImpl::getCompletedDownloads()
-{
-    return completedDownloads.size();
-}
-
 void MegaApiImpl::resetCompletedDownloads()
 {
-    completedDownloads.clear();
     totalDownloads = pendingDownloads;
     totalDownloadBytes = totalDownloadBytes - totalDownloadedBytes;
     totalDownloadedBytes = 0;
@@ -9104,34 +9093,9 @@ void MegaApiImpl::resetCompletedDownloads()
 
 void MegaApiImpl::resetCompletedUploads()
 {
-    completedUploads.clear();
     totalUploads = pendingUploads;
     totalUploadBytes = totalUploadBytes - totalUploadedBytes;
     totalUploadedBytes = 0;
-}
-
-void MegaApiImpl::clearCompletedUpload(int transferTag)
-{
-    map<int, long long>::iterator itr = completedUploads.find(transferTag) ;
-    if (itr != completedUploads.end())
-    {
-        totalUploads--;
-        totalUploadedBytes = totalUploadedBytes - itr->second;
-        totalUploadBytes = totalUploadBytes - itr->second;
-        completedUploads.erase(itr);
-    }
-}
-
-void MegaApiImpl::clearCompletedDownload(int transferTag)
-{
-    map<int, long long>::iterator itr = completedDownloads.find(transferTag) ;
-    if (itr != completedDownloads.end())
-    {
-        totalDownloads--;
-        totalDownloadedBytes = totalDownloadedBytes - itr->second;
-        totalDownloadBytes = totalDownloadBytes - itr->second;
-        completedDownloads.erase(itr);
-    }
 }
 
 MegaNode *MegaApiImpl::getRootNode()
@@ -16314,19 +16278,6 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
         LOG_info << "Transfer (" << transfer->getTransferString() << ") finished. File: " << transfer->getFileName();
     }
 
-    //Only for file type transfers
-    if(!transfer->isFolderTransfer())
-    {
-        if (transfer->getType() == GET)
-        {
-            completedDownloads[transfer->getTag()] = transfer->getTransferredBytes();
-        }
-        else
-        {
-            completedUploads[transfer->getTag()] = transfer->getTransferredBytes();
-        }
-    }
-
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
         (*it++)->onTransferFinish(api, transfer, e.get());
@@ -16344,8 +16295,6 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     }
 
     transferMap.erase(transfer->getTag());
-
-
     if (transfer->isFolderTransfer())
     {
         folderTransferMap.erase(transfer->getTag());
