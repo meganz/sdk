@@ -1916,7 +1916,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Valid data in the MEGARequest object received on all callbacks:
  * - [MEGARequest link] - Returns the recovery link
  * - [MEGARequest password] - Returns the new password
- * - [MEGARequest privateKey] - Returns the Master Key, when provided
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -1942,7 +1941,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * Valid data in the MEGARequest object received on all callbacks:
  * - [MEGARequest link] - Returns the recovery link
  * - [MEGARequest password] - Returns the new password
- * - [MEGARequest privateKey] - Returns the Master Key, when provided
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -5734,7 +5732,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest name] - Returns the name of the logged user
  * - [MEGARequest password] - Returns the public RSA key of the account, Base64-encoded
- * - [MEGARequest privateKey] - Returns the private RSA key of the account, Base64-encoded
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -5749,7 +5746,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest name] - Returns the name of the logged user
  * - [MEGARequest password] - Returns the public RSA key of the account, Base64-encoded
- * - [MEGARequest privateKey] - Returns the private RSA key of the account, Base64-encoded
  *
  */
 - (void)getUserData;
