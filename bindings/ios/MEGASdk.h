@@ -651,22 +651,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 
 #pragma mark - Utils
 
-/**
- * @brief Generates a hash based in the provided private key and email.
- *
- * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
- * required to log in, this function allows to do this step in a separate function. You should run this function
- * in a background thread, to prevent UI hangs. The resulting key can be used in 
- * [MEGASdk fastLoginWithEmail:stringHash:base64pwKey:].
- *
- * @param base64pwkey Private key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
- * @param email Email to create the hash
- * @return Base64-encoded hash
- *
- * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
- * this function will return an empty string for new accounts and will be removed few time after.
- */
-- (nullable NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email __attribute__((deprecated("This function will return an empty string for new accounts and will be removed few time after")));
 
 /**
  * @brief Converts a Base64-encoded node handle to a MegaHandle.
@@ -1851,47 +1835,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param password Password for the account.
  */
 - (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password;
-
-/**
- * @brief Confirm a MEGA account using a confirmation link and a precomputed key.
- *
- * The associated request type with this request is MEGARequestTypeConfirmAccount.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest link] - Returns the confirmation link
- * - [MEGARequest privateKey] - Returns the base64pwkey parameter
- *
- * Valid data in the MEGARequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest email] - Email of the account
- * - [MEGARequest name] - Name of the user
- *
- * @param link Confirmation link.
- * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyForPassword:].
- * @param delegate Delegate to track this request.
- * @deprecated This function only works using the old registration method and will be removed soon.
- * Please use [MEGASdk confirmAccountWithLink:password:delegate] instead.
- */
-- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("This function only works using the old registration method and will be removed soon.")));
-
-/**
- * @brief Confirm a MEGA account using a confirmation link and a precomputed key.
- *
- * The associated request type with this request is MEGARequestTypeConfirmAccount.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest link] - Returns the confirmation link
- * - [MEGARequest privateKey] - Returns the base64pwkey parameter
- *
- * Valid data in the MEGARequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest email] - Email of the account
- * - [MEGARequest name] - Name of the user
- *
- * @param link Confirmation link.
- * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyForPassword:].
- * @deprecated This function only works using the old registration method and will be removed soon.
- * Please use [MEGASdk confirmAccountWithLink:password] instead.
- */
-- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey __attribute__((deprecated("This function only works using the old registration method and will be removed soon.")));
 
 /**
  * @brief Initialize the reset of the existing password, with and without the Master Key.
