@@ -6400,7 +6400,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         (!row.syncNode ||
           row.syncNode->fsid_lastSynced == UNDEF ||
           row.syncNode->fsid_lastSynced != row.fsNode->fsid ||
-          mCaseInsensitive && row.hasCaseInsensitiveLocalNameChange()))
+          (mCaseInsensitive && row.hasCaseInsensitiveLocalNameChange())))
     {
         // Don't perform any moves until we know the row's exclusion state.
         if (parentRow.exclusionState(*row.fsNode) == ES_UNKNOWN)
@@ -6423,7 +6423,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         (!row.syncNode ||
           row.syncNode->syncedCloudNodeHandle.isUndef() ||
           row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle ||
-          mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange()))
+          (mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange())))
     {
         // Don't perform any moves until we know the row's exclusion state.
         if (parentRow.exclusionState(*row.cloudNode) == ES_UNKNOWN)
