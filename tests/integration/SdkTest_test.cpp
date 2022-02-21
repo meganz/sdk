@@ -2527,12 +2527,12 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
         if (list->size() > 0)
         {
             MegaUserAlert* a = list->get(list->size() - 1);
-            ok = title == a->getTitle() && path == a->getPath() && !ISUNDEF(a->getNodeHandle());
+            ok = !strcasecmp(title.c_str(), a->getTitle()) && !strcasecmp(path.c_str(), a->getPath()) && !ISUNDEF(a->getNodeHandle());
 
             if (!ok && i == 9)
             {
-                EXPECT_STREQ(title.c_str(), a->getTitle());
-                EXPECT_STREQ(path.c_str(), a->getPath());
+                EXPECT_STRCASEEQ(title.c_str(), a->getTitle());
+                EXPECT_STRCASEEQ(path.c_str(), a->getPath());
                 EXPECT_NE(a->getNodeHandle(), UNDEF);
             }
         }
@@ -2557,11 +2557,11 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
         if (list->size() > 0)
         {
             MegaUserAlert* a = list->get(list->size() - 1);
-            ok = title == a->getTitle() && a->getNodeHandle() == h && a->getNumber(0) == n;
+            ok = !strcasecmp(title.c_str(), a->getTitle()) && a->getNodeHandle() == h && a->getNumber(0) == n;
 
             if (!ok && i == 9)
             {
-                EXPECT_STREQ(a->getTitle(), title.c_str());
+                EXPECT_STRCASEEQ(a->getTitle(), title.c_str());
                 EXPECT_EQ(a->getNodeHandle(), h);
                 EXPECT_EQ(a->getNumber(0), n); // 0 for number of folders
             }
@@ -3076,8 +3076,8 @@ TEST_F(SdkTest, SdkTestShares)
         MegaUserAlertList* list = megaApi[1]->getUserAlerts();
         ASSERT_TRUE(list->size() > 0);
         MegaUserAlert* a = list->get(list->size() - 1);
-        ASSERT_STREQ(a->getTitle(), ("Access to folders shared by " + mApi[0].email + " was removed").c_str());
-        ASSERT_STREQ(a->getPath(), (mApi[0].email + ":Shared-folder").c_str());
+        ASSERT_STRCASEEQ(a->getTitle(), ("Access to folders shared by " + mApi[0].email + " was removed").c_str());
+        ASSERT_STRCASEEQ(a->getPath(), (mApi[0].email + ":Shared-folder").c_str());
         ASSERT_NE(a->getNodeHandle(), UNDEF);
         delete list;
     }
