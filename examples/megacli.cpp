@@ -347,7 +347,7 @@ void AppFile::progress()
 {
 }
 
-static void displaytransferdetails(Transfer* t, const char* action)
+static void displaytransferdetails(Transfer* t, const string& action)
 {
     string name;
 
@@ -383,14 +383,13 @@ void DemoApp::transfer_update(Transfer* /*t*/)
 
 void DemoApp::transfer_failed(Transfer* t, const Error& e, dstime)
 {
-    displaytransferdetails(t, "failed (");
     if (e == API_ETOOMANY && e.hasExtraInfo())
     {
-         cout << getExtraInfoErrorString(e) << ")" << endl;
+        displaytransferdetails(t, "failed (" + getExtraInfoErrorString(e) + ")\n");
     }
     else
     {
-        cout << errorstring(e) << ")" << endl;
+        displaytransferdetails(t, "failed (" + string(errorstring(e)) + ")\n");
     }
 }
 
@@ -9496,7 +9495,7 @@ void exec_syncstatus(autocomplete::ACState& s)
              << endl;
         return;
     }
-    
+
     // Translate size to a suffixed string.
     auto toSuffixedString = [](size_t value) {
         if (value < 1024)
@@ -9605,8 +9604,8 @@ void exec_syncxable(autocomplete::ACState& s)
             static_cast<SyncError>(withError ? atoi(errIdString.c_str()) : 0),
             false,
             keepSyncDb,
-            [](){
-                cout << "Sync Disabled." << endl;
+            [targetState](){
+                cout << (targetState == SyncRunState::Suspend ? "Sync Suspended." : "Sync Disabled.") << endl;
                 });
         break;
     }

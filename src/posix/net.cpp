@@ -630,9 +630,16 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 int CurlHttpIO::checkevents(Waiter*)
 {
 #ifdef WIN32
+    // if this assert triggers, it means that we detected that cURL needs to be called,
+    // and it was not called.  Since we reset the event, we don't get another chance.
+    assert(!mSocketsWaitEvent_curl_call_needed);
+    bool wasSet = WAIT_OBJECT_0 == WaitForSingleObject(mSocketsWaitEvent, 0);
+    mSocketsWaitEvent_curl_call_needed = wasSet;
     ResetEvent(mSocketsWaitEvent);
-#endif
+    return wasSet ? Waiter::NEEDEXEC : 0;
+#else
     return 0;
+#endif
 }
 
 #ifdef MEGA_USE_C_ARES
@@ -705,6 +712,9 @@ void CurlHttpIO::processaresevents()
 void CurlHttpIO::processcurlevents(direction_t d)
 {
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
+#ifdef WIN32
+    mSocketsWaitEvent_curl_call_needed = false;
+#endif
 
 #ifndef _WIN32
     auto *rfds = &((PosixWaiter *)waiter)->rfds;
@@ -727,6 +737,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
         bool read, write;
         if (info.checkEvent(read, write)) // if checkEvent returns true, both `read` and `write` have been set.
         {
+            LOG_verbose << "Calling curl for socket " << info.fd << (read && write ? " both" : (read ? " read" : " write"));
             curl_multi_socket_action(curlm[d], info.fd,
                                      (read ? CURL_CSELECT_IN : 0)
                                    | (write ? CURL_CSELECT_OUT : 0), &dummy);
@@ -2718,7 +2729,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         else
         {
             // Networking seems to be fine after performance improvments, no need for this logging anymore - but keep it in comments for a while to inform people debugging older logs
-            //LOG_debug << "Setting curl socket " << s << " to " << what;
+            LOG_debug << "Setting curl socket " << s << " to " << what;
         }
 
         auto& info = it->second;
@@ -2726,6 +2737,11 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         info.mode = what;
 #if defined(_WIN32)
         info.createAssociateEvent();
+
+        if (what & CURL_POLL_OUT)
+        {
+            info.signalledWrite = true;
+        }
 #endif
     }
 

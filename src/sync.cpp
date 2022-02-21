@@ -1350,6 +1350,11 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
         changedConfigState(true, notifyApp);
         mNextHeartbeat->updateSPHBStatus(*this);
     }
+
+    if (syncs.mSyncConfigStore)
+    {
+        syncs.mSyncConfigStore->markDriveDirty(mConfig.mExternalDrivePath);
+    }
 }
 
 // walk localpath and return corresponding LocalNode and its parent
@@ -1736,6 +1741,19 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     }
                     else
                     {
+                        if (moveToHere->succeeded &&
+                            s->rare().moveFromHere.get() == moveToHere.get())
+                        {
+                            // case insensitive rename is complete
+                            s->rare().moveFromHere.reset();
+                            s->rare().moveToHere.reset();
+                            row.suppressRecursion = true;
+                            rowResult = false;
+                            // pass through to resolve_rowMatched on this pass, if appropriate
+                            row.syncNode->setSyncAgain(false, true, false);
+                            return false;
+                        }
+
                         // Move's in progress.
                         //
                         // Revisit when the move is complete.
@@ -2186,12 +2204,19 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
 
  #ifndef NDEBUG
- handle debug_getfsid(const LocalPath& p, FileSystemAccess& fsa)
+ bool debug_confirm_getfsid(const LocalPath& p, FileSystemAccess& fsa, handle expectedFsid)
  {
     auto fa = fsa.newfileaccess();
     LocalPath lp = p;
-    if (fa->fopen(lp, true, false, nullptr, false)) return fa->fsid;
-    else return UNDEF;
+    if (fa->fopen(lp, true, false, nullptr, false))
+    {
+        return fa->fsid == expectedFsid;
+    }
+    else
+    {
+        LOG_warn << "could not get fsid to confirm";
+        return true;
+    }
  }
  #endif
 
@@ -2218,7 +2243,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     assert(syncs.onSyncThread());
 
     // if this cloud move was a sync decision, don't look to make it locally too
-    if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().moveToHere)
+    if (row.syncNode && row.syncNode->hasRare() && row.syncNode->rare().moveToHere &&
+        !(mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange()))
     {
         SYNC_verbose << "Node was our own cloud move so skip possible matching local move. " << logTriplet(row, fullPath);
         rowResult = false;
@@ -2244,7 +2270,11 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
     if (LocalNode* sourceSyncNode = syncs.findLocalNodeByNodeHandle(row.cloudNode->handle))
     {
-        if (sourceSyncNode == row.syncNode) return false;
+        if (sourceSyncNode == row.syncNode &&
+            !(mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange()))
+        {
+            return false;
+        }
 
         // Are we moving an ignore file?
         if (row.isIgnoreFile() || sourceSyncNode->isIgnoreFile())
@@ -2340,8 +2370,13 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         // True if the move-target exists and we're free to "overwrite" it.
         auto overwrite = false;
 
+        bool caseInsensitiveRename = mCaseInsensitive && row.syncNode &&
+            row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle &&
+            row.hasCaseInsensitiveCloudNameChange();
+
         // is there already something else at the target location though?
-        if (row.fsNode)
+        // and skipping the case of a case insensitive rename
+        if (row.fsNode && !caseInsensitiveRename)
         {
             // todo: should we check if the node that is already here is in fact a match?  in which case we should allow progressing to resolve_rowMatched
 
@@ -2412,7 +2447,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         }
 
         // check filesystem is not changing fsids as a result of rename
-        assert(sourceSyncNode->fsid_lastSynced == debug_getfsid(sourcePath, *syncs.fsaccess));
+        assert(debug_confirm_getfsid(sourcePath, *syncs.fsaccess, sourceSyncNode->fsid_lastSynced));
 
         if (overwrite)
         {
@@ -2462,6 +2497,14 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             }
         }
 
+        if (caseInsensitiveRename)
+        {
+            auto oldPath = fullPath.localPath;
+            fullPath.localPath = parentRow.syncNode->getLocalPath();
+            fullPath.localPath.appendWithSeparator(LocalPath::fromRelativeName(row.cloudNode->name, *syncs.fsaccess, mFilesystemType), true);
+            LOG_debug << "Executing case-only local rename: " << oldPath << " to " << fullPath.localPath << " (also this path should match: " << sourcePath << ")";
+        }
+
         if (syncs.fsaccess->renamelocal(sourcePath, fullPath.localPath))
         {
             // todo: move anything at this path to sync debris first?  Old algo didn't though
@@ -2469,28 +2512,35 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // todo: additional consideration: what if things to be renamed/moved form a cycle?
 
             // check filesystem is not changing fsids as a result of rename
-            assert(overwrite || sourceSyncNode->fsid_lastSynced == debug_getfsid(fullPath.localPath, *syncs.fsaccess));
+            assert(overwrite || debug_confirm_getfsid(fullPath.localPath, *syncs.fsaccess, sourceSyncNode->fsid_lastSynced));
 
             LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath() << " -> " << fullPath.localPath.toPath();
 
-            if (!row.syncNode)
+            if (caseInsensitiveRename)
             {
-                resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
-                assert(row.syncNode);
+                row.syncNode->setScanAgain(false, true, false, 0);
             }
+            else
+            {
+                if (!row.syncNode)
+                {
+                    resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
+                    assert(row.syncNode);
+                }
 
-            // remove fsid (and handle) from source node, so we don't detect
-            // that as a move source anymore
-            sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, nullptr);  // shortname will be updated when rescan
-            sourceSyncNode->setSyncedNodeHandle(NodeHandle());
-            sourceSyncNode->sync->statecacheadd(sourceSyncNode);
+                // remove fsid (and handle) from source node, so we don't detect
+                // that as a move source anymore
+                sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, nullptr);  // shortname will be updated when rescan
+                sourceSyncNode->setSyncedNodeHandle(NodeHandle());
+                sourceSyncNode->sync->statecacheadd(sourceSyncNode);
 
-            sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
+                sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
 
-            sourceSyncNode->moveAppliedToLocal = true;
+                sourceSyncNode->moveAppliedToLocal = true;
 
-            sourceSyncNode->setScanAgain(true, false, false, 0);
-            row.syncNode->setScanAgain(true, true, true, 0);  // scan parent to see this moved fs item, also scan subtree to see if anything new is in there to overcome race conditions with fs notifications from the prior fs subtree paths
+                sourceSyncNode->setScanAgain(true, false, false, 0);
+                row.syncNode->setScanAgain(true, true, true, 0);  // scan parent to see this moved fs item, also scan subtree to see if anything new is in there to overcome race conditions with fs notifications from the prior fs subtree paths
+            }
 
             rowResult = false;
             return true;
@@ -5417,6 +5467,26 @@ ExclusionState syncRow::exclusionState(const LocalPath& name, nodetype_t type) c
     return syncNode->exclusionState(name, type);
 }
 
+bool syncRow::hasCaseInsensitiveCloudNameChange() const
+{
+    // only call this if the sync is mCaseInsensitive
+    return fsNode && syncNode && cloudNode &&
+        syncNode->namesSynchronized &&
+        0 != compareUtf(syncNode->localname, true, cloudNode->name, true, false) &&
+        0 == compareUtf(syncNode->localname, true, cloudNode->name, true, true) &&
+        0 != compareUtf(fsNode->localname, true, cloudNode->name, true, false);
+}
+
+bool syncRow::hasCaseInsensitiveLocalNameChange() const
+{
+    // only call this if the sync is mCaseInsensitive
+    return fsNode && syncNode && cloudNode &&
+        syncNode->namesSynchronized &&
+        0 != compareUtf(syncNode->localname, true, fsNode->localname, true, false) &&
+        0 == compareUtf(syncNode->localname, true, fsNode->localname, true, true) &&
+        0 != compareUtf(cloudNode->name, true, fsNode->localname, true, false);
+}
+
 bool syncRow::hasReservedName(const FileSystemAccess& fsAccess) const
 {
     if (auto* c = cloudNode)
@@ -6295,20 +6365,6 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         row.syncNode->parentSetSyncAgain = false;
         row.syncNode->parentSetContainsConflicts = false;
     }
-    //
-
-    // todo:  check             if (child->syncable(root))
-
-
-//todo: this used to be in scan().  But now we create LocalNodes for all - shall we check it in this function
-    //// check if this record is to be ignored
-    //if (client->app->sync_syncable(this, name.c_str(), localPath))
-    //{
-    //}
-    //else
-    //{
-    //    LOG_debug << "Excluded: " << name;
-    //}
 
     // Under some circumstances on sync startup, our shortname records can be out of date.
     // If so, we adjust for that here, as the diretories are scanned
@@ -6342,8 +6398,10 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
     // Be careful of unscannable folder entries which may have no detected type or fsid.
 
     if (row.fsNode &&
-        (!row.syncNode || row.syncNode->fsid_lastSynced == UNDEF ||
-                          row.syncNode->fsid_lastSynced != row.fsNode->fsid))
+        (!row.syncNode ||
+          row.syncNode->fsid_lastSynced == UNDEF ||
+          row.syncNode->fsid_lastSynced != row.fsNode->fsid ||
+          (mCaseInsensitive && row.hasCaseInsensitiveLocalNameChange())))
     {
         // Don't perform any moves until we know the row's exclusion state.
         if (parentRow.exclusionState(*row.fsNode) == ES_UNKNOWN)
@@ -6362,8 +6420,11 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         }
     }
 
-    if (row.cloudNode && (!row.syncNode || row.syncNode->syncedCloudNodeHandle.isUndef() ||
-        row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle))
+    if (row.cloudNode &&
+        (!row.syncNode ||
+          row.syncNode->syncedCloudNodeHandle.isUndef() ||
+          row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle ||
+          (mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange())))
     {
         // Don't perform any moves until we know the row's exclusion state.
         if (parentRow.exclusionState(*row.cloudNode) == ES_UNKNOWN)
@@ -6381,30 +6442,6 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
             return rowResult;
         }
     }
-
-    // It turns out that after LocalPath implicitly uses \\?\ and
-    // absolute paths, we don't need to worry about reserved names.
-
-    //// Does this row have a reserved name?
-    //if (row.hasReservedName(*syncs.fsaccess))
-    //{
-    //    // Let the client know why the row isn't being synchronized.
-    //    ProgressingMonitor monitor(syncs);
-
-    //    monitor.waitingLocal(fullPath.localPath,
-    //                         LocalPath(),
-    //                         fullPath.cloudPath,
-    //                         SyncWaitReason::ItemHasReservedName);
-
-    //    // Don't try and synchronize the row.
-    //    row.itemProcessed = true;
-
-    //    // Don't recurse if the row's a directory.
-    //    row.suppressRecursion = true;
-
-    //    // Row's not synchronized.
-    //    return false;
-    //}
 
     // Avoid syncing nodes that have multiple clashing names
     // Except if we previously had a folder (just itself) synced, allow recursing into that one.
@@ -6519,7 +6556,14 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             // Move in progress?
             if (auto& moveFromHere = s->rare().moveFromHere)
             {
-                if (moveFromHere->failed || moveFromHere->syncCodeProcessedResult)
+                if (s->rare().moveToHere.get() == moveFromHere.get() &&
+                    (moveFromHere->succeeded || moveFromHere->failed))
+                {
+                    // rename of this node (case insensitive but case changed)?
+                    moveFromHere.reset();
+                    s->rare().moveToHere.reset();
+                }
+                else if (moveFromHere->failed || moveFromHere->syncCodeProcessedResult)
                 {
                     // Move's completed.
                     moveFromHere.reset();
@@ -6929,7 +6973,7 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
     if (row.syncNode->fsid_lastSynced != row.fsNode->fsid ||
         row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle ||
-        0 != compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, mCaseInsensitive))
+        row.syncNode->localname != row.fsNode->localname)
     {
         if (row.syncNode->hasRare() && row.syncNode->rare().moveToHere)
         {
@@ -6944,6 +6988,13 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
             row.syncNode->setScanAgain(false, true, true, 0);
         }
 
+        if (mCaseInsensitive &&
+            0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, true) &&
+            0 != compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, false))
+        {
+            SYNC_verbose << "Updating LocalNode localname case to match fs: " << row.fsNode->localname << " at " << logTriplet(row, fullPath);
+        }
+
         row.syncNode->setSyncedFsid(row.fsNode->fsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
         row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
 
@@ -6953,6 +7004,13 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         {
             LOG_debug << "Clearing transfer for matched row at " << logTriplet(row, fullPath);
             row.syncNode->resetTransfer(nullptr);
+        }
+
+        if (mCaseInsensitive && !row.syncNode->namesSynchronized &&
+            0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, false))
+        {
+            // name is exactly equal so going forward, also propagate renames that only change case
+            row.syncNode->namesSynchronized = true;
         }
 
         statecacheadd(row.syncNode);
@@ -7231,19 +7289,19 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             {
                 LOG_debug << syncname << "Sync - local file addition detected: " << fullPath.localPath.toPath();
 
-                if (checkIfFileIsChanging(*row.fsNode, fullPath.localPath))
-                {
-                    LOG_debug << syncname
-                              << "Waiting for file to stabilize before uploading: "
-                              << fullPath.localPath.toPath();
+                //if (checkIfFileIsChanging(*row.fsNode, fullPath.localPath))
+                //{
+                //    LOG_debug << syncname
+                //              << "Waiting for file to stabilize before uploading: "
+                //              << fullPath.localPath.toPath();
 
-                    monitor.waitingLocal(fullPath.localPath,
-                                         LocalPath(),
-                                         string(),
-                                         SyncWaitReason::WaitingForFileToStopChanging);
+                //    monitor.waitingLocal(fullPath.localPath,
+                //                         LocalPath(),
+                //                         string(),
+                //                         SyncWaitReason::WaitingForFileToStopChanging);
 
-                    return false;
-                }
+                //    return false;
+                //}
 
                 LOG_debug << syncname << "Uploading file " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
                 assert(row.syncNode->scannedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint

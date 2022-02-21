@@ -306,6 +306,9 @@ struct syncRow
     // Does this row have a reserved name?
     bool hasReservedName(const FileSystemAccess& fsAccess) const;
 
+    bool hasCaseInsensitiveLocalNameChange() const;
+    bool hasCaseInsensitiveCloudNameChange() const;
+
     // Does this row represent an ignore file?
     bool isIgnoreFile() const;
 
