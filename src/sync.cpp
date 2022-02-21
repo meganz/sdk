@@ -2370,8 +2370,9 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         // True if the move-target exists and we're free to "overwrite" it.
         auto overwrite = false;
 
-        bool caseInsensitiveRename = row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle
-            && mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange();
+        bool caseInsensitiveRename = mCaseInsensitive && row.syncNode &&
+            row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle &&
+            row.hasCaseInsensitiveCloudNameChange();
 
         // is there already something else at the target location though?
         // and skipping the case of a case insensitive rename
