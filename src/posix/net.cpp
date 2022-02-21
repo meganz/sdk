@@ -320,7 +320,6 @@ CurlHttpIO::CurlHttpIO()
     numconnections[API] = 0;
     numconnections[GET] = 0;
     numconnections[PUT] = 0;
-    curlsocketsprocessed = true;
 
 #ifdef MEGA_USE_C_ARES
     struct ares_options options;
@@ -1069,8 +1068,6 @@ void CurlHttpIO::addevents(Waiter* w, int)
             waiter->maxds = dstime(timeoutds);
         }
     }
-    curlsocketsprocessed = false;
-
 #ifdef MEGA_USE_C_ARES
     timeval tv;
     if (ares_timeout(ares, NULL, &tv))
@@ -2151,11 +2148,6 @@ bool CurlHttpIO::doio()
     result = statechange;
     statechange = false;
 
-    if (curlsocketsprocessed)
-    {
-        return result;
-    }
-
     processcurlevents(API);
     result |= multidoio(curlm[API]);
 
@@ -2187,7 +2179,6 @@ bool CurlHttpIO::doio()
         }
     }
 
-    curlsocketsprocessed = true;
     return result;
 }
 
