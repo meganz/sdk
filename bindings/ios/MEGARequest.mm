@@ -122,12 +122,6 @@ using namespace mega;
     return self.megaRequest->getNewPassword() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getNewPassword()] : nil;
 }
 
-- (NSString *)privateKey {
-    if (!self.megaRequest) return nil;
-    
-    return self.megaRequest->getPrivateKey() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getPrivateKey()] : nil;
-}
-
 - (MEGANodeAccessLevel)access {
     return (MEGANodeAccessLevel) (self.megaRequest ? self.megaRequest->getAccess() : -1);
 }

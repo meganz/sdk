@@ -10043,6 +10043,8 @@ void MegaClient::notifynode(Node* n)
             changed |= n->changed.parent << 8;
             changed |= n->changed.publiclink << 9;
             changed |= n->changed.newnode << 10;
+            changed |= n->changed.name << 11;
+            changed |= n->changed.favourite << 12;
 
             int attrlen = int(n->attrstring->size());
             string base64attrstring;
