@@ -240,6 +240,7 @@ public:
 
 #ifdef WIN32
     HANDLE mSocketsWaitEvent;
+    bool mSocketsWaitEvent_curl_call_needed = false;
 #endif
 
 private:
