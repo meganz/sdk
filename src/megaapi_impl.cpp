@@ -69,7 +69,7 @@ namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
                                  string *nodekey, string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
-                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth)
+                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth, bool isNodeKeyDecrypted)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
@@ -89,6 +89,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->mtime = mtime;
     this->nodehandle = nodehandle;
     this->parenthandle = parentHandle;
+    mIsNodeKeyDecrypted = isNodeKeyDecrypted;
     this->fileattrstring.assign(fileattrstring->data(), fileattrstring->size());
     this->nodekey.assign(nodekey->data(), nodekey->size());
     this->changed = 0;
@@ -159,6 +160,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->mtime = node->getModificationTime();
     this->nodehandle = node->getHandle();
     this->parenthandle = node->getParentHandle();
+    mIsNodeKeyDecrypted = node->isNodeKeyDecrypted();
     char* fileAttributeString = node->getFileAttrString();
     if (fileAttributeString)
     {
@@ -403,6 +405,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->parenthandle = node->parent ? node->parent->nodehandle : INVALID_HANDLE;
     this->owner = node->owner;
 
+    mIsNodeKeyDecrypted = node->attrstring == nullptr;  // it's reset after node's key decryption successfull
     this->fileattrstring = node->fileattrstring;
     this->nodekey = node->nodekeyUnchecked();
 
@@ -450,6 +453,14 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     if(node->changed.newnode)
     {
         this->changed |= MegaNode::CHANGE_TYPE_NEW;
+    }
+    if (node->changed.name)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_NAME;
+    }
+    if (node->changed.favourite)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_FAVOURITE;
     }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
@@ -520,7 +531,7 @@ bool MegaNodePrivate::serialize(string *d)
 
     bool hasOriginalFingerprint = originalfingerprint && originalfingerprint[0];
 
-    w.serializeexpansionflags(hasChatAuth, hasOwner, hasOriginalFingerprint);
+    w.serializeexpansionflags(hasChatAuth, hasOwner, hasOriginalFingerprint, mIsNodeKeyDecrypted);
 
     if (hasChatAuth)
     {
@@ -534,6 +545,7 @@ bool MegaNodePrivate::serialize(string *d)
     {
         w.serializecstr(originalfingerprint, false);
     }
+    // 4th boolean in expansion flags will be set to the boolean value directly
 
     return true;
 }
@@ -544,7 +556,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     string name, fingerprint, originalfingerprint, attrstring, nodekey, privauth, pubauth, chatauth;
     int64_t size, ctime, mtime;
     MegaHandle nodehandle, parenthandle, owner = INVALID_HANDLE;
-    bool isPublicNode, foreign;
+    bool isPublicNode, foreign, isNodeKeyDecrypted;
     unsigned char expansions[8];
     string fileattrstring; // fileattrstring is not serialized
     if (!r.unserializecstr(name, true) ||
@@ -560,7 +572,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         !r.unserializestring(pubauth) ||
         !r.unserializebool(isPublicNode) ||
         !r.unserializebool(foreign) ||
-        !r.unserializeexpansionflags(expansions, 3) ||
+        !r.unserializeexpansionflags(expansions, 4) ||
         (expansions[0] && !r.unserializecstr(chatauth, false)) ||
         (expansions[1] && !r.unserializehandle(owner)) ||
         (expansions[2] && !r.unserializecstr(originalfingerprint, false)))
@@ -568,6 +580,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         LOG_err << "MegaNode unserialization failed at field " << r.fieldnum;
         return NULL;
     }
+    isNodeKeyDecrypted = expansions[3]; // the expansion flag is used to represent its value
 
     r.eraseused(*d);
 
@@ -575,7 +588,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
                                mtime, nodehandle, &nodekey, &fileattrstring,
                                fingerprint.empty() ? NULL : fingerprint.c_str(), originalfingerprint.empty() ? NULL : originalfingerprint.c_str(),
                                owner, parenthandle, privauth.c_str(), pubauth.c_str(),
-                               isPublicNode, foreign, chatauth.empty() ? NULL : chatauth.c_str());
+                               isPublicNode, foreign, chatauth.empty() ? NULL : chatauth.c_str(), isNodeKeyDecrypted);
 }
 
 char *MegaNodePrivate::getBase64Handle()
@@ -812,6 +825,11 @@ uint64_t MegaNodePrivate::getHandle()
 string *MegaNodePrivate::getNodeKey()
 {
     return &nodekey;
+}
+
+bool MegaNodePrivate::isNodeKeyDecrypted()
+{
+    return mIsNodeKeyDecrypted;
 }
 
 char *MegaNodePrivate::getBase64Key()
@@ -1816,6 +1834,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     if(user->changed.disableVersions)
     {
         changed |= MegaUser::CHANGE_TYPE_DISABLE_VERSIONS;
+    }
+    if(user->changed.noCallKit)
+    {
+        changed |= MegaUser::CHANGE_TYPE_NO_CALLKIT;
     }
     if(user->changed.contactLinkVerification)
     {
@@ -7711,8 +7733,8 @@ void MegaApiImpl::abortPendingActions(error preverror)
 
     }
 
-    resetTotalDownloads();
-    resetTotalUploads();
+    resetCompletedDownloadsImpl();
+    resetCompletedUploadsImpl();
 }
 
 bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const
@@ -9035,21 +9057,29 @@ bool MegaApiImpl::isInsideSync(MegaNode *node)
 
 int MegaApiImpl::getNumPendingUploads()
 {
+    SdkMutexGuard g(sdkMutex);
+
     return pendingUploads;
 }
 
 int MegaApiImpl::getNumPendingDownloads()
 {
+    SdkMutexGuard g(sdkMutex);
+
     return pendingDownloads;
 }
 
 int MegaApiImpl::getTotalUploads()
 {
+    SdkMutexGuard g(sdkMutex);
+
     return totalUploads;
 }
 
 int MegaApiImpl::getTotalDownloads()
 {
+    SdkMutexGuard g(sdkMutex);
+
     return totalDownloads;
 }
 
@@ -9065,6 +9095,88 @@ void MegaApiImpl::resetTotalUploads()
     totalUploads = 0;
     totalUploadBytes = 0;
     totalUploadedBytes = 0;
+}
+
+size_t MegaApiImpl::getCompletedUploads()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    return completedUploads.size();
+}
+
+size_t MegaApiImpl::getCompletedDownloads()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    return completedDownloads.size();
+}
+
+void MegaApiImpl::resetCompletedDownloads()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    resetCompletedDownloadsImpl();
+}
+
+void MegaApiImpl::resetCompletedUploads()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    resetCompletedUploadsImpl();
+}
+
+void MegaApiImpl::removeCompletedUpload(int transferTag)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    removeCompletedUploadImpl(transferTag);
+}
+
+void MegaApiImpl::removeCompletedDownload(int transferTag)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    removeCompletedDownloadImpl(transferTag);
+}
+
+void MegaApiImpl::resetCompletedDownloadsImpl()
+{
+    completedDownloads.clear();
+    totalDownloads = pendingDownloads;
+    totalDownloadBytes = totalDownloadBytes - totalDownloadedBytes;
+    totalDownloadedBytes = 0;
+}
+
+void MegaApiImpl::resetCompletedUploadsImpl()
+{
+    completedUploads.clear();
+    totalUploads = pendingUploads;
+    totalUploadBytes = totalUploadBytes - totalUploadedBytes;
+    totalUploadedBytes = 0;
+}
+
+void MegaApiImpl::removeCompletedUploadImpl(int transferTag)
+{
+    auto itr = completedUploads.find(transferTag);
+    if (itr != completedUploads.end())
+    {
+        totalUploads--;
+        totalUploadedBytes -= itr->second;
+        totalUploadBytes -= itr->second;
+        completedUploads.erase(itr);
+    }
+}
+
+void MegaApiImpl::removeCompletedDownloadImpl(int transferTag)
+{
+    auto itr = completedDownloads.find(transferTag);
+    if (itr != completedDownloads.end())
+    {
+        totalDownloads--;
+        totalDownloadedBytes -= itr->second;
+        totalDownloadBytes -= itr->second;
+        completedDownloads.erase(itr);
+    }
 }
 
 MegaNode *MegaApiImpl::getRootNode()
@@ -11188,7 +11300,7 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
     return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &fileattrsting, NULL, NULL, INVALID_HANDLE,
-                               parentHandle, privateauth, publicauth, false, true, chatauth);
+                               parentHandle, privateauth, publicauth, false, true, chatauth, true);
 }
 
 MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
@@ -11196,7 +11308,7 @@ MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *na
     string nodekey;
     string fileattrsting;
     return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &fileattrsting, NULL, NULL, INVALID_HANDLE, parentHandle,
-                               privateauth, publicauth, false, true);
+                               privateauth, publicauth, false, true, nullptr, true);
 }
 
 MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
@@ -11714,9 +11826,16 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
-    if (cancelToken && cancelToken->isCancelled())
+    MegaCancelTokenPrivate* cancelTokenPrivate = nullptr;
+    if (cancelToken)
     {
-        return new MegaNodeListPrivate();
+        if (cancelToken->isCancelled())
+        {
+            return new MegaNodeListPrivate();
+        }
+
+        cancelTokenPrivate = static_cast<MegaCancelTokenPrivate*>(cancelToken);
+        cancelTokenPrivate->startProcessing(MegaCancelTokenPrivate::Usage::USAGE_SEARCH, client);
     }
 
     SdkMutexGuard g(sdkMutex);
@@ -11849,6 +11968,11 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
         sortByComparatorFunction(result, order, *client);
         nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
+    }
+
+    if (cancelTokenPrivate)
+    {
+        cancelTokenPrivate->endProcessing();
     }
 
     return nodeList;
@@ -14405,6 +14529,8 @@ void MegaApiImpl::logout_result(error e)
         pendingDownloads = 0;
         totalUploads = 0;
         totalDownloads = 0;
+        completedUploads.clear();
+        completedDownloads.clear();
         waitingRequest = RETRY_NONE;
         excludedNames.clear();
         excludedPaths.clear();
@@ -14538,6 +14664,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     attrstring.resize(a->length()*4/3+4);
     attrstring.resize(Base64::btoa((const byte *)a->data(), int(a->length()), (char *)attrstring.data()));
 
+    bool isNodeKeyDecrypted;
     string keystring;
     SymmCipher nodeKey;
     keystring.assign((char*)key, FILENODEKEYLENGTH);
@@ -14557,11 +14684,14 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
             validName = fileName;
         }
         delete [] buf;
+
+        isNodeKeyDecrypted = true;
     }
     else
     {
         fileName = "CRYPTO_ERROR";
         request->setFlag(true);
+        isNodeKeyDecrypted = false;
     }
 
     if (request->getType() == MegaRequest::TYPE_IMPORT_LINK)
@@ -14612,7 +14742,8 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     {
         MegaNodePrivate *megaNodePrivate = new MegaNodePrivate(fileName.c_str(), FILENODE, size, 0, mtime, ph, &keystring,
                                                            fa, fingerprint.size() ? fingerprint.c_str() : NULL,
-                                                           originalfingerprint.size() ? originalfingerprint.c_str() : NULL, INVALID_HANDLE);
+                                                           originalfingerprint.size() ? originalfingerprint.c_str() : NULL, INVALID_HANDLE, INVALID_HANDLE,
+                                                               nullptr, nullptr, true, false, nullptr, isNodeKeyDecrypted);
         request->setPublicNode(megaNodePrivate);
         delete megaNodePrivate;
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
@@ -16134,6 +16265,19 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     else
     {
         LOG_info << "Transfer (" << transfer->getTransferString() << ") finished. File: " << transfer->getFileName();
+    }
+
+    // Only for file type transfers and not cancelled transfers
+    if (!transfer->isFolderTransfer() && transfer->getState() != MegaTransfer::STATE_CANCELLED)
+    {
+        if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+        {
+            completedUploads[transfer->getTag()] = transfer->getTransferredBytes();
+        }
+        else    // TYPE_DOWNLOAD and TYPE_LOCAL_TCP_DOWNLOAD
+        {
+            completedDownloads[transfer->getTag()] = transfer->getTransferredBytes();
+        }
     }
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
@@ -19877,17 +20021,9 @@ void MegaApiImpl::sendPendingRequests()
                     client->getua(ownUser, type);
                     break;
                 }
-                else if (type == ATTR_DISABLE_VERSIONS)
-                {
-                    if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
-                    {
-                        e = API_EARGS;
-                        break;
-                    }
-
-                    client->putua(type, (byte *)value, 1);
-                }
-                else if (type == ATTR_CONTACT_LINK_VERIFICATION)
+                else if ((type == ATTR_DISABLE_VERSIONS)
+                         || (type == ATTR_NO_CALLKIT)
+                         || (type == ATTR_CONTACT_LINK_VERIFICATION))
                 {
                     if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
                     {
@@ -23951,9 +24087,7 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
         message = "";
     }
 
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
-#endif
+    lock_guard<std::recursive_mutex> g(mutex);
     for (auto logger : megaLoggers)
     {
         logger->log(time, loglevel, source, message
@@ -23965,17 +24099,16 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 
     if (logToConsole)
     {
+        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
+        if (message) std::cout << message;
 #ifdef ENABLE_LOG_PERFORMANCE
-        mutex.lock();
+        for (unsigned i = 0; i < numberMessages; ++i)
+        {
+            std::cout.write(directMessages[i], directMessagesSizes[i]);
+        }
 #endif
-        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << std::endl;
-#ifdef ENABLE_LOG_PERFORMANCE
-        mutex.unlock();
-#endif
+        std::cout << std::endl;
     }
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
 }
 
 MegaPricingPrivate::~MegaPricingPrivate()
@@ -33720,11 +33853,49 @@ MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
 void MegaCancelTokenPrivate::cancel(bool newValue)
 {
     cancelFlag = newValue;
+
+    if (cancelFlag && processing)
+    {
+        switch (mUsage)
+        {
+            case Usage::USAGE_SEARCH:
+            {
+                mMegaClient->mNodeManager.cancelDbQuery();
+            }
+                break;
+
+            default:    // nothing to do for generic usage
+                break;
+        }
+
+        endProcessing();
+    }
+
+    if (!cancelFlag)    // reset
+    {
+        mUsage = Usage::USAGE_GENERIC;
+        mMegaClient = nullptr;
+    }
 }
 
 bool MegaCancelTokenPrivate::isCancelled() const
 {
     return cancelFlag;
+}
+
+void MegaCancelTokenPrivate::startProcessing(MegaCancelTokenPrivate::Usage usage, MegaClient *c)
+{
+    assert(usage != Usage::USAGE_SEARCH || c);
+
+    mUsage = usage;
+    mMegaClient = c;
+
+    processing = true;
+}
+
+void MegaCancelTokenPrivate::endProcessing()
+{
+    processing = false;
 }
 
 }

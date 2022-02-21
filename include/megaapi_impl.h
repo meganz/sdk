@@ -429,7 +429,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
-                        bool isForeign = false, const char *chatauth = NULL);
+                        bool isForeign = false, const char *chatauth = NULL, bool isNodeDecrypted = true);
 
         MegaNodePrivate(MegaNode *node);
         ~MegaNodePrivate() override;
@@ -456,7 +456,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getHandle() override;
         MegaHandle getRestoreHandle() override;
         MegaHandle getParentHandle() override;
-        std::string* getNodeKey() override;
+        std::string* getNodeKey() override;        
+        bool isNodeKeyDecrypted() override;
         char *getBase64Key() override;
         char* getFileAttrString() override;
         int64_t getExpirationTime() override;
@@ -545,6 +546,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle owner;
         bool mFavourite;
         nodelabel_t mLabel;
+        bool mIsNodeKeyDecrypted = false;
 };
 
 
@@ -1498,13 +1500,28 @@ private:
 class MegaCancelTokenPrivate : public MegaCancelToken
 {
 public:
+    enum Usage {
+        USAGE_GENERIC,  //
+        USAGE_SEARCH,   // adapt the behavior to cancel ongoing search
+    };
+
     ~MegaCancelTokenPrivate() override;
 
     void cancel(bool newValue = true) override;
     bool isCancelled() const override;
 
+    // if usage other than generic, call this method to set the specific usage
+    void startProcessing(MegaCancelTokenPrivate::Usage usage, MegaClient *c);
+    void endProcessing();
+
 private:
     std::atomic_bool cancelFlag { false };
+    std::atomic_bool processing { false };  // only required for specific usages
+
+    Usage mUsage = USAGE_GENERIC;
+
+    // required for cancel searches
+    MegaClient* mMegaClient = nullptr;
 };
 
 #ifdef ENABLE_CHAT
@@ -2352,6 +2369,12 @@ class MegaApiImpl : public MegaApp
         int getTotalDownloads();
         void resetTotalDownloads();
         void resetTotalUploads();
+        size_t getCompletedUploads();
+        size_t getCompletedDownloads();
+        void resetCompletedDownloads();
+        void resetCompletedUploads();
+        void removeCompletedUpload(int transferTag);
+        void removeCompletedDownload(int transferTag);
         void updateStats();
         long long getNumNodes();
         long long getTotalDownloadedBytes();
@@ -2808,6 +2831,10 @@ protected:
         int pendingDownloads;
         int totalUploads;
         int totalDownloads;
+        //key: transfer tag - value: transferred bytes
+        map<int, long long> completedUploads;
+        //key: transfer tag - value: transferred bytes
+        map<int, long long> completedDownloads;
         long long totalDownloadedBytes;
         long long totalUploadedBytes;
         long long totalDownloadBytes;
@@ -3166,6 +3193,12 @@ private:
         // Generic method to get outShares nodes or pending outShares
         // pending is true if we want receive pending outShares, false for outShares
         MegaShareList *getOutSharesOrPending(int order, bool pending);
+
+        void resetCompletedDownloadsImpl();
+        void resetCompletedUploadsImpl();
+        void removeCompletedUploadImpl(int transferTag);
+        void removeCompletedDownloadImpl(int transferTag);
+
 #ifdef ENABLE_SYNC
         error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
 #endif

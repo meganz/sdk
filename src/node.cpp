@@ -480,6 +480,7 @@ void Node::setattr()
         nameid name;
         string* t;
 
+        AttrMap oldAttrs(attrs);
         attrs.map.clear();
         json.begin((char*)buf + 5);
 
@@ -492,6 +493,9 @@ void Node::setattr()
                 LocalPath::utf8_normalize(t);
             }
         }
+
+        changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
+        changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
 
         setfingerprint();
 
@@ -761,9 +765,17 @@ bool Node::setparent(Node* p, bool updateNodeCounters)
     }
 
     Node *oldparent = parent;
+    if (oldparent)
+    {
+        client->mNodeManager.removeChild(oldparent->nodeHandle(), nodeHandle());
+    }
 
     parenthandle = p ? p->nodehandle : UNDEF;
     parent = p;
+    if (parent)
+    {
+        client->mNodeManager.addChild(parent->nodeHandle(), nodeHandle());
+    }
 
     if (updateNodeCounters)
     {

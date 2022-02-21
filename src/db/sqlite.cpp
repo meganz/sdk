@@ -558,10 +558,9 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, T &nodes)
 
     if (sqlResult == SQLITE_ERROR)
     {
+        // In case of interrupt db query, it will finish with (expected) error
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to processSqlQueryNodes from database: " << dbfile << err;
-        assert(!"Unable to processSqlQueryNodes from database.");
-        return false;
+        LOG_debug << "Unable to processSqlQueryNodes from database (maybe query has been interrupted): " << dbfile << err;
     }
 
     return true;
@@ -609,6 +608,16 @@ bool SqliteAccountState::removeNodes()
     }
 
     return sqlResult == SQLITE_OK;
+}
+
+void SqliteAccountState::cancelQuery()
+{
+    if (!db)
+    {
+        return;
+    }
+
+    sqlite3_interrupt(db);
 }
 
 bool SqliteAccountState::put(Node *node)
@@ -1277,7 +1286,7 @@ uint64_t SqliteAccountState::getNumberOfNodes()
     return nodeNumber;
 }
 
-bool SqliteAccountState::getFingerPrints(std::map<FileFingerprint, std::map<NodeHandle, Node *> > &fingerprints)
+bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node *> > &fingerprints, std::vector<std::pair<NodeHandle, NodeHandle>>& nodeAndParent)
 {
     if (!db)
     {
@@ -1285,26 +1294,29 @@ bool SqliteAccountState::getFingerPrints(std::map<FileFingerprint, std::map<Node
     }
 
     sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, fingerprint FROM nodes WHERE type = ?", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, fingerprint, parenthandle, type FROM nodes", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int(stmt, 1, FILENODE)) == SQLITE_OK)
+        while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW))
         {
-            while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW))
+            NodeHandle nodeHandle;
+            nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
+            std::string fingerPrintString;
+            const void* data = sqlite3_column_blob(stmt, 1);
+            int size = sqlite3_column_bytes(stmt, 1);
+            NodeHandle parentHandle;
+            parentHandle.set6byte(sqlite3_column_int64(stmt, 2));
+            nodetype_t nodeType = (nodetype_t)sqlite3_column_int(stmt, 3);
+
+            if (data && size && nodeType == FILENODE)
             {
-                NodeHandle nodeHandle;
-                nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
-                std::string fingerPrintString;
-                const void* data = sqlite3_column_blob(stmt, 1);
-                int size = sqlite3_column_bytes(stmt, 1);
-                if (data && size)
-                {
-                    fingerPrintString = std::string(static_cast<const char*>(data), size);
-                    std::unique_ptr<FileFingerprint> fingerprint;
-                    fingerprint.reset(FileFingerprint::unserialize(&fingerPrintString));
-                    fingerprints[*fingerprint].insert(std::pair<NodeHandle, Node*>(nodeHandle, nullptr));
-                }
+                fingerPrintString = std::string(static_cast<const char*>(data), size);
+                std::unique_ptr<FileFingerprint> fingerprint;
+                fingerprint.reset(FileFingerprint::unserialize(&fingerPrintString));
+                fingerprints[*fingerprint].insert(std::pair<NodeHandle, Node*>(nodeHandle, nullptr));
             }
+
+            nodeAndParent.push_back(std::make_pair(parentHandle, nodeHandle));
         }
     }
 

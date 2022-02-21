@@ -58,6 +58,7 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypeDeviceNames             = 0x4000000,
     MEGAUserChangeTypeBackupFolder            = 0x8000000,
     MEGAUserChangeTypeCookieSetting           = 0x10000000,
+    MEGAUserChangeTypeNoCallKit               = 0x20000000,
 };
 
 /**
@@ -209,6 +210,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  * - MEGAUserChangeTypeCookieSetting = 0x10000000
  * Check if the Cookie Setting has changed
  *
+ * - MEGAUserChangeTypeNoCallKit  = 0x20000000
+ * Check if option for iOS CallKit has changed 
+ *
  */
 @property (readonly, nonatomic) MEGAUserChangeType changes;
 
@@ -325,6 +329,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  *
  * - MEGAUserChangeTypeCookieSetting = 0x10000000
  * Check if the Cookie Setting has changed
+ *
+ * - MEGAUserChangeTypeNoCallKit  = 0x20000000
+ * Check if option for iOS CallKit has changed
  *
  * @return YES if this user has an specific change
  */
