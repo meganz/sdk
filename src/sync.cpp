@@ -1430,7 +1430,7 @@ bool Sync::determineCaseInsenstivity(bool secondTry)
 {
     assert(mLocalPath == getConfig().mLocalPath);
 
-    auto da = syncs.fsaccess->newdiraccess();
+    auto da = unique_ptr<DirAccess>(syncs.fsaccess->newdiraccess());
     auto lp = mLocalPath;
     if (da->dopen(&lp, NULL, false))
     {
