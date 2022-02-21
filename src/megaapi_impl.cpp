@@ -1454,7 +1454,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     if (!handleContainerStr) { return API_EACCESS; }
 
     handle h = 0; // make sure top two bytes are 0
-    Base64::atob(handleContainerStr->c_str(), (byte*)&h, MegaClient::NODEHANDLE);
+    memcpy(&h, handleContainerStr->data(), handleContainerStr->size());
 
     if (!h || h == UNDEF) { return API_ENOENT; }
 
@@ -4036,6 +4036,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
+        case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
     }
     return "UNKNOWN";
 }
@@ -10615,22 +10616,12 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     waiter->notify();
 }
 
-void MegaApiImpl::getMyBackupsFolder(MegaRequestListener *listener)
+void MegaApiImpl::setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_MY_BACKUPS, listener);
+    request->setText(localizedName);
     requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
-{
-    Base64Str<MegaClient::NODEHANDLE> b64Handle(nodehandle);
-
-    MegaStringMapPrivate stringMap;
-    stringMap.set("h", b64Handle);
-
-    setUserAttribute(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER, &stringMap, listener);
 }
 
 void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
@@ -14907,6 +14898,7 @@ void MegaApiImpl::putua_result(error e)
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
         || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER &&
+            request->getType() != MegaRequest::TYPE_SET_MY_BACKUPS &&
             request->getType() != MegaRequest::TYPE_VERIFY_CREDENTIALS))
     {
         return;
@@ -15164,6 +15156,14 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         {
             request->setMegaPushNotificationSettings(pushSettings);
+        }
+        break;
+
+        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
+        {
+            handle h = 0;
+            memcpy(&h, data, len);
+            request->setNodeHandle(h);
         }
         break;
 
@@ -23069,6 +23069,24 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
+        case MegaRequest::TYPE_SET_MY_BACKUPS:
+        {
+            auto addua_completion = [request, this](Error e)
+            {
+                if (e == API_OK)
+                {
+                    const string *buf = client->ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
+                    handle h = 0;
+                    memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
+
+                    request->setNodeHandle(h);
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            };
+
+            e = client->setbackupfolder(request->getText(), nextTag, addua_completion);
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
