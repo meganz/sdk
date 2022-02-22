@@ -24137,7 +24137,10 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
         message = "";
     }
 
+#ifndef ENABLE_LOG_PERFORMANCE
     lock_guard<std::recursive_mutex> g(mutex);
+#endif
+
     for (auto logger : megaLoggers)
     {
         logger->log(time, loglevel, source, message
