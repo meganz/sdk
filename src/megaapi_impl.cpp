@@ -1531,8 +1531,8 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     }
 
     // create the new node(s)
-    client->putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
-        NoVersioning, move(newnodes), nullptr, client->reqtag);  // followup in putnodes_result()
+    client->putnodesinvault(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
+                            move(newnodes), client->reqtag);  // followup in putnodes_result()
 
     return API_OK;
 }
@@ -22962,8 +22962,6 @@ void MegaApiImpl::sendPendingRequests()
                     e = API_EARGS;
                     break;
                 }
-
-                client->reqs.add(new CommandBackupPut(client, info, nullptr));
             }
             else // update an existing sync/backup
             {
@@ -22975,14 +22973,39 @@ void MegaApiImpl::sendPendingRequests()
                     e = API_EARGS;
                     break;
                 }
-
-                client->reqs.add(new CommandBackupPut(client, info, nullptr));
             }
+
+            CommandBackupPut* cmdBkpPut = new CommandBackupPut(client, info, nullptr);
+            std::unique_ptr<MegaNode> remoteMN(getNodeByHandle(remoteNode.as8byte()));
+            if (backupType == MegaApi::BACKUP_TYPE_UP_SYNC && bType == BACKUP_UPLOAD && isInRootnode(remoteMN.get(), 1)) // this is probably wrong
+                // there could also be request->getParamType()==SyncConfig::TYPE_BACKUP
+            {
+                cmdBkpPut->arg("vw", 1);
+            }
+
+            client->reqs.add(cmdBkpPut);
             break;
         }
         case MegaRequest::TYPE_BACKUP_REMOVE:
         {
-            client->reqs.add(new CommandBackupRemove(client, request->getParentHandle()));
+            CommandBackupRemove* cmdBkpRmv = new CommandBackupRemove(client, request->getParentHandle());
+
+            if (request->getAccess() == BACKUP_UPLOAD) // or request->getParamType()==SyncConfig::TYPE_BACKUP or some other relevant symbol // needs docs too
+            {
+                SyncConfig syncCfg;
+                bool found = client->syncs.syncConfigByBackupId(request->getParentHandle(), syncCfg);
+                if (found)
+                {
+                    std::unique_ptr<MegaNode> remoteMN(getNodeByHandle(syncCfg.getRemoteNode().as8byte()));
+
+                    if (isInRootnode(remoteMN.get(), 1))
+                    {
+                        cmdBkpRmv->arg("vw", 1);
+                    }
+                }
+            }
+
+            client->reqs.add(cmdBkpRmv);
             break;
         }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:

@@ -539,7 +539,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
             -1, UNDEF, 0, 0, addua_completion);
     };
 
-    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua);
+    putnodesinvault(rootnodes.vault, move(newnodes), tag, addua);
     // Note: this request should not finish until the user's attribute is set successfully
 
     return API_OK;
@@ -8004,6 +8004,16 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag)
     queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag));
 }
 
+// send new nodes to Vault
+void MegaClient::putnodesinvault(NodeHandle h, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& resultFunction)
+{
+    assert(nodeByHandle(h) && nodeByHandle(h)->firstancestor()->nodeHandle() == rootnodes.vault);
+
+    CommandPutNodes* cmdPutNodes = new CommandPutNodes(this, h, nullptr, NoVersioning, move(newnodes), tag, PUTNODES_APP, nullptr, move(resultFunction));
+    cmdPutNodes->arg("vw", 1);
+    reqs.add(cmdPutNodes);
+}
+
 // returns 1 if node has accesslevel a or better, 0 otherwise
 int MegaClient::checkaccess(Node* n, accesslevel_t a)
 {
@@ -8148,10 +8158,14 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
 
     if (n->setparent(p))
     {
+        bool prevRootInVault = false;
+        Node* newRoot = getrootnode(p);
+        bool newRootInVault = newRoot->nodeHandle() == rootnodes.vault;
+
         if (prevParent)
         {
             Node *prevRoot = getrootnode(prevParent);
-            Node *newRoot = getrootnode(p);
+            prevRootInVault = prevRoot->nodeHandle() == rootnodes.vault;
             NodeHandle rubbishHandle = rootnodes.rubbish;
             nameid rrname = AttrMap::string2nameid("rr");
 
@@ -8194,7 +8208,12 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c)));
+        CommandMoveNode* cmdMvNode = new CommandMoveNode(this, n, p, syncdel, prevparent, move(c));
+        if (prevRootInVault || newRootInVault) // && something else ?  syncdel == ??
+        {
+            cmdMvNode->arg("vw", 1);
+        }
+        reqs.add(cmdMvNode);
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
