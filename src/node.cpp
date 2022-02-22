@@ -2500,9 +2500,17 @@ bool LocalNode::serialize(string* d)
         if (fa->fopen(localpath))  // exists, is file
         {
             auto sn = sync->syncs.fsaccess->fsShortname(localpath);
-            assert(!localname.empty() &&
+            if (!(!localname.empty() &&
                 ((!slocalname && (!sn || localname == *sn)) ||
-                    (slocalname && sn && !slocalname->empty() && *slocalname != localname && *slocalname == *sn)));
+                    (slocalname && sn && !slocalname->empty() && *slocalname != localname && *slocalname == *sn))))
+            {
+                // we can't assert here or it can cause test failures, when the LocalNode just hasn't been updated from the disk state yet.
+                // but we can log ERR to try to detect any issues during development.  Occasionally there will be false positives,
+                // but also please do investigate when it's not a test that got shut down while busy.
+                LOG_err << "Shortname mismatch on LocalNode serialize! " <<
+                           "localname: " << localname << " slocalname " << (slocalname?slocalname->toPath():"<null>") << " actual shorname " << (sn?sn->toPath():"<null") << " for path " << localpath;
+
+            }
         }
     }
 #endif
