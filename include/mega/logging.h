@@ -358,6 +358,19 @@ class SimpleLogger
         logValue(error(value));
     }
 
+    void logValue(const std::error_code& value)
+    {
+        logValue(value.category().name());
+        logValue(":");
+        logValue(value.message());
+    }
+
+    void logValue(const std::system_error& se)
+    {
+        logValue(se.code().category().name());
+        logValue(": ");
+        logValue(se.what());
+    }
 #endif
 
 public:
@@ -520,6 +533,56 @@ public:
     }
 #endif
 
+    template <typename T>
+    SimpleLogger& operator<<(const std::unique_ptr<T>& ptr)
+    {
+#ifdef ENABLE_LOG_PERFORMANCE
+        if (!ptr)
+        {
+            logValue("<empty unique ptr>");
+        }
+        else
+        {
+            logValue(*ptr.get());
+        }
+#else
+        if (!ptr)
+        {
+            ostr << "<empty unique ptr>";
+        }
+        else
+        {
+            ostr << *ptr.get();
+        }
+#endif
+        return *this;
+    }
+
+    template <typename T>
+    SimpleLogger& operator<<(const std::shared_ptr<T>& ptr)
+    {
+#ifdef ENABLE_LOG_PERFORMANCE
+        if (!ptr)
+        {
+            logValue("<empty shared ptr>");
+        }
+        else
+        {
+            logValue(*ptr.get());
+        }
+#else
+        if (!ptr)
+        {
+            ostr << "<empty shared ptr>";
+        }
+        else
+        {
+            ostr << *ptr.get();
+        }
+#endif
+        return *this;
+    }
+
     SimpleLogger& operator<<(const DirectMessage &obj)
     {
 #ifndef ENABLE_LOG_PERFORMANCE
@@ -578,11 +641,14 @@ public:
 template<std::size_t N> inline const char* log_file_leafname( const char (&fullpath)[N]) {
     for (auto i = N - 1; --i; )
     {
-        if (fullpath[i] == '/' || fullpath[i] == '\\') 
+        if (fullpath[i] == '/' || fullpath[i] == '\\')
             return &fullpath[i+1];
     }
     return fullpath;
 }
+
+std::ostream& operator <<(std::ostream&, const std::system_error&);
+std::ostream& operator <<(std::ostream&, const std::error_code&);
 
 #define LOG_verbose \
     if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
