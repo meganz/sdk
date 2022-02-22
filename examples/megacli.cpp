@@ -4505,7 +4505,7 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
 {
-    DirAccess* da = client->fsaccess->newdiraccess();
+    auto da = client->fsaccess->newdiraccess();
 
     LocalPath lp(localname);
     if (da->dopen(&lp, NULL, false))
@@ -4575,7 +4575,7 @@ void exec_put(autocomplete::ACState& s)
 
     auto localname = localPathArg(s.words[1].s);
 
-    DirAccess* da = client->fsaccess->newdiraccess();
+    auto da = client->fsaccess->newdiraccess();
 
     if (da->dopen(&localname, NULL, true))
     {
@@ -4594,8 +4594,6 @@ void exec_put(autocomplete::ACState& s)
             uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo);
         }
     }
-
-    delete da;
 
     cout << "Queued " << total << " file(s) for upload, " << appxferq[PUT].size()
         << " file(s) in queue" << endl;

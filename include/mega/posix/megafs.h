@@ -72,8 +72,8 @@ public:
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
-    std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
-    DirAccess* newdiraccess() override;
+    unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
+    unique_ptr<DirAccess>  newdiraccess() override;
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
     bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning) override;

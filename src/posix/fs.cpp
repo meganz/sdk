@@ -1683,9 +1683,9 @@ std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymL
     return std::unique_ptr<FileAccess>{new PosixFileAccess{waiter, defaultfilepermissions, followSymLinks}};
 }
 
-DirAccess* PosixFileSystemAccess::newdiraccess()
+unique_ptr<DirAccess>  PosixFileSystemAccess::newdiraccess()
 {
-    return new PosixDirAccess();
+    return unique_ptr<DirAccess>(new PosixDirAccess());
 }
 
 #ifdef __linux__
