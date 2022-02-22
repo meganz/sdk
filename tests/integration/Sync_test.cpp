@@ -6962,11 +6962,11 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
 
         ASSERT_TRUE(cr.setattr(g, attr_map('n', "G")));
 
-#if defined(_WIN32) || defined(__APPLE__)
-        model.findnode("g")->mCloudName = "G";
-#else // _WIN32 || __APPLE__
+//#if defined(_WIN32) || defined(__APPLE__)
+//        model.findnode("g")->mCloudName = "G";
+//#else // _WIN32 || __APPLE__
         model.findnode("g")->name = "G";
-#endif // !(_WIN32 || __APPLE__)
+//#endif // !(_WIN32 || __APPLE__)
     }
 
     // Wait for sync to complete.
@@ -6979,11 +6979,11 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     ASSERT_TRUE(reporter->mAnomalies.empty());
 
     // Update g's content.
-#if defined(_WIN32) || defined(__APPLE__)
-    model.findnode("g")->content = "G";
-#else // _WIN32 || __APPLE__
+//#if defined(_WIN32) || defined(__APPLE__)
+//    model.findnode("g")->content = "G";
+//#else // _WIN32 || __APPLE__
     model.findnode("G")->content = "G";
-#endif // ! (_WIN32 || __APPLE__)
+//#endif // ! (_WIN32 || __APPLE__)
     ASSERT_TRUE(createDataFile(root / "G", "G"));
 
     // Wait for sync to complete.
