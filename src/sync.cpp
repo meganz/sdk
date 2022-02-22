@@ -1859,6 +1859,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 assert(row.syncNode);
             }
 
+            row.syncNode->namesSynchronized = sourceSyncNode->namesSynchronized;
             row.syncNode->setCheckMovesAgain(true, false, false);
 
             // Is the source's exclusion state well-defined?
@@ -2527,6 +2528,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
                     assert(row.syncNode);
                 }
+
+                row.syncNode->namesSynchronized = sourceSyncNode->namesSynchronized;
 
                 // remove fsid (and handle) from source node, so we don't detect
                 // that as a move source anymore
@@ -7007,9 +7010,10 @@ bool Sync::resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         }
 
         if (mCaseInsensitive && !row.syncNode->namesSynchronized &&
-            0 == compareUtf(row.syncNode->localname, true, row.fsNode->localname, true, false))
+            0 == compareUtf(row.cloudNode->name, true, row.fsNode->localname, true, false))
         {
-            // name is exactly equal so going forward, also propagate renames that only change case
+            // name is equal (taking escaping and case into account) so going forward, also propagate renames that only change case
+            assert(row.fsNode->localname == row.syncNode->localname);
             row.syncNode->namesSynchronized = true;
         }
 
@@ -7247,8 +7251,15 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         {
             // keep the name and target folder details current:
 
+            // if it's just a case change in a case insensitive name, use the updated uppercase/lowercase
+            bool onlyCaseChanged = mCaseInsensitive && row.cloudNode &&
+                  0 == compareUtf(row.cloudNode->name, true, row.fsNode->localname, true, true);
+
             // if we were already matched with a name that is not exactly the same as toName(), keep using it
-            string nodeName = row.cloudNode ? row.cloudNode->name : row.fsNode->localname.toName(*syncs.fsaccess);
+            string nodeName = !row.cloudNode || onlyCaseChanged
+                                ? row.fsNode->localname.toName(*syncs.fsaccess)
+                                : row.cloudNode->name;
+
             if (nodeName != existingUpload->name)
             {
                 LOG_debug << syncname << "Upload name changed, updating: " << existingUpload->name << " to " << nodeName << logTriplet(row, fullPath);
@@ -7307,8 +7318,14 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 assert(row.syncNode->scannedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint
                 assert(row.syncNode->scannedFingerprint == row.fsNode->fingerprint);
 
+                // if it's just a case change in a case insensitive name, use the updated uppercase/lowercase
+                bool onlyCaseChanged = mCaseInsensitive && row.cloudNode &&
+                    0 == compareUtf(row.cloudNode->name, true, row.fsNode->localname, true, true);
+
                 // if we were already matched with a name that is not exactly the same as toName(), keep using it
-                string nodeName = row.cloudNode ? row.cloudNode->name : row.fsNode->localname.toName(*syncs.fsaccess);
+                string nodeName = !row.cloudNode || onlyCaseChanged
+                    ? row.fsNode->localname.toName(*syncs.fsaccess)
+                    : row.cloudNode->name;
 
                 auto upload = std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle,
                     fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,

@@ -6834,9 +6834,9 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
 
     // Rename g -> G.
     model.findnode("g")->name = "G";
-#if defined(_WIN32) || defined(__APPLE__)
-    model.findnode("G")->mCloudName = "g";
-#endif // _WIN32 || __APPLE__
+//#if defined(_WIN32) || defined(__APPLE__)
+//    model.findnode("G")->mCloudName = "g";
+//#endif // _WIN32 || __APPLE__
     fs::rename(root / "g", root / "G");
 
     // Update G's content.
