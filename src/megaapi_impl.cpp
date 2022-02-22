@@ -25105,8 +25105,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
     MegaNode *parent = megaApi->getNodeByHandle(handle);
 
     LocalPath localname;
-    DirAccess* da;
-    da = client->fsaccess->newdiraccess();
+    auto da = client->fsaccess->newdiraccess();
     if (da->dopen(&localPath, NULL, false))
     {
         FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
@@ -25141,7 +25140,6 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
         }
     }
 
-    delete da;
     delete parent;
     recursive--;
 
@@ -25897,8 +25895,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
     if (state == SCHEDULED_COPY_ONGOING)
     {
         LocalPath localname;
-        DirAccess* da;
-        da = client->fsaccess->newdiraccess();
+        auto da = client->fsaccess->newdiraccess();
         if (da->dopen(&localPath, NULL, false))
         {
             FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
@@ -25939,8 +25936,6 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                 }
             }
         }
-
-        delete da;
     }
     else if (state == SCHEDULED_COPY_SKIPPING)
     {

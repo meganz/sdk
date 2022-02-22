@@ -643,7 +643,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) = 0;
 
     // instantiate DirAccess object
-    virtual DirAccess* newdiraccess() = 0;
+    virtual unique_ptr<DirAccess> newdiraccess() = 0;
 
 #ifdef ENABLE_SYNC
     // instantiate DirNotify object (default to periodic scanning handler if no
