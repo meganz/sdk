@@ -463,7 +463,7 @@ private:
 public:
     bool procresult(Result) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c, bool changeVault = false);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command

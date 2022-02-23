@@ -1300,7 +1300,7 @@ bool CommandPutNodes::procresult(Result r)
     return true;
 }
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c)
+CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool changeVault)
 {
     h = n->nodeHandle();
     syncdel = csyncdel;
@@ -1314,6 +1314,11 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     // This is needed for backward compatibility, old versions used memcmp to detect if a 'd' actionpacket was followed by a 't'  actionpacket with the same 'i' (ie, a move)
     // Additionally the servers can't deliver `st` in that packet for the same reason.  And of course we will not ignore this `t` packet, despite setting 'i'.
     notself(client);
+
+    if (changeVault)
+    {
+        arg("vw", 1);
+    }
 
     arg("n", h);
     arg("t", t->nodeHandle());

@@ -8158,14 +8158,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
 
     if (n->setparent(p))
     {
-        bool prevRootInVault = false;
-        Node* newRoot = getrootnode(p);
-        bool newRootInVault = newRoot->nodeHandle() == rootnodes.vault;
-
         if (prevParent)
         {
             Node *prevRoot = getrootnode(prevParent);
-            prevRootInVault = prevRoot->nodeHandle() == rootnodes.vault;
+            Node *newRoot = getrootnode(p);
             NodeHandle rubbishHandle = rootnodes.rubbish;
             nameid rrname = AttrMap::string2nameid("rr");
 
@@ -8208,12 +8204,15 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        CommandMoveNode* cmdMvNode = new CommandMoveNode(this, n, p, syncdel, prevparent, move(c));
-        if (prevRootInVault || newRootInVault) // && something else ?  syncdel == ??
+        bool changeVault = false;
+        if (syncdel != SYNCDEL_NONE)
         {
-            cmdMvNode->arg("vw", 1);
+            bool prevRootInVault = prevParent && (prevParent->firstancestor()->nodeHandle() == rootnodes.vault);
+            bool newRootInVault = p && (p->firstancestor()->nodeHandle() == rootnodes.vault);
+            changeVault = prevRootInVault || newRootInVault;
         }
-        reqs.add(cmdMvNode);
+
+        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c), changeVault));
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
