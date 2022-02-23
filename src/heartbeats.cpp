@@ -298,15 +298,8 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
     auto currentInfo = BackupInfoSync(us, syncs.mDownloadsPaused, syncs.mUploadsPaused);
     if (!us.mBackupInfo || currentInfo != *us.mBackupInfo)
     {
-        CommandBackupPut* cmdBkpPut = new CommandBackupPut(&syncs.mClient, currentInfo, nullptr);
-        Node* n = syncs.mClient.nodeByHandle(us.mConfig.getRemoteNode());
-        if (n && n->firstancestor()->nodeHandle() == syncs.mClient.rootnodes.vault) // Does it need more filtering here?
-        {
-            cmdBkpPut->arg("vw", 1);
-        }
-
         // Send if anything changed, or it's the first time we're considering for this sync (gets around Backup Centre continuing to show Disabled even though we sent sphb)
-        syncs.mClient.reqs.add(cmdBkpPut);
+        syncs.mClient.reqs.add(new CommandBackupPut(&syncs.mClient, currentInfo, nullptr));
     }
     us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(currentInfo);
 }

@@ -2868,13 +2868,6 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
             // Create and initiate request.
             auto* request = new CommandBackupPut(&client, info, move(completion));
-
-            Node* n = client.nodeByHandle(info.nodeHandle);
-            if (n && n->firstancestor()->nodeHandle() == client.rootnodes.vault) // Is this enough?
-            {
-                request->arg("vw", 1);
-            }
-
             client.reqs.add(request);
         }
 
@@ -2905,13 +2898,6 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                 for ( ; i != j; ++i)
                 {
                     auto* request = new CommandBackupRemove(&client, i->mBackupId);
-
-                    Node* n = client.nodeByHandle(i->getRemoteNode());
-                    if (n && n->firstancestor()->nodeHandle() == client.rootnodes.vault)
-                    {
-                        request->arg("vw", 1);
-                    }
-
                     client.reqs.add(request);
                 }
 
@@ -3731,15 +3717,7 @@ void Syncs::removeSyncByIndex(size_t index)
         mClient.app->sync_removed(config);
 
         // unregister this sync/backup from API (backup center)
-        CommandBackupRemove* cmdBkpRmv = new CommandBackupRemove(&mClient, config.getBackupId());
-
-        Node* n = mClient.nodeByHandle(config.getRemoteNode());
-        if (n && n->firstancestor()->nodeHandle() == mClient.rootnodes.vault) // Does it need more filtering here?
-        {
-            cmdBkpRmv->arg("vw", 1);
-        }
-
-        mClient.reqs.add(cmdBkpRmv);
+        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
 
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);
