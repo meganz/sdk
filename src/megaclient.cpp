@@ -18248,33 +18248,44 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
 void NodeManager::updateCountersWithNode(const Node &node)
 {
     NodeHandle firstValidAncestor = getFirstAncestor(node.nodeHandle());
+    // If firstValidAncestor is undef, own node is its first valid Ancestor
     firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : node.nodeHandle();
 
     if (firstValidAncestor != UNDEF)
     {
+        // Add a node counter for our first valid Ancestor (it can be our own node)
         increaseCounter(&node, firstValidAncestor);
 
-        auto it = mNodeCounters.find(node.nodeHandle());
-        if (it != mNodeCounters.end())
+        // When we receive a node check if some of its children has been added to node counter
+        // in that case the node counter is added to the first valid ancestor (Used for delay parents)
+        auto itChild = mNodeChildren.find(node.nodeHandle());
+        if (itChild != mNodeChildren.end())
         {
-            if (node.type == FILENODE)
+            for (NodeHandle child : itChild->second)
             {
-                // file versions may have been counted as files instead of versions upon
-                // processing fetchnodes from API. In result, if the parent was unknown (not
-                // processed yet), it's not possible to differentiate between a file and a version
-                // --> if this node is a file, child nodes were versions
-                it->second.versions += it->second.files;
-                it->second.versionStorage += it->second.storage;
-                it->second.files = 0;
-                it->second.storage = 0;
-            }
+                auto it = mNodeCounters.find(child);
+                if (it != mNodeCounters.end())
+                {
+                    if (node.type == FILENODE)
+                    {
+                        // file versions may have been counted as files instead of versions upon
+                        // processing fetchnodes from API. In result, if the parent was unknown (not
+                        // processed yet), it's not possible to differentiate between a file and a version
+                        // --> if this node is a file, child nodes were versions
+                        it->second.versions += it->second.files;
+                        it->second.versionStorage += it->second.storage;
+                        it->second.files = 0;
+                        it->second.storage = 0;
+                    }
 
-            mNodeCounters[firstValidAncestor].files += it->second.files;
-            mNodeCounters[firstValidAncestor].storage += it->second.storage;
-            mNodeCounters[firstValidAncestor].folders += it->second.folders;
-            mNodeCounters[firstValidAncestor].versions += it->second.versions;
-            mNodeCounters[firstValidAncestor].versionStorage += it->second.versionStorage;
-            mNodeCounters.erase(it);
+                    mNodeCounters[firstValidAncestor].files += it->second.files;
+                    mNodeCounters[firstValidAncestor].storage += it->second.storage;
+                    mNodeCounters[firstValidAncestor].folders += it->second.folders;
+                    mNodeCounters[firstValidAncestor].versions += it->second.versions;
+                    mNodeCounters[firstValidAncestor].versionStorage += it->second.versionStorage;
+                    mNodeCounters.erase(it);
+                }
+            }
         }
     }
 }
