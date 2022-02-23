@@ -11170,6 +11170,9 @@ class MegaApi
          *
          * @param node MegaNode to get the public link
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This method will be removed in future versions. Please, start using
+         * the MegaApi::exportNode signature that is not deprecated.
          */
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
 
@@ -11194,6 +11197,9 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
+         *
+         * @deprecated This method will be removed in future versions. Please, start using
+         * the MegaApi::exportNode signature that is not deprecated.
          */
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
 
@@ -11221,6 +11227,9 @@ class MegaApi
          * This is intended to be used for folders accessible though MEGA's S4 service.
          * Encryption will occur nonetheless within MEGA's S4 service.
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This method will be removed in future versions. Please, start using
+         * the MegaApi::exportNode signature that is not deprecated.
          */
         void exportNode(MegaNode *node, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
 
