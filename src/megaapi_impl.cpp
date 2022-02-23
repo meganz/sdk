@@ -22962,6 +22962,8 @@ void MegaApiImpl::sendPendingRequests()
                     e = API_EARGS;
                     break;
                 }
+
+                client->reqs.add(new CommandBackupPut(client, info, nullptr));
             }
             else // update an existing sync/backup
             {
@@ -22973,22 +22975,13 @@ void MegaApiImpl::sendPendingRequests()
                     e = API_EARGS;
                     break;
                 }
-            }
 
-            CommandBackupPut* cmdBkpPut = new CommandBackupPut(client, info, nullptr);
-            std::unique_ptr<MegaNode> remoteMN(getNodeByHandle(remoteNode.as8byte()));
-            if (backupType == MegaApi::BACKUP_TYPE_UP_SYNC && bType == BACKUP_UPLOAD && isInRootnode(remoteMN.get(), 1)) // this is probably wrong
-                // there could also be request->getParamType()==SyncConfig::TYPE_BACKUP
-            {
-                cmdBkpPut->arg("vw", 1);
+                client->reqs.add(new CommandBackupPut(client, info, nullptr));
             }
-
-            client->reqs.add(cmdBkpPut);
             break;
         }
         case MegaRequest::TYPE_BACKUP_REMOVE:
         {
-            // This will never go to Vault from here. Do not deal with "vw" arg.
             client->reqs.add(new CommandBackupRemove(client, request->getParentHandle()));
             break;
         }
