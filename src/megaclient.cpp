@@ -14043,24 +14043,33 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
     string deviceIdHash = getDeviceidHash();
     BackupInfoSync info(config, deviceIdHash, UNDEF, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
-    reqs.add( new CommandBackupPut(this, info,
-                                  [this, config, completion](Error e, handle backupId) {
-        if (!e)
+    CommandBackupPut* cmdBkpPut = new CommandBackupPut(this, info,
+        [this, config, completion](Error e, handle backupId)
         {
-            if (ISUNDEF(backupId))
+            if (!e)
             {
-                e = API_EINTERNAL;
+                if (ISUNDEF(backupId))
+                {
+                    e = API_EINTERNAL;
+                }
+                else
+                {
+                    auto configWithId = config;
+                    configWithId.mBackupId = backupId;
+                    e = syncs.syncConfigStoreAdd(configWithId);
+                }
             }
-            else
-            {
-                auto configWithId = config;
-                configWithId.mBackupId = backupId;
-                e = syncs.syncConfigStoreAdd(configWithId);
-            }
-        }
 
-        completion(backupId, e);
-    }));
+            completion(backupId, e);
+        });
+
+    Node* n = nodeByHandle(info.nodeHandle);
+    if (n && n->firstancestor()->nodeHandle() == rootnodes.vault)
+    {
+        cmdBkpPut->arg("vw", 1);
+    }
+
+    reqs.add(cmdBkpPut);
 }
 
 void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion)
@@ -14162,33 +14171,41 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
     string deviceIdHash = getDeviceidHash();
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
-    reqs.add( new CommandBackupPut(this, info,
-                                   [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
-        if (ISUNDEF(backupId) && !e)
+    CommandBackupPut* cmdBkpPut = new CommandBackupPut(this, info,
+        [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable
         {
-            e = API_EFAILED;
-        }
+            if (ISUNDEF(backupId) && !e)
+            {
+                e = API_EFAILED;
+            }
 
-        if (e)
-        {
-            completion(e, config.mError, backupId);
-        }
-        else
-        {
+            if (e)
+            {
+                completion(e, config.mError, backupId);
+            }
+            else
+            {
 
-            // if we got this far, the syncConfig is kept (in db and in memory)
-            config.setBackupId(backupId);
+                // if we got this far, the syncConfig is kept (in db and in memory)
+                config.setBackupId(backupId);
 
-            UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+                UnifiedSync* unifiedSync = syncs.appendNewSync(config, *this);
 
-            e = unifiedSync->enableSync(false, notifyApp);
+                e = unifiedSync->enableSync(false, notifyApp);
 
-            syncactivity = true;
+                syncactivity = true;
 
-            completion(e, unifiedSync->mConfig.getError(), backupId);
-        }
-    }));
+                completion(e, unifiedSync->mConfig.getError(), backupId);
+            }
+        });
 
+    Node* n = nodeByHandle(info.nodeHandle);
+    if (n && n->firstancestor()->nodeHandle() == rootnodes.vault) // Is this enough?
+    {
+        cmdBkpPut->arg("vw", 1);
+    }
+
+    reqs.add(cmdBkpPut);
     return e;
 }
 
