@@ -457,17 +457,13 @@ bool operator<(const FileFingerprint &lhs, const FileFingerprint &rhs)
     // mtime check disabled on Android due to this bug:
     // https://code.google.com/p/android/issues/detail?id=18624
 
-    // mtime differs - cannot be equal
-    if (abs(lhs.mtime - rhs.mtime) > 2)
+    if (lhs.mtime < rhs.mtime)
     {
-        if (lhs.mtime < rhs.mtime)
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
+        return true;
+    }
+    if (lhs.mtime > rhs.mtime)
+    {
+        return false;
     }
 #endif
 
