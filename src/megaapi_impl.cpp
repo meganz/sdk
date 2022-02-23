@@ -22981,24 +22981,8 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_REMOVE:
         {
-            CommandBackupRemove* cmdBkpRmv = new CommandBackupRemove(client, request->getParentHandle());
-
-            if (request->getAccess() == BACKUP_UPLOAD) // or request->getParamType()==SyncConfig::TYPE_BACKUP or some other relevant symbol // needs docs too
-            {
-                SyncConfig syncCfg;
-                bool found = client->syncs.syncConfigByBackupId(request->getParentHandle(), syncCfg);
-                if (found)
-                {
-                    std::unique_ptr<MegaNode> remoteMN(getNodeByHandle(syncCfg.getRemoteNode().as8byte()));
-
-                    if (isInRootnode(remoteMN.get(), 1))
-                    {
-                        cmdBkpRmv->arg("vw", 1);
-                    }
-                }
-            }
-
-            client->reqs.add(cmdBkpRmv);
+            // This will never go to Vault from here. Do not deal with "vw" arg.
+            client->reqs.add(new CommandBackupRemove(client, request->getParentHandle()));
             break;
         }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:
