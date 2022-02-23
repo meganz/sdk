@@ -5733,7 +5733,7 @@ bool CommandSetKeyPair::procresult(Result r)
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
+CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache, bool loadSyncs)
 {
     cmd("f");
     arg("c", 1);
@@ -5746,6 +5746,9 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
 
     // The servers are more efficient with this command when it's the only one in the batch
     batchSeparately = true;
+
+    // Whether we should (re)load the sync config database on request completion.
+    mLoadSyncs = loadSyncs;
 
     this->tag = tag;
 }
@@ -5877,7 +5880,8 @@ bool CommandFetchNodes::procresult(Result r)
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
                 client->fnstats.nodesCached = client->nodes.size();
 #ifdef ENABLE_SYNC
-                client->syncs.loadSyncConfigsOnFetchnodesComplete(true);
+                if (mLoadSyncs)
+                    client->syncs.loadSyncConfigsOnFetchnodesComplete(true);
 #endif
                 return true;
             }
