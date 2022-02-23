@@ -1835,6 +1835,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_DISABLE_VERSIONS;
     }
+    if(user->changed.noCallKit)
+    {
+        changed |= MegaUser::CHANGE_TYPE_NO_CALLKIT;
+    }
     if(user->changed.contactLinkVerification)
     {
         changed |= MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION;
@@ -7738,8 +7742,8 @@ void MegaApiImpl::abortPendingActions(error preverror)
 
     }
 
-    resetCompletedDownloadsImpl();
-    resetCompletedUploadsImpl();
+    resetTotalDownloads();
+    resetTotalUploads();
 }
 
 bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const
@@ -9062,29 +9066,21 @@ bool MegaApiImpl::isInsideSync(MegaNode *node)
 
 int MegaApiImpl::getNumPendingUploads()
 {
-    SdkMutexGuard g(sdkMutex);
-
     return pendingUploads;
 }
 
 int MegaApiImpl::getNumPendingDownloads()
 {
-    SdkMutexGuard g(sdkMutex);
-
     return pendingDownloads;
 }
 
 int MegaApiImpl::getTotalUploads()
 {
-    SdkMutexGuard g(sdkMutex);
-
     return totalUploads;
 }
 
 int MegaApiImpl::getTotalDownloads()
 {
-    SdkMutexGuard g(sdkMutex);
-
     return totalDownloads;
 }
 
@@ -9100,88 +9096,6 @@ void MegaApiImpl::resetTotalUploads()
     totalUploads = 0;
     totalUploadBytes = 0;
     totalUploadedBytes = 0;
-}
-
-size_t MegaApiImpl::getCompletedUploads()
-{
-    SdkMutexGuard g(sdkMutex);
-
-    return completedUploads.size();
-}
-
-size_t MegaApiImpl::getCompletedDownloads()
-{
-    SdkMutexGuard g(sdkMutex);
-
-    return completedDownloads.size();
-}
-
-void MegaApiImpl::resetCompletedDownloads()
-{
-    SdkMutexGuard g(sdkMutex);
-
-    resetCompletedDownloadsImpl();
-}
-
-void MegaApiImpl::resetCompletedUploads()
-{
-    SdkMutexGuard g(sdkMutex);
-
-    resetCompletedUploadsImpl();
-}
-
-void MegaApiImpl::removeCompletedUpload(int transferTag)
-{
-    SdkMutexGuard g(sdkMutex);
-
-    removeCompletedUploadImpl(transferTag);
-}
-
-void MegaApiImpl::removeCompletedDownload(int transferTag)
-{
-    SdkMutexGuard g(sdkMutex);
-
-    removeCompletedDownloadImpl(transferTag);
-}
-
-void MegaApiImpl::resetCompletedDownloadsImpl()
-{
-    completedDownloads.clear();
-    totalDownloads = pendingDownloads;
-    totalDownloadBytes = totalDownloadBytes - totalDownloadedBytes;
-    totalDownloadedBytes = 0;
-}
-
-void MegaApiImpl::resetCompletedUploadsImpl()
-{
-    completedUploads.clear();
-    totalUploads = pendingUploads;
-    totalUploadBytes = totalUploadBytes - totalUploadedBytes;
-    totalUploadedBytes = 0;
-}
-
-void MegaApiImpl::removeCompletedUploadImpl(int transferTag)
-{
-    auto itr = completedUploads.find(transferTag);
-    if (itr != completedUploads.end())
-    {
-        totalUploads--;
-        totalUploadedBytes -= itr->second;
-        totalUploadBytes -= itr->second;
-        completedUploads.erase(itr);
-    }
-}
-
-void MegaApiImpl::removeCompletedDownloadImpl(int transferTag)
-{
-    auto itr = completedDownloads.find(transferTag);
-    if (itr != completedDownloads.end())
-    {
-        totalDownloads--;
-        totalDownloadedBytes -= itr->second;
-        totalDownloadBytes -= itr->second;
-        completedDownloads.erase(itr);
-    }
 }
 
 MegaNode *MegaApiImpl::getRootNode()
@@ -14628,8 +14542,6 @@ void MegaApiImpl::logout_result(error e)
         pendingDownloads = 0;
         totalUploads = 0;
         totalDownloads = 0;
-        completedUploads.clear();
-        completedDownloads.clear();
         waitingRequest = RETRY_NONE;
         excludedNames.clear();
         excludedPaths.clear();
@@ -16364,19 +16276,6 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     else
     {
         LOG_info << "Transfer (" << transfer->getTransferString() << ") finished. File: " << transfer->getFileName();
-    }
-
-    // Only for file type transfers and not cancelled transfers
-    if (!transfer->isFolderTransfer() && transfer->getState() != MegaTransfer::STATE_CANCELLED)
-    {
-        if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)
-        {
-            completedUploads[transfer->getTag()] = transfer->getTransferredBytes();
-        }
-        else    // TYPE_DOWNLOAD and TYPE_LOCAL_TCP_DOWNLOAD
-        {
-            completedDownloads[transfer->getTag()] = transfer->getTransferredBytes();
-        }
     }
 
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
@@ -20089,17 +19988,9 @@ void MegaApiImpl::sendPendingRequests()
                     client->getua(ownUser, type);
                     break;
                 }
-                else if (type == ATTR_DISABLE_VERSIONS)
-                {
-                    if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
-                    {
-                        e = API_EARGS;
-                        break;
-                    }
-
-                    client->putua(type, (byte *)value, 1);
-                }
-                else if (type == ATTR_CONTACT_LINK_VERIFICATION)
+                else if ((type == ATTR_DISABLE_VERSIONS)
+                         || (type == ATTR_NO_CALLKIT)
+                         || (type == ATTR_CONTACT_LINK_VERIFICATION))
                 {
                     if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
                     {
@@ -25251,8 +25142,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
     MegaNode *parent = megaApi->getNodeByHandle(handle);
 
     LocalPath localname;
-    DirAccess* da;
-    da = client->fsaccess->newdiraccess();
+    auto da = client->fsaccess->newdiraccess();
     if (da->dopen(&localPath, NULL, false))
     {
         FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
@@ -25287,7 +25177,6 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
         }
     }
 
-    delete da;
     delete parent;
     recursive--;
 
@@ -26043,8 +25932,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
     if (state == SCHEDULED_COPY_ONGOING)
     {
         LocalPath localname;
-        DirAccess* da;
-        da = client->fsaccess->newdiraccess();
+        auto da = client->fsaccess->newdiraccess();
         if (da->dopen(&localPath, NULL, false))
         {
             FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
@@ -26085,8 +25973,6 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                 }
             }
         }
-
-        delete da;
     }
     else if (state == SCHEDULED_COPY_SKIPPING)
     {
