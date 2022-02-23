@@ -440,7 +440,7 @@ public:
     error changepw(const char *password, const char *pin = NULL);
 
     // load all trees: nodes, shares, contacts
-    void fetchnodes(bool nocache = false);
+    void fetchnodes(bool nocache = false, bool loadSyncs = true);
 
     // fetchnodes stats
     FetchNodesStats fnstats;

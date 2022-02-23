@@ -442,10 +442,12 @@ public:
 // reload nodes/shares/contacts
 class MEGA_API CommandFetchNodes : public Command
 {
+    bool mLoadSyncs = false;
+
 public:
     bool procresult(Result) override;
 
-    CommandFetchNodes(MegaClient*, int tag, bool nocache);
+    CommandFetchNodes(MegaClient*, int tag, bool nocache, bool loadSyncs);
 };
 
 // update own node keys

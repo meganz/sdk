@@ -2232,7 +2232,7 @@ void MegaClient::exec()
                         reqtag = fetchnodestag; // associate with ongoing request, if any
                         fetchingnodes = false;
                         fetchnodestag = 0;
-                        fetchnodes(true);
+                        fetchnodes(true, false);
                         reqtag = creqtag;
                     }
                     else if (e == API_EAGAIN || e == API_ERATELIMIT)
@@ -11726,7 +11726,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     closetc(true);
 }
 
-void MegaClient::fetchnodes(bool nocache)
+void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
 {
     if (fetchingnodes)
     {
@@ -11763,7 +11763,7 @@ void MegaClient::fetchnodes(bool nocache)
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
-        auto onuserdataCompletion = [this, fetchnodesTag](string*, string*, string*, error e) {
+        auto onuserdataCompletion = [this, fetchnodesTag, loadSyncs](string*, string*, string*, error e) {
 
             restag = fetchnodesTag;
 
@@ -11808,7 +11808,8 @@ void MegaClient::fetchnodes(bool nocache)
             loadAuthrings();
 
 #ifdef ENABLE_SYNC
-            syncs.loadSyncConfigsOnFetchnodesComplete(true);
+            if (loadSyncs)
+                syncs.loadSyncConfigsOnFetchnodesComplete(true);
 #endif
 
             WAIT_CLASS::bumpds();
@@ -11860,7 +11861,7 @@ void MegaClient::fetchnodes(bool nocache)
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
 
-            getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error e){
+            getuserdata(0, [this, fetchtag, loadSyncs, nocache](string*, string*, string*, error e){
 
                 if (e != API_OK)
                 {
@@ -11872,7 +11873,7 @@ void MegaClient::fetchnodes(bool nocache)
 
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
                 // So only submit the request after `ug` completes, otherwise everything is interleaved
-                reqs.add(new CommandFetchNodes(this, fetchtag, nocache));
+                reqs.add(new CommandFetchNodes(this, fetchtag, nocache, loadSyncs));
             });
 
             if (loggedin() == FULLACCOUNT
@@ -11886,7 +11887,7 @@ void MegaClient::fetchnodes(bool nocache)
         }
         else
         {
-            reqs.add(new CommandFetchNodes(this, reqtag, nocache));
+            reqs.add(new CommandFetchNodes(this, reqtag, nocache, loadSyncs));
         }
     }
 }
