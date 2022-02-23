@@ -1026,7 +1026,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                 break;
 
             case NEW_UPLOAD:
-                arg("h", nni->uploadtoken, sizeof nn[0].uploadtoken);
+                arg("h", nni->uploadtoken.data(), sizeof nn[0].uploadtoken);
 
                 // include pending file attributes for this upload
                 string s;
@@ -1058,7 +1058,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         }
 
         if (vo != NoVersioning &&
-            nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+            nn[i].type == FILENODE && !nn[i].ovhandle.isUndef())
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }
@@ -1102,7 +1102,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn[i].uploadtoken);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken.data(), (int)sizeof nn[i].uploadtoken);
                         break;
                 }
             }

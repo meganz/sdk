@@ -140,7 +140,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
 // converts the given sync configuration to a string
 std::string syncConfigToString(const SyncConfig& config)
 {
-    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
+    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.mBackupId));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
         description.append(" TWOWAY");
@@ -351,7 +351,7 @@ void AppFile::progress()
 {
 }
 
-static void displaytransferdetails(Transfer* t, const char* action)
+static void displaytransferdetails(Transfer* t, const string& action)
 {
     string name;
 
@@ -387,14 +387,13 @@ void DemoApp::transfer_update(Transfer* /*t*/)
 
 void DemoApp::transfer_failed(Transfer* t, const Error& e, dstime)
 {
-    displaytransferdetails(t, "failed (");
     if (e == API_ETOOMANY && e.hasExtraInfo())
     {
-         cout << getExtraInfoErrorString(e) << ")" << endl;
+        displaytransferdetails(t, "failed (" + getExtraInfoErrorString(e) + ")\n");
     }
     else
     {
-        cout << errorstring(e) << ")" << endl;
+        displaytransferdetails(t, "failed (" + string(errorstring(e)) + ")\n");
     }
 }
 
@@ -4031,7 +4030,7 @@ void exec_cp(autocomplete::ACState& s)
             }
 
             TreeProcCopy_mcli tc;
-            handle ovhandle = UNDEF;
+            NodeHandle ovhandle;
 
             if (!n->keyApplied())
             {
@@ -4076,17 +4075,17 @@ void exec_cp(autocomplete::ACState& s)
                         return;
                     }
 
-                    ovhandle = ovn->nodehandle;
+                    ovhandle = ovn->nodeHandle();
                 }
             }
 
             // determine number of nodes to be copied
-            client->proctree(n, &tc, false, ovhandle != UNDEF);
+            client->proctree(n, &tc, false, !ovhandle.isUndef());
 
             tc.allocnodes();
 
             // build new nodes array
-            client->proctree(n, &tc, false, ovhandle != UNDEF);
+            client->proctree(n, &tc, false, !ovhandle.isUndef());
 
             // if specified target is a filename, use it
             if (newname.size())
@@ -7782,7 +7781,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                     }
                 }
 
-                newnode->ovhandle = ovn->nodehandle;
+                newnode->ovhandle = ovn->nodeHandle();
             }
         }
 

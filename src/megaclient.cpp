@@ -2564,7 +2564,7 @@ void MegaClient::exec()
                 {
                     LOG_err << "Local fingerprint mismatch. Previous: " << sync->fsfp
                             << "  Current: " << current;
-                    sync->changestate(SYNC_FAILED, current ? LOCAL_FINGERPRINT_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true);
+                    sync->changestate(SYNC_FAILED, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true);
                 }
             }
         });
@@ -7848,7 +7848,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
     return API_OK;
 }
 
-error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const string &binaryUploadToken,
+error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
                                           byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
                                           std::function<error(AttrMap&)> addNodeAttrsFunc, std::function<error(std::string *)> addFileAttrsFunc)
 {
@@ -7857,7 +7857,7 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     // set up new node as file node
     newnode->source = NEW_UPLOAD;
     newnode->type = FILENODE;
-    memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
+    newnode->uploadtoken = binaryUploadToken;
     newnode->parenthandle = UNDEF;
     newnode->uploadhandle = mUploadHandle.next();
     newnode->attrstring.reset(new string);
@@ -7905,7 +7905,10 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
 
     // adjust previous version node
     string name(utf8Name);
-    newnode->ovhandle = getovhandle(parentNode, &name);
+    if (Node* ovn = getovnode(parentNode, &name))
+    {
+        newnode->ovhandle = ovn->nodeHandle();
+    }
 
     return e;
 }
@@ -7948,18 +7951,19 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
-void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag)
+void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
     User* u;
 
     if (!(u = finduser(user, 0)) && !user)
     {
         restag = tag;
-        app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
+        if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false);
+        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
 		return;
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag, move(completion)));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -8717,13 +8721,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         // to be the versions of this new node.
                         // So, we manually delete this node that the API must have deleted
                         // (Full and proper solution to this is in sync rework with SIC removal)
-                        if (Node *ovNode = nodebyhandle(nn_nni.ovhandle))
+                        if (Node *ovNode = nodeByHandle(nn_nni.ovhandle))
                         {
                             assert(ovNode->type == FILENODE);
 
                             TreeProcDel td;
                             proctree(ovNode, &td, false, true);
-                            LOG_debug << "File " << Base64Str<MegaClient::NODEHANDLE>(nn_nni.ovhandle) << " replaced by " << Base64Str<MegaClient::NODEHANDLE>(h);
+                            LOG_debug << "File " << nn_nni.ovhandle << " replaced by " << Base64Str<MegaClient::NODEHANDLE>(h);
                         }
                     }
 
@@ -15343,7 +15347,7 @@ void MegaClient::syncupdate()
                         }
                         else
                         {
-                            nnp->ovhandle = l->node->nodehandle;
+                            nnp->ovhandle = l->node->nodeHandle();
                         }
                     }
 
@@ -16509,18 +16513,13 @@ m_off_t MegaClient::getmaxuploadspeed()
     return httpio->getmaxuploadspeed();
 }
 
-handle MegaClient::getovhandle(Node *parent, string *name)
+Node* MegaClient::getovnode(Node *parent, string *name)
 {
-    handle ovhandle = UNDEF;
     if (parent && name)
     {
-        Node *ovn = childnodebyname(parent, name->c_str(), true);
-        if (ovn)
-        {
-            ovhandle = ovn->nodehandle;
-        }
+        return childnodebyname(parent, name->c_str(), true);
     }
-    return ovhandle;
+    return nullptr;
 }
 
 bool MegaClient::loggedIntoFolder() const
