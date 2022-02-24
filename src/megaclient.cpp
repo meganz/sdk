@@ -16885,10 +16885,7 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
     // send event only for negative timelefts received in the request header
     if (!isuserpro && (timeleft < 0))
     {
-        int creqtag = this->reqtag;
-        this->reqtag = 0;
-        this->sendevent(99408, "Overquota without timeleft");
-        this->reqtag = creqtag;
+        sendevent(99408, "Overquota without timeleft", 0);
     }
 
     dstime backoff;
