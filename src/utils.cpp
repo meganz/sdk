@@ -2873,7 +2873,6 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::NoReason:                                      return "NoReason";
         case SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist:    return "ApplyMoveNeedsOtherSideParentFolderToExist";
         case SyncWaitReason::ApplyMoveIsBlockedByExistingItem:              return "ApplyMoveIsBlockedByExistingItem";
-        case SyncWaitReason::ApplyMoveIsWaitingForScanning:                 return "ApplyMoveIsWaitingForScanning";
         case SyncWaitReason::MoveNeedsDestinationNodeProcessing:            return "MoveNeedsDestinationNodeProcessing";
         case SyncWaitReason::UpsyncNeedsTargetFolder:                       return "UpsyncNeedsTargetFolder";
         case SyncWaitReason::DownsyncNeedsTargetFolder:                     return "DownsyncNeedsTargetFolder";
@@ -2881,7 +2880,6 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
         case SyncWaitReason::WaitingForFileToStopChanging:                  return "WaitingForFileToStopChanging";
         case SyncWaitReason::MovingDownloadToTarget:                        return "MovingDownloadToTarget";
-        case SyncWaitReason::MovingExistingDownloadTargetToDebris:          return "MovingExistingDownloadTargetToDebris";
         case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
         case SyncWaitReason::CouldNotMoveToLocalDebrisFolder:               return "CouldNotMoveToLocalDebrisFolder";
         case SyncWaitReason::LocalFolderNotScannable:                       return "LocalFolderNotScannable";
@@ -2895,8 +2893,6 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::MoveTargetNameTooLong:                         return "MoveTargetNameTooLong";
         case SyncWaitReason::DownloadTargetNameTooLong:                     return "DownloadTargetNameTooLong";
         case SyncWaitReason::CreateFolderNameTooLong:                       return "CreateFolderNameTooLong";
-        case SyncWaitReason::ItemHasReservedName:                           return "ItemHasReservedName";
-        case SyncWaitReason::MoveTargetHasReservedName:                     return "MoveTargetHasReservedName";
         case SyncWaitReason::CantFingrprintFileYet:                         return "CantFingrprintFileYet";
         case SyncWaitReason::FolderContainsLockedFiles:                     return "FolderContainsLockedFiles";
         case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";

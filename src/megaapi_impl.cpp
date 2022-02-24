@@ -1322,8 +1322,6 @@ MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
             return MegaSyncStall::SyncStallReason::ApplyMoveNeedsOtherSideParentFolderToExist;
         case SyncWaitReason::ApplyMoveIsBlockedByExistingItem:
             return MegaSyncStall::SyncStallReason::ApplyMoveIsBlockedByExistingItem;
-        case SyncWaitReason::ApplyMoveIsWaitingForScanning:
-            return MegaSyncStall::SyncStallReason::ApplyMoveIsWaitingForScanning;
         case SyncWaitReason::MoveNeedsDestinationNodeProcessing:
             return MegaSyncStall::SyncStallReason::MoveNeedsDestinationNodeProcessing;
         case SyncWaitReason::UpsyncNeedsTargetFolder:
@@ -1338,8 +1336,6 @@ MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
             return MegaSyncStall::SyncStallReason::WaitingForFileToStopChanging;
         case SyncWaitReason::MovingDownloadToTarget:
             return MegaSyncStall::SyncStallReason::MovingDownloadToTarget;
-        case SyncWaitReason::MovingExistingDownloadTargetToDebris:
-            return MegaSyncStall::SyncStallReason::MovingExistingDownloadTargetToDebris;
         case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose:
             return MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose;
         case SyncWaitReason::CouldNotMoveToLocalDebrisFolder:
@@ -1356,8 +1352,6 @@ MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
             return MegaSyncStall::SyncStallReason::MoveOrRenameFailed;
         case SyncWaitReason::CreateFolderFailed:
             return MegaSyncStall::SyncStallReason::CreateFolderFailed;
-        case SyncWaitReason::UnknownExclusionState:
-            return MegaSyncStall::SyncStallReason::UnknownExclusionState;
         case SyncWaitReason::UnableToLoadIgnoreFile:
             return MegaSyncStall::SyncStallReason::UnableToLoadIgnoreFile;
         case SyncWaitReason::MoveTargetNameTooLong:
@@ -1366,10 +1360,6 @@ MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
             return MegaSyncStall::SyncStallReason::DownloadTargetNameTooLong;
         case SyncWaitReason::CreateFolderNameTooLong:
             return MegaSyncStall::SyncStallReason::CreateFolderNameTooLong;
-        case SyncWaitReason::ItemHasReservedName:
-            return MegaSyncStall::SyncStallReason::ItemHasReservedName;
-        case SyncWaitReason::MoveTargetHasReservedName:
-            return MegaSyncStall::SyncStallReason::MoveTargetHasReservedName;
         case SyncWaitReason::CantFingrprintFileYet:
             return MegaSyncStall::SyncStallReason::CantFingrprintFileYet;
         case SyncWaitReason::FolderContainsLockedFiles:
@@ -1426,8 +1416,6 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "MoveOrRenameFailed";
         case MegaSyncStall::SyncStallReason::CreateFolderFailed:
             return "CreateFolderFailed";
-        case MegaSyncStall::SyncStallReason::UnknownExclusionState:
-            return "UnknownExclusionState";
         case MegaSyncStall::SyncStallReason::UnableToLoadIgnoreFile:
             return "UnableToLoadIgnoreFile";
         case MegaSyncStall::SyncStallReason::MoveTargetNameTooLong:
@@ -24432,7 +24420,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, MegaClient* client /*
     setLastKnownMegaFolder(config.mOriginalPathOfRemoteRootNode.c_str());
 
     setError(config.mError < 0 ? 0 : config.mError);
-    //setWarning(config.mWarning);
+    setWarning(config.mWarning);
     setBackupId(config.mBackupId);
 }
 
@@ -24549,15 +24537,15 @@ void MegaSyncPrivate::setError(int error)
     mError = error;
 }
 
-//int MegaSyncPrivate::getWarning() const
-//{
-//    return mWarning;
-//}
-//
-//void MegaSyncPrivate::setWarning(int warning)
-//{
-//    mWarning = warning;
-//}
+int MegaSyncPrivate::getWarning() const
+{
+    return mWarning;
+}
+
+void MegaSyncPrivate::setWarning(int warning)
+{
+    mWarning = warning;
+}
 
 int MegaSyncPrivate::getType() const
 {

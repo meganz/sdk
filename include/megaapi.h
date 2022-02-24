@@ -5276,6 +5276,13 @@ public:
         UNABLE_TO_RETRIEVE_ROOT_FSID = 39       // Unable to retrieve a sync root's FSID.
     };
 
+    enum Warning
+    {
+        NO_SYNC_WARNING = 0,
+        LOCAL_IS_FAT = 1, // Found FAT (not a failure per se)
+        LOCAL_IS_HGFS= 2, // Found HGFS (not a failure per se)
+    };
+
     enum SyncType
     {
         TYPE_UNKNOWN = 0x00,
@@ -5399,17 +5406,17 @@ public:
      */
     virtual int getError() const;
 
-    ///**
-    // * @brief Get the warning of a synchronization
-    // *
-    // * Possible values are:
-    // *  - NO_SYNC_WARNING = 0: No warning
-    // *  - LOCAL_IS_FAT = 1: Found FAT (not a failure per se)
-    // *  - LOCAL_IS_HGFS = 2: Found HGFS (not a failure per se)
-    // *
-    // * @return Warning of a synchronization
-    // */
-    //virtual int getWarning() const;
+    /**
+     * @brief Get the warning of a synchronization
+     *
+     * Possible values are:
+     *  - NO_SYNC_WARNING = 0: No warning
+     *  - LOCAL_IS_FAT = 1: Found FAT (not a failure per se)
+     *  - LOCAL_IS_HGFS = 2: Found HGFS (not a failure per se)
+     *
+     * @return Warning of a synchronization
+     */
+    virtual int getWarning() const;
 
     /**
      * @brief Get the type of sync
@@ -5455,26 +5462,26 @@ public:
      */
     static const char *getMegaSyncErrorCode(int errorCode);
 
-    ///**
-    // * @brief Returns a readable description of the sync warning
-    // *
-    // * This function returns a pointer to a statically allocated buffer.
-    // * You don't have to free the returned pointer
-    // *
-    // * @return Readable description of the warning
-    // */
-    //const char * getMegaSyncWarningCode();
+    /**
+     * @brief Returns a readable description of the sync warning
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @return Readable description of the warning
+     */
+    const char * getMegaSyncWarningCode();
 
-    ///**
-    // * @brief Provides the warning description associated with a sync warning code
-    // *
-    // * This function returns a pointer to a statically allocated buffer.
-    // * You don't have to free the returned pointer
-    // *
-    // * @param warningCode Warning code for which the description will be returned
-    // * @return Description associated with the warning code
-    // */
-    //static const char *getMegaSyncWarningCode(int warningCode);
+    /**
+     * @brief Provides the warning description associated with a sync warning code
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @param warningCode Warning code for which the description will be returned
+     * @return Description associated with the warning code
+     */
+    static const char *getMegaSyncWarningCode(int warningCode);
 
 };
 
@@ -5590,7 +5597,6 @@ class MegaSyncStall
             MatchedAgainstUnidentifiedItem,
             MoveOrRenameFailed,
             CreateFolderFailed,
-            UnknownExclusionState,
             UnableToLoadIgnoreFile,
             MoveTargetNameTooLong,
             DownloadTargetNameTooLong,
