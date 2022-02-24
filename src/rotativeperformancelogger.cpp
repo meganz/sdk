@@ -201,7 +201,7 @@ private:
     LocalPath logArchiveNumbered_getFilename(const LocalPath& baseFileName, int logNumber)
     {
         LocalPath newFileName = baseFileName;
-        newFileName.append(LocalPath::fromPlatformEncodedRelative("." + SSTR(logNumber) + ".gz"));
+        newFileName.append(LocalPath::fromRelativePath("." + SSTR(logNumber) + ".gz"));
         return newFileName;
     }
 
@@ -239,7 +239,7 @@ private:
                     }
                 }
                 else
-                {                   
+                {
                     LocalPath nextFileName = logArchiveNumbered_getFilename(fileName, i + 1);
                     LocalPath nextPath = logsPath;
                     nextPath.appendWithSeparator(nextFileName, false);
@@ -256,7 +256,7 @@ private:
     {
         std::time_t timestamp = std::time(nullptr);
         LocalPath newFileName = baseFileName;
-        newFileName.append(LocalPath::fromPlatformEncodedRelative("." + SSTR(timestamp) + ".gz"));
+        newFileName.append(LocalPath::fromRelativePath("." + SSTR(timestamp) + ".gz"));
         return newFileName;
     }
 
@@ -432,7 +432,7 @@ private:
                 auto newNameDone = logsPath;
                 newNameDone.appendWithSeparator(logArchive_getNewFilename(fileName), false);
                 auto newNameZipping = newNameDone;
-                newNameZipping.append(LocalPath::fromPlatformEncodedRelative(".zipping"));
+                newNameZipping.append(LocalPath::fromRelativePath(".zipping"));
 
                 outputFile.close();
                 mFsAccess->unlinklocal(newNameZipping);
@@ -554,8 +554,8 @@ void RotativePerformanceLogger::stopLogger()
 
 void RotativePerformanceLogger::initialize(const char * logsPath, const char * logFileName, bool logToStdout)
 {
-    auto logsPathLocalPath = LocalPath::fromPlatformEncodedAbsolute(logsPath);
-    auto logFileNameLocalPath = LocalPath::fromPlatformEncodedRelative(logFileName);
+    auto logsPathLocalPath = LocalPath::fromAbsolutePath(logsPath);
+    auto logFileNameLocalPath = LocalPath::fromRelativePath(logFileName);
 
     mLogToStdout = logToStdout;
 

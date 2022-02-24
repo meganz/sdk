@@ -28,8 +28,9 @@
 
 namespace mega {
 
+ExternalLogger g_externalLogger;
 
-Logger *SimpleLogger::logger = nullptr;
+Logger *SimpleLogger::logger = &g_externalLogger;
 
 // by the default, display logs with level equal or less than logInfo
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
@@ -44,9 +45,6 @@ __thread std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer;
 #endif
 
 #else
-// static member initialization
-std::mutex SimpleLogger::outputs_mutex;
-OutputMap SimpleLogger::outputs;
 
 std::string SimpleLogger::getTime()
 {
@@ -64,49 +62,6 @@ std::string SimpleLogger::getTime()
 
     return {};
 }
-
-void SimpleLogger::flush()
-{
-    for (auto& o : outputs)
-    {
-        OutputStreams::iterator iter;
-        OutputStreams vec;
-
-        {
-            std::lock_guard<std::mutex> guard(outputs_mutex);
-            vec = o;
-        }
-
-        for (iter = vec.begin(); iter != vec.end(); iter++)
-        {
-            std::ostream *os = *iter;
-            os->flush();
-        }
-    }
-}
-
-OutputStreams SimpleLogger::getOutput(enum LogLevel ll)
-{
-    assert(unsigned(ll) < outputs.size());
-    std::lock_guard<std::mutex> guard(outputs_mutex);
-    return outputs[ll];
-}
-
-void SimpleLogger::addOutput(enum LogLevel ll, std::ostream *os)
-{
-    assert(unsigned(ll) < outputs.size());
-    std::lock_guard<std::mutex> guard(outputs_mutex);
-    outputs[ll].push_back(os);
-}
-
-void SimpleLogger::setAllOutputs(std::ostream *os)
-{
-    std::lock_guard<std::mutex> guard(outputs_mutex);
-    for (auto& o : outputs)
-    {
-        o.push_back(os);
-    }
-}
 #endif
 
 std::ostream& operator<< (std::ostream& ostr, const std::error_code &value)
@@ -118,5 +73,114 @@ std::ostream& operator<< (std::ostream& ostr, const std::system_error &se)
 {
     return ostr << se.code().category().name() << ": " << se.what();
 }
+
+
+
+ExternalLogger::ExternalLogger()
+{
+    logToConsole = false;
+    SimpleLogger::setOutputClass(this);
+}
+
+ExternalLogger::~ExternalLogger()
+{
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.lock();
+#endif
+    SimpleLogger::setOutputClass(NULL);
+#ifndef ENABLE_LOG_PERFORMANCE
+    mutex.unlock();
+#endif
+}
+
+void ExternalLogger::addMegaLogger(void* id, LogCallback lc)
+{
+    std::lock_guard<std::recursive_mutex> g(mutex);
+    megaLoggers[id] = lc;
+}
+
+void ExternalLogger::removeMegaLogger(void* id)
+{
+    std::lock_guard<std::recursive_mutex> g(mutex);
+    megaLoggers.erase(id);
+}
+
+void ExternalLogger::setLogLevel(int logLevel)
+{
+    SimpleLogger::setLogLevel((LogLevel)logLevel);
+}
+
+void ExternalLogger::setLogToConsole(bool enable)
+{
+    this->logToConsole = enable;
+}
+
+void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
+{
+    if (SimpleLogger::logCurrentLevel < logLevel)
+    {
+        return;
+    }
+
+    if (!message)
+    {
+        message = "";
+    }
+
+    if (!filename)
+    {
+        filename = "";
+    }
+
+    //For direct logging, we could use DirectMessage(message) here
+    SimpleLogger{static_cast<LogLevel>(logLevel), filename, line} << message;
+}
+
+void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+    , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+#endif
+)
+{
+    if (!time)
+    {
+        time = "";
+    }
+
+    if (!source)
+    {
+        source = "";
+    }
+
+    if (!message)
+    {
+        message = "";
+    }
+
+    lock_guard<std::recursive_mutex> g(mutex);
+
+    for (auto& logger : megaLoggers)
+    {
+        logger.second(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , directMessages, directMessagesSizes, numberMessages
+#endif
+        );
+    }
+
+    if (logToConsole)
+    {
+        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
+        if (message) std::cout << message;
+#ifdef ENABLE_LOG_PERFORMANCE
+        for (unsigned i = 0; i < numberMessages; ++i)
+        {
+            std::cout.write(directMessages[i], directMessagesSizes[i]);
+        }
+#endif
+        std::cout << std::endl;
+    }
+}
+
 
 } // namespace

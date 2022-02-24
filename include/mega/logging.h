@@ -136,8 +136,6 @@ public:
                      ) = 0;
 };
 
-typedef std::vector<std::ostream *> OutputStreams;
-
 const static size_t LOGGER_CHUNKS_SIZE = 1024;
 
 /**
@@ -179,8 +177,6 @@ public:
     }
 };
 
-class OutputMap : public std::array<OutputStreams, unsigned(logMax)+1> {};
-
 class SimpleLogger
 {
     enum LogLevel level;
@@ -191,13 +187,6 @@ class SimpleLogger
     std::string fname;
 
     std::string getTime();
-
-    // logging can occur from multiple threads, so we need to protect the lists of loggers to send to
-    // though the loggers themselves are presumed to be owned elsewhere, and the pointers must remain valid
-    // actual output to the loggers is not synchronised (at least, not by this class)
-    static std::mutex outputs_mutex;
-    static OutputMap outputs;
-    static OutputStreams getOutput(enum LogLevel ll);
 #else
 
 #ifdef WIN32
@@ -441,20 +430,8 @@ public:
             delete s;
         }
 #else
-        OutputStreams::iterator iter;
-        OutputStreams vec;
-
         if (logger)
             logger->log(t.c_str(), level, fname.c_str(), ostr.str().c_str());
-
-        ostr << std::endl;
-
-        vec = getOutput(level);
-
-        for (iter = vec.begin(); iter != vec.end(); iter++)
-        {
-            **iter << ostr.str();
-        }
 #endif
     }
 
@@ -623,18 +600,6 @@ public:
     {
         maxPayloadLogSize = size;
     }
-
-
-#ifndef ENABLE_LOG_PERFORMANCE
-    // register output stream for log level
-    static void addOutput(enum LogLevel ll, std::ostream *os);
-
-    // register output stream for all log levels
-    static void setAllOutputs(std::ostream *os);
-
-    // Synchronizes all registered stream buffers with their controlled output sequence
-    static void flush();
-#endif
 };
 
 // source file leaf name - maybe to be compile time calculated one day
@@ -687,5 +652,42 @@ inline void crashlytics_log(const char* msg)
 }
 #endif
 
+// moved from the intermediate layer
+class ExternalLogger : public Logger
+{
+public:
+
+    typedef std::function<
+        void(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+            )> LogCallback;
+
+    ExternalLogger();
+    ~ExternalLogger();
+    void addMegaLogger(void* id, LogCallback);
+    void removeMegaLogger(void* id);
+    void setLogLevel(int logLevel);
+    void setLogToConsole(bool enable);
+    void postLog(int logLevel, const char *message, const char *filename, int line);
+    void log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+        , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+    ) override;
+
+private:
+    std::recursive_mutex mutex;
+    map<void*, LogCallback> megaLoggers;
+    bool logToConsole;
+};
+
+// This used to be a static member of MegaApi_impl
+// However, megacli could not use or test it from there since it
+// uses the SDK core directly, and not the intermediate layer
+// So, although globals and singletons are not ideal, moving it here
+// is one step forwards in tidying that up.
+extern ExternalLogger g_externalLogger;
 
 } // namespace
