@@ -494,7 +494,9 @@ class MegaNode
             CHANGE_TYPE_PARENT          = 0x80,
             CHANGE_TYPE_PENDINGSHARE    = 0x100,
             CHANGE_TYPE_PUBLIC_LINK     = 0x200,
-            CHANGE_TYPE_NEW             = 0x400
+            CHANGE_TYPE_NEW             = 0x400,
+            CHANGE_TYPE_NAME            = 0x800,
+            CHANGE_TYPE_FAVOURITE       = 0x1000,
         };
 
         static const int INVALID_DURATION = -1;
@@ -945,6 +947,12 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_NEW             = 0x400
          * Check if the node is new
          *
+         * - MegaNode::CHANGE_TYPE_NAME            = 0x800
+         * Check if the node name has changed
+         *
+         * - MegaNode::CHANGE_TYPE_FAVOURITE        = 0x1000
+         * Check if the node was added to or removed from favorites
+         *
          */
         virtual int getChanges();
 
@@ -1047,11 +1055,23 @@ class MegaNode
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
          * of the MegaNode object.
          *
+         * @warning This method is not suitable for programming languages that require auto-generated bindings,
+         * due to the lack of mapping of string pointers to objects in different languages.
+         *
          * @return Decryption key of the file (in binary format)
-         * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-         * Use MegaNode::getBase64Key instead
          */
         virtual std::string* getNodeKey();
+
+        /**
+         * @brief Returns true if the node key is decrypted
+         *
+         * For nodes in shared folders, there could be missing keys. Also, faulty
+         * clients might create invalid keys. In those cases, the node's key might
+         * not be decrypted successfully.
+         *
+         * @return True if the node key is decrypted
+         */
+        virtual bool isNodeKeyDecrypted();
 
         /**
          * @brief Returns the file attributes related to the node
@@ -1282,6 +1302,7 @@ class MegaUser
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
             CHANGE_TYPE_MY_BACKUPS_FOLDER           = 0x8000000,
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
+            CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
         };
 
         /**
@@ -1378,6 +1399,12 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_MY_BACKUPS_FOLDER = 0x8000000
          * Check if "My Backups" folder has changed
          *
+         * - MegaUser::CHANGE_TYPE_COOKIE_SETTINGS     = 0x10000000
+         * Check if option for cookie settings has changed
+         *
+         * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
+         * Check if option for iOS CallKit has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1466,6 +1493,13 @@ class MegaUser
          * Check if device names have changed
          *
          * - MegaUser::CHANGE_TYPE_BACKUP_NAMES = 0x8000000
+         *
+         * - MegaUser::CHANGE_TYPE_COOKIE_SETTINGS     = 0x10000000
+         * Check if option for cookie settings has changed
+         *
+         * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
+         * Check if option for iOS CallKit has changed
+         *
          * Check if backup names have changed         */
         virtual int getChanges();
 
@@ -7683,7 +7717,8 @@ class MegaApi
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
-            USER_ATTR_DRIVE_NAMES = 35           // private - byte array
+            USER_ATTR_DRIVE_NAMES = 35,          // private - byte array
+            USER_ATTR_NO_CALLKIT = 36,           // private - byte array
         };
 
         enum {
@@ -10636,18 +10671,28 @@ class MegaApi
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_STORAGE_STATE = 21
          * Get the state of the storage (private non-encrypted)
-         * MegaApi::ATTR_GEOLOCATION = 22
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
          * Get the user geolocation (private)
-         * MegaApi::ATTR_CAMERA_UPLOADS_FOLDER = 23
+         * MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER = 23
          * Get the target folder for Camera Uploads (private)
-         * MegaApi::ATTR_MY_CHAT_FILES_FOLDER = 24
+         * MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER = 24
          * Get the target folder for My chat files (private)
-         * MegaApi::ATTR_ALIAS = 27
+         * MegaApi::USER_ATTR_PUSH_SETTINGS = 25
+         * Get whether user has push settings enabled (private)
+         * MegaApi::USER_ATTR_ALIAS = 27
          * Get the list of the users's aliases (private)
-         * MegaApi::ATTR_DEVICE_NAMES = 30
+         * MegaApi::USER_ATTR_DEVICE_NAMES = 30
          * Get the list of device names (private)
-         * MegaApi::ATTR_MY_BACKUPS_FOLDER = 31
+         * MegaApi::USER_ATTR_MY_BACKUPS_FOLDER = 31
          * Get the target folder for My Backups (private)
+         * MegaApi::USER_ATTR_COOKIE_SETTINGS = 33
+         * Get whether user has Cookie Settings enabled
+         * MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA = 34
+         * Get name and key to cypher sync-configs file
+         * MegaApi::USER_ATTR_DRIVE_NAMES = 35
+         * Get external drive names by id
+         * MegaApi::USER_ATTR_NO_CALLKIT = 36
+         * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -11037,6 +11082,8 @@ class MegaApi
          * Set the public key Cu25519 of the user (public)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_NO_CALLKIT = 36
+         * Set whether user has iOS CallKit disabled or enabled (private, non-encrypted)
          *
          * If the MEGA account is a sub-user business account, and the value of the parameter
          * type is equal to MegaApi::USER_ATTR_FIRSTNAME or MegaApi::USER_ATTR_LASTNAME
@@ -14201,30 +14248,39 @@ class MegaApi
         int areServersBusy();
 
         /**
-         * @brief Get the number of pending uploads.
+         * @brief Get the number of pending uploads
          *
-         * @return Pending uploads.
+         * @return Pending uploads
+         *
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
         int getNumPendingUploads();
 
         /**
-         * @brief Get the number of pending downloads.
+         * @brief Get the number of pending downloads
+         * @return Pending downloads
          *
-         * @return Pending downloads.
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
         int getNumPendingDownloads();
 
         /**
-         * @brief Get the number of queued uploads since the last call to MegaApi::resetCompletedUploads.
+         * @brief Get the number of queued uploads since the last call to MegaApi::resetTotalUploads
+         * @return Number of queued uploads since the last call to MegaApi::resetTotalUploads
          *
-         * @return Number of queued uploads since the last call to MegaApi::resetCompletedUploads.
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
         int getTotalUploads();
 
         /**
-         * @brief Get the number of queued downloads since the last call to MegaApi::resetCompletedDownloads.
+         * @brief Get the number of queued uploads since the last call to MegaApi::resetTotalDownloads
+         * @return Number of queued uploads since the last call to MegaApi::resetTotalDownloads
          *
-         * @return Number of queued downloads since the last call to MegaApi::resetCompletedDownloads.
+         * @deprecated Function related to statistics will be reviewed in future updates. They
+         * could change or be removed in the current form.
          */
         int getTotalDownloads();
 
@@ -14248,94 +14304,60 @@ class MegaApi
         void resetTotalUploads();
 
         /**
-         * @brief Get the number of completed uploads since the last call to MegaApi::resetCompletedUploads.
-         * The number of completed uploads does not include the cancelled transfers.
+         * @brief Get the total downloaded bytes
+         * @return Total downloaded bytes
          *
-         * @return Number of completed uploads since the last call to MegaApi::resetCompletedUploads.
-         */
-        size_t getCompletedUploads();
-
-        /**
-         * @brief Get the number of completed downloads since the last call to MegaApi::resetCompletedDownloads.
-         * The number of completed downloads does not include the cancelled transfers.
-         *
-         * @return Number of completed downloads since the last call to MegaApi::resetCompletedDownloads.
-         */
-        size_t getCompletedDownloads();
-
-        /**
-         * @brief Reset the number of completed uploads (total uploads = pending uploads).
-         * This function resets the number returned by MegaApi::getTotalUploads.
-         */
-        void resetCompletedUploads();
-
-        /**
-         * @brief Reset the number of completed downloads (total downloads = pending downloads).
-         * This function resets the number returned by MegaApi::getTotalDownloads.
-         */
-        void resetCompletedDownloads();
-
-        /**
-         * @brief Reduced by one the number of completed uploads.
-         * This function reduces the number returned by MegaApi::getCompletedUploads.
-         *
-         * @param transferTag Tag of the upload to remove from the list of uploads.
-         */
-        void removeCompletedUpload(int transferTag);
-
-        /**
-         * @brief Reduced by one the number of completed downloads.
-         * This function reduces the number returned by MegaApi::getCompletedDownloads.
-         *
-         * @param transferTag Tag of the download to remove from the list of downloads.
-         */
-        void removeCompletedDownload(int transferTag);
-
-        /**
-         * @brief Get the total downloaded bytes.
-         *
-         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetCompletedDownloads
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
          * or just before a log in or a log out.
          *
          * Only regular downloads are taken into account, not streaming nor folder transfers.
          *
-         * @return Total downloaded bytes.
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
         long long getTotalDownloadedBytes();
 
         /**
-         * @brief Get the total uploaded bytes.
+         * @brief Get the total uploaded bytes
+         * @return Total uploaded bytes
          *
-         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetCompletedUploads
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
          * or just before a log in or a log out.
          *
          * Only regular uploads are taken into account, not folder transfers.
          *
-         * @return Total uploaded bytes.
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         *
          */
         long long getTotalUploadedBytes();
 
         /**
-         * @brief Get the total bytes of started downloads.
+         * @brief Get the total bytes of started downloads
+         * @return Total bytes of started downloads
          *
-         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetCompletedDownloads
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
          * or just before a log in or a log out.
          *
          * Only regular downloads are taken into account, not streaming nor folder transfers.
          *
-         * @return Total bytes of started downloads.
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
         long long getTotalDownloadBytes();
 
         /**
-         * @brief Get the total bytes of started uploads.
+         * @brief Get the total bytes of started uploads
+         * @return Total bytes of started uploads
          *
-         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetCompletedUploads
+         * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
          * or just before a log in or a log out.
          *
          * Only regular uploads are taken into account, not folder transfers.
          *
-         * @return Total bytes of started uploads.
+         * @deprecated Function related to statistics will be reviewed in future updates to
+         * provide more data and avoid race conditions. They could change or be removed in the current form.
+         *
          */
         long long getTotalUploadBytes();
 

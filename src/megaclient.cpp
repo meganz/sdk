@@ -7859,6 +7859,9 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
         return API_EKEY;
     }
 
+    n->changed.name = n->attrs.hasUpdate('n', updates);
+    n->changed.favourite = n->attrs.hasUpdate(AttrMap::string2nameid("fav"), updates);
+
     // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
     n->attrs.applyUpdates(updates);
 
@@ -10748,6 +10751,8 @@ void MegaClient::notifynode(Node* n)
             changed |= n->changed.parent << 8;
             changed |= n->changed.publiclink << 9;
             changed |= n->changed.newnode << 10;
+            changed |= n->changed.name << 11;
+            changed |= n->changed.favourite << 12;
 
             int attrlen = int(n->attrstring->size());
             string base64attrstring;
@@ -10823,7 +10828,7 @@ void MegaClient::notifynode(Node* n)
                     }
                 }
             }
-            else if (!n->changed.removed && n->changed.attrs && n->localnode && n->localnode->name.compare(n->displayname()))
+            else if (!n->changed.removed && n->changed.name && n->localnode && n->localnode->name.compare(n->displayname()))
             {
                 LOG_debug << "Sync - remote rename from " << n->localnode->name << " to " << n->displayname();
             }
