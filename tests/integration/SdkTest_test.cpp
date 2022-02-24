@@ -2780,9 +2780,19 @@ TEST_F(SdkTest, SdkTestShares2)
  * Performs different operations related to sharing:
  *
  * - Share a folder with an existing contact
+
  * - Check the correctness of the outgoing share
  * - Check the reception and correctness of the incoming share
  * - Move a shared file (not owned) to Rubbish bin
+ * - Add some subfolders
+ * - Share a nested folder with same contact
+ * - Check the reception and correctness of the incoming nested share
+ * - Stop share main in share
+ * - Check correctness of the account size
+ * - Share the main in share again
+ * - Check correctness of the account size
+ * - Stop share nested inshare
+ * - Check correctness of the account size
  * - Modify the access level
  * - Revoke the access to the share
  * - Share a folder with a non registered email
@@ -2970,6 +2980,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
         << "Node update not received after " << maxTimeout << " seconds";
     inSharedNodeCount += 2;
+    long long nodesAtFolderDummyname2 = 1; // Take account own node
 
     long long nodeCountAfterInSharesAddedDummyFolders = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFolders);
@@ -2992,6 +3003,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
         << "Node update not received after " << maxTimeout << " seconds";
     ++inSharedNodeCount;
+    ++nodesAtFolderDummyname2;
 
     long long nodeCountAfterInSharesAddedDummyFile = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFile);
@@ -3022,11 +3034,37 @@ TEST_F(SdkTest, SdkTestShares)
     long long nodeCountAfterInSharesAddedNestedSubfolder = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedNestedSubfolder);
 
+    // Stop share main folder (Shared-folder)
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+
+    // number of nodes own cloud + nodes at nested in-share
+    long long nodeCountAfterRemoveMainInshare = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + nodesAtFolderDummyname2, nodeCountAfterRemoveMainInshare);
+
+    // Share again main folder (Shared-folder)
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_FULL));
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+
+    // number of nodes own cloud + nodes at nested in-share
+    long long nodeCountAfterShareN1 = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterShareN1);
+
+
     // remove nested share
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // mApi[1].nodeUpdated never gets updated. Nested share bug ?!
     ASSERT_NO_FATAL_FAILURE(shareFolder(dummyNode2.get(), mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
     ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
         << "Node update not received after " << maxTimeout << " seconds";
+//    TODO nested in shares aren't notified when they are removed (Ticket SDK-1912)
 //    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
 //        << "Node update not received after " << maxTimeout << " seconds";
     WaitMillisec(2000); // alternative attempt for mApi[1].nodeUpdated not being set
