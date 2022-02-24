@@ -2527,12 +2527,12 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
         if (list->size() > 0)
         {
             MegaUserAlert* a = list->get(list->size() - 1);
-            ok = title == a->getTitle() && path == a->getPath() && !ISUNDEF(a->getNodeHandle());
+            ok = !strcasecmp(title.c_str(), a->getTitle()) && !strcasecmp(path.c_str(), a->getPath()) && !ISUNDEF(a->getNodeHandle());
 
             if (!ok && i == 9)
             {
-                EXPECT_STREQ(title.c_str(), a->getTitle());
-                EXPECT_STREQ(path.c_str(), a->getPath());
+                EXPECT_STRCASEEQ(title.c_str(), a->getTitle());
+                EXPECT_STRCASEEQ(path.c_str(), a->getPath());
                 EXPECT_NE(a->getNodeHandle(), UNDEF);
             }
         }
@@ -2557,11 +2557,11 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
         if (list->size() > 0)
         {
             MegaUserAlert* a = list->get(list->size() - 1);
-            ok = title == a->getTitle() && a->getNodeHandle() == h && a->getNumber(0) == n;
+            ok = !strcasecmp(title.c_str(), a->getTitle()) && a->getNodeHandle() == h && a->getNumber(0) == n;
 
             if (!ok && i == 9)
             {
-                EXPECT_STREQ(a->getTitle(), title.c_str());
+                EXPECT_STRCASEEQ(a->getTitle(), title.c_str());
                 EXPECT_EQ(a->getNodeHandle(), h);
                 EXPECT_EQ(a->getNumber(0), n); // 0 for number of folders
             }
@@ -2780,9 +2780,19 @@ TEST_F(SdkTest, SdkTestShares2)
  * Performs different operations related to sharing:
  *
  * - Share a folder with an existing contact
+
  * - Check the correctness of the outgoing share
  * - Check the reception and correctness of the incoming share
  * - Move a shared file (not owned) to Rubbish bin
+ * - Add some subfolders
+ * - Share a nested folder with same contact
+ * - Check the reception and correctness of the incoming nested share
+ * - Stop share main in share
+ * - Check correctness of the account size
+ * - Share the main in share again
+ * - Check correctness of the account size
+ * - Stop share nested inshare
+ * - Check correctness of the account size
  * - Modify the access level
  * - Revoke the access to the share
  * - Share a folder with a non registered email
@@ -2819,10 +2829,12 @@ TEST_F(SdkTest, SdkTestShares)
 
     n1 = megaApi[0]->getNodeByHandle(hfolder1);
     ASSERT_NE(n1, nullptr);
+    long long inSharedNodeCount = 1;
 
     char foldername2[64] = "subfolder";
     MegaHandle hfolder2 = createFolder(0, foldername2, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get());
     ASSERT_NE(hfolder2, UNDEF);
+    ++inSharedNodeCount;
 
     MegaHandle hfile1;
     createFile(PUBLICFILE.data(), false);   // not a large file since don't need to test transfers here
@@ -2830,9 +2842,11 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get())) << "Cannot upload a test file";
 
     hfile1 = mApi[0].h;
+    ++inSharedNodeCount;
 
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get())) << "Cannot upload a second test file";
     MegaHandle hfile2 = mApi[0].h;
+    ++inSharedNodeCount;
 
 
     // --- Download authorized node from another account ---
@@ -2873,6 +2887,15 @@ TEST_F(SdkTest, SdkTestShares)
 
     mApi[1].cr.reset();
 
+    long long ownedNodeCount = megaApi[1]->getNumNodes();
+
+    // upload a file, just to test node counters
+    mApi[1].nodeUpdated = false;
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(1, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[1]->getRootNode()}.get())) << "Cannot upload a second test file";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
+    long long nodeCountAfterNewOwnedFile = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + 1, nodeCountAfterNewOwnedFile);
+    ownedNodeCount = nodeCountAfterNewOwnedFile;
 
     // --- Create a new outgoing share ---
 
@@ -2916,6 +2939,9 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(n->isInShare()) << "Wrong sharing information at incoming share";
     ASSERT_TRUE(n->isShared()) << "Wrong sharing information at incoming share";
 
+    long long nodeCountAfterInShares = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInShares);
+
     // --- Move shared file (not owned) to Rubbish bin ---
     mApi[1].requestFlags[MegaRequest::TYPE_MOVE] = false;
     MegaNode* fileNode2 = megaApi[0]->getNodeByHandle(hfile2);
@@ -2923,6 +2949,8 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_MOVE]))
         << "Move operation failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Moving shared file (not owned) to Rubbish bin failed (error: " << mApi[1].lastError << ")";
+    ++ownedNodeCount; // node sent to Rubbish is now owned
+    --inSharedNodeCount;
 
     // --- Test that file in Rubbish bin can be restored ---
     MegaNode* nodeMovedFile = megaApi[1]->getNodeByHandle(mApi[1].h);
@@ -2933,15 +2961,117 @@ TEST_F(SdkTest, SdkTestShares)
     // check the corresponding user alert
     ASSERT_TRUE(checkAlert(1, "New shared folder from " + mApi[0].email, mApi[0].email + ":Shared-folder"));
 
-    // add a folder under the share
+    // add folders under the share
     char foldernameA[64] = "dummyname1";
-    char foldernameB[64] = "dummyname2";
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    MegaHandle dummyhandle1 = createFolder(0, foldernameA, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get());
+    ASSERT_NE(dummyhandle1, UNDEF);
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
 
-    ASSERT_NE(createFolder(0, foldernameA, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get()), UNDEF);
-    ASSERT_NE(createFolder(0, foldernameB, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get()), UNDEF);
+    char foldernameB[64] = "dummyname2";
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    MegaHandle dummyhandle2 = createFolder(0, foldernameB, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get());
+    ASSERT_NE(dummyhandle2, UNDEF);
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    inSharedNodeCount += 2;
+    long long nodesAtFolderDummyname2 = 1; // Take account own node
+
+    long long nodeCountAfterInSharesAddedDummyFolders = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFolders);
 
     // check the corresponding user alert
     ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2));
+
+    // add 2 more files to the share
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(dummyhandle1)}.get())) << "Cannot upload a test file";
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ++inSharedNodeCount;
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(dummyhandle2)}.get())) << "Cannot upload a test file";
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ++inSharedNodeCount;
+    ++nodesAtFolderDummyname2;
+
+    long long nodeCountAfterInSharesAddedDummyFile = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFile);
+
+    // move a folder outside share
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    std::unique_ptr<MegaNode> dummyNode1(megaApi[0]->getNodeByHandle(dummyhandle1));
+    megaApi[0]->moveNode(dummyNode1.get(), rootnode.get());
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    inSharedNodeCount -= 2;
+
+    long long nodeCountAfterInSharesRemovedDummyFolder1 = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesRemovedDummyFolder1);
+
+    // add a nested share
+    std::unique_ptr<MegaNode> dummyNode2(megaApi[0]->getNodeByHandle(dummyhandle2));
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(dummyNode2.get(), mApi[1].email.data(), MegaShare::ACCESS_FULL));
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+
+    // number of nodes should not change, because this node is a nested share
+    long long nodeCountAfterInSharesAddedNestedSubfolder = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedNestedSubfolder);
+
+    // Stop share main folder (Shared-folder)
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+
+    // number of nodes own cloud + nodes at nested in-share
+    long long nodeCountAfterRemoveMainInshare = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + nodesAtFolderDummyname2, nodeCountAfterRemoveMainInshare);
+
+    // Share again main folder (Shared-folder)
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_FULL));
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+        << "Node update not received after " << maxTimeout << " seconds";
+
+    // number of nodes own cloud + nodes at nested in-share
+    long long nodeCountAfterShareN1 = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterShareN1);
+
+
+    // remove nested share
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // mApi[1].nodeUpdated never gets updated. Nested share bug ?!
+    ASSERT_NO_FATAL_FAILURE(shareFolder(dummyNode2.get(), mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
+    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
+        << "Node update not received after " << maxTimeout << " seconds";
+//    TODO nested in shares aren't notified when they are removed (Ticket SDK-1912)
+//    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
+//        << "Node update not received after " << maxTimeout << " seconds";
+    WaitMillisec(2000); // alternative attempt for mApi[1].nodeUpdated not being set
+
+    // number of nodes should not change, because this node was a nested share
+    long long nodeCountAfterInSharesRemovedNestedSubfolder = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesRemovedNestedSubfolder);
 
     // --- Modify the access level of an outgoing share ---
 
@@ -2984,11 +3114,14 @@ TEST_F(SdkTest, SdkTestShares)
         MegaUserAlertList* list = megaApi[1]->getUserAlerts();
         ASSERT_TRUE(list->size() > 0);
         MegaUserAlert* a = list->get(list->size() - 1);
-        ASSERT_STREQ(a->getTitle(), ("Access to folders shared by " + mApi[0].email + " was removed").c_str());
-        ASSERT_STREQ(a->getPath(), (mApi[0].email + ":Shared-folder").c_str());
+        ASSERT_STRCASEEQ(a->getTitle(), ("Access to folders shared by " + mApi[0].email + " was removed").c_str());
+        ASSERT_STRCASEEQ(a->getPath(), (mApi[0].email + ":Shared-folder").c_str());
         ASSERT_NE(a->getNodeHandle(), UNDEF);
         delete list;
     }
+
+    long long nodeCountAfterRevokedSharesAccess = megaApi[1]->getNumNodes();
+    ASSERT_EQ(ownedNodeCount, nodeCountAfterRevokedSharesAccess);
 
     // --- Get pending outgoing shares ---
 
