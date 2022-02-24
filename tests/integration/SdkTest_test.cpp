@@ -3035,7 +3035,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedNestedSubfolder);
 
     // Stop share main folder (Shared-folder)
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // mApi[1].nodeUpdated never gets updated. Nested share bug ?!
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
     ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
     ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
         << "Node update not received after " << maxTimeout << " seconds";
@@ -3047,7 +3047,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(ownedNodeCount + nodesAtFolderDummyname2, nodeCountAfterRemoveMainInshare);
 
     // Share again main folder (Shared-folder)
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // mApi[1].nodeUpdated never gets updated. Nested share bug ?!
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
     ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_FULL));
     ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
         << "Node update not received after " << maxTimeout << " seconds";
@@ -3064,6 +3064,7 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_NO_FATAL_FAILURE(shareFolder(dummyNode2.get(), mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
     ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
         << "Node update not received after " << maxTimeout << " seconds";
+//    TODO nested in shares aren't notified when they are removed (Ticket SDK-1912)
 //    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
 //        << "Node update not received after " << maxTimeout << " seconds";
     WaitMillisec(2000); // alternative attempt for mApi[1].nodeUpdated not being set
