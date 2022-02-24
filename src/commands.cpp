@@ -951,7 +951,7 @@ bool CommandSetAttr::procresult(Result r)
 CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                                  const char* userhandle, VersioningOption vo,
                                  vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
-                                 Completion&& resultFunction)
+                                 Completion&& resultFunction, bool changeVault)
   : mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
@@ -980,6 +980,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     if (cauth)
     {
         arg("cauth", cauth);
+    }
+
+    if (changeVault)
+    {
+        arg("vw", 1);
     }
 
     // "vb": when provided, it force to override the account-wide versioning behavior by the value indicated by client

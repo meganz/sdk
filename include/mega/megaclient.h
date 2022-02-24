@@ -545,10 +545,7 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
-
-    // add nodes to Vault, with specific argument that must not be set after a user action
-    void putnodesinvault(NodeHandle, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
+    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr, bool changeVault = false);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag);

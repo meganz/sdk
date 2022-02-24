@@ -1531,8 +1531,8 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     }
 
     // create the new node(s)
-    client->putnodesinvault(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
-                            move(newnodes), client->reqtag);  // followup in putnodes_result()
+    client->putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
+                     NoVersioning, move(newnodes), nullptr, client->reqtag, nullptr, true);  // followup in putnodes_result()
 
     return API_OK;
 }

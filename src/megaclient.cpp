@@ -539,7 +539,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
             -1, UNDEF, 0, 0, addua_completion);
     };
 
-    putnodesinvault(rootnodes.vault, move(newnodes), tag, addua);
+    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua, true);
     // Note: this request should not finish until the user's attribute is set successfully
 
     return API_OK;
@@ -7984,9 +7984,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction, bool changeVault)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
+    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction), changeVault));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
@@ -8002,16 +8002,6 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag)
     }
 
     queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag));
-}
-
-// send new nodes to Vault
-void MegaClient::putnodesinvault(NodeHandle h, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& resultFunction)
-{
-    assert(nodeByHandle(h) && nodeByHandle(h)->firstancestor()->nodeHandle() == rootnodes.vault);
-
-    CommandPutNodes* cmdPutNodes = new CommandPutNodes(this, h, nullptr, NoVersioning, move(newnodes), tag, PUTNODES_APP, nullptr, move(resultFunction));
-    cmdPutNodes->arg("vw", 1);
-    reqs.add(cmdPutNodes);
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -15465,6 +15455,7 @@ void MegaClient::syncupdate()
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
 
                 auto nextTag = nextreqtag();
+                bool changeVault = localNode->syncxfer && localNode->parent->node->firstancestor()->nodeHandle() == rootnodes.vault;
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodeHandle(),
                                                 NULL,
@@ -15473,7 +15464,8 @@ void MegaClient::syncupdate()
                                                 nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC,
                                                 nullptr,
-                                                nullptr));
+                                                nullptr,
+                                                changeVault));
 
                 syncactivity = true;
             }
