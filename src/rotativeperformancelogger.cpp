@@ -395,6 +395,9 @@ private:
 
     void logThreadFunction(LocalPath logsPath, LocalPath fileName)
     {
+        // Avoid cycles and possible deadloks - no logging from this log output thread.
+        SimpleLogger::mThreadLocalLoggingDisabled = true;
+
         LocalPath fileNameFullPath = logsPath;
         fileNameFullPath.appendWithSeparator(fileName, false);
 
@@ -407,7 +410,7 @@ private:
         {
             if (mForceRenew)
             {
-                std::lock_guard<std::mutex> g(mLogRotationMutex);
+                //std::lock_guard<std::mutex> g(mLogRotationMutex);
                 logArchive_cleanUpFiles(logsPath, fileName);
 
                 outputFile.close();
@@ -426,7 +429,7 @@ private:
             }
             else if (outFileSize > MAX_FILESIZE_MB*1024*1024)
             {
-                std::lock_guard<std::mutex> g(mLogRotationMutex);
+                //std::lock_guard<std::mutex> g(mLogRotationMutex);
                 logArchive_rotateFiles(logsPath, fileName);
 
                 auto newNameDone = logsPath;
@@ -439,7 +442,7 @@ private:
                 mFsAccess->renamelocal(fileNameFullPath, newNameZipping, true);
 
                 std::thread t([=]() {
-                    std::lock_guard<std::mutex> g(mLogRotationMutex); // prevent another rotation while we work on this file
+                    //std::lock_guard<std::mutex> g(mLogRotationMutex); // prevent another rotation while we work on this file
                     gzipCompressOnRotate(newNameZipping, newNameDone);
                 });
                 t.detach();

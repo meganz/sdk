@@ -179,6 +179,11 @@ public:
 
 class SimpleLogger
 {
+public:
+    // flag to turn off logging on the log-output thread, to prevent possible deadlock cycles.
+    static thread_local bool mThreadLocalLoggingDisabled;
+
+private:
     enum LogLevel level;
 
 #ifndef ENABLE_LOG_PERFORMANCE
@@ -207,6 +212,8 @@ class SimpleLogger
     template<typename DataIterator>
     void copyToBuffer(const DataIterator dataIt, DiffType currentSize)
     {
+        if (mThreadLocalLoggingDisabled) return;
+
         DiffType start = 0;
         while (currentSize > 0)
         {
@@ -223,6 +230,8 @@ class SimpleLogger
 
     void outputBuffer(bool lastcall = false)
     {
+        if (mThreadLocalLoggingDisabled) return;
+
         *mBufferIt = '\0';
         if (!mDirectMessages.empty()) // some part has already been passed as direct, we'll do all directly
         {
@@ -377,6 +386,8 @@ public:
     , lineNum(line)
 #endif
     {
+        if (mThreadLocalLoggingDisabled) return;
+
 #ifndef ENABLE_LOG_PERFORMANCE
         if (!logger)
         {
@@ -396,6 +407,8 @@ public:
 
     ~SimpleLogger()
     {
+        if (mThreadLocalLoggingDisabled) return;
+
 #ifdef ENABLE_LOG_PERFORMANCE
         if (filenameStr && lineNum != -1)
         {
@@ -681,6 +694,7 @@ private:
     std::recursive_mutex mutex;
     map<void*, LogCallback> megaLoggers;
     bool logToConsole;
+    bool alreadyLogging = false;
 };
 
 // This used to be a static member of MegaApi_impl

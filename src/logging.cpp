@@ -36,6 +36,8 @@ Logger *SimpleLogger::logger = &g_externalLogger;
 enum LogLevel SimpleLogger::logCurrentLevel = logInfo;
 long long SimpleLogger::maxPayloadLogSize  = 10240;
 
+thread_local bool SimpleLogger::mThreadLocalLoggingDisabled = false;
+
 #ifdef ENABLE_LOG_PERFORMANCE
 
 #ifdef WIN32
@@ -132,7 +134,6 @@ void ExternalLogger::postLog(int logLevel, const char *message, const char *file
         filename = "";
     }
 
-    //For direct logging, we could use DirectMessage(message) here
     SimpleLogger{static_cast<LogLevel>(logLevel), filename, line} << message;
 }
 
@@ -159,6 +160,12 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 
     lock_guard<std::recursive_mutex> g(mutex);
 
+    // solve the mystery of why the mutex is recursive
+    // if we hit the assert, it's due to logging from inside the processing of the logging?
+    assert(!alreadyLogging);
+    alreadyLogging = true;
+
+
     for (auto& logger : megaLoggers)
     {
         logger.second(time, loglevel, source, message
@@ -180,6 +187,7 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 #endif
         std::cout << std::endl;
     }
+    alreadyLogging = false;
 }
 
 
