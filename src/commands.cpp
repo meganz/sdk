@@ -1067,16 +1067,18 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         arg("t", nn[i].type);
         arg("a", (byte*)nn[i].attrstring->data(), int(nn[i].attrstring->size()));
 
-        if (nn[i].nodekey.size() <= sizeof key)
+        if (!client->loggedIntoWritableFolder())
         {
-            client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
-            arg("k", key, int(nn[i].nodekey.size()));
+            if (nn[i].nodekey.size() <= sizeof key)
+            {
+                client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
+                arg("k", key, int(nn[i].nodekey.size()));
+            }
+            else
+            {
+                arg("k", (const byte*)nn[i].nodekey.data(), int(nn[i].nodekey.size()));
+            }
         }
-        else
-        {
-            arg("k", (const byte*)nn[i].nodekey.data(), int(nn[i].nodekey.size()));
-        }
-
         endobject();
     }
 
