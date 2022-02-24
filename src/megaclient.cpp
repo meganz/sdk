@@ -8248,7 +8248,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction, bool changeVault)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
@@ -8269,7 +8269,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction)));
+    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction), changeVault));
 
     mergenewshares(1);
 
@@ -15624,7 +15624,8 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
-            unlink(tn, false, tn->tag);
+            bool changeVault = tn->firstancestor()->nodeHandle() == rootnodes.vault;
+            unlink(tn, false, tn->tag, nullptr, changeVault);
         }
 
         tn->tounlink_it = tounlink.end();

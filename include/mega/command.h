@@ -482,7 +482,7 @@ class MEGA_API CommandDelNode : public Command
 public:
     bool procresult(Result) override;
 
-    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&);
+    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&, bool changeVault = false);
 };
 
 class MEGA_API CommandDelVersions : public Command

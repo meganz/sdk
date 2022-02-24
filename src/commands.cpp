@@ -1431,7 +1431,7 @@ bool CommandMoveNode::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f)
+CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f, bool changeVault)
     : mResultFunction(move(f))
 {
     cmd("d");
@@ -1442,6 +1442,11 @@ CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversi
     if (keepversions)
     {
         arg("v", 1);
+    }
+
+    if (changeVault)
+    {
+        arg("vw", 1);
     }
 
     h = th;
