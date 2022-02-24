@@ -109,4 +109,14 @@ void SimpleLogger::setAllOutputs(std::ostream *os)
 }
 #endif
 
+std::ostream& operator<< (std::ostream& ostr, const std::error_code &value)
+{
+    return ostr << value.category().name() << ": " << value.message();
+}
+
+std::ostream& operator<< (std::ostream& ostr, const std::system_error &se)
+{
+    return ostr << se.code().category().name() << ": " << se.what();
+}
+
 } // namespace
