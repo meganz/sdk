@@ -1027,8 +1027,8 @@ public:
 
     int getError() const override;
     void setError(int error);
-    //int getWarning() const override;
-    //void setWarning(int warning);
+    int getWarning() const override;
+    void setWarning(int warning);
 
     int getType() const override;
     void setType(SyncType type);
@@ -1050,7 +1050,7 @@ protected:
 
     //holds error cause
     int mError = NO_SYNC_ERROR;
-    //int mWarning = NO_SYNC_WARNING;
+    int mWarning = NO_SYNC_WARNING;
 
     handle mBackupId = UNDEF;
 

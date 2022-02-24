@@ -5921,10 +5921,10 @@ int MegaSync::getError() const
     return MegaSync::Error::NO_SYNC_ERROR;
 }
 
-//int MegaSync::getWarning() const
-//{
-//    return MegaSync::Warning::NO_SYNC_WARNING;
-//}
+int MegaSync::getWarning() const
+{
+    return MegaSync::Warning::NO_SYNC_WARNING;
+}
 
 int MegaSync::getType() const
 {

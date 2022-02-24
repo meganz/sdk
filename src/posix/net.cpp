@@ -713,9 +713,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
 #ifdef WIN32
     mSocketsWaitEvent_curl_call_needed = false;
-#endif
-
-#ifndef _WIN32
+#else
     auto *rfds = &((PosixWaiter *)waiter)->rfds;
     auto *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
@@ -736,7 +734,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
         bool read, write;
         if (info.checkEvent(read, write)) // if checkEvent returns true, both `read` and `write` have been set.
         {
-            LOG_verbose << "Calling curl for socket " << info.fd << (read && write ? " both" : (read ? " read" : " write"));
+            //LOG_verbose << "Calling curl for socket " << info.fd << (read && write ? " both" : (read ? " read" : " write"));
             curl_multi_socket_action(curlm[d], info.fd,
                                      (read ? CURL_CSELECT_IN : 0)
                                    | (write ? CURL_CSELECT_OUT : 0), &dummy);
@@ -2720,7 +2718,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         else
         {
             // Networking seems to be fine after performance improvments, no need for this logging anymore - but keep it in comments for a while to inform people debugging older logs
-            LOG_debug << "Setting curl socket " << s << " to " << what;
+            //LOG_debug << "Setting curl socket " << s << " to " << what;
         }
 
         auto& info = it->second;

@@ -49,6 +49,7 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
             if (!(t = u->pubk.encrypt(client->rng, (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
             {
                 if (completion) completion(API_EINTERNAL, USER_HANDLE, nn, false);
+                else client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
                 return;
             }
 
@@ -60,6 +61,7 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
     else
     {
         if (completion) completion(API_ENOENT, USER_HANDLE, nn, false);
+        else client->app->putnodes_result(API_ENOENT, USER_HANDLE, nn);
     }
 }
 

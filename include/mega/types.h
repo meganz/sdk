@@ -444,7 +444,7 @@ enum SyncError {
     REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
     REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
     SHARE_NON_FULL_ACCESS = 14,             // Existing inbound share sync or part thereof lost full access
-    LOCAL_FILESYSTEM_MISMATCH = 15,        // Filesystem fingerprint does not match the one stored for the synchronization
+    LOCAL_FILESYSTEM_MISMATCH = 15,         // Filesystem fingerprint does not match the one stored for the synchronization
     PUT_NODES_ERROR = 16,                   // Error processing put nodes result
     ACTIVE_SYNC_BELOW_PATH = 17,            // There's a synced node below the path to be synced
     ACTIVE_SYNC_ABOVE_PATH = 18,            // There's a synced node above the path to be synced
@@ -1041,7 +1041,6 @@ enum class SyncWaitReason {
     NoReason,
     ApplyMoveNeedsOtherSideParentFolderToExist,   // stuck at move destination node
     ApplyMoveIsBlockedByExistingItem,             // stuck at move destination node
-    ApplyMoveIsWaitingForScanning,                // stuck at move destination node
     MoveNeedsDestinationNodeProcessing,           // stuck at move source node
     UpsyncNeedsTargetFolder,
     DownsyncNeedsTargetFolder,
@@ -1049,7 +1048,6 @@ enum class SyncWaitReason {
     DeleteWaitingOnMoves,
     WaitingForFileToStopChanging,
     MovingDownloadToTarget,
-    MovingExistingDownloadTargetToDebris,
     LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
     CouldNotMoveToLocalDebrisFolder,
     LocalFolderNotScannable,
@@ -1063,8 +1061,6 @@ enum class SyncWaitReason {
     MoveTargetNameTooLong,
     DownloadTargetNameTooLong,
     CreateFolderNameTooLong,
-    ItemHasReservedName,
-    MoveTargetHasReservedName,
     CantFingrprintFileYet,
     FolderContainsLockedFiles,
     LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
