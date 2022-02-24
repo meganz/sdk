@@ -2448,7 +2448,13 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         }
 
         // check filesystem is not changing fsids as a result of rename
-        assert(debug_confirm_getfsid(sourcePath, *syncs.fsaccess, sourceSyncNode->fsid_lastSynced));
+        //
+        // Only meaningful on filesystems with stable FSIDs.
+        //
+        // We've observed strange behavior when running on FAT filesystems under Windows.
+        // There, moving a directory (or file) to another parent will cause that directory
+        // (or file) to gain a new FSID.
+        assert(!fsstableids || debug_confirm_getfsid(sourcePath, *syncs.fsaccess, sourceSyncNode->fsid_lastSynced));
 
         if (overwrite)
         {
@@ -2513,7 +2519,13 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // todo: additional consideration: what if things to be renamed/moved form a cycle?
 
             // check filesystem is not changing fsids as a result of rename
-            assert(overwrite || debug_confirm_getfsid(fullPath.localPath, *syncs.fsaccess, sourceSyncNode->fsid_lastSynced));
+            //
+            // Only meaningful on filesystems with stable FSIDs.
+            //
+            // We've observed strange behavior when running on FAT filesystems under Windows.
+            // There, moving a directory (or file) to another parent will cause that directory
+            // (or file) to gain a new FSID.
+            assert(overwrite || !fsstableids || debug_confirm_getfsid(fullPath.localPath, *syncs.fsaccess, sourceSyncNode->fsid_lastSynced));
 
             LOG_debug << syncname << "Sync - local rename/move " << sourceSyncNode->getLocalPath().toPath() << " -> " << fullPath.localPath.toPath();
 
