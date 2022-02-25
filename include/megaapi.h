@@ -13869,7 +13869,7 @@ class MegaApi
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
          * @param listener MegaRequestListener to track this request
-         * @param backupDestination Used only by SyncConfig::Type::TYPE_BACKUP syncs.
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
          *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          */
         void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL, MegaHandle backupDestination = INVALID_HANDLE);
@@ -13892,7 +13892,7 @@ class MegaApi
          *
          * @param sync Synchronization to cancel
          * @param listener MegaRequestListener to track this request
-         * @param backupDestination Used only by SyncConfig::Type::TYPE_BACKUP syncs.
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
          *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          */
         void removeSync(MegaSync *sync, MegaRequestListener *listener = NULL, MegaHandle backupDestination = INVALID_HANDLE);

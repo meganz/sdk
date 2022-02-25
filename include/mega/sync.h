@@ -577,7 +577,7 @@ struct Syncs
     // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted.  Compatible with syncs on a separate thread in future
     void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
-    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered, and backup syncs in Vault are premanently deleted or moved
+    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered, and backup syncs in Vault are permanently deleted or moved
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest = UNDEF);
 
     // removes the sync from RAM; the config will be flushed to disk
