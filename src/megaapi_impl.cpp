@@ -8807,20 +8807,22 @@ const char* MegaApiImpl::exportSyncConfigs()
     return MegaApi::strdup(configs.c_str());
 }
 
-void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
+void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener, handle backupDestination)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setNodeHandle(nodehandle);
     request->setFlag(true);
+    request->setNumber(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener)
+void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener, handle backupDestination)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setParentHandle(backupId);
     request->setFlag(true);
+    request->setNumber(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8866,9 +8868,10 @@ MegaSyncList *MegaApiImpl::getSyncs()
     return syncList;
 }
 
-void MegaApiImpl::stopSyncs(MegaRequestListener *listener)
+void MegaApiImpl::stopSyncs(MegaRequestListener *listener, MegaHandle backupDestination)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNCS, listener);
+    request->setNumber(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -21663,7 +21666,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; } );
+            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; }, request->getNumber() );
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
@@ -21694,7 +21697,8 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 found = found || matched;
                 return matched;
-            });
+            },
+                request->getNumber());
 
             if (!found)
             {

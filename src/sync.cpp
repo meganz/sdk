@@ -3655,13 +3655,13 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
     if (completion) completion(nDisabled);
 }
 
-void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
+void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest)
 {
     for (auto i = mSyncVec.size(); i--; )
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
-            removeSyncByIndex(i);
+            removeSyncByIndex(i, bkpDest);
         }
     }
 }
@@ -3699,7 +3699,7 @@ void Syncs::purgeSyncs()
     }
 }
 
-void Syncs::removeSyncByIndex(size_t index)
+void Syncs::removeSyncByIndex(size_t index, handle bkpDest)
 {
     if (index < mSyncVec.size())
     {
@@ -3718,6 +3718,29 @@ void Syncs::removeSyncByIndex(size_t index)
 
         // unregister this sync/backup from API (backup center)
         mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+
+        if (config.isBackup())
+        {
+            // Is it in Vault?
+            Node* remoteNode = mClient.nodeByHandle(config.getRemoteNode());
+            if (remoteNode && remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault)
+            {
+                if (bkpDest == UNDEF) // permanently delete
+                {
+                    mClient.unlink(remoteNode, false, mClient.nextreqtag(), nullptr, true);
+                }
+                else // move to the new destination
+                {
+                    Node* destinationNode = mClient.nodebyhandle(bkpDest);
+                    if (destinationNode)
+                    {
+                        NodeHandle prevParent;
+                        prevParent.set6byte(remoteNode->parenthandle);
+                        mClient.reqs.add(new CommandMoveNode(&mClient, remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr, true));
+                    }
+                }
+            }
+        }
 
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);

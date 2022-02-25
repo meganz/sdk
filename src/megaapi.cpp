@@ -3380,17 +3380,17 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
+void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener, MegaHandle backupDestination)
 {
     pImpl->removeSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
 }
 
-void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
+void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener, MegaHandle backupDestination)
 {
     pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
-void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
+void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener, MegaHandle backupDestination)
 {
     pImpl->removeSyncById(backupId, listener);
 }
@@ -3430,7 +3430,7 @@ const char* MegaApi::exportSyncConfigs()
     return pImpl->exportSyncConfigs();
 }
 
-void MegaApi::removeSyncs(MegaRequestListener *listener)
+void MegaApi::removeSyncs(MegaRequestListener *listener, MegaHandle backupDestination)
 {
    pImpl->stopSyncs(listener);
 }
