@@ -3719,25 +3719,23 @@ void Syncs::removeSyncByIndex(size_t index, handle bkpDest)
         // unregister this sync/backup from API (backup center)
         mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
 
-        if (config.isBackup())
+        if (config.isBackup()) // thus in Vault
         {
-            // Is it in Vault?
             Node* remoteNode = mClient.nodeByHandle(config.getRemoteNode());
-            if (remoteNode && remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault)
+            assert(remoteNode && remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault);
+
+            if (bkpDest == UNDEF) // permanently delete
             {
-                if (bkpDest == UNDEF) // permanently delete
+                mClient.unlink(remoteNode, false, mClient.nextreqtag(), nullptr, true);
+            }
+            else // move to the new destination
+            {
+                Node* destinationNode = mClient.nodebyhandle(bkpDest);
+                if (destinationNode)
                 {
-                    mClient.unlink(remoteNode, false, mClient.nextreqtag(), nullptr, true);
-                }
-                else // move to the new destination
-                {
-                    Node* destinationNode = mClient.nodebyhandle(bkpDest);
-                    if (destinationNode)
-                    {
-                        NodeHandle prevParent;
-                        prevParent.set6byte(remoteNode->parenthandle);
-                        mClient.reqs.add(new CommandMoveNode(&mClient, remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr, true));
-                    }
+                    NodeHandle prevParent;
+                    prevParent.set6byte(remoteNode->parenthandle);
+                    mClient.reqs.add(new CommandMoveNode(&mClient, remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr, true));
                 }
             }
         }
