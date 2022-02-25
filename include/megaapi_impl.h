@@ -2398,14 +2398,14 @@ class MegaApiImpl : public MegaApp
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void importSyncConfigs(const char* configs, MegaRequestListener* listener);
         const char* exportSyncConfigs();
-        void removeSync(handle nodehandle, MegaRequestListener *listener=NULL, handle backupDestination = UNDEF);
-        void removeSyncById(handle backupId, MegaRequestListener *listener=NULL, handle backupDestination = UNDEF);
+        void removeSync(handle nodehandle, MegaRequestListener *listener=NULL, MegaNode *backupDestination = nullptr);
+        void removeSyncById(handle backupId, MegaRequestListener *listener=NULL, MegaNode *backupDestination = nullptr);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         MegaSyncList *getSyncs();
 
-        void stopSyncs(MegaRequestListener *listener=NULL, MegaHandle backupDestination = UNDEF);
+        void stopSyncs(MegaRequestListener *listener=NULL, MegaNode *backupDestination = nullptr);
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
         void setExcludedPaths(vector<string> *excludedPaths);

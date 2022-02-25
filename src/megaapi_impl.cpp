@@ -8807,22 +8807,22 @@ const char* MegaApiImpl::exportSyncConfigs()
     return MegaApi::strdup(configs.c_str());
 }
 
-void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener, handle backupDestination)
+void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener, MegaNode* backupDestination)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setNodeHandle(nodehandle);
     request->setFlag(true);
-    request->setNumber(backupDestination);
+    request->setPublicNode(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener, handle backupDestination)
+void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener, MegaNode * backupDestination)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setParentHandle(backupId);
     request->setFlag(true);
-    request->setNumber(backupDestination);
+    request->setPublicNode(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8868,10 +8868,10 @@ MegaSyncList *MegaApiImpl::getSyncs()
     return syncList;
 }
 
-void MegaApiImpl::stopSyncs(MegaRequestListener *listener, MegaHandle backupDestination)
+void MegaApiImpl::stopSyncs(MegaRequestListener *listener, MegaNode *backupDestination)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNCS, listener);
-    request->setNumber(backupDestination);
+    request->setPublicNode(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -21666,7 +21666,8 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; }, request->getNumber() );
+            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; },
+                request->getPublicNode() ? request->getPublicNode()->getHandle() : INVALID_HANDLE);
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
@@ -21698,7 +21699,7 @@ void MegaApiImpl::sendPendingRequests()
                 found = found || matched;
                 return matched;
             },
-                request->getNumber());
+                request->getPublicNode() ? request->getPublicNode()->getHandle() : INVALID_HANDLE);
 
             if (!found)
             {
