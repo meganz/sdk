@@ -303,12 +303,6 @@ void SdkTest::Cleanup()
 
     if (!megaApi.empty() && megaApi[0])
     {
-
-        // Remove nodes in Cloud & Rubbish
-        purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), false);
-        purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRubbishNode()}.get(), false);
-        //        megaApi[0]->cleanRubbishBin();
-
         // Remove auxiliar contact
         std::unique_ptr<MegaUserList> ul{megaApi[0]->getContacts()};
         for (int i = 0; i < ul->size(); i++)
@@ -323,8 +317,11 @@ void SdkTest::Cleanup()
 
     for (auto nApi = unsigned(megaApi.size()); nApi--; ) if (megaApi[nApi])
     {
-        // Remove pending contact requests
+        // Remove nodes in Cloud & Rubbish
+        purgeTree(std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
+        purgeTree(std::unique_ptr<MegaNode>{megaApi[nApi]->getRubbishNode()}.get(), false);
 
+        // Remove pending contact requests
         std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
         for (int i = 0; i < crl->size(); i++)
         {
