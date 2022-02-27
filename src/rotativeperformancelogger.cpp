@@ -410,7 +410,7 @@ private:
         {
             if (mForceRenew)
             {
-                //std::lock_guard<std::mutex> g(mLogRotationMutex);
+                std::lock_guard<std::mutex> g(mLogRotationMutex);
                 logArchive_cleanUpFiles(logsPath, fileName);
 
                 outputFile.close();
@@ -429,7 +429,7 @@ private:
             }
             else if (outFileSize > MAX_FILESIZE_MB*1024*1024)
             {
-                //std::lock_guard<std::mutex> g(mLogRotationMutex);
+                std::lock_guard<std::mutex> g(mLogRotationMutex);
                 logArchive_rotateFiles(logsPath, fileName);
 
                 auto newNameDone = logsPath;
@@ -442,7 +442,7 @@ private:
                 mFsAccess->renamelocal(fileNameFullPath, newNameZipping, true);
 
                 std::thread t([=]() {
-                    //std::lock_guard<std::mutex> g(mLogRotationMutex); // prevent another rotation while we work on this file
+                    std::lock_guard<std::mutex> g(mLogRotationMutex); // prevent another rotation while we work on this file
                     gzipCompressOnRotate(newNameZipping, newNameDone);
                 });
                 t.detach();
@@ -545,7 +545,7 @@ RotativePerformanceLogger::~RotativePerformanceLogger()
 
 void RotativePerformanceLogger::stopLogger()
 {
-    MegaApi::removeLoggerObject(this); // after this no more calls to RotativePerformanceLogger::log
+    MegaApi::removeLoggerObject(this, true); // after this no more calls to RotativePerformanceLogger::log
     {
         std::lock_guard<std::mutex> g(mLoggingThread->mLogMutex);
         mLoggingThread->mLogExit = true;
@@ -573,7 +573,7 @@ void RotativePerformanceLogger::initialize(const char * logsPath, const char * l
     mLoggingThread->startLoggingThread(logsPathLocalPath, logFileNameLocalPath);
 
     MegaApi::setLogLevel(MegaApi::LOG_LEVEL_MAX);
-    MegaApi::addLoggerObject(this);
+    MegaApi::addLoggerObject(this, true);
 }
 
 RotativePerformanceLogger& RotativePerformanceLogger::Instance() {

@@ -5685,8 +5685,28 @@ void MegaApiImpl::setMaxPayloadLogSize(long long maxSize)
     SimpleLogger::setMaxPayloadLogSize(maxSize);
 }
 
-void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger)
+void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
+
+    if (singleExclusiveLogger)
+    {
+        g_exclusiveLogger.exclusiveCallback = [megaLogger](const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+            ){
+                megaLogger->log(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+                    , directMessages, directMessagesSizes, numberMessages
+#endif
+                );
+        };
+
+        SimpleLogger::setOutputClass(&g_exclusiveLogger);
+    }
+    else
+    {
+
     g_externalLogger.addMegaLogger(megaLogger,
         [megaLogger](const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
@@ -5699,11 +5719,20 @@ void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger)
 #endif
             );
         });
+    }
 }
 
-void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger)
+void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    g_externalLogger.removeMegaLogger(megaLogger);
+    if (singleExclusiveLogger)
+    {
+        SimpleLogger::setOutputClass(&g_externalLogger);
+        g_exclusiveLogger.exclusiveCallback = nullptr;
+    }
+    else
+    {
+        g_externalLogger.removeMegaLogger(megaLogger);
+    }
 }
 
 void MegaApiImpl::setLogToConsole(bool enable)
@@ -5735,7 +5764,7 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
 {
     mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
     mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
-    MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance());
+    MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance(), true);
 }
 #endif
 

@@ -697,11 +697,35 @@ private:
     bool alreadyLogging = false;
 };
 
+// a lock-free adapter for megaproxy
+class ExclusiveLogger : public Logger
+{
+public:
+
+    typedef std::function<
+        void(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+            )> LogCallback;
+
+    void log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+        , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+    ) override;
+
+
+    LogCallback exclusiveCallback;
+};
+
+
 // This used to be a static member of MegaApi_impl
 // However, megacli could not use or test it from there since it
 // uses the SDK core directly, and not the intermediate layer
 // So, although globals and singletons are not ideal, moving it here
 // is one step forwards in tidying that up.
 extern ExternalLogger g_externalLogger;
+extern ExclusiveLogger g_exclusiveLogger;
 
 } // namespace

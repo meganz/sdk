@@ -29,6 +29,7 @@
 namespace mega {
 
 ExternalLogger g_externalLogger;
+ExclusiveLogger g_exclusiveLogger;
 
 Logger *SimpleLogger::logger = &g_externalLogger;
 
@@ -190,5 +191,33 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
     alreadyLogging = false;
 }
 
+
+void ExclusiveLogger::log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+    , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+#endif
+)
+{
+    if (!time)
+    {
+        time = "";
+    }
+
+    if (!source)
+    {
+        source = "";
+    }
+
+    if (!message)
+    {
+        message = "";
+    }
+
+    exclusiveCallback(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , directMessages, directMessagesSizes, numberMessages
+#endif
+    );
+}
 
 } // namespace
