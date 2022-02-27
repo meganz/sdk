@@ -1952,7 +1952,9 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             //    before we can be sure we can remove nodes or upload/download.
             CloudNode sourceCloudNode, targetCloudNode;
             string sourceCloudNodePath, targetCloudNodePath;
-            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::LATEST_VERSION);
+            // Note that we get the EXACT_VERSION, not the latest version of that file.  A new file may have been added locally at that location
+            // in the meantime, causing a version chain for that node.  But, we need the exact node (and especially so the Filefingerprint matches once the row lines up)
+            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::EXACT_VERSION);
             bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
             if (foundSourceCloudNode && foundTargetCloudNode)
@@ -2093,8 +2095,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                         syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
-                            auto fromNode = mc.nodeByHandle(sourceCloudNode.handle);
-                            auto toNode = mc.nodeByHandle(targetCloudNode.handle);
+                            auto fromNode = mc.nodeByHandle(sourceCloudNode.handle, true);  // yes, it must be the exact version (should there be a version chain)
+                            auto toNode = mc.nodeByHandle(targetCloudNode.handle);   // folders don't have version chains
 
                             if (fromNode && toNode)
                             {
