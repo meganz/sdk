@@ -16863,8 +16863,6 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     }
     else
     {
-        updateCountersWithNode(*node);
-
         // still keep it in memory temporary, until saveNodeInDb()
         mNodeToWriteInDb = node; // takes ownership
 
@@ -18197,6 +18195,7 @@ void NodeManager::saveNodeInDb(Node *node)
 
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
+        updateCountersWithNode(*node);
         assert(mNodeToWriteInDb->nodeHandle() == node->nodeHandle());
         delete mNodeToWriteInDb;
         mNodeToWriteInDb = nullptr;
