@@ -7572,8 +7572,8 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                                  << logTriplet(row, fullPath);
 
                     monitor.waitingLocal(downloadPtr->getLocalname(),
-                                         LocalPath(),
-                                         string(),
+                                         fullPath.localPath,
+                                         fullPath.cloudPath,
                                          SyncWaitReason::MACVerificationFailure);
                 }
                 else
