@@ -5,10 +5,12 @@
 
 namespace mega
 {
-class QTMegaListener : public MegaListener
+class QTMegaListener : public QObject, public MegaListener
 {
+	Q_OBJECT
+
 public:
-    explicit QTMegaListener(QObject& eventPostTarget);
+    explicit QTMegaListener(MegaApi *megaApi, MegaListener *parent=NULL);
     virtual ~QTMegaListener();
 
 	void onRequestStart(MegaApi* api, MegaRequest *request) override;
@@ -35,6 +37,9 @@ public:
 #endif
 
 protected:
-    QObject& mEventPostTarget;
+    virtual void customEvent(QEvent * event);
+
+    MegaApi *megaApi;
+	MegaListener *listener;
 };
 }
