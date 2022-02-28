@@ -10897,10 +10897,21 @@ MegaShareList *MegaApiImpl::getOutSharesOrPending(int order, bool pending)
     vector<Share *> shares;
     for (const Node* n : nodes)
     {
-        assert(n->outshares);
-        for (auto it = n->outshares->begin(); it != n->outshares->end(); it++)
+        if (pending)
         {
-            shares.push_back(it->second);
+            assert(n->pendingshares);
+            for (auto it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+            {
+                shares.push_back(it->second);
+            }
+        }
+        else
+        {
+            assert(n->outshares);
+            for (auto it = n->outshares->begin(); it != n->outshares->end(); it++)
+            {
+                shares.push_back(it->second);
+            }
         }
     }
 
