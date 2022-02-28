@@ -491,21 +491,26 @@ void SyncDownload_inClient::prepare(FileSystemAccess& fsaccess)
 
 bool SyncDownload_inClient::failed(error e, MegaClient* mc)
 {
-    bool retry = File::failed(e, mc);
+    // Squirrel away the error for later use.
+    mError = e;
 
-    if (Node* n = mc->nodeByHandle(h))
+    // Should we retry the download?
+    if (File::failed(e, mc))
+        return true;
+
+    // MAC validation error?
+    if (e == API_EKEY)
+        mc->sendevent(99433, "Undecryptable file", 0);
+
+    // Blocked file?
+    if (e == API_EBLOCKED)
     {
-        if (!retry && (e == API_EBLOCKED || e == API_EKEY))
-        {
-            if (e == API_EKEY)
-            {
-                mc->sendevent(99433, "Undecryptable file", 0);
-            }
+        // Still exists in the cloud?
+        if (auto* n = mc->nodeByHandle(h))
             mc->movetosyncdebris(n, fromInsycShare, nullptr);
-        }
     }
 
-    return retry;
+    return false;
 }
 
 #endif

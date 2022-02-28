@@ -2897,6 +2897,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::FolderContainsLockedFiles:                     return "FolderContainsLockedFiles";
         case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
         case SyncWaitReason::SyncItemExceedsSupportedTreeDepth:             return "SyncItemExceedsSupportedTreeDepth";
+        case SyncWaitReason::MACVerificationFailure:                        return "MACVerificationFailure";
     }
     return "<out of range>";
 }

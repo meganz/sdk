@@ -93,10 +93,12 @@ struct SyncTransfer_inClient: public File
     shared_ptr<SyncTransfer_inClient> selfKeepAlive;
     shared_ptr<SyncThreadsafeState> syncThreadSafeState;
 
+    // Why was the transfer failed/terminated?
+    error mError = API_OK;
+
     bool wasTerminated = false;
     bool wasCompleted = false;
     bool wasRequesterAbandoned = false;
-
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient

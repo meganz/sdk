@@ -1064,7 +1064,8 @@ enum class SyncWaitReason {
     CantFingrprintFileYet,
     FolderContainsLockedFiles,
     LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
-    SyncItemExceedsSupportedTreeDepth
+    SyncItemExceedsSupportedTreeDepth,
+    MACVerificationFailure
 };
 
 string syncWaitReasonString(SyncWaitReason);

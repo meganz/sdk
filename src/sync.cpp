@@ -7562,7 +7562,24 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
             else if (downloadPtr->wasTerminated)
             {
                 SYNC_verbose << syncname << "Download was terminated " << logTriplet(row, fullPath);
-                row.syncNode->resetTransfer(nullptr);
+
+                // Did the download fail due to a MAC error?
+                if (downloadPtr->mError == API_EKEY)
+                {
+                    // Then report it as a stall.
+                    SYNC_verbose << syncname
+                                 << "Download was terminated due to MAC verification failure: "
+                                 << logTriplet(row, fullPath);
+
+                    monitor.waitingLocal(downloadPtr->getLocalname(),
+                                         LocalPath(),
+                                         string(),
+                                         SyncWaitReason::MACVerificationFailure);
+                }
+                else
+                {
+                    row.syncNode->resetTransfer(nullptr);
+                }
             }
             else if (downloadPtr->wasCompleted)
             {
