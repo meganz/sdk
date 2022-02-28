@@ -1276,7 +1276,7 @@ class MegaRequestPrivate : public MegaRequest
         int getTag() const override;
         MegaPricing *getPricing() const override;
         MegaCurrency *getCurrency() const override;
-        AccountDetails * getAccountDetails() const;
+        std::shared_ptr<AccountDetails> getAccountDetails() const;
         MegaAchievementsDetails *getMegaAchievementsDetails() const override;
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
@@ -1311,7 +1311,7 @@ class MegaRequestPrivate : public MegaRequest
         void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
 
 protected:
-        AccountDetails *accountDetails;
+        std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
         MegaCurrencyPrivate *megaCurrency;
         AchievementsDetails *achievementsDetails;

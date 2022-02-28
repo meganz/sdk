@@ -1031,21 +1031,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     if (reqs[i]->httpstatus == 509)
                     {
-                        if (reqs[i]->timeleft < 0)
-                        {
-                            client->sendevent(99408, "Overquota without timeleft", 0);
-                        }
-
                         LOG_warn << "Bandwidth overquota from storage server";
-                        if (reqs[i]->timeleft > 0)
-                        {
-                            backoff = dstime(reqs[i]->timeleft * 10);
-                        }
-                        else
-                        {
-                            // default retry intervals
-                            backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
-                        }
+
+                        dstime backoff = client->overTransferQuotaBackoff(reqs[i].get());
 
                         return transfer->failed(API_EOVERQUOTA, committer, backoff);
                     }
