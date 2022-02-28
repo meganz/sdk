@@ -3380,19 +3380,19 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener, MegaNode *backupDestination)
+void MegaApi::removeSync(MegaNode *megaFolder, MegaNode *backupDestination, MegaRequestListener* listener)
 {
-    pImpl->removeSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener, backupDestination);
+    pImpl->removeSync(megaFolder ? megaFolder->getHandle() : UNDEF, backupDestination, listener);
 }
 
-void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener, MegaNode *backupDestination)
+void MegaApi::removeSync(MegaSync *sync, MegaNode *backupDestination, MegaRequestListener *listener)
 {
-    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener, backupDestination);
+    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, backupDestination, listener);
 }
 
-void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener, MegaNode *backupDestination)
+void MegaApi::removeSync(MegaHandle backupId, MegaNode *backupDestination, MegaRequestListener *listener)
 {
-    pImpl->removeSyncById(backupId, listener, backupDestination);
+    pImpl->removeSyncById(backupId, backupDestination, listener);
 }
 
 void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3430,9 +3430,9 @@ const char* MegaApi::exportSyncConfigs()
     return pImpl->exportSyncConfigs();
 }
 
-void MegaApi::removeSyncs(MegaRequestListener *listener, MegaNode *backupDestination)
+void MegaApi::removeSyncs(MegaNode *backupDestination, MegaRequestListener *listener)
 {
-   pImpl->stopSyncs(listener, backupDestination);
+   pImpl->stopSyncs(backupDestination, listener);
 }
 
 MegaSyncList* MegaApi::getSyncs()

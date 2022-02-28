@@ -13845,11 +13845,11 @@ class MegaApi
          * - MegaRequest::getPublicNode - Returns the destination folder node (for backup syncs in Vault only); null means permanent deletion
          *
          * @param megaFolder MEGA folder
-         * @param listener MegaRequestListener to track this request
          * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
          *                          If null, files will be permanently deleted, otherwise files will be moved there.
+         * @param listener MegaRequestListener to track this request
          */
-        void removeSync(MegaNode *megaFolder, MegaRequestListener *listener = NULL, MegaNode *backupDestination = nullptr);
+        void removeSync(MegaNode *megaFolder, MegaNode *backupDestination = nullptr, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove a synced folder
@@ -13868,11 +13868,11 @@ class MegaApi
          * - MegaRequest::getPublicNode - Returns the destination folder node (for backup syncs in Vault only); null means permanent deletion
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
-         * @param listener MegaRequestListener to track this request
          * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
          *                          If null, files will be permanently deleted, otherwise files will be moved there.
+         * @param listener MegaRequestListener to track this request
          */
-        void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL, MegaNode *backupDestination = nullptr);
+        void removeSync(MegaHandle backupId, MegaNode *backupDestination = nullptr, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove a synced folder
@@ -13891,11 +13891,11 @@ class MegaApi
          * - MegaRequest::getPublicNode - Returns the destination folder node (for backup syncs in Vault only); null means permanent deletion
          *
          * @param sync Synchronization to cancel
-         * @param listener MegaRequestListener to track this request
          * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
          *                          If null, files will be permanently deleted, otherwise files will be moved there.
+         * @param listener MegaRequestListener to track this request
          */
-        void removeSync(MegaSync *sync, MegaRequestListener *listener = NULL, MegaNode *backupDestination = nullptr);
+        void removeSync(MegaSync *sync, MegaNode *backupDestination = nullptr, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Disable a synced folder
@@ -14018,11 +14018,11 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getPublicNode - Returns the destination folder node (for backup syncs in Vault only); null means permanent deletion
          *
-         * @param listener MegaRequestListener to track this request
          * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
-+        *                          If null, files will be permanently deleted, otherwise files will be moved there.
+         *                          If null, files will be permanently deleted, otherwise files will be moved there.
+         * @param listener MegaRequestListener to track this request
          */
-        void removeSyncs(MegaRequestListener *listener = NULL, MegaNode *backupDestination = nullptr);
+        void removeSyncs(MegaNode *backupDestination = nullptr, MegaRequestListener *listener = NULL);
 
 
         /**

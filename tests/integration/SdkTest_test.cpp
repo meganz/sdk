@@ -292,7 +292,7 @@ void SdkTest::Cleanup()
             for (int i = syncs->size(); i--; )
             {
                 delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
-                m->removeSync(syncs->get(i), delSyncTrackers.back().get());
+                m->removeSync(syncs->get(i), nullptr, delSyncTrackers.back().get());
             }
         }
     }
@@ -5159,7 +5159,7 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
-    megaApi[0]->removeSync(allSyncs->get(0), &removeTracker);
+    megaApi[0]->removeSync(allSyncs->get(0), nullptr, &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
@@ -5829,7 +5829,7 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 {
 
     RequestTracker removeTracker(megaApi);
-    megaApi->removeSyncs(&removeTracker);
+    megaApi->removeSyncs(nullptr, &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
@@ -6251,7 +6251,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     {
         RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
-        megaApi[0]->removeSync(node.get(), &syncTracker);
+        megaApi[0]->removeSync(node.get(), nullptr, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 

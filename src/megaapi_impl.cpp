@@ -8807,7 +8807,7 @@ const char* MegaApiImpl::exportSyncConfigs()
     return MegaApi::strdup(configs.c_str());
 }
 
-void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener, MegaNode* backupDestination)
+void MegaApiImpl::removeSync(handle nodehandle, MegaNode* backupDestination, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setNodeHandle(nodehandle);
@@ -8817,7 +8817,7 @@ void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener, M
     waiter->notify();
 }
 
-void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener, MegaNode * backupDestination)
+void MegaApiImpl::removeSyncById(handle backupId, MegaNode *backupDestination, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setParentHandle(backupId);
@@ -8868,7 +8868,7 @@ MegaSyncList *MegaApiImpl::getSyncs()
     return syncList;
 }
 
-void MegaApiImpl::stopSyncs(MegaRequestListener *listener, MegaNode *backupDestination)
+void MegaApiImpl::stopSyncs(MegaNode *backupDestination, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNCS, listener);
     request->setPublicNode(backupDestination);
