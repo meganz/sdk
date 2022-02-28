@@ -21685,6 +21685,14 @@ void MegaApiImpl::sendPendingRequests()
             bool found = false;
             client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync){
 
+                // validate potential removal from Vault
+                if (request->getPublicNode() && (request->getPublicNode()->getHandle() == INVALID_HANDLE ||
+                                                 backupId == UNDEF ||
+                                                 (c.getBackupId() == backupId && !c.isBackup())))
+                {
+                    return false;
+                }
+
                 bool matched = (backupId != UNDEF && c.getBackupId() == backupId) ||
                     (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
 
