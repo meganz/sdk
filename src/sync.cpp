@@ -1344,12 +1344,8 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
         mConfig.mRunState = mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
     }
 
-    if (newSyncError != DECONFIGURING_SYNC &&
-        newSyncError != UNLOADING_SYNC)
-    {
-        changedConfigState(true, notifyApp);
-        mNextHeartbeat->updateSPHBStatus(*this);
-    }
+    changedConfigState(true, notifyApp);
+    mNextHeartbeat->updateSPHBStatus(*this);
 
     if (syncs.mSyncConfigStore)
     {
