@@ -1344,13 +1344,8 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
         mConfig.mRunState = mConfig.mDatabaseExists ? SyncRunState::Suspend : SyncRunState::Disable;
     }
 
-    changedConfigState(true, notifyApp);
+    changedConfigState(!!syncs.mSyncConfigStore, notifyApp);
     mNextHeartbeat->updateSPHBStatus(*this);
-
-    if (syncs.mSyncConfigStore)
-    {
-        syncs.mSyncConfigStore->markDriveDirty(mConfig.mExternalDrivePath);
-    }
 }
 
 // walk localpath and return corresponding LocalNode and its parent
