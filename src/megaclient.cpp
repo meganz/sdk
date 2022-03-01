@@ -17601,6 +17601,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
             break;
         }
 
+        mClient.newshares.push_back(newShare);
         if (numshares > 0)  // outshare/s
         {
             numshares--;
