@@ -1369,6 +1369,7 @@ public:
         PAUSE_UP = 5,           // Active but upload transfers paused in the SDK
         PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
         PAUSE_FULL = 7,         // Active but transfers paused in the SDK
+        DELETED = 8,            // Sync needs to be deleted, as required by sync-desired-state received from BackupCenter (WebClient)
     };
 
     struct BackupInfo
@@ -1394,11 +1395,12 @@ public:
 class MEGA_API CommandBackupRemove : public Command
 {
     handle mBackupId;
+    NodeHandle mRemoteNode;
 
 public:
     bool procresult(Result) override;
 
-    CommandBackupRemove(MegaClient* client, handle backupId);
+    CommandBackupRemove(MegaClient* client, handle backupId, const NodeHandle& remoteNode = NodeHandle());
 };
 
 class MEGA_API CommandBackupPutHeartBeat : public Command

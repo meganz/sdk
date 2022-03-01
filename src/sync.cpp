@@ -3717,7 +3717,7 @@ void Syncs::removeSyncByIndex(size_t index)
         mClient.app->sync_removed(config);
 
         // unregister this sync/backup from API (backup center)
-        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId(), config.getRemoteNode()));
 
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);

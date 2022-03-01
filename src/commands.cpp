@@ -8639,8 +8639,8 @@ bool CommandBackupPutHeartBeat::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
-    : mBackupId(backupId)
+CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId, const NodeHandle& remoteNode)
+    : mBackupId(backupId), mRemoteNode(remoteNode)
 {
     cmd("sr");
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
@@ -8650,7 +8650,27 @@ CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
 
 bool CommandBackupRemove::procresult(Result r)
 {
-    client->app->backupremove_result(r.errorOrOK(), mBackupId);
+    Error err = r.errorOrOK();
+    client->app->backupremove_result(err, mBackupId);
+
+    if (err == API_OK)
+    {
+        Node* n = client->nodeByHandle(mRemoteNode);
+        if (n)
+        {
+            if (mBackupId != UNDEF)
+            {
+                err = client->unlink(n, false, 0);
+            }
+            else if (n->sdsBackups.erase(mBackupId))
+            {
+                // update n attrs
+
+                // HOW can a std::map be added to n->attrs ?
+            }
+        }
+    }
+
     return r.wasErrorOrOK();
 }
 
