@@ -467,7 +467,7 @@ public:
     bool areCredentialsVerified(handle uh);
 
     // retrieve user details
-    void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
+    void getaccountdetails(std::shared_ptr<AccountDetails>, bool, bool, bool, bool, bool, bool, int source = -1);
 
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
@@ -1916,11 +1916,41 @@ public:
     // return API_OK if success, otherwise error code
     error writeDriveId(const char *pathToDrive, handle driveId);
 
+    /**
+     * @brief This function calculates the time (in deciseconds) that a user
+     * transfer request must wait for a retry.
+     *
+     * A pro user who has reached the limit must wait for the renewal or
+     * an upgrade on the pro plan.
+     *
+     * @param req Pointer to HttpReq object
+     * @note a 99408 event is sent for non-pro clients with a negative
+     * timeleft in the request header
+     *
+     * @return returns the backoff time in dstime
+     */
+    dstime overTransferQuotaBackoff(HttpReq* req);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, unique_ptr<FileSystemAccess>&&, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);
     unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
+
+struct MyAccountData
+{
+    void setProLevel(AccountType prolevel) { mProLevel = prolevel; }
+    AccountType getProLevel() { return mProLevel; };
+    void setProUntil(m_time_t prountil) { mProUntil = prountil; }
+
+    // returns remaining time for the current pro-level plan
+    // keep in mind that free plans do not have a remaining time; instead, the IP bandwidth is reset after a back off period
+    m_time_t getTimeLeft();
+
+private:
+    AccountType mProLevel = AccountType::ACCOUNT_TYPE_UNKNOWN;
+    m_time_t mProUntil = -1;
+} mMyAccount;
 
 private:
     // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.
