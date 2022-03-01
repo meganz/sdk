@@ -3110,6 +3110,8 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname));
     us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
 
+    us.mSync->purgeStaleDownloads();
+
     us.mConfig.mRunState = SyncRunState::Run;
     us.changedConfigState(false, true);
 
@@ -5247,6 +5249,73 @@ bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
     SyncPath pathBuffer(syncs, localroot->localname, cloudRootPath);
     recursiveCollectNameConflicts(row, conflicts, pathBuffer);
     return !conflicts.empty();
+}
+
+bool Sync::purgeStaleDownloads()
+{
+    using DBTC = DBTableTransactionCommitter;
+    using MC = MegaClient;
+
+    assert(syncs.onSyncThread());
+
+    // Tracks temporary files that're still meaningful.
+    set<LocalPath> alive;
+
+    // Determine what temporary files are still meaningful.
+    std::promise<void> notifier;
+
+    syncs.queueClient([&alive, &notifier](MC& client, DBTC&){
+        // Collect file names of cached downloads.
+        for (auto& i : client.cachedtransfers[GET])
+        {
+            if (!i.second->localfilename.empty())
+                alive.emplace(i.second->localfilename);
+        }
+
+        // Let the sync thread know we're done.
+        notifier.set_value();
+    });
+
+    // Wait for the alive set to be populated.
+    notifier.get_future().get();
+
+    auto globPath = ([this]() {
+        auto result = localdebris;
+
+        result.appendWithSeparator(LocalPath::fromRelativePath("tmp"), true);
+        result.appendWithSeparator(LocalPath::fromRelativePath(".*.mega"), true);
+
+        return result;
+    })();
+
+    auto dirAccess = syncs.fsaccess->newdiraccess();
+
+    // Open temporary directory for iteration.
+    if (!dirAccess->dopen(&globPath, nullptr, true))
+        return false;
+
+    LocalPath path;
+    LocalPath name;
+    nodetype_t type;
+
+    // Iterate over the temporary directory, collecting stale downloads.
+    while (dirAccess->dnext(path, name, false, &type))
+    {
+        // Not a file? Not interested.
+        if (type != FILENODE)
+            continue;
+
+        // Not stale? Not dead.
+        if (alive.find(name) != alive.end())
+            continue;
+
+        // Try and delete the file.
+        if (!syncs.fsaccess->unlinklocal(name))
+            LOG_debug << "Unable to delete stale download: "
+                      << name.toPath();
+    }
+
+    return true;
 }
 
 void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren,

@@ -548,6 +548,8 @@ public:
     void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc, SyncPath& fullPath);
     bool recursiveCollectNameConflicts(list<NameConflict>& nc);
 
+    bool purgeStaleDownloads();
+
     // debris path component relative to the base path
     string debris;
     LocalPath localdebris;
