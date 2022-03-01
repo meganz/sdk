@@ -456,7 +456,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getHandle() override;
         MegaHandle getRestoreHandle() override;
         MegaHandle getParentHandle() override;
-        std::string* getNodeKey() override;        
+        std::string* getNodeKey() override;
         bool isNodeKeyDecrypted() override;
         char *getBase64Key() override;
         char* getFileAttrString() override;
@@ -1169,14 +1169,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaHandleList* getMegaHandleList() const override;
 
 #ifdef ENABLE_SYNC
-        MegaSyncNameConflictList* getMegaSyncNameConflictList() const override;
-        void setMegaSyncNameConflictList(unique_ptr<MegaSyncNameConflictList> conflicts);
-
         MegaSyncProblems* getMegaSyncProblems() const override;
         void setMegaSyncProblems(unique_ptr<MegaSyncProblems> problems);
-
-        MegaSyncStallList* getMegaSyncStallList() const override;
-        void setMegaSyncStallList(unique_ptr<MegaSyncStallList> syncStallList);
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT
@@ -2552,12 +2546,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByBackupId(mega::MegaHandle backupId);
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
-        void getSyncNameConflicts(MegaRequestListener* listener);
         void getSyncProblems(MegaRequestListener* listener, bool detailed);
-        void getSyncStalls(MegaRequestListener* listener);
-
-        size_t getSyncStalls(MegaSyncStallList** conflicts);
-        size_t static getSyncStalls(std::unique_ptr<SyncStallInfo> si, MegaSyncStallList** conflicts);
 
 #endif // ENABLE_SYNC
 

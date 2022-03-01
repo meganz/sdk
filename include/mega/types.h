@@ -1038,10 +1038,10 @@ enum VersioningOption
 };
 
 enum class SyncWaitReason {
-    NoReason,
-    ApplyMoveNeedsOtherSideParentFolderToExist,   // stuck at move destination node
-    ApplyMoveIsBlockedByExistingItem,             // stuck at move destination node
-    MoveNeedsDestinationNodeProcessing,           // stuck at move source node
+    NoReason = 0,
+    ApplyMoveNeedsOtherSideParentFolderToExist,
+    ApplyMoveIsBlockedByExistingItem,
+    MoveNeedsDestinationNodeProcessing,
     UpsyncNeedsTargetFolder,
     DownsyncNeedsTargetFolder,
     DeleteOrMoveWaitingOnScanning,

@@ -1671,6 +1671,14 @@ ScanService::ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path
                     continue;
                 }
 
+                // For now at least, do the same as the old system: ignore system+hidden.
+                // desktop.ini seem to be at least one problem solved this way, they are unopenable
+                // anyway, so no valid fingerprint can be extracted.
+                if (WinFileAccess::skipattributes(info->FileAttributes))
+                {
+                    continue;
+                }
+
                 result.type = (info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
                 result.fsid = (handle) info->FileId.QuadPart;
 

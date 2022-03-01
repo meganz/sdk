@@ -3182,9 +3182,7 @@ class MegaRequest
             TYPE_START_CHAT_CALL                                            = 142,
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
-            TYPE_GET_SYNC_NAME_CONFLICTS                                    = 145,
             TYPE_GET_SYNC_PROBLEMS                                          = 146,
-            TYPE_GET_SYNC_STALLS                                            = 147,
             TYPE_SET_SYNC_RUNSTATE                                          = 148,
             TOTAL_OF_REQUEST_TYPES                                          = 149,
         };
@@ -3966,17 +3964,6 @@ class MegaRequest
 
 #ifdef ENABLE_SYNC
 
-        /**
-         * @brief
-         * Returns a reference to this request's list of name conflicts.
-         *
-         * This value is valid for the following requests:
-         * - MegaApi::getSyncNameConflicts
-         *
-         * @return
-         * A reference to this request's list of name conflicts.
-         */
-        virtual MegaSyncNameConflictList* getMegaSyncNameConflictList() const;
 
         /**
          * @brief
@@ -3990,17 +3977,6 @@ class MegaRequest
          */
         virtual MegaSyncProblems* getMegaSyncProblems() const;
 
-        /**
-         * @brief
-         * Returns a reference to this request's list of sync stalls.
-         *
-         * This value is valid for the following requests:
-         * - MegaApi::getSyncStalls
-         *
-         * @return
-         * A reference to this request's list of sync stalls.
-         */
-        virtual MegaSyncStallList* getMegaSyncStallList() const;
 
 #endif // ENABLE_SYNC
 };
@@ -5576,11 +5552,9 @@ class MegaSyncStall
          */
         enum class SyncStallReason
         {
-            Unknown = 0,
-            NoReason,
+            NoReason = 0,
             ApplyMoveNeedsOtherSideParentFolderToExist,
             ApplyMoveIsBlockedByExistingItem,
-            ApplyMoveIsWaitingForScanning,
             MoveNeedsDestinationNodeProcessing,
             UpsyncNeedsTargetFolder,
             DownsyncNeedsTargetFolder,
@@ -5588,7 +5562,6 @@ class MegaSyncStall
             DeleteWaitingOnMoves,
             WaitingForFileToStopChanging,
             MovingDownloadToTarget,
-            MovingExistingDownloadTargetToDebris,
             LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
             CouldNotMoveToLocalDebrisFolder,
             LocalFolderNotScannable,
@@ -5597,15 +5570,15 @@ class MegaSyncStall
             MatchedAgainstUnidentifiedItem,
             MoveOrRenameFailed,
             CreateFolderFailed,
+            UnknownExclusionState,
             UnableToLoadIgnoreFile,
             MoveTargetNameTooLong,
             DownloadTargetNameTooLong,
             CreateFolderNameTooLong,
-            ItemHasReservedName,
-            MoveTargetHasReservedName,
             CantFingrprintFileYet,
             FolderContainsLockedFiles,
             LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
+            SyncItemExceedsSupportedTreeDepth,
         };
 
         /**
@@ -14158,17 +14131,6 @@ class MegaApi
 
         /**
          * @brief
-         * Retrieve the list of name conflicts detected by the sync engine.
-         *
-         * The type of this request is MegaRequest::TYPE_GET_SYNC_NAME_CONFLICTS.
-         *
-         * @param listener
-         * A MegaRequestListener with which to track the request.
-         */
-        void getSyncNameConflicts(MegaRequestListener* listener);
-
-        /**
-         * @brief
          * Query whether the sync engine has detected any problems.
          *
          * The type of this request is MegaRequest::TYPE_GET_SYNC_PROBLEMS.
@@ -14188,17 +14150,6 @@ class MegaApi
          * about any detected name conflicts or stalls.
          */
         void getSyncProblems(MegaRequestListener* listener, bool detailed);
-
-        /**
-         * @brief
-         * Retrieve the list of synchronization stalls detected by the sync engine.
-         *
-         * The type of this request is MegaRequest::TYPE_GET_SYNC_STALLS.
-         *
-         * @param listener
-         * A MegaRequestListener with which to track the request.
-         */
-        void getSyncStalls(MegaRequestListener* listener);
 
         /**
          * @brief Retrieves information involving any Local <-> Cloud synchronization stall conflict
