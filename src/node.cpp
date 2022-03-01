@@ -1813,7 +1813,11 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             size_t numFingerprintBlocked = 0;
             for (auto& n : *lastFolderScan)
             {
-                if (n.type == FILENODE && !n.fingerprint.isvalid) ++numFingerprintBlocked;
+                if (n.type == FILENODE && !n.fingerprint.isvalid)
+                {
+                    LOG_debug << "Directory scan contains a file that could not be fingerprinted: " << n.localname;
+                    ++numFingerprintBlocked;
+                }
             }
 
             if (numFingerprintBlocked)

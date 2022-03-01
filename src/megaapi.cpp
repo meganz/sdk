@@ -1063,17 +1063,7 @@ MegaHandleList* MegaRequest::getMegaHandleList() const
 
 #ifdef ENABLE_SYNC
 
-MegaSyncNameConflictList* MegaRequest::getMegaSyncNameConflictList() const
-{
-    return nullptr;
-}
-
 MegaSyncProblems* MegaRequest::getMegaSyncProblems() const
-{
-    return nullptr;
-}
-
-MegaSyncStallList* MegaRequest::getMegaSyncStallList() const
 {
     return nullptr;
 }
@@ -3437,24 +3427,9 @@ long long MegaApi::getNumLocalNodes()
     return pImpl->getNumLocalNodes();
 }
 
-void MegaApi::getSyncNameConflicts(MegaRequestListener* listener)
-{
-    return pImpl->getSyncNameConflicts(listener);
-}
-
 void MegaApi::getSyncProblems(MegaRequestListener* listener, bool detailed)
 {
     pImpl->getSyncProblems(listener, detailed);
-}
-
-void MegaApi::getSyncStalls(MegaRequestListener* listener)
-{
-    return pImpl->getSyncStalls(listener);
-}
-
-size_t MegaApi::getSyncStalls(MegaSyncStallList** syncStallList)
-{
-    return pImpl->getSyncStalls(syncStallList);
 }
 
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
@@ -6022,7 +5997,7 @@ const char* MegaSyncStall::cloudPath() const
 
 MegaSyncStall::SyncStallReason MegaSyncStall::reason() const
 {
-    return MegaSyncStall::SyncStallReason::Unknown;
+    return MegaSyncStall::SyncStallReason::NoReason;
 }
 
 bool MegaSyncStall::isCloud() const

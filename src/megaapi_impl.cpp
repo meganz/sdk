@@ -1249,34 +1249,12 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
     return nullptr;
 }
 
-void MegaApiImpl::getSyncNameConflicts(MegaRequestListener* listener)
-{
-    auto type = MegaRequest::TYPE_GET_SYNC_NAME_CONFLICTS;
-    auto request = make_unique<MegaRequestPrivate>(type, listener);
-
-    requestQueue.push(request.get());
-    request.release();
-
-    waiter->notify();
-}
-
 void MegaApiImpl::getSyncProblems(MegaRequestListener* listener, bool detailed)
 {
     auto type = MegaRequest::TYPE_GET_SYNC_PROBLEMS;
     auto request = make_unique<MegaRequestPrivate>(type, listener);
 
     request->setNumDetails(detailed);
-
-    requestQueue.push(request.get());
-    request.release();
-
-    waiter->notify();
-}
-
-void MegaApiImpl::getSyncStalls(MegaRequestListener* listener)
-{
-    auto type = MegaRequest::TYPE_GET_SYNC_STALLS;
-    auto request = make_unique<MegaRequestPrivate>(type, listener);
 
     requestQueue.push(request.get());
     request.release();
@@ -1314,61 +1292,35 @@ MegaSyncStallPrivate* MegaSyncStallPrivate::copy() const
 MegaSyncStall::SyncStallReason
 MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
 {
-    switch(reason)
-    {
-        case SyncWaitReason::NoReason:
-            return MegaSyncStall::SyncStallReason::NoReason;
-        case SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist:
-            return MegaSyncStall::SyncStallReason::ApplyMoveNeedsOtherSideParentFolderToExist;
-        case SyncWaitReason::ApplyMoveIsBlockedByExistingItem:
-            return MegaSyncStall::SyncStallReason::ApplyMoveIsBlockedByExistingItem;
-        case SyncWaitReason::MoveNeedsDestinationNodeProcessing:
-            return MegaSyncStall::SyncStallReason::MoveNeedsDestinationNodeProcessing;
-        case SyncWaitReason::UpsyncNeedsTargetFolder:
-            return MegaSyncStall::SyncStallReason::UpsyncNeedsTargetFolder;
-        case SyncWaitReason::DownsyncNeedsTargetFolder:
-            return MegaSyncStall::SyncStallReason::DownsyncNeedsTargetFolder;
-        case SyncWaitReason::DeleteOrMoveWaitingOnScanning:
-            return MegaSyncStall::SyncStallReason::DeleteOrMoveWaitingOnScanning;
-        case SyncWaitReason::DeleteWaitingOnMoves:
-            return MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves;
-        case SyncWaitReason::WaitingForFileToStopChanging:
-            return MegaSyncStall::SyncStallReason::WaitingForFileToStopChanging;
-        case SyncWaitReason::MovingDownloadToTarget:
-            return MegaSyncStall::SyncStallReason::MovingDownloadToTarget;
-        case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose:
-            return MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose;
-        case SyncWaitReason::CouldNotMoveToLocalDebrisFolder:
-            return MegaSyncStall::SyncStallReason::CouldNotMoveToLocalDebrisFolder;
-        case SyncWaitReason::LocalFolderNotScannable:
-            return MegaSyncStall::SyncStallReason::LocalFolderNotScannable;
-        case SyncWaitReason::SymlinksNotSupported:
-            return MegaSyncStall::SyncStallReason::SymlinksNotSupported;
-        case SyncWaitReason::FolderMatchedAgainstFile:
-            return MegaSyncStall::SyncStallReason::FolderMatchedAgainstFile;
-        case SyncWaitReason::MatchedAgainstUnidentifiedItem:
-            return MegaSyncStall::SyncStallReason::MatchedAgainstUnidentifiedItem;
-        case SyncWaitReason::MoveOrRenameFailed:
-            return MegaSyncStall::SyncStallReason::MoveOrRenameFailed;
-        case SyncWaitReason::CreateFolderFailed:
-            return MegaSyncStall::SyncStallReason::CreateFolderFailed;
-        case SyncWaitReason::UnableToLoadIgnoreFile:
-            return MegaSyncStall::SyncStallReason::UnableToLoadIgnoreFile;
-        case SyncWaitReason::MoveTargetNameTooLong:
-            return MegaSyncStall::SyncStallReason::MoveTargetNameTooLong;
-        case SyncWaitReason::DownloadTargetNameTooLong:
-            return MegaSyncStall::SyncStallReason::DownloadTargetNameTooLong;
-        case SyncWaitReason::CreateFolderNameTooLong:
-            return MegaSyncStall::SyncStallReason::CreateFolderNameTooLong;
-        case SyncWaitReason::CantFingrprintFileYet:
-            return MegaSyncStall::SyncStallReason::CantFingrprintFileYet;
-        case SyncWaitReason::FolderContainsLockedFiles:
-            return MegaSyncStall::SyncStallReason::FolderContainsLockedFiles;
-        case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose:
-            return MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose;
-        default:
-            return MegaSyncStall::SyncStallReason::Unknown;
-     }
+    static_assert((int)SyncWaitReason::NoReason == (int)MegaSyncStall::SyncStallReason::NoReason);
+    static_assert((int)SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist == (int)MegaSyncStall::SyncStallReason::ApplyMoveNeedsOtherSideParentFolderToExist);
+    static_assert((int)SyncWaitReason::ApplyMoveIsBlockedByExistingItem == (int)MegaSyncStall::SyncStallReason::ApplyMoveIsBlockedByExistingItem);
+    static_assert((int)SyncWaitReason::MoveNeedsDestinationNodeProcessing == (int)MegaSyncStall::SyncStallReason::MoveNeedsDestinationNodeProcessing);
+    static_assert((int)SyncWaitReason::UpsyncNeedsTargetFolder == (int)MegaSyncStall::SyncStallReason::UpsyncNeedsTargetFolder);
+    static_assert((int)SyncWaitReason::DownsyncNeedsTargetFolder == (int)MegaSyncStall::SyncStallReason::DownsyncNeedsTargetFolder);
+    static_assert((int)SyncWaitReason::DeleteOrMoveWaitingOnScanning == (int)MegaSyncStall::SyncStallReason::DeleteOrMoveWaitingOnScanning);
+    static_assert((int)SyncWaitReason::DeleteWaitingOnMoves == (int)MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves);
+    static_assert((int)SyncWaitReason::WaitingForFileToStopChanging == (int)MegaSyncStall::SyncStallReason::WaitingForFileToStopChanging);
+    static_assert((int)SyncWaitReason::MovingDownloadToTarget == (int)MegaSyncStall::SyncStallReason::MovingDownloadToTarget);
+    static_assert((int)SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose == (int)MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
+    static_assert((int)SyncWaitReason::CouldNotMoveToLocalDebrisFolder == (int)MegaSyncStall::SyncStallReason::CouldNotMoveToLocalDebrisFolder);
+    static_assert((int)SyncWaitReason::LocalFolderNotScannable == (int)MegaSyncStall::SyncStallReason::LocalFolderNotScannable);
+    static_assert((int)SyncWaitReason::SymlinksNotSupported == (int)MegaSyncStall::SyncStallReason::SymlinksNotSupported);
+    static_assert((int)SyncWaitReason::FolderMatchedAgainstFile == (int)MegaSyncStall::SyncStallReason::FolderMatchedAgainstFile);
+    static_assert((int)SyncWaitReason::MatchedAgainstUnidentifiedItem == (int)MegaSyncStall::SyncStallReason::MatchedAgainstUnidentifiedItem);
+    static_assert((int)SyncWaitReason::MoveOrRenameFailed == (int)MegaSyncStall::SyncStallReason::MoveOrRenameFailed);
+    static_assert((int)SyncWaitReason::CreateFolderFailed == (int)MegaSyncStall::SyncStallReason::CreateFolderFailed);
+    static_assert((int)SyncWaitReason::UnknownExclusionState == (int)MegaSyncStall::SyncStallReason::UnknownExclusionState);
+    static_assert((int)SyncWaitReason::UnableToLoadIgnoreFile == (int)MegaSyncStall::SyncStallReason::UnableToLoadIgnoreFile);
+    static_assert((int)SyncWaitReason::MoveTargetNameTooLong == (int)MegaSyncStall::SyncStallReason::MoveTargetNameTooLong);
+    static_assert((int)SyncWaitReason::DownloadTargetNameTooLong == (int)MegaSyncStall::SyncStallReason::DownloadTargetNameTooLong);
+    static_assert((int)SyncWaitReason::CreateFolderNameTooLong == (int)MegaSyncStall::SyncStallReason::CreateFolderNameTooLong);
+    static_assert((int)SyncWaitReason::CantFingrprintFileYet == (int)MegaSyncStall::SyncStallReason::CantFingrprintFileYet);
+    static_assert((int)SyncWaitReason::FolderContainsLockedFiles == (int)MegaSyncStall::SyncStallReason::FolderContainsLockedFiles);
+    static_assert((int)SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose == (int)MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose);
+    static_assert((int)SyncWaitReason::SyncItemExceedsSupportedTreeDepth == (int)MegaSyncStall::SyncStallReason::SyncItemExceedsSupportedTreeDepth);
+
+    return  MegaSyncStall::SyncStallReason(reason);
 }
 
 const char*
@@ -1382,8 +1334,6 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "ApplyMoveNeedsOtherSideParentFolderToExist";
         case MegaSyncStall::SyncStallReason::ApplyMoveIsBlockedByExistingItem:
             return "ApplyMoveIsBlockedByExistingItem";
-        case MegaSyncStall::SyncStallReason::ApplyMoveIsWaitingForScanning:
-            return "ApplyMoveIsWaitingForScanning";
         case MegaSyncStall::SyncStallReason::MoveNeedsDestinationNodeProcessing:
             return "MoveNeedsDestinationNodeProcessing";
         case MegaSyncStall::SyncStallReason::UpsyncNeedsTargetFolder:
@@ -1398,8 +1348,6 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "WaitingForFileToStopChanging";
         case MegaSyncStall::SyncStallReason::MovingDownloadToTarget:
             return "MovingDownloadToTarget";
-        case MegaSyncStall::SyncStallReason::MovingExistingDownloadTargetToDebris:
-            return "MovingExistingDownloadTargetToDebris";
         case MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose:
             return "BothChangedSinceLastSynced";
         case MegaSyncStall::SyncStallReason::CouldNotMoveToLocalDebrisFolder:
@@ -1424,18 +1372,17 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "DownloadTargetNameTooLong";
         case MegaSyncStall::SyncStallReason::CreateFolderNameTooLong:
             return "CreateFolderNameTooLong";
-        case MegaSyncStall::SyncStallReason::ItemHasReservedName:
-            return "ItemHasReservedName";
-        case MegaSyncStall::SyncStallReason::MoveTargetHasReservedName:
-            return "MoveTargetHasReservedName";
         case MegaSyncStall::SyncStallReason::CantFingrprintFileYet:
             return "CantFingrprintFileYet";
         case MegaSyncStall::SyncStallReason::FolderContainsLockedFiles:
             return "FolderContainsLockedFiles";
         case MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose:
             return "LocalAndRemotePreviouslyUnsyncedDiffer";
-        default: return "Unknown";
+        case MegaSyncStall::SyncStallReason::SyncItemExceedsSupportedTreeDepth:
+            return "SyncItemExceedsSupportedTreeDepth";
+        // No default, so that the compiler warns us if we forget one
     }
+    return "Unknown";
 }
 
 MegaSyncStallListPrivate::MegaSyncStallListPrivate(const MegaSyncStallListPrivate& other) {
@@ -1494,39 +1441,6 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncStallInfo& stalls)
 {
     addLocalStalls(stalls);
     addCloudStalls(stalls);
-}
-
-/**
- * A simple output of stall reason to begin with
- * @TODO: To be replaced shortly
- */
-std::ostream& operator<<(std::ostream& os, const SyncStallEntry& si)
-{
-    os << "Local path: " << si.involvedLocalPath.toPath()
-       << " Cloud path: " << si.involvedCloudPath
-       << " Reason: " << syncWaitReasonString(si.reason);
-    return os;
-}
-
-// Synchronous request
-size_t MegaApiImpl::getSyncStalls(MegaSyncStallList** conflicts)
-{
-    assert(conflicts);
-    auto stallInfo = make_unique<SyncStallInfo>();
-    client->syncs.syncStallDetected(*stallInfo);
-    return getSyncStalls(move(stallInfo), conflicts);
-}
-
-// Testable interface
-size_t MegaApiImpl::getSyncStalls(std::unique_ptr<SyncStallInfo> syncStallInfo,
-        MegaSyncStallList** conflicts) {
-    if(syncStallInfo->local.size() == 0 && syncStallInfo->cloud.size() == 0 )
-    {
-        *conflicts = nullptr;
-        return 0u;
-    }
-    const auto mSLPtr = *conflicts = new MegaSyncStallListPrivate(*syncStallInfo);
-    return static_cast<size_t>(mSLPtr->size());
 }
 
 error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::syncFolder()
@@ -3504,34 +3418,14 @@ MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
 
 #ifdef ENABLE_SYNC
 
-MegaSyncNameConflictList* MegaRequestPrivate::getMegaSyncNameConflictList() const
-{
-    return mNameConflictList.get();
-}
-
 MegaSyncProblems* MegaRequestPrivate::getMegaSyncProblems() const
 {
     return mProblems.get();
 }
 
-MegaSyncStallList* MegaRequestPrivate::getMegaSyncStallList() const
-{
-    return mSyncStallList.get();
-}
-
-void MegaRequestPrivate::setMegaSyncNameConflictList(unique_ptr<MegaSyncNameConflictList> conflicts)
-{
-    mNameConflictList = std::move(conflicts);
-}
-
 void MegaRequestPrivate::setMegaSyncProblems(unique_ptr<MegaSyncProblems> problems)
 {
     mProblems = std::move(problems);
-}
-
-void MegaRequestPrivate::setMegaSyncStallList(unique_ptr<MegaSyncStallList> stallList)
-{
-    mSyncStallList = std::move(stallList);
 }
 
 #endif // ENABLE_SYNC
@@ -4195,9 +4089,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
-        case TYPE_GET_SYNC_NAME_CONFLICTS: return "GET_SYNC_NAME_CONFLICTS";
         case TYPE_GET_SYNC_PROBLEMS: return "GET_SYNC_PROBLEMS";
-        case TYPE_GET_SYNC_STALLS: return "GET_SYNC_STALLS";
     }
     return "UNKNOWN";
 }
@@ -21587,20 +21479,6 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
-        case MegaRequest::TYPE_GET_SYNC_NAME_CONFLICTS:
-        {
-            auto completion = [this, request](list<NameConflict>&& conflicts) {
-                auto error = ::mega::make_unique<MegaErrorPrivate>(API_OK);
-                auto list = ::mega::make_unique<MegaSyncNameConflictListPrivate>(conflicts);
-
-                request->setMegaSyncNameConflictList(std::move(list));
-
-                fireOnRequestFinish(request, std::move(error));
-            };
-
-            client->syncs.collectSyncNameConflicts(UNDEF, std::move(completion), true);
-            break;
-        }
         case MegaRequest::TYPE_GET_SYNC_PROBLEMS:
         {
             auto completion = [this, request](SyncProblems& problems) {
@@ -21615,19 +21493,6 @@ void MegaApiImpl::sendPendingRequests()
             bool detailed = request->getNumDetails();
 
             client->syncs.getSyncProblems(std::move(completion), true, detailed);
-            break;
-        }
-        case MegaRequest::TYPE_GET_SYNC_STALLS:
-        {
-            auto completionClosure = [this, request](const SyncStallInfo& syncStallInfo) {
-                auto error = ::mega::make_unique<MegaErrorPrivate>(API_OK);
-                auto syncStallList  = ::mega::make_unique<MegaSyncStallListPrivate>(syncStallInfo);
-
-                request->setMegaSyncStallList(std::move(syncStallList));
-
-                fireOnRequestFinish(request, std::move(error));
-            };
-            client->syncs.getSyncStalls(std::move(completionClosure), true);
             break;
         }
 #endif  // ENABLE_SYNC
