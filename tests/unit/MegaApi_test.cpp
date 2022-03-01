@@ -221,48 +221,6 @@ TEST(MegaApi, getMimeType)
 
 #ifdef ENABLE_SYNC
 
-TEST(MegaApi, getNoSyncStall)
-{
-    auto syncStallInfo = ::mega::make_unique<SyncStallInfo>();
-
-    MegaSyncStallList sentinel;
-    MegaSyncStallList* megaSyncStallListPtr = &sentinel;
-    ASSERT_EQ(megaSyncStallListPtr, &sentinel);
-
-    size_t numConflicts = MegaApiImpl::getSyncStalls(std::move(syncStallInfo), &megaSyncStallListPtr);
-    ASSERT_EQ(numConflicts, 0u); // No conflict
-    ASSERT_EQ(megaSyncStallListPtr, nullptr); // List not allocated
-}
-
-TEST(MegaApi, getLocalSyncStall)
-{
-    auto syncStallInfo = ::mega::make_unique<SyncStallInfo>();
-
-    MegaSyncStallList sentinel;
-    MegaSyncStallList* megaSyncStallListPtr = &sentinel;
-    ASSERT_EQ(megaSyncStallListPtr, &sentinel);
-
-    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
-    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
-    const auto localPath = LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
-
-    syncStallInfo->waitingLocal(
-        localPath,
-        localPath,
-        theRemotePath,
-        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
-    );
-
-    size_t numConflicts = MegaApiImpl::getSyncStalls(std::move(syncStallInfo), &megaSyncStallListPtr);
-
-    ASSERT_EQ(numConflicts, 1u); // conflict
-    ASSERT_NE(megaSyncStallListPtr, nullptr); // List allocated
-    ASSERT_NE(megaSyncStallListPtr, &sentinel); // List is not sentinel
-
-    delete megaSyncStallListPtr; // Release owned list
-}
-
-
 TEST(MegaApi, MegaSyncStallList_copy_constructor){
     SyncStallInfo syncStallInfo;
 
