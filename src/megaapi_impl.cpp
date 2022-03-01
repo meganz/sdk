@@ -8847,6 +8847,7 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
     };
 
     requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::rescanSync(MegaHandle backupId)
