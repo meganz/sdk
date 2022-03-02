@@ -8807,22 +8807,22 @@ const char* MegaApiImpl::exportSyncConfigs()
     return MegaApi::strdup(configs.c_str());
 }
 
-void MegaApiImpl::removeSync(handle nodehandle, MegaNode* backupDestination, MegaRequestListener* listener)
+void MegaApiImpl::removeSync(handle nodehandle, MegaHandle backupDestination, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setNodeHandle(nodehandle);
     request->setFlag(true);
-    request->setPublicNode(backupDestination);
+    request->setNodeHandle(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::removeSyncById(handle backupId, MegaNode *backupDestination, MegaRequestListener *listener)
+void MegaApiImpl::removeSyncById(handle backupId, MegaHandle backupDestination, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
     request->setParentHandle(backupId);
     request->setFlag(true);
-    request->setPublicNode(backupDestination);
+    request->setNodeHandle(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -21673,30 +21673,36 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
         {
-            handle nodehandle = request->getNodeHandle();
+            handle backupTarget = request->getNodeHandle();
             auto backupId = request->getParentHandle();
 
-            if (backupId == INVALID_HANDLE && nodehandle == INVALID_HANDLE)
+            if (backupId == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
             }
 
-            bool found = false;
-            client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync){
+            SyncConfig c;
+            if (!client->syncs.syncConfigByBackupId(backupId, c))
+            {
+                LOG_err << "Backup id not found: " << Base64Str<MegaClient::BACKUPHANDLE>(backupId);
+                e = API_ENOENT;
+                break;
+            }
 
-                // validate potential removal from Vault
-                if (request->getPublicNode() && (request->getPublicNode()->getHandle() == INVALID_HANDLE ||
-                                                 backupId == UNDEF ||
-                                                 (c.getBackupId() == backupId && !c.isBackup())))
-                {
-                    return false;
-                }
+            MegaNode *targetNode = request->getPublicNode();
+            if (c.isBackup() && targetNode
+                    && client->nodebyhandle(targetNode->getHandle()) == nullptr)
+            {
+                LOG_err << "Backup destination not found: " << Base64Str<MegaClient::NODEHANDLE>(targetNode->getHandle());
+                e = API_EARGS;
+                break;
+            }
 
-                bool matched = (backupId != UNDEF && c.getBackupId() == backupId) ||
-                    (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
-
-                if (matched && sync)
+            client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync)
+            {
+                bool matched = c.getBackupId() == backupId;
+                if (matched && sync)    // if active
                 {
                     string path = sync->localroot->localname.toPath();
                     if (!request->getFile() || sync->localroot->node)
@@ -21704,15 +21710,8 @@ void MegaApiImpl::sendPendingRequests()
                         request->setFile(path.c_str());
                     }
                 }
-                found = found || matched;
                 return matched;
-            },
-                request->getPublicNode() ? request->getPublicNode()->getHandle() : INVALID_HANDLE);
-
-            if (!found)
-            {
-                e = API_ENOENT;
-            }
+            }, backupTarget);
 
             if (!e)
             {
