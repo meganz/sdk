@@ -1337,7 +1337,6 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
     }
     if (!localdebris.isContainingPathOf(*localpath))
     {
-        DirAccess* da;
         LocalPath localname;
         string name;
         bool success;
@@ -1347,7 +1346,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
             LOG_debug << "Scanning folder: " << localpath;
         }
 
-        da = client->fsaccess->newdiraccess();
+       auto da = client->fsaccess->newdiraccess();
 
         // scan the dir, mark all items with a unique identifier
         if ((success = da->dopen(localpath, fa, false)))
@@ -1369,7 +1368,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                         if (initializing)
                         {
                             // preload all cached LocalNodes
-                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da);
+                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da.get());
                         }
 
                         if (!l || l == (LocalNode*)~0)
@@ -1385,8 +1384,6 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                 }
             }
         }
-
-        delete da;
 
         return success;
     }

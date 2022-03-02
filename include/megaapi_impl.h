@@ -429,7 +429,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
-                        bool isForeign = false, const char *chatauth = NULL);
+                        bool isForeign = false, const char *chatauth = NULL, bool isNodeDecrypted = true);
 
         MegaNodePrivate(MegaNode *node);
         ~MegaNodePrivate() override;
@@ -456,7 +456,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getHandle() override;
         MegaHandle getRestoreHandle() override;
         MegaHandle getParentHandle() override;
-        std::string* getNodeKey() override;
+        std::string* getNodeKey() override;        
+        bool isNodeKeyDecrypted() override;
         char *getBase64Key() override;
         char* getFileAttrString() override;
         int64_t getExpirationTime() override;
@@ -545,6 +546,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle owner;
         bool mFavourite;
         nodelabel_t mLabel;
+        bool mIsNodeKeyDecrypted = false;
 };
 
 
@@ -1154,7 +1156,7 @@ class MegaRequestPrivate : public MegaRequest
         int getTag() const override;
         MegaPricing *getPricing() const override;
         MegaCurrency *getCurrency() const override;
-        AccountDetails * getAccountDetails() const;
+        std::shared_ptr<AccountDetails> getAccountDetails() const;
         MegaAchievementsDetails *getMegaAchievementsDetails() const override;
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
@@ -1189,7 +1191,7 @@ class MegaRequestPrivate : public MegaRequest
         void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
 
 protected:
-        AccountDetails *accountDetails;
+        std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
         MegaCurrencyPrivate *megaCurrency;
         AchievementsDetails *achievementsDetails;
@@ -2443,12 +2445,6 @@ class MegaApiImpl : public MegaApp
         int getTotalDownloads();
         void resetTotalDownloads();
         void resetTotalUploads();
-        size_t getCompletedUploads();
-        size_t getCompletedDownloads();
-        void resetCompletedDownloads();
-        void resetCompletedUploads();
-        void removeCompletedUpload(int transferTag);
-        void removeCompletedDownload(int transferTag);
         void updateStats();
         long long getNumNodes();
         long long getTotalDownloadedBytes();
@@ -2901,10 +2897,6 @@ protected:
         int pendingDownloads;
         int totalUploads;
         int totalDownloads;
-        //key: transfer tag - value: transferred bytes
-        map<int, long long> completedUploads;
-        //key: transfer tag - value: transferred bytes
-        map<int, long long> completedDownloads;
         long long totalDownloadedBytes;
         long long totalUploadedBytes;
         long long totalDownloadBytes;
@@ -3260,12 +3252,6 @@ protected:
 private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
-
-        void resetCompletedDownloadsImpl();
-        void resetCompletedUploadsImpl();
-        void removeCompletedUploadImpl(int transferTag);
-        void removeCompletedDownloadImpl(int transferTag);
-
 #ifdef ENABLE_SYNC
         error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
 #endif
