@@ -1526,9 +1526,9 @@ bool WinFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& 
     return type = FS_UNKNOWN, false;
 }
 
-DirAccess* WinFileSystemAccess::newdiraccess()
+unique_ptr<DirAccess> WinFileSystemAccess::newdiraccess()
 {
-    return new WinDirAccess();
+    return unique_ptr<DirAccess>(new WinDirAccess());
 }
 
 #ifdef ENABLE_SYNC

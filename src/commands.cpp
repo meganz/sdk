@@ -1072,16 +1072,18 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         arg("t", nn[i].type);
         arg("a", (byte*)nn[i].attrstring->data(), int(nn[i].attrstring->size()));
 
-        if (nn[i].nodekey.size() <= sizeof key)
+        if (!client->loggedIntoWritableFolder())
         {
-            client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
-            arg("k", key, int(nn[i].nodekey.size()));
+            if (nn[i].nodekey.size() <= sizeof key)
+            {
+                client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
+                arg("k", key, int(nn[i].nodekey.size()));
+            }
+            else
+            {
+                arg("k", (const byte*)nn[i].nodekey.data(), int(nn[i].nodekey.size()));
+            }
         }
-        else
-        {
-            arg("k", (const byte*)nn[i].nodekey.data(), int(nn[i].nodekey.size()));
-        }
-
         endobject();
     }
 
@@ -1878,6 +1880,7 @@ bool CommandLogin::procresult(Result r)
 
                 client->openStatusTable(true);
                 client->app->login_result(API_OK);
+                client->getaccountdetails(std::make_shared<AccountDetails>(), false, false, true, false, false, false);
                 return true;
 
             default:
@@ -3185,6 +3188,10 @@ bool CommandPutUA::procresult(Result r)
                 LOG_info << "File versioning is enabled";
             }
         }
+        else if (at == ATTR_NO_CALLKIT)
+        {
+            LOG_info << "CallKit is " << ((av == "1") ? "disabled" : "enabled");
+        }
 
         mCompletion(API_OK);
     }
@@ -3274,6 +3281,10 @@ bool CommandGetUA::procresult(Result r)
         {
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
+        }
+        else if (at == ATTR_NO_CALLKIT && r.wasError(API_ENOENT))
+        {
+            LOG_info << "CallKit is enabled";
         }
 
         return true;
@@ -3449,6 +3460,10 @@ bool CommandGetUA::procresult(Result r)
                                 {
                                     LOG_info << "File versioning is enabled";
                                 }
+                            }
+                            else if (at == ATTR_NO_CALLKIT)
+                            {
+                                LOG_info << "CallKit is " << ((!strcmp(value.data(), "1")) ? "disabled" : "enabled");
                             }
                             break;
                         }
@@ -3852,6 +3867,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionAliases;
     string disableVersions;
     string versionDisableVersions;
+    string noCallKit;
+    string versionNoCallKit;
     string country;
     string versionCountry;
     string birthday;
@@ -3972,6 +3989,10 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('^', '!', 'd', 'v'):
             parseUserAttribute(disableVersions, versionDisableVersions);
+            break;
+
+        case MAKENAMEID7('^', '!', 'n', 'o', 'k', 'i', 't'):
+            parseUserAttribute(noCallKit, versionNoCallKit);
             break;
 
         case MAKENAMEID4('*', '!', 'c', 'f'):
@@ -4294,6 +4315,16 @@ bool CommandGetUserData::procresult(Result r)
                 {
                     LOG_info << "File versioning is enabled";
                     client->versions_disabled = false;
+                }
+
+                if (noCallKit.size())
+                {
+                    changes += u->updateattr(ATTR_NO_CALLKIT, &noCallKit, &versionNoCallKit);
+                    LOG_info << "CallKit is " << ((noCallKit == "1") ? "disabled" : "enabled");
+                }
+                else
+                {
+                    LOG_info << "CallKit is enabled [noCallKit.size() == 0]";
                 }
 
                 if (chatFolder.size())
@@ -4623,7 +4654,7 @@ bool CommandGetMiscFlags::procresult(Result r)
     return error(e) != API_EINTERNAL;
 }
 
-CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
+CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
     mStorage = storage;
@@ -4660,7 +4691,7 @@ bool CommandGetUserQuota::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
-        client->app->account_details(details, r.errorOrOK());
+        client->app->account_details(details.get(), r.errorOrOK());
         return true;
     }
 
@@ -4819,6 +4850,7 @@ bool CommandGetUserQuota::procresult(Result r)
             case MAKENAMEID5('u', 't', 'y', 'p', 'e'):
             // PRO type. 0 means Free; 4 is Pro Lite as it was added late; 100 indicates a business.
                 details->pro_level = (int)client->json.getint();
+                client->mMyAccount.setProLevel(static_cast<AccountType>(details->pro_level));
                 break;
 
             case MAKENAMEID5('s', 't', 'y', 'p', 'e'):
@@ -4880,6 +4912,7 @@ bool CommandGetUserQuota::procresult(Result r)
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
             // Time the last active PRO plan will expire (may be different from current one)
                 details->pro_until = client->json.getint();
+                client->mMyAccount.setProUntil(static_cast<m_time_t>(details->pro_until));
                 break;
 
             case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):
@@ -4954,13 +4987,13 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
 
-                client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
+                client->app->account_details(details.get(), mStorage, mTransfer, mPro, false, false, false);
                 return true;
 
             default:
                 if (!client->json.storeobject())
                 {
-                    client->app->account_details(details, API_EINTERNAL);
+                    client->app->account_details(details.get(), API_EINTERNAL);
                     return false;
                 }
         }
@@ -4993,7 +5026,7 @@ bool CommandQueryTransferQuota::procresult(Result r)
     return true;
 }
 
-CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, AccountDetails* ad)
+CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, std::shared_ptr<AccountDetails> ad)
 {
     cmd("utt");
 
@@ -5027,11 +5060,11 @@ bool CommandGetUserTransactions::procresult(Result r)
         client->json.leavearray();
     }
 
-    client->app->account_details(details, false, false, false, false, true, false);
+    client->app->account_details(details.get(), false, false, false, false, true, false);
     return true;
 }
 
-CommandGetUserPurchases::CommandGetUserPurchases(MegaClient* client, AccountDetails* ad)
+CommandGetUserPurchases::CommandGetUserPurchases(MegaClient* client, std::shared_ptr<AccountDetails> ad)
 {
     cmd("utp");
 
@@ -5069,11 +5102,11 @@ bool CommandGetUserPurchases::procresult(Result r)
         client->json.leavearray();
     }
 
-    client->app->account_details(details, false, false, false, true, false, false);
+    client->app->account_details(details.get(), false, false, false, true, false, false);
     return true;
 }
 
-CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, AccountDetails* ad)
+CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, std::shared_ptr<AccountDetails> ad)
 {
     cmd("usl");
     arg("x", 1); // Request the additional id and alive information
@@ -5108,7 +5141,7 @@ bool CommandGetUserSessions::procresult(Result r)
         client->json.leavearray();
     }
 
-    client->app->account_details(details, false, false, false, false, false, true);
+    client->app->account_details(details.get(), false, false, false, false, false, true);
     return true;
 }
 

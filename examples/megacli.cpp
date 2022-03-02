@@ -1342,7 +1342,7 @@ static void store_line(char*);
 static void process_line(char *);
 static char* line;
 
-static AccountDetails account;
+static std::shared_ptr<AccountDetails> account = std::make_shared<AccountDetails>();
 
 // Current remote directory.
 static NodeHandle cwd;
@@ -2796,7 +2796,7 @@ void exec_getuserquota(autocomplete::ACState& s)
         storage = transfer = pro = true;
     }
 
-    client->getaccountdetails(new AccountDetails, storage, transfer, pro, false, false, false, -1);
+    client->getaccountdetails(std::make_shared<AccountDetails>(), storage, transfer, pro, false, false, false, -1);
 }
 
 void exec_getuserdata(autocomplete::ACState& s)
@@ -4470,7 +4470,7 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
 {
-    DirAccess* da = client->fsaccess->newdiraccess();
+    auto da = client->fsaccess->newdiraccess();
 
     LocalPath lp(localname);
     if (da->dopen(&lp, NULL, false))
@@ -4540,7 +4540,7 @@ void exec_put(autocomplete::ACState& s)
 
     auto localname = localPathArg(s.words[1].s);
 
-    DirAccess* da = client->fsaccess->newdiraccess();
+    auto da = client->fsaccess->newdiraccess();
 
     if (da->dopen(&localname, NULL, true))
     {
@@ -4559,8 +4559,6 @@ void exec_put(autocomplete::ACState& s)
             uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo);
         }
     }
-
-    delete da;
 
     cout << "Queued " << total << " file(s) for upload, " << appxferq[PUT].size()
         << " file(s) in queue" << endl;
@@ -6083,7 +6081,7 @@ void exec_whoami(autocomplete::ACState& s)
 
         cout << "Retrieving account status..." << endl;
 
-        client->getaccountdetails(&account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
+        client->getaccountdetails(account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
     }
 }
 

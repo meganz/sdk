@@ -602,6 +602,11 @@ string *MegaNode::getNodeKey()
     return NULL;
 }
 
+bool MegaNode::isNodeKeyDecrypted()
+{
+    return false;
+}
+
 char *MegaNode::getFileAttrString()
 {
     return NULL;
@@ -3555,36 +3560,6 @@ void MegaApi::resetTotalDownloads()
 void MegaApi::resetTotalUploads()
 {
     pImpl->resetTotalUploads();
-}
-
-size_t MegaApi::getCompletedUploads()
-{
-    return pImpl->getCompletedUploads();
-}
-
-size_t MegaApi::getCompletedDownloads()
-{
-    return pImpl->getCompletedDownloads();
-}
-
-void MegaApi::resetCompletedDownloads()
-{
-    pImpl->resetCompletedDownloads();
-}
-
-void MegaApi::removeCompletedUpload(int transferTag)
-{
-    pImpl->removeCompletedUpload(transferTag);
-}
-
-void MegaApi::removeCompletedDownload(int transferTag)
-{
-    pImpl->removeCompletedDownload(transferTag);
-}
-
-void MegaApi::resetCompletedUploads()
-{
-    pImpl->resetCompletedUploads();
 }
 
 MegaNode *MegaApi::getRootNode()

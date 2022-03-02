@@ -503,6 +503,10 @@ string User::attr2string(attr_t type)
             attrname = "^!dv";
             break;
 
+        case ATTR_NO_CALLKIT:
+            attrname = "^!nokit";
+            break;
+
         case ATTR_CONTACT_LINK_VERIFICATION:
             attrname = "^clv";
             break;
@@ -656,6 +660,10 @@ string User::attr2longname(attr_t type)
         longname = "DISABLE_VERSIONS";
         break;
 
+    case ATTR_NO_CALLKIT:
+        longname = "NO_CALLKIT";
+        break;
+
     case ATTR_CONTACT_LINK_VERIFICATION:
         longname = "CONTACT_LINK_VERIFICATION";
         break;
@@ -807,6 +815,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_DISABLE_VERSIONS;
     }
+    else if(!strcmp(name, "^!nokit"))
+    {
+        return ATTR_NO_CALLKIT;
+    }
     else if(!strcmp(name, "^clv"))
     {
         return ATTR_CONTACT_LINK_VERIFICATION;
@@ -891,6 +903,7 @@ int User::needversioning(attr_t at)
         case ATTR_LANGUAGE:
         case ATTR_PWD_REMINDER:
         case ATTR_DISABLE_VERSIONS:
+        case ATTR_NO_CALLKIT:
         case ATTR_RICH_PREVIEWS:
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
@@ -956,6 +969,7 @@ char User::scope(attr_t at)
         case ATTR_LANGUAGE:
         case ATTR_PWD_REMINDER:
         case ATTR_DISABLE_VERSIONS:
+        case ATTR_NO_CALLKIT:
         case ATTR_CONTACT_LINK_VERIFICATION:
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
@@ -1326,6 +1340,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_DISABLE_VERSIONS:
             changed.disableVersions = true;
+            break;
+
+        case ATTR_NO_CALLKIT:
+            changed.noCallKit = true;
             break;
 
         case ATTR_CONTACT_LINK_VERIFICATION:
