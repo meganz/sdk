@@ -535,7 +535,7 @@ public:
     unsigned char connections[2];
 
     // helpfer function for preparing a putnodes call for new node
-    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const std::string &binaryUploadToken,
+    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
                                   byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
@@ -548,7 +548,7 @@ public:
     void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
-    void putnodes(const char*, vector<NewNode>&&, int tag);
+    void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // attach file attribute to upload or node handle
     void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
@@ -881,7 +881,7 @@ public:
     m_off_t getmaxuploadspeed();
 
     // get the handle of the older version for a NewNode
-    handle getovhandle(Node *parent, string *name);
+    Node* getovnode(Node *parent, string *name);
 
     // use HTTPS for all communications
     bool usehttps;

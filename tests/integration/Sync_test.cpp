@@ -1635,7 +1635,7 @@ struct StandardClient : public MegaApp
         std::list<NewNode> nodes;
         NewNode* nn = buildSubdirs(nodes, prefix, fanout, depth);
         nn->parenthandle = UNDEF;
-        nn->ovhandle = UNDEF;
+        nn->ovhandle = NodeHandle();
 
         Node* atnode = client.nodebyhandle(basefolderhandle);
         if (atnode && !atpath.empty())

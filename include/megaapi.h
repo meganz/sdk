@@ -5201,7 +5201,7 @@ public:
         REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
         //REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
         SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
-        LOCAL_FINGERPRINT_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
+        LOCAL_FILESYSTEM_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
         PUT_NODES_ERROR = 16, // Error processing put nodes result
         ACTIVE_SYNC_BELOW_PATH = 17, // There's a synced node below the path to be synced
         ACTIVE_SYNC_ABOVE_PATH = 18, // There's a synced node above the path to be synced
@@ -5333,7 +5333,7 @@ public:
      *  - FOREIGN_TARGET_OVERSTORAGE = 11: Sync transfer fails (upload into an inshare whose account is overquota)
      *  - REMOTE_PATH_HAS_CHANGED = 12: Remote path changed
      *  - SHARE_NON_FULL_ACCESS = 14: Existing inbound share sync or part thereof lost full access
-     *  - LOCAL_FINGERPRINT_MISMATCH = 15: Filesystem fingerprint does not match the one stored for the synchronization
+     *  - LOCAL_FILESYSTEM_MISMATCH = 15: Filesystem fingerprint does not match the one stored for the synchronization
      *  - PUT_NODES_ERROR = 16:  Error processing put nodes result
      *  - ACTIVE_SYNC_BELOW_PATH = 17: There's a synced node below the path to be synced
      *  - ACTIVE_SYNC_ABOVE_PATH = 18: There's a synced node above the path to be synced
