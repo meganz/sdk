@@ -3425,7 +3425,7 @@ const char* MegaApi::exportSyncConfigs()
     return pImpl->exportSyncConfigs();
 }
 
-void MegaApi::removeSyncs(MegaNode *backupDestination, MegaRequestListener *listener)
+void MegaApi::removeSyncs(MegaHandle backupDestination, MegaRequestListener *listener)
 {
    pImpl->stopSyncs(backupDestination, listener);
 }

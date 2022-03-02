@@ -8868,10 +8868,10 @@ MegaSyncList *MegaApiImpl::getSyncs()
     return syncList;
 }
 
-void MegaApiImpl::stopSyncs(MegaNode *backupDestination, MegaRequestListener *listener)
+void MegaApiImpl::stopSyncs(MegaHandle backupDestination, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNCS, listener);
-    request->setPublicNode(backupDestination);
+    request->setNodeHandle(backupDestination);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -21666,8 +21666,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; },
-                request->getPublicNode() ? request->getPublicNode()->getHandle() : INVALID_HANDLE);
+            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; }, request->getNodeHandle());
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }

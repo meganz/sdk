@@ -2405,7 +2405,7 @@ class MegaApiImpl : public MegaApp
         void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         MegaSyncList *getSyncs();
 
-        void stopSyncs(MegaNode *backupDestination = nullptr, MegaRequestListener *listener=NULL);
+        void stopSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
         void setExcludedPaths(vector<string> *excludedPaths);

@@ -13975,14 +13975,13 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNCS
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getPublicNode - Returns the destination folder node (for backup syncs in Vault only); null means permanent deletion
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
          * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
-         *                          If null, files will be permanently deleted, otherwise files will be moved there.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSyncs(MegaNode *backupDestination = nullptr, MegaRequestListener *listener = NULL);
-
+        void removeSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get all configured syncs

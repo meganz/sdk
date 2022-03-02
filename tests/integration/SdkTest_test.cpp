@@ -5831,7 +5831,7 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 {
 
     RequestTracker removeTracker(megaApi);
-    megaApi->removeSyncs(nullptr, &removeTracker);
+    megaApi->removeSyncs(INVALID_HANDLE, &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
