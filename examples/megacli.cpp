@@ -5523,18 +5523,45 @@ void exec_debug(autocomplete::ACState& s)
             // two competing threads, both logging, so we're not just paused during gzipping
 
             new std::thread([](){
-                for (unsigned i = 0; i < 1000000; ++i)
+                std::map<long, int> fps;
+
+                auto start = std::chrono::high_resolution_clock::now();
+                while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() < 10)
                 {
-                    LOG_debug << "generating RPL output lines: (1) " << i;
+                    LOG_info << "Logging from thread 1" ;
+                    fps[long(m_time())]++;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000/30));
                 }
+                auto cl = conlock(cout);
+                cl << "thread 1:";
+                for (auto& n : fps) cl << " " << n.second;
+                cl << "\n";
             });
 
+
             new std::thread([](){
-                for (unsigned i = 0; i < 1000000; ++i)
+                std::map<long, int> fps;
+
+                auto start = std::chrono::high_resolution_clock::now();
+                while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() < 10)
                 {
-                    LOG_debug << "generating RPL output lines: (2) " << i;
+                    LOG_info << "Logging from thread 2" ;
+                    fps[long(m_time())]++;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000/30));
                 }
-                });
+                auto cl = conlock(cout);
+                cl << "thread 2:";
+                for (auto& n : fps) cl << " " << n.second;
+                cl << "\n";
+            });
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            string dm(99999999, 'x');
+            for (int i = 0 ; i < 30 ; i++)
+            {
+                LOG_err << DirectMessage(dm.c_str());
+            }
+
 
         }
 
