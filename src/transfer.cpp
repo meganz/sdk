@@ -88,6 +88,8 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
+    auto keepDownloadTarget = false;
+
     if (faputcompletion_it != client->faputcompletion.end())
     {
         client->faputcompletion.erase(faputcompletion_it);
@@ -102,6 +104,22 @@ Transfer::~Transfer()
 
         (*it)->transfer = NULL;
         (*it)->terminated(API_OK);
+
+        // Are we dealing with a sync download?
+        if (type != GET || !(*it)->syncxfer)
+            continue;
+
+        auto dl = static_cast<SyncDownload_inClient*>(*it);
+
+        // Did the download fail due to a MAC mismatch?
+        if (dl->mError != API_EKEY)
+            continue;
+
+        // Keep the intermediate download target.
+        keepDownloadTarget = true;
+
+        // And latch its path.
+        dl->setLocalname(localfilename);
     }
 
     if (!mOptimizedDelete)
@@ -130,7 +148,8 @@ Transfer::~Transfer()
     {
         if (type == GET && !localfilename.empty())
         {
-            client->fsaccess->unlinklocal(localfilename);
+            if (!keepDownloadTarget)
+                client->fsaccess->unlinklocal(localfilename);
         }
         client->transfercachedel(this, nullptr);
     }

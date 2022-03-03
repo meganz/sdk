@@ -2282,15 +2282,18 @@ void LocalNode::updateTransferLocalname()
 
 void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprint& fingerprint)
 {
+    if (!transferSP)
+        return;
+
     auto uploadPtr = dynamic_cast<SyncUpload_inClient*>(transferSP.get());
 
-    // todo: should we be more accurate than just fingerprint?
-    if (transferSP && (
-        transferSP->wasTerminated ||
-        dir != (uploadPtr ? PUT : GET) ||
-        !(transferSP->fingerprint() == fingerprint)))
-    {
+    auto different =
+      dir != (uploadPtr ? PUT : GET)
+      || transferSP->fingerprint() != fingerprint;
 
+    // todo: should we be more accurate than just fingerprint?
+    if (different || (transferSP->wasTerminated && transferSP->mError != API_EKEY))
+    {
         if (uploadPtr && uploadPtr->putnodesStarted)
         {
             // checking for a race where we already sent putnodes and it hasn't completed,
