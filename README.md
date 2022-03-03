@@ -1,4 +1,5 @@
-# MEGA SDK - Client Access Engine <a href="https://scan.coverity.com/projects/4315"><img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/4315/badge.svg"/></a>
+# MEGA SDK - Client Access Engine <a 
+				href="https://scan.coverity.com/projects/4315"><img alt="Coverity Scan Build Status" src="https://scan.coverity.com/projects/4315/badge.svg"/></a>
 
 MEGA --- _The Privacy Company_ --- is a Secure Cloud Storage
 provider that protects your data thanks to end-to-end encryption. We call it User Controlled Encryption,
@@ -187,3 +188,29 @@ Such files and folders will still be inaccessible through e.g. Explorer!
 
 Also, disable automatic short name generation to eliminate the risk of
 clashes with existing short names.
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
