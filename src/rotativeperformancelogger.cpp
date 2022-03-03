@@ -268,7 +268,7 @@ private:
         if (!logFileName.empty())
         {
             LocalPath leafNamePath;
-            DirAccess* da = mFsAccess->newdiraccess();
+            auto da = mFsAccess->newdiraccess();
             nodetype_t dirEntryType;
             LocalPath logsPathCopy(logsPath);
             da->dopen(&logsPathCopy, NULL, false);
@@ -284,7 +284,6 @@ private:
                     }
                 }
             }
-            delete da;
         }
     }
 

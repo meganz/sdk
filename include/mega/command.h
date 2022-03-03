@@ -741,7 +741,7 @@ public:
 
 class MEGA_API CommandGetUserQuota : public Command
 {
-    AccountDetails* details;
+    std::shared_ptr<AccountDetails> details;
     bool mStorage;
     bool mTransfer;
     bool mPro;
@@ -749,7 +749,7 @@ class MEGA_API CommandGetUserQuota : public Command
 public:
     bool procresult(Result) override;
 
-    CommandGetUserQuota(MegaClient*, AccountDetails*, bool, bool, bool, int source);
+    CommandGetUserQuota(MegaClient*, std::shared_ptr<AccountDetails>, bool, bool, bool, int source);
 };
 
 class MEGA_API CommandQueryTransferQuota : public Command
@@ -762,32 +762,32 @@ public:
 
 class MEGA_API CommandGetUserTransactions : public Command
 {
-    AccountDetails* details;
+    std::shared_ptr<AccountDetails> details;
 
 public:
     bool procresult(Result) override;
 
-    CommandGetUserTransactions(MegaClient*, AccountDetails*);
+    CommandGetUserTransactions(MegaClient*, std::shared_ptr<AccountDetails>);
 };
 
 class MEGA_API CommandGetUserPurchases : public Command
 {
-    AccountDetails* details;
+    std::shared_ptr<AccountDetails> details;
 
 public:
     bool procresult(Result) override;
 
-    CommandGetUserPurchases(MegaClient*, AccountDetails*);
+    CommandGetUserPurchases(MegaClient*, std::shared_ptr<AccountDetails>);
 };
 
 class MEGA_API CommandGetUserSessions : public Command
 {
-    AccountDetails* details;
+    std::shared_ptr<AccountDetails> details;
 
 public:
     bool procresult(Result) override;
 
-    CommandGetUserSessions(MegaClient*, AccountDetails*);
+    CommandGetUserSessions(MegaClient*, std::shared_ptr<AccountDetails>);
 };
 
 class MEGA_API CommandSetPH : public Command
