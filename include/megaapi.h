@@ -9894,7 +9894,7 @@ class MegaApi
          * of the moment when they are created. For more information about log archive
          * control see RotativePerformanceLogger::setArchiveTimestamps().
          *
-         * @param logPath Log base directory for both active log file and archived logs
+         * @param logPath Absolute path pointing to the base directory for both active log file and archived logs
          * @param logFileName Log file name (without path).¡
          * @param logToStdOut if true, logs are also output to standard output
          * @param archivedFilesAgeSeconds Number of seconds before archived files are removed. Defaults to one month.
@@ -12431,6 +12431,8 @@ class MegaApi
          *          5 for Contact/Sharing Issue
          *          6 for MEGAsync Issue
          *          7 for Missing/Invisible Data
+         *          8 for help-centre clarifications
+         *          9 for iOS issue
          * @param listener MegaRequestListener to track this request
          */
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
@@ -14310,8 +14312,8 @@ class MegaApi
         int getTotalUploads();
 
         /**
-         * @brief Get the number of queued uploads since the last call to MegaApi::resetTotalDownloads
-         * @return Number of queued uploads since the last call to MegaApi::resetTotalDownloads
+         * @brief Get the number of queued downloads since the last call to MegaApi::resetTotalUploads
+         * @return Number of queued downloads since the last call to MegaApi::resetTotalUploads
          *
          * @deprecated Function related to statistics will be reviewed in future updates. They
          * could change or be removed in the current form.
@@ -14336,6 +14338,46 @@ class MegaApi
          * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
         void resetTotalUploads();
+
+        /**
+         * @brief Get the number of completed uploads since the last call to MegaApi::resetCompletedUploads
+         * * The number of completed uploads does not include the cancelled transfers
+         * @return Number of completed uploads since the last call to MegaApi::resetCompletedUploads
+         */
+        size_t getCompletedUploads();
+
+        /**
+         * @brief Get the number of completed downloads since the last call to MegaApi::resetCompletedDownloads
+         * The number of completed downloads does not include the cancelled transfers
+         * @return Number of completed downloads since the last call to MegaApi::resetCompletedDownloads
+         */
+        size_t getCompletedDownloads();
+
+        /**
+         * @brief Reset the number of completed uploads (total uploads = pending uploads)
+         * This function resets the number returned by MegaApi::getTotalUploads
+         */
+        void resetCompletedUploads();
+
+        /**
+         * @brief Reset the number of completed downloads (total downloads = pending downloads)
+         * This function resets the number returned by MegaApi::getTotalDownloads
+         */
+        void resetCompletedDownloads();
+
+        /**
+         * @brief Reduced by one the number of completed uploads
+         * This function reduces the number returned by MegaApi::getCompletedUploads
+         * @param transferTag Tag of the upload to remove from the list of uploads.
+         */
+        void removeCompletedUpload(int transferTag);
+
+        /**
+         * @brief Reduced by one the number of completed downloads
+         * This function reduces the number returned by MegaApi::getCompletedDownloads
+         * @param transferTag Tag of the download to remove from the list of uploads.
+         */
+        void removeCompletedDownload(int transferTag);
 
         /**
          * @brief Get the total downloaded bytes
