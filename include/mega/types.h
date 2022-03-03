@@ -1066,7 +1066,7 @@ enum class SyncWaitReason {
     LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
     SyncItemExceedsSupportedTreeDepth,
     MACVerificationFailure,
-    NoNameTripletsDetected
+    NoNameTripletsDetected,
 };
 
 string syncWaitReasonString(SyncWaitReason);
