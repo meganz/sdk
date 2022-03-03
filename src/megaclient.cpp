@@ -13838,6 +13838,12 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
+    if (syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
+    {
+        syncConfig.mError = INVALID_REMOTE_TYPE;
+        return API_EARGS;
+    }
+
     if (syncConfig.isExternal())
     {
         // Currently only possible for backup syncs.
