@@ -15,6 +15,8 @@
  */
 package nz.mega.sdk;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -8967,85 +8969,6 @@ public class MegaApiJava {
      * <p>
      * You take the ownership of the returned value.
      *
-     * @param node         The parent node of the tree to explore
-     * @param searchString Search string. The search is case-insensitive
-     * @param recursive    True if you want to search recursively in the node tree.
-     *                     False if you want to search in the children of the node only
-     * @param order        Order for the returned list
-     *                     Valid values for this parameter are:
-     *                     - MegaApi::ORDER_NONE = 0
-     *                     Undefined order
-     *                     <p>
-     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
-     *                     Folders first in alphabetical order, then files in the same order
-     *                     <p>
-     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
-     *                     Files first in reverse alphabetical order, then folders in the same order
-     *                     <p>
-     *                     - MegaApi::ORDER_SIZE_ASC = 3
-     *                     Sort by size, ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_SIZE_DESC = 4
-     *                     Sort by size, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_CREATION_ASC = 5
-     *                     Sort by creation time in MEGA, ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_CREATION_DESC = 6
-     *                     Sort by creation time in MEGA, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
-     *                     Sort by modification time of the original file, ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
-     *                     Sort by modification time of the original file, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending. With this order, folders are returned first, then files
-     *                     <p>
-     *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending. With this order, folders are returned first, then files
-     *                     <p>
-     *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
-     *                     <p>
-     *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
-     * @return List of nodes that contain the desired string in their name
-     */
-    public ArrayList<MegaNode> search(MegaNode node, String searchString, boolean recursive, int order) {
-        return nodeListToArray(megaApi.search(node, searchString, recursive, order));
-    }
-
-    /**
-     * Search nodes containing a search string in their name
-     * <p>
-     * The search is case-insensitive.
-     * <p>
-     * You take the ownership of the returned value.
-     * <p>
      * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
      * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
      * this method returns.
@@ -9119,107 +9042,25 @@ public class MegaApiJava {
      *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> search(MegaNode node, String searchString, MegaCancelToken cancelToken, boolean recursive, int order) {
+    public ArrayList<MegaNode> search(MegaNode node, String searchString, @NotNull MegaCancelToken cancelToken, boolean recursive, int order) {
         return nodeListToArray(megaApi.search(node, searchString, cancelToken, recursive, order));
     }
 
     /**
      * Search nodes containing a search string in their name
-     * <p>
-     * The search is case-insensitive.
-     * <p>
-     * The search will consider every accessible node for the account:
-     * - Cloud drive
-     * - Inbox
-     * - Rubbish bin
-     * - Incoming shares from other users
-     * <p>
-     * You take the ownership of the returned value.
      *
-     * @param searchString Search string. The search is case-insensitive
-     * @param order        Order for the returned list
-     *                     Valid values for this parameter are:
-     *                     - MegaApi::ORDER_NONE = 0
-     *                     Undefined order
-     *                     <p>
-     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
-     *                     Folders first in alphabetical order, then files in the same order
-     *                     <p>
-     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
-     *                     Files first in reverse alphabetical order, then folders in the same order
-     *                     <p>
-     *                     - MegaApi::ORDER_SIZE_ASC = 3
-     *                     Sort by size, ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_SIZE_DESC = 4
-     *                     Sort by size, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_CREATION_ASC = 5
-     *                     Sort by creation time in MEGA, ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_CREATION_DESC = 6
-     *                     Sort by creation time in MEGA, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
-     *                     Sort by modification time of the original file, ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
-     *                     Sort by modification time of the original file, descending
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *                     <p>
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *                     <p>
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *                     <p>
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *                     <p>
-     *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending. With this order, folders are returned first, then files
-     *                     <p>
-     *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending. With this order, folders are returned first, then files
-     *                     <p>
-     *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
-     *                     <p>
-     *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
-     * @return List of nodes that contain the desired string in their name
-     */
-    public ArrayList<MegaNode> search(String searchString, int order) {
-        return nodeListToArray(megaApi.search(searchString, order));
-    }
-
-    /**
-     * Search nodes containing a search string in their name
-     * <p>
      * The search is case-insensitive.
-     * <p>
+     *
      * The search will consider every accessible node for the account:
      * - Cloud drive
      * - Inbox
      * - Rubbish bin
      * - Incoming shares from other users
-     * <p>
+     *
      * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
      * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
      * this method returns.
-     * <p>
+     *
      * You take the ownership of the returned value.
      *
      * @param searchString Search string. The search is case-insensitive
@@ -9288,7 +9129,7 @@ public class MegaApiJava {
      *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> search(String searchString, MegaCancelToken cancelToken, int order) {
+    public ArrayList<MegaNode> search(String searchString, @NotNull MegaCancelToken cancelToken, int order) {
         return nodeListToArray(megaApi.search(searchString, cancelToken, order));
     }
 
@@ -9371,7 +9212,7 @@ public class MegaApiJava {
      *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> searchOnInShares(String searchString, MegaCancelToken cancelToken, int order) {
+    public ArrayList<MegaNode> searchOnInShares(String searchString, @NotNull MegaCancelToken cancelToken, int order) {
         return nodeListToArray(megaApi.searchOnInShares(searchString, cancelToken, order));
     }
 
@@ -9454,7 +9295,7 @@ public class MegaApiJava {
      *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> searchOnOutShares(String searchString, MegaCancelToken cancelToken, int order) {
+    public ArrayList<MegaNode> searchOnOutShares(String searchString, @NotNull MegaCancelToken cancelToken, int order) {
         return nodeListToArray(megaApi.searchOnOutShares(searchString, cancelToken, order));
     }
 
@@ -9537,7 +9378,7 @@ public class MegaApiJava {
      *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> searchOnPublicLinks(String searchString, MegaCancelToken cancelToken, int order) {
+    public ArrayList<MegaNode> searchOnPublicLinks(String searchString, @NotNull MegaCancelToken cancelToken, int order) {
         return nodeListToArray(megaApi.searchOnPublicLinks(searchString, cancelToken, order));
     }
 
@@ -9644,7 +9485,7 @@ public class MegaApiJava {
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-                                            MegaCancelToken cancelToken, boolean recursive, int order, int type, int target) {
+                                            @NotNull MegaCancelToken cancelToken, boolean recursive, int order, int type, int target) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
                 order, type, target));
     }
@@ -9735,8 +9576,8 @@ public class MegaApiJava {
      *               - SEARCH_TARGET_ALL = 4
      * @return List of nodes that match with the search parameters
      */
-    public ArrayList<MegaNode> searchByType(int order, int type, int target) {
-        return nodeListToArray(megaApi.searchByType(null, null, null, true,
+    public ArrayList<MegaNode> searchByType(@NotNull MegaCancelToken cancelToken, int order, int type, int target) {
+        return nodeListToArray(megaApi.searchByType(null, null, cancelToken, true,
                 order, type, target));
     }
 
@@ -9835,7 +9676,7 @@ public class MegaApiJava {
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-                                            MegaCancelToken cancelToken, boolean recursive, int order, int type) {
+                                            @NotNull MegaCancelToken cancelToken, boolean recursive, int order, int type) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
                 order, type));
     }
@@ -9919,7 +9760,7 @@ public class MegaApiJava {
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-                                            MegaCancelToken cancelToken, boolean recursive, int order) {
+                                            @NotNull MegaCancelToken cancelToken, boolean recursive, int order) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
                 order));
     }
@@ -9950,7 +9791,7 @@ public class MegaApiJava {
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-                                            MegaCancelToken cancelToken, boolean recursive) {
+                                            @NotNull MegaCancelToken cancelToken, boolean recursive) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive));
     }
 
@@ -9977,7 +9818,7 @@ public class MegaApiJava {
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-                                            MegaCancelToken cancelToken) {
+                                            @NotNull MegaCancelToken cancelToken) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken));
     }
 

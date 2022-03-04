@@ -467,7 +467,7 @@ public:
     bool areCredentialsVerified(handle uh);
 
     // retrieve user details
-    void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
+    void getaccountdetails(std::shared_ptr<AccountDetails>, bool, bool, bool, bool, bool, bool, int source = -1);
 
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
@@ -535,7 +535,7 @@ public:
     unsigned char connections[2];
 
     // helpfer function for preparing a putnodes call for new node
-    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const std::string &binaryUploadToken,
+    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
                                   byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
@@ -548,7 +548,7 @@ public:
     void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
-    void putnodes(const char*, vector<NewNode>&&, int tag);
+    void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // attach file attribute to upload or node handle
     void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
@@ -588,16 +588,16 @@ public:
 
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
-	    int tag, std::function<void(Error, bool writable)> completion);
+        int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, bool writable,
-	    int tag, std::function<void(Error, handle, handle)> completion);
-    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable,
+    error exportnode(Node*, int, m_time_t, bool writable, bool megaHosted,
+        int tag, std::function<void(Error, handle, handle)> completion);
+    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
 	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer
@@ -881,7 +881,7 @@ public:
     m_off_t getmaxuploadspeed();
 
     // get the handle of the older version for a NewNode
-    handle getovhandle(Node *parent, string *name);
+    Node* getovnode(Node *parent, string *name);
 
     // use HTTPS for all communications
     bool usehttps;
@@ -1916,11 +1916,41 @@ public:
     // return API_OK if success, otherwise error code
     error writeDriveId(const char *pathToDrive, handle driveId);
 
+    /**
+     * @brief This function calculates the time (in deciseconds) that a user
+     * transfer request must wait for a retry.
+     *
+     * A pro user who has reached the limit must wait for the renewal or
+     * an upgrade on the pro plan.
+     *
+     * @param req Pointer to HttpReq object
+     * @note a 99408 event is sent for non-pro clients with a negative
+     * timeleft in the request header
+     *
+     * @return returns the backoff time in dstime
+     */
+    dstime overTransferQuotaBackoff(HttpReq* req);
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, unique_ptr<FileSystemAccess>&&, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);
     unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
+
+struct MyAccountData
+{
+    void setProLevel(AccountType prolevel) { mProLevel = prolevel; }
+    AccountType getProLevel() { return mProLevel; };
+    void setProUntil(m_time_t prountil) { mProUntil = prountil; }
+
+    // returns remaining time for the current pro-level plan
+    // keep in mind that free plans do not have a remaining time; instead, the IP bandwidth is reset after a back off period
+    m_time_t getTimeLeft();
+
+private:
+    AccountType mProLevel = AccountType::ACCOUNT_TYPE_UNKNOWN;
+    m_time_t mProUntil = -1;
+} mMyAccount;
 
 private:
     // Since it's quite expensive to create a SymmCipher, this are provided to use for quick operations - just set the key and use.

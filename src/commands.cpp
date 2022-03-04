@@ -1026,7 +1026,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                 break;
 
             case NEW_UPLOAD:
-                arg("h", nni->uploadtoken, sizeof nn[0].uploadtoken);
+                arg("h", nni->uploadtoken.data(), sizeof nn[0].uploadtoken);
 
                 // include pending file attributes for this upload
                 string s;
@@ -1058,7 +1058,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         }
 
         if (vo != NoVersioning &&
-            nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+            nn[i].type == FILENODE && !nn[i].ovhandle.isUndef())
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }
@@ -1102,7 +1102,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn[i].uploadtoken);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken.data(), (int)sizeof nn[i].uploadtoken);
                         break;
                 }
             }
@@ -1865,6 +1865,7 @@ bool CommandLogin::procresult(Result r)
 
                 client->openStatusTable(true);
                 client->app->login_result(API_OK);
+                client->getaccountdetails(std::make_shared<AccountDetails>(), false, false, true, false, false, false);
                 return true;
 
             default:
@@ -1915,7 +1916,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
+CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
@@ -4648,7 +4649,7 @@ bool CommandGetMiscFlags::procresult(Result r)
     return error(e) != API_EINTERNAL;
 }
 
-CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
+CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, std::shared_ptr<AccountDetails> ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
     mStorage = storage;
@@ -4685,7 +4686,7 @@ bool CommandGetUserQuota::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
-        client->app->account_details(details, r.errorOrOK());
+        client->app->account_details(details.get(), r.errorOrOK());
         return true;
     }
 
@@ -4844,6 +4845,7 @@ bool CommandGetUserQuota::procresult(Result r)
             case MAKENAMEID5('u', 't', 'y', 'p', 'e'):
             // PRO type. 0 means Free; 4 is Pro Lite as it was added late; 100 indicates a business.
                 details->pro_level = (int)client->json.getint();
+                client->mMyAccount.setProLevel(static_cast<AccountType>(details->pro_level));
                 break;
 
             case MAKENAMEID5('s', 't', 'y', 'p', 'e'):
@@ -4905,6 +4907,7 @@ bool CommandGetUserQuota::procresult(Result r)
             case MAKENAMEID6('s', 'u', 'n', 't', 'i', 'l'):
             // Time the last active PRO plan will expire (may be different from current one)
                 details->pro_until = client->json.getint();
+                client->mMyAccount.setProUntil(static_cast<m_time_t>(details->pro_until));
                 break;
 
             case MAKENAMEID7('b', 'a', 'l', 'a', 'n', 'c', 'e'):
@@ -4979,13 +4982,13 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
 
-                client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
+                client->app->account_details(details.get(), mStorage, mTransfer, mPro, false, false, false);
                 return true;
 
             default:
                 if (!client->json.storeobject())
                 {
-                    client->app->account_details(details, API_EINTERNAL);
+                    client->app->account_details(details.get(), API_EINTERNAL);
                     return false;
                 }
         }
@@ -5018,7 +5021,7 @@ bool CommandQueryTransferQuota::procresult(Result r)
     return true;
 }
 
-CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, AccountDetails* ad)
+CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, std::shared_ptr<AccountDetails> ad)
 {
     cmd("utt");
 
@@ -5052,11 +5055,11 @@ bool CommandGetUserTransactions::procresult(Result r)
         client->json.leavearray();
     }
 
-    client->app->account_details(details, false, false, false, false, true, false);
+    client->app->account_details(details.get(), false, false, false, false, true, false);
     return true;
 }
 
-CommandGetUserPurchases::CommandGetUserPurchases(MegaClient* client, AccountDetails* ad)
+CommandGetUserPurchases::CommandGetUserPurchases(MegaClient* client, std::shared_ptr<AccountDetails> ad)
 {
     cmd("utp");
 
@@ -5094,11 +5097,11 @@ bool CommandGetUserPurchases::procresult(Result r)
         client->json.leavearray();
     }
 
-    client->app->account_details(details, false, false, false, true, false, false);
+    client->app->account_details(details.get(), false, false, false, true, false, false);
     return true;
 }
 
-CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, AccountDetails* ad)
+CommandGetUserSessions::CommandGetUserSessions(MegaClient* client, std::shared_ptr<AccountDetails> ad)
 {
     cmd("usl");
     arg("x", 1); // Request the additional id and alive information
@@ -5133,11 +5136,11 @@ bool CommandGetUserSessions::procresult(Result r)
         client->json.leavearray();
     }
 
-    client->app->account_details(details, false, false, false, false, false, true);
+    client->app->account_details(details.get(), false, false, false, false, false, true);
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable,
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable, bool megaHosted,
     int ctag, std::function<void(Error, handle, handle)> f)
 {
     h = n->nodehandle;
@@ -5165,6 +5168,11 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
         arg("w", "1");
     }
 
+    if (megaHosted)
+    {
+        assert(n->sharekey && "attempting to share a key that is not set");
+        arg("sk", n->sharekey->key, SymmCipher::KEYLENGTH);
+    }
 }
 
 bool CommandSetPH::procresult(Result r)
