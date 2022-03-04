@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "mega/mediafileattribute.h"
 #include <cctype>
+#include <ctime>
 #include <algorithm>
 #include <functional>
 #include <future>
@@ -2629,7 +2630,7 @@ void MegaClient::exec()
                 {
                     LOG_err << "Local fingerprint mismatch. Previous: " << sync->fsfp
                             << "  Current: " << current;
-                    sync->changestate(SYNC_FAILED, current ? LOCAL_FINGERPRINT_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true);
+                    sync->changestate(SYNC_FAILED, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true);
                 }
             }
         });
@@ -4547,6 +4548,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 #endif
 
     fetchingkeys = false;
+
+    mMyAccount = MyAccountData{};
 }
 
 void MegaClient::removeCaches(bool keepSyncsConfigFile)
@@ -7763,7 +7766,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
     return API_OK;
 }
 
-error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const string &binaryUploadToken,
+error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
                                           byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
                                           std::function<error(AttrMap&)> addNodeAttrsFunc, std::function<error(std::string *)> addFileAttrsFunc)
 {
@@ -7772,7 +7775,7 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     // set up new node as file node
     newnode->source = NEW_UPLOAD;
     newnode->type = FILENODE;
-    memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
+    newnode->uploadtoken = binaryUploadToken;
     newnode->parenthandle = UNDEF;
     newnode->uploadhandle = mUploadHandle.next();
     newnode->attrstring.reset(new string);
@@ -7820,7 +7823,10 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
 
     // adjust previous version node
     string name(utf8Name);
-    newnode->ovhandle = getovhandle(parentNode, &name);
+    if (Node* ovn = getovnode(parentNode, &name))
+    {
+        newnode->ovhandle = ovn->nodeHandle();
+    }
 
     return e;
 }
@@ -7863,18 +7869,19 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
-void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag)
+void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
     User* u;
 
     if (!(u = finduser(user, 0)) && !user)
     {
         restag = tag;
-        app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
+        if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false);
+        else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
 		return;
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag, move(completion)));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -8635,13 +8642,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         // to be the versions of this new node.
                         // So, we manually delete this node that the API must have deleted
                         // (Full and proper solution to this is in sync rework with SIC removal)
-                        if (Node *ovNode = nodebyhandle(nn_nni.ovhandle))
+                        if (Node *ovNode = nodeByHandle(nn_nni.ovhandle))
                         {
                             assert(ovNode->type == FILENODE);
 
                             TreeProcDel td;
                             proctree(ovNode, &td, false, true);
-                            LOG_debug << "File " << Base64Str<MegaClient::NODEHANDLE>(nn_nni.ovhandle) << " replaced by " << Base64Str<MegaClient::NODEHANDLE>(h);
+                            LOG_debug << "File " << nn_nni.ovhandle << " replaced by " << Base64Str<MegaClient::NODEHANDLE>(h);
                         }
                     }
 
@@ -11431,7 +11438,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
     }
 }
 
-void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
+void MegaClient::getaccountdetails(std::shared_ptr<AccountDetails> ad, bool storage,
                                    bool transfer, bool pro, bool transactions,
                                    bool purchases, bool sessions, int source)
 {
@@ -11462,7 +11469,7 @@ void MegaClient::querytransferquota(m_off_t size)
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
+error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
     int tag, std::function<void(Error, handle, handle)> completion)
 {
     if (n->plink && !del && !n->plink->takendown
@@ -11489,7 +11496,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
     switch (n->type)
     {
     case FILENODE:
-        requestPublicLink(n, del, ets, writable, tag, move(completion));
+        requestPublicLink(n, del, ets, writable, false, tag, move(completion));
         break;
 
     case FOLDERNODE:
@@ -11498,7 +11505,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
             NodeHandle h = n->nodeHandle();
-            requestPublicLink(n, del, ets, writable, tag, [this, completion, writable, tag, h](Error e, handle, handle){
+            requestPublicLink(n, del, ets, writable, false, tag, [this, completion, writable, tag, h](Error e, handle, handle){
                 Node* n = nodeByHandle(h);
                 if (e || !n)
                 {
@@ -11515,18 +11522,20 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
         else
         {
             // Exporting folder - need to create share first
-			// If share creation is successful, the share completion function calls requestPublicLink
+            // If share creation is successful, the share completion function calls requestPublicLink
 
             handle h = n->nodehandle;
 
-            setshare(n, NULL, writable ? FULL : RDONLY, writable, nullptr, tag, [this, h, ets, tag, writable, completion](Error e, bool){
+            setshare(n, NULL, writable ? FULL : RDONLY, writable, nullptr, tag,
+                     [this, megaHosted, h, ets, tag, writable, completion](Error e, bool)
+            {
                 if (e)
                 {
                     completion(e, UNDEF, UNDEF);
                 }
                 else if (Node* node = nodebyhandle(h))
                 {
-                    requestPublicLink(node, false, ets, writable, tag, completion);
+                    requestPublicLink(node, false, ets, writable, megaHosted, tag, completion);
                 }
                 else
                 {
@@ -11543,9 +11552,9 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
     return API_OK;
 }
 
-void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, int tag, std::function<void(Error, handle, handle)> f)
+void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted, int tag, std::function<void(Error, handle, handle)> f)
 {
-    reqs.add(new CommandSetPH(this, n, del, ets, writable, tag, move(f)));
+    reqs.add(new CommandSetPH(this, n, del, ets, writable, megaHosted, tag, move(f)));
 }
 
 // open exported file link
@@ -15270,7 +15279,7 @@ void MegaClient::syncupdate()
                         }
                         else
                         {
-                            nnp->ovhandle = l->node->nodehandle;
+                            nnp->ovhandle = l->node->nodeHandle();
                         }
                     }
 
@@ -16357,18 +16366,13 @@ m_off_t MegaClient::getmaxuploadspeed()
     return httpio->getmaxuploadspeed();
 }
 
-handle MegaClient::getovhandle(Node *parent, string *name)
+Node* MegaClient::getovnode(Node *parent, string *name)
 {
-    handle ovhandle = UNDEF;
     if (parent && name)
     {
-        Node *ovn = childnodebyname(parent, name->c_str(), true);
-        if (ovn)
-        {
-            ovhandle = ovn->nodehandle;
-        }
+        return childnodebyname(parent, name->c_str(), true);
     }
-    return ovhandle;
+    return nullptr;
 }
 
 node_list MegaClient::getChildren(Node* parent)
@@ -16730,6 +16734,42 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
     return s.str();
 }
 #endif
+
+m_time_t MegaClient::MyAccountData::getTimeLeft()
+{
+    auto timeleft = mProUntil - static_cast<m_time_t>(std::time(nullptr));
+    auto isuserpro = mProLevel > AccountType::ACCOUNT_TYPE_FREE;
+
+    return ( isuserpro ? timeleft : -1);
+};
+
+dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
+{
+    bool isuserpro = this->mMyAccount.getProLevel() > AccountType::ACCOUNT_TYPE_FREE;
+
+    // if user is pro, subscription's remaining time is used
+    // otherwise, use limit per IP coming from the header X-MEGA-Time-Left response header
+    m_time_t timeleft = (isuserpro) ? this->mMyAccount.getTimeLeft() : req->timeleft;
+
+    // send event only for negative timelefts received in the request header
+    if (!isuserpro && (timeleft < 0))
+    {
+        sendevent(99408, "Overquota without timeleft", 0);
+    }
+
+    dstime backoff;
+    if (timeleft > 0)
+    {
+        backoff = dstime(timeleft * 10);
+    }
+    else
+    {
+        // default retry interval
+        backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
+    }
+
+    return backoff;
+}
 
 FetchNodesStats::FetchNodesStats()
 {

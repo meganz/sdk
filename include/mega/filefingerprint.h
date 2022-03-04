@@ -74,6 +74,7 @@ struct MEGA_API FileFingerprintCmp
 };
 
 bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs);
+bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs);
 
 bool operator<(const FileFingerprint& lhs, const FileFingerprint& rhs);
 
