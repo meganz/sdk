@@ -13885,55 +13885,23 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         *
-         * @param megaFolder MEGA folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void removeSync(MegaNode *megaFolder, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Remove a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
+        void removeSync(MegaHandle backupId, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Remove a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         *
-         * @param sync Synchronization to cancel
-         * @param listener MegaRequestListener to track this request
+        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        void removeSync(MegaSync *sync, MegaRequestListener *listener = NULL);
+        MEGA_DEPRECATED
+        void removeSync(MegaSync *sync, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Disable a synced folder
@@ -14048,15 +14016,19 @@ class MegaApi
         /**
          * @brief Remove all active synced folders
          *
-         * All folders will stop being synced. Nothing in the local nor in the remote folders
-         * will be deleted due to the usage of this function.
+         * All folders will stop being synced. Nothing in the local folders
+         * will be deleted due to the usage of this function. In the remote folders,
+         * only backup syncs in Vault will be either permanently deleted or moved to the new destination.
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNCS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSyncs(MegaRequestListener *listener = NULL);
-
+        void removeSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get all configured syncs

@@ -3283,7 +3283,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_syncremove,
            sequence(text("sync"),
                     text("remove"),
-                    param("id")));
+                    param("id"),
+                    opt(param("backupdestinationfolder"))));
 
     p->Add(exec_syncxable,
            sequence(text("sync"),
@@ -9280,6 +9281,14 @@ void exec_syncremove(autocomplete::ACState& s)
     // Try and remove the config.
     bool found = false;
 
+    handle bkpDest = UNDEF;
+    if (s.words.size() > 3)
+    {
+        Node* bkpDestNode = client->nodeByPath(s.words[3].s.c_str());
+        if (bkpDestNode)
+            bkpDest = bkpDestNode->nodehandle;
+    }
+
     client->syncs.removeSelectedSyncs(
       [&](SyncConfig& config, Sync*)
       {
@@ -9288,7 +9297,8 @@ void exec_syncremove(autocomplete::ACState& s)
           found |= matched;
 
           return matched;
-      });
+      },
+        bkpDest);
 
     if (!found)
     {

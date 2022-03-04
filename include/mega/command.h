@@ -463,7 +463,7 @@ private:
 public:
     bool procresult(Result) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c, bool changeVault = false);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -482,7 +482,7 @@ class MEGA_API CommandDelNode : public Command
 public:
     bool procresult(Result) override;
 
-    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&);
+    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&, bool changeVault = false);
 };
 
 class MEGA_API CommandDelVersions : public Command
@@ -622,7 +622,7 @@ public:
 
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&);
+    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&, bool changeVault = false);
 };
 
 class MEGA_API CommandSetAttr : public Command

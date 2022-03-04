@@ -292,7 +292,7 @@ void SdkTest::Cleanup()
             for (int i = syncs->size(); i--; )
             {
                 delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
-                m->removeSync(syncs->get(i), delSyncTrackers.back().get());
+                m->removeSync(syncs->get(i)->getBackupId(), INVALID_HANDLE, delSyncTrackers.back().get());
             }
         }
     }
@@ -5159,7 +5159,7 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
-    megaApi[0]->removeSync(allSyncs->get(0), &removeTracker);
+    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), INVALID_HANDLE, &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
@@ -5422,7 +5422,9 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     ASSERT_EQ(MegaError::API_OK, err) << "Disable sync failed (error: " << err << ")";
 
     // remove backup
-    err = synchronousRemoveSync(0, backupNode.get());
+    std::unique_ptr<MegaSync> sync(megaApi[0]->getSyncByNode(backupNode.get()));
+    MegaHandle backupId = sync ? sync->getBackupId() : INVALID_HANDLE;
+    err = synchronousRemoveSync(0, backupId);
     ASSERT_EQ(MegaError::API_OK, err) << "Remove sync failed (error: " << err << ")";
 
     // reset DriveName value, before a future test
@@ -5829,7 +5831,7 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 {
 
     RequestTracker removeTracker(megaApi);
-    megaApi->removeSyncs(&removeTracker);
+    megaApi->removeSyncs(INVALID_HANDLE, &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
@@ -6017,7 +6019,7 @@ TEST_F(SdkTest, SyncBasicOperations)
     sync.reset(megaApi[0]->getSyncByNode(remoteBaseNode1.get()));
     ASSERT_EQ(nullptr, sync.get());
     // Sync 2
-    ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, sync2.get())) << "API Error removing the sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, sync2 ? sync2->getBackupId() : INVALID_HANDLE)) << "API Error removing the sync";
     // Keep sync2 not updated. Will be used later to test another removal attemp using a non-updated object.
 
     LOG_verbose << "SyncRemoveRemoteNode :  Remove Syncs that fail";
@@ -6026,10 +6028,10 @@ TEST_F(SdkTest, SyncBasicOperations)
 
         ASSERT_EQ(MegaError::API_ENOENT, synchronousRemoveSync(0, 9999999)); // Hope id doesn't exist
         ASSERT_EQ(MegaError::API_ENOENT, synchronousRemoveSync(0, backupId)); // currently removed.
-        ASSERT_EQ(MegaError::API_EARGS, synchronousRemoveSync(0, sync.get())); // currently removed.
+        ASSERT_EQ(MegaError::API_EARGS, synchronousRemoveSync(0, sync ? sync->getBackupId() : INVALID_HANDLE)); // currently removed.
         // Wait for sync to be effectively removed.
         std::this_thread::sleep_for(std::chrono::seconds{5});
-        ASSERT_EQ(MegaError::API_ENOENT, synchronousRemoveSync(0, sync2.get())); // currently removed.
+        ASSERT_EQ(MegaError::API_ENOENT, synchronousRemoveSync(0, sync2 ? sync2->getBackupId() : INVALID_HANDLE)); // currently removed.
     }
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
@@ -6247,11 +6249,10 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
-    auto removeSync = [this, &megaNode](const fs::path& p)
+    auto removeSync = [this](handle backupId)
     {
         RequestTracker syncTracker(megaApi[0].get());
-        auto node = megaNode(p.filename().u8string());
-        megaApi[0]->removeSync(node.get(), &syncTracker);
+        megaApi[0]->removeSync(backupId, INVALID_HANDLE, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
@@ -6313,7 +6314,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     LOG_verbose << " SyncResumptionAfterFetchNodes : disabling sync by tag";
     disableSyncByBackupId(backupId4);
     LOG_verbose << " SyncResumptionAfterFetchNodes : removing sync";
-    removeSync(sync3Path);
+    removeSync(backupId3);
 
     // wait for the sync removals to actually take place
     std::this_thread::sleep_for(std::chrono::seconds{3});
@@ -6365,9 +6366,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_TRUE(checkSyncOK(sync4Path));
 
     LOG_verbose << " SyncResumptionAfterFetchNodes : removing syncs";
-    removeSync(sync1Path);
-    removeSync(sync2Path);
-    removeSync(sync4Path);
+    removeSync(backupId1);
+    removeSync(backupId2);
+    removeSync(backupId4);
 
     // wait for the sync removals to actually take place
     std::this_thread::sleep_for(std::chrono::seconds{5});
@@ -6559,7 +6560,7 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     // Remove a failing sync.
     LOG_verbose << "SyncRemoteNode :  Remove failed sync";
-    ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, sync.get())) << "API Error removing the sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, sync->getBackupId())) << "API Error removing the sync";
     sync.reset(megaApi[0]->getSyncByBackupId(backupId));
     ASSERT_EQ(nullptr, sync.get());
 

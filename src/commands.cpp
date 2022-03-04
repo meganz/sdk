@@ -951,7 +951,7 @@ bool CommandSetAttr::procresult(Result r)
 CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                                  const char* userhandle, VersioningOption vo,
                                  vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
-                                 Completion&& resultFunction)
+                                 Completion&& resultFunction, bool changeVault)
   : mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
@@ -980,6 +980,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     if (cauth)
     {
         arg("cauth", cauth);
+    }
+
+    if (changeVault)
+    {
+        arg("vw", 1);
     }
 
     // "vb": when provided, it force to override the account-wide versioning behavior by the value indicated by client
@@ -1302,7 +1307,7 @@ bool CommandPutNodes::procresult(Result r)
     return true;
 }
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c)
+CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool changeVault)
 {
     h = n->nodeHandle();
     syncdel = csyncdel;
@@ -1316,6 +1321,11 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     // This is needed for backward compatibility, old versions used memcmp to detect if a 'd' actionpacket was followed by a 't'  actionpacket with the same 'i' (ie, a move)
     // Additionally the servers can't deliver `st` in that packet for the same reason.  And of course we will not ignore this `t` packet, despite setting 'i'.
     notself(client);
+
+    if (changeVault)
+    {
+        arg("vw", 1);
+    }
 
     arg("n", h);
     arg("t", t->nodeHandle());
@@ -1423,7 +1433,7 @@ bool CommandMoveNode::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f)
+CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f, bool changeVault)
     : mResultFunction(move(f))
 {
     cmd("d");
@@ -1434,6 +1444,11 @@ CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversi
     if (keepversions)
     {
         arg("v", 1);
+    }
+
+    if (changeVault)
+    {
+        arg("vw", 1);
     }
 
     h = th;

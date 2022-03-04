@@ -540,7 +540,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
             -1, UNDEF, 0, 0, addua_completion);
     };
 
-    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua);
+    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua, true);
     // Note: this request should not finish until the user's attribute is set successfully
 
     return API_OK;
@@ -7990,9 +7990,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction, bool changeVault)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
+    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction), changeVault));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
@@ -8200,7 +8200,15 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c)));
+        bool changeVault = false;
+        if (syncdel != SYNCDEL_NONE)
+        {
+            bool prevRootInVault = prevParent && (prevParent->firstancestor()->nodeHandle() == rootnodes.vault);
+            bool newRootInVault = p && (p->firstancestor()->nodeHandle() == rootnodes.vault);
+            changeVault = prevRootInVault || newRootInVault;
+        }
+
+        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c), changeVault));
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
@@ -8246,7 +8254,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction, bool changeVault)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
@@ -8267,7 +8275,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction)));
+    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction), changeVault));
 
     mergenewshares(1);
 
@@ -13830,6 +13838,12 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
+    if (syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
+    {
+        syncConfig.mError = INVALID_REMOTE_TYPE;
+        return API_EARGS;
+    }
+
     if (syncConfig.isExternal())
     {
         // Currently only possible for backup syncs.
@@ -15455,6 +15469,7 @@ void MegaClient::syncupdate()
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
 
                 auto nextTag = nextreqtag();
+                bool changeVault = localNode->syncxfer && localNode->parent->node->firstancestor()->nodeHandle() == rootnodes.vault;
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodeHandle(),
                                                 NULL,
@@ -15463,7 +15478,8 @@ void MegaClient::syncupdate()
                                                 nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC,
                                                 nullptr,
-                                                nullptr));
+                                                nullptr,
+                                                changeVault));
 
                 syncactivity = true;
             }
@@ -15622,7 +15638,8 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
-            unlink(tn, false, tn->tag);
+            bool changeVault = tn->firstancestor()->nodeHandle() == rootnodes.vault;
+            unlink(tn, false, tn->tag, nullptr, changeVault);
         }
 
         tn->tounlink_it = tounlink.end();
