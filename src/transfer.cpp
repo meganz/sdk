@@ -1046,6 +1046,7 @@ void Transfer::completefiles()
 
         client->app->file_complete(f);
 
+#ifdef ENABLE_SYNC
         if (f->syncxfer && type == PUT)
         {
             if (SyncUpload_inClient* put = dynamic_cast<SyncUpload_inClient*>(f))
@@ -1057,6 +1058,7 @@ void Transfer::completefiles()
                 client->transferBackstop.remember(put->transferTag, put->selfKeepAlive);
             }
         }
+#endif // ENABLE_SYNC
 
         f->transfer = NULL;
         f->completed(this, f->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
