@@ -1337,7 +1337,6 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
     }
     if (!localdebris.isContainingPathOf(*localpath))
     {
-        DirAccess* da;
         LocalPath localname;
         string name;
         bool success;
@@ -1347,7 +1346,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
             LOG_debug << "Scanning folder: " << localpath;
         }
 
-        da = client->fsaccess->newdiraccess();
+       auto da = client->fsaccess->newdiraccess();
 
         // scan the dir, mark all items with a unique identifier
         if ((success = da->dopen(localpath, fa, false)))
@@ -1369,7 +1368,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                         if (initializing)
                         {
                             // preload all cached LocalNodes
-                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da);
+                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da.get());
                         }
 
                         if (!l || l == (LocalNode*)~0)
@@ -1385,8 +1384,6 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                 }
             }
         }
-
-        delete da;
 
         return success;
     }
@@ -3655,13 +3652,13 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
     if (completion) completion(nDisabled);
 }
 
-void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
+void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest)
 {
     for (auto i = mSyncVec.size(); i--; )
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
-            removeSyncByIndex(i);
+            removeSyncByIndex(i, bkpDest);
         }
     }
 }
@@ -3699,7 +3696,7 @@ void Syncs::purgeSyncs()
     }
 }
 
-void Syncs::removeSyncByIndex(size_t index)
+void Syncs::removeSyncByIndex(size_t index, handle bkpDest)
 {
     if (index < mSyncVec.size())
     {
@@ -3718,6 +3715,27 @@ void Syncs::removeSyncByIndex(size_t index)
 
         // unregister this sync/backup from API (backup center)
         mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+
+        if (config.isBackup()) // thus in Vault
+        {
+            Node* remoteNode = mClient.nodeByHandle(config.getRemoteNode());
+            assert(remoteNode && remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault);
+
+            if (bkpDest == UNDEF) // permanently delete
+            {
+                mClient.unlink(remoteNode, false, mClient.nextreqtag(), nullptr, true);
+            }
+            else // move to the new destination
+            {
+                Node* destinationNode = mClient.nodebyhandle(bkpDest);
+                if (destinationNode)
+                {
+                    NodeHandle prevParent;
+                    prevParent.set6byte(remoteNode->parenthandle);
+                    mClient.reqs.add(new CommandMoveNode(&mClient, remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr, true));
+                }
+            }
+        }
 
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);

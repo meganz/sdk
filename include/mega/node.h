@@ -218,6 +218,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool parent : 1;
         bool publiclink : 1;
         bool newnode : 1;
+        bool name : 1;
+        bool favourite : 1;
 
 #ifdef ENABLE_SYNC
         // this field is only used internally in syncdown()

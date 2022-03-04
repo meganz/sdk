@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "mega/mediafileattribute.h"
 #include <cctype>
+#include <ctime>
 #include <algorithm>
 #include <functional>
 #include <future>
@@ -539,7 +540,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
             -1, UNDEF, 0, 0, addua_completion);
     };
 
-    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua);
+    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua, true);
     // Note: this request should not finish until the user's attribute is set successfully
 
     return API_OK;
@@ -4530,6 +4531,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 #endif
 
     fetchingkeys = false;
+
+    mMyAccount = MyAccountData{};
 }
 
 void MegaClient::removeCaches(bool keepSyncsConfigFile)
@@ -7904,6 +7907,9 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
         return API_EKEY;
     }
 
+    n->changed.name = n->attrs.hasUpdate('n', updates);
+    n->changed.favourite = n->attrs.hasUpdate(AttrMap::string2nameid("fav"), updates);
+
     // when we merge SIC removal, the local object won't be changed unless/until the command succeeds
     n->attrs.applyUpdates(updates);
 
@@ -8010,9 +8016,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction, bool changeVault)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
+    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction), changeVault));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
@@ -8220,7 +8226,15 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c)));
+        bool changeVault = false;
+        if (syncdel != SYNCDEL_NONE)
+        {
+            bool prevRootInVault = prevParent && (prevParent->firstancestor()->nodeHandle() == rootnodes.vault);
+            bool newRootInVault = p && (p->firstancestor()->nodeHandle() == rootnodes.vault);
+            changeVault = prevRootInVault || newRootInVault;
+        }
+
+        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c), changeVault));
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
@@ -8266,7 +8280,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction, bool changeVault)
 {
     if (!n->inshare && !checkaccess(n, FULL))
     {
@@ -8287,7 +8301,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction)));
+    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction), changeVault));
 
     mergenewshares(1);
 
@@ -10788,6 +10802,8 @@ void MegaClient::notifynode(Node* n)
             changed |= n->changed.parent << 8;
             changed |= n->changed.publiclink << 9;
             changed |= n->changed.newnode << 10;
+            changed |= n->changed.name << 11;
+            changed |= n->changed.favourite << 12;
 
             int attrlen = int(n->attrstring->size());
             string base64attrstring;
@@ -10863,7 +10879,7 @@ void MegaClient::notifynode(Node* n)
                     }
                 }
             }
-            else if (!n->changed.removed && n->changed.attrs && n->localnode && n->localnode->name.compare(n->displayname()))
+            else if (!n->changed.removed && n->changed.name && n->localnode && n->localnode->name.compare(n->displayname()))
             {
                 LOG_debug << "Sync - remote rename from " << n->localnode->name << " to " << n->displayname();
             }
@@ -11573,7 +11589,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
     }
 }
 
-void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
+void MegaClient::getaccountdetails(std::shared_ptr<AccountDetails> ad, bool storage,
                                    bool transfer, bool pro, bool transactions,
                                    bool purchases, bool sessions, int source)
 {
@@ -13848,6 +13864,12 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
+    if (syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
+    {
+        syncConfig.mError = INVALID_REMOTE_TYPE;
+        return API_EARGS;
+    }
+
     if (syncConfig.isExternal())
     {
         // Currently only possible for backup syncs.
@@ -15473,6 +15495,7 @@ void MegaClient::syncupdate()
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
 
                 auto nextTag = nextreqtag();
+                bool changeVault = localNode->syncxfer && localNode->parent->node->firstancestor()->nodeHandle() == rootnodes.vault;
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodeHandle(),
                                                 NULL,
@@ -15481,7 +15504,8 @@ void MegaClient::syncupdate()
                                                 nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC,
                                                 nullptr,
-                                                nullptr));
+                                                nullptr,
+                                                changeVault));
 
                 syncactivity = true;
             }
@@ -15640,7 +15664,8 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
-            unlink(tn, false, tn->tag);
+            bool changeVault = tn->firstancestor()->nodeHandle() == rootnodes.vault;
+            unlink(tn, false, tn->tag, nullptr, changeVault);
         }
 
         tn->tounlink_it = tounlink.end();
@@ -16933,6 +16958,42 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
     return s.str();
 }
 #endif
+
+m_time_t MegaClient::MyAccountData::getTimeLeft()
+{
+    auto timeleft = mProUntil - static_cast<m_time_t>(std::time(nullptr));
+    auto isuserpro = mProLevel > AccountType::ACCOUNT_TYPE_FREE;
+
+    return ( isuserpro ? timeleft : -1);
+};
+
+dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
+{
+    bool isuserpro = this->mMyAccount.getProLevel() > AccountType::ACCOUNT_TYPE_FREE;
+
+    // if user is pro, subscription's remaining time is used
+    // otherwise, use limit per IP coming from the header X-MEGA-Time-Left response header
+    m_time_t timeleft = (isuserpro) ? this->mMyAccount.getTimeLeft() : req->timeleft;
+
+    // send event only for negative timelefts received in the request header
+    if (!isuserpro && (timeleft < 0))
+    {
+        sendevent(99408, "Overquota without timeleft", 0);
+    }
+
+    dstime backoff;
+    if (timeleft > 0)
+    {
+        backoff = dstime(timeleft * 10);
+    }
+    else
+    {
+        // default retry interval
+        backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
+    }
+
+    return backoff;
+}
 
 FetchNodesStats::FetchNodesStats()
 {

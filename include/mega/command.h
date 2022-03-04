@@ -463,7 +463,7 @@ private:
 public:
     bool procresult(Result) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c, bool changeVault = false);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -482,7 +482,7 @@ class MEGA_API CommandDelNode : public Command
 public:
     bool procresult(Result) override;
 
-    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&);
+    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&, bool changeVault = false);
 };
 
 class MEGA_API CommandDelVersions : public Command
@@ -622,7 +622,7 @@ public:
 
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&);
+    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&, bool changeVault = false);
 };
 
 class MEGA_API CommandSetAttr : public Command
@@ -706,7 +706,7 @@ public:
 
 class MEGA_API CommandGetUserQuota : public Command
 {
-    AccountDetails* details;
+    std::shared_ptr<AccountDetails> details;
     bool mStorage;
     bool mTransfer;
     bool mPro;
@@ -714,7 +714,7 @@ class MEGA_API CommandGetUserQuota : public Command
 public:
     bool procresult(Result) override;
 
-    CommandGetUserQuota(MegaClient*, AccountDetails*, bool, bool, bool, int source);
+    CommandGetUserQuota(MegaClient*, std::shared_ptr<AccountDetails>, bool, bool, bool, int source);
 };
 
 class MEGA_API CommandQueryTransferQuota : public Command
@@ -727,32 +727,32 @@ public:
 
 class MEGA_API CommandGetUserTransactions : public Command
 {
-    AccountDetails* details;
+    std::shared_ptr<AccountDetails> details;
 
 public:
     bool procresult(Result) override;
 
-    CommandGetUserTransactions(MegaClient*, AccountDetails*);
+    CommandGetUserTransactions(MegaClient*, std::shared_ptr<AccountDetails>);
 };
 
 class MEGA_API CommandGetUserPurchases : public Command
 {
-    AccountDetails* details;
+    std::shared_ptr<AccountDetails> details;
 
 public:
     bool procresult(Result) override;
 
-    CommandGetUserPurchases(MegaClient*, AccountDetails*);
+    CommandGetUserPurchases(MegaClient*, std::shared_ptr<AccountDetails>);
 };
 
 class MEGA_API CommandGetUserSessions : public Command
 {
-    AccountDetails* details;
+    std::shared_ptr<AccountDetails> details;
 
 public:
     bool procresult(Result) override;
 
-    CommandGetUserSessions(MegaClient*, AccountDetails*);
+    CommandGetUserSessions(MegaClient*, std::shared_ptr<AccountDetails>);
 };
 
 class MEGA_API CommandSetPH : public Command

@@ -495,7 +495,9 @@ class MegaNode
             CHANGE_TYPE_PARENT          = 0x80,
             CHANGE_TYPE_PENDINGSHARE    = 0x100,
             CHANGE_TYPE_PUBLIC_LINK     = 0x200,
-            CHANGE_TYPE_NEW             = 0x400
+            CHANGE_TYPE_NEW             = 0x400,
+            CHANGE_TYPE_NAME            = 0x800,
+            CHANGE_TYPE_FAVOURITE       = 0x1000,
         };
 
         static const int INVALID_DURATION = -1;
@@ -946,6 +948,12 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_NEW             = 0x400
          * Check if the node is new
          *
+         * - MegaNode::CHANGE_TYPE_NAME            = 0x800
+         * Check if the node name has changed
+         *
+         * - MegaNode::CHANGE_TYPE_FAVOURITE        = 0x1000
+         * Check if the node was added to or removed from favorites
+         *
          */
         virtual int getChanges();
 
@@ -1048,11 +1056,23 @@ class MegaNode
          * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
          * of the MegaNode object.
          *
+         * @warning This method is not suitable for programming languages that require auto-generated bindings,
+         * due to the lack of mapping of string pointers to objects in different languages.
+         *
          * @return Decryption key of the file (in binary format)
-         * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
-         * Use MegaNode::getBase64Key instead
          */
         virtual std::string* getNodeKey();
+
+        /**
+         * @brief Returns true if the node key is decrypted
+         *
+         * For nodes in shared folders, there could be missing keys. Also, faulty
+         * clients might create invalid keys. In those cases, the node's key might
+         * not be decrypted successfully.
+         *
+         * @return True if the node key is decrypted
+         */
+        virtual bool isNodeKeyDecrypted();
 
         /**
          * @brief Returns the file attributes related to the node
@@ -1283,6 +1303,7 @@ class MegaUser
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
             CHANGE_TYPE_MY_BACKUPS_FOLDER           = 0x8000000,
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
+            CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
         };
 
         /**
@@ -1379,6 +1400,12 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_MY_BACKUPS_FOLDER = 0x8000000
          * Check if "My Backups" folder has changed
          *
+         * - MegaUser::CHANGE_TYPE_COOKIE_SETTINGS     = 0x10000000
+         * Check if option for cookie settings has changed
+         *
+         * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
+         * Check if option for iOS CallKit has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1467,6 +1494,13 @@ class MegaUser
          * Check if device names have changed
          *
          * - MegaUser::CHANGE_TYPE_BACKUP_NAMES = 0x8000000
+         *
+         * - MegaUser::CHANGE_TYPE_COOKIE_SETTINGS     = 0x10000000
+         * Check if option for cookie settings has changed
+         *
+         * - MegaUser::CHANGE_TYPE_NO_CALLKIT     = 0x20000000
+         * Check if option for iOS CallKit has changed
+         *
          * Check if backup names have changed         */
         virtual int getChanges();
 
@@ -7600,7 +7634,8 @@ class MegaApi
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
-            USER_ATTR_DRIVE_NAMES = 35           // private - byte array
+            USER_ATTR_DRIVE_NAMES = 35,          // private - byte array
+            USER_ATTR_NO_CALLKIT = 36,           // private - byte array
         };
 
         enum {
@@ -10557,18 +10592,28 @@ class MegaApi
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_STORAGE_STATE = 21
          * Get the state of the storage (private non-encrypted)
-         * MegaApi::ATTR_GEOLOCATION = 22
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
          * Get the user geolocation (private)
-         * MegaApi::ATTR_CAMERA_UPLOADS_FOLDER = 23
+         * MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER = 23
          * Get the target folder for Camera Uploads (private)
-         * MegaApi::ATTR_MY_CHAT_FILES_FOLDER = 24
+         * MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER = 24
          * Get the target folder for My chat files (private)
-         * MegaApi::ATTR_ALIAS = 27
+         * MegaApi::USER_ATTR_PUSH_SETTINGS = 25
+         * Get whether user has push settings enabled (private)
+         * MegaApi::USER_ATTR_ALIAS = 27
          * Get the list of the users's aliases (private)
-         * MegaApi::ATTR_DEVICE_NAMES = 30
+         * MegaApi::USER_ATTR_DEVICE_NAMES = 30
          * Get the list of device names (private)
-         * MegaApi::ATTR_MY_BACKUPS_FOLDER = 31
+         * MegaApi::USER_ATTR_MY_BACKUPS_FOLDER = 31
          * Get the target folder for My Backups (private)
+         * MegaApi::USER_ATTR_COOKIE_SETTINGS = 33
+         * Get whether user has Cookie Settings enabled
+         * MegaApi::USER_ATTR_JSON_SYNC_CONFIG_DATA = 34
+         * Get name and key to cypher sync-configs file
+         * MegaApi::USER_ATTR_DRIVE_NAMES = 35
+         * Get external drive names by id
+         * MegaApi::USER_ATTR_NO_CALLKIT = 36
+         * Get whether user has iOS CallKit disabled or enabled (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -10958,6 +11003,8 @@ class MegaApi
          * Set the public key Cu25519 of the user (public)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_NO_CALLKIT = 36
+         * Set whether user has iOS CallKit disabled or enabled (private, non-encrypted)
          *
          * If the MEGA account is a sub-user business account, and the value of the parameter
          * type is equal to MegaApi::USER_ATTR_FIRSTNAME or MegaApi::USER_ATTR_LASTNAME
@@ -13838,55 +13885,23 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         *
-         * @param megaFolder MEGA folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void removeSync(MegaNode *megaFolder, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Remove a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
+        void removeSync(MegaHandle backupId, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Remove a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         *
-         * @param sync Synchronization to cancel
-         * @param listener MegaRequestListener to track this request
+        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        void removeSync(MegaSync *sync, MegaRequestListener *listener = NULL);
+        MEGA_DEPRECATED
+        void removeSync(MegaSync *sync, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Disable a synced folder
@@ -14001,15 +14016,19 @@ class MegaApi
         /**
          * @brief Remove all active synced folders
          *
-         * All folders will stop being synced. Nothing in the local nor in the remote folders
-         * will be deleted due to the usage of this function.
+         * All folders will stop being synced. Nothing in the local folders
+         * will be deleted due to the usage of this function. In the remote folders,
+         * only backup syncs in Vault will be either permanently deleted or moved to the new destination.
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNCS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSyncs(MegaRequestListener *listener = NULL);
-
+        void removeSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get all configured syncs
@@ -14307,8 +14326,8 @@ class MegaApi
         int getTotalUploads();
 
         /**
-         * @brief Get the number of queued downloads since the last call to MegaApi::resetTotalUploads
-         * @return Number of queued downloads since the last call to MegaApi::resetTotalUploads
+         * @brief Get the number of queued uploads since the last call to MegaApi::resetTotalDownloads
+         * @return Number of queued uploads since the last call to MegaApi::resetTotalDownloads
          *
          * @deprecated Function related to statistics will be reviewed in future updates. They
          * could change or be removed in the current form.
@@ -14333,46 +14352,6 @@ class MegaApi
          * provide more data and avoid race conditions. They could change or be removed in the current form.
          */
         void resetTotalUploads();
-
-        /**
-         * @brief Get the number of completed uploads since the last call to MegaApi::resetCompletedUploads
-         * * The number of completed uploads does not include the cancelled transfers
-         * @return Number of completed uploads since the last call to MegaApi::resetCompletedUploads
-         */
-        size_t getCompletedUploads();
-
-        /**
-         * @brief Get the number of completed downloads since the last call to MegaApi::resetCompletedDownloads
-         * The number of completed downloads does not include the cancelled transfers
-         * @return Number of completed downloads since the last call to MegaApi::resetCompletedDownloads
-         */
-        size_t getCompletedDownloads();
-
-        /**
-         * @brief Reset the number of completed uploads (total uploads = pending uploads)
-         * This function resets the number returned by MegaApi::getTotalUploads
-         */
-        void resetCompletedUploads();
-
-        /**
-         * @brief Reset the number of completed downloads (total downloads = pending downloads)
-         * This function resets the number returned by MegaApi::getTotalDownloads
-         */
-        void resetCompletedDownloads();
-
-        /**
-         * @brief Reduced by one the number of completed uploads
-         * This function reduces the number returned by MegaApi::getCompletedUploads
-         * @param transferTag Tag of the upload to remove from the list of uploads.
-         */
-        void removeCompletedUpload(int transferTag);
-
-        /**
-         * @brief Reduced by one the number of completed downloads
-         * This function reduces the number returned by MegaApi::getCompletedDownloads
-         * @param transferTag Tag of the download to remove from the list of uploads.
-         */
-        void removeCompletedDownload(int transferTag);
 
         /**
          * @brief Get the total downloaded bytes

@@ -602,6 +602,11 @@ string *MegaNode::getNodeKey()
     return NULL;
 }
 
+bool MegaNode::isNodeKeyDecrypted()
+{
+    return false;
+}
+
 char *MegaNode::getFileAttrString()
 {
     return NULL;
@@ -3380,19 +3385,14 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
+void MegaApi::removeSync(MegaSync *sync, MegaHandle backupDestination, MegaRequestListener *listener)
 {
-    pImpl->removeSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
+    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, backupDestination, listener);
 }
 
-void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
+void MegaApi::removeSync(MegaHandle backupId, MegaHandle backupDestination, MegaRequestListener *listener)
 {
-    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
-}
-
-void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
-{
-    pImpl->removeSyncById(backupId, listener);
+    pImpl->removeSyncById(backupId, backupDestination, listener);
 }
 
 void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3430,9 +3430,9 @@ const char* MegaApi::exportSyncConfigs()
     return pImpl->exportSyncConfigs();
 }
 
-void MegaApi::removeSyncs(MegaRequestListener *listener)
+void MegaApi::removeSyncs(MegaHandle backupDestination, MegaRequestListener *listener)
 {
-   pImpl->stopSyncs(listener);
+   pImpl->stopSyncs(backupDestination, listener);
 }
 
 MegaSyncList* MegaApi::getSyncs()
@@ -3560,36 +3560,6 @@ void MegaApi::resetTotalDownloads()
 void MegaApi::resetTotalUploads()
 {
     pImpl->resetTotalUploads();
-}
-
-size_t MegaApi::getCompletedUploads()
-{
-    return pImpl->getCompletedUploads();
-}
-
-size_t MegaApi::getCompletedDownloads()
-{
-    return pImpl->getCompletedDownloads();
-}
-
-void MegaApi::resetCompletedDownloads()
-{
-    pImpl->resetCompletedDownloads();
-}
-
-void MegaApi::removeCompletedUpload(int transferTag)
-{
-    pImpl->removeCompletedUpload(transferTag);
-}
-
-void MegaApi::removeCompletedDownload(int transferTag)
-{
-    pImpl->removeCompletedDownload(transferTag);
-}
-
-void MegaApi::resetCompletedUploads()
-{
-    pImpl->resetCompletedUploads();
 }
 
 MegaNode *MegaApi::getRootNode()

@@ -357,24 +357,30 @@ void File::completed(Transfer* t, LocalNode* l)
                 t->client->syncadding++;
             }
 #endif
+            Node* parentNode = t->client->nodeByHandle(th);
             if (mVersioningOption != NoVersioning &&
                 ISUNDEF(newnode->ovhandle))
             {
-                newnode->ovhandle = t->client->getovhandle(t->client->nodeByHandle(th), &name);
+                newnode->ovhandle = t->client->getovhandle(parentNode, &name);
             }
 
+            putsource_t putSrc =
+#ifdef ENABLE_SYNC
+                l ? PUTNODES_SYNC : PUTNODES_APP;
+#else
+                PUTNODES_APP;
+#endif
+            bool changeVault = syncxfer && putSrc != PUTNODES_APP && parentNode &&
+                               parentNode->firstancestor()->nodeHandle() == t->client->rootnodes.vault;
             t->client->reqs.add(new CommandPutNodes(t->client,
                                                     th, NULL,
                                                     mVersioningOption,
                                                     move(newnodes),
                                                     tag,
-#ifdef ENABLE_SYNC
-                                                    l ? PUTNODES_SYNC : PUTNODES_APP,
-#else
-                                                    PUTNODES_APP,
-#endif
+                                                    putSrc,
                                                     nullptr,
-                                                    nullptr));
+                                                    nullptr,
+                                                    changeVault));
         }
     }
 }
