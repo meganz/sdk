@@ -11230,6 +11230,9 @@ class MegaApi
          *
          * @param node MegaNode to get the public link
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This method will be removed in future versions. Please, start using
+         * the MegaApi::exportNode signature that is not deprecated.
          */
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
 
@@ -11239,6 +11242,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_EXPORT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getAccess - Returns true
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -11253,6 +11257,9 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
+         *
+         * @deprecated This method will be removed in future versions. Please, start using
+         * the MegaApi::exportNode signature that is not deprecated.
          */
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
 
@@ -11263,7 +11270,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
          * - MegaRequest::getAccess - Returns true
+         * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getFlag - Returns true if writable
+         * - MegaRequest::getTransferTag - Returns if share key is shared with mega
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -11274,9 +11283,15 @@ class MegaApi
          *
          * @param node MegaNode to get the public link
          * @param writable if the link should be writable.
+         * @param megaHosted if true, the share key of this specific folder would be shared with MEGA.
+         * This is intended to be used for folders accessible though MEGA's S4 service.
+         * Encryption will occur nonetheless within MEGA's S4 service.
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This method will be removed in future versions. Please, start using
+         * the MegaApi::exportNode signature that is not deprecated.
          */
-        void exportNode(MegaNode *node, bool writable, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
@@ -11285,7 +11300,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
          * - MegaRequest::getAccess - Returns true
+         * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getFlag - Returns true if writable
+         * - MegaRequest::getTransferTag - Returns if share key is shared with mega
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -11297,9 +11314,10 @@ class MegaApi
          * @param node MegaNode to get the public link
          * @param expireTime Unix timestamp until the public link will be valid
          * @param writable if the link should be writable.
+         * @param megaHosted if the share key should be shared with MEGA
          * @param listener MegaRequestListener to track this request
          */
-        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Stop sharing a file/folder

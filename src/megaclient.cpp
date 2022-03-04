@@ -11545,7 +11545,7 @@ void MegaClient::querytransferquota(m_off_t size)
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
+error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
     int tag, std::function<void(Error, handle, handle)> completion)
 {
     if (n->plink && !del && !n->plink->takendown
@@ -11572,7 +11572,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
     switch (n->type)
     {
     case FILENODE:
-        requestPublicLink(n, del, ets, writable, tag, move(completion));
+        requestPublicLink(n, del, ets, writable, false, tag, move(completion));
         break;
 
     case FOLDERNODE:
@@ -11581,7 +11581,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
             NodeHandle h = n->nodeHandle();
-            requestPublicLink(n, del, ets, writable, tag, [this, completion, writable, tag, h](Error e, handle, handle){
+            requestPublicLink(n, del, ets, writable, false, tag, [this, completion, writable, tag, h](Error e, handle, handle){
                 Node* n = nodeByHandle(h);
                 if (e || !n)
                 {
@@ -11598,18 +11598,20 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
         else
         {
             // Exporting folder - need to create share first
-			// If share creation is successful, the share completion function calls requestPublicLink
+            // If share creation is successful, the share completion function calls requestPublicLink
 
             handle h = n->nodehandle;
 
-            setshare(n, NULL, writable ? FULL : RDONLY, writable, nullptr, tag, [this, h, ets, tag, writable, completion](Error e, bool){
+            setshare(n, NULL, writable ? FULL : RDONLY, writable, nullptr, tag,
+                     [this, megaHosted, h, ets, tag, writable, completion](Error e, bool)
+            {
                 if (e)
                 {
                     completion(e, UNDEF, UNDEF);
                 }
                 else if (Node* node = nodebyhandle(h))
                 {
-                    requestPublicLink(node, false, ets, writable, tag, completion);
+                    requestPublicLink(node, false, ets, writable, megaHosted, tag, completion);
                 }
                 else
                 {
@@ -11626,9 +11628,9 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable,
     return API_OK;
 }
 
-void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, int tag, std::function<void(Error, handle, handle)> f)
+void MegaClient::requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted, int tag, std::function<void(Error, handle, handle)> f)
 {
-    reqs.add(new CommandSetPH(this, n, del, ets, writable, tag, move(f)));
+    reqs.add(new CommandSetPH(this, n, del, ets, writable, megaHosted, tag, move(f)));
 }
 
 // open exported file link

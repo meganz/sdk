@@ -7031,12 +7031,13 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double la
     waiter->notify();
 }
 
-void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener)
+void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
     if(node) request->setNodeHandle(node->getHandle());
     request->setNumber(expireTime);
     request->setAccess(1);
+    request->setTransferTag(megaHosted ? 1 : 0);
     request->setFlag(writable);
     requestQueue.push(request);
     waiter->notify();
@@ -19506,10 +19507,12 @@ void MegaApiImpl::sendPendingRequests()
             Node* node = client->nodebyhandle(request->getNodeHandle());
             if(!node) { e = API_EARGS; break; }
 
-			bool writable = request->getFlag();
+            bool writable = request->getFlag();
+            bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
-            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, nextTag, [this, request, writable](Error e, handle h, handle ph){
-
+            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, nextTag,
+                [this, request](Error e, handle h, handle ph)
+            {
                 if (e || !request->getAccess()) // disable export doesn't return h and ph
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

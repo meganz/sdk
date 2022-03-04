@@ -3303,7 +3303,7 @@ autocomplete::ACN autocompleteSyntax()
 
 #endif
 
-    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
+    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(flag("-mega-hosted")), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
@@ -6152,6 +6152,7 @@ void exec_export(autocomplete::ACState& s)
     int etstmp = 0;
 
     bool writable = s.extractflag("-writable");
+    bool megaHosted = s.extractflag("-mega-hosted");
 
 
     if ((n = nodebypath(s.words[1].s.c_str())))
@@ -6169,7 +6170,7 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable, gNextClientTag++, [](Error e, handle h, handle ph){
+        if ((e = client->exportnode(n, deltmp, etstmp, writable, megaHosted, gNextClientTag++, [](Error e, handle h, handle ph){
             exportnode_result(e, h, ph);
         })))
         {
