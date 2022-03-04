@@ -5268,71 +5268,56 @@ bool Sync::recursiveCollectNameConflicts(list<NameConflict>& conflicts)
     return !conflicts.empty();
 }
 
-bool Sync::purgeStaleDownloads()
+void Sync::purgeStaleDownloads()
 {
-    using DBTC = DBTableTransactionCommitter;
+    // Convenience.
     using MC = MegaClient;
+    using DBTC = DBTableTransactionCommitter;
 
+    // Make sure we're running on the right thread.
     assert(syncs.onSyncThread());
 
-    // Tracks temporary files that're still meaningful.
-    set<LocalPath> alive;
+    auto globPath = localdebris;
 
-    // Determine what temporary files are still meaningful.
-    std::promise<void> notifier;
+    // Get our hands on this sync's temporary directory.
+    globPath.appendWithSeparator(LocalPath::fromRelativePath("tmp"), true);
 
-    syncs.queueClient([&alive, &notifier](MC& client, DBTC&){
-        // Collect file names of cached downloads.
+    // Generate glob pattern to match all temporary downloads.
+    globPath.appendWithSeparator(LocalPath::fromRelativePath(".*.mega"), true);
+
+    // Remainder of work takes place on the client thread.
+    //
+    // The idea here is to prevent the client from starting any new
+    // transfers while we're busy purging temporary files.
+    syncs.queueClient([globPath](MC& client, DBTC&) mutable {
+        // Figure out which temporaries are currently present.
+        auto dirAccess = client.fsaccess->newdiraccess();
+        auto paths = set<LocalPath>();
+
+        if (!dirAccess->dopen(&globPath, nullptr, true))
+            return;
+
+        LocalPath path;
+        LocalPath name;
+        nodetype_t type;
+
+        while (dirAccess->dnext(path, name, false, &type))
+        {
+            if (type == FILENODE)
+                paths.emplace(name);
+        }
+
+        // Filter out paths that are still "alive."
         for (auto& i : client.cachedtransfers[GET])
         {
             if (!i.second->localfilename.empty())
-                alive.emplace(i.second->localfilename);
+                paths.erase(i.second->localfilename);
         }
 
-        // Let the sync thread know we're done.
-        notifier.set_value();
+        // Remove "dead" temporaries.
+        for (auto& path : paths)
+            client.fsaccess->unlinklocal(path);
     });
-
-    // Wait for the alive set to be populated.
-    notifier.get_future().get();
-
-    auto globPath = ([this]() {
-        auto result = localdebris;
-
-        result.appendWithSeparator(LocalPath::fromRelativePath("tmp"), true);
-        result.appendWithSeparator(LocalPath::fromRelativePath(".*.mega"), true);
-
-        return result;
-    })();
-
-    auto dirAccess = syncs.fsaccess->newdiraccess();
-
-    // Open temporary directory for iteration.
-    if (!dirAccess->dopen(&globPath, nullptr, true))
-        return false;
-
-    LocalPath path;
-    LocalPath name;
-    nodetype_t type;
-
-    // Iterate over the temporary directory, collecting stale downloads.
-    while (dirAccess->dnext(path, name, false, &type))
-    {
-        // Not a file? Not interested.
-        if (type != FILENODE)
-            continue;
-
-        // Not stale? Not dead.
-        if (alive.find(name) != alive.end())
-            continue;
-
-        // Try and delete the file.
-        if (!syncs.fsaccess->unlinklocal(name))
-            LOG_debug << "Unable to delete stale download: "
-                      << name.toPath();
-    }
-
-    return true;
 }
 
 void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& childRows, vector<FSNode>& fsInferredChildren, vector<FSNode>& fsChildren, vector<CloudNode>& cloudChildren,
