@@ -312,6 +312,9 @@ struct syncRow
     // Does this row represent an ignore file?
     bool isIgnoreFile() const;
 
+    // Does this row represent a "no name" triplet?
+    bool isNoName() const;
+
 private:
     // Whether our ignore file requires exclusive processing.
     bool mIgnoreFileChanged = false;

@@ -749,6 +749,13 @@ bool Node::hasName(const string& name) const
     return it != attrs.map.end() && it->second == name;
 }
 
+bool Node::hasName() const
+{
+    auto i = attrs.map.find('n');
+
+    return i != attrs.map.end() && !i->second.empty();
+}
+
 // return file/folder name or special status strings
 const char* Node::displayname() const
 {
@@ -3153,7 +3160,7 @@ unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath&
 }
 
 CloudNode::CloudNode(const Node& n)
-    : name(n.displayname())
+    : name(n.hasName() ? n.displayname() : "")
     , type(n.type)
     , handle(n.nodeHandle())
     , parentHandle(n.parent ? n.parent->nodeHandle() : NodeHandle())

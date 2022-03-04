@@ -288,6 +288,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // check if the name matches (UTF-8)
     bool hasName(const string&) const;
 
+    // check if this node has a name.
+    bool hasName() const;
+
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;
 

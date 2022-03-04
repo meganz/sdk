@@ -487,6 +487,21 @@ string SyncPath::localPath_utf8() const
 
 bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
 {
+    if (row.isNoName())
+    {
+        auto noName = string("NO_NAME");
+        
+        // Multiple no name triplets?
+        if (row.hasClashes())
+            noName += "S";
+
+        cloudPath += "/" + noName;
+        localPath.appendWithSeparator(LocalPath::fromRelativePath(noName), true);
+        syncPath += "/" + noName;
+
+        return true;
+    }
+
     // add to localPath
     if (row.fsNode)
     {
@@ -5632,6 +5647,24 @@ bool syncRow::isIgnoreFile() const
     return false;
 }
 
+bool syncRow::isNoName() const
+{
+    // Can't be a no-name triplet if we've been paired.
+    if (fsNode || syncNode)
+        return false;
+
+    // Can't be a no-name triplet if we have clashing filesystem names.
+    if (!fsClashingNames.empty())
+        return false;
+
+    // Could be a no-name triplet if we have clashing cloud names.
+    if (!cloudClashingNames.empty())
+        return cloudClashingNames.front()->name.empty();
+
+    // Could be a no-name triplet if we have a cloud node.
+    return cloudNode && cloudNode->name.empty();
+}
+
 void Sync::combineTripletSet(vector<syncRow>::iterator a, vector<syncRow>::iterator b) const
 {
     assert(syncs.onSyncThread());
@@ -5807,6 +5840,11 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
     bool caseInsensitive = mCaseInsensitive;
 
     auto tripletCompare = [=](const syncRow& lhs, const syncRow& rhs) -> int {
+        // Sanity.
+        assert(!lhs.fsNode || !lhs.fsNode->localname.empty());
+        assert(!rhs.fsNode || !rhs.fsNode->localname.empty());
+        assert(!lhs.syncNode || !lhs.syncNode->localname.empty());
+        assert(!rhs.syncNode || !rhs.syncNode->localname.empty());
 
         if (lhs.cloudNode)
         {
@@ -6495,6 +6533,27 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
             row.itemProcessed = true;
             return rowResult;
         }
+    }
+
+    // Are we dealing with a no-name triplet?
+    if (row.isNoName())
+    {
+        ProgressingMonitor monitor(syncs);
+
+        monitor.waitingCloud(fullPath.cloudPath,
+                             string(),
+                             fullPath.localPath,
+                             SyncWaitReason::NoNameTripletsDetected);
+
+        LOG_debug << syncname
+                  << "No name triplets here. "
+                  << "Excluding this triplet from sync for now. "
+                  << logTriplet(row, fullPath);
+
+        row.itemProcessed = true;
+        row.suppressRecursion = true;
+
+        return false;
     }
 
     if (row.cloudNode &&

@@ -1065,7 +1065,8 @@ enum class SyncWaitReason {
     FolderContainsLockedFiles,
     LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
     SyncItemExceedsSupportedTreeDepth,
-    MACVerificationFailure
+    MACVerificationFailure,
+    NoNameTripletsDetected,
 };
 
 string syncWaitReasonString(SyncWaitReason);

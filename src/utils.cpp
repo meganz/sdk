@@ -2898,6 +2898,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
         case SyncWaitReason::SyncItemExceedsSupportedTreeDepth:             return "SyncItemExceedsSupportedTreeDepth";
         case SyncWaitReason::MACVerificationFailure:                        return "MACVerificationFailure";
+        case SyncWaitReason::NoNameTripletsDetected:                        return "NoNameTripletsDetected";
     }
     return "<out of range>";
 }

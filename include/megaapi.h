@@ -5579,6 +5579,8 @@ class MegaSyncStall
             FolderContainsLockedFiles,
             LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
             SyncItemExceedsSupportedTreeDepth,
+            MACVerificationFailure,
+            NoNameTripletsDetected,
         };
 
         /**

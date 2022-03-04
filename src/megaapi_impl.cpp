@@ -1319,6 +1319,8 @@ MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
     static_assert((int)SyncWaitReason::FolderContainsLockedFiles == (int)MegaSyncStall::SyncStallReason::FolderContainsLockedFiles);
     static_assert((int)SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose == (int)MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose);
     static_assert((int)SyncWaitReason::SyncItemExceedsSupportedTreeDepth == (int)MegaSyncStall::SyncStallReason::SyncItemExceedsSupportedTreeDepth);
+    static_assert((int)SyncWaitReason::MACVerificationFailure == (int)MegaSyncStall::SyncStallReason::MACVerificationFailure);
+    static_assert((int)SyncWaitReason::NoNameTripletsDetected == (int)MegaSyncStall::SyncStallReason::NoNameTripletsDetected);
 
     return  MegaSyncStall::SyncStallReason(reason);
 }
@@ -1364,6 +1366,8 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "MoveOrRenameFailed";
         case MegaSyncStall::SyncStallReason::CreateFolderFailed:
             return "CreateFolderFailed";
+        case MegaSyncStall::SyncStallReason::UnknownExclusionState:
+            return "UnknownExclusionState";
         case MegaSyncStall::SyncStallReason::UnableToLoadIgnoreFile:
             return "UnableToLoadIgnoreFile";
         case MegaSyncStall::SyncStallReason::MoveTargetNameTooLong:
@@ -1380,6 +1384,10 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "LocalAndRemotePreviouslyUnsyncedDiffer";
         case MegaSyncStall::SyncStallReason::SyncItemExceedsSupportedTreeDepth:
             return "SyncItemExceedsSupportedTreeDepth";
+        case MegaSyncStall::SyncStallReason::MACVerificationFailure:
+            return "MACVerificationFailure";
+        case MegaSyncStall::SyncStallReason::NoNameTripletsDetected:
+            return "NoNameTripletsDetected";
         // No default, so that the compiler warns us if we forget one
     }
     return "Unknown";
