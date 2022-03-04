@@ -5579,7 +5579,6 @@ void MegaClient::sc_updatenode()
     handle u = 0;
     const char* a = NULL;
     m_time_t ts = -1;
-    std::map<handle, int> sdsBkps;
 
     for (;;)
     {
@@ -5599,30 +5598,6 @@ void MegaClient::sc_updatenode()
 
             case MAKENAMEID2('t', 's'):
                 ts = jsonsc.getint();
-                break;
-
-            case MAKENAMEID3('s', 'd', 's'):
-                if (jsonsc.enterarray())
-                {
-                    for (;;)
-                    {
-                        const string& bkpIdStr = jsonsc.getname();
-                        if (bkpIdStr.empty())
-                        {
-                            break; // no more backupid-s
-                        }
-
-                        handle backupId = 0;
-                        Base64::atob(bkpIdStr.c_str(), (byte*)&backupId, sizeof(handle));
-                        m_off_t bkpState = jsonsc.getint();
-                        if (bkpState == CommandBackupPut::DELETED)
-                        {
-                            syncs.removeSelectedSyncs([&backupId](SyncConfig& c, Sync*) { return backupId == c.getBackupId(); });
-                        }
-                        sdsBkps[backupId] = (int)bkpState;
-                    }
-                    jsonsc.leavearray();
-                }
                 break;
 
             case EOO:
@@ -5655,13 +5630,6 @@ void MegaClient::sc_updatenode()
                         {
                             n->ctime = ts;
                             n->changed.ctime = true;
-                            notify = true;
-                        }
-
-                        if (n->sdsBackups != sdsBkps)
-                        {
-                            n->sdsBackups = sdsBkps;
-                            n->changed.attrs = true;
                             notify = true;
                         }
 
@@ -7398,6 +7366,32 @@ void MegaClient::notifypurge(void)
             Node* n = nodeByHandle(us.mConfig.getRemoteNode());
             if (!n)
                 return;
+
+            auto sdsBkps = n->getSdsBackups();
+            if (!sdsBkps.empty())
+            {
+                bool removed = false;
+                syncs.removeSelectedSyncs(
+                    [n, &sdsBkps, &removed](SyncConfig& c, Sync*)
+                    {
+                        auto it = sdsBkps.find(c.getBackupId());
+                        if (it != sdsBkps.end() && it->second == CommandBackupPut::DELETED)
+                        {
+                            sdsBkps.erase(it);
+                            removed = true;
+                            return true;
+                        }
+
+                        return false;
+                    });
+
+                if (removed)
+                {
+                    // update node attrs
+                    const string& value = n->setSdsBackups(sdsBkps);
+                    setattr(n, attr_map(n->sdsId(), value), 0, nullptr, nullptr);
+                }
+            }
 
             // check if moved
             bool movedToRubbish = n->firstancestor()->nodehandle == rubbishHandle.as8byte();

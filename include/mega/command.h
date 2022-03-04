@@ -1395,12 +1395,11 @@ public:
 class MEGA_API CommandBackupRemove : public Command
 {
     handle mBackupId;
-    NodeHandle mRemoteNode;
 
 public:
     bool procresult(Result) override;
 
-    CommandBackupRemove(MegaClient* client, handle backupId, const NodeHandle& remoteNode = NodeHandle());
+    CommandBackupRemove(MegaClient* client, handle backupId);
 };
 
 class MEGA_API CommandBackupPutHeartBeat : public Command

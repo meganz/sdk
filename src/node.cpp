@@ -732,6 +732,47 @@ void Node::setattr()
     }
 }
 
+nameid Node::sdsId() const
+{
+    constexpr nameid nid = MAKENAMEID3('s', 'd', 's');
+    return nid;
+}
+
+map<handle, int> Node::getSdsBackups() const
+{
+    map<handle, int> bkps;
+
+    auto it = attrs.map.find(sdsId());
+    if (it != attrs.map.end())
+    {
+        const string& ids = it->second; // "b64aa:8,b64bb:8"
+
+        // TODO: parse ids to bkps map
+        (void)ids;
+    }
+
+    return bkps;
+}
+
+string Node::setSdsBackups(const map<handle, int>& ids)
+{
+    string& value = attrs.map[sdsId()];
+    value.clear();
+
+    for (const auto& i : ids)
+    {
+        std::string idStr(Base64Str<MegaClient::BACKUPHANDLE>(i.first));
+        value += idStr + ':' + std::to_string(i.second) + ','; // "b64aa:8,b64bb:8"
+    }
+
+    if (!value.empty())
+    {
+        value.pop_back();
+    }
+
+    return value;
+}
+
 // if present, configure FileFingerprint from attributes
 // otherwise, the file's fingerprint is derived from the file's mtime/size/key
 void Node::setfingerprint()
