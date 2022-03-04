@@ -5291,25 +5291,21 @@ void Sync::purgeStaleDownloads()
     // transfers while we're busy purging temporary files.
     syncs.queueClient([globPath](MC& client, DBTC&) mutable {
         // Figure out which temporaries are currently present.
-        auto paths = ([&client, &globPath]() {
-            auto dirAccess = client.fsaccess->newdiraccess();
-            auto paths = set<LocalPath>();
+        auto dirAccess = client.fsaccess->newdiraccess();
+        auto paths = set<LocalPath>();
 
-            if (!dirAccess->dopen(&globPath, nullptr, true))
-                return paths;
+        if (!dirAccess->dopen(&globPath, nullptr, true))
+            return;
 
-            LocalPath path;
-            LocalPath name;
-            nodetype_t type;
+        LocalPath path;
+        LocalPath name;
+        nodetype_t type;
 
-            while (dirAccess->dnext(path, name, false, &type))
-            {
-                if (type == FILENODE)
-                    paths.emplace(name);
-            }
-
-            return paths;
-        })();
+        while (dirAccess->dnext(path, name, false, &type))
+        {
+            if (type == FILENODE)
+                paths.emplace(name);
+        }
 
         // Filter out paths that are still "alive."
         for (auto& i : client.cachedtransfers[GET])
