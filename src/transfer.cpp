@@ -1045,6 +1045,21 @@ void Transfer::completefiles()
         }
 
         client->app->file_complete(f);
+
+#ifdef ENABLE_SYNC
+        if (f->syncxfer && type == PUT)
+        {
+            if (SyncUpload_inClient* put = dynamic_cast<SyncUpload_inClient*>(f))
+            {
+                // We are about to hand over responsibility for putnodes to the sync
+                // However, if the sync gets shut down before that is sent, or the
+                // operation turns out to be invalidated (eg. uploaded file deleted before putnodes)
+                // then we must inform the app of the final transfer outcome.
+                client->transferBackstop.remember(put->transferTag, put->selfKeepAlive);
+            }
+        }
+#endif // ENABLE_SYNC
+
         f->transfer = NULL;
         f->completed(this, f->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
         files.erase(it++);

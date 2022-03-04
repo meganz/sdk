@@ -2500,6 +2500,15 @@ void MegaClient::exec()
                 LOG_debug << "Processed " << ctr_N << " sync requests in " << (waiter->ds - ctr_start) << "ms, " << n << " requests outstanding";
             }
         }
+
+        auto noPutnodes = transferBackstop.getAbandoned();
+        for (auto& np : noPutnodes)
+        {
+            restag = np->transferTag;
+            app->file_removed(np.get(), API_EINCOMPLETE);
+        }
+        noPutnodes.clear();
+
 #endif
 
         notifypurge();

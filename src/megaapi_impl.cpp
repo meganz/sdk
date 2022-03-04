@@ -16106,6 +16106,8 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
 
+    //LOG_verbose << "onTransferStart for " << transfer->getFileName() << " at " << transfer->getPath();
+
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
         (*it++)->onTransferStart(api, transfer);
@@ -16132,6 +16134,8 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
     transfer->setLastError(e.get());
+
+    //LOG_verbose << "onTransferFinish for " << transfer->getFileName() << " at " << transfer->getPath();
 
     if(e->getErrorCode())
     {
@@ -16632,40 +16636,44 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
 
 void MegaApiImpl::processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error& e)
 {
-    m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
-    if (tr->type == GET)
+    if (tr)
     {
-        totalDownloadedBytes += deltaSize;
-
-        if (pendingDownloads > 0)
+        m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
+        if (tr->type == GET)
         {
-            pendingDownloads--;
+            totalDownloadedBytes += deltaSize;
+
+            if (pendingDownloads > 0)
+            {
+                pendingDownloads--;
+            }
+
+            if (totalDownloads > 0)
+            {
+                totalDownloads--;
+            }
+        }
+        else
+        {
+            totalUploadedBytes += deltaSize;
+
+            if (pendingUploads > 0)
+            {
+                pendingUploads--;
+            }
+
+            if (totalUploads > 0)
+            {
+                totalUploads--;
+            }
         }
 
-        if (totalDownloads > 0)
-        {
-            totalDownloads--;
-        }
-    }
-    else
-    {
-        totalUploadedBytes += deltaSize;
-
-        if (pendingUploads > 0)
-        {
-            pendingUploads--;
-        }
-
-        if (totalUploads > 0)
-        {
-            totalUploads--;
-        }
+        transfer->setPriority(tr->priority);
     }
 
     transfer->setStartTime(Waiter::ds);
     transfer->setUpdateTime(Waiter::ds);
     transfer->setState(e == API_EINCOMPLETE ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_FAILED);
-    transfer->setPriority(tr->priority);
     DBTableTransactionCommitter committer(client->tctable);
     fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
 }

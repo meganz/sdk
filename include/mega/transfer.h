@@ -44,6 +44,51 @@ struct TransferCategory
 
 class DBTableTransactionCommitter;
 
+#ifdef ENABLE_SYNC
+class TransferBackstop
+{
+    // A class to help track transfers that completed but haven't had
+    // putnodes sent yet, and may be abandoned by the owning sync.  If
+    // that happens, we still need to inform the app about the transfer final state.
+
+    mutex m;
+
+    // map by transfer tag
+    map<int, shared_ptr<SyncTransfer_inClient>> pendingPutnodes;
+
+public:
+
+    void remember(int tag, shared_ptr<SyncTransfer_inClient> wp)
+    {
+        lock_guard<mutex> g(m);
+        pendingPutnodes[tag] = move(wp);
+    }
+
+    void forget(int tag)
+    {
+        lock_guard<mutex> g(m);
+        pendingPutnodes.erase(tag);
+    }
+
+    vector<shared_ptr<SyncTransfer_inClient>> getAbandoned()
+    {
+        lock_guard<mutex> g(m);
+        vector<shared_ptr<SyncTransfer_inClient>> v;
+        v.reserve(pendingPutnodes.size());
+        for (auto i = pendingPutnodes.begin(); i != pendingPutnodes.end(); )
+        {
+            if (i->second.use_count() == 1)
+            {
+                v.push_back(i->second);
+                i = pendingPutnodes.erase(i);
+            }
+            else ++i;
+       }
+       return v;
+    }
+};
+#endif
+
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
 struct MEGA_API Transfer : public FileFingerprint
 {

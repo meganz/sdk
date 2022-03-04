@@ -90,7 +90,13 @@ struct SyncTransfer_inClient: public File
     void completed(Transfer*, putsource_t) override;
     void terminated(error) override;
 
+    // We will be passing a raw pointer to this object
+    // into the tranfer system on the client thread.
+    // this member prevents that becoming a dangling pointer
+    // should the sync no longer require it.  So we set this
+    // member just before startxfer, and reset it on completed()/terminated()
     shared_ptr<SyncTransfer_inClient> selfKeepAlive;
+
     shared_ptr<SyncThreadsafeState> syncThreadSafeState;
 
     // Why was the transfer failed/terminated?
@@ -99,6 +105,8 @@ struct SyncTransfer_inClient: public File
     bool wasTerminated = false;
     bool wasCompleted = false;
     bool wasRequesterAbandoned = false;
+
+    int transferTag = -1;
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient
