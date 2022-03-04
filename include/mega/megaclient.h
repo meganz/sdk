@@ -1331,6 +1331,11 @@ public:
     transfer_map transfers[2];
     BackoffTimerGroupTracker transferRetryBackoffs[2];
 
+#ifdef ENABLE_SYNC
+    // track puts that may need finishing if sync abandoned before putnodes happens
+    TransferBackstop transferBackstop;
+#endif
+
     // transfer list to manage the priority of transfers
     TransferList transferlist;
 

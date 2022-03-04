@@ -8714,10 +8714,12 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
 
 error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector& configs)
 {
+#ifdef DEBUG
     for (const auto& config : configs)
     {
         assert(equal(config.mExternalDrivePath, drivePath));
     }
+#endif
 
     // Drive should already be known.
     assert(mKnownDrives.count(drivePath));

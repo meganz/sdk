@@ -2227,7 +2227,8 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
 
     sync->syncs.queueClient([upload, vo](MegaClient& mc, DBTableTransactionCommitter& committer)
         {
-            mc.nextreqtag();
+            upload->transferTag = mc.nextreqtag();
+            upload->selfKeepAlive = upload;
             mc.startxfer(PUT, upload.get(), committer, false, false, false, vo);
         });
 
@@ -2240,6 +2241,7 @@ void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download)
     sync->syncs.queueClient([download](MegaClient& mc, DBTableTransactionCommitter& committer)
         {
             mc.nextreqtag();
+            download->selfKeepAlive = download;
             mc.startxfer(GET, download.get(), committer, false, false, false, NoVersioning);
         });
 
@@ -2267,7 +2269,6 @@ void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
         }
     }
 
-    if (p) p->selfKeepAlive = p;
     transferSP = move(p);
 }
 
@@ -2345,7 +2346,11 @@ void SyncUpload_inClient::completed(Transfer* t, putsource_t source)
 
 void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
 {
+    // Always called from the client thread
     weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
+
+    // since we are now sending putnodes, no need to remember puts to inform the client on abandonment
+    syncThreadSafeState->client()->transferBackstop.forget(transferTag);
 
     File::sendPutnodes(client,
         uploadHandle,
