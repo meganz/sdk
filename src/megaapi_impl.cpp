@@ -5677,7 +5677,7 @@ char *MegaApiImpl::getMyRSAPrivateKey()
 
 void MegaApiImpl::setLogLevel(int logLevel)
 {
-    g_externalLogger.setLogLevel(logLevel);
+    SimpleLogger::setLogLevel(LogLevel(logLevel));
 }
 
 void MegaApiImpl::setMaxPayloadLogSize(long long maxSize)
@@ -5737,12 +5737,13 @@ void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger, bool singleExclusive
 
 void MegaApiImpl::setLogToConsole(bool enable)
 {
+    // only supported for external (not exclusive) loggers
     g_externalLogger.setLogToConsole(enable);
 }
 
 void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
 {
-    g_externalLogger.postLog(logLevel, message, filename, line);
+    SimpleLogger::postLog(LogLevel(logLevel), message, filename, line);
 }
 
 void MegaApiImpl::setLoggingName(const char* loggingName)

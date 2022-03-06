@@ -613,6 +613,15 @@ public:
     {
         maxPayloadLogSize = size;
     }
+
+    // Log messages forwarded from the client app though the configured logging mechanisms.
+    // These do not go through the LOG_<level> macros.
+    static void postLog(LogLevel logLevel, const char *message, const char *filename, int line)
+    {
+        if (logCurrentLevel < logLevel) return;
+        SimpleLogger logger(logLevel, filename ? filename : "", line);
+        if (message) logger << message;
+    }
 };
 
 // source file leaf name - maybe to be compile time calculated one day
@@ -683,7 +692,6 @@ public:
     void removeMegaLogger(void* id);
     void setLogLevel(int logLevel);
     void setLogToConsole(bool enable);
-    void postLog(int logLevel, const char *message, const char *filename, int line);
     void log(const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
         , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages

@@ -9835,6 +9835,10 @@ class MegaApi
         /**
          * @brief Enable log to console
          *
+         * This function is only relevant if non-exclusive loggers are used.
+         * For exclusive logging (ie, only one logger and no locking before it's called back)
+         * the exclusive logger can easily output to console itself.
+         *
          * By default, log to console is false. Logging to console is serialized via a mutex to
          * avoid interleaving by multiple threads, even in performance mode.
          *
@@ -9857,7 +9861,7 @@ class MegaApi
          * @param megaLogger MegaLogger implementation
          * @param singleExclusiveLogger If set, this is the only logger that will be called, and no mutexes will be locked before calling it.
          */
-        static void addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
+        static void addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger);
 
         /**
          * @brief Remove a MegaLogger implementation to stop receiving SDK logs
@@ -9871,7 +9875,7 @@ class MegaApi
          * @param megaLogger Previously registered MegaLogger implementation
          * @param singleExclusiveLogger If an exclusive logger was previously set, use this flag to remove it.
          */
-        static void removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
+        static void removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger);
 
         /**
          * @brief

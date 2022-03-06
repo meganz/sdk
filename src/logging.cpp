@@ -108,34 +108,9 @@ void ExternalLogger::removeMegaLogger(void* id)
     megaLoggers.erase(id);
 }
 
-void ExternalLogger::setLogLevel(int logLevel)
-{
-    SimpleLogger::setLogLevel((LogLevel)logLevel);
-}
-
 void ExternalLogger::setLogToConsole(bool enable)
 {
     this->logToConsole = enable;
-}
-
-void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
-{
-    if (SimpleLogger::logCurrentLevel < logLevel)
-    {
-        return;
-    }
-
-    if (!message)
-    {
-        message = "";
-    }
-
-    if (!filename)
-    {
-        filename = "";
-    }
-
-    SimpleLogger{static_cast<LogLevel>(logLevel), filename, line} << message;
 }
 
 void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message
