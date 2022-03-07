@@ -7377,8 +7377,13 @@ void MegaClient::notifypurge(void)
                 syncs.removeSelectedSyncs(
                     [n, &sdsBkps, &removed](SyncConfig& c, Sync*)
                     {
-                        auto it = sdsBkps.find(c.getBackupId());
-                        if (it != sdsBkps.end() && it->second == CommandBackupPut::DELETED)
+                        auto it = find_if(sdsBkps.begin(), sdsBkps.end(),
+                            [&c](const pair<handle, int>& e)
+                            {
+                                return e.first == c.getBackupId() && e.second == CommandBackupPut::DELETED;
+                            });
+
+                        if (it != sdsBkps.end())
                         {
                             sdsBkps.erase(it);
                             removed = true;

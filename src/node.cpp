@@ -742,23 +742,44 @@ nameid Node::sdsId() const
     return nid;
 }
 
-map<handle, int> Node::getSdsBackups() const
+vector<pair<handle, int>> Node::getSdsBackups() const
 {
-    map<handle, int> bkps;
+    vector<pair<handle, int>> bkps;
 
     auto it = attrs.map.find(sdsId());
     if (it != attrs.map.end())
     {
-        const string& ids = it->second; // "b64aa:8,b64bb:8"
+        string ids = it->second; // "b64aa:8,b64bb:8"
+        std::istringstream is(it->second);
+        is.ignore(); // skip leading '"'
+        while (is)
+        {
+            string b64BkpIdStr;
+            std::getline(is, b64BkpIdStr, ':');
+            assert(is);
+            handle bkpId = UNDEF;
+            Base64::atob(b64BkpIdStr.c_str(), (byte*)&bkpId, MegaClient::BACKUPHANDLE);
+            assert(bkpId != UNDEF);
 
-        // TODO: parse ids to bkps map
-        (void)ids;
+            string stateStr;
+            std::getline(is, stateStr, ',');
+            try
+            {
+                int state = std::stoi(stateStr);
+                bkps.push_back(std::make_pair(bkpId, state));
+            }
+            catch (...)
+            {
+                LOG_err << "Invalid backup state in 'sds' attr value";
+                break;
+            }
+        }
     }
 
     return bkps;
 }
 
-string Node::setSdsBackups(const map<handle, int>& ids)
+string Node::setSdsBackups(const vector<pair<handle, int>>& ids)
 {
     string& value = attrs.map[sdsId()];
     value.clear();
@@ -766,12 +787,14 @@ string Node::setSdsBackups(const map<handle, int>& ids)
     for (const auto& i : ids)
     {
         std::string idStr(Base64Str<MegaClient::BACKUPHANDLE>(i.first));
-        value += idStr + ':' + std::to_string(i.second) + ','; // "b64aa:8,b64bb:8"
+        value += idStr + ':' + std::to_string(i.second) + ','; // `b64aa:8,b64bb:8,`
     }
 
     if (!value.empty())
     {
-        value.pop_back();
+        // turn `b64aa:8,b64bb:8,` into `"b64aa:8,b64bb:8"`
+        value = '"' + value;
+        value.back() = '"';
     }
 
     return value;
