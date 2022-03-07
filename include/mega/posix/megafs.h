@@ -86,8 +86,8 @@ public:
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
-    std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
-    DirAccess* newdiraccess() override;
+    unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
+    unique_ptr<DirAccess>  newdiraccess() override;
 #ifdef ENABLE_SYNC
     DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
 #endif
