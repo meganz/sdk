@@ -15112,5 +15112,81 @@ TEST_F(SyncTest, MaximumTreeDepthBehavior)
     ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
 }
 
+TEST_F(SyncTest, StallsWhenEncounteringHardLink)
+{
+    auto TIMEOUT = std::chrono::seconds(16);
+
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the client's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Make sure the sync root exists in the cloud.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate model (and local filesystem.)
+    Model model;
+
+    model.addfile("f0");
+    model.addfile("f1");
+    model.generate(client->fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure everything got uploaded.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Create a hard link to f0.
+    auto fsAccess = client->client.fsaccess.get();
+    LocalPath sourcePath;
+    LocalPath targetPath;
+
+    {
+        auto source = client->fsBasePath / "s" / "f0";
+        auto target = client->fsBasePath / "s" / "f2";
+
+        sourcePath = LocalPath::fromAbsolutePath(source.u8string());
+        targetPath = LocalPath::fromAbsolutePath(target.u8string());
+
+        ASSERT_TRUE(fsAccess->hardLink(sourcePath, targetPath));
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(TIMEOUT, client);
+
+    // Wait for the engine to detect a stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+
+    // Make sure we've actually stalled.
+    SyncStallInfo stalls;
+
+    ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+
+    // Check that we've stalled for the right reason.
+    ASSERT_FALSE(stalls.local.empty());
+
+    ASSERT_EQ(stalls.local.begin()->first, targetPath);
+    ASSERT_EQ(stalls.local.begin()->second.involvedLocalPath, sourcePath);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::EncounteredHardLinkAtMoveSource);
+
+    // Check if we can resolve the stall by removing the hardlink.
+    ASSERT_TRUE(fsAccess->unlinklocal(targetPath));
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure nothing's changed in the cloud.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+}
+
 #endif
 
