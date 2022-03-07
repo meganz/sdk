@@ -1896,6 +1896,35 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // Sanity.
             assert(sourceSyncNode->exclusionState() == ES_INCLUDED);
 
+            // Check if the move source is still present and has the same
+            // FSID as the target. If it does, we've encountered a hard link
+            // and need to stall.
+            //
+            // If we don't stall, we'll trigger an infinite rename loop.
+            {
+                auto sourcePath = sourceSyncNode->getLocalPath();
+                auto sourceFSID = syncs.fsaccess->fsidOf(sourcePath, false);
+                auto targetFSID = row.fsNode->fsid;
+
+                if (sourceFSID != UNDEF && sourceFSID == targetFSID)
+                {
+                    // Let the user know why we can't perform the move.
+                    monitor.waitingLocal(fullPath.localPath,
+                                         sourcePath,
+                                         fullPath.cloudPath,
+                                         SyncWaitReason::EncounteredHardLinkAtMoveSource);
+
+                    // Don't try and synchronize our associate.
+                    markSiblingSourceRow();
+
+                    // Don't descend below this node.
+                    row.suppressRecursion = true;
+
+                    // Attempt the move later.
+                    return rowResult = false, true;
+                }
+            }
+
             // logic to detect files being updated in the local computer moving the original file
             // to another location as a temporary backup
             if (sourceSyncNode->type == FILENODE &&

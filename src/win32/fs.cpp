@@ -694,6 +694,23 @@ bool WinFileSystemAccess::cwd(LocalPath& path) const
     return nWritten > 0;
 }
 
+bool WinFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& target)
+{
+    if (!CreateHardLinkW(target.localpath.c_str(), source.localpath.c_str(), nullptr))
+    {
+        LOG_warn << "Unable to create hard link from "
+                 << source.toPath()
+                 << " to "
+                 << target.toPath()
+                 << ". Error code was: "
+                 << GetLastError();
+
+        return false;
+    }
+
+    return true;
+}
+
 bool WinFileSystemAccess::istransient(DWORD e)
 {
     return e == ERROR_ACCESS_DENIED

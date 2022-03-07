@@ -104,6 +104,8 @@ public:
 
     std::set<WinDirNotify*> dirnotifys;
 #endif
+
+    bool hardLink(const LocalPath& source, const LocalPath& target) override;
 };
 
 #ifdef ENABLE_SYNC

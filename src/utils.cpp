@@ -2899,6 +2899,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::SyncItemExceedsSupportedTreeDepth:             return "SyncItemExceedsSupportedTreeDepth";
         case SyncWaitReason::MACVerificationFailure:                        return "MACVerificationFailure";
         case SyncWaitReason::NoNameTripletsDetected:                        return "NoNameTripletsDetected";
+        case SyncWaitReason::EncounteredHardLinkAtMoveSource:               return "EncounteredHardLinkAtMoveSource";
     }
     return "<out of range>";
 }

@@ -1676,6 +1676,27 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
            && type != FS_FUSE;
 }
 
+bool PosixFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& target)
+{
+    using StringType = decltype(adjustBasePath(source));
+
+    StringType sourcePath = adjustBasePath(source);
+    StringType targetPath = adjustBasePath(target);
+
+    if (link(sourcePath.c_str(), targetPath.c_str()))
+    {
+        LOG_warn << "Unable to create hard link from "
+                 << sourcePath
+                 << " to "
+                 << targetPath
+                 << ". Error code was: "
+                 << errno;
+
+        return false;
+    }
+
+    return true;
+}
 #endif // ENABLE_SYNC
 
 std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)
