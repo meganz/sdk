@@ -12691,6 +12691,8 @@ class MegaApi
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
+         * @param fileName Custom file name for the file or folder in MEGA
+         *  + If you don't need this param provide NULL as value
          * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
          *  + If you don't need this param provide MegaApi::INVALID_CUSTOM_MOD_TIME as value
          * @param appData Custom app data to save in the MegaTransfer object
@@ -12700,8 +12702,6 @@ class MegaApi
          * fails with the error API_EEXISTS and the appData of the new transfer is appended to
          * the appData of the old transfer, using a '!' separator if the old transfer had already
          * appData.
-         *  + If you don't need this param provide NULL as value
-         * @param fileName Custom file name for the file or folder in MEGA
          *  + If you don't need this param provide NULL as value
          * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
          * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
@@ -12714,7 +12714,7 @@ class MegaApi
          * App retains the ownership of this param.
          * @param listener MegaTransferListener to track this transfer
          */
-        void startUpload(const char *localPath, MegaNode *parent, int64_t mtime, const char *appData, const char *fileName, bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener=NULL);
+        void startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData, bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder
@@ -12780,11 +12780,11 @@ class MegaApi
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
          * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
          * one of these characters, the file will be downloaded to a file in that path.
+         * @param customName Custom file name for the file or folder in local destination
+         *  + If you don't need this param provide NULL as value
          * @param appData Custom app data to save in the MegaTransfer object
          * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
          * related to the transfer.
-         *  + If you don't need this param provide NULL as value
-         * @param fileName Custom file name for the file or folder in local destination
          *  + If you don't need this param provide NULL as value
          * @param startFirst puts the transfer on top of the download queue
          *  + If you don't need this param provide false as value
@@ -12793,7 +12793,7 @@ class MegaApi
          * App retains the ownership of this param.
          * @param listener MegaTransferListener to track this transfer
          */
-        void startDownload(MegaNode* node, const char* localPath, const char *appData,  const char *customName, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener = NULL);
+        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA

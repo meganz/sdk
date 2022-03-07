@@ -3181,7 +3181,7 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
     pImpl->startTimer(period, listener);
 }
 
-void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, const char *fileName, const char *appData,  bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData,  bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
     pImpl->startUpload(startFirst, localPath, parent, fileName, NULL /*targetUser*/, mtime,
                        0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
