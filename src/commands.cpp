@@ -3624,7 +3624,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 
         Node* n;
 
-        if ((n = client->nodebyhandle(h)))
+        if ((n = client->nodebyhandle(h, true)))
         {
             client->key.ecb_encrypt((byte*)n->nodekey().data(), nodekey, n->nodekey().size());
 
