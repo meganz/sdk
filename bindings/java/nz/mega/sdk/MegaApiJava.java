@@ -6145,20 +6145,38 @@ public class MegaApiJava {
 
     /**
      * Upload a file or a folder
-     *
+     * <p>
      * If the status of the business account is expired, onTransferFinish will be called with the error
      * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
      * "Your business account is overdue, please contact your administrator."
-     *
+     * <p>
+     * When user wants to upload/download a batch of items that at least contains one folder, SDK mutex will be partially
+     * locked until:
+     * - we have received onTransferStart for every file in the batch
+     * - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+     * for every folder in the batch
+     * <p>
+     * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+     * This method will cancel all transfers(not finished yet).
+     * <p>
+     * Important considerations:
+     * - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+     * of those transfers.
+     * <p>
+     * - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
+     * that shares the same cancel token instance.
+     * <p>
      * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
      * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
      * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
      * instead of that, use MegaCancelToken::cancel(true) calling through MegaCancelToken instance associated to this transfer.
-     *
+     * <p>
      * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
      *
      * @param localPath         Local path of the file or folder
      * @param parent            Parent node for the file or folder in the MEGA account
+     * @param fileName          Custom file name for the file or folder in MEGA
+     *                          + If you don't need this param provide NULL as value
      * @param mtime             Custom modification time for the file in MEGA (in seconds since the epoch)
      *                          + If you don't need this param provide MegaApi::INVALID_CUSTOM_MOD_TIME as value
      * @param appData           Custom app data to save in the MegaTransfer object
@@ -6169,8 +6187,6 @@ public class MegaApiJava {
      *                          the appData of the old transfer, using a '!' separator if the old transfer had already
      *                          appData.
      *                          + If you don't need this param provide NULL as value
-     * @param fileName          Custom file name for the file or folder in MEGA
-     *                          + If you don't need this param provide NULL as value
      * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
      *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
      *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
@@ -6178,33 +6194,51 @@ public class MegaApiJava {
      * @param startFirst        puts the transfer on top of the upload queue
      *                          + If you don't need this param provide false as value
      * @param cancelToken       MegaCancelToken to be able to cancel a folder/file upload process.
-     *                          This param is required to be able to cancel the transfer safely by calling MegaCancelToken::cancel(true)
-     *                          You preserve the ownership of this param.
+     *                          This param is required to be able to cancel the transfer safely.
+     *                          App retains the ownership of this param.
      * @param listener          MegaTransferListener to track this transfer
      */
-    public void startUpload(String localPath, MegaNode parent, long mtime, String appData,
-                            String fileName, boolean isSourceTemporary, boolean startFirst,
+    public void startUpload(String localPath, MegaNode parent, String fileName, long mtime,
+                            String appData, boolean isSourceTemporary, boolean startFirst,
                             MegaCancelToken cancelToken, MegaTransferListenerInterface listener) {
-        megaApi.startUpload(localPath, parent, mtime, appData, fileName, isSourceTemporary,
+        megaApi.startUpload(localPath, parent, fileName, mtime, appData, isSourceTemporary,
                 startFirst, cancelToken, createDelegateTransferListener(listener));
     }
 
     /**
      * Upload a file or a folder
-     *
+     * <p>
      * If the status of the business account is expired, onTransferFinish will be called with the error
      * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
      * "Your business account is overdue, please contact your administrator."
-     *
+     * <p>
+     * When user wants to upload/download a batch of items that at least contains one folder, SDK mutex will be partially
+     * locked until:
+     * - we have received onTransferStart for every file in the batch
+     * - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+     * for every folder in the batch
+     * <p>
+     * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+     * This method will cancel all transfers(not finished yet).
+     * <p>
+     * Important considerations:
+     * - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+     * of those transfers.
+     * <p>
+     * - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
+     * that shares the same cancel token instance.
+     * <p>
      * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
      * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
      * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
      * instead of that, use MegaCancelToken::cancel(true) calling through MegaCancelToken instance associated to this transfer.
-     *
+     * <p>
      * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
      *
      * @param localPath         Local path of the file or folder
      * @param parent            Parent node for the file or folder in the MEGA account
+     * @param fileName          Custom file name for the file or folder in MEGA
+     *                          + If you don't need this param provide NULL as value
      * @param mtime             Custom modification time for the file in MEGA (in seconds since the epoch)
      *                          + If you don't need this param provide MegaApi::INVALID_CUSTOM_MOD_TIME as value
      * @param appData           Custom app data to save in the MegaTransfer object
@@ -6215,8 +6249,6 @@ public class MegaApiJava {
      *                          the appData of the old transfer, using a '!' separator if the old transfer had already
      *                          appData.
      *                          + If you don't need this param provide NULL as value
-     * @param fileName          Custom file name for the file or folder in MEGA
-     *                          + If you don't need this param provide NULL as value
      * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
      *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
      *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
@@ -6224,13 +6256,13 @@ public class MegaApiJava {
      * @param startFirst        puts the transfer on top of the upload queue
      *                          + If you don't need this param provide false as value
      * @param cancelToken       MegaCancelToken to be able to cancel a folder/file upload process.
-     *                          This param is required to be able to cancel the transfer safely by calling MegaCancelToken::cancel(true)
-     *                          You preserve the ownership of this param.
+     *                          This param is required to be able to cancel the transfer safely.
+     *                          App retains the ownership of this param.
      */
-    public void startUpload(String localPath, MegaNode parent, long mtime, String appData,
-                            String fileName, boolean isSourceTemporary, boolean startFirst,
+    public void startUpload(String localPath, MegaNode parent, String fileName, long mtime,
+                            String appData, boolean isSourceTemporary, boolean startFirst,
                             MegaCancelToken cancelToken) {
-        megaApi.startUpload(localPath, parent, mtime, appData, fileName, isSourceTemporary,
+        megaApi.startUpload(localPath, parent, fileName, mtime, appData, isSourceTemporary,
                 startFirst, cancelToken);
     }
 
