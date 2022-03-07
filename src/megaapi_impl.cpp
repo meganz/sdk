@@ -1321,6 +1321,7 @@ MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
     static_assert((int)SyncWaitReason::SyncItemExceedsSupportedTreeDepth == (int)MegaSyncStall::SyncStallReason::SyncItemExceedsSupportedTreeDepth);
     static_assert((int)SyncWaitReason::MACVerificationFailure == (int)MegaSyncStall::SyncStallReason::MACVerificationFailure);
     static_assert((int)SyncWaitReason::NoNameTripletsDetected == (int)MegaSyncStall::SyncStallReason::NoNameTripletsDetected);
+    static_assert((int)SyncWaitReason::EncounteredHardLinkAtMoveSource == (int)MegaSyncStall::SyncStallReason::EncounteredHardLinkAtMoveSource);
 
     return  MegaSyncStall::SyncStallReason(reason);
 }
@@ -1388,6 +1389,8 @@ MegaSyncStallPrivate::reasonString(MegaSyncStall::SyncStallReason reason)
             return "MACVerificationFailure";
         case MegaSyncStall::SyncStallReason::NoNameTripletsDetected:
             return "NoNameTripletsDetected";
+        case MegaSyncStall::SyncStallReason::EncounteredHardLinkAtMoveSource:
+            return "EncounteredHardLinkAtMoveSource";
         // No default, so that the compiler warns us if we forget one
     }
     return "Unknown";

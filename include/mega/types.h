@@ -1067,6 +1067,7 @@ enum class SyncWaitReason {
     SyncItemExceedsSupportedTreeDepth,
     MACVerificationFailure,
     NoNameTripletsDetected,
+    EncounteredHardLinkAtMoveSource
 };
 
 string syncWaitReasonString(SyncWaitReason);

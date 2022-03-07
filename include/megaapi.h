@@ -5581,6 +5581,7 @@ class MegaSyncStall
             SyncItemExceedsSupportedTreeDepth,
             MACVerificationFailure,
             NoNameTripletsDetected,
+            EncounteredHardLinkAtMoveSource
         };
 
         /**
