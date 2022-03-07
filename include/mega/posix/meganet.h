@@ -199,7 +199,6 @@ protected:
     set<CURL *>pausedrequests[3];
     m_off_t partialdata[2];
     m_off_t maxspeed[2];
-    bool curlsocketsprocessed;
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0) override;
@@ -238,6 +237,7 @@ public:
 
 #ifdef WIN32
     HANDLE mSocketsWaitEvent;
+    bool mSocketsWaitEvent_curl_call_needed = false;
 #endif
 
 private:

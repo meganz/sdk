@@ -69,11 +69,12 @@ public:
 class MEGA_API PubKeyActionPutNodes : public PubKeyAction
 {
     vector<NewNode> nn;    // nodes to add
+    CommandPutNodes::Completion completion;
 
 public:
     void proc(MegaClient*, User*);
 
-    PubKeyActionPutNodes(vector<NewNode>&&, int);
+    PubKeyActionPutNodes(vector<NewNode>&&, int, CommandPutNodes::Completion&&);
 };
 
 class MEGA_API PubKeyActionNotifyApp : public PubKeyAction

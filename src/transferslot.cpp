@@ -663,11 +663,11 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     {
                         // completed put transfers are signalled through the
                         // return of the upload token
-                        if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN)
+                        if (reqs[i]->in.size() == UPLOADTOKENLEN)
                         {
                             LOG_debug << "Upload token received";
-                            transfer->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
-                            memcpy(transfer->ultoken.get(), reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
+                            transfer->ultoken.reset(new UploadToken);
+                            memcpy(transfer->ultoken.get(), reqs[i]->in.data(), UPLOADTOKENLEN);
 
                             errorcount = 0;
                             transfer->failcount = 0;
@@ -693,10 +693,10 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                             updatecontiguousprogress();
 
-                            memcpy(transfer->filekey, transfer->transferkey.data(), sizeof transfer->transferkey);
-                            ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
-                            ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
-                            SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
+                            memcpy(&transfer->filekey.key, transfer->transferkey.data(), sizeof transfer->transferkey);
+                            transfer->filekey.iv_u64 = transfer->ctriv;
+                            transfer->filekey.crc_u64 = macsmac(&transfer->chunkmacs);
+                            SymmCipher::xorblock(transfer->filekey.iv_bytes.data(), transfer->filekey.key.data());
 
                             client->transfercacheadd(transfer, &committer);
 
