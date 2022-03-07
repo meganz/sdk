@@ -749,6 +749,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 #ifdef ENABLE_SYNC
     virtual bool initFilesystemNotificationSystem();
 #endif // ENABLE_SYNC
+
+    // Retrieve the FSID of the item at the specified path.
+    // UNDEF is returned if we cannot determine the item's FSID.
+    handle fsidOf(const LocalPath& path, bool follow);
 };
 
 enum FilenameAnomalyType

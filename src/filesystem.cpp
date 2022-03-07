@@ -829,6 +829,16 @@ bool FileSystemAccess::fsStableIDs(const LocalPath&) const
     return true;
 }
 
+handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow)
+{
+    auto fileAccess = newfileaccess(follow);
+
+    if (fileAccess->fopen(path, true, false))
+        return fileAccess->fsid;
+
+    return UNDEF;
+}
+
 #ifdef ENABLE_SYNC
 
 bool FileSystemAccess::initFilesystemNotificationSystem()
