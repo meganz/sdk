@@ -7391,7 +7391,7 @@ void MegaClient::notifypurge(void)
                         }
 
                         return false;
-                    });
+                    }, UNDEF, true);
 
                 if (removed)
                 {
