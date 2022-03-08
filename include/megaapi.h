@@ -9835,6 +9835,10 @@ class MegaApi
         /**
          * @brief Enable log to console
          *
+         * This function is only relevant if non-exclusive loggers are used.
+         * For exclusive logging (ie, only one logger and no locking before it's called back)
+         * the exclusive logger can easily output to console itself.
+         *
          * By default, log to console is false. Logging to console is serialized via a mutex to
          * avoid interleaving by multiple threads, even in performance mode.
          *
@@ -9855,8 +9859,9 @@ class MegaApi
          * not while actively logging.
          *
          * @param megaLogger MegaLogger implementation
+         * @param singleExclusiveLogger If set, this is the only logger that will be called, and no mutexes will be locked before calling it.
          */
-        static void addLoggerObject(MegaLogger *megaLogger);
+        static void addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
 
         /**
          * @brief Remove a MegaLogger implementation to stop receiving SDK logs
@@ -9864,12 +9869,17 @@ class MegaApi
          * If the logger was registered in the past, it will stop receiving log
          * messages after the call to this function.
          *
-         * In performance mode, it is assumed that this is only called on shutdown and
-         * not while actively logging.
+         * In exclusive mode, it is assumed that this is only called on shutdown and
+         * not while actively logging.  There is no locking on the exclusive log callback pointer,
+         * so there may already be threads deep in the logging functions.  Clearing this
+         * callback pointer won't stop those or wait for them to complete.  So you can't
+         * immediately delete the logger after calling this, unless you know for sure
+         * that no threads are logging.  Recommendation is to stop all other threads before calling this.
          *
          * @param megaLogger Previously registered MegaLogger implementation
+         * @param singleExclusiveLogger If an exclusive logger was previously set, use this flag to remove it.
          */
-        static void removeLoggerObject(MegaLogger *megaLogger);
+        static void removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
 
         /**
          * @brief
@@ -19251,7 +19261,7 @@ public:
      * @return Subscription method. For example "Credit Card".
      */
     virtual char* getSubscriptionMethod();
-    
+
     /**
      * @brief Get the subscription method id
      *
