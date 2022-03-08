@@ -3350,9 +3350,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_debug, sequence(text("debug"),
                 opt(either(flag("-on"), flag("-off"), flag("-verbose"))),
                 opt(either(flag("-console"), flag("-noconsole"))),
-                opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile()))),
+                opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile())))
 #ifdef USE_ROTATIVEPERFORMANCELOGGER
-                opt(sequence(flag("-rotative_performance_logger_file"), localFSFile(), opt(flag("-rotative_performance_logger_toconsole")), opt(flag("-rotative_performance_logger_exerciseOutput"))))
+                ,opt(sequence(flag("-rotative_performance_logger_file"), localFSFile(), opt(flag("-rotative_performance_logger_toconsole")), opt(flag("-rotative_performance_logger_exerciseOutput"))))
 #endif
                 ));
 

@@ -9861,7 +9861,7 @@ class MegaApi
          * @param megaLogger MegaLogger implementation
          * @param singleExclusiveLogger If set, this is the only logger that will be called, and no mutexes will be locked before calling it.
          */
-        static void addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger);
+        static void addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
 
         /**
          * @brief Remove a MegaLogger implementation to stop receiving SDK logs
@@ -9879,7 +9879,7 @@ class MegaApi
          * @param megaLogger Previously registered MegaLogger implementation
          * @param singleExclusiveLogger If an exclusive logger was previously set, use this flag to remove it.
          */
-        static void removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger);
+        static void removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
 
         /**
          * @brief
