@@ -63,6 +63,11 @@
 #include <winioctl.h>
 #endif
 
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+#include "mega/rotativeperformancelogger.h"
+#endif
+
+
 namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
@@ -3340,7 +3345,7 @@ autocomplete::ACN autocompleteSyntax()
 
 #endif
 
-    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
+    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(flag("-mega-hosted")), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
@@ -3382,7 +3387,12 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_debug, sequence(text("debug"),
                 opt(either(flag("-on"), flag("-off"), flag("-verbose"))),
                 opt(either(flag("-console"), flag("-noconsole"))),
-                opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile())))));
+                opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile())))
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+                ,opt(sequence(flag("-rotative_performance_logger_file"), localFSFile(), opt(flag("-rotative_performance_logger_toconsole")), opt(flag("-rotative_performance_logger_exerciseOutput"))))
+#endif
+                ));
+
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
@@ -5536,6 +5546,68 @@ void exec_debug(autocomplete::ACState& s)
             }
         }
     }
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+    string rpl_filename;
+    string rpl_toconsole;
+    if (s.extractflagparam("-rotative_performance_logger_file", rpl_filename))
+    {
+        bool toconsole = s.extractflag("-rotative_performance_logger_toconsole");
+
+        bool exerciseOutput = s.extractflag("-rotative_performance_logger_exerciseOutput");
+
+        // singletons...
+        RotativePerformanceLogger::Instance().initialize(".", rpl_filename.c_str(), toconsole);
+
+        if (exerciseOutput)
+        {
+            // two competing threads, both logging, so we're not just paused during gzipping
+
+            new std::thread([](){
+                std::map<long, int> fps;
+
+                auto start = std::chrono::high_resolution_clock::now();
+                while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() < 10)
+                {
+                    LOG_info << "Logging from thread 1" ;
+                    fps[long(m_time())]++;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000/30));
+                }
+                auto cl = conlock(cout);
+                cl << "thread 1:";
+                for (auto& n : fps) cl << " " << n.second;
+                cl << "\n";
+            });
+
+
+            new std::thread([](){
+                std::map<long, int> fps;
+
+                auto start = std::chrono::high_resolution_clock::now();
+                while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() < 10)
+                {
+                    LOG_info << "Logging from thread 2" ;
+                    fps[long(m_time())]++;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000/30));
+                }
+                auto cl = conlock(cout);
+                cl << "thread 2:";
+                for (auto& n : fps) cl << " " << n.second;
+                cl << "\n";
+            });
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            string dm(99999999, 'x');
+            for (int i = 0 ; i < 30 ; i++)
+            {
+                LOG_err << DirectMessage(dm.c_str());
+            }
+
+
+        }
+
+    }
+#endif
+
 
     cout << "Debug level set to " << SimpleLogger::logCurrentLevel << endl;
     cout << "Log to console: " << (gLogger.logToConsole ? "on" : "off") << endl;
@@ -6193,6 +6265,7 @@ void exec_export(autocomplete::ACState& s)
     int etstmp = 0;
 
     bool writable = s.extractflag("-writable");
+    bool megaHosted = s.extractflag("-mega-hosted");
 
 
     if ((n = nodebypath(s.words[1].s.c_str())))
@@ -6210,7 +6283,7 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable, gNextClientTag++, [](Error e, handle h, handle ph){
+        if ((e = client->exportnode(n, deltmp, etstmp, writable, megaHosted, gNextClientTag++, [](Error e, handle h, handle ph){
             exportnode_result(e, h, ph);
         })))
         {
@@ -8704,7 +8777,21 @@ int main(int argc, char* argv[])
     std::vector<char*> myargv1(argv, argv + argc);
 
     SimpleLogger::setLogLevel(logMax);
-    SimpleLogger::setOutputClass(&gLogger);
+    //SimpleLogger::setOutputClass(&gLogger);
+    auto gLoggerAddr = &gLogger;
+    g_externalLogger.addMegaLogger(&gLogger,
+
+        [gLoggerAddr](const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+            ){
+                gLoggerAddr->log(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+                    , directMessages, directMessagesSizes, numberMessages
+#endif
+                );
+         });
 
     console = new CONSOLE_CLASS;
 

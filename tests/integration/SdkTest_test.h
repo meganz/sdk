@@ -424,7 +424,7 @@ public:
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
-    string createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false);
+    string createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false, bool megaHosted = false);
     MegaHandle importPublicLink(unsigned apiIndex, string link, MegaNode *parent);
     unique_ptr<MegaNode> getPublicNode(unsigned apiIndex, string link);
     MegaHandle removePublicLink(unsigned apiIndex, MegaNode *n);
