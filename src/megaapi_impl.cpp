@@ -5318,8 +5318,6 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
     return it->second;
 }
 
-ExternalLogger MegaApiImpl::externalLogger;
-
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
     init(api, appKey, processor, basePath, userAgent, workerThreadCount);
@@ -5714,7 +5712,7 @@ void MegaApiImpl::setLogExtraForModules(bool networking, bool syncs)
 
 void MegaApiImpl::setLogLevel(int logLevel)
 {
-    externalLogger.setLogLevel(logLevel);
+    SimpleLogger::setLogLevel(LogLevel(logLevel));
 }
 
 void MegaApiImpl::setMaxPayloadLogSize(long long maxSize)
@@ -5722,24 +5720,66 @@ void MegaApiImpl::setMaxPayloadLogSize(long long maxSize)
     SimpleLogger::setMaxPayloadLogSize(maxSize);
 }
 
-void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger)
+void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    externalLogger.addMegaLogger(megaLogger);
+
+    if (singleExclusiveLogger)
+    {
+        assert(!g_exclusiveLogger.exclusiveCallback);
+        g_exclusiveLogger.exclusiveCallback = [megaLogger](const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+            ){
+                megaLogger->log(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+                    , directMessages, directMessagesSizes, numberMessages
+#endif
+                );
+        };
+
+        SimpleLogger::setOutputClass(&g_exclusiveLogger);
+    }
+    else
+    {
+
+    g_externalLogger.addMegaLogger(megaLogger,
+        [megaLogger](const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+        ){
+            megaLogger->log(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+                , directMessages, directMessagesSizes, numberMessages
+#endif
+            );
+        });
+    }
 }
 
-void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger)
+void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    externalLogger.removeMegaLogger(megaLogger);
+    if (singleExclusiveLogger)
+    {
+        SimpleLogger::setOutputClass(&g_externalLogger);
+        g_exclusiveLogger.exclusiveCallback = nullptr;
+    }
+    else
+    {
+        g_externalLogger.removeMegaLogger(megaLogger);
+    }
 }
 
 void MegaApiImpl::setLogToConsole(bool enable)
 {
-    externalLogger.setLogToConsole(enable);
+    // only supported for external (not exclusive) loggers
+    g_externalLogger.setLogToConsole(enable);
 }
 
 void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
 {
-    externalLogger.postLog(logLevel, message, filename, line);
+    SimpleLogger::postLog(LogLevel(logLevel), message, filename, line);
 }
 
 void MegaApiImpl::setLoggingName(const char* loggingName)
@@ -5761,7 +5801,7 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
 {
     mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
     mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
-    MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance());
+    MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance(), true);
 }
 #endif
 
@@ -7066,12 +7106,13 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double la
     waiter->notify();
 }
 
-void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener)
+void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
     if(node) request->setNodeHandle(node->getHandle());
     request->setNumber(expireTime);
     request->setAccess(1);
+    request->setTransferTag(megaHosted ? 1 : 0);
     request->setFlag(writable);
     requestQueue.push(request);
     waiter->notify();
@@ -19367,10 +19408,12 @@ void MegaApiImpl::sendPendingRequests()
             Node* node = client->nodebyhandle(request->getNodeHandle());
             if(!node) { e = API_EARGS; break; }
 
-			bool writable = request->getFlag();
+            bool writable = request->getFlag();
+            bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
-            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, nextTag, [this, request, writable](Error e, handle h, handle ph){
-
+            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, nextTag,
+                [this, request](Error e, handle h, handle ph)
+            {
                 if (e || !request->getAccess()) // disable export doesn't return h and ph
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -23758,140 +23801,6 @@ const char *MegaErrorPrivate::__toString() const
 {
     return getErrorString();
 }
-
-ExternalLogger::ExternalLogger()
-{
-    logToConsole = false;
-    SimpleLogger::setOutputClass(this);
-}
-
-ExternalLogger::~ExternalLogger()
-{
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
-#endif
-    SimpleLogger::setOutputClass(NULL);
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
-}
-
-void ExternalLogger::addMegaLogger(MegaLogger *logger)
-{
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
-#endif
-    if (logger && megaLoggers.find(logger) == megaLoggers.end())
-    {
-        megaLoggers.insert(logger);
-    }
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
-}
-
-void ExternalLogger::removeMegaLogger(MegaLogger *logger)
-{
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
-#endif
-    if (logger)
-    {
-        megaLoggers.erase(logger);
-    }
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
-}
-
-void ExternalLogger::setLogLevel(int logLevel)
-{
-    SimpleLogger::setLogLevel((LogLevel)logLevel);
-}
-
-void ExternalLogger::setLogToConsole(bool enable)
-{
-    this->logToConsole = enable;
-}
-
-void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
-{
-    if (SimpleLogger::logCurrentLevel < logLevel)
-    {
-        return;
-    }
-
-    if (!message)
-    {
-        message = "";
-    }
-
-    if (!filename)
-    {
-        filename = "";
-    }
-
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
-#endif
-    //For direct logging, we could use DirectMessage(message) here
-    SimpleLogger{static_cast<LogLevel>(logLevel), filename, line} << message;
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
-}
-
-void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message
-#ifdef ENABLE_LOG_PERFORMANCE
-          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
-#endif
-                         )
-{
-    if (!time)
-    {
-        time = "";
-    }
-
-    if (!source)
-    {
-        source = "";
-    }
-
-    if (!message)
-    {
-        message = "";
-    }
-
-#ifndef ENABLE_LOG_PERFORMANCE
-    lock_guard<std::recursive_mutex> g(mutex);
-#endif
-
-    for (auto logger : megaLoggers)
-    {
-        logger->log(time, loglevel, source, message
-#ifdef ENABLE_LOG_PERFORMANCE
-                    , directMessages, directMessagesSizes, numberMessages
-#endif
-                    );
-    }
-
-    if (logToConsole)
-    {
-#ifdef ENABLE_LOG_PERFORMANCE
-    lock_guard<std::recursive_mutex> g(mutex);
-#endif
-        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
-        if (message) std::cout << message;
-#ifdef ENABLE_LOG_PERFORMANCE
-        for (unsigned i = 0; i < numberMessages; ++i)
-        {
-            std::cout.write(directMessages[i], directMessagesSizes[i]);
-        }
-#endif
-        std::cout << std::endl;
-    }
-}
-
 
 OutShareProcessor::OutShareProcessor(MegaClient& mc)
     : mClient(mc)
