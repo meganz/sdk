@@ -5690,6 +5690,7 @@ void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLog
 
     if (singleExclusiveLogger)
     {
+        assert(!g_exclusiveLogger.exclusiveCallback);
         g_exclusiveLogger.exclusiveCallback = [megaLogger](const char *time, int loglevel, const char *source, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
             , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages

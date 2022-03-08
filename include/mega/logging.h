@@ -705,9 +705,12 @@ private:
     bool alreadyLogging = false;
 };
 
-// a lock-free adapter for megaproxy
+
 class ExclusiveLogger : public Logger
 {
+    // A lock-free adapter for loggers that require not to lock the mutex (e.g. RotativePerformanceLogger)
+    // Note: we are using this being extra precautiuos: we don't let these loggers to work with any other external loggers. Hence the Exclusive.
+
 public:
 
     typedef std::function<
@@ -722,7 +725,6 @@ public:
         , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
 #endif
     ) override;
-
 
     LogCallback exclusiveCallback;
 };

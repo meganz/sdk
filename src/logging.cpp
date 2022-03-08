@@ -87,13 +87,7 @@ ExternalLogger::ExternalLogger()
 
 ExternalLogger::~ExternalLogger()
 {
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
-#endif
     SimpleLogger::setOutputClass(NULL);
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
 }
 
 void ExternalLogger::addMegaLogger(void* id, LogCallback lc)
