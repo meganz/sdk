@@ -1067,6 +1067,10 @@ class MegaRequestPrivate : public MegaRequest
         MegaRequestPrivate(int type, MegaRequestListener *listener = NULL);
         MegaRequestPrivate(MegaRequestPrivate *request);
 
+        // Set this action to be executed in sendPendingRequests()
+        // instead of the huge switch, as a structural improvement
+        std::function<void()> action;
+
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
         void setNodeHandle(MegaHandle nodeHandle);
@@ -1134,7 +1138,7 @@ class MegaRequestPrivate : public MegaRequest
         int getTag() const override;
         MegaPricing *getPricing() const override;
         MegaCurrency *getCurrency() const override;
-        AccountDetails * getAccountDetails() const;
+        std::shared_ptr<AccountDetails> getAccountDetails() const;
         MegaAchievementsDetails *getMegaAchievementsDetails() const override;
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
@@ -1169,7 +1173,7 @@ class MegaRequestPrivate : public MegaRequest
         void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
 
 protected:
-        AccountDetails *accountDetails;
+        std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
         MegaCurrencyPrivate *megaCurrency;
         AchievementsDetails *achievementsDetails;
@@ -2272,7 +2276,7 @@ class MegaApiImpl : public MegaApp
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
-        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
@@ -2819,7 +2823,7 @@ protected:
         void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
         void fireOnSyncDisabled(MegaSyncPrivate *sync);
         void fireOnSyncEnabled(MegaSyncPrivate *sync);
-        void fireonSyncDeleted(MegaSyncPrivate *sync);
+        void fireOnSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
 

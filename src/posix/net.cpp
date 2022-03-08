@@ -316,7 +316,6 @@ CurlHttpIO::CurlHttpIO()
     numconnections[API] = 0;
     numconnections[GET] = 0;
     numconnections[PUT] = 0;
-    curlsocketsprocessed = true;
 
 #ifdef MEGA_USE_C_ARES
     struct ares_options options;
@@ -626,9 +625,16 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 int CurlHttpIO::checkevents(Waiter*)
 {
 #ifdef WIN32
+    // if this assert triggers, it means that we detected that cURL needs to be called,
+    // and it was not called.  Since we reset the event, we don't get another chance.
+    assert(!mSocketsWaitEvent_curl_call_needed);
+    bool wasSet = WAIT_OBJECT_0 == WaitForSingleObject(mSocketsWaitEvent, 0);
+    mSocketsWaitEvent_curl_call_needed = wasSet;
     ResetEvent(mSocketsWaitEvent);
-#endif
+    return wasSet ? Waiter::NEEDEXEC : 0;
+#else
     return 0;
+#endif
 }
 
 #ifdef MEGA_USE_C_ARES
@@ -701,8 +707,9 @@ void CurlHttpIO::processaresevents()
 void CurlHttpIO::processcurlevents(direction_t d)
 {
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
-
-#ifndef _WIN32
+#ifdef WIN32
+    mSocketsWaitEvent_curl_call_needed = false;
+#else
     auto *rfds = &((PosixWaiter *)waiter)->rfds;
     auto *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
@@ -1054,8 +1061,6 @@ void CurlHttpIO::addevents(Waiter* w, int)
             waiter->maxds = dstime(timeoutds);
         }
     }
-    curlsocketsprocessed = false;
-
 #ifdef MEGA_USE_C_ARES
     timeval tv;
     if (ares_timeout(ares, NULL, &tv))
@@ -2136,11 +2141,6 @@ bool CurlHttpIO::doio()
     result = statechange;
     statechange = false;
 
-    if (curlsocketsprocessed)
-    {
-        return result;
-    }
-
     processcurlevents(API);
     result |= multidoio(curlm[API]);
 
@@ -2172,7 +2172,6 @@ bool CurlHttpIO::doio()
         }
     }
 
-    curlsocketsprocessed = true;
     return result;
 }
 
@@ -2722,6 +2721,11 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         info.mode = what;
 #if defined(_WIN32)
         info.createAssociateEvent();
+
+        if (what & CURL_POLL_OUT)
+        {
+            info.signalledWrite = true;
+        }
 #endif
     }
 

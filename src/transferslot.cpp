@@ -644,11 +644,11 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     {
                         // completed put transfers are signalled through the
                         // return of the upload token
-                        if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN)
+                        if (reqs[i]->in.size() == UPLOADTOKENLEN)
                         {
                             LOG_debug << "Upload token received";
-                            transfer->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
-                            memcpy(transfer->ultoken.get(), reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
+                            transfer->ultoken.reset(new UploadToken);
+                            memcpy(transfer->ultoken.get(), reqs[i]->in.data(), UPLOADTOKENLEN);
 
                             errorcount = 0;
                             transfer->failcount = 0;
@@ -674,10 +674,10 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                             updatecontiguousprogress();
 
-                            memcpy(transfer->filekey, transfer->transferkey.data(), sizeof transfer->transferkey);
-                            ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
-                            ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
-                            SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
+                            memcpy(&transfer->filekey.key, transfer->transferkey.data(), sizeof transfer->transferkey);
+                            transfer->filekey.iv_u64 = transfer->ctriv;
+                            transfer->filekey.crc_u64 = macsmac(&transfer->chunkmacs);
+                            SymmCipher::xorblock(transfer->filekey.iv_bytes.data(), transfer->filekey.key.data());
 
                             client->transfercacheadd(transfer, &committer);
 
@@ -1012,21 +1012,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     if (reqs[i]->httpstatus == 509)
                     {
-                        if (reqs[i]->timeleft < 0)
-                        {
-                            client->sendevent(99408, "Overquota without timeleft", 0);
-                        }
-
                         LOG_warn << "Bandwidth overquota from storage server";
-                        if (reqs[i]->timeleft > 0)
-                        {
-                            backoff = dstime(reqs[i]->timeleft * 10);
-                        }
-                        else
-                        {
-                            // default retry intervals
-                            backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
-                        }
+
+                        dstime backoff = client->overTransferQuotaBackoff(reqs[i].get());
 
                         return transfer->failed(API_EOVERQUOTA, committer, backoff);
                     }
