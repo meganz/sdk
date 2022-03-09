@@ -166,17 +166,15 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 // apply queued new shares
 void MegaClient::mergenewshares(bool notify)
 {
-    newshare_list::iterator it;
-
-    for (it = newshares.begin(); it != newshares.end(); )
+    while (newshares.size())
     {
-        NewShare* s = *it;
-
+        NewShare* s = newshares.front();
+        newshares.pop_front();
         mergenewshare(s, notify);
-
         delete s;
-        newshares.erase(it++);
     }
+
+    mNewKeyRepository.clear();
 }
 
 void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
