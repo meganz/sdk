@@ -490,7 +490,7 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     if (row.isNoName())
     {
         auto noName = string("NO_NAME");
-        
+
         // Multiple no name triplets?
         if (row.hasClashes())
             noName += "S";
@@ -1056,7 +1056,7 @@ Sync::~Sync()
     statecachetable.reset();
 
     // This will recursively delete all LocalNodes in the sync.
-    // If they have transfers associated, the SyncUpload_inClient and <tbd> will have their wasRequesterAbandoned flag set true
+    // If they have transfers associated, the SyncUpload_inClient and SyncDownload_inClient will have their wasRequesterAbandoned flag set true
     localroot.reset();
 }
 
@@ -4628,6 +4628,9 @@ void Syncs::clear_inThread()
     syncConflictState = false;
 
     totalLocalNodes = 0;
+
+    mSyncsLoaded = false;
+    mSyncsResumed = false;
 }
 
 vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
@@ -5201,6 +5204,11 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore)
 {
     assert(!onSyncThread());
 
+    // Double check the client only calls us once (per session) for this
+    assert(!mSyncsLoaded);
+    if (mSyncsLoaded) return;
+    mSyncsLoaded = true;
+
     syncThreadActions.pushBack([this, resetSyncConfigStore]()
         {
             loadSyncConfigsOnFetchnodesComplete_inThread(resetSyncConfigStore);
@@ -5210,6 +5218,11 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore)
 void Syncs::resumeSyncsOnStateCurrent()
 {
     assert(!onSyncThread());
+
+    // Double check the client only calls us once (per session) for this
+    assert(!mSyncsResumed);
+    if (mSyncsResumed) return;
+    mSyncsResumed = true;
 
     syncThreadActions.pushBack([this]()
         {
@@ -9655,27 +9668,31 @@ void Syncs::syncLoop()
         if (!mClient.actionpacketsCurrent)
             continue;
 
-        // Does it look like we have no work to do?
-        if (!syncStallState && !isAnySyncSyncing(true))
-        {
-            auto mustScan = false;
+        // This block is to cater to periodic syncs but it is preventing one last pass
+        // over the flag checks at the end of the loop for normal syncs, and so
+        // MEGAsync shows as "scanning/syncing" forever as those flags don't clear
+        //
+        //// Does it look like we have no work to do?
+        //if (!syncStallState && !isAnySyncSyncing(true))
+        //{
+        //    auto mustScan = false;
 
-            // Check if any syncs need a periodic scan.
-            for (auto& us : mSyncVec)
-            {
-                auto* sync = us->mSync.get();
+        //    // Check if any syncs need a periodic scan.
+        //    for (auto& us : mSyncVec)
+        //    {
+        //        auto* sync = us->mSync.get();
 
-                // Only active syncs without a notifier.
-                if (!sync || sync->dirnotify)
-                    continue;
+        //        // Only active syncs without a notifier.
+        //        if (!sync || sync->dirnotify)
+        //            continue;
 
-                mustScan |= sync->syncscanbt.armed();
-            }
+        //        mustScan |= sync->syncscanbt.armed();
+        //    }
 
-            // No work to do.
-            if (!mustScan)
-                continue;
-        }
+        //    // No work to do.
+        //    if (!mustScan)
+        //        continue;
+        //}
 
         if (syncStallState &&
             (waiter.ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
