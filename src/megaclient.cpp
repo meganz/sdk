@@ -187,7 +187,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
         return;
     }
 
-    Node* originalNode = n;
+    // n was no shared or it was shared but sharekey has changed
     if (s->have_key && (!n->sharekey || memcmp(s->key, n->sharekey->key, SymmCipher::KEYLENGTH)))
     {
         // setting an outbound sharekey requires node authentication
@@ -540,7 +540,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
 #endif
     }
 
-        mNodeManager.updateNode(originalNode);
+        mNodeManager.updateNode(n);
 }
 
 
