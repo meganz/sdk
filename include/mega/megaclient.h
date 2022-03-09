@@ -1509,6 +1509,11 @@ public:
     // incoming shares to be attached to a corresponding node
     newshare_list newshares;
 
+    // This map store keys temporaly.
+    // It has valid value from they are received `ok0 (out-shares)`
+    // and `readnodes (in-shares)` until mergenewshares is called
+    std::map<NodeHandle, std::unique_ptr<SymmCipher>> mNewKeyRepository;
+
     // current request tag
     int reqtag;
 

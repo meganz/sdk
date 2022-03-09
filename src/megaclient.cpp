@@ -8607,6 +8607,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 if (!ISUNDEF(su))
                 {
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
+                    mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(sk ? buf : NULL);
                 }
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
@@ -8783,7 +8784,10 @@ void MegaClient::readokelement(JSON* j)
 
                 if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
                 {
-                    newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
+                    NewShare* share = new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha);
+                    newshares.push_back(share);
+                    mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(share->key);
+
                 }
                 return;
 
