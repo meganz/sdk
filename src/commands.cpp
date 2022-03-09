@@ -1026,7 +1026,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                 break;
 
             case NEW_UPLOAD:
-                arg("h", nni->uploadtoken, sizeof nn[0].uploadtoken);
+                arg("h", nni->uploadtoken.data(), sizeof nn[0].uploadtoken);
 
                 // include pending file attributes for this upload
                 string s;
@@ -1058,7 +1058,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         }
 
         if (vo != NoVersioning &&
-            nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+            nn[i].type == FILENODE && !nn[i].ovhandle.isUndef())
         {
             arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }
@@ -1102,7 +1102,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                         break;
 
                     case NEW_UPLOAD:
-                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken, (int)sizeof nn[i].uploadtoken);
+                        snk.add(nn[i].nodekey, nn[i].nodehandle, tn, 0, nn[i].uploadtoken.data(), (int)sizeof nn[i].uploadtoken);
                         break;
                 }
             }
@@ -1916,7 +1916,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
+CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, bool newshare, const char* msg, bool writable, const char* personal_representation, int ctag, std::function<void(Error, bool writable)> f)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
@@ -5140,7 +5140,7 @@ bool CommandGetUserSessions::procresult(Result r)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable,
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, bool writable, bool megaHosted,
     int ctag, std::function<void(Error, handle, handle)> f)
 {
     h = n->nodehandle;
@@ -5168,6 +5168,11 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, 
         arg("w", "1");
     }
 
+    if (megaHosted)
+    {
+        assert(n->sharekey && "attempting to share a key that is not set");
+        arg("sk", n->sharekey->key, SymmCipher::KEYLENGTH);
+    }
 }
 
 bool CommandSetPH::procresult(Result r)

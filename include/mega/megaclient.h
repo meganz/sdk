@@ -535,7 +535,7 @@ public:
     unsigned char connections[2];
 
     // helpfer function for preparing a putnodes call for new node
-    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const std::string &binaryUploadToken,
+    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
                                   byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
@@ -548,7 +548,7 @@ public:
     void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
-    void putnodes(const char*, vector<NewNode>&&, int tag);
+    void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // attach file attribute to upload or node handle
     void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
@@ -588,16 +588,16 @@ public:
 
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
-	    int tag, std::function<void(Error, bool writable)> completion);
+        int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, bool writable,
-	    int tag, std::function<void(Error, handle, handle)> completion);
-    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable,
+    error exportnode(Node*, int, m_time_t, bool writable, bool megaHosted,
+        int tag, std::function<void(Error, handle, handle)> completion);
+    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
 	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer
@@ -881,7 +881,7 @@ public:
     m_off_t getmaxuploadspeed();
 
     // get the handle of the older version for a NewNode
-    handle getovhandle(Node *parent, string *name);
+    Node* getovnode(Node *parent, string *name);
 
     // use HTTPS for all communications
     bool usehttps;

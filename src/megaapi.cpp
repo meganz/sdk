@@ -1911,14 +1911,14 @@ void MegaApi::setLogToConsole(bool enable)
     MegaApiImpl::setLogToConsole(enable);
 }
 
-void MegaApi::addLoggerObject(MegaLogger *megaLogger)
+void MegaApi::addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    MegaApiImpl::addLoggerClass(megaLogger);
+    MegaApiImpl::addLoggerClass(megaLogger, singleExclusiveLogger);
 }
 
-void MegaApi::removeLoggerObject(MegaLogger *megaLogger)
+void MegaApi::removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    MegaApiImpl::removeLoggerClass(megaLogger);
+    MegaApiImpl::removeLoggerClass(megaLogger, singleExclusiveLogger);
 }
 
 void MegaApi::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
@@ -2605,22 +2605,22 @@ void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, dou
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, 0, false, listener);
+    pImpl->exportNode(node, 0, false, false, listener);
 }
 
-void MegaApi::exportNode(MegaNode *node, bool writable, MegaRequestListener *listener)
+void MegaApi::exportNode(MegaNode *node, bool writable, bool megaHosted, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, 0, writable, listener);
+    pImpl->exportNode(node, 0, writable, megaHosted, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, expireTime, false, listener);
+    pImpl->exportNode(node, expireTime, false, false, listener);
 }
 
-void MegaApi::exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener)
+void MegaApi::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, expireTime, writable, listener);
+    pImpl->exportNode(node, expireTime, writable, megaHosted, listener);
 }
 
 void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
