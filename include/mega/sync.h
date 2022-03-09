@@ -1083,6 +1083,9 @@ public:
     bool syncStallState = false;
     bool syncConflictState = false;
 
+    bool mSyncsLoaded = false;
+    bool mSyncsResumed = false;
+
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool mSyncVecIsEmpty = true;
 
