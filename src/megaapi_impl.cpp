@@ -5765,7 +5765,6 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
 {
     mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
     mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
-    MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance(), true);
 }
 #endif
 
