@@ -3013,9 +3013,19 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     if (us.mSync)
     {
         // it's already running, just set whether it's paused or not.
-        LOG_debug << "Sync pause/unpause set to " << us.mConfig.mTemporarilyPaused;
+        LOG_debug << "Sync pause/unpause from "
+                  << us.mConfig.mTemporarilyPaused
+                  << " to "
+                  << paused;
+        
+        auto changed = us.mConfig.mTemporarilyPaused != paused;
+        
         us.mConfig.mTemporarilyPaused = paused;
-        us.mConfig.mRunState = paused? SyncRunState::Pause : SyncRunState::Run;
+        us.mConfig.mRunState = paused ? SyncRunState::Pause : SyncRunState::Run;
+        
+        if (changed && notifyApp)
+            mClient.app->syncupdate_stateconfig(us.mConfig);
+        
         if (completion) completion(API_OK, NO_SYNC_ERROR, backupId);
         return;
     }
