@@ -12051,8 +12051,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     sctable->rewind();
 
-    mNodeManager.loadNodes();
-
     bool hasNext = sctable->next(&id, &data, &key);
     WAIT_CLASS::bumpds();
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
@@ -12142,6 +12140,13 @@ bool MegaClient::fetchsc(DbTable* sctable)
         sctable->commit();
         sctable->begin();
     }
+    else
+    {
+        // We need load PCR before executing mergenewshare above a
+        // pending out-share node.
+        mNodeManager.loadNodes();
+    }
+
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
 
