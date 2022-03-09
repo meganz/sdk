@@ -1935,14 +1935,14 @@ void MegaApi::setLogToConsole(bool enable)
     MegaApiImpl::setLogToConsole(enable);
 }
 
-void MegaApi::addLoggerObject(MegaLogger *megaLogger)
+void MegaApi::addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    MegaApiImpl::addLoggerClass(megaLogger);
+    MegaApiImpl::addLoggerClass(megaLogger, singleExclusiveLogger);
 }
 
-void MegaApi::removeLoggerObject(MegaLogger *megaLogger)
+void MegaApi::removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    MegaApiImpl::removeLoggerClass(megaLogger);
+    MegaApiImpl::removeLoggerClass(megaLogger, singleExclusiveLogger);
 }
 
 void MegaApi::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)

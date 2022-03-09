@@ -1551,6 +1551,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     ASSERT_EQ(MegaError::API_OK, synchronousSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
 
+
+    megaApi[0]->log(2, "test postlog", __FILE__, __LINE__);
+
     n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_EQ(929734, n1->getDuration()) << "Duration value does not match";
 
