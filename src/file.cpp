@@ -303,7 +303,7 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->uploadtoken = *t->ultoken;
 
         // file's crypto key
-        static_assert(sizeof(filekey) == FILENODEKEYLENGTH);
+        static_assert(sizeof(filekey) == FILENODEKEYLENGTH, "File completed: filekey size doesn't match with FILENODEKEYLENGTH");
         newnode->nodekey.assign((char*)&t->filekey, FILENODEKEYLENGTH);
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
