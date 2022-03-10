@@ -6702,7 +6702,16 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     //    return true;
     //}
 
+    if (row.syncNode && row.fsNode &&
+       (row.fsNode->type == TYPE_UNKNOWN || row.fsNode->fsid == UNDEF ||
+       (row.fsNode->type == FILENODE && !row.fsNode->fingerprint.isvalid)))
+    {
+        SYNC_verbose << "File lost permissions and we can't identify or fingperint it anymore: " << logTriplet(row, fullPath);
 
+        ProgressingMonitor monitor(syncs);
+        monitor.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::CantFingrprintFileYet);
+        return false;
+    }
 
     unsigned confirmDeleteCount = 0;
     if (row.syncNode)
