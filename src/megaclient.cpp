@@ -17920,8 +17920,12 @@ void NodeManager::loadNodes()
         {
             getChildren(node);
 
-            // calculate node counters based on DB queries
-            calculateCounter(*node);
+            // Inshares are calculated at mergenewshare when node is unserialized
+            if (!node->inshare)
+            {
+                // calculate node counters based on DB queries
+                calculateCounter(*node);
+            }
         }
     }
 }
