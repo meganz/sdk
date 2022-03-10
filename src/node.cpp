@@ -694,8 +694,8 @@ bool Node::applykey()
             // look for share key if not folder access with folder master key
             if (h != me)
             {
-                // this is a share node handle - check if we have node and the
-                // share key
+                // this is a share node handle - check if we the key at temporal key repository
+                // If there isn't key, check if we have node and the share key
                 auto it = client->mNewKeyRepository.find(NodeHandle().set6byte(h));
                 if (it == client->mNewKeyRepository.end())
                 {
