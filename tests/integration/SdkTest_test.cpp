@@ -7359,7 +7359,11 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
  * If environment variable MEGA_DIR_PATH_TO_INPUT_FILES is defined, the file is expected to be in that folder. Otherwise,
  * a relative path will be checked. Currently, the relative path is dependent on the building tool
  */
+#if !USE_FREEIMAGE || !USE_MEDIAINFO
+TEST_F(SdkTest, DISABLED_SdkTestAudioFileThumbnail)
+#else
 TEST_F(SdkTest, SdkTestAudioFileThumbnail)
+#endif
 {
     LOG_info << "___TEST Audio File Thumbnail___";
 
