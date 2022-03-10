@@ -839,7 +839,7 @@ int LinuxFileSystemAccess::checkevents(Waiter* waiter)
 #ifndef IN_EXCL_UNLINK
 #define IN_EXCL_UNLINK 0x04000000
 #endif
-            if ((in->mask & (IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM
+            if ((in->mask & (IN_ATTRIB | IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM
                 | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK)))
             {
                 LOG_verbose << "Filesystem notification:"
@@ -1571,7 +1571,8 @@ AddWatchResult LinuxDirNotify::addWatch(LocalNode& node,
     auto handle =
         inotify_add_watch(mOwner.mNotifyFd,
             path.localpath.c_str(),
-            IN_CLOSE_WRITE
+            IN_ATTRIB
+            | IN_CLOSE_WRITE
             | IN_CREATE
             | IN_DELETE
             | IN_DELETE_SELF
