@@ -7396,7 +7396,7 @@ void MegaClient::notifypurge(void)
                 if (removed)
                 {
                     // update node attrs
-                    const string& value = n->setSdsBackups(sdsBkps);
+                    const string& value = Node::toSdsString(sdsBkps);
                     setattr(n, attr_map(n->sdsId(), value), 0, nullptr, nullptr);
                 }
             }

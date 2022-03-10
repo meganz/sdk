@@ -167,7 +167,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // {bakup-id, state} pairs received in "sds" node attribute
     vector<pair<handle, int>> getSdsBackups() const;
     nameid sdsId() const;
-    string setSdsBackups(const vector<pair<handle, int>>&);
+    static string toSdsString(const vector<pair<handle, int>>&);
 
     // owner
     handle owner = mega::UNDEF;

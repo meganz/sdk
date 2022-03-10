@@ -779,10 +779,9 @@ vector<pair<handle, int>> Node::getSdsBackups() const
     return bkps;
 }
 
-string Node::setSdsBackups(const vector<pair<handle, int>>& ids)
+string Node::toSdsString(const vector<pair<handle, int>>& ids)
 {
-    string& value = attrs.map[sdsId()];
-    value.clear();
+    string value;
 
     for (const auto& i : ids)
     {
