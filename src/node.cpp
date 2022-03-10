@@ -1731,6 +1731,19 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             // If enough details of the scan are the same, we can reuse fingerprints instead of recalculating
             map<LocalPath, FSNode> priorScanChildren;
 
+            if (lastFolderScan)
+            {
+                // use the same fingerprint shortcut data as the last time we scanned,
+                // if we still have it (including fingerprint isvalid flag)
+                for (auto& f : *lastFolderScan)
+                {
+                    if (f.type == FILENODE && f.fingerprint.isvalid)
+                    {
+                        priorScanChildren.emplace(f.localname, f.clone());
+                    }
+                }
+            }
+
             for (auto& childIt : children)
             {
                 auto& child = *childIt.second;
@@ -1743,7 +1756,16 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
                 // Can't fingerprint directories.
                 if (child.type != FILENODE || forceRecompute)
+                {
+                    priorScanChildren.erase(child.localname);
                     continue;
+                }
+
+                if (priorScanChildren.find(child.localname) == priorScanChildren.end())
+                {
+                    // already using not yet discarded last-scan data
+                    continue;
+                }
 
                 if (child.scannedFingerprint.isvalid)
                 {

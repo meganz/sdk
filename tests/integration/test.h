@@ -581,8 +581,8 @@ struct StandardClient : public ::mega::MegaApp
     void movenode(string path, string newname, string newparentpath, PromiseBoolSP pb);
     void movenode(handle h1, handle h2, PromiseBoolSP pb);
     void movenodetotrash(string path, PromiseBoolSP pb);
-    void exportnode(Node* n, int del, m_time_t expiry, bool writable, promise<Error>& pb);
-    void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, promise<Error>& pb);
+    void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
+    void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool conflictsDetected(list<NameConflict>& conflicts);
     bool login_reset(bool noCache = false);

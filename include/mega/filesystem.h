@@ -826,7 +826,6 @@ struct MEGA_API FSNode
 {
     // A structure convenient for containing just the attributes of one item from the filesystem
     LocalPath localname;
-    //string name;
     unique_ptr<LocalPath> shortname;
     nodetype_t type = TYPE_UNKNOWN;
     mega::handle fsid = mega::UNDEF;
@@ -856,6 +855,19 @@ struct MEGA_API FSNode
             shortname
             ? new LocalPath(*shortname)
             : nullptr);
+    }
+
+    FSNode clone() const
+    {
+        FSNode f;
+        f.localname = localname;
+        f.shortname = cloneShortname();
+        f.type = type;
+        f.fsid = fsid;
+        f.isSymlink = isSymlink;
+        f.isBlocked = isBlocked;
+        f.fingerprint = fingerprint;
+        return f;
     }
 
     static unique_ptr<FSNode> fromFOpened(FileAccess&, const LocalPath& fullName, FileSystemAccess& fsa);
