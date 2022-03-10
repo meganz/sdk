@@ -17877,6 +17877,14 @@ void NodeManager::loadNodes()
         return;
     }
 
+    // Load map with fingerprints to speed up searching by fingerprint, as well as children
+    std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
+    mTable->loadFingerprintsAndChildren(mFingerPrints, nodeAndParent);
+    for (auto pair : nodeAndParent)
+    {
+        addChild(pair.first, pair.second);
+    }
+
     node_vector rootnodes;
     if (mClient.loggedIntoFolder())
     {
@@ -17891,15 +17899,6 @@ void NodeManager::loadNodes()
 
         node_vector inSharesNodes = getNodesWithInShares();
         rootnodes.insert(rootnodes.end(), inSharesNodes.begin(), inSharesNodes.end());
-    }
-
-    // Load map with fingerprints to speed up searching by fingerprint, as well as children
-    std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
-    mTable->loadFingerprintsAndChildren(mFingerPrints, nodeAndParent);
-
-    for (auto pair : nodeAndParent)
-    {
-        addChild(pair.first, pair.second);
     }
 
     if (mKeepAllNodesInMemory)
