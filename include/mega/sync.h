@@ -578,7 +578,7 @@ struct Syncs
     void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered, and backup syncs in Vault are permanently deleted (if request came from SDK) or moved
-    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest = UNDEF, bool ignoreUndefBackupId = false);
+    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false);
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -699,7 +699,7 @@ private:
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
-    void removeSyncByIndex(size_t index, handle bkpDest, bool ignoreUndefBackupId);
+    void removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBackup);
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
     void unloadSyncByIndex(size_t index);
