@@ -1676,6 +1676,8 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
            && type != FS_FUSE;
 }
 
+#endif // ENABLE_SYNC
+
 bool PosixFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& target)
 {
     using StringType = decltype(adjustBasePath(source));
@@ -1697,7 +1699,6 @@ bool PosixFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& t
 
     return true;
 }
-#endif // ENABLE_SYNC
 
 std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)
 {
