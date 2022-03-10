@@ -17885,9 +17885,12 @@ void NodeManager::loadNodes()
 
         rootnodes.push_back(rootNode);
     }
-    else    // logged into user's account: load rootnodes
+    else    // logged into user's account: load rootnodes and incoming shared folders
     {
         rootnodes = getRootNodes();
+
+        node_vector inSharesNodes = getNodesWithInShares();
+        rootnodes.insert(rootnodes.end(), inSharesNodes.begin(), inSharesNodes.end());
     }
 
     // Load map with fingerprints to speed up searching by fingerprint, as well as children
