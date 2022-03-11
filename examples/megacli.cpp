@@ -3071,7 +3071,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             {
                 for (auto& d : data)
                 {
-                    cout << "Backup ID: " << toHandle(d.backupId) << endl;
+                    cout << "Backup ID: " << toHandle(d.backupId) << " (" << d.backupId << ')' << endl;
                     cout << "  backup type: " << backupTypeToStr(d.backupType) << endl;
                     cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
                     cout << "  local folder: " << d.localFolder << endl;
@@ -4575,6 +4575,12 @@ void exec_pwd(autocomplete::ACState& s)
 
 void exec_lcd(autocomplete::ACState& s)
 {
+    if (s.words.size() != 2)
+    {
+        cout << "lcd <dir>" << endl;
+        return;
+    }
+
     LocalPath localpath = localPathArg(s.words[1].s);
 
     if (!client->fsaccess->chdirlocal(localpath))
