@@ -3153,6 +3153,15 @@ TEST_F(SdkTest, SdkTestShares)
     delete sl;
     delete n;
 
+    ASSERT_NO_FATAL_FAILURE( shareFolder(dummyNode1.get(), emailfake, MegaShare::ACCESS_FULL) );
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the target side (main account)
+            << "Contact request update not received after " << maxTimeout << " seconds";
+    sl = megaApi[0]->getPendingOutShares();
+    ASSERT_EQ(2, sl->size()) << "Pending outgoing share failed";
+    delete sl;
+
 
     // --- Create a file public link ---
 

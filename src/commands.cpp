@@ -5769,7 +5769,7 @@ bool CommandFetchNodes::procresult(Result r)
         {
             case 'f':
                 // nodes
-                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
+                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, true))
                 {
                     client->fetchingnodes = false;
                     client->mNodeManager.cleanNodes();
@@ -5780,7 +5780,7 @@ bool CommandFetchNodes::procresult(Result r)
 
             case MAKENAMEID2('f', '2'):
                 // old versions
-                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, false))
+                if (!client->readnodes(&client->json, 0, PUTNODES_APP, nullptr, 0, true))
                 {
                     client->fetchingnodes = false;
                     client->mNodeManager.cleanNodes();
@@ -5871,7 +5871,6 @@ bool CommandFetchNodes::procresult(Result r)
                 }
 
                 client->mergenewshares(0);
-                client->applykeys();
                 client->initsc();
                 client->pendingsccommit = false;
                 client->fetchnodestag = tag;

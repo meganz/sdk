@@ -167,17 +167,15 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 // apply queued new shares
 void MegaClient::mergenewshares(bool notify)
 {
-    newshare_list::iterator it;
-
-    for (it = newshares.begin(); it != newshares.end(); )
+    while (newshares.size())
     {
-        NewShare* s = *it;
-
+        NewShare* s = newshares.front();
+        newshares.pop_front();
         mergenewshare(s, notify);
-
         delete s;
-        newshares.erase(it++);
     }
+
+    mNewKeyRepository.clear();
 }
 
 void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
@@ -190,7 +188,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
         return;
     }
 
-    Node* originalNode = n;
+    // n was no shared or it was shared but sharekey has changed
     if (s->have_key && (!n->sharekey || memcmp(s->key, n->sharekey->key, SymmCipher::KEYLENGTH)))
     {
         // setting an outbound sharekey requires node authentication
@@ -473,8 +471,10 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
                             n->inshare->user->sharing.insert(n->nodehandle);
                             NodeHandle nodeHandle;
                             nodeHandle.set6byte(n->nodehandle);
-                            // Avoid to add nested in shares
-                            if (!n->parent)
+                            // Avoid to add nested in shares. Also when loading nodes,
+                            // since node counters are calculated at NodeManager::loadNodes()
+                            // in a more efficient way (incrementally, with all nodes in memory)
+                            if (!n->parent && !mNodeManager.isLoadingNodes())
                             {
                                 mNodeManager.calculateCounter(*n);
                             }
@@ -543,7 +543,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
 #endif
     }
 
-        mNodeManager.updateNode(originalNode);
+        mNodeManager.updateNode(n);
 }
 
 
@@ -8613,9 +8613,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 // NodeManager takes n ownership
                 mNodeManager.addNode(n, notify,  fetchingnodes);
 
-                if (!ISUNDEF(su))
+                if (!ISUNDEF(su))   // node represents an incoming share
                 {
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
+                    mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(sk ? buf : NULL);
                 }
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
@@ -8793,6 +8794,8 @@ void MegaClient::readokelement(JSON* j)
                 if (decryptkey(k, buf, SymmCipher::KEYLENGTH, &key, 1, h))
                 {
                     newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
+                    mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
+
                 }
                 return;
 
@@ -12058,8 +12061,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     sctable->rewind();
 
-    mNodeManager.loadNodes();
-
     bool hasNext = sctable->next(&id, &data, &key);
     WAIT_CLASS::bumpds();
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
@@ -12145,10 +12146,20 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     if (isDbUpgraded)
     {
-        // force commit in case of old DB has been upgraded to new schema for NOD
+        // nodes are loaded during the migration from `statecache` to `nodes` table and kept in RAM
+
+        // force commit, since old DB has been upgraded to new schema for NOD
         sctable->commit();
         sctable->begin();
     }
+    else
+    {
+        // nodes are not loaded, proceed to load them only after Users and PCRs are loaded,
+        // since Node::unserialize() will call mergenewshare(), and the latter requires
+        // Users and PCRs to be available
+        mNodeManager.loadNodes();
+    }
+
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
 
@@ -13295,6 +13306,7 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     }
 
     newshares.clear();
+    mNewKeyRepository.clear();
     usernotify.clear();
     pcrnotify.clear();
     useralerts.clear();
@@ -17634,13 +17646,14 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
     while (numshares)   // inshares: -1, outshare/s: num_shares
     {
         int direction = (numshares > 0) ? -1 : 0;
-        NewShare *newShare = Share::unserialize(direction, h, skey, &ptr, end);
+        std::unique_ptr<NewShare> newShare(Share::unserialize(direction, h, skey, &ptr, end));
         if (!newShare)
         {
             LOG_err << "Failed to unserialize Share";
             break;
         }
 
+        mClient.mergenewshare(newShare.get(), false);
         if (numshares > 0)  // outshare/s
         {
             numshares--;
@@ -17909,6 +17922,16 @@ void NodeManager::loadNodes()
         return;
     }
 
+    mLoadingNodes = true;
+
+    // Load map with fingerprints to speed up searching by fingerprint, as well as children
+    std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
+    mTable->loadFingerprintsAndChildren(mFingerPrints, nodeAndParent);
+    for (auto pair : nodeAndParent)
+    {
+        addChild(pair.first, pair.second);
+    }
+
     node_vector rootnodes;
     if (mClient.loggedIntoFolder())
     {
@@ -17923,15 +17946,6 @@ void NodeManager::loadNodes()
 
         node_vector inSharesNodes = getNodesWithInShares();
         rootnodes.insert(rootnodes.end(), inSharesNodes.begin(), inSharesNodes.end());
-    }
-
-    // Load map with fingerprints to speed up searching by fingerprint, as well as children
-    std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
-    mTable->loadFingerprintsAndChildren(mFingerPrints, nodeAndParent);
-
-    for (auto pair : nodeAndParent)
-    {
-        addChild(pair.first, pair.second);
     }
 
     if (mKeepAllNodesInMemory)
@@ -17957,6 +17971,8 @@ void NodeManager::loadNodes()
             calculateCounter(*node);
         }
     }
+
+    mLoadingNodes = false;
 }
 
 MegaClient &NodeManager::getMegaClient()
