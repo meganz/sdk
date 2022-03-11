@@ -10891,27 +10891,17 @@ bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
 
 MegaShareList *MegaApiImpl::getOutSharesOrPending(int order, bool pending)
 {
-    sdkMutex.lock();
+    SdkMutexGuard m;
 
     node_vector nodes = pending ? client->mNodeManager.getNodesWithPendingOutShares() :  client->mNodeManager.getNodesWithOutShares();
     std::map<NodeHandle, std::set<Share *>> nodeSharesMap;
     for (const Node* n : nodes)
     {
-        if (pending)
+        share_map *shares = pending ? n->pendingshares : n->outshares;
+        assert(shares);
+        for (auto &share : *shares)
         {
-            assert(n->pendingshares);
-            for (auto it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
-            {
-                nodeSharesMap[n->nodeHandle()].insert(it->second);
-            }
-        }
-        else
-        {
-            assert(n->outshares);
-            for (auto it = n->outshares->begin(); it != n->outshares->end(); it++)
-            {
-                nodeSharesMap[n->nodeHandle()].insert(it->second);
-            }
+            nodeSharesMap[n->nodeHandle()].insert(share.second);
         }
     }
 
@@ -10927,10 +10917,7 @@ MegaShareList *MegaApiImpl::getOutSharesOrPending(int order, bool pending)
         }
     }
 
-    MegaShareList *shareList = new MegaShareListPrivate(shares.data(), handles.data(), int(shares.size()));
-
-    sdkMutex.unlock();
-    return shareList;
+    return new MegaShareListPrivate(shares.data(), handles.data(), int(shares.size()));
 }
 
 MegaShareList *MegaApiImpl::getOutShares(int order)
