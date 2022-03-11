@@ -17600,7 +17600,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
     while (numshares)   // inshares: -1, outshare/s: num_shares
     {
         int direction = (numshares > 0) ? -1 : 0;
-        std::unique_ptr<NewShare>newShare(Share::unserialize(direction, h, skey, &ptr, end));
+        std::unique_ptr<NewShare> newShare(Share::unserialize(direction, h, skey, &ptr, end));
         if (!newShare)
         {
             LOG_err << "Failed to unserialize Share";
