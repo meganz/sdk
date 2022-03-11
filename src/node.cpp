@@ -736,7 +736,7 @@ void Node::setattr()
     }
 }
 
-nameid Node::sdsId() const
+nameid Node::sdsId()
 {
     constexpr nameid nid = MAKENAMEID3('s', 'd', 's');
     return nid;
