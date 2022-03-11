@@ -389,6 +389,9 @@ public:
     // Cancel all DB queries in progress in same sql connection
     void cancelDbQuery();
 
+    // true when loading nodes (at startup, not node per node afterwards)
+    bool isLoadingNodes() { return mLoadingNodes; }
+
 private:
     // TODO Nodes on demand remove reference
     MegaClient& mClient;
@@ -438,6 +441,9 @@ private:
 
     // store relationship between nodes and their children (nodes without children are not in the map)
     std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
+
+    // true while loading nodes, false otherwise
+    bool mLoadingNodes = false;
 };
 
 class MEGA_API MegaClient

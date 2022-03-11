@@ -470,8 +470,10 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
                             n->inshare->user->sharing.insert(n->nodehandle);
                             NodeHandle nodeHandle;
                             nodeHandle.set6byte(n->nodehandle);
-                            // Avoid to add nested in shares
-                            if (!n->parent)
+                            // Avoid to add nested in shares. Also when loading nodes,
+                            // since node counters are calculated at NodeManager::loadNodes()
+                            // in a more efficient way (incrementally, with all nodes in memory)
+                            if (!n->parent || !mNodeManager.isLoadingNodes())
                             {
                                 mNodeManager.calculateCounter(*n);
                             }
@@ -17880,6 +17882,8 @@ void NodeManager::loadNodes()
         return;
     }
 
+    mLoadingNodes = true;
+
     // Load map with fingerprints to speed up searching by fingerprint, as well as children
     std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
     mTable->loadFingerprintsAndChildren(mFingerPrints, nodeAndParent);
@@ -17923,14 +17927,12 @@ void NodeManager::loadNodes()
         {
             getChildren(node);
 
-            // Inshares are calculated at mergenewshare when node is unserialized
-            if (!node->inshare)
-            {
-                // calculate node counters based on DB queries
-                calculateCounter(*node);
-            }
+            // calculate node counters based on DB queries
+            calculateCounter(*node);
         }
     }
+
+    mLoadingNodes = false;
 }
 
 MegaClient &NodeManager::getMegaClient()
