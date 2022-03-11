@@ -100,7 +100,7 @@ struct MEGA_API PublicLink
     bool isExpired();
 };
 
-typedef std::map<FileFingerprint, std::map<NodeHandle, Node*>> FingerprintMap;
+typedef std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp> FingerprintMap;
 typedef FingerprintMap::iterator FingerprintMapPosition;
 
 // filesystem node

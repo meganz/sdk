@@ -415,6 +415,11 @@ bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerpr
     return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
 }
 
+bool FileFingerprintCmp::operator()(const FileFingerprint &a, const FileFingerprint &b) const
+{
+    return operator()(&a, &b);
+}
+
 bool LightFileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime)
 {
     bool changed = false;
@@ -444,61 +449,6 @@ bool LightFileFingerprintCmp::operator()(const LightFileFingerprint* a, const Li
 bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs)
 {
     return std::tie(lhs.mtime, lhs.size) == std::tie(rhs.mtime, rhs.size);
-}
-
-bool operator<(const FileFingerprint &lhs, const FileFingerprint &rhs)
-{
-    // size differs - cannot be equal
-    if (lhs.size < rhs.size)
-    {
-        return true;
-    }
-    else if (lhs.size > rhs.size)
-    {
-        return false;
-    }
-
-#ifndef __ANDROID__
-    // mtime check disabled on Android due to this bug:
-    // https://code.google.com/p/android/issues/detail?id=18624
-
-    // mtime differs - cannot be equal
-    if (abs(lhs.mtime - rhs.mtime) > 2)
-    {
-        if (lhs.mtime < rhs.mtime)
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    }
-#endif
-
-    // FileFingerprints not fully available - give it the benefit of the doubt
-    if (!lhs.isvalid && rhs.isvalid)
-    {
-        return true;
-    }
-    else if (lhs.isvalid && !rhs.isvalid)
-    {
-        return false;
-    }
-
-    int64_t lhsValue = 0;
-    for (unsigned int i = 0; i < lhs.crc.size(); i++)
-    {
-        lhsValue += lhs.crc.at(i);
-    }
-
-    int64_t rhsValue = 0;
-    for (unsigned int i = 0; i < rhs.crc.size(); i++)
-    {
-        rhsValue += rhs.crc.at(i);
-    }
-
-    return lhsValue < rhsValue;
 }
 
 } // mega
