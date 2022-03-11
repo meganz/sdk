@@ -473,7 +473,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
                             // Avoid to add nested in shares. Also when loading nodes,
                             // since node counters are calculated at NodeManager::loadNodes()
                             // in a more efficient way (incrementally, with all nodes in memory)
-                            if (!n->parent || !mNodeManager.isLoadingNodes())
+                            if (!n->parent && !mNodeManager.isLoadingNodes())
                             {
                                 mNodeManager.calculateCounter(*n);
                             }
