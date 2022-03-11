@@ -410,6 +410,11 @@ bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerpr
     return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
 }
 
+bool FileFingerprintCmp::operator()(const FileFingerprint &a, const FileFingerprint &b) const
+{
+    return operator()(&a, &b);
+}
+
 bool LightFileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime)
 {
     bool changed = false;
@@ -439,12 +444,6 @@ bool LightFileFingerprintCmp::operator()(const LightFileFingerprint* a, const Li
 bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs)
 {
     return std::tie(lhs.mtime, lhs.size) == std::tie(rhs.mtime, rhs.size);
-}
-
-bool operator<(const FileFingerprint &lhs, const FileFingerprint &rhs)
-{
-    FileFingerprintCmp cmp;
-    return cmp(&lhs, &rhs);
 }
 
 } // mega
