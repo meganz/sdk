@@ -105,9 +105,17 @@ Transfer::~Transfer()
         (*it)->transfer = NULL;
         (*it)->terminated(API_OK);
 
-        // Are we dealing with a sync download?
-        if (type != GET || !(*it)->syncxfer)
+        // Are we dealing with a download?
+        if (type != GET)
             continue;
+
+        // Are we dealing with a non-sync download?
+        if (!(*it)->syncxfer)
+        {
+            // Let the distributor know we no longer need to be copied.
+            downloadDistributor->removeTarget();
+            continue;
+        }
 
         auto dl = static_cast<SyncDownload_inClient*>(*it);
 
@@ -867,7 +875,12 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     {
                         client->syncs.setSyncsNeedFullSync(false, UNDEF);
                     }
+                    else
 #endif
+                    {
+                        downloadDistributor->removeTarget();
+                    }
+
                     client->app->file_removed(f, API_EWRITE);
                     f->transfer = NULL;
                     f->terminated(API_EWRITE);
