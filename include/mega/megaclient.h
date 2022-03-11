@@ -1511,8 +1511,8 @@ public:
 
     // maps the handle of the root of shares with their corresponding share key
     // out-shares: populated from 'ok0' element from `f` command
-    // in-shares: populated from readnodes()
-    // map is cleared upon call to mergenewshares()
+    // in-shares: populated from readnodes() for `f` command
+    // map is cleared upon call to mergenewshares(), and used only temporary during `f` command.
     std::map<NodeHandle, std::unique_ptr<SymmCipher>> mNewKeyRepository;
 
     // current request tag

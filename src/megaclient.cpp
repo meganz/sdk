@@ -13295,6 +13295,7 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     }
 
     newshares.clear();
+    mNewKeyRepository.clear();
     usernotify.clear();
     pcrnotify.clear();
     useralerts.clear();
