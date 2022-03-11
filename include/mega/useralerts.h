@@ -22,6 +22,8 @@
 #ifndef MEGAUSERNOTIFICATIONS_H
 #define MEGAUSERNOTIFICATIONS_H 1
 
+#include <megaapi.h> // SDK-1866::DEBUG <= MegaUserAlert::TYPE_ enum dependency
+
 namespace mega {
 
 struct UserAlertRaw
@@ -71,6 +73,7 @@ namespace UserAlert
     static const nameid type_dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');    // deleted shared node
     static const nameid type_put = MAKENAMEID3('p', 'u', 't');                      // new shared nodes
     static const nameid type_d = 'd';                                               // removed shared node
+    static const nameid type_u = 'u';                                               // updated shared node
     static const nameid type_psts = MAKENAMEID4('p', 's', 't', 's');                // payment
     static const nameid type_pses = MAKENAMEID4('p', 's', 'e', 's');                // payment reminder
     static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
@@ -172,18 +175,39 @@ namespace UserAlert
     {
         unsigned fileCount, folderCount;
         handle parentHandle;
+        vector<handle> filesNodeHandle;
+        vector<handle> foldersNodeHandle;
 
         NewSharedNodes(UserAlertRaw& un, unsigned int id);
-        NewSharedNodes(int nfolders, int nfiles, handle uh, handle ph, m_time_t timestamp, unsigned int id);
+        NewSharedNodes(int nfolders, int nfiles, handle uh, handle ph, m_time_t timestamp, unsigned int id,
+                       map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
+                       map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode);
+
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
     struct RemovedSharedNode : public Base
     {
         size_t itemsNumber;
+        vector<handle> nodeHandles;
 
         RemovedSharedNode(UserAlertRaw& un, unsigned int id);
-        RemovedSharedNode(int nitems, handle uh, m_time_t timestamp, unsigned int id);
+        RemovedSharedNode(int nitems, handle uh, m_time_t timestamp, unsigned int id,
+                          map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
+                          map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode);
+
+        virtual void text(string& header, string& title, MegaClient* mc);
+    };
+
+    struct UpdatedSharedNode : public Base
+    {
+        size_t itemsNumber;
+        vector<handle> nodeHandles;
+
+        UpdatedSharedNode(UserAlertRaw& un, unsigned int id);
+        UpdatedSharedNode(int nitems, handle uh, m_time_t timestamp, unsigned int id,
+                          map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
+                          map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -264,6 +288,8 @@ private:
         int files;
         int folders;
         m_time_t timestamp;
+        map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode;
+        map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode;
         ff() : files(0), folders(0), timestamp(0) {}
     };
     map<pair<handle, handle>, ff> notedSharedNodes;
@@ -271,6 +297,9 @@ private:
     handle ignoreNodesUnderShare;
 
     bool isUnwantedAlert(nameid type, int action);
+
+    map<pair<handle, handle>, ff>::iterator findNotedSharedNode(handle nodeHandle);
+    bool removeNotedSharedNode(map<pair<handle,handle>,ff>::iterator itToNodeToRemove, Node* node);
 
 public:
 
@@ -290,9 +319,12 @@ public:
 
     // keep track of incoming nodes in shares, and convert to a notification
     void beginNotingSharedNodes();
-    void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n);
+    void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n, int alertType = MegaUserAlert::TYPE_REMOVEDSHAREDNODES);
     void convertNotedSharedNodes(bool added, handle originatingUser);
     void ignoreNextSharedNodesUnder(handle h);
+    bool removeNotedSharedNode(Node* n);
+    bool isSharedNodeNotedAsRemoved(handle nodeHandleToFind);
+    bool setNotedSharedNodeToUpdate(Node* n);
 
     // enter provisional mode, added items will be checked for suitability before actually adding
     void startprovisional();
