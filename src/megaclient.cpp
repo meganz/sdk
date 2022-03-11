@@ -8604,7 +8604,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 // NodeManager takes n ownership
                 mNodeManager.addNode(n, notify,  fetchingnodes);
 
-                if (!ISUNDEF(su))
+                if (!ISUNDEF(su))   // node represents an incoming share
                 {
                     newshares.push_back(new NewShare(h, 0, su, rl, sts, sk ? buf : NULL));
                     mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(sk ? buf : NULL);
@@ -12135,14 +12135,17 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     if (isDbUpgraded)
     {
-        // force commit in case of old DB has been upgraded to new schema for NOD
+        // nodes are loaded during the migration from `statecache` to `nodes` table and kept in RAM
+
+        // force commit, since old DB has been upgraded to new schema for NOD
         sctable->commit();
         sctable->begin();
     }
     else
     {
-        // We need load PCR before executing mergenewshare above a
-        // pending out-share node.
+        // nodes are not loaded, proceed to load them only after Users and PCRs are loaded,
+        // since Node::unserialize() will call mergenewshare(), and the latter requires
+        // Users and PCRs to be available
         mNodeManager.loadNodes();
     }
 
