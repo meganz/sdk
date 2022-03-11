@@ -1509,9 +1509,10 @@ public:
     // incoming shares to be attached to a corresponding node
     newshare_list newshares;
 
-    // This map store keys temporaly.
-    // It has valid value from they are received `ok0 (out-shares)`
-    // and `readnodes (in-shares)` until mergenewshares is called
+    // maps the handle of the root of shares with their corresponding share key
+    // out-shares: populated from 'ok0' element from `f` command
+    // in-shares: populated from readnodes()
+    // map is cleared upon call to mergenewshares()
     std::map<NodeHandle, std::unique_ptr<SymmCipher>> mNewKeyRepository;
 
     // current request tag
