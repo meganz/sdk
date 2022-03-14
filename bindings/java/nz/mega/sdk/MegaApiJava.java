@@ -11633,6 +11633,27 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Get a list of favourite nodes.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node provided
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+     * - MegaRequest::getNumDetails - Returns the count requested
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaHandleList - List of handles of favourite nodes
+     *
+     * @param node Node and its children that will be searched for favourites. Search all nodes if null
+     * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getFavourites(MegaNode node, int count, MegaRequestListenerInterface listener) {
+        megaApi.getFavourites(node, count, createDelegateRequestListener(listener));
+    }
+    
+    /**
      * Creates a support ticket
      *
      * @param message  Content of the ticket
