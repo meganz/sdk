@@ -147,7 +147,7 @@ bool Transfer::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
 
-    d->append((const char*)filekey, sizeof(filekey));
+    d->append((const char*)&filekey.bytes, sizeof(filekey.bytes));
     d->append((const char*)&ctriv, sizeof(ctriv));
     d->append((const char*)&metamac, sizeof(metamac));
     d->append((const char*)transferkey.data(), sizeof (transferkey));
@@ -173,7 +173,7 @@ bool Transfer::serialize(string *d)
     {
         hasUltoken = 2;
         d->append((const char*)&hasUltoken, sizeof(char));
-        d->append((const char*)ultoken.get(), NewNode::UPLOADTOKENLEN);
+        d->append((const char*)ultoken.get(), UPLOADTOKENLEN);
     }
     else
     {
@@ -252,7 +252,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     unique_ptr<Transfer> t(new Transfer(client, type));
 
-    memcpy(t->filekey, ptr, sizeof t->filekey);
+    memcpy(&t->filekey, ptr, sizeof t->filekey);
     ptr += sizeof(t->filekey);
 
     t->ctriv = MemAccess::get<int64_t>(ptr);
@@ -307,7 +307,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     char hasUltoken = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : NewNode::UPLOADTOKENLEN) : 0;
+    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : UPLOADTOKENLEN) : 0;
     if (hasUltoken < 0 || hasUltoken > 2
             || (ptr + ll + sizeof(unsigned short) > end))
     {
@@ -317,7 +317,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     if (hasUltoken)
     {
-        t->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
+        t->ultoken.reset(new UploadToken);
         memcpy(t->ultoken.get(), ptr, ll);
         ptr += ll;
     }
@@ -580,7 +580,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
         !client->mediaFileInfo.mediaCodecsFailed)
     {
         // for upload, the key is in the transfer.  for download, the key is in the node.
-        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey().data());
+        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey.bytes.data() : (byte*)node->nodekey().data());
 
         if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
@@ -1453,27 +1453,9 @@ bool DirectReadSlot::doio()
         {
             if (req->httpstatus == 509)
             {
-                if (req->timeleft < 0)
-                {
-                    int creqtag = dr->drn->client->reqtag;
-                    dr->drn->client->reqtag = 0;
-                    dr->drn->client->sendevent(99408, "Overquota without timeleft");
-                    dr->drn->client->reqtag = creqtag;
-                }
-
-                dstime backoff;
-
                 LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
-                if (req->timeleft > 0)
-                {
-                    backoff = dstime(req->timeleft * 10);
-                }
-                else
-                {
-                    // default retry interval
-                    backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
-                }
 
+                dstime backoff = dr->drn->client->overTransferQuotaBackoff(req);
                 dr->drn->retry(API_EOVERQUOTA, backoff);
             }
             else

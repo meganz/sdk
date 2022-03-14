@@ -140,7 +140,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
 // converts the given sync configuration to a string
 std::string syncConfigToString(const SyncConfig& config)
 {
-    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
+    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.mBackupId));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
         description.append(" TWOWAY");
@@ -351,7 +351,7 @@ void AppFile::progress()
 {
 }
 
-static void displaytransferdetails(Transfer* t, const char* action)
+static void displaytransferdetails(Transfer* t, const string& action)
 {
     string name;
 
@@ -387,14 +387,13 @@ void DemoApp::transfer_update(Transfer* /*t*/)
 
 void DemoApp::transfer_failed(Transfer* t, const Error& e, dstime)
 {
-    displaytransferdetails(t, "failed (");
     if (e == API_ETOOMANY && e.hasExtraInfo())
     {
-         cout << getExtraInfoErrorString(e) << ")" << endl;
+        displaytransferdetails(t, "failed (" + getExtraInfoErrorString(e) + ")\n");
     }
     else
     {
-        cout << errorstring(e) << ")" << endl;
+        displaytransferdetails(t, "failed (" + string(errorstring(e)) + ")\n");
     }
 }
 
@@ -1346,7 +1345,7 @@ static void store_line(char*);
 static void process_line(char *);
 static char* line;
 
-static AccountDetails account;
+static std::shared_ptr<AccountDetails> account = std::make_shared<AccountDetails>();
 
 // Current remote directory.
 static NodeHandle cwd;
@@ -2786,7 +2785,7 @@ void exec_getuserquota(autocomplete::ACState& s)
         storage = transfer = pro = true;
     }
 
-    client->getaccountdetails(new AccountDetails, storage, transfer, pro, false, false, false, -1);
+    client->getaccountdetails(std::make_shared<AccountDetails>(), storage, transfer, pro, false, false, false, -1);
 }
 
 void exec_getuserdata(autocomplete::ACState& s)
@@ -3297,7 +3296,7 @@ autocomplete::ACN autocompleteSyntax()
 
 #endif
 
-    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
+    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(flag("-mega-hosted")), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
@@ -4024,7 +4023,7 @@ void exec_cp(autocomplete::ACState& s)
             }
 
             TreeProcCopy_mcli tc;
-            handle ovhandle = UNDEF;
+            NodeHandle ovhandle;
 
             if (!n->keyApplied())
             {
@@ -4069,17 +4068,17 @@ void exec_cp(autocomplete::ACState& s)
                         return;
                     }
 
-                    ovhandle = ovn->nodehandle;
+                    ovhandle = ovn->nodeHandle();
                 }
             }
 
             // determine number of nodes to be copied
-            client->proctree(n, &tc, false, ovhandle != UNDEF);
+            client->proctree(n, &tc, false, !ovhandle.isUndef());
 
             tc.allocnodes();
 
             // build new nodes array
-            client->proctree(n, &tc, false, ovhandle != UNDEF);
+            client->proctree(n, &tc, false, !ovhandle.isUndef());
 
             // if specified target is a filename, use it
             if (newname.size())
@@ -6100,7 +6099,7 @@ void exec_whoami(autocomplete::ACState& s)
 
         cout << "Retrieving account status..." << endl;
 
-        client->getaccountdetails(&account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
+        client->getaccountdetails(account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
     }
 }
 
@@ -6173,6 +6172,7 @@ void exec_export(autocomplete::ACState& s)
     int etstmp = 0;
 
     bool writable = s.extractflag("-writable");
+    bool megaHosted = s.extractflag("-mega-hosted");
 
 
     if ((n = nodebypath(s.words[1].s.c_str())))
@@ -6190,7 +6190,7 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable, gNextClientTag++, [](Error e, handle h, handle ph){
+        if ((e = client->exportnode(n, deltmp, etstmp, writable, megaHosted, gNextClientTag++, [](Error e, handle h, handle ph){
             exportnode_result(e, h, ph);
         })))
         {
@@ -7804,7 +7804,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                     }
                 }
 
-                newnode->ovhandle = ovn->nodehandle;
+                newnode->ovhandle = ovn->nodeHandle();
             }
         }
 

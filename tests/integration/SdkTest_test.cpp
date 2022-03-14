@@ -1053,11 +1053,11 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, synchronousShare(apiIndex, n, email, action)) << "Folder sharing failed" << "User: " << email << " Action: " << action;
 }
 
-void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable)
+void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable, bool megaHosted)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_EXPORT] = false;
 
-    auto err = synchronousExportNode(apiIndex, n, expireDate, writable);
+    auto err = synchronousExportNode(apiIndex, n, expireDate, writable, megaHosted);
 
     if (!expireDate || !isFreeAccount)
     {
@@ -3148,6 +3148,15 @@ TEST_F(SdkTest, SdkTestShares)
 
     delete sl;
     delete n;
+
+    ASSERT_NO_FATAL_FAILURE( shareFolder(dummyNode1.get(), emailfake, MegaShare::ACCESS_FULL) );
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the target side (main account)
+            << "Contact request update not received after " << maxTimeout << " seconds";
+    sl = megaApi[0]->getPendingOutShares();
+    ASSERT_EQ(2, sl->size()) << "Pending outgoing share failed";
+    delete sl;
 
 
     // --- Create a file public link ---
