@@ -749,8 +749,7 @@ vector<pair<handle, int>> Node::getSdsBackups() const
     auto it = attrs.map.find(sdsId());
     if (it != attrs.map.end())
     {
-        string ids = it->second; // "b64aa:8,b64bb:8"
-        std::istringstream is(it->second);
+        std::istringstream is(it->second);  // "b64aa:8,b64bb:8"
         is.ignore(); // skip leading '"'
         while (!is.eof())
         {
@@ -767,11 +766,6 @@ vector<pair<handle, int>> Node::getSdsBackups() const
 
             string stateStr;
             std::getline(is, stateStr, ',');
-            if (!is.good() && !is.eof())
-            {
-                LOG_err << "Invalid format in 'sds' attr value for backup state";
-                break;
-            }
             try
             {
                 int state = std::stoi(stateStr);
