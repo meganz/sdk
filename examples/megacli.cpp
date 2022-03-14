@@ -3056,14 +3056,8 @@ void exec_timelocal(autocomplete::ACState& s)
 
 }
 
-void backupremove(handle backupId, Node* backupRootNode, const string& moveDestStr)
+void backupremove(handle backupId, Node* backupRootNode, Node *targetDest)
 {
-    if (!backupRootNode)
-    {
-        cout << "failed to find remote node" << endl;
-        return;
-    }
-
     // remove backup
     client->reqs.add(new CommandBackupRemove(client, backupId)); // the following should be done in a completion though
 
@@ -3085,48 +3079,34 @@ void backupremove(handle backupId, Node* backupRootNode, const string& moveDestS
         }
 
         // delete or move backup files
-        handle moveDest = UNDEF;
-        if (!moveDestStr.empty())
-        {
-            Base64::atob(moveDestStr.c_str(), (byte*)&moveDest, MegaClient::NODEHANDLE);
-        }
-        if (moveDest == UNDEF)
+        if (!targetDest)
         {
             // ...delete target...
             auto completion = [](NodeHandle, Error e)
             {
                 if (e != API_OK)
                 {
-                    cout << "failed to delete remote backup node(" << errorstring(e) << ')' << endl;
+                    cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
                 }
             };
             e = client->unlink(backupRootNode, false, 0, move(completion));
             if (e != API_OK)
             {
-                cout << "failed to delete remote backup node(" << errorstring(e) << ')' << endl;
+                cout << "Backup Centre - Failed to delete remote backup node locally(" << errorstring(e) << ')' << endl;
             }
         }
-        else
+        else    // move to target destination
         {
-            NodeHandle newParentHandle;
-            newParentHandle.set6byte(moveDest);
-            Node* newParent = client->nodeByHandle(newParentHandle);
-            if (!newParent)
-            {
-                cout << "remote node not found for handle " << moveDestStr << endl;
-                return;
-            }
-
             NodeHandle prevParent;
             prevParent.set6byte(backupRootNode->parenthandle);
             CommandMoveNode::Completion completion = [](NodeHandle, Error e)
             {
                 if (e != API_OK)
                 {
-                    cout << "failed to move remote backup node (" << errorstring(e) << ')' << endl;
+                    cout << "Backup Centre - Failed to move remote backup node (" << errorstring(e) << ')' << endl;
                 }
             };
-            client->reqs.add(new CommandMoveNode(client, backupRootNode, newParent, SYNCDEL_NONE, prevParent, move(completion), true));
+            client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, move(completion), true));
         }
     };
 
@@ -3178,27 +3158,54 @@ void exec_backupcentre(autocomplete::ACState& s)
     {
         // get backup's remote node
         const string& backupIdStr = s.words[1].s;
-        const string& moveDestStr = s.words.size() == 3 ? s.words[2].s : string();
 
-        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, moveDestStr](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        Node *targetDest = nullptr;
+        if (s.words.size() == 3)    // move backup to cloud
+        {
+            handle hDest = 0;   // set most significant bytes to 0, since it's used as NodeHandle later
+            Base64::atob(s.words[2].s.c_str(), (byte*)&hDest, MegaClient::NODEHANDLE);
+
+            targetDest = client->nodebyhandle(hDest);
+            if (!targetDest)
+            {
+                cout << "Backup Centre - Move destination not found" << endl;
+                return;
+            }
+        }
+
+        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest](Error e, vector<CommandBackupSyncFetch::Data>& data)
         {
             if (e != API_OK)
             {
-                cout << "backupcentre failed: " << e << endl;
+                cout << "Backup Centre - Failed to fetch ('sf'): " << e << endl;
                 return;
             }
 
             handle backupId = 0;
             Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
 
+            bool found = false;
             for (auto& d : data)
             {
                 if (d.backupId == backupId)
                 {
                     Node* remoteNode = client->nodebyhandle(d.rootNode);
-                    backupremove(backupId, remoteNode, moveDestStr);
+                    if (!remoteNode)
+                    {
+                        cout << "Backup Centre - Remote node for backup not found"
+                             << Base64Str<MegaClient::NODEHANDLE>(d.rootNode) << endl;
+                        return;
+                    }
+
+                    backupremove(backupId, remoteNode, targetDest);
+                    found = true;
                     break;
                 }
+            }
+            if (!found)
+            {
+                cout << "Backup Centre - Backup id not found: " << backupIdStr << endl;
+                return;
             }
         }));
     }
