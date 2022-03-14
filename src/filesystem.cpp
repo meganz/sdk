@@ -1905,7 +1905,7 @@ bool FileDistributor::moveTo(const LocalPath& source, LocalPath& target, TargetN
         LOG_debug << "The move destination file path exists already. Updated name: " << changedName;
 
         // Try and move the source to the target.
-        if (fsAccess.renamelocal(source, target, overwrite))
+        if (fsAccess.renamelocal(source, changedName, overwrite))
         {
             target = changedName;
             return true;
@@ -1975,7 +1975,7 @@ bool FileDistributor::copyTo(const LocalPath& source, LocalPath& target, m_time_
         LOG_debug << "The copy destination file path exists already. Updated name: " << changedName;
 
         // Try and move the source to the target.
-        if (fsAccess.copylocal(source, target, mtime))
+        if (fsAccess.copylocal(source, changedName, mtime))
         {
             target = changedName;
             return true;
