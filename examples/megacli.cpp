@@ -3056,6 +3056,67 @@ void exec_timelocal(autocomplete::ACState& s)
 
 }
 
+void backupremove(handle backupId, Node* backupRootNode, Node *targetDest)
+{
+    // remove backup
+    client->reqs.add(new CommandBackupRemove(client, backupId)); // the following should be done in a completion though
+
+    // update node's sds attribute
+    auto sdsBkps = backupRootNode->getSdsBackups();
+    assert(std::find_if(sdsBkps.begin(), sdsBkps.end(), [&backupId](const pair<handle, int>& n)
+        {
+            return n.first == backupId && n.second == CommandBackupPut::DELETED;
+        }) == sdsBkps.end());
+    sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
+    const string& sdsValue = Node::toSdsString(sdsBkps);
+
+    CommandSetAttr::Completion attrCompl = [=](NodeHandle nh, Error e)
+    {
+        if (e != API_OK)
+        {
+            setattr_result(nh, e);
+            return;
+        }
+
+        // delete or move backup files
+        if (!targetDest)
+        {
+            // ...delete target...
+            auto completion = [](NodeHandle, Error e)
+            {
+                if (e != API_OK)
+                {
+                    cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
+                }
+            };
+            e = client->unlink(backupRootNode, false, 0, move(completion));
+            if (e != API_OK)
+            {
+                cout << "Backup Centre - Failed to delete remote backup node locally(" << errorstring(e) << ')' << endl;
+            }
+        }
+        else    // move to target destination
+        {
+            NodeHandle prevParent;
+            prevParent.set6byte(backupRootNode->parenthandle);
+            CommandMoveNode::Completion completion = [](NodeHandle, Error e)
+            {
+                if (e != API_OK)
+                {
+                    cout << "Backup Centre - Failed to move remote backup node (" << errorstring(e) << ')' << endl;
+                }
+            };
+            client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, move(completion), true));
+        }
+    };
+
+    auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), 0, nullptr, move(attrCompl));
+    if (e != API_OK)
+    {
+        cout << "failed to set new node attributes (e = " << e << ')' << endl;
+    }
+}
+
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
@@ -3071,7 +3132,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             {
                 for (auto& d : data)
                 {
-                    cout << "Backup ID: " << toHandle(d.backupId) << endl;
+                    cout << "Backup ID: " << toHandle(d.backupId) << " (" << d.backupId << ')' << endl;
                     cout << "  backup type: " << backupTypeToStr(d.backupType) << endl;
                     cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
                     cout << "  local folder: " << d.localFolder << endl;
@@ -3093,11 +3154,65 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
         }));
     }
-    else if (s.words.size() == 2 && delFlag)
+    else if (s.words.size() >= 2 && delFlag)
     {
-        handle backupId;
-        Base64::atob(s.words[1].s.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
-        client->reqs.add(new CommandBackupRemove(client, backupId));
+        // get backup's remote node
+        const string& backupIdStr = s.words[1].s;
+
+        Node *targetDest = nullptr;
+        if (s.words.size() == 3)    // move backup to cloud
+        {
+            handle hDest = 0;   // set most significant bytes to 0, since it's used as NodeHandle later
+            Base64::atob(s.words[2].s.c_str(), (byte*)&hDest, MegaClient::NODEHANDLE);
+
+            targetDest = client->nodebyhandle(hDest);
+            if (!targetDest)
+            {
+                cout << "Backup Centre - Move destination not found" << endl;
+                return;
+            }
+        }
+
+        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest, delFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        {
+            if (e != API_OK)
+            {
+                cout << "Backup Centre - Failed to fetch ('sf'): " << e << endl;
+                return;
+            }
+
+            handle backupId = 0;
+            Base64::atob(backupIdStr.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+
+            bool found = false;
+            for (auto& d : data)
+            {
+                if (d.backupId == backupId)
+                {
+                    if (delFlag && d.backupType != BackupType::BACKUP_UPLOAD)
+                    {
+                        cout << "Backup Centre - Provided id is not a backup: " << backupIdStr << endl;
+                        return;
+                    }
+                    Node* remoteNode = client->nodebyhandle(d.rootNode);
+                    if (!remoteNode)
+                    {
+                        cout << "Backup Centre - Remote node for backup not found"
+                             << Base64Str<MegaClient::NODEHANDLE>(d.rootNode) << endl;
+                        return;
+                    }
+
+                    backupremove(backupId, remoteNode, targetDest);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                cout << "Backup Centre - Backup id not found: " << backupIdStr << endl;
+                return;
+            }
+        }));
     }
 }
 
@@ -3244,7 +3359,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
-    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
+    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle"))))));
 
     p->Add(exec_syncadd,
            sequence(text("sync"),
@@ -4575,6 +4690,12 @@ void exec_pwd(autocomplete::ACState& s)
 
 void exec_lcd(autocomplete::ACState& s)
 {
+    if (s.words.size() != 2)
+    {
+        cout << "lcd <dir>" << endl;
+        return;
+    }
+
     LocalPath localpath = localPathArg(s.words[1].s);
 
     if (!client->fsaccess->chdirlocal(localpath))

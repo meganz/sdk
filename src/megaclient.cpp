@@ -7370,6 +7370,39 @@ void MegaClient::notifypurge(void)
             if (!n)
                 return;
 
+            auto sdsBkps = n->getSdsBackups();
+            if (!sdsBkps.empty())
+            {
+                bool removed = false;
+                syncs.removeSelectedSyncs(
+                    [&sdsBkps, &removed](SyncConfig& c, Sync*)
+                    {
+                        auto it = find_if(sdsBkps.begin(), sdsBkps.end(),
+                            [&c](const pair<handle, int>& e)
+                            {
+                                return e.first == c.getBackupId() && e.second == CommandBackupPut::DELETED;
+                            });
+
+                        if (it != sdsBkps.end())
+                        {
+                            sdsBkps.erase(it);
+                            removed = true;
+                            return true;
+                        }
+
+                        return false;
+                    }, UNDEF, true);
+
+                if (removed)
+                {
+                    // update node attrs
+                    const string& value = Node::toSdsString(sdsBkps);
+                    setattr(n, attr_map(Node::sdsId(), value), 0, nullptr, nullptr);
+
+                    return; // already removed, no need for further checks
+                }
+            }
+
             // check if moved
             bool movedToRubbish = n->firstancestor()->nodehandle == rubbishHandle.as8byte();
             const string currentPath = n->displaypath(); // full remote path

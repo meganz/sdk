@@ -3652,13 +3652,13 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
     if (completion) completion(nDisabled);
 }
 
-void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest)
+void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest, bool skipMoveOrDelBackup)
 {
     for (auto i = mSyncVec.size(); i--; )
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
-            removeSyncByIndex(i, bkpDest);
+            removeSyncByIndex(i, bkpDest, skipMoveOrDelBackup);
         }
     }
 }
@@ -3679,7 +3679,7 @@ void Syncs::purgeSyncs()
     if (!mSyncConfigStore) return;
 
     // Remove all syncs.
-    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; }, UNDEF, true);
 
     // Truncate internal sync config database.
     mSyncConfigStore->write(LocalPath(), SyncConfigVector());
@@ -3696,7 +3696,7 @@ void Syncs::purgeSyncs()
     }
 }
 
-void Syncs::removeSyncByIndex(size_t index, handle bkpDest)
+void Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBackup)
 {
     if (index < mSyncVec.size())
     {
@@ -3721,18 +3721,21 @@ void Syncs::removeSyncByIndex(size_t index, handle bkpDest)
             Node* remoteNode = mClient.nodeByHandle(config.getRemoteNode());
             assert(remoteNode && remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault);
 
-            if (bkpDest == UNDEF) // permanently delete
+            if (!skipMoveOrDelBackup)
             {
-                mClient.unlink(remoteNode, false, mClient.nextreqtag(), nullptr, true);
-            }
-            else // move to the new destination
-            {
-                Node* destinationNode = mClient.nodebyhandle(bkpDest);
-                if (destinationNode)
+                if (bkpDest == UNDEF) // permanently delete
                 {
-                    NodeHandle prevParent;
-                    prevParent.set6byte(remoteNode->parenthandle);
-                    mClient.reqs.add(new CommandMoveNode(&mClient, remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr, true));
+                    mClient.unlink(remoteNode, false, mClient.nextreqtag(), nullptr, true);
+                }
+                else // move to the new destination
+                {
+                    Node* destinationNode = mClient.nodebyhandle(bkpDest);
+                    if (destinationNode)
+                    {
+                        NodeHandle prevParent;
+                        prevParent.set6byte(remoteNode->parenthandle);
+                        mClient.reqs.add(new CommandMoveNode(&mClient, remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr, true));
+                    }
                 }
             }
         }
