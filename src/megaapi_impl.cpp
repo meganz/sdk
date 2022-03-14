@@ -11023,7 +11023,7 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
     if(!megaNode) return MegaShare::ACCESS_UNKNOWN;
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(megaNode->getHandle());
+    Node *node = client->nodebyhandle(megaNode->getHandle(), true);
     if(!node)
     {
         sdkMutex.unlock();
@@ -17922,7 +17922,7 @@ MegaNode* MegaApiImpl::getNodeByHandle(handle handle)
 {
     if(handle == UNDEF) return NULL;
     sdkMutex.lock();
-    MegaNode *result = MegaNodePrivate::fromNode(client->nodebyhandle(handle));
+    MegaNode *result = MegaNodePrivate::fromNode(client->nodebyhandle(handle, true));
     sdkMutex.unlock();
     return result;
 }
