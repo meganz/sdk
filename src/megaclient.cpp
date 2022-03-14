@@ -302,7 +302,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
                 proctree(n, &td, true);
 
                 // if there are other shares below this deleted inshare (nested inshares)
-                if (!n->inshare || n->inshare->user->sharing.size() > 1)
+                if (n->inshare->user->sharing.size() > 1)
                 {
                     // recalculate node counter(s) for any nested in-share below deleted one
                     // Scan the tree downwards for nested in-shares. Note that deleted in-share(s)
