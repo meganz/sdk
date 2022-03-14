@@ -142,28 +142,6 @@ private:
     long long mLinkStatus = MegaError::LinkErrorCode::LINK_UNKNOWN;
 };
 
-class ExternalLogger : public Logger
-{
-public:
-    ExternalLogger();
-    ~ExternalLogger();
-    void addMegaLogger(MegaLogger* logger);
-    void removeMegaLogger(MegaLogger *logger);
-    void setLogLevel(int logLevel);
-    void setLogToConsole(bool enable);
-    void postLog(int logLevel, const char *message, const char *filename, int line);
-    void log(const char *time, int loglevel, const char *source, const char *message
-#ifdef ENABLE_LOG_PERFORMANCE
-             , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
-#endif
-            ) override;
-
-private:
-    std::recursive_mutex mutex;
-    set <MegaLogger *> megaLoggers;
-    bool logToConsole;
-};
-
 class MegaFilenameAnomalyReporterProxy
   : public FilenameAnomalyReporter
 {
@@ -456,7 +434,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getHandle() override;
         MegaHandle getRestoreHandle() override;
         MegaHandle getParentHandle() override;
-        std::string* getNodeKey() override;        
+        std::string* getNodeKey() override;
         bool isNodeKeyDecrypted() override;
         char *getBase64Key() override;
         char* getFileAttrString() override;
@@ -2148,8 +2126,8 @@ class MegaApiImpl : public MegaApp
         char* getMyRSAPrivateKey();
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);
-        static void addLoggerClass(MegaLogger *megaLogger);
-        static void removeLoggerClass(MegaLogger *megaLogger);
+        static void addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
+        static void removeLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
@@ -2747,7 +2725,6 @@ protected:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, int fseventsfd /*= -1*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);
-        static ExternalLogger externalLogger;
 
         MegaTransferPrivate* getMegaTransferPrivate(int tag);
 

@@ -11631,4 +11631,41 @@ public class MegaApiJava {
     public void getMyBackupsFolder() {
         megaApi.getMyBackupsFolder();
     }
+
+    /**
+     * Creates a support ticket
+     *
+     * @param message  Content of the ticket
+     * @param type     Type of inquiry/issue.  Use xx for issues from the Android app.
+     *                 <p>
+     *                 Options are:
+     *                 0 for General Enquiry
+     *                 1 for Technical Issue
+     *                 2 for Payment Issue
+     *                 3 for Forgotten Password
+     *                 4 for Transfer Issue
+     *                 5 for Contact/Sharing Issue
+     *                 6 for MEGAsync Issue
+     *                 7 for Missing/Invisible Data
+     *                 8 is reserved for internal use
+     *                 9 iOS support ticket
+     *                 10 Android support ticket
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createSupportTicket(String message, int type, MegaRequestListenerInterface listener) {
+        megaApi.createSupportTicket(message, type, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @param localPath         local path to the file or folder
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when
+     *                          the upload finishes. This parameter is intended to automatically
+     *                          delete temporary files that are only created to be uploaded. Use
+     *                          this parameter with caution. Set it to true only if you are sure
+     *                          about what are you doing.
+     * @param listener          MegaTransferListener to track this transfer
+     */
+    public void startUploadForSupport(String localPath, boolean isSourceTemporary, MegaTransferListenerInterface listener) {
+        megaApi.startUploadForSupport(localPath, isSourceTemporary, createDelegateTransferListener(listener));
+    }
 }
