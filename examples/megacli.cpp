@@ -3173,7 +3173,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
         }
 
-        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest, delFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
         {
             if (e != API_OK)
             {
@@ -3189,6 +3189,11 @@ void exec_backupcentre(autocomplete::ACState& s)
             {
                 if (d.backupId == backupId)
                 {
+                    if (delFlag && d.backupType != BackupType::BACKUP_UPLOAD)
+                    {
+                        cout << "Backup Centre - Provided id is not a backup: " << backupIdStr << endl;
+                        return;
+                    }
                     Node* remoteNode = client->nodebyhandle(d.rootNode);
                     if (!remoteNode)
                     {
