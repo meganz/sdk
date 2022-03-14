@@ -333,7 +333,6 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     av_init_packet(&packet);
     packet.data = NULL;
     packet.size = 0;
-    auto avPacketGuard = makeScopeGuard(av_packet_unref, &packet);
 
     int scalingResult;
     int actualNumFrames = 0;
@@ -341,6 +340,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     // Read frames until succesfull decodification or reach limit of 220 frames
     while (actualNumFrames < 220 && av_read_frame(formatContext, &packet) >= 0)
     {
+       auto avPacketGuard = makeScopeGuard(av_packet_unref, &packet);
        if (packet.stream_index == videoStream->index)
        {
            int ret = avcodec_send_packet(codecContext, &packet);
