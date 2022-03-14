@@ -752,17 +752,26 @@ vector<pair<handle, int>> Node::getSdsBackups() const
         string ids = it->second; // "b64aa:8,b64bb:8"
         std::istringstream is(it->second);
         is.ignore(); // skip leading '"'
-        while (is)
+        while (!is.eof())
         {
             string b64BkpIdStr;
             std::getline(is, b64BkpIdStr, ':');
-            assert(is);
+            if (!is.good())
+            {
+                LOG_err << "Invalid format in 'sds' attr value for backup id";
+                break;
+            }
             handle bkpId = UNDEF;
             Base64::atob(b64BkpIdStr.c_str(), (byte*)&bkpId, MegaClient::BACKUPHANDLE);
             assert(bkpId != UNDEF);
 
             string stateStr;
             std::getline(is, stateStr, ',');
+            if (!is.good() && !is.eof())
+            {
+                LOG_err << "Invalid format in 'sds' attr value for backup state";
+                break;
+            }
             try
             {
                 int state = std::stoi(stateStr);
