@@ -7375,7 +7375,7 @@ void MegaClient::notifypurge(void)
             {
                 bool removed = false;
                 syncs.removeSelectedSyncs(
-                    [n, &sdsBkps, &removed](SyncConfig& c, Sync*)
+                    [&sdsBkps, &removed](SyncConfig& c, Sync*)
                     {
                         auto it = find_if(sdsBkps.begin(), sdsBkps.end(),
                             [&c](const pair<handle, int>& e)
@@ -7398,6 +7398,8 @@ void MegaClient::notifypurge(void)
                     // update node attrs
                     const string& value = Node::toSdsString(sdsBkps);
                     setattr(n, attr_map(Node::sdsId(), value), 0, nullptr, nullptr);
+
+                    return; // already removed, no need for further checks
                 }
             }
 
