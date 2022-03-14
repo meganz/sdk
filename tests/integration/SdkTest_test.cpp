@@ -303,12 +303,6 @@ void SdkTest::Cleanup()
 
     if (!megaApi.empty() && megaApi[0])
     {
-
-        // Remove nodes in Cloud & Rubbish
-        purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), false);
-        purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRubbishNode()}.get(), false);
-        //        megaApi[0]->cleanRubbishBin();
-
         // Remove auxiliar contact
         std::unique_ptr<MegaUserList> ul{megaApi[0]->getContacts()};
         for (int i = 0; i < ul->size(); i++)
@@ -323,8 +317,11 @@ void SdkTest::Cleanup()
 
     for (auto nApi = unsigned(megaApi.size()); nApi--; ) if (megaApi[nApi])
     {
-        // Remove pending contact requests
+        // Remove nodes in Cloud & Rubbish
+        purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRootNode()}.get(), false);
+        purgeTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getRubbishNode()}.get(), false);
 
+        // Remove pending contact requests
         std::unique_ptr<MegaContactRequestList> crl{megaApi[nApi]->getOutgoingContactRequests()};
         for (int i = 0; i < crl->size(); i++)
         {
@@ -775,10 +772,9 @@ void SdkTest::resumeSession(const char *session, int timeout)
     ASSERT_EQ(MegaError::API_OK, synchronousFastLogin(apiIndex, session, this)) << "Resume session failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
+void SdkTest::purgeTree(unsigned apiIndex, MegaNode *p, bool depthfirst)
 {
-    int apiIndex = 0;
-    std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(p)};
+    std::unique_ptr<MegaNodeList> children{megaApi[apiIndex]->getChildren(p)};
 
     for (int i = 0; i < children->size(); i++)
     {
@@ -786,7 +782,7 @@ void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
 
         // removing the folder removes the children anyway
         if (depthfirst && n->isFolder())
-            purgeTree(n);
+            purgeTree(apiIndex, n);
 
         string nodepath = n->getName() ? n->getName() : "<no name>";
         auto result = synchronousRemove(apiIndex, n);
