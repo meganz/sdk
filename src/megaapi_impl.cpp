@@ -9610,9 +9610,11 @@ void MegaApiImpl::httpServerSetMaxBufferSize(int bufferSize)
 {
     sdkMutex.lock();
     httpServerMaxBufferSize = bufferSize <= 0 ? 0 : bufferSize;
+    httpServerMaxOutputSize = httpServerMaxBufferSize / 10;
     if (httpServer)
     {
         httpServer->setMaxBufferSize(httpServerMaxBufferSize);
+        httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     }
     sdkMutex.unlock();
 }
