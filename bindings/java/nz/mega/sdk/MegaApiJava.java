@@ -2725,7 +2725,7 @@ public class MegaApiJava {
      * @param newName Name for the new node
      * @param listener MegaRequestListener to track this request
      */
-    void moveNode(MegaNode node, MegaNode newParent, String newName, MegaRequestListenerInterface listener) {
+    public void moveNode(MegaNode node, MegaNode newParent, String newName, MegaRequestListenerInterface listener) {
         megaApi.moveNode(node, newParent, newName, createDelegateRequestListener(listener));
     }
 
@@ -2745,7 +2745,7 @@ public class MegaApiJava {
      * @param newParent New parent for the node
      * @param newName Name for the new node
      */
-    void moveNode(MegaNode node, MegaNode newParent, String newName) {
+    public void moveNode(MegaNode node, MegaNode newParent, String newName) {
         megaApi.moveNode(node, newParent, newName);
     }
 
