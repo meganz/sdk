@@ -12585,16 +12585,17 @@ class MegaApi
          *
          * @param message Description of the issue for support
          * @param type Ticket type. These are the available types:
-         *          0 for General Enquiry
-         *          1 for Technical Issue
-         *          2 for Payment Issue
-         *          3 for Forgotten Password
-         *          4 for Transfer Issue
-         *          5 for Contact/Sharing Issue
-         *          6 for MEGAsync Issue
-         *          7 for Missing/Invisible Data
-         *          8 for help-centre clarifications
-         *          9 for iOS issue
+         *          0  for General Enquiry
+         *          1  for Technical Issue
+         *          2  for Payment Issue
+         *          3  for Forgotten Password
+         *          4  for Transfer Issue
+         *          5  for Contact/Sharing Issue
+         *          6  for MEGAsync Issue
+         *          7  for Missing/Invisible Data
+         *          8  for help-centre clarifications
+         *          9  for iOS issue
+         *          10 for Android issue
          * @param listener MegaRequestListener to track this request
          */
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
@@ -17333,7 +17334,13 @@ class MegaApi
         void httpServerRemoveWebDavAllowedNodes();
 
         /**
-         * @brief Set the maximum buffer size for the internal buffer
+         * @brief Set the maximum buffer size for the internal buffer and the size of packets
+         * sent to clients (MaxOutputSize)
+         *
+         * Current policy is to set MaxOutputSize to 10% of the param passed in this function.
+         * Be aware that calling this method will overwrite any previous value of MaxOutputSize.
+         * Therefore, any call to httpServerSetMaxOutputSize should be performed after a call to
+         * this method.
          *
          * The HTTP proxy server has an internal buffer to store the data received from MEGA
          * while it's being sent to clients. When the buffer is full, the connection with
