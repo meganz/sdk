@@ -84,10 +84,6 @@ public:
     NodeHandle getRemoteNode() const;
     void setRemoteNode(NodeHandle remoteNode);
 
-    // the fingerprint of the local sync root folder
-    fsfp_t getLocalFingerprint() const;
-    void setLocalFingerprint(fsfp_t fingerprint);
-
     // returns the type of the sync
     Type getType() const;
 
@@ -135,8 +131,8 @@ public:
     // the path to the remote node, as last known (not definitive)
     string mOriginalPathOfRemoteRootNode;
 
-    // the local fingerprint
-    fsfp_t mLocalFingerprint;
+    // uniquely identifies the filesystem, we check this is unchanged.
+    fsfp_t mFilesystemFingerprint;
 
     // type of the sync, defaults to bidirectional
     Type mSyncType;

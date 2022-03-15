@@ -1635,7 +1635,7 @@ struct StandardClient : public MegaApp
         std::list<NewNode> nodes;
         NewNode* nn = buildSubdirs(nodes, prefix, fanout, depth);
         nn->parenthandle = UNDEF;
-        nn->ovhandle = UNDEF;
+        nn->ovhandle = NodeHandle();
 
         Node* atnode = client.nodebyhandle(basefolderhandle);
         if (atnode && !atpath.empty())
@@ -2668,11 +2668,11 @@ struct StandardClient : public MegaApp
         pb->set_value(false);
     }
 
-    void exportnode(Node* n, int del, m_time_t expiry, bool writable, promise<Error>& pb)
+    void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
     {
         resultproc.prepresult(COMPLETION, ++next_request_tag,
             [&](){
-                error e = client.exportnode(n, del, expiry, writable, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); });
+                error e = client.exportnode(n, del, expiry, writable, megaHosted, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); });
                 if (e)
                 {
                     pb.set_value(e);
@@ -2680,10 +2680,10 @@ struct StandardClient : public MegaApp
             }, nullptr);  // no need to match callbacks with requests when we use completion functions
     }
 
-    void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, promise<Error>& pb)
+    void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
     {
         resultproc.prepresult(COMPLETION, ++next_request_tag,
-            [&](){ client.requestPublicLink(n, del, expiry, writable, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
+            [&](){ client.requestPublicLink(n, del, expiry, writable, megaHosted, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
             nullptr);
     }
 
@@ -4612,24 +4612,24 @@ TEST_F(SyncTest, DISABLED_ExerciseCommands)
 
     // try to get a link on an existing unshared folder
     promise<Error> pe1, pe1a, pe2, pe3, pe4;
-    standardclient.getpubliclink(n2, 0, 0, false, pe1);
+    standardclient.getpubliclink(n2, 0, 0, false, false, pe1);
     ASSERT_EQ(API_EACCESS, pe1.get_future().get());
 
     // create on existing node
-    standardclient.exportnode(n2, 0, 0, false, pe1a);
+    standardclient.exportnode(n2, 0, 0, false, false, pe1a);
     ASSERT_EQ(API_OK, pe1a.get_future().get());
 
     // get link on existing shared folder node, with link already  (different command response)
-    standardclient.getpubliclink(n2, 0, 0, false, pe2);
+    standardclient.getpubliclink(n2, 0, 0, false, false, pe2);
     ASSERT_EQ(API_OK, pe2.get_future().get());
 
     // delete existing link on node
-    standardclient.getpubliclink(n2, 1, 0, false, pe3);
+    standardclient.getpubliclink(n2, 1, 0, false, false, pe3);
     ASSERT_EQ(API_OK, pe3.get_future().get());
 
     // create on non existent node
     n2->nodehandle = UNDEF;
-    standardclient.getpubliclink(n2, 0, 0, false, pe4);
+    standardclient.getpubliclink(n2, 0, 0, false, false, pe4);
     ASSERT_EQ(API_EACCESS, pe4.get_future().get());
 }
 

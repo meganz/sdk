@@ -5278,8 +5278,6 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
     return it->second;
 }
 
-ExternalLogger MegaApiImpl::externalLogger;
-
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
     init(api, appKey, processor, basePath, userAgent, -1, workerThreadCount);
@@ -5675,7 +5673,7 @@ char *MegaApiImpl::getMyRSAPrivateKey()
 
 void MegaApiImpl::setLogLevel(int logLevel)
 {
-    externalLogger.setLogLevel(logLevel);
+    SimpleLogger::setLogLevel(LogLevel(logLevel));
 }
 
 void MegaApiImpl::setMaxPayloadLogSize(long long maxSize)
@@ -5683,24 +5681,66 @@ void MegaApiImpl::setMaxPayloadLogSize(long long maxSize)
     SimpleLogger::setMaxPayloadLogSize(maxSize);
 }
 
-void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger)
+void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    externalLogger.addMegaLogger(megaLogger);
+
+    if (singleExclusiveLogger)
+    {
+        assert(!g_exclusiveLogger.exclusiveCallback);
+        g_exclusiveLogger.exclusiveCallback = [megaLogger](const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+            ){
+                megaLogger->log(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+                    , directMessages, directMessagesSizes, numberMessages
+#endif
+                );
+        };
+
+        SimpleLogger::setOutputClass(&g_exclusiveLogger);
+    }
+    else
+    {
+
+    g_externalLogger.addMegaLogger(megaLogger,
+        [megaLogger](const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+        ){
+            megaLogger->log(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+                , directMessages, directMessagesSizes, numberMessages
+#endif
+            );
+        });
+    }
 }
 
-void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger)
+void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    externalLogger.removeMegaLogger(megaLogger);
+    if (singleExclusiveLogger)
+    {
+        SimpleLogger::setOutputClass(&g_externalLogger);
+        g_exclusiveLogger.exclusiveCallback = nullptr;
+    }
+    else
+    {
+        g_externalLogger.removeMegaLogger(megaLogger);
+    }
 }
 
 void MegaApiImpl::setLogToConsole(bool enable)
 {
-    externalLogger.setLogToConsole(enable);
+    // only supported for external (not exclusive) loggers
+    g_externalLogger.setLogToConsole(enable);
 }
 
 void MegaApiImpl::log(int logLevel, const char *message, const char *filename, int line)
 {
-    externalLogger.postLog(logLevel, message, filename, line);
+    SimpleLogger::postLog(LogLevel(logLevel), message, filename, line);
 }
 
 void MegaApiImpl::setLoggingName(const char* loggingName)
@@ -5722,7 +5762,6 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
 {
     mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
     mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
-    MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance());
 }
 #endif
 
@@ -7028,12 +7067,13 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double la
     waiter->notify();
 }
 
-void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener)
+void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
     if(node) request->setNodeHandle(node->getHandle());
     request->setNumber(expireTime);
     request->setAccess(1);
+    request->setTransferTag(megaHosted ? 1 : 0);
     request->setFlag(writable);
     requestQueue.push(request);
     waiter->notify();
@@ -9570,9 +9610,11 @@ void MegaApiImpl::httpServerSetMaxBufferSize(int bufferSize)
 {
     sdkMutex.lock();
     httpServerMaxBufferSize = bufferSize <= 0 ? 0 : bufferSize;
+    httpServerMaxOutputSize = httpServerMaxBufferSize / 10;
     if (httpServer)
     {
         httpServer->setMaxBufferSize(httpServerMaxBufferSize);
+        httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     }
     sdkMutex.unlock();
 }
@@ -13301,7 +13343,7 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpa
 void MegaApiImpl::sync_removed(const SyncConfig& config)
 {
     auto msp_ptr = ::mega::make_unique<MegaSyncPrivate>(config, config.mRunningState >= 0, client);
-    fireonSyncDeleted(msp_ptr.get());
+    fireOnSyncDeleted(msp_ptr.get());
 }
 
 void MegaApiImpl::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
@@ -13788,7 +13830,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
                 if (found)
                 {
-                    request->setNumber(createdConfig.mLocalFingerprint);
+                    request->setNumber(createdConfig.mFilesystemFingerprint);
                     request->setParentHandle(backupId);
 
                     auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig,
@@ -14704,7 +14746,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
             return;
         }
 
-        handle ovhandle = UNDEF;
+        NodeHandle ovhandle;
         Node *ovn = client->childnodebyname(target, validName.c_str(), true);
         if (ovn)
         {
@@ -14715,7 +14757,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
                 return;
             }
 
-            ovhandle = ovn->nodehandle;
+            ovhandle = ovn->nodeHandle();
         }
 
         vector<NewNode> newnodes(1);
@@ -16522,7 +16564,7 @@ void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
     }
 }
 
-void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
+void MegaApiImpl::fireOnSyncDeleted(MegaSyncPrivate *sync)
 {
     assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
@@ -18175,7 +18217,10 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                             if (tc.nn[0].type == FILENODE)
                             {
-                                tc.nn[0].ovhandle = client->getovhandle(parent, &sname);
+                                if (Node* ovn = client->getovnode(parent, &sname))
+                                {
+                                    tc.nn[0].ovhandle = ovn->nodeHandle();
+                                }
                             }
 
                             if (uploadToInbox)
@@ -18746,6 +18791,14 @@ void MegaApiImpl::sendPendingRequests()
             nextTag = request->getTag();
         }
 
+        if (request->action)
+        {
+            // the action should result in request destruction via fireOnRequestFinish
+            // or a requeue of another step, etc.
+            request->action();
+            continue;
+        }
+
         error e = API_OK;
         switch (request->getType())
         {
@@ -18959,7 +19012,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 unsigned nc;
                 TreeProcCopy tc;
-                handle ovhandle = UNDEF;
+                NodeHandle ovhandle;
 
                 if (node->type == FILENODE)
                 {
@@ -18989,18 +19042,18 @@ void MegaApiImpl::sendPendingRequests()
                                 break;  // request finishes now if error, otherwise on unlink_result
                             }
 
-                            ovhandle = ovn->nodehandle;
+                            ovhandle = ovn->nodeHandle();
                         }
                     }
                 }
 
                 // determine number of nodes to be copied
-                client->proctree(node, &tc, ovhandle != UNDEF);
+                client->proctree(node, &tc, !ovhandle.isUndef());
                 tc.allocnodes();
                 nc = tc.nc;
 
                 // build new nodes array
-                client->proctree(node, &tc, ovhandle != UNDEF);
+                client->proctree(node, &tc, !ovhandle.isUndef());
                 if (!nc)
                 {
                     e = API_EARGS;
@@ -19068,7 +19121,7 @@ void MegaApiImpl::sendPendingRequests()
             const char* email = request->getEmail();
             MegaNode *megaNode = request->getPublicNode();
             const char *newName = request->getName();
-            handle ovhandle = UNDEF;
+            NodeHandle ovhandle;
 
             if (!megaNode || (!target && !email)
                     || (newName && !(*newName))
@@ -19131,7 +19184,7 @@ void MegaApiImpl::sendPendingRequests()
                             delete fp;
                         }
 
-                        ovhandle = ovn->nodehandle;
+                        ovhandle = ovn->nodeHandle();
                     }
                 }
 
@@ -19203,16 +19256,16 @@ void MegaApiImpl::sendPendingRequests()
                             break;
                         }
 
-                        ovhandle = ovn->nodehandle;
+                        ovhandle = ovn->nodeHandle();
                     }
                 }
 
                 // determine number of nodes to be copied
-                client->proctree(node, &tc, false, ovhandle != UNDEF);
+                client->proctree(node, &tc, false, !ovhandle.isUndef());
                 tc.allocnodes();
 
                 // build new nodes array
-                client->proctree(node, &tc, false, ovhandle != UNDEF);
+                client->proctree(node, &tc, false, !ovhandle.isUndef());
                 tc.nn[0].parenthandle = UNDEF;
                 tc.nn[0].ovhandle = ovhandle;
 
@@ -19278,7 +19331,7 @@ void MegaApiImpl::sendPendingRequests()
             newnode->type = FILENODE;
             newnode->nodehandle = version->nodehandle;
             newnode->parenthandle = UNDEF;
-            newnode->ovhandle = current->nodehandle;
+            newnode->ovhandle = current->nodeHandle();
             newnode->nodekey = version->nodekey();
             newnode->attrstring.reset(new string);
             if (newnode->nodekey.size())
@@ -19495,10 +19548,12 @@ void MegaApiImpl::sendPendingRequests()
             Node* node = client->nodebyhandle(request->getNodeHandle());
             if(!node) { e = API_EARGS; break; }
 
-			bool writable = request->getFlag();
+            bool writable = request->getFlag();
+            bool megaHosted = request->getTransferTag() != 0;
             // exportnode() will take care of creating a share first, should it be a folder
-            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, nextTag, [this, request, writable](Error e, handle h, handle ph){
-
+            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, megaHosted, nextTag,
+                [this, request](Error e, handle h, handle ph)
+            {
                 if (e || !request->getAccess()) // disable export doesn't return h and ph
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -21334,6 +21389,7 @@ void MegaApiImpl::sendPendingRequests()
             Node *node = client->nodebyhandle(request->getNodeHandle());
             if(!node || (node->type==FILENODE) || !localPath)
             {
+                LOG_debug << "Node not found for sync add";
                 e = API_EARGS;
                 break;
             }
@@ -21343,6 +21399,7 @@ void MegaApiImpl::sendPendingRequests()
             std::unique_ptr<char[]> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
             {
+                LOG_debug << "Node path not found for sync add";
                 e = API_ENOENT;
                 request->setNumDetails(REMOTE_NODE_NOT_FOUND);
                 break;
@@ -21364,12 +21421,13 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (!e && !found)
                 {
+                    LOG_debug << "Correcting error to API_ENOENT for sync add";
                     e = API_ENOENT;
                 }
 
                 if (found)
                 {
-                    request->setNumber(createdConfig.mLocalFingerprint);
+                    request->setNumber(createdConfig.mFilesystemFingerprint);
                     request->setParentHandle(backupId);
 
                     auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig,
@@ -21821,7 +21879,7 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getParamType();
             const char *message = request->getText();
 
-            if ((type < 0 || type > 9) || !message)
+            if ((type < 0 || type > 10) || !message)
             {
                 e = API_EARGS;
                 break;
@@ -22671,15 +22729,14 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            byte binTok[36];
-            auto binTokSize = Base64::atob(uploadToken, binTok, 36);
-            if (binTokSize != 36)
+            UploadToken ulToken;
+            auto binTokSize = Base64::atob(uploadToken, &ulToken[0], sizeof(ulToken));
+            if (binTokSize != 36 || binTokSize != sizeof(ulToken))
             {
                 LOG_err << "Invalid upload token: " << uploadToken;
                 e = API_EARGS;
                 break;
             }
-            std::string binaryUploadToken((char *)binTok, binTokSize);
 
             byte *theFileKey;
             std::unique_ptr<byte[]> filekey;
@@ -22758,7 +22815,7 @@ void MegaApiImpl::sendPendingRequests()
 
             vector<NewNode> newnodes(1);
             NewNode* newnode = &newnodes[0];
-            e = client->putnodes_prepareOneFile(newnode, parentNode, utf8Name, binaryUploadToken,
+            e = client->putnodes_prepareOneFile(newnode, parentNode, utf8Name, ulToken,
                                                 theFileKey, megafingerprint.get(), fingerprintOriginal,
                                                 std::move(addNodeAttrsFunc),
                                                 std::move(addFileAttrsFunc));
@@ -23926,140 +23983,6 @@ const char *MegaErrorPrivate::__toString() const
     return getErrorString();
 }
 
-ExternalLogger::ExternalLogger()
-{
-    logToConsole = false;
-    SimpleLogger::setOutputClass(this);
-}
-
-ExternalLogger::~ExternalLogger()
-{
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
-#endif
-    SimpleLogger::setOutputClass(NULL);
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
-}
-
-void ExternalLogger::addMegaLogger(MegaLogger *logger)
-{
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
-#endif
-    if (logger && megaLoggers.find(logger) == megaLoggers.end())
-    {
-        megaLoggers.insert(logger);
-    }
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
-}
-
-void ExternalLogger::removeMegaLogger(MegaLogger *logger)
-{
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
-#endif
-    if (logger)
-    {
-        megaLoggers.erase(logger);
-    }
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
-}
-
-void ExternalLogger::setLogLevel(int logLevel)
-{
-    SimpleLogger::setLogLevel((LogLevel)logLevel);
-}
-
-void ExternalLogger::setLogToConsole(bool enable)
-{
-    this->logToConsole = enable;
-}
-
-void ExternalLogger::postLog(int logLevel, const char *message, const char *filename, int line)
-{
-    if (SimpleLogger::logCurrentLevel < logLevel)
-    {
-        return;
-    }
-
-    if (!message)
-    {
-        message = "";
-    }
-
-    if (!filename)
-    {
-        filename = "";
-    }
-
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.lock();
-#endif
-    //For direct logging, we could use DirectMessage(message) here
-    SimpleLogger{static_cast<LogLevel>(logLevel), filename, line} << message;
-#ifndef ENABLE_LOG_PERFORMANCE
-    mutex.unlock();
-#endif
-}
-
-void ExternalLogger::log(const char *time, int loglevel, const char *source, const char *message
-#ifdef ENABLE_LOG_PERFORMANCE
-          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
-#endif
-                         )
-{
-    if (!time)
-    {
-        time = "";
-    }
-
-    if (!source)
-    {
-        source = "";
-    }
-
-    if (!message)
-    {
-        message = "";
-    }
-
-#ifndef ENABLE_LOG_PERFORMANCE
-    lock_guard<std::recursive_mutex> g(mutex);
-#endif
-
-    for (auto logger : megaLoggers)
-    {
-        logger->log(time, loglevel, source, message
-#ifdef ENABLE_LOG_PERFORMANCE
-                    , directMessages, directMessagesSizes, numberMessages
-#endif
-                    );
-    }
-
-    if (logToConsole)
-    {
-#ifdef ENABLE_LOG_PERFORMANCE
-    lock_guard<std::recursive_mutex> g(mutex);
-#endif
-        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] ";
-        if (message) std::cout << message;
-#ifdef ENABLE_LOG_PERFORMANCE
-        for (unsigned i = 0; i < numberMessages; ++i)
-        {
-            std::cout.write(directMessages[i], directMessagesSizes[i]);
-        }
-#endif
-        std::cout << std::endl;
-    }
-}
-
-
 OutShareProcessor::OutShareProcessor(MegaClient& mc)
     : mClient(mc)
 {
@@ -24474,7 +24397,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, bool active, MegaClie
     this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
 
-    setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
+    setLocalFingerprint(static_cast<long long>(config.mFilesystemFingerprint));
     setLastKnownMegaFolder(config.mOriginalPathOfRemoteRootNode.c_str());
 
     setError(config.mError);

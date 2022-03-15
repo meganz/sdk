@@ -99,6 +99,7 @@ using std::shared_ptr;
 using std::weak_ptr;
 using std::move;
 using std::mutex;
+using std::recursive_mutex;
 using std::lock_guard;
 
 #ifdef WIN32
@@ -349,6 +350,25 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
 
+typedef union {
+    std::array<byte, FILENODEKEYLENGTH> bytes;
+    struct {
+        std::array<byte, FOLDERNODEKEYLENGTH> key;
+        union {
+            std::array<byte, 8> iv_bytes;
+            uint64_t iv_u64;
+        };
+        union {
+            std::array<byte, 8> crc_bytes;
+            uint64_t crc_u64;
+        };
+    };
+} FileNodeKey;
+
+const int UPLOADTOKENLEN = 36;
+
+typedef std::array<byte, UPLOADTOKENLEN> UploadToken;
+
 // persistent resource cache storage
 class Cacheable
 {
@@ -424,7 +444,7 @@ enum SyncError {
     REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
     REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
     SHARE_NON_FULL_ACCESS = 14,             // Existing inbound share sync or part thereof lost full access
-    LOCAL_FINGERPRINT_MISMATCH = 15,        // Filesystem fingerprint does not match the one stored for the synchronization
+    LOCAL_FILESYSTEM_MISMATCH = 15,         // Filesystem fingerprint does not match the one stored for the synchronization
     PUT_NODES_ERROR = 16,                   // Error processing put nodes result
     ACTIVE_SYNC_BELOW_PATH = 17,            // There's a synced node below the path to be synced
     ACTIVE_SYNC_ABOVE_PATH = 18,            // There's a synced node above the path to be synced
