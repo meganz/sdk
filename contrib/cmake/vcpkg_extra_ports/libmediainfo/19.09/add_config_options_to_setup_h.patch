@@ -2,7 +2,7 @@ diff --git a/Source/MediaInfo/Setup.h b/Source/MediaInfo/Setup.h
 index d2a51f3..7f5c0c6 100644
 --- a/Source/MediaInfo/Setup.h
 +++ b/Source/MediaInfo/Setup.h
-@@ -24,6 +24,89 @@
+@@ -24,6 +24,90 @@
  // General configuration
  //***************************************************************************
  
@@ -61,8 +61,9 @@ index d2a51f3..7f5c0c6 100644
 +#define MEDIAINFO_TTA_NO 
 +#define MEDIAINFO_TWINVQ_NO 
 +#define MEDIAINFO_REFERENCES_NO 
-+
-+#define MEDIAINFO_ADVANCED_NO 
++#define MEDIAINFO_XML_YES
++#define MEDIAINFO_ID3V2_YES
++#define MEDIAINFO_ADVANCED_YES
 +#define MEDIAINFO_ADVANCED2_NO  
 +#define MEDIAINFO_OTHER_NO  
 +#define MEDIAINFO_ANCILLARY_NO 
