@@ -1042,11 +1042,11 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, synchronousShare(apiIndex, n, email, action)) << "Folder sharing failed" << "User: " << email << " Action: " << action;
 }
 
-void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable)
+void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable, bool megaHosted)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_EXPORT] = false;
 
-    auto err = synchronousExportNode(apiIndex, n, expireDate, writable);
+    auto err = synchronousExportNode(apiIndex, n, expireDate, writable, megaHosted);
 
     if (!expireDate || !isFreeAccount)
     {
@@ -1543,6 +1543,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // ___ Set duration of a node ___
 
     ASSERT_EQ(MegaError::API_OK, synchronousSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
+
+
+    megaApi[0]->log(2, "test postlog", __FILE__, __LINE__);
 
     n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_EQ(929734, n1->getDuration()) << "Duration value does not match";

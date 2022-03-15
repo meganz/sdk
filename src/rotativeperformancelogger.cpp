@@ -149,6 +149,14 @@ public:
     {
     }
 
+    ~RotativePerformanceLoggerLoggingThread()
+    {
+        // if the gzip operation is onging, we can't destroy this object
+        // yet, because this mutex is locked on that thread, and
+        // on windows at least, we will crash.  So wait to lock it.
+        std::lock_guard<std::mutex> g(mLogRotationMutex);
+    }
+
     void startLoggingThread(const LocalPath& logsPath, const LocalPath& fileName)
     {
         if (!mLogThread)
@@ -193,6 +201,9 @@ public:
             }
         }
 
+        // We must release the open file handle or the unlink below will fail
+        file.close();
+
         MegaFileSystemAccess fsAccess;
         fsAccess.unlinklocal(localPath);
     }
@@ -201,7 +212,7 @@ private:
     LocalPath logArchiveNumbered_getFilename(const LocalPath& baseFileName, int logNumber)
     {
         LocalPath newFileName = baseFileName;
-        newFileName.append(LocalPath::fromPlatformEncodedRelative("." + SSTR(logNumber) + ".gz"));
+        newFileName.append(LocalPath::fromRelativePath("." + SSTR(logNumber) + ".gz"));
         return newFileName;
     }
 
@@ -239,7 +250,7 @@ private:
                     }
                 }
                 else
-                {                   
+                {
                     LocalPath nextFileName = logArchiveNumbered_getFilename(fileName, i + 1);
                     LocalPath nextPath = logsPath;
                     nextPath.appendWithSeparator(nextFileName, false);
@@ -256,7 +267,7 @@ private:
     {
         std::time_t timestamp = std::time(nullptr);
         LocalPath newFileName = baseFileName;
-        newFileName.append(LocalPath::fromPlatformEncodedRelative("." + SSTR(timestamp) + ".gz"));
+        newFileName.append(LocalPath::fromRelativePath("." + SSTR(timestamp) + ".gz"));
         return newFileName;
     }
 
@@ -268,7 +279,7 @@ private:
         if (!logFileName.empty())
         {
             LocalPath leafNamePath;
-            DirAccess* da = mFsAccess->newdiraccess();
+            auto da = mFsAccess->newdiraccess();
             nodetype_t dirEntryType;
             LocalPath logsPathCopy(logsPath);
             da->dopen(&logsPathCopy, NULL, false);
@@ -284,7 +295,6 @@ private:
                     }
                 }
             }
-            delete da;
         }
     }
 
@@ -396,6 +406,13 @@ private:
 
     void logThreadFunction(LocalPath logsPath, LocalPath fileName)
     {
+        // Avoid cycles and possible deadloks - no logging from this log output thread.
+        SimpleLogger::mThreadLocalLoggingDisabled = true;
+
+        // Error messages from this thread will be output directly to file
+        // they are collected here
+        string threadErrors;
+
         LocalPath fileNameFullPath = logsPath;
         fileNameFullPath.appendWithSeparator(fileName, false);
 
@@ -406,6 +423,12 @@ private:
 
         while (!mLogExit)
         {
+            if (!threadErrors.empty())
+            {
+                outputFile  << threadErrors << std::endl;
+                threadErrors.clear();
+            }
+
             if (mForceRenew)
             {
                 std::lock_guard<std::mutex> g(mLogRotationMutex);
@@ -416,7 +439,7 @@ private:
 
                 if (!mFsAccess->unlinklocal(fileNameFullPath))
                 {
-                    LOG_err << "Error removing log file " << fileNameFullPath;
+                    threadErrors += "Error removing log file " + fileNameFullPath.toPath() + "\n";
                 }
 
                 outputFile.open(fileNameFullPath.localpath.c_str(), std::ofstream::out);
@@ -433,11 +456,17 @@ private:
                 auto newNameDone = logsPath;
                 newNameDone.appendWithSeparator(logArchive_getNewFilename(fileName), false);
                 auto newNameZipping = newNameDone;
-                newNameZipping.append(LocalPath::fromPlatformEncodedRelative(".zipping"));
+                newNameZipping.append(LocalPath::fromRelativePath(".zipping"));
 
                 outputFile.close();
-                mFsAccess->unlinklocal(newNameZipping);
-                mFsAccess->renamelocal(fileNameFullPath, newNameZipping, true);
+                if (!mFsAccess->unlinklocal(newNameZipping))
+                {
+                    threadErrors += "Failed to unlink log file: " + newNameZipping.toPath() + "\n";
+                }
+                if (!mFsAccess->renamelocal(fileNameFullPath, newNameZipping, true))
+                {
+                    threadErrors += "Failed to rename log file: " + fileNameFullPath.toPath() + " to " + newNameZipping.toPath() + "\n";
+                }
 
                 std::thread t([=]() {
                     std::lock_guard<std::mutex> g(mLogRotationMutex); // prevent another rotation while we work on this file
@@ -543,20 +572,29 @@ RotativePerformanceLogger::~RotativePerformanceLogger()
 
 void RotativePerformanceLogger::stopLogger()
 {
-    MegaApi::removeLoggerObject(this); // after this no more calls to RotativePerformanceLogger::log
+
+    // note: possible race/crash here if there are any other threads calling log()
+    // this mLoggingThread is about to be deleted, and the currently
+    // logging threads call into it
+    MegaApi::removeLoggerObject(this, true);
+
     {
         std::lock_guard<std::mutex> g(mLoggingThread->mLogMutex);
         mLoggingThread->mLogExit = true;
         mLoggingThread->mLogConditionVariable.notify_one();
     }
-    mLoggingThread->mLogThread->join();
-    mLoggingThread->mLogThread.reset();
+
+    if (mLoggingThread->mLogThread)
+    {
+        mLoggingThread->mLogThread->join();
+        mLoggingThread->mLogThread.reset();
+    }
 }
 
 void RotativePerformanceLogger::initialize(const char * logsPath, const char * logFileName, bool logToStdout)
 {
-    auto logsPathLocalPath = LocalPath::fromPlatformEncodedAbsolute(logsPath);
-    auto logFileNameLocalPath = LocalPath::fromPlatformEncodedRelative(logFileName);
+    auto logsPathLocalPath = LocalPath::fromAbsolutePath(logsPath);
+    auto logFileNameLocalPath = LocalPath::fromRelativePath(logFileName);
 
     mLogToStdout = logToStdout;
 
@@ -567,11 +605,15 @@ void RotativePerformanceLogger::initialize(const char * logsPath, const char * l
     {
         stopLogger();
     }
+    // note:  probable crash here if other threads are currently logging
+    // since we are about to delete the mLoggingThread out from under them
+    // (stopLogger and MegaApi::removeLoggerObject do not lock, so have
+    // no idea whether anything has currently called into RPL)
     mLoggingThread.reset(new RotativePerformanceLoggerLoggingThread());
     mLoggingThread->startLoggingThread(logsPathLocalPath, logFileNameLocalPath);
 
     MegaApi::setLogLevel(MegaApi::LOG_LEVEL_MAX);
-    MegaApi::addLoggerObject(this);
+    MegaApi::addLoggerObject(this, true);
 }
 
 RotativePerformanceLogger& RotativePerformanceLogger::Instance() {

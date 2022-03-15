@@ -5201,7 +5201,7 @@ public:
         REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
         //REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
         SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
-        LOCAL_FINGERPRINT_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
+        LOCAL_FILESYSTEM_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
         PUT_NODES_ERROR = 16, // Error processing put nodes result
         ACTIVE_SYNC_BELOW_PATH = 17, // There's a synced node below the path to be synced
         ACTIVE_SYNC_ABOVE_PATH = 18, // There's a synced node above the path to be synced
@@ -5333,7 +5333,7 @@ public:
      *  - FOREIGN_TARGET_OVERSTORAGE = 11: Sync transfer fails (upload into an inshare whose account is overquota)
      *  - REMOTE_PATH_HAS_CHANGED = 12: Remote path changed
      *  - SHARE_NON_FULL_ACCESS = 14: Existing inbound share sync or part thereof lost full access
-     *  - LOCAL_FINGERPRINT_MISMATCH = 15: Filesystem fingerprint does not match the one stored for the synchronization
+     *  - LOCAL_FILESYSTEM_MISMATCH = 15: Filesystem fingerprint does not match the one stored for the synchronization
      *  - PUT_NODES_ERROR = 16:  Error processing put nodes result
      *  - ACTIVE_SYNC_BELOW_PATH = 17: There's a synced node below the path to be synced
      *  - ACTIVE_SYNC_ABOVE_PATH = 18: There's a synced node above the path to be synced
@@ -9835,6 +9835,10 @@ class MegaApi
         /**
          * @brief Enable log to console
          *
+         * This function is only relevant if non-exclusive loggers are used.
+         * For exclusive logging (ie, only one logger and no locking before it's called back)
+         * the exclusive logger can easily output to console itself.
+         *
          * By default, log to console is false. Logging to console is serialized via a mutex to
          * avoid interleaving by multiple threads, even in performance mode.
          *
@@ -9855,8 +9859,9 @@ class MegaApi
          * not while actively logging.
          *
          * @param megaLogger MegaLogger implementation
+         * @param singleExclusiveLogger If set, this is the only logger that will be called, and no mutexes will be locked before calling it.
          */
-        static void addLoggerObject(MegaLogger *megaLogger);
+        static void addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
 
         /**
          * @brief Remove a MegaLogger implementation to stop receiving SDK logs
@@ -9864,12 +9869,17 @@ class MegaApi
          * If the logger was registered in the past, it will stop receiving log
          * messages after the call to this function.
          *
-         * In performance mode, it is assumed that this is only called on shutdown and
-         * not while actively logging.
+         * In exclusive mode, it is assumed that this is only called on shutdown and
+         * not while actively logging.  There is no locking on the exclusive log callback pointer,
+         * so there may already be threads deep in the logging functions.  Clearing this
+         * callback pointer won't stop those or wait for them to complete.  So you can't
+         * immediately delete the logger after calling this, unless you know for sure
+         * that no threads are logging.  Recommendation is to stop all other threads before calling this.
          *
          * @param megaLogger Previously registered MegaLogger implementation
+         * @param singleExclusiveLogger If an exclusive logger was previously set, use this flag to remove it.
          */
-        static void removeLoggerObject(MegaLogger *megaLogger);
+        static void removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger = false);
 
         /**
          * @brief
@@ -11230,6 +11240,9 @@ class MegaApi
          *
          * @param node MegaNode to get the public link
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This method will be removed in future versions. Please, start using
+         * the MegaApi::exportNode signature that is not deprecated.
          */
         void exportNode(MegaNode *node, MegaRequestListener *listener = NULL);
 
@@ -11239,6 +11252,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_EXPORT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getAccess - Returns true
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -11253,6 +11267,9 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
+         *
+         * @deprecated This method will be removed in future versions. Please, start using
+         * the MegaApi::exportNode signature that is not deprecated.
          */
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
 
@@ -11263,7 +11280,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
          * - MegaRequest::getAccess - Returns true
+         * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getFlag - Returns true if writable
+         * - MegaRequest::getTransferTag - Returns if share key is shared with mega
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -11274,9 +11293,15 @@ class MegaApi
          *
          * @param node MegaNode to get the public link
          * @param writable if the link should be writable.
+         * @param megaHosted if true, the share key of this specific folder would be shared with MEGA.
+         * This is intended to be used for folders accessible though MEGA's S4 service.
+         * Encryption will occur nonetheless within MEGA's S4 service.
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This method will be removed in future versions. Please, start using
+         * the MegaApi::exportNode signature that is not deprecated.
          */
-        void exportNode(MegaNode *node, bool writable, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
@@ -11285,7 +11310,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
          * - MegaRequest::getAccess - Returns true
+         * - MegaRequest::getNumber - Returns expire time
          * - MegaRequest::getFlag - Returns true if writable
+         * - MegaRequest::getTransferTag - Returns if share key is shared with mega
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -11297,9 +11324,10 @@ class MegaApi
          * @param node MegaNode to get the public link
          * @param expireTime Unix timestamp until the public link will be valid
          * @param writable if the link should be writable.
+         * @param megaHosted if the share key should be shared with MEGA
          * @param listener MegaRequestListener to track this request
          */
-        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Stop sharing a file/folder
@@ -19233,7 +19261,7 @@ public:
      * @return Subscription method. For example "Credit Card".
      */
     virtual char* getSubscriptionMethod();
-    
+
     /**
      * @brief Get the subscription method id
      *

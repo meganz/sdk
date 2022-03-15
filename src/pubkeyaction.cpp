@@ -29,8 +29,9 @@ PubKeyAction::PubKeyAction()
     cmd = NULL;
 }
 
-PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag)
+PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag, CommandPutNodes::Completion&& c)
     : nn(move(newnodes))
+    , completion(move(c))
 {
     tag = ctag;
 }
@@ -47,18 +48,20 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
         {
             if (!(t = u->pubk.encrypt(client->rng, (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
             {
-                client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
+                if (completion) completion(API_EINTERNAL, USER_HANDLE, nn, false);
+                else client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
                 return;
             }
 
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), NoVersioning, move(nn), tag, PUTNODES_APP, nullptr, nullptr));
+        client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), NoVersioning, move(nn), tag, PUTNODES_APP, nullptr, move(completion)));
     }
     else
     {
-        client->app->putnodes_result(API_ENOENT, USER_HANDLE, nn);
+        if (completion) completion(API_ENOENT, USER_HANDLE, nn, false);
+        else client->app->putnodes_result(API_ENOENT, USER_HANDLE, nn);
     }
 }
 
