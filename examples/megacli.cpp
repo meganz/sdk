@@ -3060,7 +3060,8 @@ void exec_timelocal(autocomplete::ACState& s)
 
 }
 
-void backupremove(handle backupId, Node* backupRootNode, Node *targetDest)
+// if `moveOrDelete` is true, the `backupRootNode` will be moved to `targetDest`. If the latter were `nullptr`, then it will be deleted
+void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool moveOrDelete)
 {
     // remove backup
     client->reqs.add(new CommandBackupRemove(client, backupId)); // the following should be done in a completion though
@@ -3082,35 +3083,38 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest)
             return;
         }
 
-        // delete or move backup files
-        if (!targetDest)
+        if (moveOrDelete)
         {
-            // ...delete target...
-            auto completion = [](NodeHandle, Error e)
+            // delete or move backup files
+            if (!targetDest)
             {
+                // ...delete target...
+                auto completion = [](NodeHandle, Error e)
+                {
+                    if (e != API_OK)
+                    {
+                        cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
+                    }
+                };
+                e = client->unlink(backupRootNode, false, 0, move(completion));
                 if (e != API_OK)
                 {
-                    cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
+                    cout << "Backup Centre - Failed to delete remote backup node locally(" << errorstring(e) << ')' << endl;
                 }
-            };
-            e = client->unlink(backupRootNode, false, 0, move(completion));
-            if (e != API_OK)
-            {
-                cout << "Backup Centre - Failed to delete remote backup node locally(" << errorstring(e) << ')' << endl;
             }
-        }
-        else    // move to target destination
-        {
-            NodeHandle prevParent;
-            prevParent.set6byte(backupRootNode->parenthandle);
-            CommandMoveNode::Completion completion = [](NodeHandle, Error e)
+            else    // move to target destination
             {
-                if (e != API_OK)
+                NodeHandle prevParent;
+                prevParent.set6byte(backupRootNode->parenthandle);
+                CommandMoveNode::Completion completion = [](NodeHandle, Error e)
                 {
-                    cout << "Backup Centre - Failed to move remote backup node (" << errorstring(e) << ')' << endl;
-                }
-            };
-            client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, move(completion), true));
+                    if (e != API_OK)
+                    {
+                        cout << "Backup Centre - Failed to move remote backup node (" << errorstring(e) << ')' << endl;
+                    }
+                };
+                client->reqs.add(new CommandMoveNode(client, backupRootNode, targetDest, SYNCDEL_NONE, prevParent, move(completion), true));
+            }
         }
     };
 
@@ -3124,6 +3128,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest)
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
+    bool stopFlag = s.extractflag("-stop");
 
     if (s.words.size() == 1)
     {
@@ -3158,7 +3163,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
         }));
     }
-    else if (s.words.size() >= 2 && delFlag)
+    else if (s.words.size() >= 2 && (delFlag || stopFlag))
     {
         // get backup's remote node
         const string& backupIdStr = s.words[1].s;
@@ -3177,7 +3182,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
         }
 
-        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest, delFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        client->reqs.add(new CommandBackupSyncFetch([backupIdStr, targetDest, delFlag, stopFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
         {
             if (e != API_OK)
             {
@@ -3198,6 +3203,11 @@ void exec_backupcentre(autocomplete::ACState& s)
                         cout << "Backup Centre - Provided id is not a backup: " << backupIdStr << endl;
                         return;
                     }
+                    if (stopFlag && d.backupType != BackupType::TWO_WAY)
+                    {
+                        cout << "Backup Centre - Provided id is not a regular sync: " << backupIdStr << endl;
+                        return;
+                    }
                     Node* remoteNode = client->nodebyhandle(d.rootNode);
                     if (!remoteNode)
                     {
@@ -3206,7 +3216,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                         return;
                     }
 
-                    backupremove(backupId, remoteNode, targetDest);
+                    backupremove(backupId, remoteNode, targetDest, delFlag);
                     found = true;
                     break;
                 }
@@ -3363,7 +3373,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
-    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle"))))));
+    p->Add(exec_backupcentre, sequence(text("backupcentre"),
+                                       opt(sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle")))),
+                                       opt(sequence(flag("-stop"), param("backup_id")))));
 
     p->Add(exec_syncadd,
            sequence(text("sync"),
