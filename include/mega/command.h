@@ -639,7 +639,7 @@ private:
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char*, Completion&& c);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char*, Completion&& c, bool changeVault);
 };
 
 class MEGA_API CommandSetShare : public Command

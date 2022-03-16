@@ -7397,7 +7397,7 @@ void MegaClient::notifypurge(void)
                 {
                     // update node attrs
                     const string& value = Node::toSdsString(sdsBkps);
-                    setattr(n, attr_map(Node::sdsId(), value), 0, nullptr, nullptr);
+                    setattr(n, attr_map(Node::sdsId(), value), 0, nullptr, nullptr, true);
 
                     return; // already removed, no need for further checks
                 }
@@ -7895,7 +7895,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr, CommandSetAttr::Completion&& c)
+error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr, CommandSetAttr::Completion&& c, bool changeVault)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -7924,7 +7924,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
     n->tag = tag;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, prevattr, move(c)));
+    reqs.add(new CommandSetAttr(this, n, cipher, prevattr, move(c), changeVault));
 
     return API_OK;
 }
@@ -8249,7 +8249,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
-            setattr(n, std::move(attrUpdates), reqtag, nullptr, nullptr);
+            setattr(n, std::move(attrUpdates), reqtag, nullptr, nullptr, changeVault);
         }
     }
 

@@ -2499,7 +2499,7 @@ struct StandardClient : public MegaApp
                               [=]()
                               {
                                   client.setattr(node, attr_map(updates), client.reqtag, nullptr,
-                                      [result](NodeHandle, error e) { result->set_value(!e); });
+                                      [result](NodeHandle, error e) { result->set_value(!e); }, false);
                               }, nullptr);
     }
 
@@ -7636,7 +7636,7 @@ struct TwoWaySyncSymmetryCase
         if (reportaction) out() << name() << " action: remote rename " << n->displaypath() << " to " << newname;
 
         attr_map updates('n', newname);
-        auto e = changeClient().client.setattr(n, move(updates), ++next_request_tag, nullptr, nullptr);
+        auto e = changeClient().client.setattr(n, move(updates), ++next_request_tag, nullptr, nullptr, false);
 
         ASSERT_EQ(API_OK, error(e));
     }

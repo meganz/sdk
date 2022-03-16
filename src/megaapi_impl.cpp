@@ -19365,7 +19365,7 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     request->setNodeHandle(h.as8byte());
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                });
+                }, false);
             break;
         }
         case MegaRequest::TYPE_REMOVE:
@@ -20271,7 +20271,7 @@ void MegaApiImpl::sendPendingRequests()
                         for (Node* n = current->children.empty() ? nullptr : current->children.back();
                               n;   n = n->children.empty() ? nullptr : n->children.back())
                         {
-                            client->setattr(n, attr_map(attrUpdates), 0, nullptr, nullptr); // no callback for these
+                            client->setattr(n, attr_map(attrUpdates), 0, nullptr, nullptr, false); // no callback for these
                         }
                     }
 
@@ -20280,7 +20280,7 @@ void MegaApiImpl::sendPendingRequests()
                         {
                             request->setNodeHandle(h.as8byte());
                             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                        });
+                        }, false);
 
                     break;
                 }
@@ -20325,7 +20325,7 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         request->setNodeHandle(h.as8byte());
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                    });
+                    }, false);
             }
 
             break;
