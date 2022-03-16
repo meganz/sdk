@@ -292,14 +292,27 @@ private:
         map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode;
         ff() : files(0), folders(0), timestamp(0) {}
     };
-    map<pair<handle, handle>, ff> notedSharedNodes;
+    typedef map<pair<handle, handle>, ff> notedShNodesMap;
+    notedShNodesMap notedSharedNodes;
+    notedShNodesMap deletedSharedNodesStash;
     bool notingSharedNodes;
     handle ignoreNodesUnderShare;
 
     bool isUnwantedAlert(nameid type, int action);
+    bool isConvertReadyToAdd(handle originatinguser);
+    void convertNotedSharedNodes(bool added);
+    void clearNotedSharedMembers();
 
-    map<pair<handle, handle>, ff>::iterator findNotedSharedNode(handle nodeHandle);
-    bool removeNotedSharedNode(map<pair<handle,handle>,ff>::iterator itToNodeToRemove, Node* node);
+    bool containsRemovedNodeAlert(handle nh, UserAlert::Base* a);
+    UserAlert::RemovedSharedNode* eraseIfRemovedNodeAlert(handle nodeHandleToFind, UserAlert::Base* alertToCheck, bool eraseConfirmation);
+    UserAlert::NewSharedNodes* eraseNewNodeAlert(handle nodeHandleToRemove, UserAlert::Base* alertToCheck);
+    UserAlert::RemovedSharedNode* eraseRemovedNodeAlert(handle nh, UserAlert::Base* a);
+    notedShNodesMap::iterator findNotedSharedNodeIn(handle nodeHandle, notedShNodesMap& notedSharedNodesMap);
+    bool isSharedNodeNotedAsRemoved(handle nodeHandleToFind);
+    bool isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, notedShNodesMap& notedSharedNodesMap);
+    bool removeNotedSharedNodeFrom(notedShNodesMap::iterator itToNodeToRemove, Node* node, notedShNodesMap& notedSharedNodesMap);
+    bool removeNotedSharedNodeFrom(Node* n, notedShNodesMap& notedSharedNodesMap);
+    bool setNotedSharedNodeToUpdate(Node* n);
 
 public:
 
@@ -322,13 +335,21 @@ public:
     void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n, int alertType = MegaUserAlert::TYPE_REMOVEDSHAREDNODES);
     void convertNotedSharedNodes(bool added, handle originatingUser);
     void ignoreNextSharedNodesUnder(handle h);
-    bool removeNotedSharedNode(Node* n);
-    bool isSharedNodeNotedAsRemoved(handle nodeHandleToFind);
-    bool setNotedSharedNodeToUpdate(Node* n);
+
 
     // enter provisional mode, added items will be checked for suitability before actually adding
     void startprovisional();
     void evalprovisional(handle originatinguser);
+
+    // update node alerts management
+    bool isHandleInAlertsAsRemoved(handle nodeHandleToFind);
+    void removeNodeAlerts(Node* n);
+    void setNewNodeAlertToUpdateNodeAlert(Node* n);
+
+    // stash removal-alert noted nodes
+    void convertStashedDeletedSharedNodes();
+    bool isDeletedSharedNodesStashEmpty();
+    void stashDeletedNotedSharedNodes(handle originatingUser);
 
     // marks all as seen, and notifies the API also
     void acknowledgeAll();
