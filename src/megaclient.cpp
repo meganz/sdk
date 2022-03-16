@@ -17952,13 +17952,19 @@ void NodeManager::loadNodes()
     {
         for (auto &node : rootnodes)
         {
-            // add counter to accumulate count recursively
-            addCounter(node->nodeHandle());
+            // If parent exits => nested in-share and children will be load
+            // by main share (node counter doesn't have to be added)
+            if (!node->parent)
+            {
+                // add counter to accumulate count recursively
+                addCounter(node->nodeHandle());
 
-            loadTreeRecursively(node);
+                loadTreeRecursively(node);
 
-            // finally increase the count for each rootnode (only applies to folder links)
-            increaseCounter(node, node->nodeHandle());
+                // finally increase the count for each rootnode (only applies to folder links)
+                increaseCounter(node, node->nodeHandle());
+            }
+
         }
     }
     else // load only first level
@@ -17967,8 +17973,11 @@ void NodeManager::loadNodes()
         {
             getChildren(node);
 
-            // calculate node counters based on DB queries
-            calculateCounter(*node);
+            if (!node->parent) // If parent exits => nested in-share and node counter doesn't have to be calculated
+            {
+                // calculate node counters based on DB queries
+                calculateCounter(*node);
+            }
         }
     }
 
