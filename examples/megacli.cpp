@@ -3099,7 +3099,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                 e = client->unlink(backupRootNode, false, 0, move(completion));
                 if (e != API_OK)
                 {
-                    cout << "Backup Centre - Failed to delete remote backup node locally(" << errorstring(e) << ')' << endl;
+                    cout << "Backup Centre - Failed to delete remote backup node locally (" << errorstring(e) << ')' << endl;
                 }
             }
             else    // move to target destination
@@ -3169,7 +3169,7 @@ void exec_backupcentre(autocomplete::ACState& s)
         const string& backupIdStr = s.words[1].s;
 
         Node *targetDest = nullptr;
-        if (s.words.size() == 3)    // move backup to cloud
+        if (s.words.size() == 3 && delFlag)    // move backup to cloud
         {
             handle hDest = 0;   // set most significant bytes to 0, since it's used as NodeHandle later
             Base64::atob(s.words[2].s.c_str(), (byte*)&hDest, MegaClient::NODEHANDLE);
@@ -3373,9 +3373,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
-    p->Add(exec_backupcentre, sequence(text("backupcentre"),
-                                       opt(sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle")))),
-                                       opt(sequence(flag("-stop"), param("backup_id")))));
+    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(either(
+                                       sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle"))),
+                                       sequence(flag("-stop"), param("backup_id"))))));
 
     p->Add(exec_syncadd,
            sequence(text("sync"),
