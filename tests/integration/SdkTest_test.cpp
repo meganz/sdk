@@ -8110,13 +8110,15 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     mApi[1].nodeUpdated = false;
     ASSERT_GT(fingerPrintToRemove.size(), 0u);
     fingerPrintList.reset(megaApi[1]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
-    ASSERT_EQ(fingerPrintList->size(), 1);
+    int nodesWithFingerPrint = fingerPrintList->size(); // Number of nodes with same fingerprint
+    ASSERT_GT(nodesWithFingerPrint, 0);
     MegaHandle handleFingerprintRemove = fingerPrintList->get(0)->getHandle();
     unique_ptr<MegaNode>node(megaApi[1]->getNodeByHandle(handleFingerprintRemove));
     ASSERT_EQ(API_OK, synchronousRemove(1, node.get()));
     waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
+    nodesWithFingerPrint--; // Decrease the number of nodes with same fingerprint
     fingerPrintList.reset(megaApi[1]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
-    ASSERT_EQ(fingerPrintList->size(), 0);
+    ASSERT_EQ(fingerPrintList->size(), nodesWithFingerPrint);
 
     numberTotalOfFiles--;
     accountSize -= node->getSize();
@@ -8136,7 +8138,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     // --- UserA Check if find removed node by fingerprint
     fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToRemove.c_str()));
-    ASSERT_EQ(fingerPrintList->size(), 0);
+    ASSERT_EQ(fingerPrintList->size(), nodesWithFingerPrint);
 
     // --- UserA Check folder info from root node ---
     rootnodeA.reset(megaApi[0]->getRootNode());
