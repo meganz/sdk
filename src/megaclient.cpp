@@ -17964,7 +17964,6 @@ void NodeManager::loadNodes()
                 // finally increase the count for each rootnode (only applies to folder links)
                 increaseCounter(node, node->nodeHandle());
             }
-
         }
     }
     else // load only first level
