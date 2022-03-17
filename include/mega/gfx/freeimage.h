@@ -65,6 +65,10 @@ protected:
     bool readbitmapPdf(FileAccess*, const LocalPath&, int);
 #endif
 
+#ifdef USE_MEDIAINFO
+    bool readbitmapMediaInfo(const LocalPath& imagePath);
+#endif
+
 };
 } // namespace
 

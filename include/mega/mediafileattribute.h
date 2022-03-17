@@ -71,7 +71,11 @@ struct MEGA_API MediaProperties
     static MediaProperties decodeMediaPropertiesAttributes(const std::string& attrs, uint32_t filekey[4]);
 
 #ifdef USE_MEDIAINFO
+    static const char* supportedformatsMediaInfoAudio();
+    static const char* supportedformatsMediaInfo();
+
     // return true if the filename extension is one that mediainfoLib can process
+    static bool isMediaFilenameExtAudio(const std::string& ext);
     static bool isMediaFilenameExt(const std::string& ext);
 
     // Open the specified local file with mediainfoLib and get its video parameters.  This function fills in the names but not the IDs
@@ -79,6 +83,10 @@ struct MEGA_API MediaProperties
 
     // Look up the IDs of the codecs and container, and encode and encrypt all the info into a string with file attribute 8, and possibly file attribute 9.
     std::string convertMediaPropertyFileAttributes(uint32_t attributekey[4], MediaFileInfo& mediaInfo);
+
+    // get binary data and synthetic extension ("jpg" or "png") for cover data in ID3v2 tag
+    template<class T>
+    static std::pair<std::string, std::string> getCoverFromId3v2(const T& file);
 #endif
 
     std::string serialize();
