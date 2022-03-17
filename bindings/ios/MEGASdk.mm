@@ -66,6 +66,7 @@ using namespace mega;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener;
+- (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
 - (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 - (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
@@ -2198,7 +2199,7 @@ using namespace mega;
 
 - (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->startUploadForSupport(localPath.UTF8String, isSourceTemporary, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+        self.megaApi->startUploadForSupport(localPath.UTF8String, isSourceTemporary, [self createDelegateMEGATransferListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -3495,9 +3496,13 @@ using namespace mega;
 }
 
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener {
+    return [self createDelegateMEGATransferListener:delegate singleListener:singleListener queueType:ListenerQueueTypeMain];
+}
+
+- (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType {
     if (delegate == nil) return nil;
     
-    DelegateMEGATransferListener *delegateListener = new DelegateMEGATransferListener(self, delegate, singleListener);
+    DelegateMEGATransferListener *delegateListener = new DelegateMEGATransferListener(self, delegate, singleListener, queueType);
     pthread_mutex_lock(&listenerMutex);
     _activeTransferListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
