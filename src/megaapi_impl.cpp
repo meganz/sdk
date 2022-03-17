@@ -26996,9 +26996,9 @@ bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
 
     recursive++;
     size_t index = 0;
-    if (node->getType() == FOLDERNODE)
+    if (node->getType() == FOLDERNODE || node->getType() == ROOTNODE)
     {
-       // If node is a folder, store it's localPath, along with a vector with it's children file nodes
+       // If node is a folder or root node, store it's localPath, along with a vector with it's children file nodes
        mLocalTree.emplace_back(LocalTree(localpath));
        index = mLocalTree.size() - 1;
     }
