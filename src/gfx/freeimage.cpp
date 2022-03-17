@@ -495,9 +495,9 @@ bool GfxProviderFreeImage::readbitmapPdf(FileSystemAccess* fa, const LocalPath& 
         workingDir = LocalPath::fromPlatformEncodedAbsolute(tmpPath.c_str());
     }
 
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, fa.get(), workingDir);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, fa, workingDir);
 #else
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, fa.get());
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, fa);
 #endif
 
     if (!data || !w || !h)
