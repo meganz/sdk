@@ -32,11 +32,15 @@ const int GfxProc::dimensionsavatar[][2] = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
+IGfxProc::~IGfxProc()
+{
+}
+
 bool GfxProc::isgfx(const LocalPath& localfilename)
 {
     const char* supported;
 
-    if (!(supported = mMiddleware->supportedformats()))
+    if (!(supported = mGfxProvider->supportedformats()))
     {
         return true;
     }
@@ -60,7 +64,7 @@ bool GfxProc::isvideo(const LocalPath& localfilename)
 {
     const char* supported;
 
-    if (!(supported = mMiddleware->supportedvideoformats()))
+    if (!(supported = mGfxProvider->supportedvideoformats()))
     {
         return false;
     }
@@ -106,7 +110,7 @@ void GfxProc::loop()
             LOG_debug << "Processing media file: " << job->h;
 
             // (this assumes that the width of the largest dimension is max)
-            if (mMiddleware->readbitmap(NULL, job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+            if (mGfxProvider->readbitmap(NULL, job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
             {
                 for (unsigned i = 0; i < job->imagetypes.size(); i++)
                 {
@@ -115,21 +119,21 @@ void GfxProc::loop()
                     int w = dimensions[job->imagetypes[i]][0];
                     int h = dimensions[job->imagetypes[i]][1];
 
-                    if (mMiddleware->width() < w && mMiddleware->height() < h)
+                    if (mGfxProvider->width() < w && mGfxProvider->height() < h)
                     {
                         LOG_debug << "Skipping upsizing of preview or thumbnail";
-                        w = mMiddleware->width();
-                        h = mMiddleware->height();
+                        w = mGfxProvider->width();
+                        h = mGfxProvider->height();
                     }
 
-                    if (!mMiddleware->resizebitmap(w, h, jpeg))
+                    if (!mGfxProvider->resizebitmap(w, h, jpeg))
                     {
                         delete jpeg;
                         jpeg = NULL;
                     }
                     job->images.push_back(jpeg);
                 }
-                mMiddleware->freebitmap();
+                mGfxProvider->freebitmap();
             }
             else
             {
@@ -236,7 +240,11 @@ int GfxProc::checkevents(Waiter *)
     return needexec ? Waiter::NEEDEXEC : 0;
 }
 
-void GfxProcMiddleware::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
+IGfxProvider::~IGfxProvider()
+{
+}
+
+void IGfxProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 {
     if (rh)
     {
@@ -321,7 +329,7 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, Loca
     }
 
     mutex.lock();
-    if (!mMiddleware->readbitmap(NULL, localfilepath, width > height ? width : height))
+    if (!mGfxProvider->readbitmap(NULL, localfilepath, width > height ? width : height))
     {
         mutex.unlock();
         return false;
@@ -329,16 +337,16 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, Loca
 
     int w = width;
     int h = height;
-    if (mMiddleware->width() < w && mMiddleware->height() < h)
+    if (mGfxProvider->width() < w && mGfxProvider->height() < h)
     {
         LOG_debug << "Skipping upsizing of local preview";
-        w = mMiddleware->width();
-        h = mMiddleware->height();
+        w = mGfxProvider->width();
+        h = mGfxProvider->height();
     }
 
     string jpeg;
-    bool success = mMiddleware->resizebitmap(w, h, &jpeg);
-    mMiddleware->freebitmap();
+    bool success = mGfxProvider->resizebitmap(w, h, &jpeg);
+    mGfxProvider->freebitmap();
     mutex.unlock();
 
     if (!success)
@@ -361,8 +369,8 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, Loca
     return true;
 }
 
-GfxProc::GfxProc(std::unique_ptr<GfxProcMiddleware> middleware)
-    : mMiddleware(std::move(middleware))
+GfxProc::GfxProc(std::unique_ptr<IGfxProvider> middleware)
+    : mGfxProvider(std::move(middleware))
 {
     client = NULL;
     finished = false;

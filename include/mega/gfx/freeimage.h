@@ -21,7 +21,7 @@
 
 #ifdef USE_FREEIMAGE
 #ifndef GFX_CLASS
-#define GFX_CLASS GfxProcMiddlewareFreeImage
+#define GFX_CLASS GfxProviderFreeImage
 
 #include <FreeImage.h>
 #include <mega/filesystem.h>
@@ -30,7 +30,7 @@
 
 namespace mega {
 // bitmap graphics processor
-class MEGA_API GfxProcMiddlewareFreeImage : public GfxProcMiddleware
+class MEGA_API GfxProviderFreeImage : public IGfxProvider
 {
     FIBITMAP* dib;
 
@@ -42,8 +42,8 @@ public:
     const char* supportedformats() override;
     const char* supportedvideoformats() override;
 
-    GfxProcMiddlewareFreeImage();
-    ~GfxProcMiddlewareFreeImage();
+    GfxProviderFreeImage();
+    ~GfxProviderFreeImage();
 
 protected:
 

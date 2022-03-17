@@ -30,7 +30,7 @@
 namespace mega {
 
 // bitmap graphics processor
-class GfxProcMiddlewareExternal : public GfxProcMiddleware
+class GfxProviderExternal : public IGfxProvider
 {
     MegaGfxProcessor *processor;
 
@@ -41,7 +41,7 @@ class GfxProcMiddlewareExternal : public GfxProcMiddleware
     const char* supportedformats() override;
     const char* supportedvideoformats() override;
 public:
-    GfxProcMiddlewareExternal();
+    GfxProviderExternal();
     bool isgfx(string*);
     void setProcessor(MegaGfxProcessor *processor);
 };

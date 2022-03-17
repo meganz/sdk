@@ -5365,14 +5365,14 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     gfxAccess = NULL;
     if(processor)
     {
-        auto externalGfx = std::make_unique<GfxProcMiddlewareExternal>();
+        auto externalGfx = std::make_unique<GfxProviderExternal>();
         externalGfx->setProcessor(processor);
         gfxAccess = new GfxProc(std::move(externalGfx));
         gfxAccess->startProcessingThread();
     }
     else
     {
-        gfxAccess = new GfxProc(std::make_unique<MegaGfxProcMiddleware>());
+        gfxAccess = new GfxProc(std::make_unique<MegaGfxProvider>());
         gfxAccess->startProcessingThread();
     }
 

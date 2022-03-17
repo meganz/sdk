@@ -1,5 +1,5 @@
 /**
- * @file GfxProcMiddlewareCG.mm
+ * @file GfxProviderCG.mm
  * @brief Graphics layer using Cocoa Touch
  *
  * (c) 2013-2015 by Mega Limited, Auckland, New Zealand
@@ -33,9 +33,8 @@ using namespace mega;
 
 #ifndef USE_FREEIMAGE
 
-GfxProcMiddlewareCG::GfxProcMiddlewareCG()
-    : GfxProc()
-    , imageSource(NULL)
+GfxProviderCG::GfxProviderCG()
+    : imageSource(NULL)
 {
     w = h = 0;
     thumbnailParams = CFDictionaryCreateMutable(kCFAllocatorDefault, 3,
@@ -49,7 +48,7 @@ GfxProcMiddlewareCG::GfxProcMiddlewareCG()
     CFRelease(compression);
 }
 
-GfxProcMiddlewareCG::~GfxProcMiddlewareCG() {
+GfxProviderCG::~GfxProviderCG() {
     freebitmap();
     if (thumbnailParams) {
         CFRelease(thumbnailParams);
@@ -59,18 +58,18 @@ GfxProcMiddlewareCG::~GfxProcMiddlewareCG() {
     }
 }
 
-const char* GfxProcMiddlewareCG::supportedformats() {
+const char* GfxProviderCG::supportedformats() {
     if ([[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleExecutable"] isEqualToString:@"MEGAFiles"]) {
         return "";
     }
     return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.webp.";
 }
 
-const char* GfxProcMiddlewareCG::supportedvideoformats() {
+const char* GfxProviderCG::supportedvideoformats() {
     return NULL;
 }
 
-bool GfxProcMiddlewareCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int size) {
+bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int size) {
     string absolutename;
     NSString *sourcePath;
     if (PosixFileSystemAccess::appbasepath && !name.beginsWithSeparator()) {
@@ -155,7 +154,7 @@ bool GfxProcMiddlewareCG::readbitmap(FileSystemAccess* fa, const LocalPath& name
     return w && h;
 }
 
-CGImageRef GfxProcMiddlewareCG::createThumbnailWithMaxSize(int size) {
+CGImageRef GfxProviderCG::createThumbnailWithMaxSize(int size) {
     CFNumberRef maxSize = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &size);
     CFDictionarySetValue(thumbnailParams, kCGImageSourceThumbnailMaxPixelSize, maxSize);
     CFRelease(maxSize);
@@ -181,7 +180,7 @@ static inline CGRect tileRect(size_t w, size_t h)
     return res;
 }
 
-int GfxProcMiddlewareCG::maxSizeForThumbnail(const int rw, const int rh) {
+int GfxProviderCG::maxSizeForThumbnail(const int rw, const int rh) {
     if (rh) { // rectangular rw*rh bounding box
         return std::max(rw, rh);
     }
@@ -189,7 +188,7 @@ int GfxProcMiddlewareCG::maxSizeForThumbnail(const int rw, const int rh) {
     return ceil(rw * ((double)std::max(w, h) / (double)std::min(w, h)));
 }
 
-bool GfxProcMiddlewareCG::resizebitmap(int rw, int rh, string* jpegout) {
+bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
     if (!imageSource) {
         return false;
     }
@@ -225,7 +224,7 @@ bool GfxProcMiddlewareCG::resizebitmap(int rw, int rh, string* jpegout) {
     return success;
 }
 
-void GfxProcMiddlewareCG::freebitmap() {
+void GfxProviderCG::freebitmap() {
     if (imageSource) {
         CFRelease(imageSource);
         imageSource = NULL;

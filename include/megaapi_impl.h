@@ -74,11 +74,11 @@ class MegaSemaphore : public CppSemaphore {};
 #endif
 
 #if USE_FREEIMAGE
-using MegaGfxProcMiddleware = GfxProcMiddlewareFreeImage;
+using MegaGfxProvider = GfxProviderFreeImage;
 #elif TARGET_OS_IPHONE
-using MegaGfxProcMiddleware = GfxProcMiddlewareCG;
+using MegaGfxProvider = GfxProviderCG;
 #else
-using MegaGfxProcMiddleware = GfxProcMiddlewareExternal;
+using MegaGfxProvider = GfxProviderExternal;
 #endif
 
 #ifdef WIN32

@@ -63,10 +63,10 @@ extern "C" {
 namespace mega {
 
 #if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
-std::mutex GfxProcMiddlewareFreeImage::gfxMutex;
+std::mutex GfxProviderFreeImage::gfxMutex;
 #endif
 
-GfxProcMiddlewareFreeImage::GfxProcMiddlewareFreeImage()
+GfxProviderFreeImage::GfxProviderFreeImage()
 {
     dib = NULL;
     w = 0;
@@ -83,7 +83,7 @@ GfxProcMiddlewareFreeImage::GfxProcMiddlewareFreeImage()
 #endif
 }
 
-GfxProcMiddlewareFreeImage::~GfxProcMiddlewareFreeImage()
+GfxProviderFreeImage::~GfxProviderFreeImage()
 {
 #ifdef HAVE_PDFIUM
     gfxMutex.lock();
@@ -93,7 +93,7 @@ GfxProcMiddlewareFreeImage::~GfxProcMiddlewareFreeImage()
 }
 
 #ifdef USE_MEDIAINFO
-bool GfxProcMiddlewareFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
+bool GfxProviderFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
 {
     const pair<string, string>& cover = MediaProperties::getCoverFromId3v2(imagePath.localpath);
     if (cover.first.empty())
@@ -137,7 +137,7 @@ bool GfxProcMiddlewareFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
 }
 #endif
 
-bool GfxProcMiddlewareFreeImage::readbitmapFreeimage(FileSystemAccess*, const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapFreeimage(FileSystemAccess*, const LocalPath& imagePath, int size)
 {
 
     // FIXME: race condition, need to use open file instead of filename
@@ -187,7 +187,7 @@ bool GfxProcMiddlewareFreeImage::readbitmapFreeimage(FileSystemAccess*, const Lo
 #define CAP_TRUNCATED CODEC_CAP_TRUNCATED
 #endif
 
-const char *GfxProcMiddlewareFreeImage::supportedformatsFfmpeg()
+const char *GfxProviderFreeImage::supportedformatsFfmpeg()
 {
     return  ".264.265.3g2.3gp.3gpa.3gpp.3gpp2.mp3"
             ".avi.dde.divx.evo.f4v.flv.gvi.h261.h263.h264.h265.hevc"
@@ -196,7 +196,7 @@ const char *GfxProcMiddlewareFreeImage::supportedformatsFfmpeg()
             ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
 }
 
-bool GfxProcMiddlewareFreeImage::isFfmpegFile(const string& ext)
+bool GfxProviderFreeImage::isFfmpegFile(const string& ext)
 {
     const char* ptr;
     if ((ptr = strstr(supportedformatsFfmpeg(), ext.c_str())) && ptr[ext.size()] == '.')
@@ -220,7 +220,7 @@ private:
 template<class F, class P>
 ScopeGuard<F, P> makeScopeGuard(F f, P p){ return ScopeGuard<F, P>(f, p);	}
 
-bool GfxProcMiddlewareFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPath& imagePath, int size)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
@@ -461,12 +461,12 @@ bool GfxProcMiddlewareFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const Lo
 #endif
 
 #ifdef HAVE_PDFIUM
-const char* GfxProcMiddlewareFreeImage::supportedformatsPDF()
+const char* GfxProviderFreeImage::supportedformatsPDF()
 {
     return ".pdf.";
 }
 
-bool GfxProcMiddlewareFreeImage::isPdfFile(const string &ext)
+bool GfxProviderFreeImage::isPdfFile(const string &ext)
 {
     const char* ptr;
     if ((ptr = strstr(supportedformatsPDF(), ext.c_str())) && ptr[ext.size()] == '.')
@@ -476,7 +476,7 @@ bool GfxProcMiddlewareFreeImage::isPdfFile(const string &ext)
     return false;
 }
 
-bool GfxProcMiddlewareFreeImage::readbitmapPdf(FileSystemAccess* fa, const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapPdf(FileSystemAccess* fa, const LocalPath& imagePath, int size)
 {
 
     std::lock_guard<std::mutex> g(gfxMutex);
@@ -517,7 +517,7 @@ bool GfxProcMiddlewareFreeImage::readbitmapPdf(FileSystemAccess* fa, const Local
 }
 #endif
 
-const char* GfxProcMiddlewareFreeImage::supportedformats()
+const char* GfxProviderFreeImage::supportedformats()
 {
     if (sformats.empty())
     {
@@ -541,12 +541,12 @@ const char* GfxProcMiddlewareFreeImage::supportedformats()
     return sformats.c_str();
 }
 
-const char *GfxProcMiddlewareFreeImage::supportedvideoformats()
+const char *GfxProviderFreeImage::supportedvideoformats()
 {
     return NULL;
 }
 
-bool GfxProcMiddlewareFreeImage::readbitmap(FileSystemAccess* fa, const LocalPath& localname, int size)
+bool GfxProviderFreeImage::readbitmap(FileSystemAccess* fa, const LocalPath& localname, int size)
 {
 
     bool bitmapLoaded = false;
@@ -591,7 +591,7 @@ bool GfxProcMiddlewareFreeImage::readbitmap(FileSystemAccess* fa, const LocalPat
     return true;
 }
 
-bool GfxProcMiddlewareFreeImage::resizebitmap(int rw, int rh, string* jpegout)
+bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 {
     FIBITMAP* tdib;
     FIMEMORY* hmem;
@@ -653,7 +653,7 @@ bool GfxProcMiddlewareFreeImage::resizebitmap(int rw, int rh, string* jpegout)
     return !jpegout->empty();
 }
 
-void GfxProcMiddlewareFreeImage::freebitmap()
+void GfxProviderFreeImage::freebitmap()
 {
     if (dib != NULL)
     {

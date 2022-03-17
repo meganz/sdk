@@ -91,9 +91,11 @@ public:
     virtual void startProcessingThread() = 0;
 };
 
-class MEGA_API GfxProcMiddleware
+class MEGA_API IGfxProvider
 {
 public: // read and store bitmap
+    virtual ~IGfxProvider();
+
     virtual bool readbitmap(FileSystemAccess*, const LocalPath&, int) = 0;
 
     // resize stored bitmap and store result as JPEG
@@ -129,7 +131,7 @@ class MEGA_API GfxProc : public IGfxProc
     SymmCipher mCheckEventsKey;
     GfxJobQueue requests;
     GfxJobQueue responses;
-    std::unique_ptr<GfxProcMiddleware>  mMiddleware;
+    std::unique_ptr<IGfxProvider>  mGfxProvider;
 
     static void *threadEntryPoint(void *param);
     void loop();
@@ -168,7 +170,7 @@ public:
     // start a thread that will do the processing
     void startProcessingThread() override;
 
-    GfxProc(std::unique_ptr<GfxProcMiddleware>);
+    GfxProc(std::unique_ptr<IGfxProvider>);
     virtual ~GfxProc();
 };
 } // namespace

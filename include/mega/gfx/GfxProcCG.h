@@ -1,5 +1,5 @@
 /**
- * @file GfxProcMiddlewareCG.h
+ * @file GfxProviderCG.h
  * @brief Graphics layer using Cocoa Touch
  *
  * (c) 2013-2015 by Mega Limited, Auckland, New Zealand
@@ -21,13 +21,13 @@
 
 #ifdef USE_IOS
 #ifndef GFX_CLASS
-#define GFX_CLASS GfxProcMiddlewareCG
+#define GFX_CLASS GfxProviderCG
 
 #include "mega.h"
 #include <ImageIO/CGImageSource.h>
 
 // bitmap graphics processor
-class MEGA_API GfxProcMiddlewareCG : public GfxProcMiddleware
+class MEGA_API GfxProviderCG : public IGfxProvider
 {
     CGImageSourceRef imageSource;
     CFDictionaryRef imageParams;
@@ -41,8 +41,8 @@ private: // mega::GfxProc implementations
     bool resizebitmap(int, int, mega::string*) override;
     void freebitmap() override;
 public:
-    GfxProcMiddlewareCG();
-    ~GfxProcMiddlewareCG();
+    GfxProviderCG();
+    ~GfxProviderCG();
 };
 #endif
 

@@ -24,17 +24,17 @@
 
 namespace mega {
 
-GfxProcMiddlewareExternal::GfxProcMiddlewareExternal()
+GfxProviderExternal::GfxProviderExternal()
 {
     processor = NULL;
 }
 
-void GfxProcMiddlewareExternal::setProcessor(MegaGfxProcessor *processor)
+void GfxProviderExternal::setProcessor(MegaGfxProcessor *processor)
 {
 	this->processor = processor;
 }
 
-bool GfxProcMiddlewareExternal::isgfx(string* name)
+bool GfxProviderExternal::isgfx(string* name)
 {
 	if(!processor) return false;
 
@@ -60,7 +60,7 @@ bool GfxProcMiddlewareExternal::isgfx(string* name)
     return ptr && ptr[ext.size()] == '.';
 }
 
-bool GfxProcMiddlewareExternal::readbitmap(FileSystemAccess* /*fa*/, const LocalPath& localname, int /*size*/)
+bool GfxProviderExternal::readbitmap(FileSystemAccess* /*fa*/, const LocalPath& localname, int /*size*/)
 {
     if(!processor) return false;
 
@@ -82,7 +82,7 @@ bool GfxProcMiddlewareExternal::readbitmap(FileSystemAccess* /*fa*/, const Local
 	return true;
 }
 
-bool GfxProcMiddlewareExternal::resizebitmap(int rw, int rh, string* jpegout)
+bool GfxProviderExternal::resizebitmap(int rw, int rh, string* jpegout)
 {
     int px, py;
 
@@ -97,17 +97,17 @@ bool GfxProcMiddlewareExternal::resizebitmap(int rw, int rh, string* jpegout)
     return processor->getBitmapData((char *)jpegout->data(), jpegout->size());
 }
 
-void GfxProcMiddlewareExternal::freebitmap()
+void GfxProviderExternal::freebitmap()
 {
 	processor->freeBitmap();
 }
 
-const char *GfxProcMiddlewareExternal::supportedformats()
+const char *GfxProviderExternal::supportedformats()
 {
     return NULL;
 }
 
-const char *GfxProcMiddlewareExternal::supportedvideoformats()
+const char *GfxProviderExternal::supportedvideoformats()
 {
     return NULL;
 }
