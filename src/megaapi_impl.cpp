@@ -25334,6 +25334,7 @@ void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     assert(mMainThreadId == std::this_thread::get_id());
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
+    pendingTransfers++;
     assert(transfer);
     if (transfer)
     {
@@ -25577,7 +25578,6 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
                                                                       -1, tag, false, NULL, false, false, tree.fsType, transfer->getCancelToken(), this);
         transferQueue.push(subTransfer);
-        pendingTransfers++;
     }
 
     for (auto& t : tree.subtrees)
@@ -27092,7 +27092,6 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              string utf8path = localpath.toPath();
              MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), transfer->getCancelToken(), this);
              transferQueue.push(transferDownload);
-             pendingTransfers++;
          }
     }
 
@@ -27162,6 +27161,7 @@ void MegaFolderDownloadController::complete(Error e, bool cancelledByUser)
 void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
+    pendingTransfers++;
     assert(transfer);
     if (transfer)
     {
