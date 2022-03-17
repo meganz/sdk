@@ -27127,7 +27127,7 @@ bool MegaFolderDownloadController::hasEnded(bool notifyUserCancellation)
         return true;
     }
 
-    if (isCancelledByUser() && notifyUserCancellation)
+    if (isCancelledByUser())
     {
         // User has cancelled operation via cancelToken
         if (notifyUserCancellation)
