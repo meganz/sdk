@@ -271,7 +271,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
 
     // Always record the name.
     result.localname = name;
-    //result.name = name.toName(*mFsAccess);
+    result.name = name.toName(*mFsAccess);
 
     // Can we open the file?
     auto fileAccess = mFsAccess->newfileaccess(false);
@@ -541,11 +541,11 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     }
     else if (row.syncNode)
     {
-        cloudPath += row.syncNode->localname.toName(*syncs.fsaccess);
+        cloudPath += row.syncNode->name;
     }
     else if (row.fsNode)
     {
-        cloudPath += row.fsNode->localname.toName(*syncs.fsaccess);
+        cloudPath += row.fsNode->name;
     }
     else if (!row.cloudClashingNames.empty() || !row.fsClashingNames.empty())
     {
@@ -566,11 +566,11 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     }
     else if (row.syncNode)
     {
-        syncPath += row.syncNode->localname.toName(*syncs.fsaccess);
+        syncPath += row.syncNode->name;
     }
     else if (row.fsNode)
     {
-        syncPath += row.fsNode->localname.toName(*syncs.fsaccess);
+        syncPath += row.fsNode->name;
     }
     else if (!row.cloudClashingNames.empty() || !row.fsClashingNames.empty())
     {
@@ -2054,7 +2054,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     movePtr->sourceFingerprint = row.fsNode->fingerprint;
                     movePtr->sourcePtr = sourceSyncNode;
 
-                    string newName = row.fsNode->localname.toName(*syncs.fsaccess);
+                    string newName = row.fsNode->name;
                     if (newName == sourceCloudNode.name ||
                         sourceSyncNode->localname == row.fsNode->localname)
                     {
@@ -5891,41 +5891,41 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->name, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->name, true, caseInsensitive);
             }
         }
         else if (lhs.syncNode)
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.syncNode->localname, true, rhs.cloudNode->name, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->name, true, rhs.cloudNode->name, true, caseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.syncNode->localname, true, rhs.syncNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->name, true, rhs.syncNode->name, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.syncNode->localname, true, rhs.fsNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->name, true, rhs.fsNode->name, true, caseInsensitive);
             }
         }
         else // lhs.fsNode
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.fsNode->localname, true, rhs.cloudNode->name, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->name, true, rhs.cloudNode->name, true, caseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.fsNode->localname, true, rhs.syncNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->name, true, rhs.syncNode->name, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.fsNode->localname, true, rhs.fsNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->name, true, rhs.fsNode->name, true, caseInsensitive);
             }
         }
     };
@@ -7436,7 +7436,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
             // if we were already matched with a name that is not exactly the same as toName(), keep using it
             string nodeName = !row.cloudNode || onlyCaseChanged
-                                ? row.fsNode->localname.toName(*syncs.fsaccess)
+                                ? row.fsNode->name
                                 : row.cloudNode->name;
 
             if (nodeName != existingUpload->name)
@@ -7503,7 +7503,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
                 // if we were already matched with a name that is not exactly the same as toName(), keep using it
                 string nodeName = !row.cloudNode || onlyCaseChanged
-                    ? row.fsNode->localname.toName(*syncs.fsaccess)
+                    ? row.fsNode->name
                     : row.cloudNode->name;
 
                 auto upload = std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle,
@@ -7598,7 +7598,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             if (parentRow.cloudNode)
             {
                 // there can't be a matching cloud node in this row (for folders), so just toName() is correct
-                string foldername = row.syncNode->localname.toName(*syncs.fsaccess);
+                string foldername = row.syncNode->name;
 
                 // Check for filename anomalies.
                 {
