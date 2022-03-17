@@ -21,7 +21,7 @@
 
 #ifdef USE_FREEIMAGE
 #ifndef GFX_CLASS
-#define GFX_CLASS GfxProcFreeImage
+#define GFX_CLASS GfxProcMiddlewareFreeImage
 
 #include <FreeImage.h>
 #include <mega/filesystem.h>
@@ -30,24 +30,25 @@
 
 namespace mega {
 // bitmap graphics processor
-class MEGA_API GfxProcFreeImage : public GfxProc
+class MEGA_API GfxProcMiddlewareFreeImage : public GfxProcMiddleware
 {
     FIBITMAP* dib;
 
-    bool readbitmap(FileAccess*, const LocalPath&, int);
-    bool resizebitmap(int, int, string*);
-    void freebitmap();
-
 public:
-	GfxProcFreeImage();
-    ~GfxProcFreeImage();
+    bool readbitmap(FileSystemAccess*, const LocalPath&, int) override;
+    bool resizebitmap(int, int, string*) override;
+    void freebitmap() override;
+
+    const char* supportedformats() override;
+    const char* supportedvideoformats() override;
+
+    GfxProcMiddlewareFreeImage();
+    ~GfxProcMiddlewareFreeImage();
 
 protected:
 
     string sformats;
-    const char* supportedformats();
-
-    bool readbitmapFreeimage(FileAccess*, const LocalPath&, int);
+    bool readbitmapFreeimage(FileSystemAccess*, const LocalPath&, int);
 
 #if defined(HAVE_FFMPEG)  || defined(HAVE_PDFIUM)
     static std::mutex gfxMutex;
@@ -56,13 +57,13 @@ protected:
 #ifdef HAVE_FFMPEG
     const char* supportedformatsFfmpeg();
     bool isFfmpegFile(const string &ext);
-    bool readbitmapFfmpeg(FileAccess*, const LocalPath&, int);
+    bool readbitmapFfmpeg(FileSystemAccess*, const LocalPath&, int);
 #endif
 
 #ifdef HAVE_PDFIUM
     const char* supportedformatsPDF();
     bool isPdfFile(const string &ext);
-    bool readbitmapPdf(FileAccess*, const LocalPath&, int);
+    bool readbitmapPdf(FileSystemAccess*, const LocalPath&, int);
 #endif
 
 #ifdef USE_MEDIAINFO

@@ -651,7 +651,7 @@ struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
 #ifdef GFX_CLASS
-    GFX_CLASS gfx;
+    GfxProc gfx;
 #endif
 
     string client_dbaccess_path;
@@ -778,7 +778,11 @@ struct StandardClient : public MegaApp
     }
 
     StandardClient(const fs::path& basepath, const string& name)
-        : client_dbaccess_path(ensureDir(basepath / name))
+        :
+#ifdef GFX_CLASS
+          gfx(std::make_unique<GFX_CLASS>()),
+#endif
+          client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
         , client(this,
                  &waiter,

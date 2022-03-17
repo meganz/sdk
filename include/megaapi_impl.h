@@ -74,11 +74,11 @@ class MegaSemaphore : public CppSemaphore {};
 #endif
 
 #if USE_FREEIMAGE
-class MegaGfxProc : public GfxProcFreeImage {};
+using MegaGfxProcMiddleware = GfxProcMiddlewareFreeImage;
 #elif TARGET_OS_IPHONE
-class MegaGfxProc : public GfxProcCG {};
+using MegaGfxProcMiddleware = GfxProcMiddlewareCG;
 #else
-class MegaGfxProc : public GfxProcExternal {};
+using MegaGfxProcMiddleware = GfxProcMiddlewareExternal;
 #endif
 
 #ifdef WIN32
@@ -2844,7 +2844,7 @@ protected:
         MegaWaiter *waiter;
         MegaFileSystemAccess *fsAccess;
         MegaDbAccess *dbAccess;
-        GfxProc *gfxAccess;
+        IGfxProc *gfxAccess;
         string basePath;
         bool nocache;
 

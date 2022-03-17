@@ -63,10 +63,10 @@ extern "C" {
 namespace mega {
 
 #if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
-std::mutex GfxProcFreeImage::gfxMutex;
+std::mutex GfxProcMiddlewareFreeImage::gfxMutex;
 #endif
 
-GfxProcFreeImage::GfxProcFreeImage()
+GfxProcMiddlewareFreeImage::GfxProcMiddlewareFreeImage()
 {
     dib = NULL;
     w = 0;
@@ -83,7 +83,7 @@ GfxProcFreeImage::GfxProcFreeImage()
 #endif
 }
 
-GfxProcFreeImage::~GfxProcFreeImage()
+GfxProcMiddlewareFreeImage::~GfxProcMiddlewareFreeImage()
 {
 #ifdef HAVE_PDFIUM
     gfxMutex.lock();
@@ -93,7 +93,7 @@ GfxProcFreeImage::~GfxProcFreeImage()
 }
 
 #ifdef USE_MEDIAINFO
-bool GfxProcFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
+bool GfxProcMiddlewareFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
 {
     const pair<string, string>& cover = MediaProperties::getCoverFromId3v2(imagePath.localpath);
     if (cover.first.empty())
@@ -137,7 +137,7 @@ bool GfxProcFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
 }
 #endif
 
-bool GfxProcFreeImage::readbitmapFreeimage(FileAccess*, const LocalPath& imagePath, int size)
+bool GfxProcMiddlewareFreeImage::readbitmapFreeimage(FileSystemAccess*, const LocalPath& imagePath, int size)
 {
 
     // FIXME: race condition, need to use open file instead of filename
@@ -187,7 +187,7 @@ bool GfxProcFreeImage::readbitmapFreeimage(FileAccess*, const LocalPath& imagePa
 #define CAP_TRUNCATED CODEC_CAP_TRUNCATED
 #endif
 
-const char *GfxProcFreeImage::supportedformatsFfmpeg()
+const char *GfxProcMiddlewareFreeImage::supportedformatsFfmpeg()
 {
     return  ".264.265.3g2.3gp.3gpa.3gpp.3gpp2.mp3"
             ".avi.dde.divx.evo.f4v.flv.gvi.h261.h263.h264.h265.hevc"
@@ -196,7 +196,7 @@ const char *GfxProcFreeImage::supportedformatsFfmpeg()
             ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
 }
 
-bool GfxProcFreeImage::isFfmpegFile(const string& ext)
+bool GfxProcMiddlewareFreeImage::isFfmpegFile(const string& ext)
 {
     const char* ptr;
     if ((ptr = strstr(supportedformatsFfmpeg(), ext.c_str())) && ptr[ext.size()] == '.')
@@ -220,7 +220,7 @@ private:
 template<class F, class P>
 ScopeGuard<F, P> makeScopeGuard(F f, P p){ return ScopeGuard<F, P>(f, p);	}
 
-bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePath, int size)
+bool GfxProcMiddlewareFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPath& imagePath, int size)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
@@ -366,7 +366,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     }
 
     string extension;
-    if (client->fsaccess->getextension(imagePath, extension)
+    if (fa->getextension(imagePath, extension)
             && strcmp(extension.c_str(),".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
@@ -461,12 +461,12 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
 #endif
 
 #ifdef HAVE_PDFIUM
-const char* GfxProcFreeImage::supportedformatsPDF()
+const char* GfxProcMiddlewareFreeImage::supportedformatsPDF()
 {
     return ".pdf.";
 }
 
-bool GfxProcFreeImage::isPdfFile(const string &ext)
+bool GfxProcMiddlewareFreeImage::isPdfFile(const string &ext)
 {
     const char* ptr;
     if ((ptr = strstr(supportedformatsPDF(), ext.c_str())) && ptr[ext.size()] == '.')
@@ -476,7 +476,7 @@ bool GfxProcFreeImage::isPdfFile(const string &ext)
     return false;
 }
 
-bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath, int size)
+bool GfxProcMiddlewareFreeImage::readbitmapPdf(FileSystemAccess* fa, const LocalPath& imagePath, int size)
 {
 
     std::lock_guard<std::mutex> g(gfxMutex);
@@ -495,9 +495,9 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
         workingDir = LocalPath::fromPlatformEncodedAbsolute(tmpPath.c_str());
     }
 
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess.get(), workingDir);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, fa.get(), workingDir);
 #else
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess.get());
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, fa.get());
 #endif
 
     if (!data || !w || !h)
@@ -517,7 +517,7 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
 }
 #endif
 
-const char* GfxProcFreeImage::supportedformats()
+const char* GfxProcMiddlewareFreeImage::supportedformats()
 {
     if (sformats.empty())
     {
@@ -541,12 +541,17 @@ const char* GfxProcFreeImage::supportedformats()
     return sformats.c_str();
 }
 
-bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, int size)
+const char *GfxProcMiddlewareFreeImage::supportedvideoformats()
+{
+    return NULL;
+}
+
+bool GfxProcMiddlewareFreeImage::readbitmap(FileSystemAccess* fa, const LocalPath& localname, int size)
 {
 
     bool bitmapLoaded = false;
     string extension;
-    if (client->fsaccess->getextension(localname, extension))
+    if (fa->getextension(localname, extension))
     {
 #ifdef USE_MEDIAINFO
         if (MediaProperties::isMediaFilenameExtAudio(extension))
@@ -586,7 +591,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     return true;
 }
 
-bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
+bool GfxProcMiddlewareFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 {
     FIBITMAP* tdib;
     FIMEMORY* hmem;
@@ -648,7 +653,7 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
     return !jpegout->empty();
 }
 
-void GfxProcFreeImage::freebitmap()
+void GfxProcMiddlewareFreeImage::freebitmap()
 {
     if (dib != NULL)
     {
