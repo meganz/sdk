@@ -17945,25 +17945,28 @@ void NodeManager::loadNodes()
         rootnodes = getRootNodes();
 
         node_vector inSharesNodes = getNodesWithInShares();
-        rootnodes.insert(rootnodes.end(), inSharesNodes.begin(), inSharesNodes.end());
+        for (auto& node : inSharesNodes)
+        {
+            // If parent exits => nested in-share. We don't need to add
+            // Nested in-shares aren't added to node counters
+            if (!node->parent)
+            {
+                rootnodes.push_back(node);
+            }
+        }
     }
 
     if (mKeepAllNodesInMemory)
     {
         for (auto &node : rootnodes)
         {
-            // If parent exits => nested in-share and children will be load
-            // by main share (node counter doesn't have to be added)
-            if (!node->parent)
-            {
-                // add counter to accumulate count recursively
-                addCounter(node->nodeHandle());
+            // add counter to accumulate count recursively
+            addCounter(node->nodeHandle());
 
-                loadTreeRecursively(node);
+            loadTreeRecursively(node);
 
-                // finally increase the count for each rootnode (only applies to folder links)
-                increaseCounter(node, node->nodeHandle());
-            }
+            // finally increase the count for each rootnode (only applies to folder links)
+            increaseCounter(node, node->nodeHandle());
         }
     }
     else // load only first level
@@ -17971,12 +17974,8 @@ void NodeManager::loadNodes()
         for (auto &node : rootnodes)
         {
             getChildren(node);
-
-            if (!node->parent) // If parent exits => nested in-share and node counter doesn't have to be calculated
-            {
-                // calculate node counters based on DB queries
-                calculateCounter(*node);
-            }
+            // calculate node counters based on DB queries
+            calculateCounter(*node);
         }
     }
 
