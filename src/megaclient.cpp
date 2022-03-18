@@ -17945,7 +17945,15 @@ void NodeManager::loadNodes()
         rootnodes = getRootNodes();
 
         node_vector inSharesNodes = getNodesWithInShares();
-        rootnodes.insert(rootnodes.end(), inSharesNodes.begin(), inSharesNodes.end());
+        for (auto& node : inSharesNodes)
+        {
+            // If parent exits => nested in-share. We don't need to add
+            // Nested in-shares aren't added to node counters
+            if (!node->parent)
+            {
+                rootnodes.push_back(node);
+            }
+        }
     }
 
     if (mKeepAllNodesInMemory)
@@ -17966,7 +17974,6 @@ void NodeManager::loadNodes()
         for (auto &node : rootnodes)
         {
             getChildren(node);
-
             // calculate node counters based on DB queries
             calculateCounter(*node);
         }
