@@ -543,7 +543,12 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
 #endif
     }
 
+
+    if (!notify)
+    {
         mNodeManager.updateNode(n);
+    }
+    //else -> It will be updated at notifypurge
 }
 
 
