@@ -767,13 +767,16 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
 
     sqlite3_stmt *stmt;
     bool result = false;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE type >= ? AND type <= ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        NodeHandle nodeHandleUndef; // By default is set as undef
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, nodeHandleUndef.as8byte())) == SQLITE_OK)
+        // nodeHandleUndef; // By default is set as undef
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, nodetype_t::ROOTNODE)) == SQLITE_OK)
         {
-            result = processSqlQueryNodes(stmt, nodes);
+            if ((sqlResult = sqlite3_bind_int64(stmt, 2, nodetype_t::RUBBISHNODE)) == SQLITE_OK)
+            {
+                result = processSqlQueryNodes(stmt, nodes);
+            }
         }
     }
 

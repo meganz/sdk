@@ -543,7 +543,12 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
 #endif
     }
 
+
+    if (!notify)
+    {
         mNodeManager.updateNode(n);
+    }
+    //else -> It will be updated at notifypurge
 }
 
 
@@ -17643,17 +17648,20 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
     }
 
     // read inshare, outshares, or pending shares
+    std::list<std::unique_ptr<NewShare>> ownNewshares;
     while (numshares)   // inshares: -1, outshare/s: num_shares
     {
         int direction = (numshares > 0) ? -1 : 0;
         std::unique_ptr<NewShare> newShare(Share::unserialize(direction, h, skey, &ptr, end));
+
         if (!newShare)
         {
             LOG_err << "Failed to unserialize Share";
             break;
         }
 
-        mClient.mergenewshare(newShare.get(), false);
+        ownNewshares.push_back(std::move(newShare));
+
         if (numshares > 0)  // outshare/s
         {
             numshares--;
@@ -17734,6 +17742,12 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
 
     if (ptr == end)
     {
+        for (auto& share : ownNewshares)
+        {
+            mClient.mergenewshare(share.get(), false);
+        }
+
+        // If node was encrypted in DB and has been decrypted during unserialize
         if (!decrypted && !n->attrstring)
         {
             updateNode(n);
