@@ -10613,14 +10613,17 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
         ASSERT_NE(node, nullptr);
 
         {
-            // Make sure this change is atomic wrt c.
-            std::lock_guard<std::recursive_mutex> guard(c.clientMutex);
-
             // Move d to x/d.
             ASSERT_TRUE(cr.movenode("s/d", "s/x"));
 
+            // Wait for c to stall.
+            ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
             // Remove the original x/d.
             ASSERT_TRUE(cr.deleteremote(node));
+
+            // Wait for c to recover from the stall.
+            ASSERT_TRUE(c.waitFor(SyncStallState(false), TIMEOUT));
         }
 
         // Update model.
@@ -10686,14 +10689,17 @@ TEST_F(SyncTest, RemoteReplaceFile)
         ASSERT_NE(node, nullptr);
 
         {
-            // Make sure cr's change is atomic with respect to c.
-            std::lock_guard<std::recursive_mutex> guard(c.clientMutex);
-
             // Move /f to /d/f.
             ASSERT_TRUE(cr.movenode("s/f", "s/d"));
 
+            // Wait for c to stall.
+            ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+
             // Remove the original /d/f.
             ASSERT_TRUE(cr.deleteremote(node));
+
+            // Wait for c to recover from the stall.
+            ASSERT_TRUE(c.waitFor(SyncStallState(false), TIMEOUT));
         }
 
         // Update model.
