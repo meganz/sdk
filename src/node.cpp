@@ -1317,8 +1317,10 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
 
                     string prevname = node->attrs.map['n'];
 
+                    bool changeVault = node->firstancestor()->nodeHandle() == sync->client->rootnodes.vault;
+
                     // set new name
-                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr);
+                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr, changeVault);
                 }
             }
         }

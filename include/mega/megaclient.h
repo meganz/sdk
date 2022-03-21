@@ -473,7 +473,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c, bool changeVault);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;

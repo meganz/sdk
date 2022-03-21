@@ -3118,7 +3118,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
         }
     };
 
-    auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), 0, nullptr, move(attrCompl));
+    auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), 0, nullptr, move(attrCompl), true);
     if (e != API_OK)
     {
         cout << "failed to set new node attributes (e = " << e << ')' << endl;
@@ -3211,7 +3211,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                     Node* remoteNode = client->nodebyhandle(d.rootNode);
                     if (!remoteNode)
                     {
-                        cout << "Backup Centre - Remote node for backup not found"
+                        cout << "Backup Centre - Remote node for backup not found: "
                              << Base64Str<MegaClient::NODEHANDLE>(d.rootNode) << endl;
                         return;
                     }
@@ -4020,7 +4020,7 @@ void exec_mv(autocomplete::ACState& s)
                             // rename
                             LocalPath::utf8_normalize(&newname);
 
-                            if ((e = client->setattr(n, attr_map('n', newname), 0, nullptr, setattr_result)))
+                            if ((e = client->setattr(n, attr_map('n', newname), 0, nullptr, setattr_result, false)))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -4051,7 +4051,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), 0, nullptr, setattr_result);
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), 0, nullptr, setattr_result, false);
 
                             if (e)
                             {

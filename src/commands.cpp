@@ -86,7 +86,8 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                    client->setattr(n, attr_map('f', me64), 0, nullptr, nullptr);
+                    bool changeVault = n->firstancestor()->nodeHandle() == client->rootnodes.vault;
+                    client->setattr(n, attr_map('f', me64), 0, nullptr, nullptr, changeVault);
                 }
             }
 
@@ -904,7 +905,7 @@ bool CommandGetFile::procresult(Result r)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr, Completion&& c)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr, Completion&& c, bool changeVault)
 {
     cmd("a");
     notself(client);
@@ -916,6 +917,11 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
 
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
     arg("at", (byte*)at.c_str(), int(at.size()));
+
+    if (changeVault)
+    {
+        arg("vw", 1);
+    }
 
     h = n->nodeHandle();
     tag = 0;
