@@ -3724,7 +3724,7 @@ void Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBa
                     {
                         NodeHandle prevParent;
                         prevParent.set6byte(remoteNode->parenthandle);
-                        mClient.reqs.add(new CommandMoveNode(&mClient, remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr, true));
+                        mClient.rename(remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr, nullptr);
                     }
                 }
             }
