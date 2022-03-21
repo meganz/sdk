@@ -14079,7 +14079,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
@@ -14101,8 +14101,8 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
     handle driveId = UNDEF;
     if (config.isExternal())
     {
-        auto drivePath = config.mExternalDrivePath;
-        auto sourcePath = config.mLocalPath;
+        const auto& drivePath = config.mExternalDrivePath;
+        const auto& sourcePath = config.mLocalPath;
         auto* store = syncs.syncConfigStore();
 
         // Can we get our hands on the config store?
@@ -14151,34 +14151,132 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
     string deviceIdHash = getDeviceidHash();
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
-    reqs.add( new CommandBackupPut(this, info,
-                                   [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
-        if (ISUNDEF(backupId) && !e)
-        {
-            e = API_EFAILED;
-        }
+    reqs.add(new CommandBackupPut(this, info,
+                                  [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
+            if (ISUNDEF(backupId) && !e)
+            {
+                e = API_EFAILED;
+            }
 
-        if (e)
-        {
-            completion(e, config.mError, backupId);
-        }
-        else
-        {
+            if (e)
+            {
+                completion(e, config.mError, backupId);
+            }
+            else
+            {
+                // if we got this far, the syncConfig is kept (in db and in memory)
+                config.setBackupId(backupId);
 
-            // if we got this far, the syncConfig is kept (in db and in memory)
-            config.setBackupId(backupId);
+                UnifiedSync* unifiedSync = syncs.appendNewSync(config, *this);
 
-            UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+                e = unifiedSync->enableSync(false, notifyApp);
 
-            e = unifiedSync->enableSync(false, notifyApp);
+                syncactivity = true;
 
-            syncactivity = true;
+                completion(e, unifiedSync->mConfig.getError(), backupId);
+            }
+        }));
 
-            completion(e, unifiedSync->mConfig.getError(), backupId);
-        }
-    }));
+    return API_OK;
+}
 
-    return e;
+
+error MegaClient::registerbackup(const string& backupName, const string& extDriveRoot, CommandPutNodes::Completion completion)
+{
+    // get current user
+    User* u = ownuser();
+
+    // get handle of remote "My Backups" folder, from user attributes
+    if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER)) { return API_EACCESS; }
+    const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+    if (!handleContainerStr) { return API_EACCESS; }
+
+    string buffer;
+    std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &key));
+    if (!tlvRecords || !tlvRecords->get("h", buffer) || buffer.size() != MegaClient::NODEHANDLE) { return API_EINTERNAL; }
+
+    handle h = 0; // make sure top two bytes are 0
+    memcpy(&h, buffer.c_str(), MegaClient::NODEHANDLE);
+
+    if (!h || h == UNDEF) { return API_ENOENT; }
+
+    // get Node of remote "My Backups" folder
+    Node* myBackupsNode = nodebyhandle(h);
+    if (!myBackupsNode) { return API_ENOENT; }
+
+    // get 'device-id'
+    string deviceId;
+    bool isInternalDrive = extDriveRoot.empty();
+    if (isInternalDrive)
+    {
+        deviceId = getDeviceidHash();
+    }
+    else // external drive
+    {
+        // drive-id must have been already written to external drive, since a name was given to it
+        handle driveId;
+        error e = readDriveId(*fsaccess, extDriveRoot.c_str(), driveId);
+        if (e != API_OK)
+            return e;
+
+        // create the device id from the drive id
+        deviceId = Base64Str<MegaClient::DRIVEHANDLE>(driveId);
+    }
+
+    if (deviceId.empty()) { return API_EINCOMPLETE; }
+
+    // prepare for new nodes
+    vector<NewNode> newnodes;
+    nameid attrId = isInternalDrive ?
+        AttrMap::string2nameid("dev-id") : // "device-id" would be too long
+        AttrMap::string2nameid("drv-id");
+    std::function<void(AttrMap& attrs)> addAttrsFunc = [=](AttrMap& attrs)
+    {
+        attrs.map[attrId] = deviceId;
+    };
+
+    // serch for remote folder "My Backups"/`DEVICE_NAME`/
+    Node* deviceNameNode = childnodebyattribute(myBackupsNode, attrId, deviceId.c_str());
+    if (deviceNameNode) // validate this node
+    {
+        if (deviceNameNode->type != FOLDERNODE) { return API_EACCESS; }
+    }
+    else // create `DEVICE_NAME` remote dir
+    {
+        // get `DEVICE_NAME`, from user attributes
+        attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
+        if (!u->isattrvalid(attrType)) { return API_EINCOMPLETE; }
+        const string* deviceNameContainerStr = u->getattr(attrType);
+        if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
+
+        string deviceName;
+        tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
+        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty()) { return API_EINCOMPLETE; }
+
+        // add a new node for it
+        newnodes.emplace_back();
+        NewNode& newNode = newnodes.back();
+
+        putnodes_prepareOneFolder(&newNode, deviceName, addAttrsFunc);
+        newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
+    }
+
+    // create backupName remote dir
+    newnodes.emplace_back();
+    NewNode& backupNameNode = newnodes.back();
+
+    putnodes_prepareOneFolder(&backupNameNode, backupName);    // backup node should not include dev-id/drv-id
+    if (!deviceNameNode)
+    {
+        // Set parent handle if part of the new nodes array (it cannot be from an existing node)
+        backupNameNode.parenthandle = newnodes[0].nodehandle;
+    }
+
+    // create the new node(s)
+    putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
+             NoVersioning, move(newnodes), nullptr, reqtag, move(completion), true);  // followup in completion
+
+    return API_OK;
 }
 
 

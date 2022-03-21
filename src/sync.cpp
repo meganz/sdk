@@ -2527,7 +2527,7 @@ error Syncs::backupCloseDrive(LocalPath drivePath)
     return result;
 }
 
-error Syncs::backupOpenDrive(LocalPath drivePath)
+error Syncs::backupOpenDrive(const LocalPath& drivePath)
 {
     // Is the drive path valid?
     if (drivePath.empty())

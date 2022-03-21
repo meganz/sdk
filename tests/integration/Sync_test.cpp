@@ -1618,7 +1618,7 @@ bool StandardClient::backupAdd_inthread(const string& drivePath,
         << "config.mOriginalPathOfRemoteRootNode: " << config.mOriginalPathOfRemoteRootNode.c_str();
 
     // Try and add the backup.
-    return client.addsync(config, true, completion, logname) == API_OK;
+    return client.addsync(move(config), true, completion, logname) == API_OK;
 }
 
 handle StandardClient::backupAdd_mainthread(const string& drivePath,
@@ -1674,7 +1674,7 @@ bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::p
                         syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
                 << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
 
-            error e = client.addsync(syncConfig, true, addSyncCompletion, logname);
+            error e = client.addsync(move(syncConfig), true, addSyncCompletion, logname);
             return !e;
         }
     }

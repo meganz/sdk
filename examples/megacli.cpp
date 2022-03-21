@@ -9160,7 +9160,7 @@ void sync_completion(error result, const SyncError& se, handle backupId)
 {
     if (backupId == UNDEF)
     {
-        cerr << "Sync could not be added: "
+        cerr << "Sync could not be added " << (se == SyncError::PUT_NODES_ERROR ? "(putnodes for backup failed)" : "") << ": "
              << errorstring(result)
              << endl;
     }
@@ -9178,6 +9178,27 @@ void sync_completion(error result, const SyncError& se, handle backupId)
     }
 }
 
+void sync_add(const LocalPath& sourcePath, const string& drive, const string& syncname, const Node* targetNode, SyncConfig::Type type)
+{
+    // sync add source target
+    LocalPath drivePath = localPathArg(drive);
+
+    // Create a suitable sync config.
+    auto config =
+        SyncConfig(sourcePath,
+            syncname,
+            targetNode ? NodeHandle().set6byte(targetNode->nodehandle) : NodeHandle(),
+            targetNode ? targetNode->displaypath() : string(),
+            0,
+            move(drivePath),
+            true,
+            type);
+
+    // Try and add the new sync.
+    // All validation is performed in this function.
+    client->addsync(move(config), false, sync_completion, "");
+}
+
 void exec_syncadd(autocomplete::ACState& s)
 {
     if (client->loggedin() != FULLACCOUNT)
@@ -9189,63 +9210,55 @@ void exec_syncadd(autocomplete::ACState& s)
 
     string drive, syncname;
     bool backup = s.extractflag("-backup");
-    bool external = s.extractflagparam("-external", drive);
+    s.extractflagparam("-external", drive);
     bool named = s.extractflagparam("-name", syncname);
+    const LocalPath& sourcePath = localPathArg(s.words[2].s);
 
-    // sync add source target
-    LocalPath drivePath = localPathArg(drive);
-    LocalPath sourcePath = localPathArg(s.words[2].s);
-    string targetPath = s.words[3].s;
-
-    // Does the target node exist?
-    auto* targetNode = nodebypath(targetPath.c_str());
-
-    if (!targetNode)
+    if (!named)
     {
-        cerr << targetPath
-             << ": Not found."
-             << endl;
-        return;
+        syncname = sourcePath.leafName().toPath();
     }
 
-    // Create a suitable sync config.
-    auto config =
-      SyncConfig(sourcePath,
-                 named ? syncname : sourcePath.leafName().toPath(),
-                 NodeHandle().set6byte(targetNode->nodehandle),
-                 targetNode->displaypath(),
-                 0,
-                 external ? std::move(drivePath) : LocalPath(),
-                 true,
-                 backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
-
-    if (external)
+    if (!backup) // regular sync
     {
-        if (!backup)
-        {
-            cerr << "Sorry, external syncs must be backups for now" << endl;
-        }
+        // Does the target node exist?
+        const string& targetPath = s.words[3].s;
+        auto* targetNode = nodebypath(targetPath.c_str());
 
-        // Try and generate a drive ID.
-        auto id = UNDEF;
-        auto result = readDriveId(*client->fsaccess, drive.c_str(), id);
-
-        if (result == API_ENOENT)
+        if (!targetNode)
         {
-            id = generateDriveId(client->rng);
-            result = writeDriveId(*client->fsaccess, drive.c_str(), id);
-        }
-
-        if (result != API_OK)
-        {
-            cerr << "Unable to generate drive ID for " << drive << endl;
+            cerr << targetPath
+                << ": Not found."
+                << endl;
             return;
         }
+
+        sync_add(sourcePath, drive, syncname, targetNode, SyncConfig::TYPE_TWOWAY);
     }
 
-    // Try and add the new sync.
-	// All validation is performed in this function.
-    client->addsync(config, false, sync_completion, "");
+    else // backup
+    {
+        auto thenAddSync = [sourcePath, drive, syncname](const Error& err, targettype_t, vector<NewNode>& nn, bool)
+        {
+            if (err != API_OK)
+            {
+                sync_completion(error(err), SyncError::PUT_NODES_ERROR, UNDEF);
+            }
+            else
+            {
+                assert(!nn.empty() && nn.back().added);
+                Node* targetNode = nn.empty() ? nullptr : client->nodebyhandle(nn.back().mAddedHandle);
+                sync_add(sourcePath, drive, syncname, targetNode, SyncConfig::TYPE_BACKUP);
+            }
+        };
+
+        error e = client->registerbackup(syncname, drive, thenAddSync);
+        if (e)
+        {
+            cerr << "Invalid prerequisites for adding a backup (error " << e << ')'
+                 << endl;
+        }
+    }
 }
 
 void exec_syncrename(autocomplete::ACState& s)

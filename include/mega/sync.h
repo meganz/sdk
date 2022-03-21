@@ -660,7 +660,7 @@ struct Syncs
      * @return
      * The result of restoring the external backups.
      */
-    error backupOpenDrive(LocalPath drivePath);
+    error backupOpenDrive(const LocalPath& drivePath);
 
     // Returns a reference to this user's internal configuration database.
     SyncConfigStore* syncConfigStore();
