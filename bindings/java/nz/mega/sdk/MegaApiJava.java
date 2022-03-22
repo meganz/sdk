@@ -243,13 +243,6 @@ public class MegaApiJava {
     public final static int BACKUP_TYPE_CAMERA_UPLOADS = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
 
-    public final static int GOOGLE_ADS_DEFAULT = MegaApi.GOOGLE_ADS_DEFAULT;
-    public final static int GOOGLE_ADS_FORCE_ADS = MegaApi.GOOGLE_ADS_FORCE_ADS;
-    public final static int GOOGLE_ADS_IGNORE_MEGA = MegaApi.GOOGLE_ADS_IGNORE_MEGA;
-    public final static int GOOGLE_ADS_IGNORE_COUNTRY = MegaApi.GOOGLE_ADS_IGNORE_COUNTRY;
-    public final static int GOOGLE_ADS_IGNORE_IP = MegaApi.GOOGLE_ADS_IGNORE_IP;
-    public final static int GOOGLE_ADS_IGNORE_PRO = MegaApi.GOOGLE_ADS_IGNORE_PRO;
-    public final static int GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = MegaApi.GOOGLE_ADS_FLAG_IGNORE_ROLLOUT;
 
     MegaApi getMegaApi() {
         return megaApi;
@@ -4404,6 +4397,27 @@ public class MegaApiJava {
     }
 
     /**
+     * Get a list of favourite nodes.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node provided
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+     * - MegaRequest::getNumDetails - Returns the count requested
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaHandleList - List of handles of favourite nodes
+     *
+     * @param node     Node and its children that will be searched for favourites. Search all nodes if null
+     * @param count    if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getFavourites(MegaNode node, int count, MegaRequestListenerInterface listener) {
+        megaApi.getFavourites(node, count, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Set the GPS coordinates of image files as a node attribute.
      * <p>
      * To remove the existing coordinates, set both the latitude and longitude to
@@ -6204,6 +6218,33 @@ public class MegaApiJava {
     }
 
     /**
+     * Create a new ticket for support with attached description
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SUPPORT_TICKET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the type of the ticket
+     * - MegaRequest::getText - Returns the description of the issue
+     *
+     * @param message  Description of the issue for support
+     * @param type     Ticket type. These are the available types:
+     *                 0  for General Enquiry
+     *                 1  for Technical Issue
+     *                 2  for Payment Issue
+     *                 3  for Forgotten Password
+     *                 4  for Transfer Issue
+     *                 5  for Contact/Sharing Issue
+     *                 6  for MEGAsync Issue
+     *                 7  for Missing/Invisible Data
+     *                 8  for help-centre clarifications
+     *                 9  for iOS issue
+     *                 10 for Android issue
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createSupportTicket(String message, int type, MegaRequestListenerInterface listener) {
+        megaApi.createSupportTicket(message, type, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Use HTTPS communications only
      * <p>
      * The default behavior is to use HTTP for transfers and the persistent connection
@@ -6242,6 +6283,25 @@ public class MegaApiJava {
     //****************************************************************************************************/
     // TRANSFERS
     //****************************************************************************************************/
+
+    /**
+     * Upload a file to support
+     * <p>
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     * <p>
+     * For folders, onTransferFinish will be called with error MegaError:API_EARGS;
+     *
+     * @param localPath         Local path of the file
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param listener          MegaTransferListener to track this transfer
+     */
+    public void startUploadForSupport(String localPath, boolean isSourceTemporary, MegaTransferListenerInterface listener) {
+        megaApi.startUploadForSupport(localPath, isSourceTemporary, createDelegateTransferListener(listener));
+    }
 
     /**
      * Upload a file or a folder
@@ -11462,6 +11522,14 @@ public class MegaApiJava {
     }
 
     /**
+     * Set a bitmap to indicate whether some cookies are enabled or not
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
+     * - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
      * @param settings A bitmap with cookie settings
      *                 Valid bits are:
      *                 - Bit 0: essential
@@ -11470,19 +11538,20 @@ public class MegaApiJava {
      *                 - Bit 3: ads
      *                 - Bit 4: thirdparty
      * @param listener MegaRequestListener to track this request
-     *                 Set a bitmap to indicate whether some cookies are enabled or not
-     *                 <p>
-     *                 The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-     *                 Valid data in the MegaRequest object received on callbacks:
-     *                 - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
-     *                 - MegaRequest::getNumDetails - Return a bitmap with cookie settings
-     *                 - MegaRequest::getListener - Returns the MegaRequestListener to track this request
      */
     public void setCookieSettings(int settings, MegaRequestListenerInterface listener) {
         megaApi.setCookieSettings(settings, createDelegateRequestListener(listener));
     }
 
     /**
+     * Set a bitmap to indicate whether some cookies are enabled or not
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
+     * - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
      * @param settings A bitmap with cookie settings
      *                 Valid bits are:
      *                 - Bit 0: essential
@@ -11490,39 +11559,33 @@ public class MegaApiJava {
      *                 - Bit 2: analytics
      *                 - Bit 3: ads
      *                 - Bit 4: thirdparty
-     *                 Set a bitmap to indicate whether some cookies are enabled or not
-     *                 <p>
-     *                 The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-     *                 Valid data in the MegaRequest object received on callbacks:
-     *                 - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
-     *                 - MegaRequest::getNumDetails - Return a bitmap with cookie settings
-     *                 - MegaRequest::getListener - Returns the MegaRequestListener to track this request
      */
     public void setCookieSettings(int settings) {
         megaApi.setCookieSettings(settings);
     }
 
     /**
+     * Get a bitmap to indicate whether some cookies are enabled or not
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return the bitmap with cookie settings
+     * Valid bits are:
+     * - Bit 0: essential
+     * - Bit 1: preference
+     * - Bit 2: analytics
+     * - Bit 3: ads
+     * - Bit 4: thirdparty
+     * <p>
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
+     *
      * @param listener MegaRequestListener to track this request
-     *                 Get a bitmap to indicate whether some cookies are enabled or not
-     *                 <p>
-     *                 The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-     *                 Valid data in the MegaRequest object received on callbacks:
-     *                 - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
-     *                 - MegaRequest::getListener - Returns the MegaRequestListener to track this request
-     *                 <p>
-     *                 Valid data in the MegaRequest object received in onRequestFinish when the error code
-     *                 is MegaError::API_OK:
-     *                 - MegaRequest::getNumDetails Return the bitmap with cookie settings
-     *                 Valid bits are:
-     *                 - Bit 0: essential
-     *                 - Bit 1: preference
-     *                 - Bit 2: analytics
-     *                 - Bit 3: ads
-     *                 - Bit 4: thirdparty
-     *                 <p>
-     *                 On the onRequestFinish error, the error code associated to the MegaError can be:
-     *                 - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
      */
     public void getCookieSettings(MegaRequestListenerInterface listener) {
         megaApi.getCookieSettings(createDelegateRequestListener(listener));
@@ -11554,73 +11617,77 @@ public class MegaApiJava {
     }
 
     /**
-     * @return True if this feature is enabled. Otherwise, false.
      * Check if the app can start showing the cookie banner
      * <p>
      * This function will NOT return a valid value until the callback onEvent with
      * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
-     * a fetchNodes to check this value, but only when it follows a login with user and password,
+     * a fetchnodes to check this value, but only when it follows a login with user and password,
      * not when an existing session is resumed.
      * <p>
      * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
+     *
+     * @return True if this feature is enabled. Otherwise, false.
      */
     public boolean isCookieBannerEnabled() {
         return megaApi.cookieBannerEnabled();
     }
 
     /**
-     * @param handle   MegaHandle of the node to be used as target folder
-     * @param listener MegaRequestListener to track this request
-     *                 Set My Backups folder.
-     *                 <p>
-     *                 The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-     *                 Valid data in the MegaRequest object received on callbacks:
-     *                 - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     *                 - MegaRequest::getFlag - Returns false
-     *                 - MegaRequest::getNodehandle - Returns the provided node handle
-     *                 - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-     *                 The key "h" in the map contains the nodehandle specified as parameter encoded in B64
-     *                 <p>
-     *                 If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
-     *                 the request will fail with the error code MegaError::API_EACCESS.
+     * Set My Backups folder.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
+     * <p>
+     * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
+     * the request will fail with the error code MegaError::API_EACCESS.
+     *
+     * @param nodehandle MegaHandle of the node to be used as target folder
+     * @param listener   MegaRequestListener to track this request
      */
     public void setMyBackupsFolder(long handle, MegaRequestListenerInterface listener) {
         megaApi.setMyBackupsFolder(handle, createDelegateRequestListener(listener));
     }
 
     /**
-     * @param handle MegaHandle of the node to be used as target folder
-     *               Set My Backups folder.
-     *               <p>
-     *               The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-     *               Valid data in the MegaRequest object received on callbacks:
-     *               - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     *               - MegaRequest::getFlag - Returns false
-     *               - MegaRequest::getNodehandle - Returns the provided node handle
-     *               - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-     *               The key "h" in the map contains the nodehandle specified as parameter encoded in B64
-     *               <p>
-     *               If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
-     *               the request will fail with the error code MegaError::API_EACCESS.
+     * Set My Backups folder.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     * - MegaRequest::getNodehandle - Returns the provided node handle
+     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
+     * <p>
+     * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
+     * the request will fail with the error code MegaError::API_EACCESS.
+     *
+     * @param nodehandle MegaHandle of the node to be used as target folder
      */
     public void setMyBackupsFolder(long handle) {
         megaApi.setMyBackupsFolder(handle);
     }
 
     /**
+     * Gets My Backups target folder.
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+     * - MegaRequest::getFlag - Returns false
+     * <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
+     * <p>
+     * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+     *
      * @param listener MegaRequestListener to track this request
-     *                 Gets My Backups target folder.
-     *                 <p>
-     *                 The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-     *                 Valid data in the MegaRequest object received on callbacks:
-     *                 - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     *                 - MegaRequest::getFlag - Returns false
-     *                 <p>
-     *                 Valid data in the MegaRequest object received in onRequestFinish when the error code
-     *                 is MegaError::API_OK:
-     *                 - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
-     *                 <p>
-     *                 If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
      */
     public void getMyBackupsFolder(MegaRequestListenerInterface listener) {
         megaApi.getMyBackupsFolder(createDelegateRequestListener(listener));
