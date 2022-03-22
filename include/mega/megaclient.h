@@ -436,7 +436,7 @@ private:
 
     Node* getNodeFromDataBase(NodeHandle handle);
 
-    // Returns root nodes withou nested in-shares
+    // Returns root nodes without nested in-shares
     node_vector getRootNodesWithoutNestedInshares();
 
     // node temporary in memory, which will be removed upon write to DB
