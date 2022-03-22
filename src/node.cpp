@@ -750,7 +750,9 @@ bool Node::applykey()
     //assert(keyApplied());
     bool applied = keyApplied();
 
-    if (applied)
+    // Only update node at DB, if key has been applied or node isn't going to be saved after this call
+    // Node is going to be save later at BD notifypuge (notified) or in saveInDb (fetchingnodes)
+    if (applied && !notified && !client->fetchingnodes)
     {
         client->mNodeManager.updateNode(this);
     }
