@@ -13363,15 +13363,6 @@ void MegaApiImpl::backupput_result(const Error& e, handle backupId)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::backupremove_result(const Error& e, handle backupId)
-{
-    if (requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_REMOVE)) return;
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
 // user addition/update (users never get deleted)
 void MegaApiImpl::users_updated(User** u, int count)
 {
@@ -21571,8 +21562,8 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; }, request->getNodeHandle());
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            client->syncs.removeSelectedSyncs([](SyncConfig&, Sync*) { return true; }, request->getNodeHandle(), false,
+                [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); });
             break;
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
@@ -21600,7 +21591,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync)
+            e = client->syncs.removeSelectedSync([&](SyncConfig& c, Sync* sync)
             {
                 bool matched = c.getBackupId() == backupId;
                 if (matched && sync)    // if active
@@ -21612,12 +21603,8 @@ void MegaApiImpl::sendPendingRequests()
                     }
                 }
                 return matched;
-            }, backupTarget);
-
-            if (!e)
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            }
+            }, backupTarget, false,
+            [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); });
 
             break;
         }
@@ -22894,7 +22881,8 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_REMOVE:
         {
-            client->reqs.add(new CommandBackupRemove(client, request->getParentHandle()));
+            client->reqs.add(new CommandBackupRemove(client, request->getParentHandle(),
+                [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); }));
             break;
         }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:

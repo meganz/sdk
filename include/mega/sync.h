@@ -584,7 +584,10 @@ struct Syncs
     void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered, and backup syncs in Vault are permanently deleted (if request came from SDK) or moved
-    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false);
+    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false, std::function<void(Error)> lastCompletion = nullptr);
+
+    // remove at most one sync
+    error removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false, std::function<void(Error)> completion = nullptr);
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -704,8 +707,11 @@ private:
     mutable mutex mSyncVecMutex;  // will be relevant for sync rework
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
+    // collect sync indexes picked up by the given selector
+    vector<size_t> selectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, size_t maxCount = 0) const;
+
     // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
-    void removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBackup);
+    error removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBackup, std::function<void(Error)> completion);
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
     void unloadSyncByIndex(size_t index);

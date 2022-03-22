@@ -8698,18 +8698,22 @@ bool CommandBackupPutHeartBeat::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
+CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId, std::function<void(const Error&)> completion)
     : mBackupId(backupId)
 {
     cmd("sr");
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
 
     tag = client->reqtag;
+    mCompletion = completion;
 }
 
 bool CommandBackupRemove::procresult(Result r)
 {
-    client->app->backupremove_result(r.errorOrOK(), mBackupId);
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
     return r.wasErrorOrOK();
 }
 

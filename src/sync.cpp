@@ -2884,7 +2884,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
                 for ( ; i != j; ++i)
                 {
-                    auto* request = new CommandBackupRemove(&client, i->mBackupId);
+                    auto* request = new CommandBackupRemove(&client, i->mBackupId, nullptr); // Should there be a completion here?
                     client.reqs.add(request);
                 }
 
@@ -3642,15 +3642,92 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
     if (completion) completion(nDisabled);
 }
 
-void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest, bool skipMoveOrDelBackup)
+void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest, bool skipMoveOrDelBackup, std::function<void(Error)> lastCompletion)
 {
-    for (auto i = mSyncVec.size(); i--; )
+    const vector<size_t>& syncsToRemove = selectedSyncs(selector);
+
+    if (syncsToRemove.empty())
+    {
+        // not finding any syncs is fine
+        if (lastCompletion)
+        {
+            lastCompletion(API_OK);
+        }
+        return;
+    }
+
+    auto syncCount = syncsToRemove.size();
+    auto ok = std::make_shared<bool>(true); // flag any local or API failure while removing syncs
+
+    for (auto i = syncCount; i--;)
+    {
+        // prepare to handle the result of (intermediary) removal
+        const auto& syncName = mSyncVec[i]->mConfig.mName;
+        std::function<void(Error)> nextCompl = i ? nullptr : lastCompletion;
+        std::function<void(Error)> completion = [ok, syncName, syncCount, nextCompl](Error e)
+        {
+            if (e != API_OK)
+            {
+                LOG_err << "API failed to remove sync " << syncName << " (error: " << error(e) << ')';
+                *ok = false;
+            }
+            if (nextCompl)
+            {
+                // when removing a single sync return its own error code,
+                // otherwise return a more generic status
+                nextCompl(syncCount == 1 ? error(e) : (*ok ? API_OK : API_EINCOMPLETE));
+            }
+        };
+
+        // remove current sync
+        error err = removeSyncByIndex(i, bkpDest, skipMoveOrDelBackup, completion);
+        if (err != API_OK)
+        {
+            if (err == API_ENOENT)
+            {
+                err = API_OK; // not finding a sync is fine
+            }
+            else
+            {
+                LOG_err << "Failed to remove sync " << syncName << " (error: " << err << ')';
+                *ok = false;
+            }
+
+            // completion was not run but it needs to if it's the last sync
+            if (nextCompl)
+            {
+                nextCompl(syncCount == 1 ? err : (*ok ? API_OK : API_EINCOMPLETE));
+            }
+        }
+    }
+}
+
+error Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest, bool skipMoveOrDelBackup, std::function<void(Error)> completion)
+{
+    const vector<size_t>& syncsToRemove = selectedSyncs(selector, 1);
+
+    // not finding the sync must be treated as an error
+    return syncsToRemove.empty() ? API_ENOENT : removeSyncByIndex(syncsToRemove.front(), bkpDest, skipMoveOrDelBackup, completion);
+}
+
+vector<size_t> Syncs::selectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, size_t maxCount) const
+{
+    vector<size_t> selected;
+
+    for (size_t i = 0; i < mSyncVec.size(); ++i)
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
-            removeSyncByIndex(i, bkpDest, skipMoveOrDelBackup);
+            selected.push_back(i);
+
+            if (maxCount && maxCount == mSyncVec.size())
+            {
+                break;
+            }
         }
     }
+
+    return selected;
 }
 
 void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
@@ -3669,7 +3746,7 @@ void Syncs::purgeSyncs()
     if (!mSyncConfigStore) return;
 
     // Remove all syncs.
-    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; }, UNDEF, true);
+    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; }, UNDEF, true, nullptr);
 
     // Truncate internal sync config database.
     mSyncConfigStore->write(LocalPath(), SyncConfigVector());
@@ -3686,7 +3763,7 @@ void Syncs::purgeSyncs()
     }
 }
 
-void Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBackup)
+error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBackup, std::function<void(Error)> completion)
 {
     if (index < mSyncVec.size())
     {
@@ -3704,7 +3781,7 @@ void Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBa
         mClient.app->sync_removed(config);
 
         // unregister this sync/backup from API (backup center)
-        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId(), completion));
 
         if (config.isBackup() && !skipMoveOrDelBackup) // thus in Vault && needs to be moved/deleted
         {
@@ -3737,10 +3814,14 @@ void Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBa
         }
 
         mClient.syncactivity = true;
-        mSyncVec.erase(mSyncVec.begin() + index);
+        mSyncVec.erase(mSyncVec.begin() + (decltype(mSyncVec)::difference_type)index);
 
         isEmpty = mSyncVec.empty();
+
+        return API_OK;
     }
+
+    return API_EARGS;
 }
 
 void Syncs::unloadSyncByIndex(size_t index)
