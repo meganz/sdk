@@ -8237,13 +8237,9 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        bool changeVault = false;
-        if (syncdel != SYNCDEL_NONE)
-        {
-            bool prevRootInVault = prevParent && (prevParent->firstancestor()->nodeHandle() == rootnodes.vault);
-            bool newRootInVault = p && (p->firstancestor()->nodeHandle() == rootnodes.vault);
-            changeVault = prevRootInVault || newRootInVault;
-        }
+        bool prevRootInVault = prevParent && (prevParent->firstancestor()->nodeHandle() == rootnodes.vault);
+        bool newRootInVault = p && (p->firstancestor()->nodeHandle() == rootnodes.vault);
+        bool changeVault = prevRootInVault || newRootInVault;
 
         reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c), changeVault));
         if (!attrUpdates.empty())
