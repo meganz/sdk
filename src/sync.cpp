@@ -851,6 +851,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Unable to add filesystem watch.";
     case UNABLE_TO_RETRIEVE_ROOT_FSID:
         return "Unable to retrieve sync root FSID.";
+    case UNABLE_TO_OPEN_DATABASE:
+        return "Unable to open state cache database.";
     default:
         return "Undefined error";
     }
@@ -1024,15 +1026,24 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
         // load LocalNodes from cache (only for internal syncs)
         // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
-        if (syncs.mClient.dbaccess && !us.mConfig.isExternal())
+        if (shouldHaveDatabase())
         {
             string dbname = config.getSyncDbStateCacheName(fas->fsid, config.mRemoteNode, syncs.mClient.me);
 
+            // Check if the database exists on disk.
+            us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
+
             // Note, we opened dbaccess in thread-safe mode
             statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED));
-            us.mConfig.mDatabaseExists = true;
 
-            readstatecache();
+            // Did the call above create the database?
+            us.mConfig.mDatabaseExists |= !!statecachetable;
+
+            // Don't bother trying to read the cache if we couldn't open the database.
+            if (us.mConfig.mDatabaseExists)
+            {
+                readstatecache();
+            }
         }
     }
     us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
@@ -1094,6 +1105,11 @@ void Sync::setBackupMonitoring()
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
     syncs.saveSyncConfig(config);
+}
+
+bool Sync::shouldHaveDatabase() const
+{
+    return syncs.mClient.dbaccess && !mUnifiedSync.mConfig.isExternal();
 }
 
 SyncTransferCounts Sync::transferCounts() const
@@ -3180,8 +3196,14 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         us.mSync.reset();
     };
 
+    // Make sure we could open the state cache database.
+    if (us.mSync->shouldHaveDatabase() && !us.mSync->statecachetable)
+    {
+        LOG_err << "Unable to open state cache database.";
+        signalError(UNABLE_TO_OPEN_DATABASE);
+    }
     // Make sure we were able to assign the root's FSID.
-    if (us.mSync->localroot->fsid_lastSynced == UNDEF)
+    else if (us.mSync->localroot->fsid_lastSynced == UNDEF)
     {
         LOG_err << "Unable to retrieve the sync root's FSID: "
                 << us.mConfig.getLocalPath();
@@ -3211,7 +3233,6 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         saveSyncConfig(us.mConfig);
         mSyncFlags->isInitialPass = true;
         e = API_OK;
-
     }
 
     LOG_debug << "Final error for sync start: " << e;
