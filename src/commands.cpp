@@ -5877,6 +5877,9 @@ bool CommandFetchNodes::procresult(Result r)
 
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
+
+                client->mNodeManager.initializeCounters();
+
                 client->fnstats.nodesCached = client->mNodeManager.getNodeCount();
                 return true;
             }

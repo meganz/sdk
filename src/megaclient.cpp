@@ -16900,12 +16900,6 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     // mClient.rootnodes.files is always set for folder links before adding any node (upon login)
     bool isFolderLink = mClient.rootnodes.files == node->nodeHandle();
 
-    // add counter only for rootnodes
-    if (rootNode || isFolderLink)
-    {
-        addCounter(node->nodeHandle());
-    }
-
     // TODO nodes on demand: we should also keep in RAM the inshares (when fetching nodes)
     bool keepNodeInMemory = mKeepAllNodesInMemory
             || rootNode
@@ -17946,29 +17940,7 @@ void NodeManager::loadNodes()
         addChild(pair.first, pair.second);
     }
 
-    node_vector rootnodes;
-    if (mClient.loggedIntoFolder())
-    {
-        Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
-        assert(rootNode);
-
-        rootnodes.push_back(rootNode);
-    }
-    else    // logged into user's account: load rootnodes and incoming shared folders
-    {
-        rootnodes = getRootNodes();
-
-        node_vector inSharesNodes = getNodesWithInShares();
-        for (auto& node : inSharesNodes)
-        {
-            // If parent exits => nested in-share. We don't need to add
-            // Nested in-shares aren't added to node counters
-            if (!node->parent)
-            {
-                rootnodes.push_back(node);
-            }
-        }
-    }
+    node_vector rootnodes = getRootNodesWithoutNestedInshares();
 
     if (mKeepAllNodesInMemory)
     {
@@ -18066,6 +18038,16 @@ void NodeManager::cancelDbQuery()
     mTable->cancelQuery();
 }
 
+void NodeManager::initializeCounters()
+{
+    node_vector rootNodes = getRootNodesWithoutNestedInshares();
+    for (Node* node : rootNodes)
+    {
+        assert(mNodeCounters.find(node->nodeHandle()) == mNodeCounters.end());
+        mNodeCounters[node->nodeHandle()] = getNodeCounter(*node);
+    }
+}
+
 NodeCounter NodeManager::getCounterOfRootNodes()
 {
     NodeCounter c;
@@ -18108,9 +18090,9 @@ void NodeManager::addCounter(const NodeHandle &h)
 void NodeManager::calculateCounter(const Node& n)
 {
     // while processing command f (fetchnodes), node counters for in-shares are first added
-    // via NodeManager::addNode. Later, MegaClient::mergeNewShare call this method, but the
+    // at the end of fetch node proc result. Later, MegaClient::mergeNewShare call this method, but the
     // counter is already there. Need to skip adding it again here for this case
-    if (!mKeepAllNodesInMemory && mClient.fetchingnodes && !n.notified)
+    if (mClient.fetchingnodes && !n.notified)
     {
         return;
     }
@@ -18272,7 +18254,6 @@ void NodeManager::saveNodeInDb(Node *node)
 
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
-        updateCountersWithNode(*node);
         assert(mNodeToWriteInDb->nodeHandle() == node->nodeHandle());
         delete mNodeToWriteInDb;
         mNodeToWriteInDb = nullptr;
@@ -18321,49 +18302,33 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     return node;
 }
 
-void NodeManager::updateCountersWithNode(const Node &node)
+node_vector NodeManager::getRootNodesWithoutNestedInshares()
 {
-    NodeHandle firstValidAncestor = getFirstAncestor(node.nodeHandle());
-    // If firstValidAncestor is undef, own node is its first valid Ancestor
-    firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : node.nodeHandle();
-
-    if (firstValidAncestor != UNDEF)
+    node_vector rootnodes;
+    if (mClient.loggedIntoFolder())
     {
-        // Add a node counter for our first valid Ancestor (it can be our own node)
-        increaseCounter(&node, firstValidAncestor);
+        Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
+        assert(rootNode);
 
-        // When we receive a node check if some of its children has been added to node counter
-        // in that case the node counter is added to the first valid ancestor (Used for delay parents)
-        auto itChild = mNodeChildren.find(node.nodeHandle());
-        if (itChild != mNodeChildren.end())
+        rootnodes.push_back(rootNode);
+    }
+    else    // logged into user's account: load rootnodes and incoming shared folders
+    {
+        rootnodes = getRootNodes();
+
+        node_vector inSharesNodes = getNodesWithInShares();
+        for (auto& node : inSharesNodes)
         {
-            for (NodeHandle child : itChild->second)
+            // If parent exits => nested in-share. We don't need to add
+            // Nested in-shares aren't added to node counters
+            if (!node->parent)
             {
-                auto it = mNodeCounters.find(child);
-                if (it != mNodeCounters.end())
-                {
-                    if (node.type == FILENODE)
-                    {
-                        // file versions may have been counted as files instead of versions upon
-                        // processing fetchnodes from API. In result, if the parent was unknown (not
-                        // processed yet), it's not possible to differentiate between a file and a version
-                        // --> if this node is a file, child nodes were versions
-                        it->second.versions += it->second.files;
-                        it->second.versionStorage += it->second.storage;
-                        it->second.files = 0;
-                        it->second.storage = 0;
-                    }
-
-                    mNodeCounters[firstValidAncestor].files += it->second.files;
-                    mNodeCounters[firstValidAncestor].storage += it->second.storage;
-                    mNodeCounters[firstValidAncestor].folders += it->second.folders;
-                    mNodeCounters[firstValidAncestor].versions += it->second.versions;
-                    mNodeCounters[firstValidAncestor].versionStorage += it->second.versionStorage;
-                    mNodeCounters.erase(it);
-                }
+                rootnodes.push_back(node);
             }
         }
     }
+
+    return rootnodes;
 }
 
 size_t NodeManager::nodeNotifySize() const
