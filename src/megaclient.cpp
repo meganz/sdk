@@ -28,6 +28,11 @@
 #include <future>
 #include "mega/heartbeats.h"
 
+#ifndef WIN32
+#include <sys/time.h>
+#include <sys/resource.h>
+#endif // ! WIN32
+
 #undef min // avoid issues with std::min and std::max
 #undef max
 
@@ -1441,6 +1446,59 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
     if (!mFilenameAnomalyReporter) return;
 
     mFilenameAnomalyReporter->anomalyDetected(type, localPath, remotePath);
+}
+
+int MegaClient::platformGetRLimitNumFile() const
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return -1;
+    }
+
+    return int(rl.rlim_cur);
+#else
+    LOG_err << "Code for calling getrlimit is not available yet (or not relevant) on this platform";
+    return -1;
+#endif
+}
+
+bool MegaClient::platformSetRLimitNumFile(int newNumFileLimit) const
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return false;
+    }
+    else
+    {
+        LOG_info << "rlimit for NOFILE before change is: " << rl.rlim_cur << ", " << rl.rlim_max;
+        rl.rlim_cur = rlim_t(newNumFileLimit);
+
+        if (rl.rlim_cur > rl.rlim_max)
+        {
+            LOG_info << "Requested rlimit (" << rl.rlim_cur << ") will be replaced by maximum allowed value (" << rl.rlim_max << ")";
+            rl.rlim_cur = rl.rlim_max;
+        }
+
+        if (0 < setrlimit(RLIMIT_NOFILE, &rl))
+        {
+            auto e = errno;
+            LOG_err << "Error calling setrlimit: " << e;
+            return false;
+        }
+    }
+    return true;
+#else
+    LOG_err << "Code for calling setrlimit is not available yet (or not relevant) on this platform";
+    return false;
+#endif
 }
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)

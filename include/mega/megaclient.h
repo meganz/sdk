@@ -1937,6 +1937,10 @@ public:
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);
     unique_ptr<FilenameAnomalyReporter> mFilenameAnomalyReporter;
 
+    int platformGetRLimitNumFile() const;
+
+    bool platformSetRLimitNumFile(int newNumFileLimit) const;
+
 struct MyAccountData
 {
     void setProLevel(AccountType prolevel) { mProLevel = prolevel; }
