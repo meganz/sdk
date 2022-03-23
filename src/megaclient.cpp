@@ -1394,6 +1394,11 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
+
+#if defined(__APPLE__) || defined(USE_IOS)
+    // Try and raise the file descriptor limit as high as we can.
+    platformSetRLimitNumFile();
+#endif // __APPLE__ || USE_IOS
 }
 
 MegaClient::~MegaClient()
