@@ -258,14 +258,28 @@ HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(const SyncConfig& conf
 
 handle BackupInfoSync::getDriveId(const UnifiedSync &us)
 {
-    const LocalPath& drivePath = us.mConfig.mExternalDrivePath;
-    const string& drivePathUtf8 = drivePath.toPath();
-    handle driveId;
+    const auto& drivePath = us.mConfig.mExternalDrivePath;
 
-    // It shouldn't happen very often
-    readDriveId(*us.mClient.fsaccess, drivePathUtf8.c_str(), driveId);
+    // Only external drives have drive IDs.
+    if (drivePath.empty())
+        return UNDEF;
 
-    return driveId;
+    // Get our hands on the config store.
+    const auto store = us.syncs.syncConfigStore();
+
+    // It should always be available.
+    assert(store);
+
+    // Drive should be known.
+    assert(store->driveKnown(drivePath));
+
+    // Ask the store for the drive's backup ID.
+    auto id = store->driveID(drivePath);
+
+    // It should never be undefined.
+    assert(id != UNDEF);
+
+    return id;
 }
 
 BackupType BackupInfoSync::getSyncType(const SyncConfig& config)

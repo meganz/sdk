@@ -14022,16 +14022,11 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
             }
         }
 
+        driveId = store->driveID(drivePath);
+        assert(driveId != UNDEF);
+
         config.mExternalDrivePath = std::move(drivePath);
         config.mLocalPath = std::move(sourcePath);
-
-        const string& p = config.mExternalDrivePath.toPath();
-        e = readDriveId(*fsaccess, p.c_str(), driveId);
-        if (e != API_OK)
-        {
-            completion(e, config.mError, UNDEF);
-            return e;
-        }
     }
 
     // Add the sync.
