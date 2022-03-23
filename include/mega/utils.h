@@ -100,7 +100,7 @@ struct MEGA_API PaddedCBC
      *
      * Note: With an IV, only use the first 8 bytes.
      *
-     * @param data Data buffer to be decrypted. Decryption is done in-place,
+fileAccess     * @param data Data buffer to be decrypted. Decryption is done in-place,
      *     so plain text will be in `data` afterwards as well.
      * @param key AES key for decryption.
      * @param iv Optional initialisation vector for encryption. Will use a
@@ -903,6 +903,18 @@ bool islchex_low(const int c);
 
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
+
+struct MEGA_API FileSystemAccess;
+
+// generate a new drive id
+handle generateDriveId(PrnGen& rng);
+
+// return API_OK if success and set driveID handle to the drive id read from the drive,
+// otherwise return error code and set driveId to UNDEF
+error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId);
+
+// return API_OK if success, otherwise error code
+error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId);
 
 } // namespace
 

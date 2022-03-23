@@ -1495,7 +1495,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     {
         // drive-id must have been already written to external drive, since a name was given to it
         handle driveId;
-        error e = client->readDriveId(request->getLink(), driveId);
+        error e = readDriveId(*client->fsaccess, request->getLink(), driveId);
         if (e != API_OK)
             return e;
 
@@ -19832,7 +19832,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 // check if drive-id already exists
                 handle driveId;
-                e = client->readDriveId(value, driveId);
+                e = readDriveId(*client->fsaccess, value, driveId);
                 if (e != API_OK)
                 {
                     break;
@@ -19921,14 +19921,14 @@ void MegaApiImpl::sendPendingRequests()
                     // check if the drive id is already created
                     // read <pathToDrive>/.megabackup/drive-id
                     handle driveId;
-                    e = client->readDriveId(pathToDrive, driveId);
+                    e = readDriveId(*client->fsaccess, pathToDrive, driveId);
 
                     if (e == API_ENOENT)
                     {
                         // generate new id
-                        driveId = client->generateDriveId();
+                        driveId = generateDriveId(client->rng);
                         // write <pathToDrive>/.megabackup/drive-id
-                        e = client->writeDriveId(pathToDrive, driveId);
+                        e = writeDriveId(*client->fsaccess, pathToDrive, driveId);
                     }
 
                     if (e != API_OK)

@@ -950,80 +950,6 @@ std::string MegaClient::getDeviceidHash()
     return deviceIdHash;
 }
 
-handle MegaClient::generateDriveId()
-{
-    handle driveId;
-    rng.genblock((byte *)&driveId, sizeof(driveId));
-    driveId |= m_time(nullptr);
-    return driveId;
-}
-
-error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
-{
-    driveId = UNDEF;
-
-    if (pathToDrive && strlen(pathToDrive))
-    {
-
-        LocalPath pd = LocalPath::fromAbsolutePath(pathToDrive);
-        LocalPath dotDir = LocalPath::fromRelativePath(".megabackup");
-        pd.appendWithSeparator(dotDir, false);
-        LocalPath idFile = LocalPath::fromRelativePath("drive-id");
-        pd.appendWithSeparator(idFile, false);
-
-        auto fa = fsaccess->newfileaccess(false);
-        if (!fa->fopen(pd, true, false))
-        {
-            // This case is valid when only checking for file existence
-            return API_ENOENT;
-        }
-
-        if (!fa->frawread((byte*)&driveId, sizeof(driveId), 0))
-        {
-            LOG_err << "Unable to read drive-id from file: " << pd.toPath();
-            return API_EREAD;
-        }
-    }
-    else return API_EREAD;
-
-    return API_OK;
-}
-
-error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
-{
-    LocalPath pd = LocalPath::fromAbsolutePath(pathToDrive);
-    LocalPath dotDir = LocalPath::fromRelativePath(".megabackup");
-    pd.appendWithSeparator(dotDir, false);
-
-    // Try and create the backup configuration directory
-    if (!(fsaccess->mkdirlocal(pd, false, false) || fsaccess->target_exists))
-    {
-        LOG_err << "Unable to create config DB directory: " << pd;
-
-        // Couldn't create the directory and it doesn't exist.
-        return API_EWRITE;
-    }
-
-    // Open the file for writing
-    LocalPath idFile = LocalPath::fromRelativePath("drive-id");
-    pd.appendWithSeparator(idFile, false);
-    auto fa = fsaccess->newfileaccess(false);
-    if (!fa->fopen(pd, false, true))
-    {
-        LOG_err << "Unable to open file to write drive-id: " << pd;
-        return API_EWRITE;
-    }
-
-    // Write the drive-id to file
-    if (!fa->fwrite((byte*)&driveId, sizeof(driveId), 0))
-    {
-        LOG_err << "Unable to write drive-id to file: " << pd;
-        return API_EWRITE;
-    }
-
-    return API_OK;
-}
-
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -14100,7 +14026,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
         config.mLocalPath = std::move(sourcePath);
 
         const string& p = config.mExternalDrivePath.toPath();
-        e = readDriveId(p.c_str(), driveId);
+        e = readDriveId(*fsaccess, p.c_str(), driveId);
         if (e != API_OK)
         {
             completion(e, config.mError, UNDEF);

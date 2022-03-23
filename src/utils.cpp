@@ -2723,5 +2723,79 @@ UploadHandle UploadHandle::next()
     return *this;
 }
 
+handle generateDriveId(PrnGen& rng)
+{
+    handle driveId;
+
+    rng.genblock((byte *)&driveId, sizeof(driveId));
+    driveId |= m_time(nullptr);
+
+    return driveId;
+}
+
+error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId)
+{
+    driveId = UNDEF;
+
+    if (!pathToDrive || !strlen(pathToDrive))
+        return API_EREAD;
+
+    auto path = LocalPath::fromAbsolutePath(pathToDrive);
+
+    path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
+    path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
+
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    if (!fileAccess->fopen(path, true, false))
+    {
+        // This case is valid when only checking for file existence
+        return API_ENOENT;
+    }
+
+    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to read drive-id from file: " << path;
+        return API_EREAD;
+    }
+
+    return API_OK;
+}
+
+error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId)
+{
+    auto path = LocalPath::fromAbsolutePath(pathToDrive);
+
+    path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
+
+    // Try and create the backup configuration directory
+    if (!(fsAccess.mkdirlocal(path, false, false) || fsAccess.target_exists))
+    {
+        LOG_err << "Unable to create config DB directory: " << path;
+
+        // Couldn't create the directory and it doesn't exist.
+        return API_EWRITE;
+    }
+
+    path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
+
+    // Open the file for writing
+    auto fileAccess = fsAccess.newfileaccess(false);
+    if (!fileAccess->fopen(path, false, true))
+    {
+        LOG_err << "Unable to open file to write drive-id: " << path;
+        return API_EWRITE;
+    }
+
+    // Write the drive-id to file
+    if (!fileAccess->fwrite((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to write drive-id to file: " << path;
+        return API_EWRITE;
+    }
+
+    return API_OK;
+}
+
 } // namespace
 

@@ -7122,7 +7122,7 @@ void exec_driveid(autocomplete::ACState& s)
     if (!force)
     {
         auto id = UNDEF;
-        auto result = client->readDriveId(drivePath, id);
+        auto result = readDriveId(*client->fsaccess, drivePath, id);
 
         switch (result)
         {
@@ -7157,8 +7157,8 @@ void exec_driveid(autocomplete::ACState& s)
         }
     }
 
-    auto id = client->generateDriveId();
-    auto result = client->writeDriveId(drivePath, id);
+    auto id = generateDriveId(client->rng);
+    auto result = writeDriveId(*client->fsaccess, drivePath, id);
 
     if (result != API_OK)
     {
@@ -9094,12 +9094,12 @@ void exec_syncadd(autocomplete::ACState& s)
 
         // Try and generate a drive ID.
         auto id = UNDEF;
-        auto result = client->readDriveId(drive.c_str(), id);
+        auto result = readDriveId(*client->fsaccess, drive.c_str(), id);
 
         if (result == API_ENOENT)
         {
-            id = client->generateDriveId();
-            result = client->writeDriveId(drive.c_str(), id);
+            id = generateDriveId(client->rng);
+            result = writeDriveId(*client->fsaccess, drive.c_str(), id);
         }
 
         if (result != API_OK)
