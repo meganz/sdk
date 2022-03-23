@@ -2735,12 +2735,21 @@ handle generateDriveId(PrnGen& rng)
 
 error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId)
 {
+    if (pathToDrive && strlen(pathToDrive))
+        return readDriveId(fsAccess, LocalPath::fromAbsolutePath(pathToDrive), driveId);
+
     driveId = UNDEF;
 
-    if (!pathToDrive || !strlen(pathToDrive))
-        return API_EREAD;
+    return API_EREAD;
+}
 
-    auto path = LocalPath::fromAbsolutePath(pathToDrive);
+error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, handle& driveId)
+{
+    assert(!pathToDrive.empty());
+
+    driveId = UNDEF;
+
+    auto path = pathToDrive;
 
     path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
     path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
