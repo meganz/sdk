@@ -1479,12 +1479,20 @@ bool MegaClient::platformSetRLimitNumFile(int newNumFileLimit) const
     else
     {
         LOG_info << "rlimit for NOFILE before change is: " << rl.rlim_cur << ", " << rl.rlim_max;
-        rl.rlim_cur = rlim_t(newNumFileLimit);
 
-        if (rl.rlim_cur > rl.rlim_max)
+        if (newNumFileLimit < 0)
         {
-            LOG_info << "Requested rlimit (" << rl.rlim_cur << ") will be replaced by maximum allowed value (" << rl.rlim_max << ")";
             rl.rlim_cur = rl.rlim_max;
+        }
+        else
+        {
+            rl.rlim_cur = rlim_t(newNumFileLimit);
+
+            if (rl.rlim_cur > rl.rlim_max)
+            {
+                LOG_info << "Requested rlimit (" << newNumFileLimit << ") will be replaced by maximum allowed value (" << rl.rlim_max << ")";
+                rl.rlim_cur = rl.rlim_max;
+            }
         }
 
         if (0 < setrlimit(RLIMIT_NOFILE, &rl))

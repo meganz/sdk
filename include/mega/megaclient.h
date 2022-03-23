@@ -1939,7 +1939,7 @@ public:
 
     int platformGetRLimitNumFile() const;
 
-    bool platformSetRLimitNumFile(int newNumFileLimit) const;
+    bool platformSetRLimitNumFile(int newNumFileLimit = -1) const;
 
 struct MyAccountData
 {
