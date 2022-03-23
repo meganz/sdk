@@ -516,6 +516,11 @@ struct MEGA_API LocalNode
 {
     class Sync* sync = nullptr;
 
+    // UTF8 NFC version of LocalNodeCore::localname.
+    // Not serialized.
+    // Should be updated whenever localname is.
+    string name;
+
     // parent linkage
     LocalNode* parent = nullptr;
 

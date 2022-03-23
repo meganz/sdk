@@ -468,7 +468,8 @@ enum SyncError {
     INVALID_SCAN_INTERVAL = 36,             // The user's specified an invalid scan interval.
     NOTIFICATION_SYSTEM_UNAVAILABLE = 37,   // Filesystem notification subsystem has encountered an unrecoverable error.
     UNABLE_TO_ADD_WATCH = 38,               // Unable to add a filesystem watch.
-    UNABLE_TO_RETRIEVE_ROOT_FSID = 39       // Unable to retrieve a sync root's FSID.
+    UNABLE_TO_RETRIEVE_ROOT_FSID = 39,      // Unable to retrieve a sync root's FSID.
+    UNABLE_TO_OPEN_DATABASE = 40,           // Unable to open state cache database.
 };
 
 enum SyncWarning {

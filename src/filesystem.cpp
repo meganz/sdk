@@ -1793,7 +1793,8 @@ ScopedLengthRestore::~ScopedLengthRestore()
 
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
 {
-    auto localName = localPath.leafName();
+    // toPath() to make sure the name is in NFC.
+    auto localName = localPath.leafName().toPath();
 
     if (compareUtf(localName, false, remoteName, false, true))
     {

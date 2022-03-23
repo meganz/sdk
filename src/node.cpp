@@ -1190,6 +1190,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
     {
         // set new name
         localname = newlocalpath;
+        name = localname.toName(*sync->syncs.fsaccess);
     }
 
     if (shortnameChange)
@@ -1377,6 +1378,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     else
     {
         localname = cfullpath;
+        name = localname.toName(*sync->syncs.fsaccess);
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
 
         mExclusionState = ES_INCLUDED;
@@ -2178,7 +2180,7 @@ string LocalNode::getCloudPath() const
         }
         else
         {
-            name = localname.toName(*sync->syncs.fsaccess);
+            name = this->name;
         }
 
         assert(!l->parent || l->parent->sync == sync);
@@ -2193,7 +2195,7 @@ string LocalNode::getCloudPath() const
 
 string LocalNode::getCloudName() const
 {
-    return localname.toName(*sync->syncs.fsaccess);
+    return name;
 }
 
 // locate child by localname or slocalname
@@ -2227,6 +2229,7 @@ FSNode LocalNode::getLastSyncedFSDetails() const
 
     FSNode n;
     n.localname = localname;
+    n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_lastSynced;
@@ -2241,6 +2244,7 @@ FSNode LocalNode::getScannedFSDetails() const
 {
     FSNode n;
     n.localname = localname;
+    n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_asScanned;
@@ -2859,11 +2863,8 @@ bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inheri
                 return !result.included;
         }
 
-        // Compute the node's cloud name.
-        auto name = node->localname.toName(*sync->syncs.fsaccess);
-
         // Update path so that it's applicable to the next node's path filters.
-        namePath.second.prependWithSeparator(name);
+        namePath.second.prependWithSeparator(node->name);
     }
 
     // File's included.
@@ -3157,6 +3158,7 @@ unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath
     result->fingerprint.size = fa.size;
 
     result->localname = fullPath.leafName();
+    result->name = result->localname.toName(fsa);
 
     if (auto sn = fsa.fsShortname(fullPath))
     {

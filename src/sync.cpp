@@ -271,7 +271,7 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
 
     // Always record the name.
     result.localname = name;
-    //result.name = name.toName(*mFsAccess);
+    result.name = name.toName(*mFsAccess);
 
     // Can we open the file?
     auto fileAccess = mFsAccess->newfileaccess(false);
@@ -541,11 +541,11 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     }
     else if (row.syncNode)
     {
-        cloudPath += row.syncNode->localname.toName(*syncs.fsaccess);
+        cloudPath += row.syncNode->name;
     }
     else if (row.fsNode)
     {
-        cloudPath += row.fsNode->localname.toName(*syncs.fsaccess);
+        cloudPath += row.fsNode->name;
     }
     else if (!row.cloudClashingNames.empty() || !row.fsClashingNames.empty())
     {
@@ -566,11 +566,11 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     }
     else if (row.syncNode)
     {
-        syncPath += row.syncNode->localname.toName(*syncs.fsaccess);
+        syncPath += row.syncNode->name;
     }
     else if (row.fsNode)
     {
-        syncPath += row.fsNode->localname.toName(*syncs.fsaccess);
+        syncPath += row.fsNode->name;
     }
     else if (!row.cloudClashingNames.empty() || !row.fsClashingNames.empty())
     {
@@ -851,6 +851,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Unable to add filesystem watch.";
     case UNABLE_TO_RETRIEVE_ROOT_FSID:
         return "Unable to retrieve sync root FSID.";
+    case UNABLE_TO_OPEN_DATABASE:
+        return "Unable to open state cache database.";
     default:
         return "Undefined error";
     }
@@ -1024,15 +1026,24 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 
         // load LocalNodes from cache (only for internal syncs)
         // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
-        if (syncs.mClient.dbaccess && !us.mConfig.isExternal())
+        if (shouldHaveDatabase())
         {
             string dbname = config.getSyncDbStateCacheName(fas->fsid, config.mRemoteNode, syncs.mClient.me);
 
+            // Check if the database exists on disk.
+            us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
+
             // Note, we opened dbaccess in thread-safe mode
             statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED));
-            us.mConfig.mDatabaseExists = true;
 
-            readstatecache();
+            // Did the call above create the database?
+            us.mConfig.mDatabaseExists |= !!statecachetable;
+
+            // Don't bother trying to read the cache if we couldn't open the database.
+            if (us.mConfig.mDatabaseExists)
+            {
+                readstatecache();
+            }
         }
     }
     us.mConfig.mRunState = us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run;
@@ -1094,6 +1105,11 @@ void Sync::setBackupMonitoring()
     config.setBackupState(SYNC_BACKUP_MONITOR);
 
     syncs.saveSyncConfig(config);
+}
+
+bool Sync::shouldHaveDatabase() const
+{
+    return syncs.mClient.dbaccess && !mUnifiedSync.mConfig.isExternal();
 }
 
 SyncTransferCounts Sync::transferCounts() const
@@ -2054,7 +2070,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     movePtr->sourceFingerprint = row.fsNode->fingerprint;
                     movePtr->sourcePtr = sourceSyncNode;
 
-                    string newName = row.fsNode->localname.toName(*syncs.fsaccess);
+                    string newName = row.fsNode->name;
                     if (newName == sourceCloudNode.name ||
                         sourceSyncNode->localname == row.fsNode->localname)
                     {
@@ -3180,8 +3196,14 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         us.mSync.reset();
     };
 
+    // Make sure we could open the state cache database.
+    if (us.mSync->shouldHaveDatabase() && !us.mSync->statecachetable)
+    {
+        LOG_err << "Unable to open state cache database.";
+        signalError(UNABLE_TO_OPEN_DATABASE);
+    }
     // Make sure we were able to assign the root's FSID.
-    if (us.mSync->localroot->fsid_lastSynced == UNDEF)
+    else if (us.mSync->localroot->fsid_lastSynced == UNDEF)
     {
         LOG_err << "Unable to retrieve the sync root's FSID: "
                 << us.mConfig.getLocalPath();
@@ -3211,7 +3233,6 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         saveSyncConfig(us.mConfig);
         mSyncFlags->isInitialPass = true;
         e = API_OK;
-
     }
 
     LOG_debug << "Final error for sync start: " << e;
@@ -5891,41 +5912,41 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->name, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->name, true, caseInsensitive);
             }
         }
         else if (lhs.syncNode)
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.syncNode->localname, true, rhs.cloudNode->name, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->name, true, rhs.cloudNode->name, true, caseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.syncNode->localname, true, rhs.syncNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->name, true, rhs.syncNode->name, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.syncNode->localname, true, rhs.fsNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->name, true, rhs.fsNode->name, true, caseInsensitive);
             }
         }
         else // lhs.fsNode
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.fsNode->localname, true, rhs.cloudNode->name, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->name, true, rhs.cloudNode->name, true, caseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.fsNode->localname, true, rhs.syncNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->name, true, rhs.syncNode->name, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.fsNode->localname, true, rhs.fsNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->name, true, rhs.fsNode->name, true, caseInsensitive);
             }
         }
     };
@@ -7436,7 +7457,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
             // if we were already matched with a name that is not exactly the same as toName(), keep using it
             string nodeName = !row.cloudNode || onlyCaseChanged
-                                ? row.fsNode->localname.toName(*syncs.fsaccess)
+                                ? row.fsNode->name
                                 : row.cloudNode->name;
 
             if (nodeName != existingUpload->name)
@@ -7503,7 +7524,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
                 // if we were already matched with a name that is not exactly the same as toName(), keep using it
                 string nodeName = !row.cloudNode || onlyCaseChanged
-                    ? row.fsNode->localname.toName(*syncs.fsaccess)
+                    ? row.fsNode->name
                     : row.cloudNode->name;
 
                 auto upload = std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle,
@@ -7598,7 +7619,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             if (parentRow.cloudNode)
             {
                 // there can't be a matching cloud node in this row (for folders), so just toName() is correct
-                string foldername = row.syncNode->localname.toName(*syncs.fsaccess);
+                string foldername = row.syncNode->name;
 
                 // Check for filename anomalies.
                 {

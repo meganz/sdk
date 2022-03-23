@@ -113,7 +113,10 @@ Transfer::~Transfer()
         if (!(*it)->syncxfer)
         {
             // Let the distributor know we no longer need to be copied.
-            downloadDistributor->removeTarget();
+            if (downloadDistributor)
+                downloadDistributor->removeTarget();
+
+            // No further processing necessary.
             continue;
         }
 

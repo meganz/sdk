@@ -14936,16 +14936,13 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
     if (remoteNodes->empty())
         return nullptr;
 
-    std::string localName =
-      localNode->localname.toName(*fsaccess);
-
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
       std::find_if(remoteNodes->begin(),
                    remoteNodes->end(),
                    [&](const Node *remoteNode) -> bool
                    {
-                       return localName == remoteNode->displayname();
+                       return localNode->name == remoteNode->displayname();
                    });
 
     if (remoteNode != remoteNodes->end())

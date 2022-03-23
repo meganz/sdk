@@ -622,6 +622,9 @@ public:
     // Move the sync into the monitoring state.
     void setBackupMonitoring();
 
+    // True if this sync should have a state cache database.
+    bool shouldHaveDatabase() const;
+
     // Retrieve a snapshot of this sync's current transfer counts.
     SyncTransferCounts transferCounts() const;
 
