@@ -780,7 +780,7 @@ struct StandardClient : public MegaApp
     StandardClient(const fs::path& basepath, const string& name)
         :
 #ifdef GFX_CLASS
-          gfx(std::make_unique<GFX_CLASS>()),
+          gfx(::mega::make_unique<GFX_CLASS>()),
 #endif
           client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
