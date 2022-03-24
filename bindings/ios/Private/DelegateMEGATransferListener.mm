@@ -25,10 +25,11 @@
 
 using namespace mega;
 
-DelegateMEGATransferListener::DelegateMEGATransferListener(MEGASdk *megaSDK, id<MEGATransferDelegate>listener, bool singleListener) {
+DelegateMEGATransferListener::DelegateMEGATransferListener(MEGASdk *megaSDK, id<MEGATransferDelegate>listener, bool singleListener, ListenerQueueType queueType) {
     this->megaSDK = megaSDK;
     this->listener = listener;
     this->singleListener = singleListener;
+    this->queueType = queueType;
 }
 
 id<MEGATransferDelegate>DelegateMEGATransferListener::getUserListener() {
@@ -40,7 +41,7 @@ void DelegateMEGATransferListener::onTransferStart(MegaApi *api, MegaTransfer *t
         MegaTransfer *tempTransfer = transfer->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGATransferDelegate> tempListener = this->listener;
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch(this->queueType, ^{
             [tempListener onTransferStart:tempMegaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
         });
     }
@@ -53,7 +54,7 @@ void DelegateMEGATransferListener::onTransferFinish(MegaApi *api, MegaTransfer *
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGATransferDelegate> tempListener = this->listener;
         bool tempSingleListener = singleListener;
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch(this->queueType, ^{
             [tempListener onTransferFinish:tempMegaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
             if (tempSingleListener) {
                 [tempMegaSDK freeTransferListener:this];
@@ -67,7 +68,7 @@ void DelegateMEGATransferListener::onTransferUpdate(MegaApi *api, MegaTransfer *
         MegaTransfer *tempTransfer = transfer->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGATransferDelegate> tempListener = this->listener;
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch(this->queueType, ^{
             [tempListener onTransferUpdate:tempMegaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
         });
     }
@@ -79,7 +80,7 @@ void DelegateMEGATransferListener::onTransferTemporaryError(MegaApi *api, MegaTr
         MegaError *tempError = e->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGATransferDelegate> tempListener = this->listener;
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch(this->queueType, ^{
             [tempListener onTransferTemporaryError:tempMegaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
         });
     }

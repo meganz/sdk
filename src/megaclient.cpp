@@ -531,7 +531,7 @@ bool MegaClient::isValidFolderLink()
         if (!h.isUndef())
         {
             Node *n = nodeByHandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))    // is it decrypted? (valid key)
+            if (n && (n->attrs.map.find('n') != n->attrs.map.end()))    // is it decrypted? (valid key)
             {
                 return true;
             }
