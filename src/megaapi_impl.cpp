@@ -13569,7 +13569,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             assert(!client->rootnodes.files.isUndef());    // is folder link fetched properly?
 
             request->setNodeHandle(client->getFolderLinkPublicHandle());
-            if (client->isValidFolderLink())    // is the key for the folder link valid?
+            if (!client->isValidFolderLink())    // is the key for the folder link invalid?
             {
                 request->setFlag(true);
             }
@@ -13603,7 +13603,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             assert(!client->rootnodes.files.isUndef());    // is folder link fetched properly?
 
             request->setNodeHandle(client->getFolderLinkPublicHandle());
-            if (client->isValidFolderLink())    // is the key for the folder link valid?
+            if (!client->isValidFolderLink())    // is the key for the folder link invalid?
             {
                 request->setFlag(true);
             }
