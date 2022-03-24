@@ -18307,7 +18307,7 @@ node_vector NodeManager::getRootNodesWithoutNestedInshares()
     node_vector rootnodes;
     if (mClient.loggedIntoFolder())
     {
-        Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
+        Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
         assert(rootNode);
 
         rootnodes.push_back(rootNode);
