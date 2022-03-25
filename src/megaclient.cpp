@@ -69,11 +69,6 @@ const int MegaClient::MAXQUEUEDFA = 30;
 // maximum number of concurrent putfa
 const int MegaClient::MAXPUTFA = 10;
 
-// Key in DB table `var`
-string MegaClient::STORAGE_SIZE = "STORAGE";
-string MegaClient::FOLDERS_COUNT = "FOLDERS";
-string MegaClient::FILES_COUNT = "FILES";
-
 #ifdef ENABLE_SYNC
 // hearbeat frequency
 static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
@@ -17994,11 +17989,6 @@ void NodeManager::loadNodes()
     }
 
     mLoadingNodes = false;
-}
-
-MegaClient &NodeManager::getMegaClient()
-{
-    return mClient;
 }
 
 Node* NodeManager::getNodeInRAM(NodeHandle handle)

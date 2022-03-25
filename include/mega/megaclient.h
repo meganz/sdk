@@ -329,10 +329,6 @@ public:
     // Futhermore, calculate mNodeCounters
     void loadNodes();
 
-    // TODO nodes on demand remove
-    MegaClient& getMegaClient();
-
-
     // ===--- Node Counters ---===
 
     // returns the counter for 'node', recursively, accessing to DB
@@ -1194,10 +1190,6 @@ public:
 
     // stats id
     std::string statsid;
-
-    static string STORAGE_SIZE;
-    static string FOLDERS_COUNT;
-    static string FILES_COUNT;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
