@@ -2197,7 +2197,6 @@ bool CommandSetPendingContact::procresult(Result r)
                 client->notifypcr(pcr);
 
                 // remove pending shares related to the deleted PCR
-                // TODO Nodes on demand Review if it has same behavior
                 node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
                 for (Node* n : nodes)
                 {

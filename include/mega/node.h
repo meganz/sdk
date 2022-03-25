@@ -258,7 +258,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     bool serialize(string*) override;
 
-    // TODO Nodes on demand Node Manager reference
     Node(MegaClient&, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 

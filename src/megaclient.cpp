@@ -538,7 +538,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
 #endif
     }
 
-
     if (!notify)
     {
         mNodeManager.updateNode(n);
@@ -5254,16 +5253,6 @@ void MegaClient::updatesc()
                 }
             }
         }
-
-        // TODO Nodes on demand NodeManager has node ownership, all operations are implemented at MegaClient::notifypurge
-//        if (complete)
-//        {
-//            // 3. write new or modified nodes, purge deleted nodes
-//            for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
-//            {
-
-//            }
-//        }
 
         if (complete)
         {
