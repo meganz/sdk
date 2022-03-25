@@ -110,7 +110,7 @@ void GfxProc::loop()
             LOG_debug << "Processing media file: " << job->h;
 
             // (this assumes that the width of the largest dimension is max)
-            if (mGfxProvider->readbitmap(NULL, job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+            if (mGfxProvider->readbitmap(client->fsaccess.get(), job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
             {
                 for (unsigned i = 0; i < job->imagetypes.size(); i++)
                 {
@@ -329,7 +329,7 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, Loca
     }
 
     mutex.lock();
-    if (!mGfxProvider->readbitmap(NULL, localfilepath, width > height ? width : height))
+    if (!mGfxProvider->readbitmap(client->fsaccess.get(), localfilepath, width > height ? width : height))
     {
         mutex.unlock();
         return false;
