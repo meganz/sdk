@@ -32,7 +32,6 @@ unsigned PdfiumReader::initialized = 0;
 
 void PdfiumReader::init()
 {
-    std::lock_guard<std::mutex> g(pdfMutex);
     if (!initialized)
     {
         FPDF_LIBRARY_CONFIG config;

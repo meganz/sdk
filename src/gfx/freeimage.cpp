@@ -75,9 +75,6 @@ GfxProviderFreeImage::GfxProviderFreeImage()
 #ifdef FREEIMAGE_LIB
 	FreeImage_Initialise(TRUE);
 #endif
-#ifdef HAVE_PDFIUM
-    PdfiumReader::init();
-#endif
 #ifdef HAVE_FFMPEG
 //    av_log_set_level(AV_LOG_VERBOSE);
 #endif
