@@ -6214,8 +6214,8 @@ CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
 
 bool CommandCleanRubbishBin::procresult(Result r)
 {
-    client->app->cleanrubbishbin_result(r.errorOrOK());
-    return r.wasErrorOrOK();
+    client->app->cleanrubbishbin_result(r.errorResultOrActionpacket());
+    return r.wasErrorOrActionpacket();
 }
 
 CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type, const char *pin)

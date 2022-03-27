@@ -1066,7 +1066,7 @@ void DemoApp::fetchnodes_result(const Error& e)
             else
             {
                 assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+                cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
 
@@ -8897,31 +8897,37 @@ void DemoAppFolder::login_result(error e)
 
 void DemoAppFolder::fetchnodes_result(const Error& e)
 {
+    bool success = false;
     if (e)
     {
         if (e == API_ENOENT && e.hasExtraInfo())
         {
-            cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
+            cout << "Folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
         }
         else
         {
-            cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+            cout << "Folder retrieval failed (" << errorstring(e) << ")" << endl;
         }
     }
     else
     {
-        // check if we fetched a folder link and the key is invalid
+        // check if the key is invalid
         if (clientFolder->isValidFolderLink())
         {
-            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            cout << "Folder link loaded correctly." << endl;
+            success = true;
         }
         else
         {
-            cout << "Failed to load folder link" << endl;
-
-            delete clientFolder;
-            clientFolder = NULL;
+            assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
+            cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
         }
+    }
+
+    if (!success)
+    {
+        delete clientFolder;
+        clientFolder = NULL;
     }
 }
 
