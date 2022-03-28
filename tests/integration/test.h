@@ -448,16 +448,15 @@ struct StandardClient : public MegaApp
     Node* getcloudrubbishnode();
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
-    bool backupAdd_inthread(const string& drivePath,
-        string sourcePath,
-        const string& targetPath,
-        std::function<void(error, SyncError, handle)> completion,
-        const string& logname);
 
     handle backupAdd_mainthread(const string& drivePath,
         const string& sourcePath,
         const string& targetPath,
         const string& logname);
+
+    error addSync(const string& displayPath, const fs::path& localpath, handle remoteNode,
+                  function<void(error, SyncError, handle)> addSyncCompletion, const string& logname,
+                  SyncConfig::Type type);
 
     bool setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
         std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);

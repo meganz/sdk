@@ -1564,63 +1564,6 @@ vector<Node*> StandardClient::drillchildnodesbyname(Node* n, const string& path)
     }
 }
 
-bool StandardClient::backupAdd_inthread(const string& drivePath,
-                        string sourcePath,
-                        const string& targetPath,
-                        std::function<void(error, SyncError, handle)> completion,
-                        const string& logname)
-{
-    auto* rootNode = client.nodebyhandle(basefolderhandle);
-
-    // Root isn't in the cloud.
-    if (!rootNode)
-    {
-        return false;
-    }
-
-    auto* targetNode = drillchildnodebyname(rootNode, targetPath);
-
-    // Target path doesn't exist.
-    if (!targetNode)
-    {
-        return false;
-    }
-
-    // Generate drive ID if necessary.
-    auto id = UNDEF;
-    auto result = readDriveId(*client.fsaccess, drivePath.c_str(), id);
-
-    if (result == API_ENOENT)
-    {
-        id = generateDriveId(client.rng);
-        result = writeDriveId(*client.fsaccess, drivePath.c_str(), id);
-    }
-
-    if (result != API_OK)
-    {
-        completion(result, NO_SYNC_ERROR, UNDEF);
-        return false;
-    }
-
-    auto config =
-        SyncConfig(LocalPath::fromAbsolutePath(sourcePath),
-                    sourcePath,
-                    targetNode->nodeHandle(),
-                    targetNode->displaypath(),
-                    0,
-                    LocalPath::fromAbsolutePath(drivePath),
-                    //string_vector(),
-                    true,
-                    SyncConfig::TYPE_BACKUP);
-
-    EXPECT_TRUE(!config.mOriginalPathOfRemoteRootNode.empty() &&
-        config.mOriginalPathOfRemoteRootNode.front() == '/')
-        << "config.mOriginalPathOfRemoteRootNode: " << config.mOriginalPathOfRemoteRootNode.c_str();
-
-    // Try and add the backup.
-    return client.addsync(move(config), true, completion, logname) == API_OK;
-}
-
 handle StandardClient::backupAdd_mainthread(const string& drivePath,
                             const string& sourcePath,
                             const string& targetPath,
@@ -1642,44 +1585,72 @@ handle StandardClient::backupAdd_mainthread(const string& drivePath,
                 result->set_value(backupId);
                 };
 
-                client.backupAdd_inthread(dp.u8string(),
-                                        sp.u8string(),
-                                        targetPath,
-                                        std::move(completion),
-                                        logname);
+            client.setupSync_inthread(sp.filename().u8string(), sp, true, completion, logname);
         });
 
     return result.get();
 }
 
+error StandardClient::addSync(const string& displayPath, const fs::path& localpath, handle remoteNode,
+                              function<void(error, SyncError, handle)> addSyncCompletion, const string& logname,
+                              SyncConfig::Type type)
+{
+    out() << clientname << "Setting up sync from " << displayPath << " to " << localpath;
+    auto syncConfig =
+        SyncConfig(LocalPath::fromAbsolutePath(localpath.u8string()),
+            localpath.u8string(),
+            NodeHandle().set6byte(remoteNode),
+            displayPath,
+            0,
+            LocalPath(),
+            true,
+            type);
+    EXPECT_TRUE(!syncConfig.mOriginalPathOfRemoteRootNode.empty() &&
+        syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
+        << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
+
+    error e = client.addsync(move(syncConfig), true, addSyncCompletion, logname);
+    return e;
+}
+
 bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
     std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
 {
-    if (Node* n = client.nodebyhandle(basefolderhandle))
+    // regular sync
+    if (!isBackup)
     {
-        if (Node* m = drillchildnodebyname(n, subfoldername))
+        if (Node* n = client.nodebyhandle(basefolderhandle))
         {
-            out() << clientname << "Setting up sync from " << m->displaypath() << " to " << localpath;
-            auto syncConfig =
-                SyncConfig(LocalPath::fromAbsolutePath(localpath.u8string()),
-                            localpath.u8string(),
-                            NodeHandle().set6byte(m->nodehandle),
-                            m->displaypath(),
-                            0,
-                            LocalPath(),
-                            //string_vector(),
-                            true,
-                            isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
-            EXPECT_TRUE(!syncConfig.mOriginalPathOfRemoteRootNode.empty() &&
-                        syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
-                << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
-
-            error e = client.addsync(move(syncConfig), true, addSyncCompletion, logname);
-            return !e;
+            if (Node* m = drillchildnodebyname(n, subfoldername))
+            {
+                error e = addSync(m->displaypath(), localpath, m->nodehandle, addSyncCompletion, logname, SyncConfig::TYPE_TWOWAY);
+                return !e;
+            }
         }
+
+        assert(false);
+        return false;
     }
-    assert(false);
-    return false;
+
+    // or backup
+    auto* clientPtr = &client;
+    CommandPutNodes::Completion thenAddSync = [this, clientPtr, localpath, addSyncCompletion, logname]
+    (const Error&, targettype_t, vector<NewNode>& nn, bool)
+    {
+        handle nh = nn.back().mAddedHandle;
+        if (Node* m = clientPtr->nodebyhandle(nh))
+        {
+            const string& displayPath = m->displaypath();
+            error err = addSync(displayPath, localpath, nh, addSyncCompletion, logname, SyncConfig::TYPE_BACKUP);
+            if (err != API_OK && addSyncCompletion)
+            {
+                addSyncCompletion(err, PUT_NODES_ERROR, UNDEF);
+            }
+        }
+    };
+
+    error e = client.registerbackup(subfoldername, "", thenAddSync);
+    return !e;
 }
 
 void StandardClient::importSyncConfigs(string configs, PromiseBoolSP result)
