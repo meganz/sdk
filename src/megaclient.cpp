@@ -12072,6 +12072,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     // Used to update to nodes on demand cache
     bool isDbUpgraded = false;
+    node_vector mNodesUpgradeCache;
 
     while (hasNext)
     {
@@ -12086,7 +12087,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
             case CACHEDNODE:
                 LOG_info << "Loading nodes from old cache";
-                if ((n = mNodeManager.unserializeNode(&data, true)))
+                if ((n = mNodeManager.unserializeNode(&data, true, true)))
                 {
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
@@ -12094,7 +12095,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    // Add nodes from old DB schema to the new table 'nodes' in the
                    // new DB schema for nodes on demand
                    mNodeManager.addNode(n, false);
-                   mNodeManager.saveNodeInDb(n);    // dump to new DB table for 'nodes'
+                   mNodesUpgradeCache.push_back(n);
                    sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else
@@ -12153,6 +12154,13 @@ bool MegaClient::fetchsc(DbTable* sctable)
     {
         // nodes are loaded during the migration from `statecache` to `nodes` table and kept in RAM
 
+        mergenewshares(0);
+        for (Node* node : mNodesUpgradeCache)
+        {
+            mNodeManager.saveNodeInDb(node);
+        }
+
+
         // force commit, since old DB has been upgraded to new schema for NOD
         sctable->commit();
         sctable->begin();
@@ -12167,8 +12175,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
-
-    mergenewshares(0);
 
     return true;
 }
@@ -17471,7 +17477,7 @@ void NodeManager::cleanNodes()
 
 // parse serialized node and return Node object - updates nodes hash and parent
 // mismatch vector
-Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
+Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fromOldCache)
 {
     handle h, ph;
     nodetype_t t;
@@ -17660,7 +17666,17 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
             break;
         }
 
-        ownNewshares.push_back(std::move(newShare));
+        if (fromOldCache)
+        {
+            // mergenewshare should be called when users and pcr are loaded
+            // It's used only when we are migrating the cache
+            // mergenewshares is called when all nodes, user and pcr are loaded (fetchsc)
+            mClient.newshares.push_back(newShare.release());
+        }
+        else
+        {
+            ownNewshares.push_back(std::move(newShare));
+        }
 
         if (numshares > 0)  // outshare/s
         {
