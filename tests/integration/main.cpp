@@ -300,6 +300,11 @@ int main (int argc, char *argv[])
     wc->setShellConsole();
 #endif
 
+#if defined(__APPLE__)
+    // Try and raise the file descriptor limit as high as we can.
+    platformSetRLimitNumFile();
+#endif // __APPLE__
+
     ::testing::InitGoogleTest(&argc, myargv2.data());
 
     if (gRunningInCI)
