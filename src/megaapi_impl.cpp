@@ -7799,12 +7799,12 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
 
 bool MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
 {
-    return client->platformSetRLimitNumFile(newNumFileLimit);
+    return platformSetRLimitNumFile(newNumFileLimit);
 }
 
 int MegaApiImpl::platformGetRLimitNumFile() const
 {
-    return client->platformGetRLimitNumFile();
+    return platformGetRLimitNumFile();
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
