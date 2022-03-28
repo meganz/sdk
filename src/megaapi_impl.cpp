@@ -9319,6 +9319,17 @@ void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestL
     waiter->notify();
 }
 
+void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullFileSize, int faType, bool forceSSL, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_FA_UPLOAD_URL, listener);
+    req->setNodeHandle(nodehandle);
+    req->setNumber(fullFileSize);
+    req->setFlag(forceSSL);
+    req->setParamType(faType);//TODO: doc this too
+    requestQueue.push(req);
+    waiter->notify();
+}
+
 void MegaApiImpl::completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
                                   const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener)
 {
@@ -22691,6 +22702,36 @@ void MegaApiImpl::sendPendingRequests()
                 request->setPrivateKey(folderkeyB64.chars);
                 client->getpubliclinkinfo(h);
             }
+            break;
+        }
+        case MegaRequest::TYPE_GET_FA_UPLOAD_URL:
+        {
+            bool getIp = true;
+            auto nodeHandle = request->getNodeHandle();
+            auto faType = request->getParamType();
+            auto forceSSL = request->getFlag();
+            auto fullSize = request->getNumber();
+
+            NodeOrUploadHandle nuh(NodeHandle().set6byte(nodeHandle));
+
+            client->reqs.add(new HttpReqCommandPutFA(std::move(nuh), faType, forceSSL, -1, fullSize, nullptr, getIp,
+            [this, request](Error e, const std::string &url, const std::vector<std::string> &ips)
+            {
+                assert(e != API_OK || !url.empty());
+                if (e == API_OK && !url.empty())
+            {
+                    request->setName(url.c_str());
+                    if (!ips.empty())
+                    {
+                        request->setLink(ips.at(0).c_str());
+                    }
+                    if (ips.size() > 1)
+                    {
+                        request->setText(ips.at(1).c_str());
+                    }
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
             break;
         }
         case MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL:

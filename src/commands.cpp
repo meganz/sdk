@@ -33,11 +33,11 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, std::unique_ptr<string> cdata)
-    : data(move(cdata))
+HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size, std::unique_ptr<string> cdata, bool getIP, HttpReqCommandPutFA::Cb &&completion)
+    : mCompletion(completion), data(move(cdata))
 {
     cmd("ufa");
-    arg("s", data->size());
+    arg("s", size);
 
     if (cth.isNodeHandle())
     {
@@ -53,12 +53,28 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, b
         arg("ssl", 2);
     }
 
+    if (getIP)
+    {
+        arg("v", 3); //TODO: this needs API side validation
+    }
+    else
+    {
+        arg("v", 2);
+    }
+
     th = cth;
     type = ctype;
 
     binary = true;
 
     tag = ctag;
+
+    if (!mCompletion)
+    {
+        mCompletion=[this](Error e, const std::string &/*url*/, const vector<std::string> &/*ips*/){
+            client->app->putfa_result(th.nodeHandle().as8byte(), type, e);
+        };
+    }
 }
 
 bool HttpReqCommandPutFA::procresult(Result r)
@@ -91,13 +107,14 @@ bool HttpReqCommandPutFA::procresult(Result r)
             }
 
             status = REQ_SUCCESS;
-            client->app->putfa_result(th.nodeHandle().as8byte(), type, r.errorOrOK());
+            mCompletion(r.errorOrOK(), {}, {});
         }
         return true;
     }
     else
     {
         const char* p = NULL;
+        std::vector<string> ips;
 
         for (;;)
         {
@@ -106,7 +123,21 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 case 'p':
                     p = client->json.getvalue();
                     break;
-
+            case MAKENAMEID2('i', 'p'):
+                if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+                {
+                    for (;;)
+                    {
+                        std::string ti;
+                        if (!client->json.storeobject(&ti))
+                        {
+                            break;
+                        }
+                        ips.push_back(ti);
+                    }
+                    client->json.leavearray();
+                }
+                break;
                 case EOO:
                     if (!p)
                     {
@@ -114,11 +145,18 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     }
                     else
                     {
-                        LOG_debug << "Sending file attribute data";
                         JSON::copystring(&posturl, p);
-                        progressreported = 0;
-                        HttpReq::type = REQ_BINARY;
-                        post(client, data->data(), unsigned(data->size()));
+                        if (mCompletion)
+                        {
+                            mCompletion(API_OK, posturl, ips);
+                        }
+                        else
+                        {
+                            LOG_debug << "Sending file attribute data";
+                            progressreported = 0;
+                            HttpReq::type = REQ_BINARY;
+                            post(client, data->data(), unsigned(data->size()));
+                        }
                     }
                     return true;
 
@@ -126,6 +164,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     if (!client->json.storeobject())
                     {
                         status = REQ_SUCCESS;
+                        mCompletion(API_EINTERNAL, {}, {});
                         client->app->putfa_result(th.nodeHandle().as8byte(), type, API_EINTERNAL);
                         return false;
                     }

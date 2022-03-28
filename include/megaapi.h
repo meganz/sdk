@@ -3178,7 +3178,8 @@ class MegaRequest
             TYPE_START_CHAT_CALL                                            = 142,
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
-            TOTAL_OF_REQUEST_TYPES                                          = 145,
+            TYPE_GET_FA_UPLOAD_URL                                          = 145,
+            TOTAL_OF_REQUEST_TYPES                                          = 146,
         };
 
         virtual ~MegaRequest();
@@ -16928,6 +16929,9 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
          void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+
+         void getThumbnailUploadURL(MegaHandle nodehandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+         void gePreviewUploadURL(MegaHandle nodehandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
 
         /**
          * @brief Create the node after completing the background upload of the file.
