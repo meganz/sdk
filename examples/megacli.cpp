@@ -8781,6 +8781,9 @@ int main(int argc, char* argv[])
     // Needed so we can get the cwd.
 #ifdef __APPLE__
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
+
+    // Try and raise the file descriptor limit as high as we can.
+    platformSetRLimitNumFile();
 #else
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 #endif

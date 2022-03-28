@@ -904,6 +904,10 @@ bool islchex_low(const int c);
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
 
+int platformGetRLimitNumFile();
+
+bool platformSetRLimitNumFile(int newNumFileLimit = -1);
+
 } // namespace
 
 #endif
