@@ -57,10 +57,6 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, b
     {
         arg("v", 3); //TODO: this needs API side validation
     }
-    else
-    {
-        arg("v", 2);
-    }
 
     th = cth;
     type = ctype;
