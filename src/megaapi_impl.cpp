@@ -7797,16 +7797,6 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
 }
 
-bool MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
-{
-    return platformSetRLimitNumFile(newNumFileLimit);
-}
-
-int MegaApiImpl::platformGetRLimitNumFile() const
-{
-    return platformGetRLimitNumFile();
-}
-
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
