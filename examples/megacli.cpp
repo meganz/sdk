@@ -3092,7 +3092,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                         cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
                     }
                 };
-                e = client->unlink(backupRootNode, false, 0, move(completion));
+                e = client->unlink(backupRootNode, false, 0, move(completion), true);
                 if (e != API_OK)
                 {
                     cout << "Backup Centre - Failed to delete remote backup node locally (" << errorstring(e) << ')' << endl;
