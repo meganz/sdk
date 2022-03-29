@@ -14191,13 +14191,8 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
     if (!handleContainerStr) { return API_EACCESS; }
 
-    string buffer;
-    std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &key));
-    if (!tlvRecords || !tlvRecords->get("h", buffer) || buffer.size() != MegaClient::NODEHANDLE) { return API_EINTERNAL; }
-
-    handle h = 0; // make sure top two bytes are 0
-    memcpy(&h, buffer.c_str(), MegaClient::NODEHANDLE);
-
+    handle h = 0;
+    memcpy(&h, handleContainerStr->data(), MegaClient::NODEHANDLE);
     if (!h || h == UNDEF) { return API_ENOENT; }
 
     // get Node of remote "My Backups" folder
@@ -14250,7 +14245,7 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
 
         string deviceName;
-        tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
+        std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
         if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty()) { return API_EINCOMPLETE; }
 
         // add a new node for it
