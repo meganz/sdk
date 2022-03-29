@@ -9325,7 +9325,7 @@ void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullF
     req->setNodeHandle(nodehandle);
     req->setNumber(fullFileSize);
     req->setFlag(forceSSL);
-    req->setParamType(faType);//TODO: doc this too
+    req->setParamType(faType);
     requestQueue.push(req);
     waiter->notify();
 }

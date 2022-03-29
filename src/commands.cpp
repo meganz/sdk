@@ -55,7 +55,7 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, b
 
     if (getIP)
     {
-        arg("v", 3); //TODO: this needs API side validation
+        arg("v", 3);
     }
 
     th = cth;
