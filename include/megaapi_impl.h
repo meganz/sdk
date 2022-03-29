@@ -2336,9 +2336,6 @@ class MegaApiImpl : public MegaApp
 #endif
         void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
 
-        bool platformSetRLimitNumFile(int newNumFileLimit) const;
-        int platformGetRLimitNumFile() const;
-
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
         static Error createLocalFolder_unlocked(LocalPath & localPath, FileSystemAccess& fsaccess);

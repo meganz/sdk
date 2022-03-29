@@ -44,3 +44,9 @@ SOURCES += \
 HEADERS += \
 ../../../../tests/integration/test.h \
 ../../../../tests/integration/SdkTest_test.h
+
+copydata.commands = $(COPY_DIR) $$shell_path($$PWD/../../../../tests/integration/test_cover_png.mp3) $$OUT_PWD
+first.depends = $(first) copydata
+export(first.depends)
+export(copydata.commands)
+QMAKE_EXTRA_TARGETS += first copydata

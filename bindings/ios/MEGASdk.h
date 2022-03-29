@@ -5931,14 +5931,15 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
  * "Your business account is overdue, please contact your administrator."
  *
- * For folders, onTransferFinish will be called with error MEGAErrorTypeApiEArgs;
+ * For folders, onTransferFinish will be called with error MEGAErrorTypeApiEArgs.
  *
  * @param localPath Local path of the file
  * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
  * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
- * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
- */
-- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary;
+ * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+ * @param delegate MEGATransferDelegate to track this transfer
+ * */
+- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Upload a file to support
@@ -5947,15 +5948,14 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * code MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar to
  * "Your business account is overdue, please contact your administrator."
  *
- * For folders, onTransferFinish will be called with error MEGAErrorTypeApiEArgs;
+ * For folders, onTransferFinish will be called with error MEGAErrorTypeApiEArgs.
  *
  * @param localPath Local path of the file
  * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
  * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
- * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
- * @param listener MegaTransferListener to track this transfer
- */
-- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+ * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+ * */
+- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary;
 
 /**
  * @brief Upload a file or a folder
