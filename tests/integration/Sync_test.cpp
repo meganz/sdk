@@ -3605,6 +3605,17 @@ SyncWaitPredicate SyncConflictState(bool state)
     };
 }
 
+SyncWaitPredicate SyncRemoteNodePresent(const string& path)
+{
+    return [path](StandardClient& client) {
+        return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+            auto root = client.gettestbasenode();
+            auto node = client.drillchildnodebyname(root, path);
+            result->set_value(!!node);
+        }).get();
+    };
+}
+
 struct SyncWaitResult
 {
     bool syncStalled = false;
@@ -15193,6 +15204,98 @@ TEST_F(SyncTest, StallsWhenEncounteringHardLink)
     // Make sure nothing's changed in the cloud.
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 }
+
+#ifndef _WIN32
+
+TEST_F(SyncTest, ChangingDirectoryPermissions)
+{
+    auto TIMEOUT = chrono::seconds(16);
+
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Make sure the sync root exists in the cloud.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Prepare model (and local filesystem.)
+    Model model;
+
+    model.addfile("d/f");
+    model.generate(client->fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure everything made it to the cloud.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Remove execute permissions from the directory.
+    const auto dPath = (client->fsBasePath / "s" / "d").u8string();
+
+    ASSERT_EQ(chmod(dPath.c_str(), S_IRUSR | S_IWUSR), 0);
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the engine to detect a stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+
+    // Make sure we've stalled for the right reason.
+    SyncStallInfo stalls;
+
+    ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+    ASSERT_TRUE(stalls.cloud.empty());
+    ASSERT_EQ(stalls.local.size(), 1u);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::CantFingrprintFileYet);
+
+    // Make sure d/f is still present in the cloud.
+    ASSERT_TRUE(client->waitFor(SyncRemoteNodePresent("s/d/f"), TIMEOUT));
+
+    // Restore execute permissions to the directory.
+    ASSERT_EQ(chmod(dPath.c_str(), S_IRUSR | S_IWUSR | S_IXUSR), 0);
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
+
+    // Remove read permissions from the directory.
+    ASSERT_EQ(chmod(dPath.c_str(), S_IWUSR | S_IXUSR), 0);
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the engine to detect a stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+
+    // Make sure we've stalled for the right reason.
+    ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+    ASSERT_TRUE(stalls.cloud.empty());
+    ASSERT_EQ(stalls.local.size(), 1u);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::LocalFolderNotScannable);
+
+    // Make sure d/f is still present in the cloud.
+    ASSERT_TRUE(client->waitFor(SyncRemoteNodePresent("s/d/f"), TIMEOUT));
+
+    // Restore read permissions.
+    ASSERT_EQ(chmod(dPath.c_str(), S_IRUSR | S_IWUSR | S_IXUSR), 0);
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
+}
+
+#endif // ! _WIN32
 
 #endif
 
