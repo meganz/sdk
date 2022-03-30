@@ -92,6 +92,51 @@ GfxProcFreeImage::~GfxProcFreeImage()
 #endif
 }
 
+#ifdef USE_MEDIAINFO
+bool GfxProcFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
+{
+    const pair<string, string>& cover = MediaProperties::getCoverFromId3v2(imagePath.localpath);
+    if (cover.first.empty())
+    {
+        return false;
+    }
+
+    FREE_IMAGE_FORMAT format = FIF_UNKNOWN;
+    int flags = 0;
+    if (cover.second == "jpg")
+    {
+        format = FIF_JPEG;
+        flags = JPEG_EXIFROTATE | JPEG_FAST;
+    }
+    else if (cover.second == "png")
+    {
+        format = FIF_PNG;
+    }
+
+    if (format == FIF_UNKNOWN)
+    {
+        // It either didn't have a cover, or there was a problem reading it,
+        // in which case it should have been already logged by now.
+        return false;
+    }
+
+    BYTE* dataBytes = (BYTE*)cover.first.c_str();
+    FIMEMORY* dataMem = FreeImage_OpenMemory(dataBytes, (DWORD)cover.first.size());
+    dib = FreeImage_LoadFromMemory(format, dataMem, flags);
+    FreeImage_CloseMemory(dataMem);
+    if (!dib)
+    {
+        LOG_warn << "Error converting raw MediaInfo bitmap from memory.";
+        return false;
+    }
+
+    w = static_cast<int>(FreeImage_GetWidth(dib));
+    h = static_cast<int>(FreeImage_GetHeight(dib));
+
+    return true;
+}
+#endif
+
 bool GfxProcFreeImage::readbitmapFreeimage(FileAccess*, const LocalPath& imagePath, int size)
 {
 
@@ -333,7 +378,6 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     av_init_packet(&packet);
     packet.data = NULL;
     packet.size = 0;
-    auto avPacketGuard = makeScopeGuard(av_packet_unref, &packet);
 
     int scalingResult;
     int actualNumFrames = 0;
@@ -341,6 +385,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     // Read frames until succesfull decodification or reach limit of 220 frames
     while (actualNumFrames < 220 && av_read_frame(formatContext, &packet) >= 0)
     {
+       auto avPacketGuard = makeScopeGuard(av_packet_unref, &packet);
        if (packet.stream_index == videoStream->index)
        {
            int ret = avcodec_send_packet(codecContext, &packet);
@@ -488,6 +533,9 @@ const char* GfxProcFreeImage::supportedformats()
 #ifdef HAVE_PDFIUM
         sformats.append(supportedformatsPDF());
 #endif
+#ifdef USE_MEDIAINFO
+        sformats.append(MediaProperties::supportedformatsMediaInfo());
+#endif
     }
 
     return sformats.c_str();
@@ -500,6 +548,12 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     string extension;
     if (client->fsaccess->getextension(localname, extension))
     {
+#ifdef USE_MEDIAINFO
+        if (MediaProperties::isMediaFilenameExtAudio(extension))
+        {
+            return readbitmapMediaInfo(localname);
+        }
+#endif
 #ifdef HAVE_FFMPEG
         if (isFfmpegFile(extension))
         {
@@ -523,7 +577,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     }
     if (!bitmapLoaded)
     {
-        if (!readbitmapFreeimage(fa, localname, size) )
+        if (!readbitmapFreeimage(fa, localname, size))
         {
             return false;
         }

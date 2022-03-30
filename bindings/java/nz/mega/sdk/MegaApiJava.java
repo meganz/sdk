@@ -243,14 +243,6 @@ public class MegaApiJava {
     public final static int BACKUP_TYPE_CAMERA_UPLOADS = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
 
-    public final static int GOOGLE_ADS_DEFAULT = MegaApi.GOOGLE_ADS_DEFAULT;
-    public final static int GOOGLE_ADS_FORCE_ADS = MegaApi.GOOGLE_ADS_FORCE_ADS;
-    public final static int GOOGLE_ADS_IGNORE_MEGA = MegaApi.GOOGLE_ADS_IGNORE_MEGA;
-    public final static int GOOGLE_ADS_IGNORE_COUNTRY = MegaApi.GOOGLE_ADS_IGNORE_COUNTRY;
-    public final static int GOOGLE_ADS_IGNORE_IP = MegaApi.GOOGLE_ADS_IGNORE_IP;
-    public final static int GOOGLE_ADS_IGNORE_PRO = MegaApi.GOOGLE_ADS_IGNORE_PRO;
-    public final static int GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = MegaApi.GOOGLE_ADS_FLAG_IGNORE_ROLLOUT;
-
     MegaApi getMegaApi()
     {
         return megaApi;
@@ -11275,174 +11267,6 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Fetch Google ads
-     *
-     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
-     * @param adUnits A list of the adslot ids to fetch
-     * @param publicHandle Provide the public handle that the user is visiting
-     * @param listener MegaRequestListener to track this request
-     */
-    public void fetchGoogleAds(int adFlags, MegaStringList adUnits, long publicHandle, MegaRequestListenerInterface listener) {
-        megaApi.fetchGoogleAds(adFlags, adUnits, publicHandle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * @brief Fetch Google ads
-     *
-     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
-     * @param adUnits A list of the adslot ids to fetch
-     * @param publicHandle Provide the public handle that the user is visiting
-     */
-    public void fetchGoogleAds(int adFlags, MegaStringList adUnits, long publicHandle) {
-        megaApi.fetchGoogleAds(adFlags, adUnits, publicHandle);
-    }
-
-    /**
-     * @brief Fetch Google ads
-     *
-     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
-     * @param adUnits A list of the adslot ids to fetch
-     */
-    public void fetchGoogleAds(int adFlags, MegaStringList adUnits) {
-        megaApi.fetchGoogleAds(adFlags, adUnits);
-    }
-
-    /**
-     * @brief Check if Google ads should show or not
-     *
-     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumDetails Return if ads should be show or not
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
-     * @param publicHandle Provide the public handle that the user is visiting
-     * @param listener MegaRequestListener to track this request
-     */
-    public void queryGoogleAds(int adFlags, long publicHandle, MegaRequestListenerInterface listener) {
-        megaApi.queryGoogleAds(adFlags, publicHandle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * @brief Check if Google ads should show or not
-     *
-     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumDetails Return if ads should be show or not
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
-     * @param publicHandle Provide the public handle that the user is visiting
-     */
-    public void queryGoogleAds(int adFlags, long publicHandle) {
-        megaApi.queryGoogleAds(adFlags, publicHandle);
-    }
-
-    /**
-     * @brief Check if Google ads should show or not
-     *
-     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumDetails Return if ads should be show or not
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
-     */
-    public void queryGoogleAds(int adFlags) {
-        megaApi.queryGoogleAds(adFlags);
-    }
-
-    /**
      * @brief Set a bitmap to indicate whether some cookies are enabled or not
      *
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
@@ -11630,5 +11454,63 @@ public class MegaApiJava {
      */
     public void getMyBackupsFolder() {
         megaApi.getMyBackupsFolder();
+    }
+
+    /**
+     * @brief Get a list of favourite nodes.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node provided
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+     * - MegaRequest::getNumDetails - Returns the count requested
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaHandleList - List of handles of favourite nodes
+     *
+     * @param node Node and its children that will be searched for favourites. Search all nodes if null
+     * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getFavourites(MegaNode node, int count, MegaRequestListenerInterface listener) {
+        megaApi.getFavourites(node, count, createDelegateRequestListener(listener));
+    }
+    
+    /**
+     * Creates a support ticket
+     *
+     * @param message  Content of the ticket
+     * @param type     Type of inquiry/issue.  Use xx for issues from the Android app.
+     *                 <p>
+     *                 Options are:
+     *                 0 for General Enquiry
+     *                 1 for Technical Issue
+     *                 2 for Payment Issue
+     *                 3 for Forgotten Password
+     *                 4 for Transfer Issue
+     *                 5 for Contact/Sharing Issue
+     *                 6 for MEGAsync Issue
+     *                 7 for Missing/Invisible Data
+     *                 8 is reserved for internal use
+     *                 9 iOS support ticket
+     *                 10 Android support ticket
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createSupportTicket(String message, int type, MegaRequestListenerInterface listener) {
+        megaApi.createSupportTicket(message, type, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @param localPath         local path to the file or folder
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when
+     *                          the upload finishes. This parameter is intended to automatically
+     *                          delete temporary files that are only created to be uploaded. Use
+     *                          this parameter with caution. Set it to true only if you are sure
+     *                          about what are you doing.
+     * @param listener          MegaTransferListener to track this transfer
+     */
+    public void startUploadForSupport(String localPath, boolean isSourceTemporary, MegaTransferListenerInterface listener) {
+        megaApi.startUploadForSupport(localPath, isSourceTemporary, createDelegateTransferListener(listener));
     }
 }

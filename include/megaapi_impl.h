@@ -3280,7 +3280,7 @@ public:
     void setMaxOutputSize(unsigned int outputSize);
 
     static const unsigned int MAX_BUFFER_SIZE = 2097152;
-    static const unsigned int MAX_OUTPUT_SIZE = 16384;
+    static const unsigned int MAX_OUTPUT_SIZE = MAX_BUFFER_SIZE / 10;
 
 protected:
     char *buffer;

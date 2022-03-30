@@ -5765,7 +5765,6 @@ void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const ch
 {
     mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
     mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
-    MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance(), true);
 }
 #endif
 
@@ -9611,9 +9610,11 @@ void MegaApiImpl::httpServerSetMaxBufferSize(int bufferSize)
 {
     sdkMutex.lock();
     httpServerMaxBufferSize = bufferSize <= 0 ? 0 : bufferSize;
+    httpServerMaxOutputSize = httpServerMaxBufferSize / 10;
     if (httpServer)
     {
         httpServer->setMaxBufferSize(httpServerMaxBufferSize);
+        httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     }
     sdkMutex.unlock();
 }
@@ -13568,7 +13569,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             assert(!client->rootnodes.files.isUndef());    // is folder link fetched properly?
 
             request->setNodeHandle(client->getFolderLinkPublicHandle());
-            if (client->isValidFolderLink())    // is the key for the folder link valid?
+            if (!client->isValidFolderLink())    // is the key for the folder link invalid?
             {
                 request->setFlag(true);
             }
@@ -13602,7 +13603,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             assert(!client->rootnodes.files.isUndef());    // is folder link fetched properly?
 
             request->setNodeHandle(client->getFolderLinkPublicHandle());
-            if (client->isValidFolderLink())    // is the key for the folder link valid?
+            if (!client->isValidFolderLink())    // is the key for the folder link invalid?
             {
                 request->setFlag(true);
             }
@@ -21898,7 +21899,7 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getParamType();
             const char *message = request->getText();
 
-            if ((type < 0 || type > 9) || !message)
+            if ((type < 0 || type > 10) || !message)
             {
                 e = API_EARGS;
                 break;
