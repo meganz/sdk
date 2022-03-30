@@ -1646,6 +1646,16 @@ void LinuxDirNotify::removeWatch(WatchMapIterator entry)
 #endif // USE_INOTIFY
 #endif // __linux__
 
+ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& path,
+                                                handle expectedFsid,
+                                                map<LocalPath, FSNode>& known,
+                                                std::vector<FSNode>& results,
+                                                bool followSymLinks,
+                                                unsigned& nFingerprinted)
+{
+    return SCAN_INACCESSIBLE;
+}
+
 fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
     struct statfs statfsbuf;

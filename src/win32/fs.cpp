@@ -1623,7 +1623,7 @@ bool reuseFingerprint(const FSNode& lhs, const FSNode& rhs)
         && lhs.fingerprint.size == rhs.fingerprint.size;
 };
 
-ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, unsigned& nFingerprinted)
+ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool, unsigned& nFingerprinted)
 {
     assert(path.isAbsolute());
 

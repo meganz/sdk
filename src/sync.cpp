@@ -347,75 +347,17 @@ auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted)
 {
     CodeCounter::ScopeTimer rst(syncScanTime);
 
-#ifdef WIN32
-
-    auto r = static_cast<WinFileSystemAccess*>(mFsAccess.get())->directoryScan(request->mTargetPath,
-            request->mExpectedFsid, request->mKnown, request->mResults, nFingerprinted);
-
-    // No need to keep this data around anymore.
-    request->mKnown.clear();
-
-    return r;
-
-#else
-
-    // Have we been passed a valid target path?
-    auto fileAccess = mFsAccess->newfileaccess();
-    auto path = request->mTargetPath;
-
-    if (!fileAccess->fopen(path, true, false))
-    {
-        LOG_debug << "Scan target does not exist or is not openable: "
-                  << path.toPath();
-        return SCAN_INACCESSIBLE;
-    }
-
-    // Does the path denote a directory?
-    if (fileAccess->type != FOLDERNODE)
-    {
-        LOG_debug << "Scan target is not a directory: "
-                  << path.toPath();
-        return SCAN_INACCESSIBLE;
-    }
-
-    if (fileAccess->fsid != request->mExpectedFsid)
-    {
-        LOG_debug << "Scan target at this path has been replaced, fsid is different: "
-            << path.toPath();
-        return SCAN_FSID_MISMATCH;
-    }
-
-    std::unique_ptr<DirAccess> dirAccess(mFsAccess->newdiraccess());
-    LocalPath name;
-
-    // Can we open the directory?
-    if (!dirAccess->dopen(&path, fileAccess.get(), false))
-    {
-        LOG_debug << "Scan target is not iteratable: "
-                  << path.toPath();
-        return SCAN_INACCESSIBLE;
-    }
-
-    std::vector<FSNode> results;
-
-    // Process each file in the target.
-    while (dirAccess->dnext(path, name, request->mFollowSymLinks))
-    {
-        ScopedLengthRestore restorer(path);
-        path.appendWithSeparator(name, false);
-
-        // Learn everything we can about the file.
-        auto info = interrogate(*dirAccess, name, path, *request, nFingerprinted);
-        results.emplace_back(std::move(info));
-    }
+    auto result = mFsAccess->directoryScan(request->mTargetPath,
+                                           request->mExpectedFsid,
+                                           request->mKnown,
+                                           request->mResults,
+                                           request->mFollowSymLinks,
+                                           nFingerprinted);
 
     // No need to keep this data around anymore.
     request->mKnown.clear();
 
-    // Publish the results.
-    request->mResults = std::move(results);
-    return SCAN_SUCCESS;
-#endif
+    return result;
 }
 
 ScopedSyncPathRestore::ScopedSyncPathRestore(SyncPath& p)
