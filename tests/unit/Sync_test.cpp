@@ -154,22 +154,26 @@ public:
     {
         LocalPath result = prefix;
 
-        result.appendWithSeparator(randomPath(n), false);
+        result.appendWithSeparator(randomPathRelative(n), false);
 
         return result;
     }
 
-    static LocalPath randomPath(const size_t n = 16)
+    static LocalPath randomPathAbsolute(const size_t n = 16)
     {
-        return LocalPath::fromPath(randomBase64(n), mFSAccess);
+        return LocalPath::fromAbsolutePath(randomBase64(n));
+    }
+    static LocalPath randomPathRelative(const size_t n = 16)
+    {
+        return LocalPath::fromRelativePath(randomBase64(n));
     }
 
     static LocalPath separator()
     {
 #ifdef _WIN32
-        return LocalPath::fromPath("\\", mFSAccess);
+        return LocalPath::fromRelativePath("\\");
 #else // _WIN32
-        return LocalPath::fromPath("/", mFSAccess);
+        return LocalPath::fromRelativePath("/");
 #endif // ! _WIN32
     }
 
@@ -325,7 +329,7 @@ TEST_F(SyncConfigIOContextTest, GetBadPath)
     vector<unsigned int> slotsVec;
 
     // Generate a bogus path.
-    const auto drivePath = Utilities::randomPath();
+    const auto drivePath = Utilities::randomPathAbsolute();
 
     // Try to read slots from an invalid path.
     EXPECT_NE(ioContext().getSlotsInOrder(drivePath, slotsVec), API_OK);
@@ -337,7 +341,7 @@ TEST_F(SyncConfigIOContextTest, GetBadPath)
 TEST_F(SyncConfigIOContextTest, GetNoSlots)
 {
     // Make sure the drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Generate some malformed slots for this user.
     {
@@ -345,15 +349,15 @@ TEST_F(SyncConfigIOContextTest, GetNoSlots)
 
         // This file will be ignored as it has no slot suffix.
         configPath.appendWithSeparator(
-          LocalPath::fromPath(configName(), fsAccess()), false);
+          LocalPath::fromRelativePath(configName()), false);
         EXPECT_TRUE(Utilities::randomFile(configPath));
 
         // This file will be ignored as it has a malformed slot suffix.
-        configPath.append(LocalPath::fromPath(".", fsAccess()));
+        configPath.append(LocalPath::fromRelativePath("."));
         EXPECT_TRUE(Utilities::randomFile(configPath));
 
         // This file will be ignored as it has an invalid slot suffix.
-        configPath.append(LocalPath::fromPath("Q", fsAccess()));
+        configPath.append(LocalPath::fromRelativePath("Q"));
         EXPECT_TRUE(Utilities::randomFile(configPath));
     }
 
@@ -362,9 +366,9 @@ TEST_F(SyncConfigIOContextTest, GetNoSlots)
         LocalPath configPath = drive;
 
         configPath.appendWithSeparator(
-          LocalPath::fromPath(configPrefix(), fsAccess()), false);
-        configPath.append(Utilities::randomPath());
-        configPath.append(LocalPath::fromPath(".0", fsAccess()));
+          LocalPath::fromRelativePath(configPrefix()), false);
+        configPath.append(Utilities::randomPathRelative());
+        configPath.append(LocalPath::fromRelativePath(".0"));
 
         EXPECT_TRUE(Utilities::randomFile(configPath));
     }
@@ -383,7 +387,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
     const size_t NUM_SLOTS = 3;
 
     // Make sure drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Generate some slots for this user.
     {
@@ -391,7 +395,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
 
         // Generate suitable config path prefix.
         configPath.appendWithSeparator(
-          LocalPath::fromPath(configName(), fsAccess()), false);
+          LocalPath::fromRelativePath(configName()), false);
 
         for (size_t i = 0; i < NUM_SLOTS; ++i)
         {
@@ -401,7 +405,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
 
             // Generate suffix.
             LocalPath suffixPath =
-              LocalPath::fromPath("." + to_string(i), fsAccess());
+              LocalPath::fromRelativePath("." + to_string(i));
 
             // Complete config path.
             configPath.append(suffixPath);
@@ -437,7 +441,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
     const size_t NUM_SLOTS = 3;
 
     // Make sure drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Generate some slots for this user.
     {
@@ -445,7 +449,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 
         // Generate suitable config path prefix.
         configPath.appendWithSeparator(
-          LocalPath::fromPath(configName(), fsAccess()), false);
+          LocalPath::fromRelativePath(configName()), false);
 
         for (size_t i = 0; i < NUM_SLOTS; ++i)
         {
@@ -455,7 +459,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 
             // Generate suffix.
             LocalPath suffixPath =
-              LocalPath::fromPath("." + to_string(i), fsAccess());
+              LocalPath::fromRelativePath("." + to_string(i));
 
             // Complete config path.
             configPath.append(suffixPath);
@@ -490,7 +494,7 @@ TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 TEST_F(SyncConfigIOContextTest, Read)
 {
     // Make sure the drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Try writing some data out and reading it back again.
     {
@@ -521,15 +525,15 @@ TEST_F(SyncConfigIOContextTest, ReadBadData)
     string data;
 
     // Make sure the drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Generate slot path.
     LocalPath slotPath = drive;
 
     slotPath.appendWithSeparator(
-      LocalPath::fromPath(configName(), fsAccess()), false);
+      LocalPath::fromRelativePath(configName()), false);
 
-    slotPath.append(LocalPath::fromPath(".0", fsAccess()));
+    slotPath.append(LocalPath::fromRelativePath(".0"));
 
     // Try loading a file that's too short to be valid.
     EXPECT_TRUE(Utilities::randomFile(slotPath, 1));
@@ -544,7 +548,7 @@ TEST_F(SyncConfigIOContextTest, ReadBadData)
 
 TEST_F(SyncConfigIOContextTest, ReadBadPath)
 {
-    const LocalPath drivePath = Utilities::randomPath();
+    const LocalPath drivePath = Utilities::randomPathAbsolute();
     string data;
 
     // Try and read data from an insane path.
@@ -555,7 +559,7 @@ TEST_F(SyncConfigIOContextTest, ReadBadPath)
 TEST_F(SyncConfigIOContextTest, RemoveSlot)
 {
     // Make sure drive path exists.
-    Directory drive(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
 
     // Generate a slot for this user.
     {
@@ -563,10 +567,10 @@ TEST_F(SyncConfigIOContextTest, RemoveSlot)
 
         // Generate path prefix.
         configPath.appendWithSeparator(
-            LocalPath::fromPath(configName(), fsAccess()), false);
+            LocalPath::fromRelativePath(configName()), false);
 
         // Generate suffix.
-        configPath.append(LocalPath::fromPath(".0", fsAccess()));
+        configPath.append(LocalPath::fromRelativePath(".0"));
 
         // Populate slot.
         EXPECT_TRUE(Utilities::randomFile(configPath));
@@ -581,7 +585,7 @@ TEST_F(SyncConfigIOContextTest, RemoveSlot)
 
 TEST_F(SyncConfigIOContextTest, RemoveSlots)
 {
-    const auto drivePath = Utilities::randomPath();
+    const auto drivePath = Utilities::randomPathAbsolute();
 
     // No slots to remove.
     EXPECT_CALL(ioContext(),
@@ -626,8 +630,8 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mBackupId = 1;
         config.mEnabled = false;
         config.mError = NO_SYNC_ERROR;
-        config.mLocalFingerprint = 1;
-        config.mLocalPath = Utilities::randomPath();
+        config.mFilesystemFingerprint = 1;
+        config.mLocalPath = Utilities::randomPathAbsolute();
         config.mName = Utilities::randomBase64();
         config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
         config.mRemoteNode = NodeHandle();
@@ -640,8 +644,8 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mBackupId = 2;
         config.mEnabled = true;
         config.mError = UNKNOWN_ERROR;
-        config.mLocalFingerprint = 2;
-        config.mLocalPath = Utilities::randomPath();
+        config.mFilesystemFingerprint = 2;
+        config.mLocalPath = Utilities::randomPathAbsolute();
         config.mName = Utilities::randomBase64();
         config.mOriginalPathOfRemoteRootNode = Utilities::randomBase64();
         config.mRemoteNode.set6byte(3);
@@ -661,7 +665,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
     // Deserialize the database.
     {
         JSON reader(writer.getstring());
-        EXPECT_TRUE(ioContext().deserialize(read, reader));
+        EXPECT_TRUE(ioContext().deserialize(read, reader, false));
     }
 
     // Are the databases identical?
@@ -687,18 +691,18 @@ TEST_F(SyncConfigIOContextTest, SerializeEmpty)
         JSON reader(writer.getstring());
 
         // Can we deserialize an empty database?
-        EXPECT_TRUE(ioContext().deserialize(configs, reader));
+        EXPECT_TRUE(ioContext().deserialize(configs, reader, true));
         EXPECT_TRUE(configs.empty());
     }
 }
 
 TEST_F(SyncConfigIOContextTest, WriteBadPath)
 {
-    const LocalPath drivePath = Utilities::randomPath();
+    const LocalPath drivePath = Utilities::randomPathAbsolute();
     const string data = Utilities::randomBytes(64);
 
     auto dbPath = drivePath;
-    dbPath.appendWithSeparator(Utilities::randomPath(), false);
+    dbPath.appendWithSeparator(Utilities::randomPathRelative(), false);
 
     // Try and write data to an insane path.
     EXPECT_NE(ioContext().write(dbPath, data, 0), API_OK);
@@ -716,7 +720,7 @@ public:
 
 TEST_F(SyncConfigStoreTest, Read)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigVector written;
 
@@ -725,7 +729,7 @@ TEST_F(SyncConfigStoreTest, Read)
         SyncConfigStore store(db, ioContext());
 
         // Read empty so that the drive is known.
-        EXPECT_EQ(store.read(LocalPath(), written), API_ENOENT);
+        EXPECT_EQ(store.read(LocalPath(), written, true), API_ENOENT);
 
         // Drive should be known.
         ASSERT_TRUE(store.driveKnown(LocalPath()));
@@ -734,7 +738,7 @@ TEST_F(SyncConfigStoreTest, Read)
         SyncConfig config;
 
         config.mBackupId = 1;
-        config.mLocalPath = Utilities::randomPath();
+        config.mLocalPath = Utilities::randomPathAbsolute();
         config.mRemoteNode.set6byte(2);
 
         written.emplace_back(config);
@@ -748,7 +752,7 @@ TEST_F(SyncConfigStoreTest, Read)
     SyncConfigVector read;
 
     // Read database back.
-    EXPECT_EQ(store.read(LocalPath(), read), API_OK);
+    EXPECT_EQ(store.read(LocalPath(), read, false), API_OK);
 
     // Drive should now be known.
     EXPECT_TRUE(store.driveKnown(LocalPath()));
@@ -759,7 +763,7 @@ TEST_F(SyncConfigStoreTest, Read)
 
 TEST_F(SyncConfigStoreTest, ReadEmpty)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigStore store(db, ioContext());
 
@@ -776,7 +780,7 @@ TEST_F(SyncConfigStoreTest, ReadEmpty)
     SyncConfigVector configs;
 
     // Read should inform the caller that no database is present.
-    EXPECT_EQ(store.read(LocalPath(), configs), API_ENOENT);
+    EXPECT_EQ(store.read(LocalPath(), configs, true), API_ENOENT);
 
     // Configs should remain empty.
     EXPECT_TRUE(configs.empty());
@@ -790,7 +794,7 @@ TEST_F(SyncConfigStoreTest, ReadEmpty)
 
 TEST_F(SyncConfigStoreTest, ReadFail)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigStore store(db, ioContext());
 
@@ -811,7 +815,7 @@ TEST_F(SyncConfigStoreTest, ReadFail)
     SyncConfigVector configs;
 
     // Read should report a fatal read error.
-    EXPECT_EQ(store.read(LocalPath(), configs), API_EREAD);
+    EXPECT_EQ(store.read(LocalPath(), configs, true), API_EREAD);
 
     // Configs should remain empty.
     EXPECT_TRUE(configs.empty());
@@ -825,7 +829,7 @@ TEST_F(SyncConfigStoreTest, ReadFail)
 
 TEST_F(SyncConfigStoreTest, ReadFailFallback)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigStore store(db, ioContext());
 
@@ -855,7 +859,7 @@ TEST_F(SyncConfigStoreTest, ReadFailFallback)
     SyncConfigVector configs;
 
     // Read should succeed.
-    EXPECT_EQ(store.read(LocalPath(), configs), API_OK);
+    EXPECT_EQ(store.read(LocalPath(), configs, true), API_OK);
 
     // Configs should remain empty.
     EXPECT_TRUE(configs.empty());
@@ -869,14 +873,14 @@ TEST_F(SyncConfigStoreTest, ReadFailFallback)
 
 TEST_F(SyncConfigStoreTest, WriteDirty)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigStore store(db, ioContext());
 
     SyncConfigVector configs;
 
     // Perform a read such that the drive is known.
-    EXPECT_EQ(store.read(LocalPath(), configs), API_ENOENT);
+    EXPECT_EQ(store.read(LocalPath(), configs, true), API_ENOENT);
 
     SyncConfigVector internal;
 
@@ -886,7 +890,7 @@ TEST_F(SyncConfigStoreTest, WriteDirty)
 
         // External
         config.mBackupId = 1;
-        config.mExternalDrivePath = Utilities::randomPath();
+        config.mExternalDrivePath = Utilities::randomPathAbsolute();
         config.mLocalPath = Utilities::randomPath(config.mExternalDrivePath);
         config.mRemoteNode.set6byte(2);
 
@@ -895,7 +899,7 @@ TEST_F(SyncConfigStoreTest, WriteDirty)
         // Internal
         config.mBackupId = 2;
         config.mExternalDrivePath.clear();
-        config.mLocalPath = Utilities::randomPath();
+        config.mLocalPath = Utilities::randomPathAbsolute();
         config.mRemoteNode.set6byte(3);
 
         configs.emplace_back(config);
@@ -936,14 +940,14 @@ TEST_F(SyncConfigStoreTest, WriteDirty)
 
 TEST_F(SyncConfigStoreTest, WriteEmpty)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigStore store(db, ioContext());
 
     SyncConfigVector configs;
 
     // Read empty so that the drive is known.
-    EXPECT_EQ(store.read(LocalPath(), configs), API_ENOENT);
+    EXPECT_EQ(store.read(LocalPath(), configs, true), API_ENOENT);
 
     // Drive should now be known.
     ASSERT_TRUE(store.driveKnown(LocalPath()));
@@ -979,14 +983,14 @@ TEST_F(SyncConfigStoreTest, WriteEmpty)
 
 TEST_F(SyncConfigStoreTest, Write)
 {
-    Directory db(fsAccess(), Utilities::randomPath());
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
 
     SyncConfigStore store(db, ioContext());
 
     SyncConfigVector configs;
 
     // Read empty so that the drive is known.
-    EXPECT_EQ(store.read(LocalPath(), configs), API_ENOENT);
+    EXPECT_EQ(store.read(LocalPath(), configs, true), API_ENOENT);
 
     // Drive should be known.
     ASSERT_TRUE(store.driveKnown(LocalPath()));
@@ -996,7 +1000,7 @@ TEST_F(SyncConfigStoreTest, Write)
         SyncConfig config;
 
         config.mBackupId = 2;
-        config.mLocalPath = Utilities::randomPath();
+        config.mLocalPath = Utilities::randomPathAbsolute();
         config.mRemoteNode.set6byte(3);
 
         configs.emplace_back(config);

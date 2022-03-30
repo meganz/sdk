@@ -108,8 +108,8 @@ bool fileexists(const std::string& fn)
 
 void copyFile(std::string& from, std::string& to)
 {
-    LocalPath f = LocalPath::fromPath(from, fileSystemAccess);
-    LocalPath t = LocalPath::fromPath(to, fileSystemAccess);
+    LocalPath f = LocalPath::fromAbsolutePath(from);
+    LocalPath t = LocalPath::fromAbsolutePath(to);
     fileSystemAccess.copylocal(f, t, m_time());
 }
 
@@ -140,7 +140,7 @@ std::string megaApiCacheFolder(int index)
     } else
     {
         std::unique_ptr<DirAccess> da(fileSystemAccess.newdiraccess());
-        auto lp = LocalPath::fromPath(p, fileSystemAccess);
+        auto lp = LocalPath::fromAbsolutePath(p);
         if (!da->dopen(&lp, nullptr, false))
         {
             throw std::runtime_error(
@@ -149,16 +149,6 @@ std::string megaApiCacheFolder(int index)
         }
     }
     return p;
-}
-
-
-void WaitMillisec(unsigned n)
-{
-#ifdef _WIN32
-    Sleep(n);
-#else
-    usleep(n * 1000);
-#endif
 }
 
 template<typename Predicate>
@@ -187,8 +177,6 @@ MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAg
     return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
 #endif
 }
-
-FSACCESS_CLASS makeFsAccess() { return makeFsAccess_<FSACCESS_CLASS>(); }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 
@@ -236,7 +224,7 @@ namespace
         return true;
     }
 
-    bool createLocalFile(fs::path path, const char *name)
+    bool createLocalFile(fs::path path, const char *name, int byteSize = 0)
     {
         if (!name)
         {
@@ -249,6 +237,10 @@ namespace
 #else
         ofstream fs(fp.u8string()/*, ios::binary*/);
 #endif
+        if (byteSize)
+        {
+            fs.seekp((byteSize << 10) - 1);
+        }
         fs << name;
         return true;
     }
@@ -1050,11 +1042,11 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, synchronousShare(apiIndex, n, email, action)) << "Folder sharing failed" << "User: " << email << " Action: " << action;
 }
 
-void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable)
+void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable, bool megaHosted)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_EXPORT] = false;
 
-    auto err = synchronousExportNode(apiIndex, n, expireDate, writable);
+    auto err = synchronousExportNode(apiIndex, n, expireDate, writable, megaHosted);
 
     if (!expireDate || !isFreeAccount)
     {
@@ -1551,6 +1543,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // ___ Set duration of a node ___
 
     ASSERT_EQ(MegaError::API_OK, synchronousSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
+
+
+    megaApi[0]->log(2, "test postlog", __FILE__, __LINE__);
 
     n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_EQ(929734, n1->getDuration()) << "Duration value does not match";
@@ -2968,15 +2963,15 @@ TEST_F(SdkTest, SdkTestShareKeys)
     ASSERT_STREQ(bView2->get(1)->getName(), "NO_KEY");
 }
 
-string localpathToUtf8Leaf(const LocalPath& itemlocalname, FSACCESS_CLASS& fsa)
+string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName().toPath(fsa);
+    return itemlocalname.leafName().toPath();
 }
 
-LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
+LocalPath fspathToLocal(const fs::path& p)
 {
     string path(p.u8string());
-    return LocalPath::fromPath(path, fsa);
+    return LocalPath::fromAbsolutePath(path);
 }
 
 
@@ -3085,24 +3080,24 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         std::map<std::string, FileAccessFields > plain_follow_fopen;
         std::map<std::string, FileAccessFields > iterate_follow_fopen;
 
-        FSACCESS_CLASS fsa(makeFsAccess());
-        auto localdir = fspathToLocal(iteratePath, fsa);
+        auto fsa = makeFsAccess();
+        auto localdir = fspathToLocal(iteratePath);
 
-        std::unique_ptr<FileAccess> fopen_directory(fsa.newfileaccess(false));  // false = don't follow symlinks
+        std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
         ASSERT_TRUE(fopen_directory->fopen(localdir, true, false));
 
         // now open and iterate the directory, not following symlinks (either by name or fopen'd directory)
-        std::unique_ptr<DirAccess> da(fsa.newdiraccess());
+        std::unique_ptr<DirAccess> da(fsa->newdiraccess());
         if (da->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory.get(), false))
         {
             nodetype_t type;
             LocalPath itemlocalname;
             while (da->dnext(localdir, itemlocalname, false, &type))
             {
-                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname);
 
-                std::unique_ptr<FileAccess> plain_fopen_fa(fsa.newfileaccess(false));
-                std::unique_ptr<FileAccess> iterate_fopen_fa(fsa.newfileaccess(false));
+                std::unique_ptr<FileAccess> plain_fopen_fa(fsa->newfileaccess(false));
+                std::unique_ptr<FileAccess> iterate_fopen_fa(fsa->newfileaccess(false));
 
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
@@ -3115,21 +3110,21 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             }
         }
 
-        std::unique_ptr<FileAccess> fopen_directory2(fsa.newfileaccess(true));  // true = follow symlinks
+        std::unique_ptr<FileAccess> fopen_directory2(fsa->newfileaccess(true));  // true = follow symlinks
         ASSERT_TRUE(fopen_directory2->fopen(localdir, true, false));
 
         // now open and iterate the directory, following symlinks (either by name or fopen'd directory)
-        std::unique_ptr<DirAccess> da_follow(fsa.newdiraccess());
+        std::unique_ptr<DirAccess> da_follow(fsa->newdiraccess());
         if (da_follow->dopen(openWithNameOrUseFileAccess ? &localdir : NULL, openWithNameOrUseFileAccess ? NULL : fopen_directory2.get(), false))
         {
             nodetype_t type;
             LocalPath itemlocalname;
             while (da_follow->dnext(localdir, itemlocalname, true, &type))
             {
-                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname);
 
-                std::unique_ptr<FileAccess> plain_follow_fopen_fa(fsa.newfileaccess(true));
-                std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa.newfileaccess(true));
+                std::unique_ptr<FileAccess> plain_follow_fopen_fa(fsa->newfileaccess(true));
+                std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa->newfileaccess(true));
 
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
@@ -3208,8 +3203,8 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         ASSERT_TRUE(plain_fopen.find("filelink.txt") == plain_fopen.end());
 
         // check the glob flag
-        auto localdirGlob = fspathToLocal(iteratePath / "glob1*", fsa);
-        std::unique_ptr<DirAccess> da2(fsa.newdiraccess());
+        auto localdirGlob = fspathToLocal(iteratePath / "glob1*");
+        std::unique_ptr<DirAccess> da2(fsa->newdiraccess());
         if (da2->dopen(&localdirGlob, NULL, true))
         {
             nodetype_t type;
@@ -3217,7 +3212,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
             set<string> remainingExpected { "glob1folder", "glob1file.txt" };
             while (da2->dnext(localdir, itemlocalname, true, &type))
             {
-                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname, fsa);
+                string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname);
                 ASSERT_EQ(leafNameUtf8.substr(0, 5), string("glob1"));
                 ASSERT_TRUE(remainingExpected.find(leafNameUtf8) != remainingExpected.end());
                 remainingExpected.erase(leafNameUtf8);
@@ -4063,9 +4058,9 @@ TEST_F(SdkTest, SdkTestFingerprint)
         "GA4CWmAdW1TwQ-bddEIKTmSDv0b2QQAypo7",
     };
 
-    FSACCESS_CLASS fsa(makeFsAccess());
+    auto fsa = makeFsAccess();
     string name = "testfile";
-    LocalPath localname = LocalPath::fromPath(name, fsa);
+    LocalPath localname = LocalPath::fromAbsolutePath(name);
 
     int value = 0x01020304;
     for (int i = sizeof filesizes / sizeof filesizes[0]; i--; )
@@ -4078,13 +4073,13 @@ TEST_F(SdkTest, SdkTestFingerprint)
             ofs.write((char*)&value, filesizes[i] % sizeof(value));
         }
 
-        fsa.setmtimelocal(localname, 1000000000);
+        fsa->setmtimelocal(localname, 1000000000);
 
         string streamfp, filefp;
         {
             m_time_t mtime = 0;
             {
-                auto nfa = fsa.newfileaccess();
+                auto nfa = fsa->newfileaccess();
                 nfa->fopen(localname);
                 mtime = nfa->mtime;
             }
@@ -5593,8 +5588,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     LOG_info << "___TEST invalidFileNames___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
-    FSACCESS_CLASS fsa(makeFsAccess());
-    auto aux = LocalPath::fromPath(fs::current_path().u8string(), fsa);
+    auto aux = LocalPath::fromAbsolutePath(fs::current_path().u8string());
 
 #if defined (__linux__) || defined (__ANDROID__)
     if (fileSystemAccess.getlocalfstype(aux) == FS_EXT)
@@ -5766,11 +5760,11 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
 
 #ifdef WIN32
     // double check a few well known paths
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:", fsa)), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:\\", fsa)), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("C:\\", fsa)), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("C:\\Program Files", fsa)), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:\\Program Files\\Windows NT", fsa)), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:\\")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("C:\\")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("C:\\Program Files")), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromAbsolutePath("c:\\Program Files\\Windows NT")), FS_NTFS);
 #endif
 
 }
@@ -7263,4 +7257,154 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     Cleanup();
 }
 
+/**
+ * @brief TEST_F SdkTargetOverwriteTest
+ *
+ * Testing to upload a file into an inshare with read only privileges.
+ * API must put node into rubbish bin, instead of fail putnodes with API_EACCESS
+ */
+TEST_F(SdkTest, SdkTargetOverwriteTest)
+{
+    LOG_info << "___TEST SdkTargetOverwriteTest___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    //--- Add secondary account as contact ---
+    string message = "Hi contact. Let's share some stuff";
+    mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE( inviteContact(0, mApi[1].email, message, MegaContactRequest::INVITE_ACTION_ADD) );
+    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+
+    ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
+    mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+    ASSERT_NO_FATAL_FAILURE( replyContact(mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT) );
+    ASSERT_TRUE( waitForResponse(&mApi[1].contactRequestUpdated) )   // at the target side (auxiliar account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[0].contactRequestUpdated) )   // at the source side (main account)
+            << "Contact request creation not received after " << maxTimeout << " seconds";
+    mApi[1].cr.reset();
+
+    //--- Create a new folder in cloud drive ---
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    char foldername1[64] = "Shared-folder";
+    MegaHandle hfolder1 = createFolder(0, foldername1, rootnode.get());
+    ASSERT_NE(hfolder1, UNDEF);
+    MegaNode *n1 = megaApi[0]->getNodeByHandle(hfolder1);
+    ASSERT_NE(n1, nullptr);
+
+    // --- Create a new outgoing share ---
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_READWRITE));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    MegaShareList *sl = megaApi[1]->getInSharesList(::MegaApi::ORDER_NONE);
+    ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
+    MegaShare *share = sl->get(0);
+
+    ASSERT_TRUE(share->getNodeHandle() == n1->getHandle())
+            << "Wrong inshare handle: " << Base64Str<MegaClient::NODEHANDLE>(share->getNodeHandle())
+            << ", expected: " << Base64Str<MegaClient::NODEHANDLE>( n1->getHandle());
+
+    ASSERT_TRUE(share->getAccess() >=::MegaShare::ACCESS_READWRITE)
+             << "Insufficient permissions: " << MegaShare::ACCESS_READWRITE  << " over created share";
+
+    // --- Create local file and start upload from secondary account into inew InShare ---
+    onTransferUpdate_progress = 0;
+    onTransferUpdate_filesize = 0;
+    mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
+    std::string fileName = std::to_string(time(nullptr));
+    ASSERT_TRUE(createLocalFile(fs::current_path(), fileName.c_str(), 1024));
+    fs::path fp = fs::current_path() / fileName;
+    megaApi[1]->startUpload(fp.u8string().c_str(), n1);
+
+    // --- Pause transfer, revoke out-share permissions for secondary account and resume transfer ---
+    megaApi[0]->pauseTransfers(true);
+    ASSERT_TRUE(!mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD]);
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    megaApi[0]->pauseTransfers(false);
+    // --- Wait for transfer completion
+    ASSERT_TRUE(waitForResponse(&mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD], 600))
+        << "Upload transfer failed after " << 600 << " seconds";
+
+    ASSERT_TRUE(mApi[1].lastTransferError == MegaError::API_OK && mApi[1].lastError == MegaError::API_OK)
+            << "Upload transfer failed with error: " << mApi[1].lastTransferError;
+
+    // --- Check that node has been created in rubbish bin ---
+    std::unique_ptr <MegaNode> n (mApi[1].megaApi->getNodeByHandle(mApi[1].h));
+    ASSERT_TRUE(n) << "Error retrieving new created node";
+
+    std::unique_ptr <MegaNode> rubbishNode (mApi[1].megaApi->getRubbishNode());
+    ASSERT_TRUE(rubbishNode) << "Error retrieving rubbish bin node";
+
+    ASSERT_TRUE(n->getParentHandle() == rubbishNode->getHandle())
+            << "Error: new node parent handle: " << Base64Str<MegaClient::NODEHANDLE>(n->getParentHandle())
+            << " doesn't match with rubbish bin node handle: " << Base64Str<MegaClient::NODEHANDLE>(rubbishNode->getHandle());
+
+    // --- Clean rubbish bin for secondary account ---
+    auto err = synchronousCleanRubbishBin(1);
+    ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
+}
+
+/**
+ * @brief TEST_F SdkTestAudioFileThumbnail
+ *
+ * Tests extracting thumbnail for uploaded audio file.
+ *
+ * The file to be uploaded must exist or the test will fail.
+ * If environment variable MEGA_DIR_PATH_TO_INPUT_FILES is defined, the file is expected to be in that folder. Otherwise,
+ * a relative path will be checked. Currently, the relative path is dependent on the building tool
+ */
+#if !USE_FREEIMAGE || !USE_MEDIAINFO
+TEST_F(SdkTest, DISABLED_SdkTestAudioFileThumbnail)
+#else
+TEST_F(SdkTest, SdkTestAudioFileThumbnail)
+#endif
+{
+    LOG_info << "___TEST Audio File Thumbnail___";
+
+    const char* bufPathToMp3 = getenv("MEGA_DIR_PATH_TO_INPUT_FILES"); // needs platform-specific path separators
+    static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
+
+    // Attempt to get the test audio file from these locations:
+    // 1. dedicated env var;
+    // 2. subtree location, like the one in the repo;
+    // 3. current working directory
+    LocalPath mp3LP;
+
+    if (bufPathToMp3)
+    {
+        mp3LP = LocalPath::fromAbsolutePath(bufPathToMp3);
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
+    }
+    else
+    {
+        mp3LP.append(LocalPath::fromRelativePath("."));
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath("tests"), false);
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath("integration"), false);
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
+
+        if (!fileexists(mp3LP.toPath()))
+            mp3LP = LocalPath::fromRelativePath(AUDIO_FILENAME);
+    }
+
+    const std::string& mp3 = mp3LP.toPath();
+
+    ASSERT_TRUE(fileexists(mp3)) << mp3 << " file does not exist";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, mp3.c_str(), rootnode.get())) << "Cannot upload test file " << mp3;
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
+}
 #endif

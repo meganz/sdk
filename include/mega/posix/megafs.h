@@ -86,8 +86,8 @@ public:
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
-    std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
-    DirAccess* newdiraccess() override;
+    unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
+    unique_ptr<DirAccess>  newdiraccess() override;
 #ifdef ENABLE_SYNC
     DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
 #endif
@@ -97,18 +97,15 @@ public:
 
     void tmpnamelocal(LocalPath&) const override;
 
-    void local2path(const string*, string*) const override;
-    void path2local(const string*, string*) const override;
-
     bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
-    bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
+    bool copylocal(const LocalPath&, const LocalPath&, m_time_t) override;
     bool rubbishlocal(string*);
     bool unlinklocal(const LocalPath&) override;
     bool rmdirlocal(const LocalPath&) override;
     bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
-    bool setmtimelocal(LocalPath&, m_time_t) override;
+    bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, std::string&) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
@@ -129,6 +126,7 @@ public:
     PosixFileSystemAccess(int = -1);
     ~PosixFileSystemAccess();
 
+    static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
 };
 

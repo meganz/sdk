@@ -1,14 +1,16 @@
 
 # direct core dependencies of the SDK
-c-ares/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on ios:c-ares-ios.patch
+c-ares/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on ios:off
 cryptopp/c303dd024e2dc03a0665ddffbb12a1077933e649
-curl/7375bb408f2278d2f1875c259beef93332697ba7 
-libsodium/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:libsodium-ios.patch
-openssl/c303dd024e2dc03a0665ddffbb12a1077933e649
-openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 windows:off
+curl/7375bb408f2278d2f1875c259beef93332697ba7 all:on ios:off
+curl[core,sectransp]/7375bb408f2278d2f1875c259beef93332697ba7 all:off ios:curl-for-ios.patch
+libsodium/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on ios:libsodium-ios.patch
+openssl/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:off
+openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 windows:off ios:off
 openssl-windows/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off windows:on
+vcpkg-cmake-config/7375bb408f2278d2f1875c259beef93332697ba7
+vcpkg-cmake/7375bb408f2278d2f1875c259beef93332697ba7
 
-pcre/c303dd024e2dc03a0665ddffbb12a1077933e649
 readline/8.0 all:off osx:on
 sqlite3/c303dd024e2dc03a0665ddffbb12a1077933e649
 zlib/c303dd024e2dc03a0665ddffbb12a1077933e649
@@ -61,7 +63,7 @@ libpng/7375bb408f2278d2f1875c259beef93332697ba7
 
 # tests and tools
 asio/c303dd024e2dc03a0665ddffbb12a1077933e649
-gtest/c303dd024e2dc03a0665ddffbb12a1077933e649 all:gtest-fix-uninitialized-variable-warning.patch
+gtest/c303dd024e2dc03a0665ddffbb12a1077933e649 all:gtest-warnings-are-not-errors.patch
 
 # previously listed - possibly for mega chat,sync,cmd.  Re-add with comment if the SDK alone needs them
 #x264/c303dd024e2dc03a0665ddffbb12a1077933e649

@@ -15,6 +15,8 @@
  */
 package nz.mega.sdk;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -122,13 +124,23 @@ public class MegaApiJava {
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
     public final static int PAYMENT_METHOD_ITUNES = MegaApi.PAYMENT_METHOD_ITUNES;
     public final static int PAYMENT_METHOD_GOOGLE_WALLET = MegaApi.PAYMENT_METHOD_GOOGLE_WALLET;
-    public final static int PAYMENT_METHOD_HUAWEI_WALLET = MegaApi.PAYMENT_METHOD_HUAWEI_WALLET;
     public final static int PAYMENT_METHOD_BITCOIN = MegaApi.PAYMENT_METHOD_BITCOIN;
     public final static int PAYMENT_METHOD_UNIONPAY = MegaApi.PAYMENT_METHOD_UNIONPAY;
     public final static int PAYMENT_METHOD_FORTUMO = MegaApi.PAYMENT_METHOD_FORTUMO;
+    public final static int PAYMENT_METHOD_STRIPE = MegaApi.PAYMENT_METHOD_STRIPE;
     public final static int PAYMENT_METHOD_CREDIT_CARD = MegaApi.PAYMENT_METHOD_CREDIT_CARD;
     public final static int PAYMENT_METHOD_CENTILI = MegaApi.PAYMENT_METHOD_CENTILI;
+    public final static int PAYMENT_METHOD_PAYSAFE_CARD = MegaApi.PAYMENT_METHOD_PAYSAFE_CARD;
+    public final static int PAYMENT_METHOD_ASTROPAY = MegaApi.PAYMENT_METHOD_ASTROPAY;
+    public final static int PAYMENT_METHOD_RESERVED = MegaApi.PAYMENT_METHOD_RESERVED;
     public final static int PAYMENT_METHOD_WINDOWS_STORE = MegaApi.PAYMENT_METHOD_WINDOWS_STORE;
+    public final static int PAYMENT_METHOD_TPAY = MegaApi.PAYMENT_METHOD_TPAY;
+    public final static int PAYMENT_METHOD_DIRECT_RESELLER = MegaApi.PAYMENT_METHOD_DIRECT_RESELLER;
+    public final static int PAYMENT_METHOD_ECP = MegaApi.PAYMENT_METHOD_ECP;
+    public final static int PAYMENT_METHOD_SABADELL = MegaApi.PAYMENT_METHOD_SABADELL;
+    public final static int PAYMENT_METHOD_HUAWEI_WALLET = MegaApi.PAYMENT_METHOD_HUAWEI_WALLET;
+    public final static int PAYMENT_METHOD_STRIPE2 = MegaApi.PAYMENT_METHOD_STRIPE2;
+    public final static int PAYMENT_METHOD_WIRE_TRANSFER = MegaApi.PAYMENT_METHOD_WIRE_TRANSFER;
 
     public final static int TRANSFER_METHOD_NORMAL = MegaApi.TRANSFER_METHOD_NORMAL;
     public final static int TRANSFER_METHOD_ALTERNATIVE_PORT = MegaApi.TRANSFER_METHOD_ALTERNATIVE_PORT;
@@ -230,14 +242,6 @@ public class MegaApiJava {
     public final static int BACKUP_TYPE_DOWN_SYNC = MegaApi.BACKUP_TYPE_DOWN_SYNC;
     public final static int BACKUP_TYPE_CAMERA_UPLOADS = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
-
-    public final static int GOOGLE_ADS_DEFAULT = MegaApi.GOOGLE_ADS_DEFAULT;
-    public final static int GOOGLE_ADS_FORCE_ADS = MegaApi.GOOGLE_ADS_FORCE_ADS;
-    public final static int GOOGLE_ADS_IGNORE_MEGA = MegaApi.GOOGLE_ADS_IGNORE_MEGA;
-    public final static int GOOGLE_ADS_IGNORE_COUNTRY = MegaApi.GOOGLE_ADS_IGNORE_COUNTRY;
-    public final static int GOOGLE_ADS_IGNORE_IP = MegaApi.GOOGLE_ADS_IGNORE_IP;
-    public final static int GOOGLE_ADS_IGNORE_PRO = MegaApi.GOOGLE_ADS_IGNORE_PRO;
-    public final static int GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = MegaApi.GOOGLE_ADS_FLAG_IGNORE_ROLLOUT;
 
     MegaApi getMegaApi()
     {
@@ -8804,86 +8808,6 @@ public class MegaApiJava {
      *
      * You take the ownership of the returned value.
      *
-     * @param parent       The parent node of the tree to explore
-     * @param searchString Search string. The search is case-insensitive
-     * @param recursive    True if you want to search recursively in the node tree.
-     *                     False if you want to search in the children of the node only
-     * @param order        Order for the returned list
-     *                     Valid values for this parameter are:
-     *                     - MegaApi::ORDER_NONE = 0
-     *                     Undefined order
-     *
-     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
-     *                     Folders first in alphabetical order, then files in the same order
-     *
-     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
-     *                     Files first in reverse alphabetical order, then folders in the same order
-     *
-     *                     - MegaApi::ORDER_SIZE_ASC = 3
-     *                     Sort by size, ascending
-     *
-     *                     - MegaApi::ORDER_SIZE_DESC = 4
-     *                     Sort by size, descending
-     *
-     *                     - MegaApi::ORDER_CREATION_ASC = 5
-     *                     Sort by creation time in MEGA, ascending
-     *
-     *                     - MegaApi::ORDER_CREATION_DESC = 6
-     *                     Sort by creation time in MEGA, descending
-     *
-     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
-     *                     Sort by modification time of the original file, ascending
-     *
-     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
-     *                     Sort by modification time of the original file, descending
-     *
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *
-     *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending. With this order, folders are returned first, then files
-     *
-     *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending. With this order, folders are returned first, then files
-     *
-     *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
-     *
-     *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
-     *
-     * @return List of nodes that contain the desired string in their name
-     */
-    public ArrayList<MegaNode> search(MegaNode parent, String searchString, boolean recursive, int order) {
-        return nodeListToArray(megaApi.search(parent, searchString, recursive, order));
-    }
-
-    /**
-     * Search nodes containing a search string in their name
-     *
-     * The search is case-insensitive.
-     *
-     * You take the ownership of the returned value.
-     *
      * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
      * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
      * this method returns.
@@ -8958,91 +8882,8 @@ public class MegaApiJava {
      *
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> search(MegaNode node, String searchString, MegaCancelToken cancelToken, boolean recursive, int order) {
+    public ArrayList<MegaNode> search(MegaNode node, String searchString, @NotNull MegaCancelToken cancelToken, boolean recursive, int order) {
         return nodeListToArray(megaApi.search(node, searchString, cancelToken, recursive, order));
-    }
-
-    /**
-     * Search nodes containing a search string in their name
-     *
-     * The search is case-insensitive.
-     *
-     * The search will consider every accessible node for the account:
-     * - Cloud drive
-     * - Inbox
-     * - Rubbish bin
-     * - Incoming shares from other users
-     *
-     * You take the ownership of the returned value.
-     *
-     * @param searchString Search string. The search is case-insensitive
-     * @param order        Order for the returned list
-     *                     Valid values for this parameter are:
-     *                     - MegaApi::ORDER_NONE = 0
-     *                     Undefined order
-     *
-     *                     - MegaApi::ORDER_DEFAULT_ASC = 1
-     *                     Folders first in alphabetical order, then files in the same order
-     *
-     *                     - MegaApi::ORDER_DEFAULT_DESC = 2
-     *                     Files first in reverse alphabetical order, then folders in the same order
-     *
-     *                     - MegaApi::ORDER_SIZE_ASC = 3
-     *                     Sort by size, ascending
-     *
-     *                     - MegaApi::ORDER_SIZE_DESC = 4
-     *                     Sort by size, descending
-     *
-     *                     - MegaApi::ORDER_CREATION_ASC = 5
-     *                     Sort by creation time in MEGA, ascending
-     *
-     *                     - MegaApi::ORDER_CREATION_DESC = 6
-     *                     Sort by creation time in MEGA, descending
-     *
-     *                     - MegaApi::ORDER_MODIFICATION_ASC = 7
-     *                     Sort by modification time of the original file, ascending
-     *
-     *                     - MegaApi::ORDER_MODIFICATION_DESC = 8
-     *                     Sort by modification time of the original file, descending
-     *
-     *                     - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_ASC
-     *
-     *                     - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-     *                     Same behavior than MegaApi::ORDER_DEFAULT_DESC
-     *
-     *                     Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-     *                     are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-     *                     They will be eventually removed.
-     *
-     *                     - MegaApi::ORDER_PHOTO_ASC = 11
-     *                     Sort with photos first, then by date ascending
-     *
-     *                     - MegaApi::ORDER_PHOTO_DESC = 12
-     *                     Sort with photos first, then by date descending
-     *
-     *                     - MegaApi::ORDER_VIDEO_ASC = 13
-     *                     Sort with videos first, then by date ascending
-     *
-     *                     - MegaApi::ORDER_VIDEO_DESC = 14
-     *                     Sort with videos first, then by date descending
-     *
-     *                     - MegaApi::ORDER_LABEL_ASC = 17
-     *                     Sort by color label, ascending. With this order, folders are returned first, then files
-     *
-     *                     - MegaApi::ORDER_LABEL_DESC = 18
-     *                     Sort by color label, descending. With this order, folders are returned first, then files
-     *
-     *                     - MegaApi::ORDER_FAV_ASC = 19
-     *                     Sort nodes with favourite attr first. With this order, folders are returned first, then files
-     *
-     *                     - MegaApi::ORDER_FAV_DESC = 20
-     *                     Sort nodes with favourite attr last. With this order, folders are returned first, then files
-     *
-     * @return List of nodes that contain the desired string in their name
-     */
-    public ArrayList<MegaNode> search(String searchString, int order) {
-        return nodeListToArray(megaApi.search(searchString, order));
     }
 
     /**
@@ -9129,7 +8970,7 @@ public class MegaApiJava {
      *
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> search(String searchString, MegaCancelToken cancelToken, int order) {
+    public ArrayList<MegaNode> search(String searchString, @NotNull MegaCancelToken cancelToken, int order) {
         return nodeListToArray(megaApi.search(searchString, cancelToken, order));
     }
 
@@ -9213,7 +9054,7 @@ public class MegaApiJava {
      *
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> searchOnInShares(String searchString, MegaCancelToken cancelToken, int order) {
+    public ArrayList<MegaNode> searchOnInShares(String searchString, @NotNull MegaCancelToken cancelToken, int order) {
         return nodeListToArray(megaApi.searchOnInShares(searchString, cancelToken, order));
     }
 
@@ -9297,7 +9138,7 @@ public class MegaApiJava {
      *
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> searchOnOutShares(String searchString, MegaCancelToken cancelToken, int order) {
+    public ArrayList<MegaNode> searchOnOutShares(String searchString, @NotNull MegaCancelToken cancelToken, int order) {
         return nodeListToArray(megaApi.searchOnOutShares(searchString, cancelToken, order));
     }
 
@@ -9381,7 +9222,7 @@ public class MegaApiJava {
      *
      * @return List of nodes that contain the desired string in their name
      */
-    public ArrayList<MegaNode> searchOnPublicLinks(String searchString, MegaCancelToken cancelToken, int order) {
+    public ArrayList<MegaNode> searchOnPublicLinks(String searchString, @NotNull MegaCancelToken cancelToken, int order) {
         return nodeListToArray(megaApi.searchOnPublicLinks(searchString, cancelToken, order));
     }
 
@@ -9489,7 +9330,7 @@ public class MegaApiJava {
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-                                            MegaCancelToken cancelToken, boolean recursive, int order, int type, int target) {
+                                            @NotNull MegaCancelToken cancelToken, boolean recursive, int order, int type, int target) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
                 order, type, target));
     }
@@ -9583,8 +9424,8 @@ public class MegaApiJava {
      *
      * @return List of nodes that match with the search parameters
      */
-    public ArrayList<MegaNode> searchByType(int order, int type, int target) {
-        return nodeListToArray(megaApi.searchByType(null, null, null, true,
+    public ArrayList<MegaNode> searchByType(@NotNull MegaCancelToken cancelToken, int order, int type, int target) {
+        return nodeListToArray(megaApi.searchByType(null, null, cancelToken, true,
                 order, type, target));
     }
 
@@ -9685,7 +9526,7 @@ public class MegaApiJava {
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-                                            MegaCancelToken cancelToken, boolean recursive, int order, int type) {
+                                            @NotNull MegaCancelToken cancelToken, boolean recursive, int order, int type) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
                 order, type));
     }
@@ -9770,7 +9611,7 @@ public class MegaApiJava {
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-                                            MegaCancelToken cancelToken, boolean recursive, int order) {
+                                            @NotNull MegaCancelToken cancelToken, boolean recursive, int order) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
                 order));
     }
@@ -9802,7 +9643,7 @@ public class MegaApiJava {
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-                                            MegaCancelToken cancelToken, boolean recursive) {
+                                            @NotNull MegaCancelToken cancelToken, boolean recursive) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive));
     }
 
@@ -9830,7 +9671,7 @@ public class MegaApiJava {
      * @return List of nodes that match with the search parameters
      */
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-                                            MegaCancelToken cancelToken) {
+                                            @NotNull MegaCancelToken cancelToken) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken));
     }
 
@@ -11426,174 +11267,6 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Fetch Google ads
-     *
-     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
-     * @param adUnits A list of the adslot ids to fetch
-     * @param publicHandle Provide the public handle that the user is visiting
-     * @param listener MegaRequestListener to track this request
-     */
-    public void fetchGoogleAds(int adFlags, MegaStringList adUnits, long publicHandle, MegaRequestListenerInterface listener) {
-        megaApi.fetchGoogleAds(adFlags, adUnits, publicHandle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * @brief Fetch Google ads
-     *
-     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
-     * @param adUnits A list of the adslot ids to fetch
-     * @param publicHandle Provide the public handle that the user is visiting
-     */
-    public void fetchGoogleAds(int adFlags, MegaStringList adUnits, long publicHandle) {
-        megaApi.fetchGoogleAds(adFlags, adUnits, publicHandle);
-    }
-
-    /**
-     * @brief Fetch Google ads
-     *
-     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
-     * @param adUnits A list of the adslot ids to fetch
-     */
-    public void fetchGoogleAds(int adFlags, MegaStringList adUnits) {
-        megaApi.fetchGoogleAds(adFlags, adUnits);
-    }
-
-    /**
-     * @brief Check if Google ads should show or not
-     *
-     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumDetails Return if ads should be show or not
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
-     * @param publicHandle Provide the public handle that the user is visiting
-     * @param listener MegaRequestListener to track this request
-     */
-    public void queryGoogleAds(int adFlags, long publicHandle, MegaRequestListenerInterface listener) {
-        megaApi.queryGoogleAds(adFlags, publicHandle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * @brief Check if Google ads should show or not
-     *
-     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumDetails Return if ads should be show or not
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
-     * @param publicHandle Provide the public handle that the user is visiting
-     */
-    public void queryGoogleAds(int adFlags, long publicHandle) {
-        megaApi.queryGoogleAds(adFlags, publicHandle);
-    }
-
-    /**
-     * @brief Check if Google ads should show or not
-     *
-     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
-     * Valid data in the MegaRequest object received on callbacks:
-     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
-     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumDetails Return if ads should be show or not
-     *
-     * @param adFlags A bitmap flag used to communicate with the API
-     * Valid values are:
-     *      - GOOGLE_ADS_DEFAULT = 0x0
-     *      - GOOGLE_ADS_FORCE_ADS = 0x200
-     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
-     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
-     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
-     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
-     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
-     */
-    public void queryGoogleAds(int adFlags) {
-        megaApi.queryGoogleAds(adFlags);
-    }
-
-    /**
      * @brief Set a bitmap to indicate whether some cookies are enabled or not
      *
      * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
@@ -11781,5 +11454,63 @@ public class MegaApiJava {
      */
     public void getMyBackupsFolder() {
         megaApi.getMyBackupsFolder();
+    }
+
+    /**
+     * @brief Get a list of favourite nodes.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node provided
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+     * - MegaRequest::getNumDetails - Returns the count requested
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaHandleList - List of handles of favourite nodes
+     *
+     * @param node Node and its children that will be searched for favourites. Search all nodes if null
+     * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getFavourites(MegaNode node, int count, MegaRequestListenerInterface listener) {
+        megaApi.getFavourites(node, count, createDelegateRequestListener(listener));
+    }
+    
+    /**
+     * Creates a support ticket
+     *
+     * @param message  Content of the ticket
+     * @param type     Type of inquiry/issue.  Use xx for issues from the Android app.
+     *                 <p>
+     *                 Options are:
+     *                 0 for General Enquiry
+     *                 1 for Technical Issue
+     *                 2 for Payment Issue
+     *                 3 for Forgotten Password
+     *                 4 for Transfer Issue
+     *                 5 for Contact/Sharing Issue
+     *                 6 for MEGAsync Issue
+     *                 7 for Missing/Invisible Data
+     *                 8 is reserved for internal use
+     *                 9 iOS support ticket
+     *                 10 Android support ticket
+     * @param listener MegaRequestListener to track this request
+     */
+    public void createSupportTicket(String message, int type, MegaRequestListenerInterface listener) {
+        megaApi.createSupportTicket(message, type, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @param localPath         local path to the file or folder
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when
+     *                          the upload finishes. This parameter is intended to automatically
+     *                          delete temporary files that are only created to be uploaded. Use
+     *                          this parameter with caution. Set it to true only if you are sure
+     *                          about what are you doing.
+     * @param listener          MegaTransferListener to track this transfer
+     */
+    public void startUploadForSupport(String localPath, boolean isSourceTemporary, MegaTransferListenerInterface listener) {
+        megaApi.startUploadForSupport(localPath, isSourceTemporary, createDelegateTransferListener(listener));
     }
 }

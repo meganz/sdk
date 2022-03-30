@@ -55,8 +55,7 @@ void checkTextChats(const mega::TextChat& exp, const mega::TextChat& act)
 TEST(TextChat, serialize_unserialize)
 {
     mega::MegaApp app;
-    MockFileSystemAccess fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
 
     mega::TextChat tc;
     tc.id = 1;
@@ -86,8 +85,7 @@ TEST(TextChat, serialize_unserialize)
 TEST(TextChat, unserialize_32bit)
 {
     mega::MegaApp app;
-    MockFileSystemAccess fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
 
     mega::TextChat tc;
     tc.id = 1;

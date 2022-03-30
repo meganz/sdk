@@ -92,6 +92,51 @@ GfxProcFreeImage::~GfxProcFreeImage()
 #endif
 }
 
+#ifdef USE_MEDIAINFO
+bool GfxProcFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
+{
+    const pair<string, string>& cover = MediaProperties::getCoverFromId3v2(imagePath.localpath);
+    if (cover.first.empty())
+    {
+        return false;
+    }
+
+    FREE_IMAGE_FORMAT format = FIF_UNKNOWN;
+    int flags = 0;
+    if (cover.second == "jpg")
+    {
+        format = FIF_JPEG;
+        flags = JPEG_EXIFROTATE | JPEG_FAST;
+    }
+    else if (cover.second == "png")
+    {
+        format = FIF_PNG;
+    }
+
+    if (format == FIF_UNKNOWN)
+    {
+        // It either didn't have a cover, or there was a problem reading it,
+        // in which case it should have been already logged by now.
+        return false;
+    }
+
+    BYTE* dataBytes = (BYTE*)cover.first.c_str();
+    FIMEMORY* dataMem = FreeImage_OpenMemory(dataBytes, (DWORD)cover.first.size());
+    dib = FreeImage_LoadFromMemory(format, dataMem, flags);
+    FreeImage_CloseMemory(dataMem);
+    if (!dib)
+    {
+        LOG_warn << "Error converting raw MediaInfo bitmap from memory.";
+        return false;
+    }
+
+    w = static_cast<int>(FreeImage_GetWidth(dib));
+    h = static_cast<int>(FreeImage_GetHeight(dib));
+
+    return true;
+}
+#endif
+
 bool GfxProcFreeImage::readbitmapFreeimage(FileAccess*, const LocalPath& imagePath, int size)
 {
 
@@ -187,9 +232,9 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     // deprecated/no longer required in FFMPEG 4.0:
     av_register_all();
 #endif
-    if (avformat_open_input(&formatContext, imagePath.toPath(*client->fsaccess).c_str(), NULL, NULL))
+    if (avformat_open_input(&formatContext, imagePath.toPath().c_str(), NULL, NULL))
     {
-        LOG_warn << "Error opening video: " << imagePath.toPath(*client->fsaccess);
+        LOG_warn << "Error opening video: " << imagePath;
         return false;
     }
 
@@ -198,7 +243,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     // Get stream information
     if (avformat_find_stream_info(formatContext, NULL))
     {
-        LOG_warn << "Stream info not found: " << imagePath.toPath(*client->fsaccess);
+        LOG_warn << "Stream info not found: " << imagePath;
         return false;
     }
 
@@ -218,7 +263,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
 
     if (!videoStream)
     {
-        LOG_warn << "Video stream not found: " << imagePath.toPath(*client->fsaccess);
+        LOG_warn << "Video stream not found: " << imagePath;
         return false;
     }
 
@@ -333,7 +378,6 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     av_init_packet(&packet);
     packet.data = NULL;
     packet.size = 0;
-    auto avPacketGuard = makeScopeGuard(av_packet_unref, &packet);
 
     int scalingResult;
     int actualNumFrames = 0;
@@ -341,6 +385,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     // Read frames until succesfull decodification or reach limit of 220 frames
     while (actualNumFrames < 220 && av_read_frame(formatContext, &packet) >= 0)
     {
+       auto avPacketGuard = makeScopeGuard(av_packet_unref, &packet);
        if (packet.stream_index == videoStream->index)
        {
            int ret = avcodec_send_packet(codecContext, &packet);
@@ -388,11 +433,11 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
                                                              pitch, 24, FI_RGBA_RED_SHIFT, FI_RGBA_GREEN_MASK,
                                                              FI_RGBA_BLUE_MASK | 0xFFFF, TRUE) ) )
                     {
-                        LOG_warn << "Error loading freeimage from memory: " << imagePath.toPath(*client->fsaccess);
+                        LOG_warn << "Error loading freeimage from memory: " << imagePath;
                     }
                     else
                     {
-                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath.toPath(*client->fsaccess);
+                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath;
                     }
 
                     LOG_debug << "Video image ready";
@@ -447,12 +492,12 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
     }
     else
     {
-        workingDir = LocalPath::fromPlatformEncoded(tmpPath.c_str());
+        workingDir = LocalPath::fromPlatformEncodedAbsolute(tmpPath.c_str());
     }
 
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess, workingDir);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess.get(), workingDir);
 #else
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess.get());
 #endif
 
     if (!data || !w || !h)
@@ -463,7 +508,7 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
     dib = FreeImage_ConvertFromRawBits(reinterpret_cast<BYTE*>(data.get()), w, h, w * 4, 32, 0xFF0000, 0x00FF00, 0x0000FF);
     if (!dib)
     {
-        LOG_warn << "Error converting raw pdfium bitmap from memory: " << imagePath.toPath(*client->fsaccess);
+        LOG_warn << "Error converting raw pdfium bitmap from memory: " << imagePath;
         return false;
     }
     FreeImage_FlipHorizontal(dib);
@@ -476,7 +521,8 @@ const char* GfxProcFreeImage::supportedformats()
 {
     if (sformats.empty())
     {
-        sformats+=".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
+        //Disable thumbnail creation temporarily for .tiff.tif
+        sformats+=".jpg.png.bmp.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
            ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
            ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
            ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
@@ -486,6 +532,9 @@ const char* GfxProcFreeImage::supportedformats()
 #endif
 #ifdef HAVE_PDFIUM
         sformats.append(supportedformatsPDF());
+#endif
+#ifdef USE_MEDIAINFO
+        sformats.append(MediaProperties::supportedformatsMediaInfo());
 #endif
     }
 
@@ -499,6 +548,12 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     string extension;
     if (client->fsaccess->getextension(localname, extension))
     {
+#ifdef USE_MEDIAINFO
+        if (MediaProperties::isMediaFilenameExtAudio(extension))
+        {
+            return readbitmapMediaInfo(localname);
+        }
+#endif
 #ifdef HAVE_FFMPEG
         if (isFfmpegFile(extension))
         {
@@ -522,7 +577,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     }
     if (!bitmapLoaded)
     {
-        if (!readbitmapFreeimage(fa, localname, size) )
+        if (!readbitmapFreeimage(fa, localname, size))
         {
             return false;
         }

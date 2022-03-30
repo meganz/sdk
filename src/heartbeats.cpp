@@ -259,8 +259,7 @@ HeartBeatBackupInfo::SPState BackupInfoSync::getSyncState(const SyncConfig& conf
 handle BackupInfoSync::getDriveId(const UnifiedSync &us)
 {
     const LocalPath& drivePath = us.mConfig.mExternalDrivePath;
-    const auto& fsAccess = *us.mClient.fsaccess;
-    const string& drivePathUtf8 = drivePath.toPath(fsAccess);
+    const string& drivePathUtf8 = drivePath.toPath();
     handle driveId;
     us.mClient.readDriveId(drivePathUtf8.c_str(), driveId); // It shouldn't happen very often
 
