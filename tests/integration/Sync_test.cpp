@@ -15295,6 +15295,69 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
 }
 
+TEST_F(SyncTest, StallsOnSpecialFile)
+{
+    auto TIMEOUT = chrono::seconds(16);
+
+    // Allocate a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Make sure a sync root exists in the cloud.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Prepare model (local filesystem.)
+    Model model;
+
+    model.generate(client->fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure everything's as we expect.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Create a pipe for the engine to stall on.
+    const auto fPath = (client->fsBasePath / "s" / "f").u8string();
+
+    ASSERT_EQ(mkfifo(fPath.c_str(), S_IRUSR | S_IWUSR), 0);
+
+#ifdef __APPLE__
+    // Trigger another event so that we detect the FIFO.
+    model.addfile("g");
+    model.generate(client->fsBasePath / "s");
+#endif // __APPLE__
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+
+    // Check that it stalled due to the pipe.
+    SyncStallInfo stalls;
+
+    ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+    ASSERT_TRUE(stalls.cloud.empty());
+    ASSERT_EQ(stalls.local.size(), 1u);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::SpecialFilesNotSupported);
+
+    // Remove the pipe.
+    ASSERT_EQ(unlink(fPath.c_str()), 0);
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
+}
+
 #endif // ! _WIN32
 
 #endif
