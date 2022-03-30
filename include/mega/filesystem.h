@@ -886,13 +886,6 @@ public:
     ScanService(Waiter& waiter);
     ~ScanService();
 
-    enum ScanResult {
-        SCAN_INPROGRESS,
-        SCAN_SUCCESS,
-        SCAN_FSID_MISMATCH,
-        SCAN_INACCESSIBLE
-    };
-
     // Concrete representation of a scan request.
     class ScanRequest
     {

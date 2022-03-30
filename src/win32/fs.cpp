@@ -1623,7 +1623,7 @@ bool reuseFingerprint(const FSNode& lhs, const FSNode& rhs)
         && lhs.fingerprint.size == rhs.fingerprint.size;
 };
 
-ScanService::ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, unsigned& nFingerprinted)
+ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, unsigned& nFingerprinted)
 {
     assert(path.isAbsolute());
 
@@ -1640,27 +1640,27 @@ ScanService::ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path
     if (rightTypeHandle.get() == INVALID_HANDLE_VALUE)
     {
         LOG_warn << "Failed to directoryScan, no handle for: " << path;
-        return ScanService::SCAN_INACCESSIBLE;
+        return SCAN_INACCESSIBLE;
     }
 
     BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
     if (!GetFileInformationByHandle(rightTypeHandle.get(), &bhfi))
     {
         LOG_warn << "Failed to directoryScan, no info for: " << path;
-        return ScanService::SCAN_INACCESSIBLE;
+        return SCAN_INACCESSIBLE;
     }
 
     auto folderFsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
     if (folderFsid != expectedFsid)
     {
         LOG_warn << "Failed to directoryScan, mismatch on expected FSID: " << path;
-        return ScanService::SCAN_FSID_MISMATCH;
+        return SCAN_FSID_MISMATCH;
     }
 
     if (!(bhfi.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
     {
         LOG_warn << "Failed to directoryScan, not a directory: " << path;
-        return ScanService::SCAN_INACCESSIBLE;
+        return SCAN_INACCESSIBLE;
     }
 
     alignas(8) byte bytes[1024 * 10];
@@ -1771,10 +1771,10 @@ ScanService::ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path
     if (err != ERROR_NO_MORE_FILES)
     {
         LOG_err << "Failed in directoryScan, error " << err;
-        return ScanService::SCAN_INACCESSIBLE;
+        return SCAN_INACCESSIBLE;
     }
 
-    return ScanService::SCAN_SUCCESS;
+    return SCAN_SUCCESS;
 }
 
 

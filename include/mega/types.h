@@ -426,6 +426,14 @@ typedef enum
 }
 SyncBackupState;
 
+enum ScanResult
+{
+    SCAN_INPROGRESS,
+    SCAN_SUCCESS,
+    SCAN_FSID_MISMATCH,
+    SCAN_INACCESSIBLE
+}; // ScanResult
+
 enum SyncError {
     UNLOADING_SYNC = -2,
     DECONFIGURING_SYNC = -1,

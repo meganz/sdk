@@ -1806,13 +1806,13 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
         scanInProgress = false;
 
-        if (ScanService::SCAN_FSID_MISMATCH == ourScanRequest->completionResult())
+        if (SCAN_FSID_MISMATCH == ourScanRequest->completionResult())
         {
             LOG_verbose << sync->syncname << "Directory scan detected outdated fsid : " << fullPath.localPath_utf8();
             scanObsolete = true;
         }
 
-        if (ScanService::SCAN_SUCCESS == ourScanRequest->completionResult()
+        if (SCAN_SUCCESS == ourScanRequest->completionResult()
             && ourScanRequest->fsidScanned() != row.fsNode->fsid)
         {
             LOG_verbose << sync->syncname << "Directory scan returned was for now outdated fsid : " << fullPath.localPath_utf8();
@@ -1830,7 +1830,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             // Mark this directory as requiring another scan.
             setScanAgain(false, true, false, 10);
         }
-        else if (ScanService::SCAN_SUCCESS == ourScanRequest->completionResult())
+        else if (SCAN_SUCCESS == ourScanRequest->completionResult())
         {
             lastFolderScan.reset(new vector<FSNode>(ourScanRequest->resultNodes()));
 
