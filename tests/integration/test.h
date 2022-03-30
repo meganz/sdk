@@ -174,6 +174,7 @@ struct Model
     ModelNode* findnode(string path, ModelNode* startnode = nullptr);
     unique_ptr<ModelNode> removenode(const string& path);
     bool movenode(const string& sourcepath, const string& destpath);
+    bool movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncrootpath);
     bool movetosynctrash(const string& path, const string& syncrootpath);
     void ensureLocalDebrisTmpLock(const string& syncrootpath);
     bool removesynctrash(const string& syncrootpath, const string& subpath = "");
