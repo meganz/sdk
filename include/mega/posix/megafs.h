@@ -119,7 +119,7 @@ public:
     bool fsStableIDs(const LocalPath& path) const override;
 #endif // ENABLE_SYNC
 
-    bool hardLink(const LocalPath& source, const LocalPath& target);
+    bool hardLink(const LocalPath& source, const LocalPath& target) override;
 };
 
 #ifdef HAVE_AIO_RT
