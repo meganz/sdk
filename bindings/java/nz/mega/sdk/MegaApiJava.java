@@ -7767,6 +7767,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
+    @Deprecated
     public int getNumPendingUploads() {
         return megaApi.getNumPendingUploads();
     }
@@ -7778,6 +7779,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
+    @Deprecated
     public int getNumPendingDownloads() {
         return megaApi.getNumPendingDownloads();
     }
@@ -7789,6 +7791,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
+    @Deprecated
     public int getTotalUploads() {
         return megaApi.getTotalUploads();
     }
@@ -7800,6 +7803,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates. They
      * could change or be removed in the current form.
      */
+    @Deprecated
     public int getTotalDownloads() {
         return megaApi.getTotalDownloads();
     }
@@ -7811,6 +7815,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
+    @Deprecated
     public void resetTotalDownloads() {
         megaApi.resetTotalDownloads();
     }
@@ -7822,6 +7827,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
+    @Deprecated
     public void resetTotalUploads() {
         megaApi.resetTotalUploads();
     }
@@ -7838,6 +7844,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
+    @Deprecated
     public long getTotalDownloadedBytes() {
         return megaApi.getTotalDownloadedBytes();
     }
@@ -7854,6 +7861,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
+    @Deprecated
     public long getTotalUploadedBytes() {
         return megaApi.getTotalUploadedBytes();
     }
@@ -7870,6 +7878,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
+    @Deprecated
     public long getTotalDownloadBytes() {
         return megaApi.getTotalDownloadBytes();
     }
@@ -7886,6 +7895,7 @@ public class MegaApiJava {
      * @deprecated Function related to statistics will be reviewed in future updates to
      * provide more data and avoid race conditions. They could change or be removed in the current form.
      */
+    @Deprecated
     public long getTotalUploadBytes() {
         return megaApi.getTotalUploadBytes();
     }
