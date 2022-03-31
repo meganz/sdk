@@ -6993,7 +6993,9 @@ void exec_mediainfo(autocomplete::ACState& s)
                     }
                 }
                 break;
-            case TYPE_UNKNOWN: break;
+            case TYPE_SPECIAL:
+            case TYPE_UNKNOWN:
+                break;
             }
         }
         else

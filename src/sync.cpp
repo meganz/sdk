@@ -1726,15 +1726,28 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
     // no cloudNode at this row.  Check if this node is where a filesystem item moved to.
 
-    if (row.fsNode->isSymlink)
+    if (row.fsNode->type == TYPE_SPECIAL)
     {
-        LOG_debug << syncname << "checked path is a symlink, blocked: " << fullPath.localPath_utf8();
+        auto message = "special file";
+        auto reason = SyncWaitReason::SpecialFilesNotSupported;
+
+        if (row.fsNode->isSymlink)
+        {
+            message = "symlink";
+            reason = SyncWaitReason::SymlinksNotSupported;
+        }
 
         ProgressingMonitor monitor(syncs);
-        monitor.waitingLocal(fullPath.localPath, LocalPath(), string(), SyncWaitReason::SymlinksNotSupported);
 
-        rowResult = false;
-        return true;
+        monitor.waitingLocal(fullPath.localPath, LocalPath(), string(), reason);
+
+        LOG_debug << syncname
+                  << "Checked path is a "
+                  << message
+                  << ", blocked: "
+                  << fullPath.localPath_utf8();
+
+        return rowResult = false, true;
     }
     else if (row.syncNode && row.syncNode->type != row.fsNode->type)
     {
