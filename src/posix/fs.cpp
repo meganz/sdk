@@ -816,7 +816,14 @@ int LinuxFileSystemAccess::checkevents(Waiter* waiter)
             }
 
             auto localName = LocalPath::fromPlatformEncodedRelative(name);
-            notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_SCAN_UNKNOWN, move(localName));
+            notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_PARENT_SCAN, move(localName));
+
+            if (in->mask == (IN_ATTRIB | IN_ISDIR))
+                notifier.notify(notifier.fsEventq,
+                                &node,
+                                Notification::FOLDER_NEEDS_SELF_SCAN,
+                                LocalPath::fromPlatformEncodedRelative(name));
+
             result |= Waiter::NEEDEXEC;
         }
     };

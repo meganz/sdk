@@ -245,6 +245,24 @@ void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
                &mRoot,
                scanFlags,
                LocalPath::fromPlatformEncodedRelative(path));
+
+        // No need for the below if we're performing a recursive scan.
+        if (scanFlags == Notification::NEEDS_SCAN_RECURSIVE)
+            continue;
+
+        // Are we dealing with a directory?
+        if (!(flag & kFSEventStreamEventFlagItemIsDir))
+            continue;
+
+        // Has its permissions changed?
+        if (!(flag & kFSEventStreamEventFlagItemChangeOwner))
+            continue;
+
+        // If so, rescan the directory's contents.
+        notify(fsEventq,
+               &mRoot,
+               Notification::FOLDER_NEEDS_SELF_SCAN,
+               LocalPath::fromPlatformEncodedRelative(path));
     }
 
     // Let the engine know it has events to process.
