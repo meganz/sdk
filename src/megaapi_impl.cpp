@@ -25272,7 +25272,8 @@ void MegaFolderUploadController::cancel()
     }
 
     LOG_verbose << " MegaFolderUploadController, cancelled subTransfers = " << cancelledSubTransfers;
-    assert(pendingTransfers == 0);
+    // if user cancelled recursive operation via cancel token at STAGE_PROCESS_TRANSFER_QUEUE stage, pendingTransfers could not be 0
+    assert(pendingTransfers == 0 || (transfer->getCancelToken() && transfer->getCancelToken()->isCancelled()));
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
@@ -26928,7 +26929,8 @@ void MegaFolderDownloadController::cancel()
     }
 
     LOG_verbose << "MegaFolderDownloadController, cancelled subTransfers = " << cancelledSubTransfers;
-    assert(pendingTransfers == 0);
+    // if user cancelled recursive operation via cancel token at STAGE_PROCESS_TRANSFER_QUEUE stage, pendingTransfers could not be 0
+    assert(pendingTransfers == 0 || (transfer->getCancelToken() && transfer->getCancelToken()->isCancelled()));
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
