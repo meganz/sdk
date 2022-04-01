@@ -5425,6 +5425,7 @@ TEST_F(SyncTest, BasicSync_CreateAndDeleteLink)
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
+#ifndef _WIN32
     // Wait for the engine to signal a stall as symlinks are unsupported.
     ASSERT_TRUE(clientA1.waitFor(SyncStallState(true), DEFAULTWAIT));
     
@@ -5437,6 +5438,7 @@ TEST_F(SyncTest, BasicSync_CreateAndDeleteLink)
         ASSERT_FALSE(stalls.local.empty());
         ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::SymlinksNotSupported);
     }
+#endif // !_WIN32
 
     // Check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
@@ -5444,8 +5446,10 @@ TEST_F(SyncTest, BasicSync_CreateAndDeleteLink)
     // Resolve the stall by removing the symlink.
     fs::remove(clientA1.syncSet(backupId1).localpath / "linked");
 
+#ifndef _WIN32
     // Wait for the stall to resolve.
     ASSERT_TRUE(clientA1.waitFor(SyncStallState(false), DEFAULTWAIT));
+#endif // !_WIN32
 
     // Wait for the syncs to process any changes.
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
@@ -5489,6 +5493,7 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
+#ifndef _WIN32
     // Wait for the engine to detect a stall.
     ASSERT_TRUE(clientA1.waitFor(SyncStallState(true), DEFAULTWAIT));
 
@@ -5501,6 +5506,7 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
         ASSERT_FALSE(info.local.empty());
         ASSERT_EQ(info.local.begin()->second.reason, SyncWaitReason::SymlinksNotSupported);
     }
+#endif // !_WIN32
 
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
@@ -5511,6 +5517,7 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
+#ifndef _WIN32
     // Make sure we don't recover from the stall.
     ASSERT_FALSE(clientA1.waitFor(SyncStallState(false), chrono::seconds(4)));
 
@@ -5523,6 +5530,7 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
         ASSERT_EQ(info.local.size(), 1u);
         ASSERT_EQ(info.local.begin()->second.reason, SyncWaitReason::SymlinksNotSupported);
     }
+#endif // !_WIN32
 
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
@@ -5530,8 +5538,10 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
     // Resolve the stall by removing the symlink.
     fs::remove(clientA1.syncSet(backupId1).localpath / "linkrenamed");
 
+#ifdef _WIN32
     // Wait for the stall to resolve.
     ASSERT_TRUE(clientA1.waitFor(SyncStallState(false), DEFAULTWAIT));
+#endif // !_WIN32
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
