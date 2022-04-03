@@ -1745,21 +1745,49 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
     // Try and get information about the scan target.
     if (!stat(targetPath.localpath.c_str(), metadata))
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Unable to stat(...) scan target: "
+                 << targetPath
+                 << ". Error code was: "
+                 << errno;
+
         return SCAN_INACCESSIBLE;
+    }
 
     // Is the scan target a directory?
     if (!S_ISDIR(metadata.st_mode))
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Scan target is not a directory: "
+                 << targetPath;
+
         return SCAN_INACCESSIBLE;
+    }
 
     // Are we scanning the directory we think we are?
     if (expectedFsid != (handle)metadata.st_ino)
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Scan target mismatch on expected FSID: "
+                 << targetPath;
+
         return SCAN_FSID_MISMATCH;
+    }
 
     // Try and open the directory for iteration.
     auto directory = opendir(targetPath.localpath.c_str());
 
     if (!directory)
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Unable to open scan target for iteration: "
+                 << targetPath
+                 << ". Error code was: "
+                 << errno;
+
         return SCAN_INACCESSIBLE;
+    }
 
     // Iterate over the directory's children.
     auto entry = readdir(directory);
@@ -1789,6 +1817,12 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         // Try and get information about this entry.
         if (!stat(path.localpath.c_str(), metadata))
         {
+            LOG_warn << "directoryScan: "
+                     << "Unable to stat(...) file: "
+                     << path
+                     << ". Error code was: "
+                     << errno;
+
             // Entry's unknown if we can't determine otherwise.
             result.type = TYPE_UNKNOWN;
             continue;
@@ -1811,6 +1845,12 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         // Are we dealing with a special file?
         if (!S_ISREG(metadata.st_mode))
         {
+            LOG_warn << "directoryScan: "
+                     << "Encountered a special file: "
+                     << path
+                     << ". Mode flags were: "
+                     << (metadata.st_mode & S_IFMT);
+
             result.isSymlink = S_ISLNK(metadata.st_mode);
             result.type = TYPE_SPECIAL;
             continue;
@@ -1835,7 +1875,12 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
         result.isBlocked = metadata.st_birthtimespec.tv_sec == busyDate;
 
         if (result.isBlocked)
+        {
+            LOG_warn << "directoryScan: "
+                     << "Finder has marked this file as busy: "
+                     << path;
             continue;
+        }
 #endif // __MACH__
 
         // Have we processed this file before?
@@ -1854,7 +1899,14 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
         // Only fingerprint the file if we could actually open it.
         if (!isAccess)
+        {
+            LOG_warn << "directoryScan: "
+                     << "Unable to open file for fingerprinting: "
+                     << path
+                     << ". Error was: "
+                     << errno;
             continue;
+        }
 
         // Fingerprint the file.
         result.fingerprint.genfingerprint(
