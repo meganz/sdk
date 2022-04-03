@@ -259,6 +259,11 @@ void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
             continue;
 
         // If so, rescan the directory's contents.
+        //
+        // The reason for this is that we may not have been able to list
+        // the directory's contents before. If we didn't rescan, we
+        // wouldn't notice these files until some other event is
+        // triggered in or below this directory.
         notify(fsEventq,
                &mRoot,
                Notification::FOLDER_NEEDS_SELF_SCAN,

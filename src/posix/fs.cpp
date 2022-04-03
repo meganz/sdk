@@ -818,6 +818,12 @@ int LinuxFileSystemAccess::checkevents(Waiter* waiter)
             auto localName = LocalPath::fromPlatformEncodedRelative(name);
             notifier.notify(notifier.fsEventq, &node, Notification::NEEDS_PARENT_SCAN, move(localName));
 
+            // We need to rescan the directory if it's changed permissions.
+            //
+            // The reason for this is that we may not have been able to list
+            // the directory's contents before. If we didn't rescan, we
+            // wouldn't notice these files until some other event is
+            // triggered in or below this directory.
             if (in->mask == (IN_ATTRIB | IN_ISDIR))
                 notifier.notify(notifier.fsEventq,
                                 &node,
