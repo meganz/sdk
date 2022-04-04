@@ -100,7 +100,7 @@ struct MEGA_API PaddedCBC
      *
      * Note: With an IV, only use the first 8 bytes.
      *
-fileAccess     * @param data Data buffer to be decrypted. Decryption is done in-place,
+     * @param data Data buffer to be decrypted. Decryption is done in-place,
      *     so plain text will be in `data` afterwards as well.
      * @param key AES key for decryption.
      * @param iv Optional initialisation vector for encryption. Will use a
