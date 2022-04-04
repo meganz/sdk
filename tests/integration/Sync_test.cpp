@@ -4239,7 +4239,8 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     // wait for normal sync resumes to complete
-    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
+    // wait bumped to 40 seconds here because we've seen a case where the 2nd client didn't receive actionpackets for 30 seconds
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(40));
 
     waitonsyncs(DEFAULTWAIT, pclientA1.get(), &clientA2);
 

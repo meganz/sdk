@@ -917,6 +917,10 @@ error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, hand
 // return API_OK if success, otherwise error code
 error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId);
 
+int platformGetRLimitNumFile();
+
+bool platformSetRLimitNumFile(int newNumFileLimit = -1);
+
 } // namespace
 
 #endif
