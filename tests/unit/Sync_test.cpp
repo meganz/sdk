@@ -205,6 +205,9 @@ public:
                                     rng)
         {
             // Perform real behavior by default.
+            ON_CALL(*this, driveID(_))
+              .WillByDefault(Invoke(this, &IOContext::driveIDConcrete));
+
             ON_CALL(*this, getSlotsInOrder(_, _))
               .WillByDefault(Invoke(this, &IOContext::getSlotsInOrderConcrete));
 
@@ -221,6 +224,8 @@ public:
               .WillByDefault(Invoke(this, &IOContext::writeConcrete));
         }
 
+        MOCK_CONST_METHOD1(driveID, handle(const LocalPath&));
+
         MOCK_METHOD2(getSlotsInOrder, error(const LocalPath&, vector<unsigned int>&));
 
         MOCK_METHOD3(read, error(const LocalPath&, string&, unsigned int));
@@ -233,6 +238,11 @@ public:
 
     private:
         // Delegate to real behavior.
+        handle driveIDConcrete(const LocalPath& drivePath)
+        {
+            return SyncConfigIOContext::driveID(drivePath);
+        }
+
         error getSlotsInOrderConcrete(const LocalPath& dbPath,
                                       vector<unsigned int>& slotsVec)
         {
@@ -729,7 +739,7 @@ TEST_F(SyncConfigStoreTest, Read)
         SyncConfigStore store(db, ioContext());
 
         // Read empty so that the drive is known.
-        EXPECT_EQ(store.read(LocalPath(), written, true), API_ENOENT);
+        EXPECT_EQ(store.read(LocalPath(), written, false), API_ENOENT);
 
         // Drive should be known.
         ASSERT_TRUE(store.driveKnown(LocalPath()));
@@ -780,7 +790,7 @@ TEST_F(SyncConfigStoreTest, ReadEmpty)
     SyncConfigVector configs;
 
     // Read should inform the caller that no database is present.
-    EXPECT_EQ(store.read(LocalPath(), configs, true), API_ENOENT);
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_ENOENT);
 
     // Configs should remain empty.
     EXPECT_TRUE(configs.empty());
@@ -790,6 +800,51 @@ TEST_F(SyncConfigStoreTest, ReadEmpty)
 
     // Store should remain clean.
     EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(SyncConfigStoreTest, ReadFailNoDriveID)
+{
+    Directory db(fsAccess(), Utilities::randomPathAbsolute());
+    Directory drive(fsAccess(), Utilities::randomPathAbsolute());
+
+    SyncConfigStore store(db, ioContext());
+
+    // Shouldn't try to read slots if we can't read the drive ID.
+    EXPECT_CALL(ioContext(),
+                getSlotsInOrder(_, _))
+      .Times(0);
+
+    // Read of drive ID should fail.
+    EXPECT_CALL(ioContext(),
+                driveID(Eq(drive.path())))
+      .WillOnce(Return(UNDEF));
+
+    SyncConfigVector configs;
+
+    // Read should report a fatal read error.
+    EXPECT_EQ(store.read(drive, configs, true), API_EREAD);
+
+    // Drive shouldn't be known.
+    EXPECT_FALSE(store.driveKnown(drive));
+
+    // No slots available for reading.
+    EXPECT_CALL(ioContext(),
+                getSlotsInOrder(_, _))
+      .WillOnce(Return(API_ENOENT));
+
+    // Drive ID read should succeed.
+    EXPECT_CALL(ioContext(),
+                driveID(Eq(drive.path())))
+      .WillOnce(Return(1u));
+
+    // Read should report no entries.
+    EXPECT_EQ(store.read(drive, configs, true), API_ENOENT);
+
+    // Drive should now be known.
+    EXPECT_TRUE(store.driveKnown(drive));
+
+    // Drive ID should be cached.
+    EXPECT_EQ(store.driveID(drive), 1u);
 }
 
 TEST_F(SyncConfigStoreTest, ReadFail)
@@ -815,7 +870,7 @@ TEST_F(SyncConfigStoreTest, ReadFail)
     SyncConfigVector configs;
 
     // Read should report a fatal read error.
-    EXPECT_EQ(store.read(LocalPath(), configs, true), API_EREAD);
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_EREAD);
 
     // Configs should remain empty.
     EXPECT_TRUE(configs.empty());
@@ -859,7 +914,7 @@ TEST_F(SyncConfigStoreTest, ReadFailFallback)
     SyncConfigVector configs;
 
     // Read should succeed.
-    EXPECT_EQ(store.read(LocalPath(), configs, true), API_OK);
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_OK);
 
     // Configs should remain empty.
     EXPECT_TRUE(configs.empty());
@@ -880,7 +935,7 @@ TEST_F(SyncConfigStoreTest, WriteDirty)
     SyncConfigVector configs;
 
     // Perform a read such that the drive is known.
-    EXPECT_EQ(store.read(LocalPath(), configs, true), API_ENOENT);
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_ENOENT);
 
     SyncConfigVector internal;
 
@@ -947,7 +1002,7 @@ TEST_F(SyncConfigStoreTest, WriteEmpty)
     SyncConfigVector configs;
 
     // Read empty so that the drive is known.
-    EXPECT_EQ(store.read(LocalPath(), configs, true), API_ENOENT);
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_ENOENT);
 
     // Drive should now be known.
     ASSERT_TRUE(store.driveKnown(LocalPath()));
@@ -990,7 +1045,7 @@ TEST_F(SyncConfigStoreTest, Write)
     SyncConfigVector configs;
 
     // Read empty so that the drive is known.
-    EXPECT_EQ(store.read(LocalPath(), configs, true), API_ENOENT);
+    EXPECT_EQ(store.read(LocalPath(), configs, false), API_ENOENT);
 
     // Drive should be known.
     ASSERT_TRUE(store.driveKnown(LocalPath()));

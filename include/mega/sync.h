@@ -673,6 +673,9 @@ public:
     // Remember whether we need to update the file containing configs on this drive.
     void markDriveDirty(const LocalPath& drivePath);
 
+    // Retrieve a drive's unique backup ID.
+    handle driveID(const LocalPath& drivePath) const;
+
     // Whether any config data has changed and needs to be written to disk
     bool dirty() const;
 
@@ -703,6 +706,10 @@ private:
 
         // Path to the drive itself.
         LocalPath drivePath;
+
+        // The drive's unique backup ID.
+        // Meaningful only for external backups.
+        handle driveID = UNDEF;
 
         // Tracks which 'slot' we're writing to.
         unsigned int slot = 0;
@@ -755,6 +762,9 @@ public:
     bool deserialize(SyncConfigVector& configs,
                      JSON& reader,
                      bool isExternal) const;
+
+    // Retrieve a drive's unique backup ID.
+    virtual handle driveID(const LocalPath& drivePath) const;
 
     // Return a reference to this context's filesystem access.
     FileSystemAccess& fsAccess() const;
