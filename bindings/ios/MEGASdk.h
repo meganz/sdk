@@ -6127,7 +6127,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
  * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
  * You preserve the ownership of this param.
- * @param listener MegaTransferListener to track this transfer
  */
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(MEGACancelToken *)cancelToken;
 
@@ -6161,7 +6160,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
  * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
  * You preserve the ownership of this param.
- * @param listener MegaTransferListener to track this transfer
  * @param delegate Delegate to track this transfer.
  */
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
