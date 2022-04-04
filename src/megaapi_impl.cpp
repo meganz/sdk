@@ -10932,15 +10932,49 @@ MegaShareList *MegaApiImpl::getOutSharesOrPending(int order, bool pending)
 {
     SdkMutexGuard m;
 
-    node_vector nodes = pending ? client->mNodeManager.getNodesWithPendingOutShares() :  client->mNodeManager.getNodesWithOutShares();
+    node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
+    if (!pending)
+    {
+        node_vector outShares = client->mNodeManager.getNodesWithOutShares();
+        nodes.insert(nodes.end(), outShares.begin(), outShares.end());
+    }
     std::map<NodeHandle, std::set<Share *>> nodeSharesMap;
     for (const Node* n : nodes)
     {
-        share_map *shares = pending ? n->pendingshares : n->outshares;
-        assert(shares);
-        for (auto &share : *shares)
+        if (pending)
         {
-            nodeSharesMap[n->nodeHandle()].insert(share.second);
+            assert(n->pendingshares);
+            for (auto &share : *n->pendingshares)
+            {
+                if (share.second->user || share.second->pcr) // public links have no user
+                {
+                    nodeSharesMap[n->nodeHandle()].insert(share.second);
+                }
+            }
+        }
+        else
+        {
+            if (n->outshares)
+            {
+                for (auto &share : *n->outshares)
+                {
+                    if (share.second->user) // public links have no user
+                    {
+                        nodeSharesMap[n->nodeHandle()].insert(share.second);
+                    }
+                }
+            }
+
+            if (n->pendingshares)
+            {
+                for (auto &share : *n->pendingshares)
+                {
+                    if (share.second->user || share.second->pcr) // public links have no user
+                    {
+                        nodeSharesMap[n->nodeHandle()].insert(share.second);
+                    }
+                }
+            }
         }
     }
 
