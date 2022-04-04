@@ -1689,6 +1689,29 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     continue;
                 }
 
+                // Are we dealing with a reparse point?
+                if ((info->FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+                {
+                    auto filePath = path;
+
+                    filePath.appendWithSeparator(result.localname, false);
+
+                    LOG_warn << "directoryScan: "
+                             << "Encountered a reparse point: "
+                             << filePath;
+
+                    // Provide basic information about the reparse point.
+                    result.fingerprint.mtime = FileTime_to_POSIX((FILETIME*)&info->LastWriteTime);
+                    result.fingerprint.size = (m_off_t)info->EndOfFile.QuadPart;
+                    result.fsid = (handle)info->FileId.QuadPart;
+                    result.type = TYPE_SPECIAL;
+
+                    results.emplace_back(std::move(result));
+
+                    // Process the next directory entry.
+                    continue;
+                }
+
                 // For now at least, do the same as the old system: ignore system+hidden.
                 // desktop.ini seem to be at least one problem solved this way, they are unopenable
                 // anyway, so no valid fingerprint can be extracted.
