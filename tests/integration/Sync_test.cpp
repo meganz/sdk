@@ -477,7 +477,7 @@ bool Model::movenode(const string& sourcepath, const string& destpath)
     return false;
 }
 
-bool Model::movetosynctrash(const string& path, const string& syncrootpath)
+bool Model::movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncrootpath)
 {
     ModelNode* syncroot;
     if (!(syncroot = findnode(syncrootpath)))
@@ -505,11 +505,16 @@ bool Model::movetosynctrash(const string& path, const string& syncrootpath)
         trash->addkid(move(uniqueptr));
     }
 
-    if (auto uniqueptr = removenode(path))
-    {
-        dayfolder->addkid(move(uniqueptr));
-        return true;
-    }
+    dayfolder->addkid(move(node));
+
+    return true;
+}
+
+bool Model::movetosynctrash(const string& path, const string& syncrootpath)
+{
+    if (auto node = removenode(path))
+        return movetosynctrash(move(node), syncrootpath);
+
     return false;
 }
 
@@ -3605,6 +3610,17 @@ SyncWaitPredicate SyncConflictState(bool state)
     };
 }
 
+SyncWaitPredicate SyncRemoteNodePresent(const string& path)
+{
+    return [path](StandardClient& client) {
+        return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+            auto root = client.gettestbasenode();
+            auto node = client.drillchildnodebyname(root, path);
+            result->set_value(!!node);
+        }).get();
+    };
+}
+
 struct SyncWaitResult
 {
     bool syncStalled = false;
@@ -5409,15 +5425,38 @@ TEST_F(SyncTest, BasicSync_CreateAndDeleteLink)
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
-    //check client 2 is unaffected
+    // Wait for the engine to signal a stall as symlinks are unsupported.
+    ASSERT_TRUE(clientA1.waitFor(SyncStallState(true), DEFAULTWAIT));
+    
+    // Make sure the engine stalled for the right reason.
+    {
+        SyncStallInfo stalls;
+
+        auto reason = SyncWaitReason::SymlinksNotSupported;
+
+#ifdef _WIN32
+        reason = SyncWaitReason::SpecialFilesNotSupported;
+#endif // _WIN32
+
+        ASSERT_TRUE(clientA1.client.syncs.syncStallDetected(stalls));
+        ASSERT_FALSE(stalls.empty());
+        ASSERT_FALSE(stalls.local.empty());
+        ASSERT_EQ(stalls.local.begin()->second.reason, reason);
+    }
+
+    // Check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
-
+    // Resolve the stall by removing the symlink.
     fs::remove(clientA1.syncSet(backupId1).localpath / "linked");
-    // let them catch up
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(clientA1.waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the syncs to process any changes.
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
-    //check client 2 is unaffected
+    // Check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
@@ -5443,10 +5482,10 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
 
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
     clientA1.logcb = clientA2.logcb = true;
+
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
-
 
     // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
     error_code linkage_error;
@@ -5456,18 +5495,63 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
+    // Wait for the engine to detect a stall.
+    ASSERT_TRUE(clientA1.waitFor(SyncStallState(true), DEFAULTWAIT));
+
+    // Make sure we're stalling for the right reason.
+    {
+        SyncStallInfo info;
+
+        auto reason = SyncWaitReason::SymlinksNotSupported;
+
+#ifdef _WIN32
+        // Reparse points are considered special files.
+        reason = SyncWaitReason::SpecialFilesNotSupported;
+#endif // _WIN32
+
+        ASSERT_TRUE(clientA1.client.syncs.syncStallDetected(info));
+        ASSERT_FALSE(info.empty());
+        ASSERT_FALSE(info.local.empty());
+        ASSERT_EQ(info.local.begin()->second.reason, reason);
+    }
+
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
+    // Rename the link.
     fs::rename(clientA1.syncSet(backupId1).localpath / "linked", clientA1.syncSet(backupId1).localpath / "linkrenamed", linkage_error);
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
+    // Make sure we don't recover from the stall.
+    ASSERT_FALSE(clientA1.waitFor(SyncStallState(false), chrono::seconds(4)));
+
+    // Make sure we're only reporting one symlink stall.
+    {
+        SyncStallInfo info;
+
+        auto reason = SyncWaitReason::SymlinksNotSupported;
+
+#ifdef _WIN32
+        // Reparse points are considered special files.
+        reason = SyncWaitReason::SpecialFilesNotSupported;
+#endif // _WIN32
+
+        ASSERT_TRUE(clientA1.client.syncs.syncStallDetected(info));
+        ASSERT_FALSE(info.empty());
+        ASSERT_EQ(info.local.size(), 1u);
+        ASSERT_EQ(info.local.begin()->second.reason, reason);
+    }
+
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
+    // Resolve the stall by removing the symlink.
     fs::remove(clientA1.syncSet(backupId1).localpath / "linkrenamed");
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(clientA1.waitFor(SyncStallState(false), DEFAULTWAIT));
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
@@ -5487,12 +5571,12 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 2));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
+    model.root->addkid(model.buildModelSubdirs("f", 2, 1, 0));
 
     // set up sync for A1, it should build matching local folders
     handle backupId1 = clientA1.setupSync_mainthread("sync1", "f", false, true);
@@ -5502,10 +5586,10 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
 
     waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
     clientA1.logcb = clientA2.logcb = true;
+
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
-
 
     // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
     error_code linkage_error;
@@ -5518,32 +5602,65 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
+    // Wait for the engine to detect a stall.
+    ASSERT_TRUE(clientA1.waitFor(SyncStallState(true), DEFAULTWAIT));
+
+    // Make sure the client stalled for the reason we think.
+    {
+        SyncStallInfo info;
+
+        ASSERT_TRUE(clientA1.client.syncs.syncStallDetected(info));
+        ASSERT_FALSE(info.empty());
+        ASSERT_FALSE(info.local.empty());
+        ASSERT_EQ(info.local.begin()->second.reason, SyncWaitReason::SymlinksNotSupported);
+    }
+
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
-    fs::rename(clientA1.syncSet(backupId1).localpath / "f_0", clientA1.syncSet(backupId1).localpath / "linked", linkage_error);
+
+    // Replace the link with a directory.
+    fs::remove(clientA1.syncSet(backupId1).localpath / "linked");
+    fs::rename(clientA1.syncSet(backupId1).localpath / "f_1", clientA1.syncSet(backupId1).localpath / "linked", linkage_error);
+    ASSERT_TRUE(!linkage_error) << linkage_error;
+
+    // Let the engine synchronize any changes.
+    waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
+
+    // Update the model.
+    model.findnode("f/f_1")->name = "linked";
+
+    // Check that the directory has been uploaded.
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
+
+    // Replace the directory with a file.
+    fs::remove(clientA1.syncSet(backupId1).localpath / "linked");
 
     // Trigger a full scan.
     clientA1.triggerFullScan(backupId1);
 
-    // let them catch up
+    // Wait for the engine to synchronize changes.
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
-    //check client 2 is unaffected
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
-
-    fs::remove(clientA1.syncSet(backupId1).localpath / "linked");
     ASSERT_TRUE(createNameFile(clientA1.syncSet(backupId1).localpath, "linked"));
 
     // Trigger a full scan.
     clientA1.triggerFullScan(backupId1);
 
-    // let them catch up
+    // Wait for the engine to synchronize changes.
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
+    // Update the model.
+    auto linkedNode = model.removenode("f/linked");
     model.findnode("f")->addkid(model.makeModelSubfile("linked"));
-    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
 
-    //check client 2 is as expected
+    // Check that the changes have been synchronized.
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
+
+    // Necessary as clientA2 has downloaded files.
+    model.movetosynctrash(move(linkedNode), "f");
+    model.ensureLocalDebrisTmpLock("f");
+
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
@@ -5585,26 +5702,40 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
-    //check client 2 is unaffected
+    // Wait for the engine to stall.
+    ASSERT_TRUE(clientA1.waitFor(SyncStallState(true), DEFAULTWAIT));
+
+    // Check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
-    ASSERT_TRUE(createNameFile(clientA2.syncSet(backupId2).localpath, "linked"));
+    // Upload a file to the web via A2.
+    ASSERT_TRUE(createDataFile(clientA2.syncSet(backupId2).localpath / "linked", "linked"));
+    model.addfile("f/linked", "linked");
 
     // Trigger a full scan.
-    clientA1.triggerFullScan(backupId1);
     clientA2.triggerFullScan(backupId2);
 
-    // let them catch up
+    // Wait for A2's file to hit the cloud.
+    ASSERT_TRUE(clientA2.waitFor(SyncRemoteNodePresent("f/linked"), DEFAULTWAIT));
+
+    // Remove the symlink from A1.
+    fs::remove(clientA1.syncSet(backupId1).localpath / "linked");
+
+    clientA1.triggerFullScan(backupId1);
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(clientA1.waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the engine to process changes.
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
 
-    model.findnode("f")->addkid(model.makeModelSubfolder("linked")); //notice: the deleted here is folder because what's actually deleted is a symlink that points to a folder
-                                                                     //ideally we could add full support for symlinks in this tests suite
+    // Confirm models.
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
-    model.movetosynctrash("f/linked","f");
-    model.findnode("f")->addkid(model.makeModelSubfile("linked"));
-    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
+    // Needed as A1 has downloaded files.
+    model.ensureLocalDebrisTmpLock("f");
 
-    //check client 2 is as expected
+    // Check A1 has downloaded A2's upload.
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
 }
 #endif
@@ -14170,14 +14301,17 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
         auto* root = cdu->gettestbasenode();
         auto* node = cdu->drillchildnodebyname(root, "x/.megaignore");
 
-        // So we know when cd receives new action packets.
+        // Move x/a/.megaignore to x/.megaignore.
         cd->received_node_actionpackets = false;
 
-        // Move x/a/.megaignore to x/.megaignore.
         ASSERT_TRUE(cdu->movenode("x/a/.megaignore", "x"));
+        ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
         // Delete the original x/.megaignore.
+        cd->received_node_actionpackets = false;
+
         ASSERT_TRUE(cdu->deleteremote(node));
+        ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
         // Update the models.
         localFS.removenode(".megaignore");
@@ -14185,9 +14319,6 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
 
         remoteTree.removenode(".megaignore");
         remoteTree.movenode("a/.megaignore", "");
-
-        // Wait for cd to receive action packets for the above.
-        ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
         // Wait for the engine to process the changes.
         waitOnSyncs(cd.get());
@@ -14197,16 +14328,16 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
         ASSERT_TRUE(confirm(*cd, id, remoteTree));
     }
 
-    // So we know when new action packets have been received.
-    cd->received_node_actionpackets = false;
-
     // Remove x/b/fa.
     //
     // The change shouldn't be actioned as the file became excluded by
     // the "move" above.
     remoteTree.removenode("b/fa");
 
+    cd->received_node_actionpackets = false;
+
     ASSERT_TRUE(cdu->deleteremote("x/b/fa"));
+    ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
     // Move x/cd/.megaignore up a level.
     //
@@ -14214,13 +14345,13 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
     localFS.movenode("c/d/.megaignore", "c");
     remoteTree.movenode("c/d/.megaignore", "c");
 
+    cd->received_node_actionpackets = false;
+
     ASSERT_TRUE(cdu->movenode("x/c/d/.megaignore", "x/c"));
+    ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
     // We're done with the "foreign" client.
     cdu.reset();
-
-    // Make sure we've received APs for the above.
-    ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
     // Wait for the engine to process above changes.
     waitOnSyncs(cd.get());
@@ -15193,6 +15324,161 @@ TEST_F(SyncTest, StallsWhenEncounteringHardLink)
     // Make sure nothing's changed in the cloud.
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 }
+
+#ifndef _WIN32
+
+TEST_F(SyncTest, ChangingDirectoryPermissions)
+{
+    auto TIMEOUT = chrono::seconds(16);
+
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Make sure the sync root exists in the cloud.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Prepare model (and local filesystem.)
+    Model model;
+
+    model.addfile("d/f");
+    model.generate(client->fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure everything made it to the cloud.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Remove execute permissions from the directory.
+    const auto dPath = (client->fsBasePath / "s" / "d").u8string();
+
+    ASSERT_EQ(chmod(dPath.c_str(), S_IRUSR | S_IWUSR), 0);
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the engine to detect a stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+
+    // Make sure we've stalled for the right reason.
+    SyncStallInfo stalls;
+
+    ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+    ASSERT_TRUE(stalls.cloud.empty());
+    ASSERT_EQ(stalls.local.size(), 1u);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::CantFingrprintFileYet);
+
+    // Make sure d/f is still present in the cloud.
+    ASSERT_TRUE(client->waitFor(SyncRemoteNodePresent("s/d/f"), TIMEOUT));
+
+    // Restore execute permissions to the directory.
+    ASSERT_EQ(chmod(dPath.c_str(), S_IRUSR | S_IWUSR | S_IXUSR), 0);
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
+
+    // Remove read permissions from the directory.
+    ASSERT_EQ(chmod(dPath.c_str(), S_IWUSR | S_IXUSR), 0);
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the engine to detect a stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+
+    // Make sure we've stalled for the right reason.
+    ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+    ASSERT_TRUE(stalls.cloud.empty());
+    ASSERT_EQ(stalls.local.size(), 1u);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::LocalFolderNotScannable);
+
+    // Make sure d/f is still present in the cloud.
+    ASSERT_TRUE(client->waitFor(SyncRemoteNodePresent("s/d/f"), TIMEOUT));
+
+    // Restore read permissions.
+    ASSERT_EQ(chmod(dPath.c_str(), S_IRUSR | S_IWUSR | S_IXUSR), 0);
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
+}
+
+TEST_F(SyncTest, StallsOnSpecialFile)
+{
+    auto TIMEOUT = chrono::seconds(16);
+
+    // Allocate a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Make sure a sync root exists in the cloud.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Prepare model (local filesystem.)
+    Model model;
+
+    model.generate(client->fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure everything's as we expect.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Create a pipe for the engine to stall on.
+    const auto fPath = (client->fsBasePath / "s" / "f").u8string();
+
+    ASSERT_EQ(mkfifo(fPath.c_str(), S_IRUSR | S_IWUSR), 0);
+
+#ifdef __APPLE__
+    // Trigger another event so that we detect the FIFO.
+    model.addfile("g");
+    model.generate(client->fsBasePath / "s");
+#endif // __APPLE__
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+
+    // Check that it stalled due to the pipe.
+    SyncStallInfo stalls;
+
+    ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+    ASSERT_TRUE(stalls.cloud.empty());
+    ASSERT_EQ(stalls.local.size(), 1u);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::SpecialFilesNotSupported);
+
+    // Remove the pipe.
+    ASSERT_EQ(unlink(fPath.c_str()), 0);
+
+    // Trigger a full scan.
+    client->triggerFullScan(id);
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
+}
+
+#endif // ! _WIN32
 
 #endif
 

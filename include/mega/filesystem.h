@@ -626,6 +626,9 @@ public:
 };
 #endif
 
+// For directoryScan(...).
+struct MEGA_API FSNode;
+
 // generic host filesystem access interface
 struct MEGA_API FileSystemAccess : public EventTrigger
 {
@@ -747,6 +750,13 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool fsStableIDs(const LocalPath& path) const;
 
 #ifdef ENABLE_SYNC
+    virtual ScanResult directoryScan(const LocalPath& path,
+                                     handle expectedFsid,
+                                     map<LocalPath, FSNode>& known,
+                                     std::vector<FSNode>& results,
+                                     bool followSymLinks,
+                                     unsigned& nFingerprinted) = 0;
+
     virtual bool initFilesystemNotificationSystem();
 #endif // ENABLE_SYNC
 
@@ -885,13 +895,6 @@ class MEGA_API ScanService
 public:
     ScanService(Waiter& waiter);
     ~ScanService();
-
-    enum ScanResult {
-        SCAN_INPROGRESS,
-        SCAN_SUCCESS,
-        SCAN_FSID_MISMATCH,
-        SCAN_INACCESSIBLE
-    };
 
     // Concrete representation of a scan request.
     class ScanRequest

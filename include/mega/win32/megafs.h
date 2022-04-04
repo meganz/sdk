@@ -89,8 +89,8 @@ public:
 
     static void emptydirlocal(const LocalPath&, dev_t = 0);
 
-    ScanService::ScanResult directoryScan(const LocalPath& path, handle expectedFsid,
-        map<LocalPath, FSNode>& known, std::vector<FSNode>& results, unsigned& nFingerprinted);
+    ScanResult directoryScan(const LocalPath& path, handle expectedFsid,
+        map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted) override;
 
     WinFileSystemAccess();
     ~WinFileSystemAccess();

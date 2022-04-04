@@ -2900,6 +2900,7 @@ string syncWaitReasonString(SyncWaitReason r)
         case SyncWaitReason::MACVerificationFailure:                        return "MACVerificationFailure";
         case SyncWaitReason::NoNameTripletsDetected:                        return "NoNameTripletsDetected";
         case SyncWaitReason::EncounteredHardLinkAtMoveSource:               return "EncounteredHardLinkAtMoveSource";
+        case SyncWaitReason::SpecialFilesNotSupported:                      return "SpecialFilesNotSupported";
     }
     return "<out of range>";
 }
@@ -2908,6 +2909,7 @@ bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason r)
 {
     return r == SyncWaitReason::LocalFolderNotScannable ||
            r == SyncWaitReason::SymlinksNotSupported ||
+           r == SyncWaitReason::SpecialFilesNotSupported ||
            r == SyncWaitReason::FolderMatchedAgainstFile ||
            r == SyncWaitReason::UnableToLoadIgnoreFile ||
            r == SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose ||
