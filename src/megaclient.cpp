@@ -18044,17 +18044,17 @@ void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
         {
             addNodeWithMissingParent(node);
         }
+    }
 
-        auto it = mNodesWithMissingParent.find(node->nodeHandle());
-        if (it != mNodesWithMissingParent.end())
+    auto it = mNodesWithMissingParent.find(node->nodeHandle());
+    if (it != mNodesWithMissingParent.end())
+    {
+        for (Node* n : it->second)
         {
-            for (Node* n : it->second)
-            {
-                n->setparent(node);
-            }
-
-            mNodesWithMissingParent.erase(it);
+            n->setparent(node);
         }
+
+        mNodesWithMissingParent.erase(it);
     }
 }
 
