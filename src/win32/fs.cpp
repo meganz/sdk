@@ -1623,9 +1623,10 @@ bool reuseFingerprint(const FSNode& lhs, const FSNode& rhs)
         && lhs.fingerprint.size == rhs.fingerprint.size;
 };
 
-ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool, unsigned& nFingerprinted)
+ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted)
 {
     assert(path.isAbsolute());
+    assert(!followSymlinks && "Symlinks are not supported on Windows!");
 
     ScopedFileHandle rightTypeHandle = CreateFileW(path.localpath.c_str(),
         GENERIC_READ,
