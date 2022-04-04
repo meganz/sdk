@@ -4823,6 +4823,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     createFile(filename1, false);
     auto err = doStartUpload(0, nullptr, filename1.c_str(), rootnode);
     ASSERT_EQ(API_OK, err) << "Cannot upload a test file (error: " << err << ")";
+    WaitMillisec(1000);
 
     ofstream f(filename1);
     f << "update";
@@ -4830,6 +4831,7 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     err = doStartUpload(0, nullptr, filename1.c_str(), rootnode);
     ASSERT_EQ(API_OK, err) << "Cannot upload an updated test file (error: " << err << ")";
+    WaitMillisec(1000);
 
     synchronousCatchup(0);
 
@@ -4838,6 +4840,7 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     err = doStartUpload(0, nullptr, filename2.c_str(), rootnode);
     ASSERT_EQ(API_OK, err) << "Cannot upload a test file2 (error: " << err << ")";
+    WaitMillisec(1000);
 
     ofstream f2(filename2);
     f2 << "update";
