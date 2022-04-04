@@ -14301,14 +14301,17 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
         auto* root = cdu->gettestbasenode();
         auto* node = cdu->drillchildnodebyname(root, "x/.megaignore");
 
-        // So we know when cd receives new action packets.
+        // Move x/a/.megaignore to x/.megaignore.
         cd->received_node_actionpackets = false;
 
-        // Move x/a/.megaignore to x/.megaignore.
         ASSERT_TRUE(cdu->movenode("x/a/.megaignore", "x"));
+        ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
         // Delete the original x/.megaignore.
+        cd->received_node_actionpackets = false;
+
         ASSERT_TRUE(cdu->deleteremote(node));
+        ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
         // Update the models.
         localFS.removenode(".megaignore");
@@ -14316,9 +14319,6 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
 
         remoteTree.removenode(".megaignore");
         remoteTree.movenode("a/.megaignore", "");
-
-        // Wait for cd to receive action packets for the above.
-        ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
         // Wait for the engine to process the changes.
         waitOnSyncs(cd.get());
@@ -14328,16 +14328,16 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
         ASSERT_TRUE(confirm(*cd, id, remoteTree));
     }
 
-    // So we know when new action packets have been received.
-    cd->received_node_actionpackets = false;
-
     // Remove x/b/fa.
     //
     // The change shouldn't be actioned as the file became excluded by
     // the "move" above.
     remoteTree.removenode("b/fa");
 
+    cd->received_node_actionpackets = false;
+
     ASSERT_TRUE(cdu->deleteremote("x/b/fa"));
+    ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
     // Move x/cd/.megaignore up a level.
     //
@@ -14345,13 +14345,13 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
     localFS.movenode("c/d/.megaignore", "c");
     remoteTree.movenode("c/d/.megaignore", "c");
 
+    cd->received_node_actionpackets = false;
+
     ASSERT_TRUE(cdu->movenode("x/c/d/.megaignore", "x/c"));
+    ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
     // We're done with the "foreign" client.
     cdu.reset();
-
-    // Make sure we've received APs for the above.
-    ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
     // Wait for the engine to process above changes.
     waitOnSyncs(cd.get());
