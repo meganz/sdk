@@ -285,7 +285,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
 
     // Find decoder for video stream
     AVCodecID codecId = codecParm->codec_id;
-    AVCodec* decoder = avcodec_find_decoder(codecId);
+    auto decoder = avcodec_find_decoder(codecId);
     if (!decoder)
     {
         LOG_warn << "Codec not found: " << codecId;
