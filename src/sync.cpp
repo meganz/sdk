@@ -2988,15 +2988,15 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
                   << us.mConfig.mTemporarilyPaused
                   << " to "
                   << paused;
-        
+
         auto changed = us.mConfig.mTemporarilyPaused != paused;
-        
+
         us.mConfig.mTemporarilyPaused = paused;
         us.mConfig.mRunState = paused ? SyncRunState::Pause : SyncRunState::Run;
-        
+
         if (changed && notifyApp)
             mClient.app->syncupdate_stateconfig(us.mConfig);
-        
+
         if (completion) completion(API_OK, NO_SYNC_ERROR, backupId);
         return;
     }
@@ -3047,8 +3047,21 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     // Does this sync contain an ignore file?
     if (!hasIgnoreFile(us.mConfig))
     {
+        DefaultFilterChain* filter = nullptr;
+
+        if (us.mConfig.mLegacyExclusionsIneligigble)
+        {
+            filter = &mNewSyncFilterChain;
+            LOG_debug << "Adding standard default .megaignore to sync";
+        }
+        else
+        {
+            filter = &mLegacyUpgradeFilterChain;
+            LOG_debug << "Converting legacy exclusion rules to .megaignore for this sync";
+        }
+
         // Try and create the missing ignore file.
-        if (!mDefaultFilterChain.create(us.mConfig.mLocalPath, *fsaccess))
+        if (!filter->create(us.mConfig.mLocalPath, *fsaccess))
         {
             LOG_debug << "Failed to create ignore file for sync without one";
 
@@ -3068,6 +3081,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mEnabled = true;
     us.mConfig.mRunState = SyncRunState::Loading;
+    us.mConfig.mLegacyExclusionsIneligigble = true;
 
     // If we're a backup sync...
     if (us.mConfig.isBackup())
@@ -9400,6 +9414,7 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
     const auto TYPE_SYNC_TYPE       = MAKENAMEID2('s', 't');
     const auto TYPE_TARGET_HANDLE   = MAKENAMEID2('t', 'h');
     const auto TYPE_TARGET_PATH     = MAKENAMEID2('t', 'p');
+    const auto TYPE_LEGACY_INELIGIB = MAKENAMEID2('l', 'i');
 
     for ( ; ; )
     {
@@ -9482,6 +9497,10 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
             reader.storebinary(&config.mOriginalPathOfRemoteRootNode);
             break;
 
+        case TYPE_LEGACY_INELIGIB:
+            config.mLegacyExclusionsIneligigble = reader.getbool();
+            break;
+
         default:
             if (!reader.storeobject())
             {
@@ -9546,6 +9565,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg("bs", config.mBackupState);
     writer.arg("cm", config.mChangeDetectionMethod);
     writer.arg("si", config.mScanIntervalSec);
+    writer.arg("li", config.mLegacyExclusionsIneligigble);
     writer.endobject();
 }
 

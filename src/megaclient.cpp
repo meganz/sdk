@@ -4355,6 +4355,15 @@ void MegaClient::initsc()
         LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodes.size() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
+
+        if (complete)
+        {
+            // We have the data, and we have the corresponding scsn, all from fetchnodes finishing just now.
+            // Commit now, otherwise we'll have to do fetchnodes again (on restart) if no actionpackets arrive.
+            sctable->commit();
+            sctable->begin();
+            pendingsccommit = false;
+        }
     }
 }
 
@@ -11687,6 +11696,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
 
     if (sctable && cachedscsn == UNDEF)
     {
+        LOG_debug << "Cachedscsn is UNDEF so we will not load the account database (and we are truncating it, for clean operation)";
         sctable->truncate();
     }
 
@@ -13253,6 +13263,9 @@ void MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
     assert(config.mLocalPath.isAbsolute());
+
+    // new syncs do not need to worry about upgrading old rules to .megaignore
+    config.mLegacyExclusionsIneligigble = true;
 
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;

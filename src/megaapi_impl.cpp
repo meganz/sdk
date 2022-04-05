@@ -8880,34 +8880,34 @@ void MegaApiImpl::stopSyncs(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::setDefaultExcludedNames(vector<string> *excludedNames)
+void MegaApiImpl::setLegacyExcludedNames(vector<string> *excludedNames)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    client->syncs.mDefaultFilterChain.excludedNames(
+    client->syncs.mLegacyUpgradeFilterChain.excludedNames(
       excludedNames ? *excludedNames : string_vector(), *client->fsaccess);
 }
 
-void MegaApiImpl::setDefaultExcludedPaths(vector<string> *excludedPaths)
+void MegaApiImpl::setLegacyExcludedPaths(vector<string> *excludedPaths)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    client->syncs.mDefaultFilterChain.excludedPaths(
+    client->syncs.mLegacyUpgradeFilterChain.excludedPaths(
       excludedPaths ? *excludedPaths : string_vector());
 }
 
-void MegaApiImpl::setDefaultExclusionLowerSizeLimit(unsigned long long limit)
+void MegaApiImpl::setLegacyExclusionLowerSizeLimit(unsigned long long limit)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    client->syncs.mDefaultFilterChain.lowerLimit(limit);
+    client->syncs.mLegacyUpgradeFilterChain.lowerLimit(limit);
 }
 
-void MegaApiImpl::setDefaultExclusionUpperSizeLimit(unsigned long long limit)
+void MegaApiImpl::setLegacyExclusionUpperSizeLimit(unsigned long long limit)
 {
     SdkMutexGuard guard(sdkMutex);
 
-    client->syncs.mDefaultFilterChain.upperLimit(limit);
+    client->syncs.mLegacyUpgradeFilterChain.upperLimit(limit);
 }
 
 long long MegaApiImpl::getNumLocalNodes()
@@ -21362,7 +21362,9 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            const auto& drivePath = request->getLink() ? LocalPath::fromAbsolutePath(request->getLink()) : LocalPath();
+            // Copy sync config is only used for sync migration
+            // therefore only deals with internal syncs, so drive path is empty
+            LocalPath drivePath;
 
             SyncConfig syncConfig(LocalPath::fromAbsolutePath(localPath),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",

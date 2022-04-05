@@ -3462,24 +3462,24 @@ int MegaApi::isNodeSyncable(MegaNode *node)
     return pImpl->isNodeSyncable(node);
 }
 
-void MegaApi::setDefaultExcludedNames(vector<string> *excludedNames)
+void MegaApi::setLegacyExcludedNames(vector<string> *excludedNames)
 {
-    pImpl->setDefaultExcludedNames(excludedNames);
+    pImpl->setLegacyExcludedNames(excludedNames);
 }
 
-void MegaApi::setDefaultExcludedPaths(vector<string> *excludedPaths)
+void MegaApi::setLegacyExcludedPaths(vector<string> *excludedPaths)
 {
-    pImpl->setDefaultExcludedPaths(excludedPaths);
+    pImpl->setLegacyExcludedPaths(excludedPaths);
 }
 
-void MegaApi::setDefaultExclusionLowerSizeLimit(unsigned long long limit)
+void MegaApi::setLegacyExclusionLowerSizeLimit(unsigned long long limit)
 {
-    pImpl->setDefaultExclusionLowerSizeLimit(limit);
+    pImpl->setLegacyExclusionLowerSizeLimit(limit);
 }
 
-void MegaApi::setDefaultExclusionUpperSizeLimit(unsigned long long limit)
+void MegaApi::setLegacyExclusionUpperSizeLimit(unsigned long long limit)
 {
-    pImpl->setDefaultExclusionUpperSizeLimit(limit);
+    pImpl->setLegacyExclusionUpperSizeLimit(limit);
 }
 #endif
 

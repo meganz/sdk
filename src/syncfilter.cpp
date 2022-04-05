@@ -263,11 +263,12 @@ void DefaultFilterChain::excludedNames(const string_vector& names, FileSystemAcc
     // Translate UTF8 paths into cloud format.
     for (auto& name : normalize(names))
     {
-        LOG_debug << "Excluded name: " << name;
+        LOG_debug << "Legacy excluded name: " << name;
 
         mExcludedNames.emplace_back(name);
         fsAccess.unescapefsincompatible(&mExcludedNames.back());
     }
+    LOG_debug << "Legacy excluded names will be converted to .megaignore for pre-existing syncs that don't have .megaignore yet";
 }
 
 void DefaultFilterChain::excludedPaths(const string_vector& paths)
@@ -279,12 +280,13 @@ void DefaultFilterChain::excludedPaths(const string_vector& paths)
     // Translate UTF8 paths to local format.
     for (auto& path : normalize(paths))
     {
-        LocalPath localPath = LocalPath::fromRelativePath(path);
+        LocalPath localPath = LocalPath::fromAbsolutePath(path);
 
-        LOG_debug << "Excluded path: " << localPath.toPath();
+        LOG_debug << "Legacy excluded path: " << localPath.toPath();
 
         mExcludedPaths.emplace_back(std::move(localPath));
     }
+    LOG_debug << "Legacy excluded paths will be converted to .megaignore for pre-existing syncs that don't have .megaignore yet";
 }
 
 void DefaultFilterChain::lowerLimit(std::uint64_t lower)
