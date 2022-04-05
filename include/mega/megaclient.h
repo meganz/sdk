@@ -1888,16 +1888,6 @@ public:
 
     std::string getDeviceidHash();
 
-    // generate a new drive id
-    handle generateDriveId();
-
-    // return API_OK if success and set driveId handle to the drive id read from the drive,
-    // otherwise return error code and set driveId to UNDEF
-    error readDriveId(const char *pathToDrive, handle &driveId) const;
-
-    // return API_OK if success, otherwise error code
-    error writeDriveId(const char *pathToDrive, handle driveId);
-
     /**
      * @brief This function calculates the time (in deciseconds) that a user
      * transfer request must wait for a retry.
