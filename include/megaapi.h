@@ -14064,7 +14064,7 @@ class MegaApi
         bool isSyncing();
 
         /**
-         * @brief Set a list of excluded file names
+         * @brief Inform the SDK of the exclusion names used for old syncs, in case any need to be upgraded to .megaignore
          *
          * Wildcards (* and ?) are allowed
          *
@@ -14072,10 +14072,10 @@ class MegaApi
          * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
          * function will be removed in future updates
          */
-        void setDefaultExcludedNames(std::vector<std::string> *excludedNames);
+        void setLegacyExcludedNames(std::vector<std::string> *excludedNames);
 
         /**
-         * @brief Set a list of excluded paths
+         * @brief Inform the SDK of the exclusion paths used for old syncs, in case any need to be upgraded to .megaignore
          *
          * Wildcards (* and ?) are allowed
          *
@@ -14083,10 +14083,10 @@ class MegaApi
          * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
          * function will be removed in future updates
          */
-        void setDefaultExcludedPaths(std::vector<std::string> *excludedPaths);
+        void setLegacyExcludedPaths(std::vector<std::string> *excludedPaths);
 
         /**
-         * @brief Set a lower limit for synchronized files
+         * @brief Inform the SDK of the size limits used for old syncs, in case any need to be upgraded to .megaignore
          *
          * Files with a size lower than this limit won't be synchronized
          * To disable the limit, you can set it to 0
@@ -14096,10 +14096,10 @@ class MegaApi
          *
          * @param limit Lower limit for synchronized files
          */
-        void setDefaultExclusionLowerSizeLimit(unsigned long long limit);
+        void setLegacyExclusionLowerSizeLimit(unsigned long long limit);
 
         /**
-         * @brief Set an upper limit for synchronized files
+         * @brief Inform the SDK of the size limits used for old syncs, in case any need to be upgraded to .megaignore
          *
          * Files with a size greater than this limit won't be synchronized
          * To disable the limit, you can set it to 0
@@ -14109,7 +14109,7 @@ class MegaApi
          *
          * @param limit Upper limit for synchronized files
          */
-        void setDefaultExclusionUpperSizeLimit(unsigned long long limit);
+        void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
 
         /**
          * @brief Check if it's possible to start synchronizing a folder node.

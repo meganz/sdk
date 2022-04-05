@@ -155,6 +155,9 @@ public:
     // Whether this backup is monitoring or mirroring.
     SyncBackupState mBackupState;
 
+    // Prevent applying old settings dialog based exclusion when creating .megaignore, for newer syncs.  We set this true for new syncs or after upgrade.
+    bool mLegacyExclusionsIneligigble = false;
+
     // Whether recursiveSync() is called.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
     bool mTemporarilyPaused = false;
 
@@ -1084,7 +1087,8 @@ public:
     WAIT_CLASS waiter;
 
     // These rules are used to generate ignore files for newly added syncs.
-    DefaultFilterChain mDefaultFilterChain;
+    DefaultFilterChain mNewSyncFilterChain;
+    DefaultFilterChain mLegacyUpgradeFilterChain;
 
     // todo: move relevant code to this class later
     // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem browser for icon indicators
@@ -1289,7 +1293,7 @@ private:
         handle mBackupID = UNDEF;
     }; // IgnoreFileFailureContext
 
-       // Check if the sync described by config contains an ignore file.
+    // Check if the sync described by config contains an ignore file.
     bool hasIgnoreFile(const SyncConfig& config);
 
     // ------ private data members

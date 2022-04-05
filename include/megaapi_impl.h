@@ -2504,10 +2504,10 @@ class MegaApiImpl : public MegaApp
         MegaSyncList *getSyncs();
 
         void stopSyncs(MegaRequestListener *listener=NULL);
-        void setDefaultExcludedNames(vector<string> *excludedNames);
-        void setDefaultExcludedPaths(vector<string> *excludedPaths);
-        void setDefaultExclusionLowerSizeLimit(unsigned long long limit);
-        void setDefaultExclusionUpperSizeLimit(unsigned long long limit);
+        void setLegacyExcludedNames(vector<string> *excludedNames);
+        void setLegacyExcludedPaths(vector<string> *excludedPaths);
+        void setLegacyExclusionLowerSizeLimit(unsigned long long limit);
+        void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
         bool moveToLocalDebris(const char *path);
         long long getNumLocalNodes();
         bool isInsideSync(MegaNode *node);
