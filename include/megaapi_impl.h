@@ -3161,10 +3161,6 @@ private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 
-        // Generic method to get outShares nodes or pending outShares
-        // pending is true if we want receive pending outShares, false for outShares
-        MegaShareList *getOutSharesOrPending(int order, bool pending);
-
 #ifdef ENABLE_SYNC
         error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
 #endif
