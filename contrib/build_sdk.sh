@@ -553,7 +553,7 @@ zlib_pkg() {
     local install_dir=$2
     local name="Zlib"
     local zlib_ver="1.2.12"
-    local zlib_url="http://zlib.net/fossils/zlib-$zlib_ver.tar.gz"
+    local zlib_url="https://zlib.net/fossils/zlib-$zlib_ver.tar.gz"
     local zlib_md5="5fc414a9726be31427b440b434d05f78"
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
