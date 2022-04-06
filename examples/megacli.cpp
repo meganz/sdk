@@ -9313,8 +9313,12 @@ void exec_syncadd(autocomplete::ACState& s)
         error e = client->registerbackup(syncname, drive, thenAddSync);
         if (e)
         {
-            cerr << "Invalid prerequisites for adding a backup (error " << e << ')'
-                 << endl;
+            cerr << "Invalid prerequisites for adding a backup (error " << e << ": " << errorstring(e);
+            if (e == API_EINCOMPLETE)
+            {
+                cerr << "; was Device/Drive name set?";
+            }
+            cerr << ')' << endl;
         }
     }
 }
