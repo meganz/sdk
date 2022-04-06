@@ -512,9 +512,10 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
         return API_EARGS;
     }
 
-    if (ownuser()->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    User* u = ownuser();
+    if (!u || u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
     {
-        // cannot set a new folder if it already exists
+        // cannot set a new folder if not logged in or it already exists
         return API_EACCESS;
     }
 
