@@ -27,7 +27,7 @@
 #include <ImageIO/CGImageSource.h>
 
 // bitmap graphics processor
-class MEGA_API GfxProviderCG : public IGfxProvider
+class MEGA_API GfxProviderCG : public mega::IGfxProvider
 {
     CGImageSourceRef imageSource;
     CFDictionaryRef imageParams;
