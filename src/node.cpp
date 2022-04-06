@@ -750,7 +750,6 @@ vector<pair<handle, int>> Node::getSdsBackups() const
     if (it != attrs.map.end())
     {
         std::istringstream is(it->second);  // "b64aa:8,b64bb:8"
-        is.ignore(); // skip leading '"'
         while (!is.eof())
         {
             string b64BkpIdStr;
@@ -794,9 +793,7 @@ string Node::toSdsString(const vector<pair<handle, int>>& ids)
 
     if (!value.empty())
     {
-        // turn `b64aa:8,b64bb:8,` into `"b64aa:8,b64bb:8"`
-        value = '"' + value;
-        value.back() = '"';
+        value.pop_back(); // remove trailing ','
     }
 
     return value;
