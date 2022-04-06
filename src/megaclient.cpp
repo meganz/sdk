@@ -18066,6 +18066,50 @@ void NodeManager::cancelDbQuery()
     mTable->cancelQuery();
 }
 
+int NodeManager::getNumVersions(NodeHandle nodeHandle)
+{
+    Node *node = getNodeByHandle(nodeHandle);
+    if (!node || node->type != FILENODE)
+    {
+        return 0;
+    }
+
+    int numVersions = 0;
+    bool looking = true;
+    NodeHandle current = nodeHandle;
+    while (looking)
+    {
+        auto it = mNodeChildren.find(current);
+        if (it == mNodeChildren.end() || it->second.empty())
+        {
+            looking = false;
+            break;
+        }
+
+        current = *it->second.begin();
+        numVersions++;
+    }
+
+    return numVersions;
+}
+
+bool NodeManager::hasVersion(NodeHandle nodeHandle)
+{
+    Node *node = getNodeByHandle(nodeHandle);
+    if (!node || node->type != FILENODE)
+    {
+        return false;
+    }
+
+    auto it = mNodeChildren.find(nodeHandle);
+    if (it != mNodeChildren.end() && it->second.size())
+    {
+        return true;
+    }
+
+    return false;
+}
+
 NodeCounter NodeManager::getCounterOfRootNodes()
 {
     NodeCounter c;
