@@ -3060,6 +3060,62 @@ void exec_timelocal(autocomplete::ACState& s)
 
 }
 
+void exec_setmybackups(autocomplete::ACState& s)
+{
+    const string& bkpsFolder = s.words[1].s;
+    std::function<void(Error)> completion = [bkpsFolder](Error e)
+    {
+        if (e == API_OK)
+        {
+            cout << "\"My Backups\" folder set to " << bkpsFolder << endl;
+        }
+        else
+        {
+            cout << "Failed to set \"My Backups\" folder to " << bkpsFolder << " (remote error " << error(e) << ": " << errorstring(e) << ')' << endl;
+        }
+    };
+
+    error err = client->setbackupfolder(bkpsFolder.c_str(), 0, completion);
+    if (err != API_OK)
+    {
+        cout << "Failed to set \"My Backups\" folder to " << bkpsFolder << " (" << err << ": " << errorstring(err) << ')' << endl;
+    }
+}
+
+void exec_getmybackups(autocomplete::ACState&)
+{
+    User* u = client->ownuser();
+    if (!u)
+    {
+        cout << "Login first." << endl;
+        return;
+    }
+
+    const string* buf = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+    if (!buf)
+    {
+        cout << "\"My Backups\" folder has not been set." << endl;
+        return;
+    }
+
+    handle h = 0;
+    memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
+    if (!h || h == UNDEF)
+    {
+        cout << "Invalid handle stored for \"My Backups\" folder." << endl;
+        return;
+    }
+
+    Node* n = client->nodebyhandle(h);
+    if (!n)
+    {
+        cout << "\"My Backups\" folder could not be found." << h << endl;
+        return;
+    }
+
+    cout << "\"My Backups\" folder (handle " << h << "): " << n->displaypath() << endl;
+}
+
 // if `moveOrDelete` is true, the `backupRootNode` will be moved to `targetDest`. If the latter were `nullptr`, then it will be deleted
 void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool moveOrDelete)
 {
@@ -3390,6 +3446,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
+    p->Add(exec_setmybackups, sequence(text("setmybackups"), param("mybackup_folder")));
+    p->Add(exec_getmybackups, sequence(text("getmybackups")));
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(either(
                                        sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle"))),
                                        sequence(flag("-stop"), param("backup_id"))))));
