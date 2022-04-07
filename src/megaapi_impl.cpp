@@ -24850,7 +24850,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
         FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
 
         nodetype_t dirEntryType;
-        while (da->dnext(localPath, localname, client->followsymlinks, &dirEntryType))
+        while (da->dnext(localPath, localname, false, &dirEntryType))
         {
             ScopedLengthRestore restoreLen(localPath);
             localPath.appendWithSeparator(localname, false);
@@ -25639,7 +25639,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
         {
             FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
 
-            while (da->dnext(localPath, localname, client->followsymlinks))
+            while (da->dnext(localPath, localname, false))
             {
                 ScopedLengthRestore restoreLen(localPath);
                 localPath.appendWithSeparator(localname, false);

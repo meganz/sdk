@@ -1168,7 +1168,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
     tctable = NULL;
     statusTable = nullptr;
     me = UNDEF;
-    followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
