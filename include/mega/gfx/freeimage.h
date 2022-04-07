@@ -24,6 +24,7 @@
 #define GFX_CLASS GfxProviderFreeImage
 
 #include <FreeImage.h>
+#include <mutex>
 #include <mega/filesystem.h>
 #include <mega/gfx.h>
 #include "mega/gfx/gfx_pdfium.h"
