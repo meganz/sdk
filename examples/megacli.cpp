@@ -1243,29 +1243,19 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
     {
         cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
 
-        vector<string> *keys = tlv->getKeys();
-        vector<string>::const_iterator it;
-        unsigned valuelen;
-        string value, key;
-        char *buf;
-        for (it=keys->begin(); it != keys->end(); it++)
+        unique_ptr<vector<string>> keys(tlv->getKeys());
+        for (auto it = keys->begin(); it != keys->end(); it++)
         {
-            key = (*it).empty() ? "(no key)" : *it;
+            const string& key = it->empty() ? "(no key)" : *it;
+            string value;
             if (!tlv->get(*it, value) || value.empty())
             {
                 cout << "\t" << key << "\t" << "(no value)" << endl;
                 continue;
             }
 
-            valuelen = unsigned(value.length());
-
-            buf = new char[valuelen * 4 / 3 + 4];
-            Base64::btoa((const byte *) value.data(), valuelen, buf);
-
-            cout << "\t" << key << "\t" << buf << endl;
-            delete [] buf;
+            cout << "\t" << key << "\t" << value << endl;
         }
-        delete keys;
     }
 }
 
@@ -5541,10 +5531,8 @@ void exec_putua(autocomplete::ACState& s)
                     || attrtype == ATTR_DRIVE_NAMES
                     || attrtype == ATTR_ALIAS)
             {
-                std::string key = s.words[3].s;
-                std::string value = Base64::btoa(s.words[4].s);
-                string_map attrMap;
-                attrMap[key] = value;
+                const std::string& key = s.words[3].s;
+                const std::string& value = s.words[4].s;
 
                 std::unique_ptr<TLVstore> tlv;
 
@@ -5553,7 +5541,7 @@ void exec_putua(autocomplete::ACState& s)
                 if (!oldValue)  // attr doesn't exist -> create it
                 {
                     tlv.reset(new TLVstore());
-                    tlv->set(key, value);
+                    tlv->set(key, value); // real value, non-B64
                 }
                 else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
                 {
@@ -5565,6 +5553,8 @@ void exec_putua(autocomplete::ACState& s)
                 {
                     tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
 
+                    string_map attrMap;
+                    attrMap[key] = Base64::btoa(value); // only because User::mergeUserAttribute() expects B64 values
                     if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
                     {
                         cout << "Failed to merge with existing values" << endl;
