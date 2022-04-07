@@ -32,6 +32,10 @@ namespace mega {
 // bitmap graphics processor
 class MEGA_API GfxProviderFreeImage : public IGfxProvider
 {
+#ifdef FREEIMAGE_LIB
+    static std::mutex libFreeImageInitializedMutex;
+    static unsigned libFreeImageInitialized;
+#endif
     FIBITMAP* dib;
 
 public:
