@@ -1619,8 +1619,7 @@ AddWatchResult LinuxDirNotify::addWatch(LocalNode& node,
 
 void LinuxDirNotify::removeWatch(WatchMapIterator entry)
 {
-    LOG_verbose << "[" << std::this_thread::get_id() << "]"
-        <<  " removeWatch for handle: " << entry->first;
+    LOG_verbose << "removeWatch for handle: " << entry->first;
     auto& watches = mOwner.mWatches;
 
     auto handle = entry->first;
@@ -1630,15 +1629,13 @@ void LinuxDirNotify::removeWatch(WatchMapIterator entry)
 
     if (watches.find(handle) != watches.end())
     {
-        LOG_warn << "[" << std::this_thread::get_id() << "]"
-            << " There are more watches under handle: " << handle;
+        LOG_warn << " There are more watches under handle: " << handle;
 
         auto it = watches.find(handle);
 
         while (it!=watches.end() && it->first == handle)
         {
-            LOG_warn << "[" << std::this_thread::get_id() << "]"
-                << " handle: " << handle << " fsid:" << it->second.second;
+            LOG_warn << "Handle: " << handle << " fsid:" << it->second.second;
 
             ++it;
         }
@@ -1650,8 +1647,7 @@ void LinuxDirNotify::removeWatch(WatchMapIterator entry)
 
     if (removedResult)
     {
-        LOG_verbose << "[" << std::this_thread::get_id() << "]"
-            <<  "inotify_rm_watch for handle: " << handle
+        LOG_verbose << "inotify_rm_watch for handle: " << handle
             <<  " error no: " << errno;
     }
 }
