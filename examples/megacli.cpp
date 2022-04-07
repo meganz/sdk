@@ -3050,6 +3050,66 @@ void exec_timelocal(autocomplete::ACState& s)
 
 }
 
+void putua_map(const std::string& key, const std::string& value, attr_t attrtype)
+{
+    User* ownUser = client->ownuser();
+    if (!ownUser)
+    {
+        cout << "Must be logged in to set own attributes." << endl;
+        return;
+    }
+
+    std::unique_ptr<TLVstore> tlv;
+
+    const std::string* oldValue = ownUser->getattr(attrtype);
+    if (!oldValue)  // attr doesn't exist -> create it
+    {
+        tlv.reset(new TLVstore());
+        tlv->set(key, value); // real value, non-B64
+    }
+    else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
+    {
+        cout << "User attribute is versioned (need to know current version first). ";
+        cout << "Fetch the attribute first" << endl;
+        return;
+    }
+    else
+    {
+        tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+
+        string_map attrMap;
+        attrMap[key] = Base64::btoa(value); // only because User::mergeUserAttribute() expects B64 values
+        if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+        {
+            cout << "Failed to merge with existing values" << endl;
+            return;
+        }
+    }
+
+    // serialize and encrypt the TLV container
+    std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+    client->putua(attrtype, (byte*)container->data(), unsigned(container->size()));
+}
+
+void exec_setdevicename(autocomplete::ACState& s)
+{
+    const string& idHash = client->getDeviceidHash();
+    const string& devName = s.words[1].s;
+    putua_map(idHash, devName, ATTR_DEVICE_NAMES);
+}
+
+void exec_getdevicename(autocomplete::ACState& s)
+{
+    User* u = client->ownuser();
+    if (!u)
+    {
+        cout << "Must be logged in to query own attributes." << endl;
+        return;
+    }
+
+    client->getua(u, ATTR_DEVICE_NAMES);
+}
+
 void exec_setmybackups(autocomplete::ACState& s)
 {
     const string& bkpsFolder = s.words[1].s;
@@ -3436,6 +3496,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
+    p->Add(exec_setdevicename, sequence(text("setdevicename"), param("device_name")));
+    p->Add(exec_getdevicename, sequence(text("getdevicename")));
     p->Add(exec_setmybackups, sequence(text("setmybackups"), param("mybackup_folder")));
     p->Add(exec_getmybackups, sequence(text("getmybackups")));
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(either(
@@ -5531,42 +5593,7 @@ void exec_putua(autocomplete::ACState& s)
                     || attrtype == ATTR_DRIVE_NAMES
                     || attrtype == ATTR_ALIAS)
             {
-                const std::string& key = s.words[3].s;
-                const std::string& value = s.words[4].s;
-
-                std::unique_ptr<TLVstore> tlv;
-
-                User *ownUser = client->finduser(client->me);
-                const std::string *oldValue = ownUser->getattr(attrtype);
-                if (!oldValue)  // attr doesn't exist -> create it
-                {
-                    tlv.reset(new TLVstore());
-                    tlv->set(key, value); // real value, non-B64
-                }
-                else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
-                {
-                    cout << "User attribute is versioned (need to know current version first). ";
-                    cout << "Fetch the attribute first" << endl;
-                    return;
-                }
-                else
-                {
-                    tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
-
-                    string_map attrMap;
-                    attrMap[key] = Base64::btoa(value); // only because User::mergeUserAttribute() expects B64 values
-                    if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
-                    {
-                        cout << "Failed to merge with existing values" << endl;
-                        return;
-                    }
-                }
-
-                // serialize and encrypt the TLV container
-                std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
-
-                return;
+                putua_map(s.words[3].s, s.words[4].s, attrtype);
             }
         }
     }
