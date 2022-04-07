@@ -17357,13 +17357,8 @@ std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, u
 
 int NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
-    if (!mTable)
-    {
-        assert(false);
-        return -1;
-    }
-
-    return mTable->getNumberOfChildren(parentHandle);
+    auto it = mNodeChildren.find(parentHandle);
+    return (it != mNodeChildren.end()) ? it->second.size() : 0;
 }
 
 bool NodeManager::isNodesOnDemandReady()
