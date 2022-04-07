@@ -10935,7 +10935,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
     node_vector pendingShares = client->mNodeManager.getNodesWithPendingOutShares();
     node_vector nodes = client->mNodeManager.getNodesWithOutShares();
     // Avoid duplicate nodes present in out-shares and pending shares
-    node_vector pendingSharesNoPresentInOutShaes;
+    node_vector pendingSharesNoPresentInOutShares;
     for (Node* pendingShare : pendingShares)
     {
         bool found = false;
@@ -10950,11 +10950,11 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
 
         if (!found)
         {
-            pendingSharesNoPresentInOutShaes.push_back(pendingShare);
+            pendingSharesNoPresentInOutShares.push_back(pendingShare);
         }
     }
 
-    nodes.insert(nodes.end(), pendingSharesNoPresentInOutShaes.begin(), pendingSharesNoPresentInOutShaes.end());
+    nodes.insert(nodes.end(), pendingSharesNoPresentInOutShares.begin(), pendingSharesNoPresentInOutShares.end());
 
 
     std::map<NodeHandle, std::set<Share *>> nodeSharesMap;
