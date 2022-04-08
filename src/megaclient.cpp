@@ -2518,6 +2518,8 @@ void MegaClient::exec()
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
+
+        debugLogHeapUsage();
     }
 #endif
 
@@ -11707,6 +11709,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
             sctable && fetchsc(sctable.get()))
     {
         nodeTreeIsChanging.unlock(); // nodes loaded from db
+        debugLogHeapUsage();
 
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
