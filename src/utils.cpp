@@ -3086,6 +3086,7 @@ bool platformSetRLimitNumFile(int newNumFileLimit)
 void debugLogHeapUsage()
 {
 #ifdef DEBUG
+#ifdef WIN32
     _CrtMemState state;
     _CrtMemCheckpoint(&state);
 
@@ -3095,6 +3096,7 @@ void debugLogHeapUsage()
         << " _CRT_BLOCK/" << state.lCounts[_CRT_BLOCK] << "/" << state.lSizes[_CRT_BLOCK]
         << " _IGNORE_BLOCK/" << state.lCounts[_IGNORE_BLOCK] << "/" << state.lSizes[_IGNORE_BLOCK]
         << " _CLIENT_BLOCK/" << state.lCounts[_CLIENT_BLOCK] << "/" << state.lSizes[_CLIENT_BLOCK];
+#endif
 #endif
 }
 
