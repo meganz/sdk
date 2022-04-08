@@ -1250,11 +1250,19 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             string value;
             if (!tlv->get(*it, value) || value.empty())
             {
-                cout << "\t" << key << "\t" << "(no value)" << endl;
-                continue;
+                cout << "\t" << key << "\t" << "(no value)";
+            }
+            else
+            {
+                cout << "\t" << key << "\t" << value;
             }
 
-            cout << "\t" << key << "\t" << value << endl;
+            if (key == client->getDeviceidHash())
+            {
+                cout << " (own device)";
+            }
+
+            cout << endl;
         }
     }
 }
