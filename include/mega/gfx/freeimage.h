@@ -24,6 +24,7 @@
 #define GFX_CLASS GfxProviderFreeImage
 
 #include <FreeImage.h>
+#include <mutex>
 #include <mega/filesystem.h>
 #include <mega/gfx.h>
 #include "mega/gfx/gfx_pdfium.h"
@@ -32,6 +33,10 @@ namespace mega {
 // bitmap graphics processor
 class MEGA_API GfxProviderFreeImage : public IGfxProvider
 {
+#ifdef FREEIMAGE_LIB
+    static std::mutex libFreeImageInitializedMutex;
+    static unsigned libFreeImageInitialized;
+#endif
     FIBITMAP* dib;
 
 public:

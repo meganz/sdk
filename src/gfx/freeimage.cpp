@@ -66,6 +66,11 @@ namespace mega {
 std::mutex GfxProviderFreeImage::gfxMutex;
 #endif
 
+#ifdef FREEIMAGE_LIB
+std::mutex GfxProviderFreeImage::libFreeImageInitializedMutex;
+unsigned GfxProviderFreeImage::libFreeImageInitialized = 0;
+#endif
+
 GfxProviderFreeImage::GfxProviderFreeImage()
 {
     dib = NULL;
@@ -73,8 +78,16 @@ GfxProviderFreeImage::GfxProviderFreeImage()
     h = 0;
 
 #ifdef FREEIMAGE_LIB
-	FreeImage_Initialise(TRUE);
+    {
+        std::unique_lock<std::mutex> guard(libFreeImageInitializedMutex);
+        if (!libFreeImageInitialized)
+        {
+            FreeImage_Initialise(TRUE);
+            libFreeImageInitialized++;
+        }
+    }
 #endif
+
 #ifdef HAVE_FFMPEG
 //    av_log_set_level(AV_LOG_VERBOSE);
 #endif
@@ -82,6 +95,17 @@ GfxProviderFreeImage::GfxProviderFreeImage()
 
 GfxProviderFreeImage::~GfxProviderFreeImage()
 {
+#ifdef FREEIMAGE_LIB
+    {
+        std::unique_lock<std::mutex> guard(libFreeImageInitializedMutex);
+        if (libFreeImageInitialized)
+        {
+            FreeImage_DeInitialise();
+            libFreeImageInitialized--;
+        }
+    }
+#endif
+
 #ifdef HAVE_PDFIUM
     gfxMutex.lock();
     PdfiumReader::destroy();
