@@ -3515,11 +3515,14 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_syncadd,
            sequence(text("sync"),
                     text("add"),
-                    opt(flag("-backup")),
-                    opt(sequence(flag("-external"), param("drivePath"))),
-                    opt(sequence(flag("-name"), param("syncname"))),
-                    localFSFolder("source"),
-                    remoteFSFolder(client, &cwd, "target")));
+                    either(
+                        sequence(flag("-backup"),
+                            opt(sequence(flag("-external"), param("drivePath"))),
+                            opt(sequence(flag("-name"), param("syncname"))),
+                            localFSFolder("source")),
+                        sequence(opt(sequence(flag("-name"), param("syncname"))),
+                            localFSFolder("source"),
+                            remoteFSFolder(client, &cwd, "target")))));
 
     p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
 
