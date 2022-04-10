@@ -1703,11 +1703,36 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     }
     else
     {
+        // Convenience.
+        using MovePending = LocalNode::RareFields::MovePending;
+
+        // Valid only if:
+        // - We were part of a move that was pending due to unstable files.
+        // - Those files have now become stable.
+        //
+        // If this pointer is valid, it means that the source has stabilized
+        // and that we don't need to check it again.
+        shared_ptr<MovePending> pendingTo;
+
         if (auto* s = row.syncNode)
         {
             // Do w have any rare fields?
             if (s->hasRare())
             {
+                // Move is pending?
+                if (auto& movePendingTo = s->rare().movePendingTo)
+                {
+                    // Check if the source/target has stabilized.
+                    if (checkIfFileIsChanging(*row.fsNode, movePendingTo->sourcePath))
+                    {
+                        // Source and/or target is still unstable.
+                        return rowResult = false, true;
+                    }
+
+                    // Source and target have become stable.
+                    pendingTo = std::move(movePendingTo);
+                }
+
                 // Move is (was) in progress?
                 if (auto& moveToHere = s->rare().moveToHere)
                 {
@@ -1785,10 +1810,10 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             auto markSiblingSourceRow = [&]() {
                 if (!row.rowSiblings)
-                    return;
+                    return false;
 
                 if (sourceSyncNode->parent != parentRow.syncNode)
-                    return;
+                    return false;
 
                 for (auto& sibling : *row.rowSiblings)
                 {
@@ -1796,9 +1821,11 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     {
                         sibling.itemProcessed = true;
                         sibling.syncNode->setSyncAgain(true, false, false);
-                        return;
+                        return true;
                     }
                 }
+
+                return false;
             };
 
             // It turns out that after LocalPath implicitly uses \\?\ and
@@ -1898,16 +1925,30 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
             // logic to detect files being updated in the local computer moving the original file
             // to another location as a temporary backup
-            if (sourceSyncNode->type == FILENODE &&
-                checkIfFileIsChanging(*row.fsNode, sourceSyncNode->getLocalPath()))
+            if (!pendingTo
+                && sourceSyncNode->type == FILENODE
+                && checkIfFileIsChanging(*row.fsNode, sourceSyncNode->getLocalPath()))
             {
-                // Make sure we don't sync our sibling until the move is complete.
-                markSiblingSourceRow();
+                // Make sure we don't process the source until the move is completed.
+                if (!markSiblingSourceRow())
+                {
+                    // Source isn't a sibling so we need to add a marker.
+                    pendingTo = std::make_shared<MovePending>(sourceSyncNode->getLocalPath());
+
+                    row.syncNode->rare().movePendingTo = pendingTo;
+                    sourceSyncNode->rare().movePendingFrom = pendingTo;
+
+                    // Make sure we revisit the source.
+                    sourceSyncNode->setSyncAgain(true, false, false);
+                }
 
                 // if we revist here and the file is still the same after enough time, we'll move it
-                monitor.waitingLocal(sourceSyncNode->getLocalPath(), LocalPath(), string(), SyncWaitReason::WaitingForFileToStopChanging);
-                rowResult = false;
-                return true;
+                monitor.waitingLocal(sourceSyncNode->getLocalPath(),
+                                     LocalPath(),
+                                     string(),
+                                     SyncWaitReason::WaitingForFileToStopChanging);
+
+                return rowResult = false, true;
             }
 
             // Is there something in the way at the move destination?
@@ -6725,6 +6766,13 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         // Any rare fields?
         if (s->hasRare())
         {
+            // Move pending?
+            if (!s->rare().movePendingFrom.expired())
+            {
+                // Don't do anything until the move has completed.
+                return false;
+            }
+
             // Move in progress?
             if (auto& moveFromHere = s->rare().moveFromHere)
             {
@@ -7310,6 +7358,9 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         // Then make sure we process it exclusively.
         parentRow.ignoreFileChanging();
     }
+
+    // We should never reach this function is pendingFrom is live.
+    assert(row.syncNode->rareRO().movePendingFrom.expired());
 
     if (row.syncNode->hasRare() &&
         row.syncNode->rare().moveFromHere &&
