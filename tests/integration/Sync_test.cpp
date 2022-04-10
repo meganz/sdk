@@ -6705,7 +6705,7 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     model.generate(SYNCROOT);
 
     // Wait for synchronization to complete.
-    waitonsyncs(TIMEOUT, &c0);
+    waitonsyncs(chrono::seconds(15), &c0);
 
     // Confirm model.
     ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
