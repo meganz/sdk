@@ -1725,6 +1725,14 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     // Check if the source/target has stabilized.
                     if (checkIfFileIsChanging(*row.fsNode, movePendingTo->sourcePath))
                     {
+                        ProgressingMonitor monitor(syncs);
+
+                        // Let the engine know why we're not making any progress.
+                        monitor.waitingLocal(movePendingTo->sourcePath,
+                                             LocalPath(),
+                                             string(),
+                                             SyncWaitReason::WaitingForFileToStopChanging);
+
                         // Source and/or target is still unstable.
                         return rowResult = false, true;
                     }
