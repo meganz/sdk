@@ -1147,6 +1147,11 @@ void MegaClient::init()
     mNotifiedSumSize = 0;
     mNodeCounters = NodeCounterMap();
     mOptimizePurgeNodes = false;
+
+    mCurrentSeqtag.clear();
+    mPriorSeqTag.clear();
+    mCurrentSeqtagSeen = false;
+    mCurrentSeqtagCmdtag = 0;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
