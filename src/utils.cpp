@@ -36,6 +36,11 @@
 #include <sys/sysctl.h>
 #endif
 
+#ifndef WIN32
+#include <sys/time.h>
+#include <sys/resource.h>
+#endif // ! WIN32
+
 namespace mega {
 
 string toNodeHandle(handle nodeHandle)
@@ -2721,6 +2726,150 @@ UploadHandle UploadHandle::next()
 
 
     return *this;
+}
+
+handle generateDriveId(PrnGen& rng)
+{
+    handle driveId;
+
+    rng.genblock((byte *)&driveId, sizeof(driveId));
+    driveId |= m_time(nullptr);
+
+    return driveId;
+}
+
+error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId)
+{
+    if (pathToDrive && strlen(pathToDrive))
+        return readDriveId(fsAccess, LocalPath::fromAbsolutePath(pathToDrive), driveId);
+
+    driveId = UNDEF;
+
+    return API_EREAD;
+}
+
+error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, handle& driveId)
+{
+    assert(!pathToDrive.empty());
+
+    driveId = UNDEF;
+
+    auto path = pathToDrive;
+
+    path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
+    path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
+
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    if (!fileAccess->fopen(path, true, false))
+    {
+        // This case is valid when only checking for file existence
+        return API_ENOENT;
+    }
+
+    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to read drive-id from file: " << path;
+        return API_EREAD;
+    }
+
+    return API_OK;
+}
+
+error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId)
+{
+    auto path = LocalPath::fromAbsolutePath(pathToDrive);
+
+    path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
+
+    // Try and create the backup configuration directory
+    if (!(fsAccess.mkdirlocal(path, false, false) || fsAccess.target_exists))
+    {
+        LOG_err << "Unable to create config DB directory: " << path;
+
+        // Couldn't create the directory and it doesn't exist.
+        return API_EWRITE;
+    }
+
+    path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
+
+    // Open the file for writing
+    auto fileAccess = fsAccess.newfileaccess(false);
+    if (!fileAccess->fopen(path, false, true))
+    {
+        LOG_err << "Unable to open file to write drive-id: " << path;
+        return API_EWRITE;
+    }
+
+    // Write the drive-id to file
+    if (!fileAccess->fwrite((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to write drive-id to file: " << path;
+        return API_EWRITE;
+    }
+
+    return API_OK;
+}
+
+int platformGetRLimitNumFile()
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return -1;
+    }
+
+    return int(rl.rlim_cur);
+#else
+    LOG_err << "Code for calling getrlimit is not available yet (or not relevant) on this platform";
+    return -1;
+#endif
+}
+
+bool platformSetRLimitNumFile(int newNumFileLimit)
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return false;
+    }
+    else
+    {
+        LOG_info << "rlimit for NOFILE before change is: " << rl.rlim_cur << ", " << rl.rlim_max;
+
+        if (newNumFileLimit < 0)
+        {
+            rl.rlim_cur = rl.rlim_max;
+        }
+        else
+        {
+            rl.rlim_cur = rlim_t(newNumFileLimit);
+
+            if (rl.rlim_cur > rl.rlim_max)
+            {
+                LOG_info << "Requested rlimit (" << newNumFileLimit << ") will be replaced by maximum allowed value (" << rl.rlim_max << ")";
+                rl.rlim_cur = rl.rlim_max;
+            }
+        }
+
+        if (0 < setrlimit(RLIMIT_NOFILE, &rl))
+        {
+            auto e = errno;
+            LOG_err << "Error calling setrlimit: " << e;
+            return false;
+        }
+    }
+    return true;
+#else
+    LOG_err << "Code for calling setrlimit is not available yet (or not relevant) on this platform";
+    return false;
+#endif
 }
 
 } // namespace

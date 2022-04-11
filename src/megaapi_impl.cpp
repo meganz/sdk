@@ -46,7 +46,6 @@
     #define _LARGEFILE64_SOURCE
 #endif
 #include <signal.h>
-#include <sys/resource.h>
 #endif
 
 
@@ -1495,7 +1494,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     {
         // drive-id must have been already written to external drive, since a name was given to it
         handle driveId;
-        error e = client->readDriveId(request->getLink(), driveId);
+        error e = readDriveId(*client->fsaccess, request->getLink(), driveId);
         if (e != API_OK)
             return e;
 
@@ -7796,59 +7795,6 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool isPdf = name.find(".pdf") != string::npos;
 
     return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
-}
-
-bool MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
-{
-#ifndef WIN32
-    struct rlimit rl{0,0};
-    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
-    {
-        auto e = errno;
-        LOG_err << "Error calling getrlimit: " << e;
-        return false;
-    }
-    else
-    {
-        LOG_info << "rlimit for NOFILE before change is: " << rl.rlim_cur << ", " << rl.rlim_max;
-        rl.rlim_cur = rlim_t(newNumFileLimit);
-
-        if (rl.rlim_cur > rl.rlim_max)
-        {
-            LOG_info << "Requested rlimit (" << rl.rlim_cur << ") will be replaced by maximum allowed value (" << rl.rlim_max << ")";
-            rl.rlim_cur = rl.rlim_max;
-        }
-
-        if (0 < setrlimit(RLIMIT_NOFILE, &rl))
-        {
-            auto e = errno;
-            LOG_err << "Error calling setrlimit: " << e;
-            return false;
-        }
-    }
-    return true;
-#else
-    LOG_err << "Code for calling setrlimit is not available yet (or not relevant) on this platform";
-    return false;
-#endif
-}
-
-int MegaApiImpl::platformGetRLimitNumFile() const
-{
-#ifndef WIN32
-    struct rlimit rl{0,0};
-    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
-    {
-        auto e = errno;
-        LOG_err << "Error calling getrlimit: " << e;
-        return -1;
-    }
-
-    return int(rl.rlim_cur);
-#else
-    LOG_err << "Code for calling getrlimit is not available yet (or not relevant) on this platform";
-    return -1;
-#endif
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
@@ -19832,7 +19778,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 // check if drive-id already exists
                 handle driveId;
-                e = client->readDriveId(value, driveId);
+                e = readDriveId(*client->fsaccess, value, driveId);
                 if (e != API_OK)
                 {
                     break;
@@ -19921,14 +19867,14 @@ void MegaApiImpl::sendPendingRequests()
                     // check if the drive id is already created
                     // read <pathToDrive>/.megabackup/drive-id
                     handle driveId;
-                    e = client->readDriveId(pathToDrive, driveId);
+                    e = readDriveId(*client->fsaccess, pathToDrive, driveId);
 
                     if (e == API_ENOENT)
                     {
                         // generate new id
-                        driveId = client->generateDriveId();
+                        driveId = generateDriveId(client->rng);
                         // write <pathToDrive>/.megabackup/drive-id
-                        e = client->writeDriveId(pathToDrive, driveId);
+                        e = writeDriveId(*client->fsaccess, pathToDrive, driveId);
                     }
 
                     if (e != API_OK)

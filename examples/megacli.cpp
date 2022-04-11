@@ -3221,7 +3221,12 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_import, sequence(text("import"), exportedLink(true, false)));
     p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
-    p->Add(exec_open, sequence(text("open"), exportedLink(false, true)));
+
+    p->Add(exec_open,
+           sequence(text("open"),
+                    exportedLink(false, true),
+                    opt(param("authToken"))));
+
     p->Add(exec_put, sequence(text("put"), opt(flag("-r")), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(exec_putq, sequence(text("putq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
@@ -4797,7 +4802,12 @@ void exec_open(autocomplete::ACState& s)
             clientFolder->logout(false);
         }
 
-        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), nullptr));
+        const char* authToken = nullptr;
+
+        if (s.words.size() > 2)
+            authToken = s.words[2].s.c_str();
+
+        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), authToken));
     }
     else
     {
@@ -7122,7 +7132,7 @@ void exec_driveid(autocomplete::ACState& s)
     if (!force)
     {
         auto id = UNDEF;
-        auto result = client->readDriveId(drivePath, id);
+        auto result = readDriveId(*client->fsaccess, drivePath, id);
 
         switch (result)
         {
@@ -7157,8 +7167,8 @@ void exec_driveid(autocomplete::ACState& s)
         }
     }
 
-    auto id = client->generateDriveId();
-    auto result = client->writeDriveId(drivePath, id);
+    auto id = generateDriveId(client->rng);
+    auto result = writeDriveId(*client->fsaccess, drivePath, id);
 
     if (result != API_OK)
     {
@@ -8781,6 +8791,9 @@ int main(int argc, char* argv[])
     // Needed so we can get the cwd.
 #ifdef __APPLE__
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
+
+    // Try and raise the file descriptor limit as high as we can.
+    platformSetRLimitNumFile();
 #else
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 #endif
@@ -9094,12 +9107,12 @@ void exec_syncadd(autocomplete::ACState& s)
 
         // Try and generate a drive ID.
         auto id = UNDEF;
-        auto result = client->readDriveId(drive.c_str(), id);
+        auto result = readDriveId(*client->fsaccess, drive.c_str(), id);
 
         if (result == API_ENOENT)
         {
-            id = client->generateDriveId();
-            result = client->writeDriveId(drive.c_str(), id);
+            id = generateDriveId(client->rng);
+            result = writeDriveId(*client->fsaccess, drive.c_str(), id);
         }
 
         if (result != API_OK)

@@ -1793,12 +1793,12 @@ struct StandardClient : public MegaApp
 
         // Generate drive ID if necessary.
         auto id = UNDEF;
-        auto result = client.readDriveId(drivePath.c_str(), id);
+        auto result = readDriveId(*client.fsaccess, drivePath.c_str(), id);
 
         if (result == API_ENOENT)
         {
-            id = client.generateDriveId();
-            result = client.writeDriveId(drivePath.c_str(), id);
+            id = generateDriveId(client.rng);
+            result = writeDriveId(*client.fsaccess, drivePath.c_str(), id);
         }
 
         if (result != API_OK)
@@ -4239,7 +4239,8 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     // wait for normal sync resumes to complete
-    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
+    // wait bumped to 40 seconds here because we've seen a case where the 2nd client didn't receive actionpackets for 30 seconds
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(40));
 
     waitonsyncs(DEFAULTWAIT, pclientA1.get(), &clientA2);
 
@@ -8736,11 +8737,11 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
         // Add and start sync.
         {
             // Generate drive ID.
-            auto driveID = cb.client.generateDriveId();
+            auto driveID = generateDriveId(cb.client.rng);
 
             // Write drive ID.
             auto drivePath = cb.fsBasePath.u8string();
-            auto result = cb.client.writeDriveId(drivePath.c_str(), driveID);
+            auto result = writeDriveId(*cb.client.fsaccess, drivePath.c_str(), driveID);
             ASSERT_EQ(result, API_OK);
 
             // Add sync.
@@ -8821,11 +8822,11 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
 
     {
         // Generate drive ID.
-        auto driveID = cb.client.generateDriveId();
+        auto driveID = generateDriveId(cb.client.rng);
 
         // Write drive ID.
         auto drivePath = cb.fsBasePath.u8string();
-        auto result = cb.client.writeDriveId(drivePath.c_str(), driveID);
+        auto result = writeDriveId(*cb.client.fsaccess, drivePath.c_str(), driveID);
         ASSERT_EQ(result, API_OK);
 
         // Add sync.
