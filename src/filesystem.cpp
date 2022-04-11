@@ -2054,5 +2054,13 @@ void FileDistributor::removeTarget()
         theFile.clear();
 }
 
+bool isNetworkFilesystem(FileSystemType type)
+{
+    return type == FS_CIFS
+           || type == FS_NFS
+           || type == FS_SMB
+           || type == FS_SMB2;
+}
+
 } // namespace
 

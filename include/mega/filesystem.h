@@ -1025,6 +1025,8 @@ private:
 
 }; // ScanService
 
+// True if type denotes a network filesystem.
+bool isNetworkFilesystem(FileSystemType type);
 
 } // namespace
 
