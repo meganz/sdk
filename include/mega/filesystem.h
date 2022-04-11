@@ -43,7 +43,11 @@ enum FileSystemType
     FS_FUSE = 6,
     FS_SDCARDFS = 7,
     FS_F2FS = 8,
-    FS_XFS = 9
+    FS_XFS = 9,
+    FS_CIFS = 10,
+    FS_NFS = 11,
+    FS_SMB = 12,
+    FS_SMB2 = 13
 };
 
 typedef void (*asyncfscallback)(void *);
@@ -1021,6 +1025,8 @@ private:
 
 }; // ScanService
 
+// True if type denotes a network filesystem.
+bool isNetworkFilesystem(FileSystemType type);
 
 } // namespace
 

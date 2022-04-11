@@ -79,6 +79,22 @@ extern JavaVM *MEGAjvm;
 #define XFS_SUPER_MAGIC 0x58465342
 #endif /* ! XFS_SUPER_MAGIC */
 
+#ifndef CIFS_MAGIC_NUMBER
+#define CIFS_MAGIC_NUMBER 0xFF534D42
+#endif // ! CIFS_MAGIC_NUMBER
+
+#ifndef NFS_SUPER_MAGIC
+#define NFS_SUPER_MAGIC 0x6969
+#endif // ! NFS_SUPER_MAGIC
+
+#ifndef SMB_SUPER_MAGIC
+#define SMB_SUPER_MAGIC 0x517B
+#endif // ! SMB_SUPER_MAGIC
+
+#ifndef SMB2_MAGIC_NUMBER
+#define SMB2_MAGIC_NUMBER 0xfe534d42
+#endif // ! SMB2_MAGIC_NUMBER
+
 #endif /* __linux__ */
 
 #if defined(__APPLE__) || defined(USE_IOS)
@@ -2001,9 +2017,15 @@ DirNotify* LinuxFileSystemAccess::newdirnotify(LocalNode& root,
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {
-    isnetwork = false;
+    // What filesystem is hosting our sync?
+    auto type = getlocalfstype(localpathArg);
+
+    // Is it a known network filesystem?
+    isnetwork = isNetworkFilesystem(type);
+
     syncError = NO_SYNC_ERROR;
     syncWarning = NO_SYNC_WARNING;
+
     return true;
 }
 
@@ -2044,6 +2066,18 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
         case XFS_SUPER_MAGIC:
             type = FS_XFS;
             break;
+        case CIFS_MAGIC_NUMBER:
+            type = FS_CIFS;
+            break;
+        case NFS_SUPER_MAGIC:
+            type = FS_NFS;
+            break;
+        case SMB_SUPER_MAGIC:
+            type = FS_SMB;
+            break;
+        case SMB2_MAGIC_NUMBER:
+            type = FS_SMB2;
+            break;
         default:
             type = FS_UNKNOWN;
             break;
@@ -2059,7 +2093,9 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
         {"exfat",       FS_EXFAT},
         {"hfs",         FS_HFS},
         {"msdos",       FS_FAT32},
+        {"nfs",         FS_NFS},
         {"ntfs",        FS_NTFS}, // Apple NTFS
+        {"smbfs",       FS_SMB},
         {"tuxera_ntfs", FS_NTFS}, // Tuxera NTFS for Mac
         {"ufsd_NTFS",   FS_NTFS}  // Paragon NTFS for Mac
     }; /* filesystemTypes */

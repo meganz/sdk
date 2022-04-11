@@ -622,6 +622,14 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "F2FS";
         case FS_XFS:
             return "XFS";
+        case FS_CIFS:
+            return "CIFS";
+        case FS_NFS:
+            return "NFS";
+        case FS_SMB:
+            return "SMB";
+        case FS_SMB2:
+            return "SMB2";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -2044,6 +2052,14 @@ void FileDistributor::removeTarget()
     // Decrement the count and clear theFile if there are no more targets.
     if (!--numTargets)
         theFile.clear();
+}
+
+bool isNetworkFilesystem(FileSystemType type)
+{
+    return type == FS_CIFS
+           || type == FS_NFS
+           || type == FS_SMB
+           || type == FS_SMB2;
 }
 
 } // namespace
