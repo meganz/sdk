@@ -1400,7 +1400,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
 
     sync->syncs.totalLocalNodes++;
 
-    if (type >= 0 && type < sync->localnodes.size())
+    if (type >= 0 && type < int(sync->localnodes.size()))
     {
         sync->localnodes[type]++;
     }
@@ -2096,7 +2096,7 @@ LocalNode::~LocalNode()
 
     sync->syncs.totalLocalNodes--;
 
-    if (type >= 0 && type < sync->localnodes.size())
+    if (type >= 0 && type < int(sync->localnodes.size()))
     {
         sync->localnodes[type]--;
     }
