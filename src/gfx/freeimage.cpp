@@ -302,7 +302,6 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
 
     // Force seeking to key frames
     formatContext->seek2any = false;
-    videoStream->skip_to_keyframe = true;
     if (decoder->capabilities & CAP_TRUNCATED)
     {
         codecContext->flags |= CAP_TRUNCATED;
