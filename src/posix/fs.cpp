@@ -2017,9 +2017,15 @@ DirNotify* LinuxFileSystemAccess::newdirnotify(LocalNode& root,
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {
-    isnetwork = false;
+    // What filesystem is hosting our sync?
+    auto type = getlocalfstype(localpathArg);
+
+    // Is it a known network filesystem?
+    isnetwork = isNetworkFilesystem(type);
+
     syncError = NO_SYNC_ERROR;
     syncWarning = NO_SYNC_WARNING;
+
     return true;
 }
 
