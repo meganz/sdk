@@ -501,9 +501,6 @@ public:
     //// skip duplicates and self-caused
     //bool checkValidNotification(int q, Notification& notification);
 
-    // process expired extra notifications.
-    dstime procextraq();
-
     // process all outstanding filesystem notifications (mark sections of the sync tree to visit)
     dstime procscanq();
 

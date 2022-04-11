@@ -2072,7 +2072,6 @@ LocalNode::~LocalNode()
     {
         // deactivate corresponding notifyq records
         sync->dirnotify->fsEventq.replaceLocalNodePointers(this, (LocalNode*)~0);
-        sync->dirnotify->fsDelayedNetworkEventq.replaceLocalNodePointers(this, (LocalNode*)~0);
     }
 
     if (!sync->syncs.mExecutingLocallogout)

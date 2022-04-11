@@ -597,7 +597,6 @@ struct MEGA_API DirNotify
 {
     // Thread safe so that a separate thread can listen for filesystem notifications (for windows for now, maybe more platforms later)
     NotificationDeque fsEventq;
-    NotificationDeque fsDelayedNetworkEventq;
 
 private:
     // these next few fields may be updated by notification-reading threads

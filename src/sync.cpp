@@ -2660,77 +2660,6 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     return false;
 }
 
-dstime Sync::procextraq()
-{
-    assert(syncs.onSyncThread());
-    assert(dirnotify.get());
-
-    Notification notification;
-    NotificationDeque& queue = dirnotify->fsDelayedNetworkEventq;
-    dstime delay = NEVER;
-
-    while (queue.popFront(notification))
-    {
-        LocalNode* node = notification.localnode;
-
-        // Ignore notifications for nodes that no longer exist.
-        if (node == (LocalNode*)~0)
-        {
-            LOG_debug << syncname << "Notification skipped: "
-                      << notification.path.toPath();
-            continue;
-        }
-
-        // How long has it been since the notification was queued?
-        auto elapsed = syncs.waiter.ds - notification.timestamp;
-
-        // Is it ready to be processed?
-        if (elapsed < EXTRA_SCANNING_DELAY_DS)
-        {
-            // We'll process the notification later.
-            queue.unpopFront(notification);
-
-            return delay;
-        }
-
-        LOG_verbose << syncname << "Processing extra fs notification: "
-                    << notification.path.toPath();
-
-        LocalPath remainder;
-        LocalNode* match;
-        LocalNode* nearest;
-
-        match = localnodebypath(node, notification.path, &nearest, &remainder, false);
-
-        // If the node is reachable, notify its parent.
-        if (match && match->parent)
-        {
-            nearest = match->parent;
-        }
-
-        // Make sure some parent in the chain actually exists.
-        if (!nearest)
-        {
-            // Should this notification be rescheduled?
-            continue;
-        }
-
-        // Let the parent know it needs a scan.
-#ifdef DEBUG
-        if (nearest->scanAgain < TREE_ACTION_HERE)
-        {
-            SYNC_verbose << "Trigger scan flag by delayed notification on " << nearest->getLocalPath();
-        }
-#endif
-        nearest->setScanAgain(false, true, !remainder.empty(), SCANNING_DELAY_DS);
-
-        // How long the caller should wait before syncing.
-        delay = SCANNING_DELAY_DS;
-    }
-
-    return delay;
-}
-
 //  Just mark the relative LocalNodes as needing to be rescanned.
 dstime Sync::procscanq()
 {
@@ -2848,18 +2777,6 @@ dstime Sync::procscanq()
             // in case permissions changed on a scan-blocked folder
             // retry straight away, but don't reset the backoff delay
             nearest->rare().scanBlocked->scanBlockedTimer.set(syncs.waiter.ds);
-        }
-
-        // Queue an extra notification if we're a network sync.
-        if (isnetwork)
-        {
-            LOG_verbose << syncname << "Queuing extra notification for: "
-                        << notification.path.toPath();
-
-            dirnotify->notify(dirnotify->fsDelayedNetworkEventq,
-                              node,
-                              notification.scanRequirement,
-                              std::move(notification.path));
         }
 
         // How long the caller should wait before syncing.
@@ -9752,7 +9669,6 @@ void Syncs::syncLoop()
                 // And only those that make use of filesystem events.
                 if (sync->dirnotify)
                 {
-                    sync->procextraq();
                     sync->procscanq();
                 }
             }

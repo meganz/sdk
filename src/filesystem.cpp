@@ -895,7 +895,7 @@ int DirNotify::getFailed(string& reason)
 
 bool DirNotify::empty()
 {
-    return fsEventq.empty() && fsDelayedNetworkEventq.empty();
+    return fsEventq.empty();
 }
 
 // notify base LocalNode + relative path/filename
