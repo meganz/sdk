@@ -1450,6 +1450,8 @@ void LocalNode::trimRareFields()
 
         if (!rareFields->scanBlocked &&
             !rareFields->scanRequest &&
+            rareFields->movePendingFrom.expired() &&
+            !rareFields->movePendingTo &&
             !rareFields->moveFromHere &&
             !rareFields->moveToHere &&
             !rareFields->filterChain &&

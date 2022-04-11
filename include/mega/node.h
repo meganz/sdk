@@ -667,6 +667,16 @@ struct MEGA_API LocalNode
             map<LocalPath, LocalNode*> priorChildrenToRemove;
         };
 
+        struct MovePending
+        {
+            MovePending(LocalPath&& sourcePath)
+              : sourcePath(std::move(sourcePath))
+            {
+            }
+
+            LocalPath sourcePath;
+        };
+
         struct CreateFolderInProgress
         {
         };
@@ -687,6 +697,9 @@ struct MEGA_API LocalNode
             FileFingerprint sourceFingerprint;
             LocalNode* sourcePtr = nullptr;
         };
+
+        weak_ptr<MovePending> movePendingFrom;
+        shared_ptr<MovePending> movePendingTo;
 
         shared_ptr<MoveInProgress> moveFromHere;
         shared_ptr<MoveInProgress> moveToHere;
