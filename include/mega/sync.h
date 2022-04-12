@@ -507,7 +507,7 @@ public:
     // helper for checking moves etc
     bool checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath);
 
-    unsigned localnodes[2]{};
+    std::array<unsigned, 2> localnodes{};
 
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** parent, LocalPath* outpath, bool fromOutsideThreadAlreadyLocked);

@@ -3083,5 +3083,22 @@ bool platformSetRLimitNumFile(int newNumFileLimit)
 #endif
 }
 
+void debugLogHeapUsage()
+{
+#ifdef DEBUG
+#ifdef WIN32
+    _CrtMemState state;
+    _CrtMemCheckpoint(&state);
+
+    LOG_debug << "MEM use.  Heap: " << state.lTotalCount << " highwater: " << state.lHighWaterCount
+        << " _FREE_BLOCK/" << state.lCounts[_FREE_BLOCK] << "/" << state.lSizes[_FREE_BLOCK]
+        << " _NORMAL_BLOCK/" << state.lCounts[_NORMAL_BLOCK] << "/" << state.lSizes[_NORMAL_BLOCK]
+        << " _CRT_BLOCK/" << state.lCounts[_CRT_BLOCK] << "/" << state.lSizes[_CRT_BLOCK]
+        << " _IGNORE_BLOCK/" << state.lCounts[_IGNORE_BLOCK] << "/" << state.lSizes[_IGNORE_BLOCK]
+        << " _CLIENT_BLOCK/" << state.lCounts[_CLIENT_BLOCK] << "/" << state.lSizes[_CLIENT_BLOCK];
+#endif
+#endif
+}
+
 } // namespace
 

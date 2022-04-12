@@ -1147,6 +1147,11 @@ void MegaClient::init()
     mNotifiedSumSize = 0;
     mNodeCounters = NodeCounterMap();
     mOptimizePurgeNodes = false;
+
+    mCurrentSeqtag.clear();
+    mPriorSeqTag.clear();
+    mCurrentSeqtagSeen = false;
+    mCurrentSeqtagCmdtag = 0;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
@@ -2518,6 +2523,8 @@ void MegaClient::exec()
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
+
+        debugLogHeapUsage();
     }
 #endif
 
@@ -11707,6 +11714,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
             sctable && fetchsc(sctable.get()))
     {
         nodeTreeIsChanging.unlock(); // nodes loaded from db
+        debugLogHeapUsage();
 
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between

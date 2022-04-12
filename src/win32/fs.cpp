@@ -1714,14 +1714,17 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                 }
 
                 // For now at least, do the same as the old system: ignore system+hidden.
-                // desktop.ini seem to be at least one problem solved this way, they are unopenable
+                // desktop.ini seem to be at least one problem solved this way, they are
+                // (at least sometimes) unopenable
                 // anyway, so no valid fingerprint can be extracted.
                 if (WinFileAccess::skipattributes(info->FileAttributes))
                 {
-                    continue;
+                    result.type = TYPE_DONOTSYNC;
                 }
-
-                result.type = (info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
+                else
+                {
+                    result.type = (info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
+                }
                 result.fsid = (handle) info->FileId.QuadPart;
 
                 result.fingerprint.mtime = FileTime_to_POSIX((FILETIME*)&info->LastWriteTime);
@@ -1754,7 +1757,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                 {
                     memset(result.fingerprint.crc.data(), 0, sizeof(result.fingerprint.crc));
                 }
-                else
+                else if (result.type == FILENODE)
                 {
                     // Fingerprint the file if it's new or changed
                     // (caller has to not supply 'known' items we aready know changed in case mtime+size is still a match)

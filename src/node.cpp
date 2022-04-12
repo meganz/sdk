@@ -826,6 +826,7 @@ string Node::displaypath() const
             path.insert(0, "//bin");
             return path;
 
+        case TYPE_DONOTSYNC:
         case TYPE_SPECIAL:
         case TYPE_UNKNOWN:
         case FILENODE:
@@ -1400,7 +1401,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
 
     sync->syncs.totalLocalNodes++;
 
-    if (type != TYPE_UNKNOWN)
+    if (type >= 0 && type < int(sync->localnodes.size()))
     {
         sync->localnodes[type]++;
     }
@@ -2097,9 +2098,9 @@ LocalNode::~LocalNode()
 
     sync->syncs.totalLocalNodes--;
 
-    if (type != TYPE_UNKNOWN)
+    if (type >= 0 && type < int(sync->localnodes.size()))
     {
-        sync->localnodes[type]--;    // todo: make sure we are not using the larger types and overflowing the buffer
+        sync->localnodes[type]--;
     }
 
     // remove parent association

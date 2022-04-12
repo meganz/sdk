@@ -931,6 +931,9 @@ int platformGetRLimitNumFile();
 
 bool platformSetRLimitNumFile(int newNumFileLimit = -1);
 
+void debugLogHeapUsage();
+
+
 } // namespace
 
 #endif

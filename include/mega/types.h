@@ -341,7 +341,7 @@ typedef list<struct File*> file_list;
 // ROOT - the cloud drive root node
 // INCOMING - inbox
 // RUBBISH - rubbish bin
-typedef enum { TYPE_SPECIAL = -2, TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
+typedef enum { TYPE_DONOTSYNC = -3, TYPE_SPECIAL = -2, TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;

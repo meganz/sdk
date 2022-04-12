@@ -1205,6 +1205,12 @@ void Sync::statecacheadd(LocalNode* l)
         return;
     }
 
+    if (l->type < 0)
+    {
+        SYNC_verbose << syncname << "Leaving type " << l->type << " out of DB, (scan blocked/symlink/reparsepoint/systemhidden etc): " << l->getLocalPath().toPath();
+        return;
+    }
+
     insertq.insert(l);
 }
 
@@ -1233,12 +1239,8 @@ void Sync::cachenodes()
 
             for (set<LocalNode*>::iterator it = insertq.begin(); it != insertq.end(); )
             {
-                if ((*it)->type == TYPE_UNKNOWN)
-                {
-                    SYNC_verbose << syncname << "Leaving unknown type node out of DB, (likely scan blocked): " << (*it)->getLocalPath().toPath();
-                    insertq.erase(it++);
-                }
-                else if ((*it)->parent->dbid || (*it)->parent == localroot.get())
+                assert((*it)->type >= 0);
+                if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
                     // add once we know the parent dbid so that the parent/child structure is correct in db
                     assert(!memcmp(syncs.syncKey.key, syncs.mClient.key.key, sizeof(syncs.syncKey.key)));
@@ -1667,6 +1669,11 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
     assert(syncs.onSyncThread());
 
     // no cloudNode at this row.  Check if this node is where a filesystem item moved to.
+
+    if (row.fsNode->type == TYPE_DONOTSYNC)
+    {
+        return false;
+    }
 
     if (row.fsNode->type == TYPE_SPECIAL)
     {
@@ -3116,6 +3123,7 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     us.mSync.reset(new Sync(us, debris, localdebris, inshare, logname));
     us.mConfig.mFilesystemFingerprint = us.mSync->fsfp;
+    debugLogHeapUsage();
 
     us.mSync->purgeStaleDownloads();
 
@@ -5527,7 +5535,7 @@ bool syncRow::ignoreFileStable() const
 ExclusionState syncRow::exclusionState(const CloudNode& node) const
 {
     assert(syncNode);
-    assert(syncNode->type != FILENODE);
+    assert(syncNode->type > FILENODE);
 
     return syncNode->exclusionState(node.name,
                                     node.type,
@@ -5537,7 +5545,7 @@ ExclusionState syncRow::exclusionState(const CloudNode& node) const
 ExclusionState syncRow::exclusionState(const FSNode& node) const
 {
     assert(syncNode);
-    assert(syncNode->type != FILENODE);
+    assert(syncNode->type > FILENODE);
 
     return syncNode->exclusionState(node.localname,
                                     node.type,
@@ -6017,7 +6025,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     (void)depth;  // just useful for setting conditional breakpoints when debugging
 
     assert(row.syncNode);
-    assert(row.syncNode->type != FILENODE);
+    assert(row.syncNode->type > FILENODE);
     assert(row.syncNode->getLocalPath() == fullPath.localPath);
 
     if (depth + mCurrentRootDepth == MAX_DEPTH - 1)
@@ -6341,7 +6349,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     case 2:
                         // third and final pass: recurse into the folders
                         if (childRow.syncNode &&
-                            childRow.syncNode->type != FILENODE && (
+                            childRow.syncNode->type > FILENODE && (
                                 (childRow.recurseBelowRemovedCloudNode &&
                                  (childRow.syncNode->scanRequired() || childRow.syncNode->syncRequired()))
                                 ||
@@ -6371,7 +6379,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                             }
                         }
                         if (childRow.syncNode &&
-                            childRow.syncNode->type != FILENODE)
+                            childRow.syncNode->type > FILENODE)
                         {
                             childRow.syncNode->checkTreestate(true);
                         }
@@ -6421,7 +6429,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     // flags let us know if future actions are needed at this level
     for (auto& child : row.syncNode->children)
     {
-        if (row.ignoreFileStable() && child.second->type != FILENODE)
+        if (row.ignoreFileStable() && child.second->type > FILENODE)
         {
             row.syncNode->scanAgain = updateTreestateFromChild(row.syncNode->scanAgain, child.second->scanAgain);
             row.syncNode->syncAgain = updateTreestateFromChild(row.syncNode->syncAgain, child.second->syncAgain);
@@ -6848,6 +6856,12 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     {
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemXSF);
 
+        if (row.syncNode->type == TYPE_DONOTSYNC)
+        {
+            // we do not upload do-not-sync files (eg. system+hidden, on windows)
+            return true;
+        }
+
         // Any clashing names in the cloud?
         if (!row.cloudClashingNames.empty())
         {
@@ -7214,7 +7228,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
         row.syncNode->syncedFingerprint  = row.fsNode->fingerprint;
     }
 
-    if (row.syncNode->type != FILENODE)
+    if (row.syncNode->type > FILENODE)
     {
         row.syncNode->setScanAgain(false, true, true, 0);
     }
@@ -7262,7 +7276,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Sync
     {
         row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
     }
-    if (row.syncNode->type != FILENODE)
+    if (row.syncNode->type > FILENODE)
     {
         row.syncNode->setSyncAgain(false, true, true);
     }
@@ -8635,7 +8649,7 @@ void Syncs::processTriggerHandles()
                 if (found && !isInTrash)
                 {
                     // if the parent is a file, then it's just old versions being mentioned in the actionpackets, ignore
-                    if (cloudNode.parentType != FILENODE && cloudNode.parentType != TYPE_UNKNOWN && !cloudNode.parentHandle.isUndef())
+                    if (cloudNode.parentType > FILENODE && !cloudNode.parentHandle.isUndef())
                     {
                         auto& syncs = *this;
                         SYNC_verbose << mClient.clientname << "Trigger syncNode not found for " << cloudNodePath << ", will trigger parent";
@@ -10173,7 +10187,7 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
 {
     assert(onSyncThread());
 
-    if (n->type != FILENODE)
+    if (n->type > FILENODE)
     {
         for (localnode_map::iterator it = n->children.begin(); it != n->children.end(); )
         {
@@ -10245,7 +10259,7 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
                 break;
 
             case FOLDER_ONLY:
-                assert(n->type != FILENODE);
+                assert(n->type > FILENODE);
                 break;
         }
 
@@ -10288,8 +10302,8 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     lock_guard<mutex> g(mClient.nodeTreeMutex);
     if (Node* n = mClient.nodeByHandle(h, true))
     {
-        assert(n->type != FILENODE);
-        assert(!n->parent || n->parent->type != FILENODE);
+        assert(n->type > FILENODE);
+        assert(!n->parent || n->parent->type > FILENODE);
         cloudChildren.reserve(n->children.size());
         for (auto c : n->children)
         {
