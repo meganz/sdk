@@ -473,8 +473,7 @@ void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, 
 
 void DemoApp::sync_removed(const SyncConfig& config)
 {
-    conlock(cout) << "Sync - removed: " << toHandle(config.mBackupId) << endl;
-
+    conlock(cout) << "Sync - about to remove " << toHandle(config.mBackupId) << endl;
 }
 
 void DemoApp::syncupdate_scanning(bool active)
@@ -9612,7 +9611,7 @@ void exec_syncremove(autocomplete::ACState& s)
     // Are we logged in?
     if (client->loggedin() != FULLACCOUNT)
     {
-        cerr << "You must be logged in to manipulate backup syncs."
+        cerr << "You must be logged in to manipulate syncs."
              << endl;
         return;
     }
@@ -9642,11 +9641,11 @@ void exec_syncremove(autocomplete::ACState& s)
         {
             if (e == API_OK)
             {
-                cout << "Backup Centre - backup removed" << endl;
+                cout << "Sync - removed" << endl;
             }
             else
             {
-                cout << "Backup Centre - Failed to remove backup (" << error(e) << ": " << errorstring(e) << ')' << endl;
+                cout << "Sync - Failed to remove (" << error(e) << ": " << errorstring(e) << ')' << endl;
             }
         });
 
