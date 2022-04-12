@@ -7720,7 +7720,7 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     c0.triggerFullScan(id);
 
     // Wait for synchronization to complete.
-    waitonsyncs(TIMEOUT, &c0);
+    waitonsyncs(chrono::seconds(15), &c0);
 
     // Confirm model.
     ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
