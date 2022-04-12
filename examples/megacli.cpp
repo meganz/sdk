@@ -9312,7 +9312,7 @@ void exec_syncadd(autocomplete::ACState& s)
     bool backup = s.extractflag("-backup");
     s.extractflagparam("-external", drive);
     bool named = s.extractflagparam("-name", syncname);
-    const LocalPath& sourcePath = localPathArg(s.words[2].s);
+    LocalPath sourcePath = localPathArg(s.words[2].s);
 
     if (!named)
     {
@@ -9338,6 +9338,22 @@ void exec_syncadd(autocomplete::ACState& s)
 
     else // backup
     {
+        // drive must be without trailing separator
+        if (!drive.empty() && drive.back() == LocalPath::localPathSeparator_utf8)
+        {
+            drive.pop_back();
+        }
+
+#ifdef _WIN32
+        // source can be with or without trailing separator, except for Win where it must have it for drive root (OMG...)
+        string src = s.words[2].s;
+        if (!src.empty() && src.back() != LocalPath::localPathSeparator_utf8)
+        {
+            src.push_back(LocalPath::localPathSeparator_utf8);
+            sourcePath = LocalPath::fromAbsolutePath(src);
+        }
+#endif
+
         auto thenAddSync = [sourcePath, drive, syncname](const Error& err, targettype_t, vector<NewNode>& nn, bool)
         {
             if (err != API_OK)
