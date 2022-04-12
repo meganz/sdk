@@ -138,6 +138,9 @@ int attempts = 0;
 std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
+// external drive id, used for name filtering
+string b64driveid;
+
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo);
 
 #ifdef ENABLE_SYNC
@@ -1241,11 +1244,24 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
     else if (!gVerboseMode)
     {
         cout << "Received a TLV with " << tlv->size() << " item(s) of user attribute: " << endl;
+        bool printDriveId = false;
 
         unique_ptr<vector<string>> keys(tlv->getKeys());
         for (auto it = keys->begin(); it != keys->end(); it++)
         {
             const string& key = it->empty() ? "(no key)" : *it;
+
+            // drive names can be filtered
+            if (type == ATTR_DRIVE_NAMES)
+            {
+                printDriveId = b64driveid.empty() || key == b64driveid;
+                if (!printDriveId)
+                {
+                    continue;
+                }
+            }
+
+            // print user attribute values
             string value;
             if (!tlv->get(*it, value) || value.empty())
             {
@@ -1274,6 +1290,13 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 
             cout << endl;
         }
+
+        // echo specific drive name not found
+        if (!printDriveId && !b64driveid.empty())
+        {
+            cout << "Specified drive could not be found" << endl;
+        }
+        b64driveid.clear(); // in case this was for a request that used it
     }
 }
 
@@ -3130,6 +3153,74 @@ void exec_getdevicename(autocomplete::ACState& s)
     client->getua(u, ATTR_DEVICE_NAMES);
 }
 
+void exec_setextdrivename(autocomplete::ACState& s)
+{
+    const string& drivepath = s.words[1].s;
+    const string& drivename = s.words[2].s;
+
+    // check if the drive-id was already created
+    // read <drivepath>/.megabackup/drive-id
+    handle driveid;
+    error e = readDriveId(*client->fsaccess, drivepath.c_str(), driveid);
+
+    if (e == API_ENOENT)
+    {
+        // generate new id
+        driveid = generateDriveId(client->rng);
+        // write <drivepath>/.megabackup/drive-id
+        e = writeDriveId(*client->fsaccess, drivepath.c_str(), driveid);
+    }
+
+    if (e != API_OK)
+    {
+        cout << "Failed to get drive-id for " << drivepath << endl;
+        return;
+    }
+
+    putua_map(string(Base64Str<MegaClient::DRIVEHANDLE>(driveid)), Base64::btoa(drivename), ATTR_DRIVE_NAMES);
+}
+
+void exec_getextdrivename(autocomplete::ACState& s)
+{
+    User* u = client->ownuser();
+    if (!u)
+    {
+        cout << "Must be logged in to query own attributes." << endl;
+        return;
+    }
+
+    bool idFlag = s.extractflag("-id");
+    bool pathFlag = s.extractflag("-path");
+
+    if (s.words.size() == 2)
+    {
+        b64driveid.clear();
+
+        if (idFlag)
+        {
+            b64driveid = s.words[1].s;
+        }
+
+        else if (pathFlag)
+        {
+            // read drive-id from <drivepath>/.megabackup/drive-id
+            const string& drivepath = s.words[1].s;
+            handle driveid = 0;
+            error e = readDriveId(*client->fsaccess, drivepath.c_str(), driveid);
+
+            if (e == API_ENOENT)
+            {
+                cout << "Drive-id not set for " << drivepath << endl;
+                return;
+            }
+
+            b64driveid = string(Base64Str<MegaClient::DRIVEHANDLE>(driveid));
+        }
+    }
+
+    client->getua(u, ATTR_DRIVE_NAMES);
+}
+
 void exec_setmybackups(autocomplete::ACState& s)
 {
     const string& bkpsFolder = s.words[1].s;
@@ -3518,6 +3609,8 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef ENABLE_SYNC
     p->Add(exec_setdevicename, sequence(text("setdevicename"), param("device_name")));
     p->Add(exec_getdevicename, sequence(text("getdevicename")));
+    p->Add(exec_setextdrivename, sequence(text("setextdrivename"), param("drive_path"), param("drive_name")));
+    p->Add(exec_getextdrivename, sequence(text("getextdrivename"), opt(either(sequence(flag("-id"), param("b64driveid")), sequence(flag("-path"), param("drivepath"))))));
     p->Add(exec_setmybackups, sequence(text("setmybackups"), param("mybackup_folder")));
     p->Add(exec_getmybackups, sequence(text("getmybackups")));
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(either(
