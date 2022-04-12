@@ -1254,7 +1254,18 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t type)
             }
             else
             {
-                cout << "\t" << key << "\t" << value;
+                cout << "\t" << key << "\t";
+                if (type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES || type == ATTR_ALIAS)
+                {
+                    // Values that are known to contain only printable characters are ok to display directly.
+                    cout << value << " (real text value)";
+                }
+                else
+                {
+                    // Some values may contain non-printable characters, so display them as base64 encoded.
+                    const string& b64value = Base64::btoa(value);
+                    cout << b64value << " (base64 encoded value)";
+                }
             }
 
             if (key == client->getDeviceidHash())
@@ -3058,7 +3069,7 @@ void exec_timelocal(autocomplete::ACState& s)
 
 }
 
-void putua_map(const std::string& key, const std::string& value, attr_t attrtype)
+void putua_map(const std::string& b64key, const std::string& b64value, attr_t attrtype)
 {
     User* ownUser = client->ownuser();
     if (!ownUser)
@@ -3073,7 +3084,8 @@ void putua_map(const std::string& key, const std::string& value, attr_t attrtype
     if (!oldValue)  // attr doesn't exist -> create it
     {
         tlv.reset(new TLVstore());
-        tlv->set(key, value); // real value, non-B64
+        const string& realValue = Base64::atob(b64value);
+        tlv->set(b64key, realValue); // real value, non-B64
     }
     else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
     {
@@ -3086,7 +3098,7 @@ void putua_map(const std::string& key, const std::string& value, attr_t attrtype
         tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
 
         string_map attrMap;
-        attrMap[key] = Base64::btoa(value); // only because User::mergeUserAttribute() expects B64 values
+        attrMap[b64key] = b64value; // User::mergeUserAttribute() expects B64 values
         if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
         {
             cout << "Failed to merge with existing values" << endl;
@@ -3101,9 +3113,10 @@ void putua_map(const std::string& key, const std::string& value, attr_t attrtype
 
 void exec_setdevicename(autocomplete::ACState& s)
 {
-    const string& idHash = client->getDeviceidHash();
-    const string& devName = s.words[1].s;
-    putua_map(idHash, devName, ATTR_DEVICE_NAMES);
+    const string& b64idhash = client->getDeviceidHash(); // already in B64
+    const string& devname = s.words[1].s;
+    const string& b64devname = Base64::btoa(devname);
+    putua_map(b64idhash, b64devname, ATTR_DEVICE_NAMES);
 }
 
 void exec_getdevicename(autocomplete::ACState& s)
@@ -5600,11 +5613,13 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
         {
-            if (attrtype == ATTR_DEVICE_NAMES
-                    || attrtype == ATTR_DRIVE_NAMES
-                    || attrtype == ATTR_ALIAS)
+            // received <attrKey> will be B64 encoded
+            // received <attrValue> will have the real text value
+            if (attrtype == ATTR_DEVICE_NAMES       // TLV: { B64enc DeviceId hash, device name }
+                    || attrtype == ATTR_DRIVE_NAMES // TLV: { B64enc DriveId, drive name}
+                    || attrtype == ATTR_ALIAS)      // TLV: { B64enc User handle, alias }
             {
-                putua_map(s.words[3].s, s.words[4].s, attrtype);
+                putua_map(s.words[3].s, Base64::btoa(s.words[4].s), attrtype);
             }
         }
     }
