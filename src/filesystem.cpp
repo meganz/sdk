@@ -1146,6 +1146,20 @@ LocalPath LocalPath::leafName() const
     p = p == string::npos ? 0 : p + 1;
     LocalPath result;
     result.localpath = localpath.substr(p, localpath.size() - p);
+    if (result.localpath.empty() && !localpath.empty() && localpath.back() == localPathSeparator)
+    {
+        result = *this;
+        result.localpath.pop_back(); // drop trailing separator
+        result = result.leafName();
+    }
+
+#ifdef WIN32
+    if (!result.localpath.empty() && result.localpath.back() == L':')
+    {
+        result.localpath.pop_back(); // drop trailing ':'
+    }
+#endif
+
     assert(result.invariant());
     return result;
 }
