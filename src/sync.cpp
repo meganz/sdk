@@ -7968,7 +7968,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
                                       &active,
                                       &nodeIsDefinitelyExcluded,
                                       nullptr,
-                                      Syncs::LATEST_VERSION);
+                                      Syncs::LATEST_VERSION_ONLY);
 
         // Remote doesn't exist under an active sync or is excluded.
         if (!found || !active || nodeIsDefinitelyExcluded)
@@ -10253,6 +10253,15 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
                         n = m;
                     }
                 }
+                break;
+
+            case LATEST_VERSION_ONLY:
+                if (n->type != FILENODE)
+                    break;
+
+                if (n->parent && n->parent->type == FILENODE)
+                    return false;
+
                 break;
 
             case FOLDER_ONLY:

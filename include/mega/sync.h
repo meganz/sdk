@@ -1160,7 +1160,14 @@ private:
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
-    enum WhichCloudVersion { EXACT_VERSION, LATEST_VERSION, FOLDER_ONLY };
+    enum WhichCloudVersion
+    {
+        EXACT_VERSION,
+        LATEST_VERSION,
+        LATEST_VERSION_ONLY,
+        FOLDER_ONLY
+    };
+
     bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
             bool* nodeIsInActiveSync, bool* nodeIsDefinitelyExcluded, unsigned* depth, WhichCloudVersion);
 
