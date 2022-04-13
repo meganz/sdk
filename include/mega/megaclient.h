@@ -375,6 +375,11 @@ public:
     // check if logged in
     sessiontype_t loggedin();
 
+    // provide state by change callback
+    void reportLoggedInChanges();
+    sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
+    handle mLastLoggedInMeHandle = UNDEF;
+
     // check if logged in a folder link
     bool loggedinfolderlink();
 
@@ -526,10 +531,6 @@ public:
     bool xferpaused[2];
 
     MegaClientAsyncQueue mAsyncQueue;
-
-    // if set, symlinks will be followed except in recursive deletions
-    // (give the user ample warning about possible sync repercussions)
-    bool followsymlinks;
 
     // number of parallel connections per transfer (PUT/GET)
     unsigned char connections[2];

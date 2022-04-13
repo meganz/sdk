@@ -1341,7 +1341,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
         // scan the dir, mark all items with a unique identifier
         if ((success = da->dopen(localpath, fa, false)))
         {
-            while (da->dnext(*localpath, localname, client->followsymlinks))
+            while (da->dnext(*localpath, localname, false))
             {
                 name = localname.toName(*client->fsaccess);
 

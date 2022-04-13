@@ -83,7 +83,6 @@ class MegaPushNotificationSettings;
 class MegaBackgroundMediaUpload;
 class MegaCancelToken;
 class MegaApi;
-
 class MegaSemaphore;
 
 #if defined(SWIG)

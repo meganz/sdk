@@ -3350,7 +3350,6 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_reload, sequence(text("reload"), opt(text("nocache"))));
     p->Add(exec_logout, sequence(text("logout"), opt(flag("-keepsyncconfigs"))));
     p->Add(exec_locallogout, sequence(text("locallogout")));
-    p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
     p->Add(exec_debug, sequence(text("debug"),
                 opt(either(flag("-on"), flag("-off"), flag("-verbose"))),
@@ -6704,18 +6703,6 @@ void exec_session(autocomplete::ACState& s)
     else
     {
         cout << "Internal error." << endl;
-    }
-}
-
-void exec_symlink(autocomplete::ACState& s)
-{
-    if (client->followsymlinks ^= true)
-    {
-        cout << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
-    }
-    else
-    {
-        cout << "No longer following symlinks." << endl;
     }
 }
 
