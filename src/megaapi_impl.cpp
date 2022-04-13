@@ -10831,9 +10831,6 @@ MegaNodeList* MegaApiImpl::getInShares(int order)
     {
         Node *n;
         User *user = &(it->second);
-        // TODO it can be implemented with a query to DB
-        // we can use method client->sctable->getNodesWithShares()
-        // This method returns all in-shares
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
         {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
@@ -17479,7 +17476,6 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
         return 0;
     }
 
-    // TODO Nodes on Demand: it can be implemented with a query to DB
     int numFiles = 0;
     node_list nodeList = client->getChildren(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
@@ -17507,7 +17503,6 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
         return 0;
     }
 
-    // TODO Nodes on Demand: it can be implemented with a query to DB
     int numFolders = 0;
     node_list nodeList = client->getChildren(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
@@ -17638,7 +17633,6 @@ int MegaApiImpl::getNumVersions(MegaNode *node)
         return 0;
     }
 
-    // TODO Nodes on Demand: it can be implemented with a query to DB
     int numVersions = 1;
     bool looking = true;
     while (looking)

@@ -389,7 +389,6 @@ public:
     bool isLoadingNodes() { return mLoadingNodes; }
 
 private:
-    // TODO Nodes on demand remove reference
     MegaClient& mClient;
 
     // interface to handle accesses to "nodes" table

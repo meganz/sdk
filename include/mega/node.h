@@ -106,7 +106,6 @@ typedef FingerprintMap::iterator FingerprintMapPosition;
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
-    // TODO Nodes on demand remove MegaClient and NodeManager reference
     MegaClient* client = nullptr;
 
     // supplies the nodekey (which is private to ensure we track changes to it)
