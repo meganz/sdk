@@ -970,20 +970,23 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             File *f = (*it);
             LocalPath localpath = f->getLocalname();
 
-            if (auto node = client->nodeByHandle(f->h, true))
+            if (!f->syncxfer)
             {
-                auto type = isFilenameAnomaly(localpath, f->name);
-
-                if (type != FILENAME_ANOMALY_NONE)
+                if (auto node = client->nodeByHandle(f->h, true))
                 {
-                    // Construct remote path for reporting.
-                    ostringstream remotepath;
+                    auto type = isFilenameAnomaly(localpath, f->name);
 
-                    remotepath << node->displaypath()
-                               << (node->parent ? "/" : "")
-                               << f->name;
+                    if (type != FILENAME_ANOMALY_NONE)
+                    {
+                        // Construct remote path for reporting.
+                        ostringstream remotepath;
 
-                    client->filenameAnomalyDetected(type, localpath, remotepath.str());
+                        remotepath << node->displaypath()
+                                   << (node->parent ? "/" : "")
+                                   << f->name;
+
+                        client->filenameAnomalyDetected(type, localpath, remotepath.str());
+                    }
                 }
             }
 

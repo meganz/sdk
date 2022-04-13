@@ -7530,8 +7530,29 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             NodeHandle displaceHandle = row.cloudNode ? row.cloudNode->handle : NodeHandle();
             auto noDebris = inshare;
 
-            syncs.queueClient([existingUpload, displaceHandle, noDebris](MegaClient& mc, DBTableTransactionCommitter& committer)
+            // Check for filename anomalies.
+            std::function<void(MegaClient&)> signalFilenameAnomaly = [](MegaClient&) {};
+
+            {
+                // So we can capture if necessary.
+                auto name = row.syncNode->name;
+                auto type = row.syncNode->type;
+                auto anomalyType = isFilenameAnomaly(fullPath.localPath, name, type);
+
+                if (anomalyType != FILENAME_ANOMALY_NONE)
                 {
+                    signalFilenameAnomaly = [anomalyType, fullPath](MegaClient& client) {
+                        client.filenameAnomalyDetected(anomalyType,
+                                                       fullPath.localPath,
+                                                       fullPath.cloudPath);
+                    };
+                }
+            }
+
+            syncs.queueClient([existingUpload, displaceHandle, noDebris, signalFilenameAnomaly](MegaClient& mc, DBTableTransactionCommitter& committer)
+                {
+                    // Signal detected anomaly, if any.
+                    signalFilenameAnomaly(mc);
 
                     Node* displaceNode = mc.nodeByHandle(displaceHandle);
                     if (displaceNode && mc.versions_disabled)
