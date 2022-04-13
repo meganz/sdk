@@ -716,7 +716,6 @@ void CurlHttpIO::processcurlevents(direction_t d)
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
 #endif
 
-
 #ifdef WIN32
     mSocketsWaitEvent_curl_call_needed = false;
 #else

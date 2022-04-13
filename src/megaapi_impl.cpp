@@ -25062,7 +25062,7 @@ void MegaFolderUploadController::start(MegaNode*)
     // add the tree above, to subtrees vector for root tree
     mUploadTree.subtrees.push_back(std::move(newTreeNode));
 
-    // it's mandatory to notify stage change from MegaApi's thread to avoid deadlocks and other issues
+    // it's mandatory to notify stage change from MegaApiImpl's thread to avoid deadlocks and other issues
     notifyStage(MegaTransfer::STAGE_SCAN);
 
     mWorkerThread = std::thread ([this, path]() {
@@ -25076,7 +25076,7 @@ void MegaFolderUploadController::start(MegaNode*)
 
         mCompletionForMegaApiThread.reset(new ExecuteOnce([this, fullyScanned]() {
 
-            // these next parts must run on megaApi's thread again, as
+            // these next parts must run on MegaApiImpl's thread again, as
             // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
             assert(mMainThreadId == std::this_thread::get_id());
 
@@ -25435,7 +25435,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
 
     if (isBatchRootLevel && !newnodes.empty())
     {
-        // the lambda will be exeuted on the megaapi's thread
+        // the lambda will be exeuted on the MegaApiImpl's thread
         // use a weak_ptr in case this operation was cancelled, and 'this' object doesn't exist
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
@@ -26656,7 +26656,7 @@ MegaScheduledCopyController::~MegaScheduledCopyController()
     }
 }
 
-// Note: it's mandatory to notify stage change from MegaApi's thread
+// Note: it's mandatory to notify stage change from MegaApiImpl's thread
 void MegaRecursiveOperation::notifyStage(uint8_t stage)
 {
     // Make a copy of transfer and set stage in the temp transfer.
@@ -26770,7 +26770,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
             return;
         }
 
-        // it's mandatory to notify stage change from MegaApi's thread to avoid deadlocks and other issues
+        // it's mandatory to notify stage change from MegaApiImpl's thread to avoid deadlocks and other issues
         notifyStage(MegaTransfer::STAGE_CREATE_TREE);
 
         // start worker thread to create local folder tree

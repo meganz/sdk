@@ -543,6 +543,7 @@ public:
 
     // helper function for preparing a putnodes call for new folders
     void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
+
     // static version to be used from worker threads, which cannot rely on the MegaClient::tmpnodecipher as SymCipher (not thread-safe))
     static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher &tmpnodecipher, std::function<void(AttrMap&)> addAttrs = nullptr);
 

@@ -235,7 +235,7 @@ public:
     // check if recursive operation is cancelled
     bool isCancelled();
 
-    // check if user has cancelled operation by using cancelToken of associated transfer
+    // check if user has cancelled recursive operation by using cancelToken of associated transfer
     bool isCancelledByUser();
 
 protected:
@@ -264,7 +264,7 @@ protected:
     MegaClient* megaapiThreadClient();
 
 private:
-    // client ptr to only be used from the megaApi's thread
+    // client ptr to only be used from the MegaApiImpl's thread
     MegaClient* mMegaapiThreadClient;
 };
 
@@ -3234,7 +3234,7 @@ protected:
         void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
         void dismissbanner_result(error e) override;
 
-        // for internal use - for worker threads to run something on megaapi's thread, such as calls to onFire() functinos
+        // for internal use - for worker threads to run something on MegaApiImpl's thread, such as calls to onFire() functions
         void executeOnThread(shared_ptr<ExecuteOnce>);
 
 #ifdef ENABLE_CHAT
