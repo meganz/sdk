@@ -273,14 +273,18 @@ class MegaFolderUploadController : public MegaTransferListener, public MegaRecur
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
-    void start(MegaNode* node) override;
-    void cancel() override;
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
     virtual ~MegaFolderUploadController();
     bool hasEnded(bool notifyUserCancellation);
     void complete(Error e, bool cancelledByUser = false);
+
+    // ---- MegaRecursiveOperation methods ---
+    void start(MegaNode* node) override;
+    void cancel() override;
+
+    // ---- MegaTransferListener methods ---
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
 
 protected:
     unique_ptr<FileSystemAccess> fsaccess;
@@ -482,13 +486,17 @@ class MegaFolderDownloadController : public MegaTransferListener, public MegaRec
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
     virtual ~MegaFolderDownloadController();
+    bool hasEnded(bool notifyUserCancellation);
+    void complete(Error e, bool cancelledByUser = false);
+
+    // ---- MegaRecursiveOperation methods ---
     void start(MegaNode *node) override;
     void cancel() override;
+
+    // ---- MegaTransferListener methods ---
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
     void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
-    bool hasEnded(bool notifyUserCancellation);
-    void complete(Error e, bool cancelledByUser = false);
 
 protected:
     unique_ptr<FileSystemAccess> fsaccess;
@@ -504,8 +512,14 @@ protected:
         vector<unique_ptr<MegaNode>> childrenNodes;
     };
     vector<LocalTree> mLocalTree;
+
+    // Scan entire tree recursively, and retrieve folder structure and files to be downloaded.
     bool scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
+
+    // Create all local directories in one shot. This happens on the worker thread.
     Error createFolder();
+
+    // Iterate through all pending files, and start all download transfers
     void genDownloadTransfersForFiles(FileSystemType fsType);
 };
 
