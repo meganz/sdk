@@ -285,9 +285,6 @@ public:
 protected:
     unique_ptr<FileSystemAccess> fsaccess;
 
-    // if set, symlinks will be followed
-    bool mFollowsymlinks;
-
     // Random number generator and cipher to avoid using client's which would cause threading corruption
     PrnGen rng;
     SymmCipher tmpnodecipher;
@@ -2303,6 +2300,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
+        void loggedInStateChanged(sessiontype_t, handle me) override;
         bool isEphemeralPlusPlus();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
@@ -2969,6 +2967,14 @@ protected:
         GfxProc *gfxAccess;
         string basePath;
         bool nocache;
+
+        mutex mLastRecievedLoggedMeMutex;
+        sessiontype_t mLastReceivedLoggedInState = NOTLOGGEDIN;
+        handle mLastReceivedLoggedInMeHandle = UNDEF;
+
+        unique_ptr<MegaNode> mLastKnownRootNode;
+        unique_ptr<MegaNode> mLastKnownInboxNode;
+        unique_ptr<MegaNode> mLastKnownRubbishNode;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;

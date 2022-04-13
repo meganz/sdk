@@ -1342,7 +1342,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
         // scan the dir, mark all items with a unique identifier
         if ((success = da->dopen(localpath, fa, false)))
         {
-            while (da->dnext(*localpath, localname, client->followsymlinks))
+            while (da->dnext(*localpath, localname, false))
             {
                 name = localname.toName(*client->fsaccess);
 
@@ -3915,6 +3915,18 @@ void SyncConfigStore::markDriveDirty(const LocalPath& drivePath)
     mKnownDrives[drivePath].dirty = true;
 }
 
+handle SyncConfigStore::driveID(const LocalPath& drivePath) const
+{
+    auto i = mKnownDrives.find(drivePath);
+
+    if (i != mKnownDrives.end())
+        return i->second.driveID;
+
+    assert(!"Drive should be known!");
+
+    return UNDEF;
+}
+
 bool SyncConfigStore::equal(const LocalPath& lhs, const LocalPath& rhs) const
 {
     return platformCompareUtf(lhs, false, rhs, false) == 0;
@@ -3968,8 +3980,22 @@ bool SyncConfigStore::removeDrive(const LocalPath& drivePath)
 error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& configs, bool isExternal)
 {
     DriveInfo driveInfo;
+
     driveInfo.dbPath = dbPath(drivePath);
     driveInfo.drivePath = drivePath;
+
+    if (isExternal)
+    {
+        driveInfo.driveID = mIOContext.driveID(drivePath);
+
+        if (driveInfo.driveID == UNDEF)
+        {
+            LOG_err << "Failed to retrieve drive ID for: "
+                    << drivePath.toPath();
+
+            return API_EREAD;
+        }
+    }
 
     vector<unsigned int> confSlots;
 
@@ -4235,6 +4261,15 @@ bool SyncConfigIOContext::deserialize(SyncConfigVector& configs,
             break;
         }
     }
+}
+
+handle SyncConfigIOContext::driveID(const LocalPath& drivePath) const
+{
+    handle result = UNDEF;
+
+    readDriveId(mFsAccess, drivePath, result);
+
+    return result;
 }
 
 FileSystemAccess& SyncConfigIOContext::fsAccess() const

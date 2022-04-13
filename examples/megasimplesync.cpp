@@ -566,9 +566,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    // uncomment this line if you want to follow symbolic links
-    //client->followsymlinks = true;
-
     // get values from env
     login.password = getenv("MEGA_PWD");
     login.email = getenv("MEGA_EMAIL");
