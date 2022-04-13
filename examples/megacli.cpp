@@ -23,6 +23,7 @@
 #include "megacli.h"
 #include <fstream>
 #include <bitset>
+#include <iterator>
 
 #if defined(_WIN32) && defined(_DEBUG)
 // so we can delete a secret internal CrytpoPP singleton
@@ -3484,6 +3485,11 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("driveid"),
                     either(sequence(text("get"), localFSFolder()),
                            sequence(text("set"), localFSFolder(), opt(text("force"))))));
+
+    p->Add(exec_randomfile,
+           sequence(text("randomfile"),
+                    localFSPath("outputPath"),
+                    opt(param("lengthKB"))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -7215,6 +7221,54 @@ void exec_driveid(autocomplete::ACState& s)
          << " has been written to "
          << drivePath
          << endl;
+}
+
+void exec_randomfile(autocomplete::ACState& s)
+{
+    // randomfile path [length]
+    auto length = 2l;
+
+    if (s.words.size() > 2)
+        length = std::atol(s.words[2].s.c_str());
+
+    if (length <= 0)
+    {
+        std::cerr << "Invalid length specified: "
+                  << s.words[2].s
+                  << std::endl;
+        return;
+    }
+
+    constexpr auto flags =
+      std::ios::binary | std::ios::out | std::ios::trunc;
+
+    std::ofstream ostream(s.words[1].s, flags);
+
+    if (!ostream)
+    {
+        std::cerr << "Unable to open file for writing: "
+                  << s.words[1].s
+                  << std::endl;
+        return;
+    }
+
+    std::generate_n(std::ostream_iterator<char>(ostream),
+                    length << 10,
+                    []() { return (char)std::rand(); });
+
+    if (!ostream.flush())
+    {
+        std::cerr << "Encountered an error while writing: "
+                  << s.words[1].s
+                  << std::endl;
+        return;
+    }
+
+    std::cout << "Successfully wrote "
+              << length
+              << " kilobytes of random binary data to: "
+              << s.words[1].s
+              << std::endl;
 }
 
 #ifdef USE_DRIVE_NOTIFICATIONS
