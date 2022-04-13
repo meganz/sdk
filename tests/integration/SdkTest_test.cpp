@@ -1526,9 +1526,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(),
                                                        rootnode.get(),
+                                                       nullptr /*fileName*/,
                                                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                        nullptr /*appData*/,
-                                                       nullptr /*fileName*/,
                                                        false   /*isSourceTemporary*/,
                                                        false   /*startFirst*/,
                                                        nullptr /*cancelToken*/)) << "Cannot upload a test file";
@@ -1714,9 +1714,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     createFile(filename2, false);
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename2.data(),
                                                         rootnode.get(),
+                                                        nullptr /*fileName*/,
                                                         ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                         nullptr /*appData*/,
-                                                        nullptr /*fileName*/,
                                                         false   /*isSourceTemporary*/,
                                                         false   /*startFirst*/,
                                                         nullptr /*cancelToken*/)) << "Cannot upload a test file";
@@ -2044,9 +2044,9 @@ TEST_F(SdkTest, SdkTestTransfers)
     mApi[0].requestFlags[MegaRequest::TYPE_CANCEL_TRANSFERS] = false;
     megaApi[0]->startUpload(filename1.data(),
                             rootnode,
+                            nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
-                            nullptr /*fileName*/,
                             false   /*isSourceTemporary*/,
                             false   /*startFirst*/,
                             nullptr /*cancelToken*/);
@@ -2062,9 +2062,9 @@ TEST_F(SdkTest, SdkTestTransfers)
     mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
     megaApi[0]->startUpload(filename1.data(),
                             rootnode,
+                            nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
-                            nullptr /*fileName*/,
                             false   /*isSourceTemporary*/,
                             false   /*startFirst*/,
                             nullptr /*cancelToken*/);
@@ -2116,9 +2116,9 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     ASSERT_EQ(API_OK, doStartUpload(0, filename1.c_str(),
                                     rootnode,
+                                    nullptr /*fileName*/,
                                     ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                     nullptr /*appData*/,
-                                    nullptr /*fileName*/,
                                     false   /*isSourceTemporary*/,
                                     false   /*startFirst*/,
                                     nullptr /*cancelToken*/));
@@ -2131,9 +2131,9 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     ASSERT_EQ(API_OK, doStartUpload(0, filename1.c_str(),
                                     rootnode,
+                                    nullptr /*fileName*/,
                                     ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                     nullptr /*appData*/,
-                                    nullptr /*fileName*/,
                                     false   /*isSourceTemporary*/,
                                     false   /*startFirst*/,
                                     nullptr /*cancelToken*/));
@@ -2147,9 +2147,9 @@ TEST_F(SdkTest, SdkTestTransfers)
     createFile(filename1);
     ASSERT_EQ(API_OK, doStartUpload(0, filename1.c_str(),
                                     rootnode,
+                                    nullptr /*fileName*/,
                                     ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                     nullptr /*appData*/,
-                                    nullptr /*fileName*/,
                                     false   /*isSourceTemporary*/,
                                     false   /*startFirst*/,
                                     nullptr /*cancelToken*/));
@@ -2203,9 +2203,9 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename3.c_str(),
                                                         rootnode,
+                                                        nullptr /*fileName*/,
                                                         ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                         nullptr /*appData*/,
-                                                        nullptr /*fileName*/,
                                                         false   /*isSourceTemporary*/,
                                                         false   /*startFirst*/,
                                                         nullptr /*cancelToken*/)) << "Cannot upload a test file";
@@ -2672,9 +2672,9 @@ TEST_F(SdkTest, SdkTestShares)
 
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(),
                                                         std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get(),
+                                                        nullptr /*fileName*/,
                                                         ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                         nullptr /*appData*/,
-                                                        nullptr /*fileName*/,
                                                         false   /*isSourceTemporary*/,
                                                         false   /*startFirst*/,
                                                         nullptr /*cancelToken*/)) << "Cannot upload a test file";
@@ -2683,9 +2683,9 @@ TEST_F(SdkTest, SdkTestShares)
 
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, PUBLICFILE.data(),
                                                         std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get(),
+                                                        nullptr /*fileName*/,
                                                         ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                         nullptr /*appData*/,
-                                                        nullptr /*fileName*/,
                                                         false   /*isSourceTemporary*/,
                                                         false   /*startFirst*/,
                                                         nullptr /*cancelToken*/)) << "Cannot upload a second test file";
@@ -4641,9 +4641,9 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
     megaApi[0]->startUpload(UPFILE.c_str(),
                             rootnode.get(),
+                            nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
-                            nullptr /*fileName*/,
                             false   /*isSourceTemporary*/,
                             false   /*startFirst*/,
                             nullptr /*cancelToken*/);
@@ -4936,9 +4936,9 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
     megaApi[0]->startUpload(filename3.data(),
                             rootnode,
+                            nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
-                            nullptr /*fileName*/,
                             false   /*isSourceTemporary*/,
                             false   /*startFirst*/,
                             nullptr /*cancelToken*/);
@@ -5068,9 +5068,9 @@ TEST_F(SdkTest, SdkRecentsTest)
     createFile(filename1, false);
     auto err = synchronousStartUpload(0, filename1.c_str(),
                                       rootnode,
+                                      nullptr /*fileName*/,
                                       ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                       nullptr /*appData*/,
-                                      nullptr /*fileName*/,
                                       false   /*isSourceTemporary*/,
                                       false   /*startFirst*/,
                                       nullptr /*cancelToken*/);
@@ -5083,9 +5083,9 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     err = synchronousStartUpload(0, filename1.c_str(),
                                  rootnode,
+                                 nullptr /*fileName*/,
                                  ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                  nullptr /*appData*/,
-                                 nullptr /*fileName*/,
                                  false   /*isSourceTemporary*/,
                                  false   /*startFirst*/,
                                  nullptr /*cancelToken*/);
@@ -5099,9 +5099,9 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     err = synchronousStartUpload(0, filename2.c_str(),
                                  rootnode,
+                                 nullptr /*fileName*/,
                                  ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                  nullptr /*appData*/,
-                                 nullptr /*fileName*/,
                                  false   /*isSourceTemporary*/,
                                  false   /*startFirst*/,
                                  nullptr /*cancelToken*/);
@@ -5114,9 +5114,9 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     err = synchronousStartUpload(0, filename2.c_str(),
                                  rootnode,
+                                 nullptr /*fileName*/,
                                  ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                  nullptr /*appData*/,
-                                 nullptr /*fileName*/,
                                  false   /*isSourceTemporary*/,
                                  false   /*startFirst*/,
                                  nullptr /*cancelToken*/);
@@ -5561,9 +5561,9 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 
     ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(),
                                                         subFolderA.get(),
+                                                        nullptr /*fileName*/,
                                                         ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                         nullptr /*appData*/,
-                                                        nullptr /*fileName*/,
                                                         false   /*isSourceTemporary*/,
                                                         false   /*startFirst*/,
                                                         nullptr /*cancelToken*/)) << "Cannot upload a test file";
@@ -5912,9 +5912,9 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(uploadPath.u8string().c_str(),
                             std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                            nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
-                            nullptr /*fileName*/,
                             false   /*isSourceTemporary*/,
                             false   /*startFirst*/,
                             nullptr /*cancelToken*/,
@@ -6008,9 +6008,9 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     megaApi[0]->startUpload(p.u8string().c_str(),
                             std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                            nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
-                            nullptr /*fileName*/,
                             false   /*isSourceTemporary*/,
                             false   /*startFirst*/,
                             nullptr /*cancelToken*/,
@@ -6054,9 +6054,9 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     // upload all of those
     TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(uploadpath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                            nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
-                            nullptr /*fileName*/,
                             false   /*isSourceTemporary*/,
                             false   /*startFirst*/,
                             nullptr /*cancelToken*/,
@@ -6475,9 +6475,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     TransferTracker uploadListener(megaApi[0].get());
     megaApi[0]->startUpload(basePath.u8string().c_str(),
                             megaApi[0]->getRootNode(),
+                            nullptr /*fileName*/,
                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
-                            nullptr /*fileName*/,
                             false   /*isSourceTemporary*/,
                             false   /*startFirst*/,
                             nullptr /*cancelToken*/,
@@ -7244,9 +7244,9 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
         createFile(filename1, false);
         ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(),
                                                                   remoteSubFolderNode.get(),
+                                                                  nullptr /*fileName*/,
                                                                   ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                                   nullptr /*appData*/,
-                                                                  nullptr /*fileName*/,
                                                                   false   /*isSourceTemporary*/,
                                                                   false   /*startFirst*/,
                                                                   nullptr /*cancelToken*/)) << "Cannot upload a test file";
@@ -7380,9 +7380,9 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
         createFile(filename1, false);
         ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(),
                                                             remoteSubFolderNode.get(),
+                                                            nullptr /*fileName*/,
                                                             ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                                                             nullptr /*appData*/,
-                                                            nullptr /*fileName*/,
                                                             false   /*isSourceTemporary*/,
                                                             false   /*startFirst*/,
                                                             nullptr /*cancelToken*/)) << "Cannot upload a test file";
@@ -7594,8 +7594,8 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     fs::path fp = fs::current_path() / fileName;
     megaApi[1]->startUpload(fp.u8string().c_str(),
                             n1,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr /*appData*/,
                             false   /*isSourceTemporary*/,
                             false   /*startFirst*/,
@@ -7683,8 +7683,15 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
 
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, mp3.c_str(),
+                                                       rootnode.get(),
+                                                       nullptr /*fileName*/,
+                                                       ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                                       nullptr /*appData*/,
+                                                       false   /*isSourceTemporary*/,
+                                                       false   /*startFirst*/,
+                                                       nullptr /*cancelToken*/)) << "Cannot upload test file " << mp3;
 
-    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, mp3.c_str(), rootnode.get())) << "Cannot upload test file " << mp3;
     std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
 }
