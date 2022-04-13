@@ -663,6 +663,7 @@ bool SqliteAccountState::put(Node *node)
         int shareType = node->getShareType();
         sqlite3_bind_int(stmt, 8, shareType);
 
+        // node->attrstring has value => node is encrypted
         sqlite3_bind_int(stmt, 9, !node->attrstring);
         nameid favId = AttrMap::string2nameid("fav");
         bool fav = (node->attrs.map.find(favId) != node->attrs.map.end());

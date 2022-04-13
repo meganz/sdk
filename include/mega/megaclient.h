@@ -331,7 +331,7 @@ public:
 
     // ===--- Node Counters ---===
 
-    // returns the counter for 'node', recursively, accessing to DB
+    // returns the counter for 'node', recursively, accessing to DB if it's neccesary
 private:
     NodeCounter getNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
 public:
@@ -352,7 +352,7 @@ public:
     // add the counter for 'h' (it must not exist yet)
     void addCounter(const NodeHandle &h);
 
-    // create the counter and calculate its count recursively
+    // create the counter and calculate its count recursively (it must not exist yet)
     void calculateCounter(const Node &n);
 
     // subtract the counter of 'n' (calculated from DB) from its first antecesor, which must be a rootnode
@@ -426,6 +426,7 @@ private:
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
 
+    // Return a node from Data base, node shouldn't be in RAM previously
     Node* getNodeFromDataBase(NodeHandle handle);
 
     // This method is called to increase a counters with a node that it's going to be stored only at DB
