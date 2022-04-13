@@ -242,6 +242,9 @@ public:
 
 private:
     static int instanceCount;
+    CodeCounter::ScopeStats countCurlHttpIOAddevents = { "curl-httpio-addevents" };
+    CodeCounter::ScopeStats countAddCurlEventsCode = { "curl-add-events" };
+    CodeCounter::ScopeStats countProcessCurlEventsCode = { "curl-process-events" };
 
 #ifdef MEGA_USE_C_ARES
     CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
