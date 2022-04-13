@@ -850,7 +850,7 @@ bool StandardClient::sync_syncable(Sync*, const char*, LocalPath&)
     return true;
 }
 
-void StandardClient::notify_retry(dstime t, retryreason_t r) 
+void StandardClient::notify_retry(dstime t, retryreason_t r)
 {
     onCallback();
 
@@ -861,7 +861,7 @@ void StandardClient::notify_retry(dstime t, retryreason_t r)
     out() << clientname << " notify_retry: " << t << " " << r;
 }
 
-void StandardClient::request_error(error e) 
+void StandardClient::request_error(error e)
 {
     onCallback();
 
@@ -872,7 +872,7 @@ void StandardClient::request_error(error e)
     out() << clientname << " request_error: " << e;
 }
 
-void StandardClient::request_response_progress(m_off_t a, m_off_t b) 
+void StandardClient::request_response_progress(m_off_t a, m_off_t b)
 {
     onCallback();
 
@@ -1729,7 +1729,7 @@ bool StandardClient::delSync_inthread(handle backupId, const bool keepCache)
     return removed;
 }
 
-bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)
+bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported)
 {
     // top level names can differ so we don't check those
     if (!mn || !n) return false;
