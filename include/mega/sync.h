@@ -530,6 +530,7 @@ public:
 
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
+    bool resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath);
     bool resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);

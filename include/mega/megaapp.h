@@ -122,6 +122,11 @@ struct MEGA_API MegaApp
     // notify about a modified key
     virtual void key_modified(handle, attr_t) { }
 
+#ifndef NDEBUG
+    // So that tests can make a change as soon as a cloud node is moved.
+    virtual void move_begin(const LocalPath&, const LocalPath&) { };
+#endif // ! NDEBUG
+
     // node addition has failed
     virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride = false) { }
 

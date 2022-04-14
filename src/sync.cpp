@@ -19,6 +19,7 @@
  * program.
  */
 #include <cctype>
+#include <memory>
 #include <type_traits>
 #include <unordered_set>
 #include <future>
@@ -2004,6 +2005,29 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // TODO: consider alternative of preventing version on upload completion - probably resulting in much more complicated name matching though
             markSiblingSourceRow();
 
+            // Check if the move source is part of an ongoing download.
+            auto sourceRequirement = Syncs::EXACT_VERSION;
+
+            if (std::dynamic_pointer_cast<SyncDownload_inClient>(sourceSyncNode->transferSP))
+            {
+                // Since we were part of an ongoing downlaod, we can infer
+                // that the local move-source must have been considered
+                // synced. If it wasn't, we wouldn't have detected this move
+                // or a stall would've been generated during CSF processing.
+                //
+                // So, it should be safe for us to move the latest version
+                // of the node in the cloud.
+                //
+                // Ideally, we'll be able to continue download processing as
+                // soon as the move has been confirmed during CSF
+                // processing, provided the local move-target matches the
+                // previously synced local move-source.
+                LOG_debug << "Move-source is part of an ongoing download: "
+                          << logTriplet(row, fullPath);
+                          
+                sourceRequirement = Syncs::LATEST_VERSION;
+            }
+
             // Although we have detected a move locally, there's no guarantee the cloud side
             // is complete, the corresponding parent folders in the cloud may not match yet.
             // ie, either of sourceCloudNode or targetCloudNode could be null here.
@@ -2015,7 +2039,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             string sourceCloudNodePath, targetCloudNodePath;
             // Note that we get the EXACT_VERSION, not the latest version of that file.  A new file may have been added locally at that location
             // in the meantime, causing a version chain for that node.  But, we need the exact node (and especially so the Filefingerprint matches once the row lines up)
-            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::EXACT_VERSION);
+            bool foundSourceCloudNode = syncs.lookupCloudNode(sourceSyncNode->syncedCloudNodeHandle, sourceCloudNode, &sourceCloudNodePath, nullptr, nullptr, nullptr, nullptr, sourceRequirement);
             bool foundTargetCloudNode = syncs.lookupCloudNode(parentRow.syncNode->syncedCloudNodeHandle, targetCloudNode, &targetCloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY);
 
             if (foundSourceCloudNode && foundTargetCloudNode)
@@ -2107,6 +2131,19 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         }
                     }
 
+                    std::function<void(MegaClient&)> signalMoveBegin = [](MegaClient&) { };
+#ifndef NDEBUG
+                    {
+                        // For purposes of capture.
+                        auto sourcePath = sourceSyncNode->getLocalPath();
+                        auto targetPath = row.syncNode->getLocalPath();
+
+                        signalMoveBegin = [sourcePath, targetPath](MegaClient& client) {
+                            client.app->move_begin(sourcePath, targetPath);
+                        };
+                    }
+#endif // ! NDEBUG
+
                     if (sourceCloudNode.parentHandle == targetCloudNode.handle && !newName.empty())
                     {
                         // send the command to change the node name
@@ -2115,7 +2152,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " to " << newName  << logTriplet(row, fullPath);
 
                         auto renameHandle = sourceCloudNode.handle;
-                        syncs.queueClient([renameHandle, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([renameHandle, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin](MegaClient& mc, DBTableTransactionCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(renameHandle))
                                 {
@@ -2126,6 +2163,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                     {
                                         simultaneousMoveReplacedNodeToDebris(mc, committer);
                                     }
+
+                                    signalMoveBegin(mc);
 
                                     mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName, anomalyReport](NodeHandle, Error err){
 
@@ -2154,8 +2193,10 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " into " << targetCloudNodePath
                                   << (newName.empty() ? "" : (" as " + newName).c_str()) << logTriplet(row, fullPath);
 
-                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
+                            signalMoveBegin(mc);
+
                             auto fromNode = mc.nodeByHandle(sourceCloudNode.handle, true);  // yes, it must be the exact version (should there be a version chain)
                             auto toNode = mc.nodeByHandle(targetCloudNode.handle);   // folders don't have version chains
 
@@ -6800,6 +6841,9 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     {
         CodeCounter::ScopeTimer rst(syncs.mClient.performanceStats.syncItemCSF);
 
+        // Are we part of a move and was our source a download-in-progress?
+        resolve_checkMoveDownloadComplete(row, fullPath);
+
         // all three exist; compare
         bool fsCloudEqual = syncEqual(*row.cloudNode, *row.fsNode);
         bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
@@ -7050,6 +7094,75 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     CodeCounter::ScopeTimer rstXXX(syncs.mClient.performanceStats.syncItemXXX);
     assert(false);
     return false;
+}
+
+bool Sync::resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath)
+{
+    // Convenience.
+    auto target = row.syncNode;
+
+    // Are we part of an ongoing move?
+    auto movePtr = target->rareRO().moveToHere;
+
+    // No part of an ongoing move.
+    if (!movePtr)
+        return false;
+
+    // Are we still associated with the move source?
+    auto source = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid,
+                                                  movePtr->sourceType,
+                                                  movePtr->sourceFingerprint,
+                                                  this,
+                                                  nullptr);
+
+    // No longer associated with the move source.
+    if (!source)
+        return false;
+
+    // Sanity check.
+    assert(source->rareRO().moveFromHere == movePtr);
+
+    // Is the source part of an ongoing download?
+    auto download = std::dynamic_pointer_cast<SyncDownload_inClient>(source->transferSP);
+
+    // Not part of an ongoing download.
+    if (!download)
+        return false;
+
+    LOG_debug << "Completing move of in-progress download: "
+              << logTriplet(row, fullPath);
+
+    // Consider the move complete.
+    source->moveContentTo(target, fullPath.localPath, true);
+    source->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, source->localname, source->cloneShortname());
+    source->setSyncedNodeHandle(NodeHandle());
+    source->sync->statecacheadd(source);
+
+    source->rare().moveFromHere->syncCodeProcessedResult = true;
+    source->rare().moveFromHere.reset();
+    source->trimRareFields();
+
+    target->rare().moveToHere->syncCodeProcessedResult = true;
+    target->rare().moveToHere.reset();
+    target->trimRareFields();
+
+    // Consider us synced with the local disk.
+    target->setSyncedFsid(movePtr->sourceFsid, syncs.localnodeBySyncedFsid, row.fsNode->localname, row.fsNode->cloneShortname());
+    target->syncedFingerprint = movePtr->sourceFingerprint;
+    target->sync->statecacheadd(target);
+
+    // Terminate the transfer if we're not a match with the local disk.
+    if (row.fsNode->fsid != movePtr->sourceFsid
+        || row.fsNode->fingerprint != movePtr->sourceFingerprint)
+    {
+        LOG_debug << "Move-target no longer matches move-source: "
+                  << logTriplet(row, fullPath);
+
+        target->resetTransfer(nullptr);
+    }
+
+    // We should now be good to go.
+    return true;
 }
 
 bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath)

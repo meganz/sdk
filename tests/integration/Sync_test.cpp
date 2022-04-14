@@ -3614,6 +3614,62 @@ void StandardClient::triggerPeriodicScanEarly(handle backupID)
     client.syncs.triggerPeriodicScanEarly(backupID).get();
 }
 
+FileFingerprint StandardClient::fingerprint(const fs::path& fsPath)
+{
+    // Convenience.
+    auto& fsAccess = *client.fsaccess;
+
+    // Needed so we can access the filesystem.
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    // Translate input path into something useful.
+    auto path = LocalPath::fromAbsolutePath(fsPath.u8string());
+
+    FileFingerprint fingerprint;
+
+    // Try and open file for reading.
+    if (fileAccess->fopen(path, true, false))
+    {
+        // Generate fingerprint.
+        fingerprint.genfingerprint(fileAccess.get());
+    }
+
+    return fingerprint;
+}
+
+vector<FileFingerprint> StandardClient::fingerprints(const string& path)
+{
+    vector<FileFingerprint> results;
+
+    // Get our hands on the root node.
+    auto* root = gettestbasenode();
+
+    if (!root)
+        return results;
+
+    // Locate the specified node.
+    auto* node = drillchildnodebyname(root, path);
+
+    if (!node)
+        return results;
+
+    // Directories have no fingerprints.
+    if (node->type != FILENODE)
+        return results;
+
+    // Extract the fingerprints from the version chain.
+    results.emplace_back(*node);
+
+    while (!node->children.empty())
+    {
+        node = node->children.front();
+        results.emplace_back(*node);
+    }
+
+    // Pass fingerprints to caller.
+    return results;
+}
+
 using SyncWaitPredicate = std::function<bool(StandardClient&)>;
 
 // Useful predicates.
@@ -5766,9 +5822,6 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
 
 TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
 {
-    // Convenience.
-    using FileFingerprintPtr = unique_ptr<FileFingerprint>;
-
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = std::chrono::seconds(4);
 
@@ -5777,36 +5830,8 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     // Log callbacks.
     c.logcb = true;
 
-    // Helper for generating fingerprints.
-    auto fingerprint =
-      [&c](const fs::path& fsPath) -> FileFingerprintPtr
-      {
-          // Convenience.
-          auto& fsAccess = *c.client.fsaccess;
-
-          // Needed so we can access the filesystem.
-          auto fileAccess = fsAccess.newfileaccess(false);
-
-          // Translate input path into something useful.
-          auto path = LocalPath::fromAbsolutePath(fsPath.u8string());
-
-          // Try and open file for reading.
-          if (fileAccess->fopen(path, true, false))
-          {
-              auto fingerprint = ::mega::make_unique<FileFingerprint>();
-
-              // Generate fingerprint.
-              if (fingerprint->genfingerprint(fileAccess.get()))
-              {
-                  return fingerprint;
-              }
-          }
-
-          return nullptr;
-      };
-
     // Fingerprints for each revision.
-    vector<FileFingerprintPtr> fingerprints;
+    vector<FileFingerprint> fingerprints;
 
     // Log client in.
     ASSERT_TRUE(c.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
@@ -5824,8 +5849,8 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     model.generate(SYNCROOT);
 
     // Keep track of fingerprint.
-    fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
-    ASSERT_TRUE(fingerprints.back());
+    fingerprints.emplace_back(c.fingerprint(SYNCROOT / "f"));
+    ASSERT_TRUE(fingerprints.back().isvalid);
 
     c.triggerPeriodicScanEarly(id);
 
@@ -5840,8 +5865,8 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     model.generate(SYNCROOT);
 
     // Update fingerprint.
-    fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
-    ASSERT_TRUE(fingerprints.back());
+    fingerprints.emplace_back(c.fingerprint(SYNCROOT / "f"));
+    ASSERT_TRUE(fingerprints.back().isvalid);
 
     c.triggerPeriodicScanEarly(id);
 
@@ -5856,8 +5881,8 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     model.generate(SYNCROOT);
 
     // Update fingerprint.
-    fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
-    ASSERT_TRUE(fingerprints.back());
+    fingerprints.emplace_back(c.fingerprint(SYNCROOT / "f"));
+    ASSERT_TRUE(fingerprints.back().isvalid);
 
     c.triggerPeriodicScanEarly(id);
 
@@ -5877,7 +5902,7 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
 
     while (f && i != fingerprints.crend())
     {
-        matched &= *f == **i++;
+        matched &= *f == *i++;
 
         f = f->children.empty() ? nullptr : f->children.front();
     }
@@ -15633,6 +15658,268 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
     // Make sure we haven't moved fx on the local filesystem.
     ASSERT_TRUE(fs::exists(c.fsBasePath / "s" / "fx"));
 }
+
+#ifndef NDEBUG
+
+TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
+{
+    auto TIMEOUT = std::chrono::seconds(16);
+
+    // Get ourselves a shiny new client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Make sure a sync root exists in the cloud.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Prepare the local filesystem.
+    Model model;
+
+    model.addfolder("d");
+    model.addfile("f", randomData(16384));
+    model.generate(client->fsBasePath / "s");
+
+    // Keep a log of expected file fingerprints.
+    vector<FileFingerprint> fingerprints;
+
+    fingerprints.emplace_back(client->fingerprint(client->fsBasePath / "s" / "f"));
+    ASSERT_TRUE(fingerprints.back().isvalid);
+
+    // Add a sync...
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the engine to upload the local files.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure everything arrived safetly.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Throttle download speed so that we can move the local file before the
+    // engine finishes downloading the latest changes from the cloud.
+    client->client.setmaxdownloadspeed(4);
+
+    // So we can wait for downloads and moves to start.
+    promise<void> waiter;
+
+    auto onMoveBeginHandler = [&client, &waiter](const LocalPath&, const LocalPath&) {
+        // Signal the waiter.
+        waiter.set_value();
+
+        // Callback's done its job.
+        client->mOnMoveBegin = nullptr;
+    };
+
+    auto onTransferAddedHandler = [&client, &waiter](Transfer& transfer) {
+        // Only signal the waiter if we're dealing with a download.
+        if (transfer.type != GET)
+            return;
+
+        // Signal the waiter.
+        waiter.set_value();
+
+        // Detach the callback as our work is done.
+        client->mOnTransferAdded = nullptr;
+    };
+
+    client->mOnTransferAdded = onTransferAddedHandler;
+
+    // Create a new version of f in the cloud.
+    {
+        auto data = randomData(16384);
+        auto path = client->fsBasePath / "f";
+
+        // Create a temporary file to upload.
+        ASSERT_TRUE(createDataFile(path, data));
+
+        // Upload the file.
+        ASSERT_TRUE(client->uploadFile(path, "/mega_test_sync/s", 30, ClaimOldVersion));
+
+        // Update model.
+        model.findnode("f")->content = data;
+
+        // Keep track of the file's new fingerprint.
+        fingerprints.emplace_back(client->fingerprint(path));
+        ASSERT_TRUE(fingerprints.back().isvalid);
+    }
+    
+    // Wait for the engine to add the download.
+    ASSERT_NE(waiter.get_future().wait_for(TIMEOUT),
+              future_status::timeout);
+
+    // So we can wait for the move to begin.
+    waiter = promise<void>();
+
+    client->mOnMoveBegin = onMoveBeginHandler;
+
+    // Move the local f to d/f.
+    model.movenode("f", "d");
+
+    fs::rename(client->fsBasePath / "s" / "f",
+               client->fsBasePath / "s" / "d" / "f");
+
+    // Wait for the engine to kick off the move.
+    ASSERT_NE(waiter.get_future().wait_for(TIMEOUT),
+              future_status::timeout);
+
+    // Remove the throttle so the download can complete.
+    client->client.setmaxdownloadspeed(0);
+
+    // Give the engine some time to react to our changes.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure everything downloaded okay.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id, true));
+
+    // Re-establish the transfer waiter.
+    waiter = promise<void>();
+
+    client->mOnTransferAdded = onTransferAddedHandler;
+
+    // Re-establish the download throttle.
+    client->client.setmaxdownloadspeed(4);
+
+    // Create a new version of d/f in the cloud.
+    {
+        auto data = randomData(16384);
+        auto path = client->fsBasePath / "f";
+
+        // Create a temporary file to upload.
+        ASSERT_TRUE(createDataFile(path, data));
+
+        // Upload the file.
+        ASSERT_TRUE(client->uploadFile(path, "/mega_test_sync/s/d", 30, ClaimOldVersion));
+
+        // Update model.
+        model.findnode("d/f")->content = data;
+
+        // Keep track of the file's new fingerprint.
+        fingerprints.emplace_back(client->fingerprint(path));
+        ASSERT_TRUE(fingerprints.back().isvalid);
+    }
+
+    // Wait for the transfer to begin.
+    ASSERT_NE(waiter.get_future().wait_for(TIMEOUT), future_status::timeout);
+
+    // Re-establish move waiter.
+    waiter = promise<void>();
+
+    client->mOnMoveBegin = onMoveBeginHandler;
+
+    // Move d/f back to f.
+    model.movenode("d/f", "");
+
+    fs::rename(client->fsBasePath / "s" / "d" / "f",
+               client->fsBasePath / "s" / "f");
+
+    // Wait for the move to begin.
+    ASSERT_NE(waiter.get_future().wait_for(TIMEOUT), future_status::timeout);
+
+    // Remove the throttle so the download can complete.
+    client->client.setmaxdownloadspeed(0);
+
+    // Give the engine some time to react to our changes.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure everything downloaded okay.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id, true));
+
+    // Repeat the test one more time so we can check stall state.
+
+    // Re-establish the transfer waiter.
+    waiter = promise<void>();
+
+    client->mOnTransferAdded = onTransferAddedHandler;
+
+    // Re-establish the download throttle.
+    client->client.setmaxdownloadspeed(4);
+
+    // Create a new version of f in the cloud.
+    {
+        auto data = randomData(16384);
+        auto path = client->fsBasePath / "f";
+
+        // Create a temporary file to upload.
+        ASSERT_TRUE(createDataFile(path, data));
+
+        // Upload the file.
+        ASSERT_TRUE(client->uploadFile(path, "/mega_test_sync/s", 30, ClaimOldVersion));
+
+        // Update model.
+        model.findnode("f")->content = data;
+
+        // Keep track of the file's new fingerprint.
+        fingerprints.emplace_back(client->fingerprint(path));
+        ASSERT_TRUE(fingerprints.back().isvalid);
+    }
+
+    // Wait for the transfer to start.
+    ASSERT_NE(waiter.get_future().wait_for(TIMEOUT), future_status::timeout);
+
+    // Re-establish move waiter.
+    waiter = promise<void>();
+
+    client->mOnMoveBegin = [&client, &waiter](const LocalPath&, const LocalPath&) {
+        // Alter the file on disk.
+        auto data = randomData(16384);
+
+        ASSERT_TRUE(createDataFile(client->fsBasePath / "s" / "d" / "f", data));
+
+        // Signal the waiter.
+        waiter.set_value();
+
+        // Detach the callback.
+        client->mOnMoveBegin = nullptr;
+    };
+
+    // Move f back into d/f.
+    model.movenode("f", "d");
+
+    fs::rename(client->fsBasePath / "s" / "f",
+               client->fsBasePath / "s" / "d" / "f");
+
+    // Wait for the engine to kick off the move.
+    ASSERT_NE(waiter.get_future().wait_for(TIMEOUT), future_status::timeout);
+
+    // Remove the throttle.
+    client->client.setmaxdownloadspeed(0);
+
+    // Wait for the engine to react to our changes.
+    waitonsyncs(TIMEOUT, client);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
+
+    // Resolve the stall by removing the local file.
+    fs::remove(client->fsBasePath / "s" / "d" / "f");
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(client->waitFor(SyncStallState(false), TIMEOUT));
+
+    // Wait for the engine to synchronize changes.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure everything downloaded okay.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id, true));
+
+    // Check that the version chain is as we expect.
+    {
+        // Get the node's fingerprints.
+        auto fp = client->fingerprints("s/d/f");
+
+        // Make sure we have the number we expect.
+        ASSERT_EQ(fp.size(), 4u);
+
+        // Check that they agree with our log.
+        ASSERT_TRUE(std::equal(fingerprints.crbegin(),
+                               fingerprints.crend(),
+                               fp.cbegin()));
+    }
+}
+
+#endif // ! NDEBUG
 
 #endif
 
