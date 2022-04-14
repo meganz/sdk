@@ -15556,7 +15556,7 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnknown)
     ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
 
     // Correct number of stalls?
-    ASSERT_EQ(stalls.cloud.size(), 1);
+    ASSERT_EQ(stalls.cloud.size(), 1u);
 
     // Make sure the move hasn't occured on the local filesystem.
     ASSERT_TRUE(fs::exists(c.fsBasePath / "s" / "fx"));
@@ -15628,7 +15628,7 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
     ASSERT_TRUE(c.client.syncs.syncStallDetected(stalls));
 
     // Correct number of stalls?
-    ASSERT_EQ(stalls.cloud.size(), 1);
+    ASSERT_EQ(stalls.cloud.size(), 1u);
 
     // Make sure we haven't moved fx on the local filesystem.
     ASSERT_TRUE(fs::exists(c.fsBasePath / "s" / "fx"));
