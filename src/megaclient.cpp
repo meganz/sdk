@@ -14079,6 +14079,45 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
+void MegaClient::cleanupFailedExtBackup(const string& remotePath)
+{
+    Node* n = nodeByPath(remotePath.c_str());
+    if (!n)
+    {
+        return;
+    }
+    if (getrootnode(n)->nodeHandle() != rootnodes.vault)
+    {
+        LOG_err << "Failed to cleanup remote dir of external backup "
+                << remotePath
+                << " (path outside Vault).";
+        assert(getrootnode(n)->nodeHandle() == rootnodes.vault);
+        return;
+    }
+    if (!n->children.empty())
+    {
+        LOG_err << "Failed to cleanup remote dir of external backup "
+                << remotePath
+                << " (dir not empty).";
+        assert(n->children.empty());
+        return;
+    }
+
+    error errUnlink = unlink(n, false, 0, [remotePath](NodeHandle, Error err)
+        {
+            LOG_err << "Failed to cleanup remote dir of external backup "
+                    << remotePath
+                    << " (error " << error(err) << ").";
+        }, true);
+
+    if (errUnlink)
+    {
+        LOG_err << "Failed to cleanup remote dir of external backup "
+                << remotePath
+                << " (error " << errUnlink << ").";
+    }
+}
+
 error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(completion);
@@ -14094,6 +14133,13 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
     if (e)
     {
         completion(e, config.mError, UNDEF);
+
+        // A new external backup will have its dir created in Vault by now. Let's clean that up.
+        if (config.isExternal())
+        {
+            cleanupFailedExtBackup(config.mOriginalPathOfRemoteRootNode);
+        }
+
         return e;
     }
 
@@ -14115,6 +14161,7 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
                     << " as there is no config store.";
 
             completion(API_EINTERNAL, NO_SYNC_ERROR, UNDEF);
+            cleanupFailedExtBackup(config.mOriginalPathOfRemoteRootNode);
 
             return API_EINTERNAL;
         }
@@ -14135,6 +14182,7 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
                         << " as we could not read its config database.";
 
                 completion(API_EFAILED, NO_SYNC_ERROR, UNDEF);
+                cleanupFailedExtBackup(config.mOriginalPathOfRemoteRootNode);
 
                 return API_EFAILED;
             }
@@ -14161,6 +14209,7 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
             if (e)
             {
                 completion(e, config.mError, backupId);
+                cleanupFailedExtBackup(config.mOriginalPathOfRemoteRootNode);
             }
             else
             {
@@ -14235,6 +14284,10 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     if (deviceNameNode) // validate this node
     {
         if (deviceNameNode->type != FOLDERNODE) { return API_EACCESS; }
+
+        // make sure there is no folder with the same name as the backup
+        Node* backupNameNode = childnodebyname(deviceNameNode, backupName.c_str());
+        if (backupNameNode) { return API_EACCESS; }
     }
     else // create `DEVICE_NAME` remote dir
     {

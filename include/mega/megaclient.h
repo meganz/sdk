@@ -645,7 +645,7 @@ public:
 
     /**
      * @brief
-     * Create the remote backup dir under //in/"My Backups"/`DEVICE_NAME`/. If DEVICE-NAME parent folder is missing, create that first.
+     * Create the remote backup dir under //in/"My Backups"/`DEVICE_NAME`/. If `DEVICE-NAME` folder is missing, create that first.
      *
      * @param bkpName
      * The name of the remote backup dir (desired final outcome is //in/"My Backups"/`DEVICE_NAME`/bkpName)
@@ -658,7 +658,8 @@ public:
      *
      * @return
      * API_OK if remote backup dir has been successfully created.
-     * API_EACCESS if "My Backups" handle could not be obtained from user attribute, or if `DEVICE_NAME` was not a folder.
+     * API_EACCESS if "My Backups" handle could not be obtained from user attribute, or if `DEVICE_NAME` was not a dir,
+     * or if remote backup dir already existed.
      * API_ENOENT if "My Backups" handle was invalid or its Node was missing.
      * API_EINCOMPLETE if device-id or device-name could not be obtained
      * Any error returned by readDriveId(), in case of external drive.
@@ -702,6 +703,7 @@ public:
 private:
     void ensureSyncUserAttributesCompleted(Error e);
     std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
+    void cleanupFailedExtBackup(const string& remotePath);
 
 public:
 
