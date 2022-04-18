@@ -5182,6 +5182,27 @@ TEST_F(SdkTest, SdkBackupFolder)
     const char* backupName2 = "RemoteBackupFolder2";
     err = synchronousSyncFolder(0, nullptr, MegaSync::TYPE_BACKUP, localFolderPath2.u8string().c_str(), backupName2, INVALID_HANDLE, nullptr);
     ASSERT_TRUE(err == API_OK) << "Backup folder 2 failed (error: " << err << ")";
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(allSyncs && allSyncs->size() == 1) << "Sync not found for second backup";
+
+    // Create remote folder to be used as destination when removing second backup
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    auto nhrb = createFolder(0, "DestinationOfRemovedBackup", remoteRootNode.get());
+    ASSERT_NE(nhrb, UNDEF) << "Error creating remote DestinationOfRemovedBackup";
+    std::unique_ptr<MegaNode> remoteDestNode(megaApi[0]->getNodeByHandle(nhrb));
+    ASSERT_NE(remoteDestNode.get(), nullptr) << "Error getting remote node of DestinationOfRemovedBackup";
+    std::unique_ptr<MegaNodeList> destChildren(megaApi[0]->getChildren(remoteDestNode.get()));
+    ASSERT_TRUE(!destChildren || !destChildren->size());
+
+    // Remove second backup, using the option to move the contents rather than delete them
+    RequestTracker removeTracker2(megaApi[0].get());
+    megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), nhrb, &removeTracker2);
+    ASSERT_EQ(API_OK, removeTracker2.waitForResult());
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Sync not removed for second backup";
+    destChildren.reset(megaApi[0]->getChildren(remoteDestNode.get()));
+    ASSERT_TRUE(destChildren && destChildren->size() == 1);
+    ASSERT_STREQ(destChildren->get(0)->getName(), backupName2);
 
 #endif
 }
