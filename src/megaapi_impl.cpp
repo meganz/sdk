@@ -2283,7 +2283,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->priority = 0;
     this->meanSpeed = 0;
     this->notificationNumber = 0;
-    this->mStage = 0;
+    this->mStage = MegaTransfer::STAGE_NONE;
 }
 
 MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
@@ -23600,7 +23600,7 @@ std::vector<MegaTransferPrivate *> TransferQueue::popUpTo(int lastQueuedTransfer
 
 void TransferQueue::removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback)
 {
-    // We need to lock the mutex or it's not safe to iterate transfers.
+    // We need to lock the TransferQueue's mutex or it's not safe to iterate transfers.
     // However this is risky because we are making callbacks with it locked
     // We shouldn't cause a deadlock wih the impl mutex because that one is always locked before calling here.
     // However the callback (including its calls to fireOnXYZ() ) must be careful not to lock any mutex which
@@ -25073,7 +25073,6 @@ void MegaFolderUploadController::start(MegaNode*)
 
         // if the thread runs, we always queue a function to execute on MegaApi thread for onFinish()
         // we keep a pointer to it in case we need to execute it early and directly on cancel()
-
         mCompletionForMegaApiThread.reset(new ExecuteOnce([this, fullyScanned]() {
 
             // these next parts must run on MegaApiImpl's thread again, as
@@ -25157,7 +25156,7 @@ void MegaFolderUploadController::cancel()
     // With the cancelled flag true, the last subtransfer to complete won't automatically
     // complete and delete our object.  Those would happen on this same thread, so we
     // know we don't have a race for that.  Final completion occurs from this function.
-    cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
+    cancelled = true; //we dont want to further checkcompletion, and produce multiple fireOnTransferFinish -> multiple deletions
 
     if (mWorkerThread.joinable())
     {
@@ -26814,7 +26813,7 @@ void MegaFolderDownloadController::cancel()
     // With the cancelled flag true, the last subtransfer to complete won't automatically
     // complete and delete our object.  Those would happen on this same thread, so we
     // know we don't have a race for that.  Final completion occurs from this function.
-    cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
+    cancelled = true; //we dont want to further checkcompletion, and produce multiple fireOnTransferFinish -> multiple deletions
 
 	if (mWorkerThread.joinable())
     {
