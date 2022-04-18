@@ -4284,7 +4284,7 @@ class MegaTransfer
 		virtual int getMaxRetries() const;
 
         /**
-         * @brief Returns the current stage in case this transfer represents a recursive operation.
+         * @brief Returns the current stage in case this transfer represents a folder upload/download operation.
          * This method can return the following values:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
@@ -4293,11 +4293,7 @@ class MegaTransfer
          *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
          * Any other returned value, must be ignored.
          *
-         * Note: a recursive operation (folder upload/download) can be cancelled using a MegaCancelToken,
-         * but this cancellation mechanism will only have effect between the following stages:
-         * MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE both included.
-         *
-         * @return The current stage for a recursive operation
+         * @return The current stage for a folder upload/download operation
          */
         virtual unsigned getStage() const;
 
@@ -12676,7 +12672,7 @@ class MegaApi
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
          *
-         * When user wants to upload/download a batch of items that at least contains one folder, SDK mutex will be partially
+         * When user wants to upload a batch of items that at least contains one folder, SDK mutex will be partially
          * locked until:
          *  - we have received onTransferStart for every file in the batch
          *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
@@ -12762,7 +12758,7 @@ class MegaApi
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
          *
-         * When user wants to upload/download a batch of items that at least contains one folder, SDK mutex will be partially
+         * When user wants to download a batch of items that at least contains one folder, SDK mutex will be partially
          * locked until:
          *  - we have received onTransferStart for every file in the batch
          *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
