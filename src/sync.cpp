@@ -3770,6 +3770,25 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
 {
     if (index < mSyncVec.size())
     {
+        auto& config = mSyncVec[index]->mConfig;
+        bool removingBackupRemoteContents = config.isBackup() && !skipMoveOrDelBackup;
+
+        // validate backup destination upon removal
+        if (removingBackupRemoteContents && bkpDest != UNDEF)
+        {
+            Node* n = mClient.nodebyhandle(bkpDest);
+            if (!n)
+            {
+                LOG_err << "Backup destination folder does not exist";
+                return API_EACCESS;
+            }
+            else if (!n->children.empty())
+            {
+                LOG_err << "Backup destination folder is not empty";
+                return API_EACCESS;
+            }
+        }
+
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
             syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
@@ -3777,27 +3796,42 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
             syncPtr.reset(); // deletes sync
         }
 
-        mSyncConfigStore->markDriveDirty(mSyncVec[index]->mConfig.mExternalDrivePath);
+        mSyncConfigStore->markDriveDirty(config.mExternalDrivePath);
 
         // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
-        auto& config = mSyncVec[index]->mConfig;
+        NodeHandle remoteNodeHandle = config.getRemoteNode();
         mClient.app->sync_removed(config);
 
-        // unregister this sync/backup from API (backup center)
-        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId(), completion));
-
-        if (config.isBackup() && !skipMoveOrDelBackup) // thus in Vault && needs to be moved/deleted
+        auto c = !removingBackupRemoteContents ? completion :
+        [this, remoteNodeHandle, bkpDest, completion](Error err)
         {
+            if (error(err))
+            {
+                LOG_err << "CommandBackupRemove failed";
+                if (completion)
+                    completion(err);
+            }
+
             // remote node may be missing, due to an incomplete earlier removal that ended in error,
             // but if it's there then it must be in Vault
-            Node* remoteNode = mClient.nodeByHandle(config.getRemoteNode());
+            Node* remoteNode = mClient.nodeByHandle(remoteNodeHandle);
             assert(!remoteNode || remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault);
 
             if (remoteNode)
             {
                 if (bkpDest == UNDEF) // permanently delete
                 {
-                    mClient.unlink(remoteNode, false, mClient.nextreqtag(), nullptr, true);
+                    error e = mClient.unlink(remoteNode, false, mClient.nextreqtag(),
+                        [completion](NodeHandle, Error err)
+                        {
+                            LOG_err << "unlink() failed (server side)";
+                            if (completion) completion(err);
+                        }, true);
+                    if (e)
+                    {
+                        LOG_err << "unlink() failed (client side)";
+                        if (completion) completion(e);
+                    }
                 }
                 else // move to the new destination
                 {
@@ -3806,7 +3840,22 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
                     {
                         NodeHandle prevParent;
                         prevParent.set6byte(remoteNode->parenthandle);
-                        mClient.rename(remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr, nullptr);
+                        error e = mClient.rename(remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr,
+                            [completion](NodeHandle, Error err)
+                            {
+                                LOG_err << "rename() failed (server side)";
+                                if (completion) completion(err);
+                            });
+                        if (e)
+                        {
+                            LOG_err << "rename() failed (client side)";
+                            if (completion) completion(e);
+                        }
+                    }
+                    else
+                    {
+                        LOG_err << "Backup move destination upon removal does not exist";
+                        if (completion) completion(API_EACCESS);
                     }
                 }
             }
@@ -3814,7 +3863,9 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
             {
                 LOG_warn << "Remote node of the backup not found";
             }
-        }
+        };
+        // unregister this sync/backup from API (backup center)
+        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId(), c));
 
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + (decltype(mSyncVec)::difference_type)index);
