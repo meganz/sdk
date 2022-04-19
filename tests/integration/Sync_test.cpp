@@ -844,7 +844,20 @@ bool StandardClient::waitForNodesUpdated(unsigned numSeconds)
     return received_node_actionpackets;
 }
 
-void StandardClient::syncupdate_stateconfig(const SyncConfig& config) { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << config.mBackupId; } }
+void StandardClient::syncupdate_stateconfig(const SyncConfig& config)
+{
+    onCallback();
+
+    if (logcb)
+    {
+        lock_guard<mutex> g(om);
+
+        out() << clientname << "syncupdate_stateconfig() " << toHandle(config.mBackupId);
+    }
+
+    if (mOnSyncStateConfig)
+        mOnSyncStateConfig(config);
+}
 void StandardClient::syncupdate_scanning(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
 void StandardClient::syncupdate_local_lockretry(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
 
@@ -869,6 +882,23 @@ bool StandardClient::sync_syncable(Sync*, const char*, LocalPath&)
 
     return true;
 }
+
+void StandardClient::file_added(File* file)
+{
+    if (mOnFileAdded)
+    {
+        mOnFileAdded(*file);
+    }
+}
+
+void StandardClient::file_complete(File* file)
+{
+    if (mOnFileComplete)
+    {
+        mOnFileComplete(*file);
+    }
+}
+
 
 void StandardClient::notify_retry(dstime t, retryreason_t r)
 {
@@ -1359,17 +1389,26 @@ void StandardClient::catchup(PromiseBoolSP pb)
         });
 }
 
-void StandardClient::deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb)
+unsigned StandardClient::deleteTestBaseFolder(bool mayNeedDeleting)
+{
+    auto result = thread_do<unsigned>([=](StandardClient& client, PromiseUnsignedSP result) {
+        client.deleteTestBaseFolder(mayNeedDeleting, false, std::move(result));
+    });
+
+    return result.get();
+}
+
+void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, PromiseUnsignedSP result)
 {
     if (Node* root = client.nodeByHandle(client.rootnodes.files))
     {
         if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
         {
-            if (mayneeddeleting)
+            if (mayNeedDeleting)
             {
-                auto completion = [this, pb](NodeHandle, Error e) {
+                auto completion = [this, result](NodeHandle, Error e) {
                     if (e) out() << "delete of test base folder reply reports: " << e;
-                    deleteTestBaseFolder(false, pb);
+                    deleteTestBaseFolder(false, true, result);
                 };
 
                 resultproc.prepresult(COMPLETION, ++next_request_tag,
@@ -1378,18 +1417,18 @@ void StandardClient::deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb
                 return;
             }
             out() << "base folder found, but not expected, failing";
-            pb->set_value(false);
+            result->set_value(0);
             return;
         }
         else
         {
             //out() << "base folder not found, wasn't present or delete successful";
-            pb->set_value(true);
+            result->set_value(deleted ? 2 : 1);
             return;
         }
     }
     out() << "base folder not found, as root was not found!";
-    pb->set_value(false);
+    result->set_value(0);
 }
 
 void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
@@ -1510,8 +1549,9 @@ bool StandardClient::syncSet(handle backupId, SyncInfo& info) const
     SyncConfig c;
     if (client.syncs.syncConfigByBackupId(backupId, c))
     {
-        info.h = c.getRemoteNode();
+        info.h = c.mRemoteNode;
         info.localpath = c.getLocalPath().toPath();
+        info.remotepath = c.mOriginalPathOfRemoteRootNode; // bit of a hack
 
         return true;
     }
@@ -1523,11 +1563,7 @@ StandardClient::SyncInfo StandardClient::syncSet(handle backupId)
 {
     SyncInfo result;
 
-    out() << "looking up id " << backupId;
-
-    client.syncs.forEachUnifiedSync([](UnifiedSync& us){
-        out() << " ids are: " << us.mConfig.mBackupId << " with local path '" << us.mConfig.getLocalPath().toPath();
-    });
+    out() << "looking up BackupId " << toHandle(backupId);
 
     bool found = syncSet(backupId, result);
     assert(found);
@@ -2387,9 +2423,10 @@ bool StandardClient::disableSync(handle id, SyncError error, bool enabled)
 }
 
 
-void StandardClient::deleteremote(string path, PromiseBoolSP pb)
+void StandardClient::deleteremote(string path, bool fromroot, PromiseBoolSP pb)
 {
-    if (Node* n = drillchildnodebyname(gettestbasenode(), path))
+    if (fromroot && !path.empty() && path[0] == '/') path.erase(0, 1);
+    if (Node* n = drillchildnodebyname(fromroot ? getcloudrootnode() : gettestbasenode(), path))
     {
         auto completion = [pb](NodeHandle, Error e) {
             pb->set_value(!e);
@@ -2405,15 +2442,49 @@ void StandardClient::deleteremote(string path, PromiseBoolSP pb)
     }
 }
 
-bool StandardClient::deleteremote(string path)
+bool StandardClient::deleteremote(string path, bool fromroot)
 {
-    auto result =
-        thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb)
-                {
-                    sc.deleteremote(path, pb);
-                });
+    return withWait<bool>([&](PromiseBoolSP result) {
+        deleteremote(path, fromroot, std::move(result));
+    });
+}
 
-    return result.get();
+bool StandardClient::deleteremote(Node* node)
+{
+    return withWait<bool>([=](PromiseBoolSP result) {
+        deleteremote(node, std::move(result));
+    });
+}
+
+void StandardClient::deleteremote(Node* node, PromiseBoolSP result)
+{
+    deleteremotenodes({node}, std::move(result));
+}
+
+bool StandardClient::deleteremotedebris()
+{
+    return withWait<bool>([&](PromiseBoolSP result) {
+        deleteremotedebris(result);
+    });
+}
+
+void StandardClient::deleteremotedebris(PromiseBoolSP result)
+{
+    if (auto* debris = getsyncdebrisnode())
+    {
+        deleteremotenodes({debris}, std::move(result));
+    }
+    else
+    {
+        result->set_value(true);
+    }
+}
+
+bool StandardClient::deleteremotenode(Node* node)
+{
+    return withWait<bool>([&](PromiseBoolSP result) {
+        deleteremotenodes({node}, std::move(result));
+    });
 }
 
 void StandardClient::deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
@@ -2583,7 +2654,7 @@ void StandardClient::waitonsyncs(chrono::seconds d)
 
 }
 
-bool StandardClient::login_reset(const string& user, const string& pw, bool noCache)
+bool StandardClient::login_reset(const string& user, const string& pw, bool noCache, bool resetBaseCloudFolder)
 {
     future<bool> p1;
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
@@ -2603,17 +2674,25 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
         out() << "fetchnodes failed";
         return false;
     }
-    p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteTestBaseFolder(true, pb); });  // todo: do we need to wait for server response now
-    if (!waitonresults(&p1)) {
-        out() << "deleteTestBaseFolder failed";
-        return false;
-    }
-    p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
-    if (!waitonresults(&p1)) {
-        out() << "ensureTestBaseFolder failed";
-        return false;
+    if (resetBaseCloudFolder)
+    {
+        if (deleteTestBaseFolder(true) == 0)
+        {
+            out() << "deleteTestBaseFolder failed";
+            return false;
+        }
+
+        p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
+        if (!waitonresults(&p1)) {
+            out() << "ensureTestBaseFolder failed";
+            return false;
+        }
     }
     return true;
+
+bool StandardClient::login_reset_makeremotenodes(const string& prefix, int depth, int fanout, bool noCache)
+{
+    return login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", prefix, depth, fanout, noCache);
 }
 
 bool StandardClient::login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache)
@@ -4088,7 +4167,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_TRUE(waitonresults(&p1));
 
     out() << "*********************  remove remote folders via A2";
-    p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_0", pb); });
+    p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_0", false, pb); });
     model1.movetosynctrash("f/f_0", "f");
     model2.movetosynctrash("f/f_0", "f");
     ASSERT_TRUE(waitonresults(&p1));
@@ -4158,7 +4237,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     pclientA1->localLogout();
 
     // remove remote folder via A2
-    future<bool> p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_1", pb); });
+    future<bool> p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_1", false, pb); });
     ASSERT_TRUE(waitonresults(&p1));
 
     // add local folders in A1 on disk folder
@@ -9308,6 +9387,9 @@ void BackupBehavior::doTest(const string& initialContent,
 
         // Write the file.
         m.generate(cu.fsBasePath / "su");
+
+        // Rewind the file's mtime.
+        fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
 
         cu.triggerPeriodicScanEarly(idU);
     }

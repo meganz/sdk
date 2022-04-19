@@ -211,7 +211,7 @@ struct StandardClient : public MegaApp
 
     handle basefolderhandle = UNDEF;
 
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP, SETATTR,
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, CATCHUP,
         COMPLETION };  // use COMPLETION when we use a completion function, rather than trying to match tags on callbacks
 
     struct ResultProc
@@ -266,7 +266,12 @@ struct StandardClient : public MegaApp
     bool waitForNodesUpdated(unsigned numSeconds);
 
     void syncupdate_stateconfig(const SyncConfig& config) override;
+
+    std::function<void(const SyncConfig&)> mOnSyncStateConfig;
+
     void syncupdate_scanning(bool b) override;
+    void file_added(File* file) override;
+    void file_complete(File* file) override;
     void syncupdate_local_lockretry(bool b) override;
 
 #ifdef DEBUG
@@ -438,7 +443,10 @@ struct StandardClient : public MegaApp
     bool fetchnodes(bool noCache = false);
     NewNode makeSubfolder(const string& utf8Name);
     void catchup(PromiseBoolSP pb);
-    void deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb);
+
+    unsigned deleteTestBaseFolder(bool mayNeedDeleting);
+    void deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, PromiseUnsignedSP result);
+
     void ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb);
     NewNode* buildSubdirs(list<NewNode>& nodes, const string& prefix, int n, int recurselevel);
     bool makeCloudSubdirs(const string& prefix, int depth, int fanout);
@@ -448,6 +456,7 @@ struct StandardClient : public MegaApp
     {
         NodeHandle h;
         fs::path localpath;
+        string remotepath;
     };
 
     SyncConfig syncConfigByBackupID(handle backupID) const;
@@ -541,8 +550,39 @@ struct StandardClient : public MegaApp
     void catchup_result() override;
     void disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result);
     bool disableSync(handle id, SyncError error, bool enabled);
-    void deleteremote(string path, PromiseBoolSP pb);
-    bool deleteremote(string path);
+
+    template<typename ResultType, typename Callable>
+    ResultType withWait(Callable&& callable, ResultType&& defaultValue = ResultType())
+    {
+        using std::future_status;
+        using std::shared_ptr;
+
+        using PromiseType = promise<ResultType>;
+        using PointerType = shared_ptr<PromiseType>;
+
+        auto promise = PointerType(new PromiseType());
+        auto future = promise->get_future();
+
+        callable(std::move(promise));
+
+        auto status = future.wait_for(std::chrono::seconds(20));
+
+        if (status == future_status::ready)
+        {
+            return future.get();
+        }
+
+        LOG_warn << "Timed out in withWait";
+
+        return std::move(defaultValue);
+    }
+    void deleteremote(string path, bool fromroot, PromiseBoolSP pb);
+    bool deleteremote(string path, bool fromroot = false);
+    bool deleteremote(Node* node);
+    void deleteremote(Node* node, PromiseBoolSP result);
+    bool deleteremotedebris();
+    void deleteremotedebris(PromiseBoolSP result);
+    bool deleteremotenode(Node* node);
     void deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb);
     bool movenode(string path, string newParentPath);
     void movenode(string path, string newparentpath, PromiseBoolSP pb);
@@ -551,7 +591,8 @@ struct StandardClient : public MegaApp
     void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
-    bool login_reset(const string& user, const string& pw, bool noCache = false);
+    bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
+    bool login_reset_makeremotenodes(const string& prefix, int depth = 0, int fanout = 0, bool noCache = false);
     bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false);
     void ensureSyncUserAttributes(PromiseBoolSP result);
     bool ensureSyncUserAttributes();
