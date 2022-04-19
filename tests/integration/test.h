@@ -607,9 +607,7 @@ struct StandardClient : public ::mega::MegaApp
     bool waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool backupOpenDrive(const fs::path& drivePath);
-    void wouldBeEscapedOnDownload(fs::path root, string remoteName, PromiseBoolSP result);
-    bool wouldBeEscapedOnDownload(fs::path root, string remoteName);
-    size_t triggerFullScan(handle backupID);
+    void triggerPeriodicScanEarly(handle backupID);
 
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;

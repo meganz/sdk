@@ -1135,7 +1135,6 @@ void Sync::readstatecache()
     string cachedata;
     idlocalnode_map tmap;
     uint32_t cid;
-    LocalNode* l;
 
     LOG_debug << syncname << "Sync " << toHandle(getConfig().mBackupId) << " about to load from db";
 
@@ -1148,10 +1147,10 @@ void Sync::readstatecache()
     {
         uint32_t parentID = 0;
 
-        if ((l = LocalNode::unserialize(*this, cachedata, parentID).release()))
+        if (auto l = LocalNode::unserialize(*this, cachedata, parentID))
         {
             l->dbid = cid;
-            tmap.emplace(parentID, l);
+            tmap.emplace(parentID, l.release());
             numLocalNodes += 1;
         }
     }
@@ -8550,8 +8549,10 @@ bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
             fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
 }
 
-std::future<size_t> Syncs::triggerFullScan(handle backupID)
+std::future<size_t> Syncs::triggerPeriodicScanEarly(handle backupID)
 {
+    // Cause periodic-scan syncs to scan now (waiting for the next periodic scan is impractical for tests)
+    // For this backupId or for all periodic scan syncs if backupId == UNDEF
     assert(!onSyncThread());
 
     auto indiscriminate = backupID == UNDEF;
