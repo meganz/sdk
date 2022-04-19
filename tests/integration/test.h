@@ -496,12 +496,13 @@ struct StandardClient : public MegaApp
         }
     }; // CloudNameLess
 
-    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported);
+    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile);
 
     bool localNodesMustHaveNodes = true;
 
-    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported);
-    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported);
+    auto equal_range_utf8EscapingCompare(multimap<string, LocalNode*, CloudNameLess>& ns, const string& cmpValue, bool unescapeValue, bool unescapeMap, bool caseInsensitive) -> std::pair<multimap<string, LocalNode*>::iterator, multimap<string, LocalNode*>::iterator>;
+    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile);
+    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported, bool expectFail, bool skipIgnoreFile);
     Sync* syncByBackupId(handle backupId);
     void enableSyncByBackupId(handle id, PromiseBoolSP result);
     bool enableSyncByBackupId(handle id);
@@ -518,18 +519,19 @@ struct StandardClient : public MegaApp
         CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
     };
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot);
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot);
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris = false);
-    bool confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot);
-    bool confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot);
-    bool confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris = false);
-    bool confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris);
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, bool ignoreDebris, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, bool ignoreDebris, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris, bool expectFail, bool skipIgnoreFile);
     void prelogin_result(int, string*, string* salt, error e) override;
     void login_result(error e) override;
     void fetchnodes_result(const Error& e) override;
     bool setattr(Node* node, attr_map&& updates);
     void setattr(Node* node, attr_map&& updates, PromiseBoolSP result);
+    bool rename(const string& path, const string& newName);
     void unlink_result(handle h, error e) override;
 
     handle lastPutnodesResultFirstHandle = UNDEF;
@@ -557,9 +559,9 @@ struct StandardClient : public MegaApp
     bool login(const string& user, const string& pw);
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false);
     bool login_fetchnodes(const string& session);
-    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, const bool isBackup = false);
+    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, bool isBackup = false, bool uploadIgnoreFirst = true);
     bool delSync_mainthread(handle backupId, bool keepCache = false);
-    bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, const bool ignoreDebris = false, const int confirm = CONFIRM_ALL);
+    bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false, bool skipIgnoreFile = true);
     bool match(handle id, const Model::ModelNode* source);
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);
     bool waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout);
@@ -567,6 +569,12 @@ struct StandardClient : public MegaApp
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
+
+    function<void(File&)> mOnFileAdded;
+    function<void(File&)> mOnFileComplete;
+    function<void(const SyncConfig&)> mOnFilterError;
+    function<void(bool)> mOnStall;
+    function<void(bool)> mOnConflictsDetected;
 };
 
 
