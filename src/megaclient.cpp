@@ -14236,17 +14236,33 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     User* u = ownuser();
 
     // get handle of remote "My Backups" folder, from user attributes
-    if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER)) { return API_EACCESS; }
+    if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    {
+        LOG_err << "Add backup: \"My Backups\" folder was not set";
+        return API_EACCESS;
+    }
     const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
-    if (!handleContainerStr) { return API_EACCESS; }
+    if (!handleContainerStr)
+    {
+        LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute had null value";
+        return API_EACCESS;
+    }
 
     handle h = 0;
     memcpy(&h, handleContainerStr->data(), MegaClient::NODEHANDLE);
-    if (!h || h == UNDEF) { return API_ENOENT; }
+    if (!h || h == UNDEF)
+    {
+        LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute contained invalid handler value";
+        return API_ENOENT;
+    }
 
     // get Node of remote "My Backups" folder
     Node* myBackupsNode = nodebyhandle(h);
-    if (!myBackupsNode) { return API_ENOENT; }
+    if (!myBackupsNode)
+    {
+        LOG_err << "Add backup: \"My Backups\" folder could not be found using the stored handle";
+        return API_ENOENT;
+    }
 
     // get 'device-id'
     string deviceId;
@@ -14261,13 +14277,20 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         handle driveId;
         error e = readDriveId(*fsaccess, extDriveRoot.c_str(), driveId);
         if (e != API_OK)
+        {
+            LOG_err << "Add backup (external): failed to read drive id";
             return e;
+        }
 
         // create the device id from the drive id
         deviceId = Base64Str<MegaClient::DRIVEHANDLE>(driveId);
     }
 
-    if (deviceId.empty()) { return API_EINCOMPLETE; }
+    if (deviceId.empty())
+    {
+        LOG_err << "Add backup: invalid device id";
+        return API_EINCOMPLETE;
+    }
 
     // prepare for new nodes
     vector<NewNode> newnodes;
@@ -14283,23 +14306,43 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     Node* deviceNameNode = childnodebyattribute(myBackupsNode, attrId, deviceId.c_str());
     if (deviceNameNode) // validate this node
     {
-        if (deviceNameNode->type != FOLDERNODE) { return API_EACCESS; }
+        if (deviceNameNode->type != FOLDERNODE)
+        {
+            LOG_err << "Add backup: device-name node did not have FOLDERNODE type";
+            return API_EACCESS;
+        }
 
         // make sure there is no folder with the same name as the backup
         Node* backupNameNode = childnodebyname(deviceNameNode, backupName.c_str());
-        if (backupNameNode) { return API_EACCESS; }
+        if (backupNameNode)
+        {
+            LOG_err << "Add backup: a backup with the same name (" << backupName << ") already existed";
+            return API_EACCESS;
+        }
     }
     else // create `DEVICE_NAME` remote dir
     {
         // get `DEVICE_NAME`, from user attributes
         attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
-        if (!u->isattrvalid(attrType)) { return API_EINCOMPLETE; }
+        if (!u->isattrvalid(attrType))
+        {
+            LOG_err << "Add backup: device/drive name not set";
+            return API_EINCOMPLETE;
+        }
         const string* deviceNameContainerStr = u->getattr(attrType);
-        if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
+        if (!deviceNameContainerStr)
+        {
+            LOG_err << "Add backup: null attribute value for device/drive name";
+            return API_EINCOMPLETE;
+        }
 
         string deviceName;
         std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
-        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty()) { return API_EINCOMPLETE; }
+        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty())
+        {
+            LOG_err << "Add backup: device/drive name not found";
+            return API_EINCOMPLETE;
+        }
 
         // add a new node for it
         newnodes.emplace_back();
