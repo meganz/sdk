@@ -172,6 +172,7 @@ struct Model
     ModelNode* findnode(string path, ModelNode* startnode = nullptr);
     unique_ptr<ModelNode> removenode(const string& path);
     bool movenode(const string& sourcepath, const string& destpath);
+    bool movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncrootpath);
     bool movetosynctrash(const string& path, const string& syncrootpath);
     void ensureLocalDebrisTmpLock(const string& syncrootpath);
     bool removesynctrash(const string& syncrootpath, const string& subpath = "");
@@ -289,12 +290,22 @@ struct StandardClient : public MegaApp
     void transfer_prepare(Transfer*) override { onCallback(); ++transfersPrepared; }
     void transfer_failed(Transfer*,  const Error&, dstime = 0) override { onCallback(); ++transfersFailed; }
     void transfer_update(Transfer*) override { onCallback(); ++transfersUpdated; }
-    void transfer_complete(Transfer*) override { onCallback(); ++transfersComplete; }
+
+    std::function<void(Transfer*)> onTransferCompleted;
+
+    void transfer_complete(Transfer* transfer) override
+    {
+        onCallback();
+
+        if (onTransferCompleted)
+            onTransferCompleted(transfer);
+
+        ++transfersComplete;
+    }
 
     void notify_retry(dstime t, retryreason_t r) override;
     void request_error(error e) override;
     void request_response_progress(m_off_t a, m_off_t b) override;
-
     void threadloop();
 
     static bool debugging;  // turn this on to prevent the main thread timing out when stepping in the MegaClient
@@ -406,7 +417,7 @@ struct StandardClient : public MegaApp
     bool uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
     bool uploadFile(const fs::path& path, Node* parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
     bool uploadFile(const fs::path& path, const string& parentPath, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
-    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo = NoVersioning);
+    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo);
     bool uploadFilesInTree(fs::path p, Node* n2, VersioningOption vo = NoVersioning);
     void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 
@@ -446,6 +457,7 @@ struct StandardClient : public MegaApp
     Node* getcloudrootnode();
     Node* gettestbasenode();
     Node* getcloudrubbishnode();
+    Node* getsyncdebrisnode();
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
     bool backupAdd_inthread(const string& drivePath,
@@ -550,36 +562,10 @@ struct StandardClient : public MegaApp
     bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, const bool ignoreDebris = false, const int confirm = CONFIRM_ALL);
     bool match(handle id, const Model::ModelNode* source);
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);
-
-    template<typename Predicate>
-    bool waitFor(Predicate predicate, const std::chrono::seconds &timeout)
-    {
-        auto total = std::chrono::milliseconds(0);
-        auto sleepIncrement = std::chrono::milliseconds(500);
-
-        out() << "Waiting for predicate to match...";
-
-        do
-        {
-            if (predicate(*this))
-            {
-                out() << "Predicate has matched!";
-
-                return true;
-            }
-
-            std::this_thread::sleep_for(sleepIncrement);
-            total += sleepIncrement;
-        }
-        while (total < timeout);
-
-        out() << "Timed out waiting for predicate to match.";
-
-        return false;
-    }
-
+    bool waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool backupOpenDrive(const fs::path& drivePath);
+    void triggerPeriodicScanEarly(handle backupID);
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
 };
 
