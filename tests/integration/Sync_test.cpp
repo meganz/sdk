@@ -2689,6 +2689,7 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
         }
     }
     return true;
+}
 
 bool StandardClient::login_reset_makeremotenodes(const string& prefix, int depth, int fanout, bool noCache)
 {
