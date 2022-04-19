@@ -5079,6 +5079,11 @@ TEST_F(SdkTest, SdkBackupFolder)
     // create My Backups folder
     syncTestMyBackupsRemoteFolder(0);
 
+    // get timestamp
+    struct tm tms;
+    char timestamp[32];
+    strftime(timestamp, sizeof timestamp, "%Y%m%d%H%M%S", m_localtime(m_time(), &tms));
+
     // look for Device Name attr
     string deviceName;
     if (synchronousGetDeviceName(0) == MegaError::API_OK && !attributeValue.empty())
@@ -5087,11 +5092,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
     else
     {
-        struct tm tms;
-        char timebuf[32];
-        strftime(timebuf, sizeof timebuf, "%c", m_localtime(m_time(), &tms));
-
-        deviceName = string("Jenkins ") + timebuf;
+        deviceName = string("Jenkins ") + timestamp;
         synchronousSetDeviceName(0, deviceName.c_str());
 
         // make sure Device Name attr was set
@@ -5109,7 +5110,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     // request to backup a folder
     fs::path localFolderPath = localBasePath / "LocalBackedUpFolder";
     fs::create_directories(localFolderPath);
-    const char* backupName = "RemoteBackupFolder";
+    const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
+    const char* backupName = backupNameStr.c_str();
     MegaHandle newSyncRootNodeHandle = UNDEF;
     int err = synchronousSyncFolder(0, &newSyncRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupName, INVALID_HANDLE, nullptr);
     ASSERT_TRUE(err == API_OK) << "Backup folder failed (error: " << err << ")";
@@ -5179,7 +5181,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     // this time, the remote folder structure is already there
     fs::path localFolderPath2 = localBasePath / "LocalBackedUpFolder2";
     fs::create_directories(localFolderPath2);
-    const char* backupName2 = "RemoteBackupFolder2";
+    const string backupName2Str = string("RemoteBackupFolder2_") + timestamp;
+    const char* backupName2 = backupName2Str.c_str();
     err = synchronousSyncFolder(0, nullptr, MegaSync::TYPE_BACKUP, localFolderPath2.u8string().c_str(), backupName2, INVALID_HANDLE, nullptr);
     ASSERT_TRUE(err == API_OK) << "Backup folder 2 failed (error: " << err << ")";
     allSyncs.reset(megaApi[0]->getSyncs());
