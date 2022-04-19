@@ -10932,14 +10932,14 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
 {
     SdkMutexGuard m;
 
+    node_vector outshares = client->mNodeManager.getNodesWithOutShares();
+
+    // Avoid duplicate nodes present in both outshares and pending shares
     node_vector pendingShares = client->mNodeManager.getNodesWithPendingOutShares();
-    node_vector nodes = client->mNodeManager.getNodesWithOutShares();
-    // Avoid duplicate nodes present in out-shares and pending shares
-    node_vector pendingSharesNoPresentInOutShares;
     for (Node* pendingShare : pendingShares)
     {
         bool found = false;
-        for (Node* node : nodes)
+        for (Node* node : outshares)
         {
             if (node->nodeHandle() == pendingShare->nodeHandle())
             {
@@ -10950,15 +10950,12 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
 
         if (!found)
         {
-            pendingSharesNoPresentInOutShares.push_back(pendingShare);
+            outshares.push_back(pendingShare);
         }
     }
 
-    nodes.insert(nodes.end(), pendingSharesNoPresentInOutShares.begin(), pendingSharesNoPresentInOutShares.end());
-
-
     std::map<NodeHandle, std::set<Share *>> nodeSharesMap;
-    for (const Node* n : nodes)
+    for (const Node* n : outshares)
     {
         if (n->outshares)
         {
@@ -10983,10 +10980,10 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
         }
     }
 
-    MegaApiImpl::sortByComparatorFunction(nodes, order, *client);
+    MegaApiImpl::sortByComparatorFunction(outshares, order, *client);
     vector<handle> handles;
     vector<Share *> shares;
-    for (const Node *n: nodes)
+    for (const Node *n: outshares)
     {
         for (const auto it : nodeSharesMap[n->nodeHandle()])
         {
@@ -11051,7 +11048,8 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
     SdkMutexGuard m;
 
     node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
-    std::map<NodeHandle, std::set<Share *>> nodeSharesMap;
+    vector<handle> handles;
+    vector<Share *> shares;
     for (const Node* n : nodes)
     {
         assert(n->pendingshares);
@@ -11059,19 +11057,9 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
         {
             if (share.second->user || share.second->pcr) // public links have no user
             {
-                nodeSharesMap[n->nodeHandle()].insert(share.second);
+                handles.push_back(n->nodehandle);
+                shares.push_back(share.second);
             }
-        }
-    }
-
-    vector<handle> handles;
-    vector<Share *> shares;
-    for (const Node *n: nodes)
-    {
-        for (const auto it : nodeSharesMap[n->nodeHandle()])
-        {
-            handles.push_back(n->nodehandle);
-            shares.push_back(it);
         }
     }
 
