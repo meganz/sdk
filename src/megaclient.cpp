@@ -12070,9 +12070,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
     WAIT_CLASS::bumpds();
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
-    // Used to update to nodes on demand cache
-    bool isDbUpgraded = false;
-    node_vector mNodesUpgradeCache;
+    bool isDbUpgraded = false;      // true when legacy DB is migrated to NOD db
+    node_vector nodesUpgradeCache;  // stores nodes while migration from legacy DB to NOD DB
 
     while (hasNext)
     {
@@ -12095,7 +12094,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    // Add nodes from old DB schema to the new table 'nodes' in the
                    // new DB schema for nodes on demand
                    mNodeManager.addNode(n, false);
-                   mNodesUpgradeCache.push_back(n);
+                   nodesUpgradeCache.push_back(n);
                    sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else
@@ -12150,18 +12149,18 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
-    if (isDbUpgraded)
+    if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
-        // nodes are loaded during the migration from `statecache` to `nodes` table and kept in RAM
-
+        // now that Users and PCRs are loaded, need to mergenewshare()
         mergenewshares(0);
-        for (Node* node : mNodesUpgradeCache)
+
+        // finally write nodes in DB
+        for (Node* node : nodesUpgradeCache)
         {
             mNodeManager.saveNodeInDb(node);
         }
 
-
-        // force commit, since old DB has been upgraded to new schema for NOD
+        // and force commit, since old DB has been upgraded to new schema for NOD
         sctable->commit();
         sctable->begin();
     }
