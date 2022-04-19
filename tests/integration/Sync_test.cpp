@@ -4324,7 +4324,6 @@ TEST_F(SyncTest, BasicSync_RenameLocalFile)
     // Add x/f.
     ASSERT_TRUE(createNameFile(client0.syncSet(backupId0).localpath, "f"));
 
-    // Trigger full scan.
     client0.triggerPeriodicScanEarly(backupId0);
 
     // Wait for sync to complete.
@@ -4345,7 +4344,6 @@ TEST_F(SyncTest, BasicSync_RenameLocalFile)
     fs::rename(client0.syncSet(backupId0).localpath / "f",
                client0.syncSet(backupId0).localpath / "g");
 
-    // Trigger full scan.
     client0.triggerPeriodicScanEarly(backupId0);
 
     // Wait for sync to complete.
@@ -5768,7 +5766,6 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
     ASSERT_TRUE(fingerprints.back());
 
-    // Trigger full scan.
     c.triggerPeriodicScanEarly(id);
 
     // Wait for initial sync to complete.
@@ -5785,7 +5782,6 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
     ASSERT_TRUE(fingerprints.back());
 
-    // Trigger full scan.
     c.triggerPeriodicScanEarly(id);
 
     // Wait for change to propagate.
@@ -5802,7 +5798,6 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
     fingerprints.emplace_back(fingerprint(SYNCROOT / "f"));
     ASSERT_TRUE(fingerprints.back());
 
-    // Trigger full scan.
     c.triggerPeriodicScanEarly(id);
 
     // Wait for change to propagate.
@@ -6035,7 +6030,6 @@ TEST_F(SyncTest, DetectsAndReportsNameClashes)
     // Resolve the g / g%30 conflict.
     ASSERT_TRUE(fs::remove(root / "d" / "e" / "g%30"));
 
-    // Trigger a scan.
     client.triggerPeriodicScanEarly(backupId1);
 
     // Give the sync some time to think.
@@ -6930,7 +6924,6 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     model.findnode("G")->content = "G";
     ASSERT_TRUE(createDataFile(root / "G", "G"));
 
-    // Trigger a scan.
     cx.triggerPeriodicScanEarly(id);
 
     // Wait for synchronization to complete.
@@ -6946,7 +6939,6 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     model.findnode("d/g")->fsName("g%3a0").name = "g:0";
     fs::rename(root / "d" / "g", root / "d" / "g%3a0");
 
-    // Trigger a scan.
     cx.triggerPeriodicScanEarly(id);
 
     // Wait for synchronization to complete.
@@ -6971,7 +6963,6 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
     model.removenode("f");
     fs::rename(root / "f", root / "d" / "g%3a0");
 
-    // Trigger a scan.
     cx.triggerPeriodicScanEarly(id);
 
     // Wait for sync to complete.
@@ -7017,7 +7008,6 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     model.addfile("g", "g");
     model.generate(root);
 
-    // Trigger full scan.
     cx.triggerPeriodicScanEarly(id);
 
     // Wait for sync to complete.
@@ -7142,7 +7132,6 @@ TEST_F(SyncTest, AnomalousSyncUpload)
     model.addfolder("d:0")->fsName("d%3a0");
     model.generate(root);
 
-    // Trigger full scan.
     cu.triggerPeriodicScanEarly(id);
 
     // Wait for synchronization to complete.
@@ -7219,7 +7208,6 @@ TEST_F(SyncTest, BasicSyncExportImport)
     model2.addfile("f1");
     model2.generate(root2);
 
-    // Trigger full scan.
     cx->triggerPeriodicScanEarly(id0);
     cx->triggerPeriodicScanEarly(id1);
     cx->triggerPeriodicScanEarly(id2);
@@ -7328,7 +7316,6 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
     model0.addfile("f0", "x");
     model0.generate(SYNCROOT0);
 
-    // Trigger full scan.
     c0.triggerPeriodicScanEarly(id0);
 
     // Wait for synchronization to complete.
@@ -7349,7 +7336,6 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
 
     ASSERT_TRUE(createDataFile(SYNCROOT0 / "f0", "y"));
 
-    // Trigger full scan.
     c0.triggerPeriodicScanEarly(id0);
     c0.triggerPeriodicScanEarly(id1);
 
@@ -7366,7 +7352,6 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
     // Make sure s0 is disabled.
     ASSERT_TRUE(createDataFile(SYNCROOT0 / "f1", "z"));
 
-    // Trigger full scan.
     c0.triggerPeriodicScanEarly(id0);
 
     // Wait for synchronization to complete.
@@ -7573,7 +7558,6 @@ TEST_F(SyncTest, RenameReplaceFolderBetweenSyncs)
     model0.addfile("d0/f0");
     model0.generate(SYNCROOT0);
 
-    // Trigger full scan.
     c0.triggerPeriodicScanEarly(id0);
 
     // Wait for synchronization to complete.
@@ -7593,7 +7577,6 @@ TEST_F(SyncTest, RenameReplaceFolderBetweenSyncs)
 
     fs::create_directories(SYNCROOT0 / "d0");
 
-    // Trigger full scan.
     c0.triggerPeriodicScanEarly(id0);
     c0.triggerPeriodicScanEarly(id1);
 
@@ -7628,7 +7611,6 @@ TEST_F(SyncTest, RenameReplaceFolderBetweenSyncs)
     // Replace s1/d0.
     fs::create_directories(SYNCROOT1 / "d0");
 
-    // Trigger full scan.
     c0.triggerPeriodicScanEarly(id0);
     c0.triggerPeriodicScanEarly(id1);
 
@@ -8143,7 +8125,6 @@ TEST_F(SyncTest, DeleteReplaceReplacementHasFilesystemWatch)
     fs::remove_all(ROOT / "dx");
     fs::create_directory(ROOT / "dx");
 
-    // Trigger a scan.
     c.triggerPeriodicScanEarly(id);
 
     // Wait for all notifications to be processed.
@@ -8283,7 +8264,6 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     model.addfolder("dz");
     model.generate(SYNCROOT);
 
-    // Trigger a scan.
     c.triggerPeriodicScanEarly(id);
 
     // Wait for synchronization to complete.
@@ -8307,7 +8287,6 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
         fs::rename(SYNCROOT / "dz", SYNCROOT / "dy");
     }
 
-    // Trigger a scan.
     c.triggerPeriodicScanEarly(id);
 
     // Wait for synchronization to complete.
@@ -8323,7 +8302,6 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     ASSERT_TRUE(createDataFile(SYNCROOT / "dr" / "f", "x"));
     ASSERT_TRUE(createDataFile(SYNCROOT / "dy" / "f", "y"));
 
-    // Trigger a scan.
     c.triggerPeriodicScanEarly(id);
 
     // Wait for synchronization to complete.
@@ -8378,7 +8356,6 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     fs::remove(SYNCROOT / "ds" / "f");
     fs::remove(SYNCROOT / "dx" / "f");
 
-    // Trigger a scan.
     c.triggerPeriodicScanEarly(id);
 
     ASSERT_TRUE(c.waitForNodesUpdated(30)) << " no actionpacket received in c";
@@ -9859,7 +9836,6 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
         model.addfolder("c");
         model.generate(root);
 
-        // Trigger full scan.
         c.triggerPeriodicScanEarly(id);
 
         // Wait for initial sync to complete.
@@ -10543,7 +10519,6 @@ void BackupBehavior::doTest(const string& initialContent,
     m.addfile("f", initialContent);
     m.generate(cu.fsBasePath / "su");
 
-    // Trigger a scan.
     cu.triggerPeriodicScanEarly(idU);
 
     // Wait for the engine to process and upload the file.
@@ -10566,7 +10541,6 @@ void BackupBehavior::doTest(const string& initialContent,
         // Rewind the file's mtime.
         fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
 
-        // Trigger a scan.
         cu.triggerPeriodicScanEarly(idU);
     }
 
