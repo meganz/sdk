@@ -392,6 +392,9 @@ public:
     // true when loading nodes (at startup, not node per node afterwards)
     bool isLoadingNodes() { return mLoadingNodes; }
 
+    // Called to initialize and set values to counters
+    void initializeCounters();
+
 private:
     // TODO Nodes on demand remove reference
     MegaClient& mClient;
@@ -433,8 +436,8 @@ private:
 
     Node* getNodeFromDataBase(NodeHandle handle);
 
-    // This method is called to increase a counters with a node that it's going to be stored only at DB
-    void updateCountersWithNode(const Node& node);
+    // Returns root nodes without nested in-shares
+    node_vector getRootNodesWithoutNestedInshares();
 
     // node temporary in memory, which will be removed upon write to DB
     Node *mNodeToWriteInDb = nullptr;
