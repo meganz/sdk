@@ -23,6 +23,10 @@
 #include "mega/posix/meganet.h"
 #include "mega/logging.h"
 
+#if defined(USE_OPENSSL)
+#include <openssl/err.h>
+#endif
+
 #if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
 #include <jni.h>
 extern JavaVM *MEGAjvm;
@@ -291,7 +295,7 @@ CurlHttpIO::CurlHttpIO()
         curl_global_init(CURL_GLOBAL_DEFAULT);
 #ifdef MEGA_USE_C_ARES
         ares_library_init(ARES_LIB_INIT_ALL);
-                
+
         const char *aresversion = ares_version(NULL);
         if (aresversion)
         {
@@ -312,7 +316,6 @@ CurlHttpIO::CurlHttpIO()
     numconnections[API] = 0;
     numconnections[GET] = 0;
     numconnections[PUT] = 0;
-    curlsocketsprocessed = true;
 
 #ifdef MEGA_USE_C_ARES
     struct ares_options options;
@@ -622,9 +625,16 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 int CurlHttpIO::checkevents(Waiter*)
 {
 #ifdef WIN32
+    // if this assert triggers, it means that we detected that cURL needs to be called,
+    // and it was not called.  Since we reset the event, we don't get another chance.
+    assert(!mSocketsWaitEvent_curl_call_needed);
+    bool wasSet = WAIT_OBJECT_0 == WaitForSingleObject(mSocketsWaitEvent, 0);
+    mSocketsWaitEvent_curl_call_needed = wasSet;
     ResetEvent(mSocketsWaitEvent);
-#endif
+    return wasSet ? Waiter::NEEDEXEC : 0;
+#else
     return 0;
+#endif
 }
 
 #ifdef MEGA_USE_C_ARES
@@ -697,8 +707,9 @@ void CurlHttpIO::processaresevents()
 void CurlHttpIO::processcurlevents(direction_t d)
 {
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
-
-#ifndef _WIN32
+#ifdef WIN32
+    mSocketsWaitEvent_curl_call_needed = false;
+#else
     auto *rfds = &((PosixWaiter *)waiter)->rfds;
     auto *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
@@ -1050,8 +1061,6 @@ void CurlHttpIO::addevents(Waiter* w, int)
             waiter->maxds = dstime(timeoutds);
         }
     }
-    curlsocketsprocessed = false;
-
 #ifdef MEGA_USE_C_ARES
     timeval tv;
     if (ares_timeout(ares, NULL, &tv))
@@ -1817,7 +1826,18 @@ int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t siz
     if (type == CURLINFO_TEXT && size)
     {
         data[size - 1] = 0;
-        LOG_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data;
+        std::string errnoInfo;
+        if (strstr(data, "SSL_ERROR_SYSCALL"))
+        {
+            // This function is called quite early by curl code, and hopefully no other call would have
+            // modified errno in the meantime.
+            errnoInfo = " (System errno: " + std::to_string(errno) +
+#if defined(USE_OPENSSL)
+                        "; OpenSSL last err: " + std::to_string(ERR_peek_last_error()) +
+#endif
+                        ")";
+        }
+        LOG_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data << errnoInfo;
     }
 
     return 0;
@@ -2121,11 +2141,6 @@ bool CurlHttpIO::doio()
     result = statechange;
     statechange = false;
 
-    if (curlsocketsprocessed)
-    {
-        return result;
-    }
-
     processcurlevents(API);
     result |= multidoio(curlm[API]);
 
@@ -2157,7 +2172,6 @@ bool CurlHttpIO::doio()
         }
     }
 
-    curlsocketsprocessed = true;
     return result;
 }
 
@@ -2286,6 +2300,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                 // check httpstatus and response length
                 req->status = (req->httpstatus == 200
+                               && errorCode != CURLE_PARTIAL_FILE
                                && (req->contentlength < 0
                                    || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
                         ? REQ_SUCCESS : REQ_FAILURE;
@@ -2298,8 +2313,12 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
                 else
                 {
-                    LOG_warn << req->logname << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
-                             << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
+                    LOG_warn << req->logname << "REQ_FAILURE."
+                             << " Status: " << req->httpstatus
+                             << " CURLcode: " << errorCode
+                             << "  Content-Length: " << req->contentlength
+                             << "  buffer? " << (req->buf != NULL)
+                             << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
                 }
 
                 if (req->httpstatus)
@@ -2702,6 +2721,11 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         info.mode = what;
 #if defined(_WIN32)
         info.createAssociateEvent();
+
+        if (what & CURL_POLL_OUT)
+        {
+            info.signalledWrite = true;
+        }
 #endif
     }
 

@@ -99,6 +99,7 @@ using std::shared_ptr;
 using std::weak_ptr;
 using std::move;
 using std::mutex;
+using std::recursive_mutex;
 using std::lock_guard;
 
 #ifdef WIN32
@@ -349,6 +350,25 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
 
+typedef union {
+    std::array<byte, FILENODEKEYLENGTH> bytes;
+    struct {
+        std::array<byte, FOLDERNODEKEYLENGTH> key;
+        union {
+            std::array<byte, 8> iv_bytes;
+            uint64_t iv_u64;
+        };
+        union {
+            std::array<byte, 8> crc_bytes;
+            uint64_t crc_u64;
+        };
+    };
+} FileNodeKey;
+
+const int UPLOADTOKENLEN = 36;
+
+typedef std::array<byte, UPLOADTOKENLEN> UploadToken;
+
 // persistent resource cache storage
 class Cacheable
 {
@@ -424,7 +444,7 @@ enum SyncError {
     REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
     REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
     SHARE_NON_FULL_ACCESS = 14,             // Existing inbound share sync or part thereof lost full access
-    LOCAL_FINGERPRINT_MISMATCH = 15,        // Filesystem fingerprint does not match the one stored for the synchronization
+    LOCAL_FILESYSTEM_MISMATCH = 15,         // Filesystem fingerprint does not match the one stored for the synchronization
     PUT_NODES_ERROR = 16,                   // Error processing put nodes result
     ACTIVE_SYNC_BELOW_PATH = 17,            // There's a synced node below the path to be synced
     ACTIVE_SYNC_ABOVE_PATH = 18,            // There's a synced node above the path to be synced
@@ -666,7 +686,8 @@ typedef enum {
     //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
-    ATTR_DRIVE_NAMES = 35                   // private - byte array - versioned
+    ATTR_DRIVE_NAMES = 35,                  // private - byte array - versioned
+    ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -971,6 +992,17 @@ typedef enum
 }
 BackupType;
 
+enum VersioningOption
+{
+    // In the cases where these options are specified for uploads, the `ov` flag will be
+    // set if there is a pre-existing node in the target folder, with the same name.
+
+    NoVersioning,             // Node will be put directly to parent, with no versions, and no other node affected
+    ClaimOldVersion,          // The Node specified by `ov` (if any) will become the first version of the node put
+    ReplaceOldVersion,        // the Node specified by `ov` (if any) will be deleted, and this new node takes its place, retaining any version chain.
+    UseLocalVersioningFlag,   // One of the two above will occur, based on the versions_disabled flag
+    UseServerVersioningFlag   // One of those two will occur, based on the API's current state of that flag
+};
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
 // either always be NULL or if one refers to the other, the other refers to the one.

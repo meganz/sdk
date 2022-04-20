@@ -59,8 +59,6 @@ PromiseBoolSP newPromiseBoolSP()
 
 #ifdef ENABLE_SYNC
 
-namespace {
-
 bool suppressfiles = false;
 
 typedef ::mega::byte byte;
@@ -114,26 +112,6 @@ string parentpath(const string& p)
     return n == string::npos ? "" : p.substr(0, n-1);
 }
 
-void WaitMillisec(unsigned n)
-{
-#ifdef _WIN32
-    if (n > 1000)
-    {
-        for (int i = 0; i < 10; ++i)
-        {
-            // better for debugging, with breakpoints, pauses, etc
-            Sleep(n/10);
-        }
-    }
-    else
-    {
-        Sleep(n);
-    }
-#else
-    usleep(n * 1000);
-#endif
-}
-
 bool createFile(const fs::path &path, const void *data, const size_t data_length)
 {
 #if (__cplusplus >= 201700L)
@@ -177,484 +155,460 @@ std::string randomData(const std::size_t length)
     return std::string((const char*)data.data(), data.size());
 }
 
-struct Model
+Model::ModelNode::ModelNode(const ModelNode& other)
+    : type(other.type)
+    , mCloudName()
+    , mFsName()
+    , name(other.name)
+    , content(other.content)
+    , kids()
+    , parent()
+    , changed(other.changed)
 {
-    // records what we think the tree should look like after sync so we can confirm it
-
-    struct ModelNode
+    for (auto& child : other.kids)
     {
-        enum nodetype { file, folder };
-        nodetype type = folder;
-        string mCloudName;
-        string mFsName;
-        string name;
-        string content;
-        vector<unique_ptr<ModelNode>> kids;
-        ModelNode* parent = nullptr;
-        bool changed = false;
-        bool fsOnly = false;
-
-        ModelNode() = default;
-
-        ModelNode(const ModelNode& other)
-          : type(other.type)
-          , mCloudName()
-          , mFsName()
-          , name(other.name)
-          , content(other.content)
-          , kids()
-          , parent()
-          , changed(other.changed)
-        {
-            for (auto& child : other.kids)
-            {
-                addkid(child->clone());
-            }
-        }
-
-        ModelNode& fsName(const string& name)
-        {
-            return mFsName = name, *this;
-        }
-
-        const string& fsName() const
-        {
-            return mFsName.empty() ? name : mFsName;
-        }
-
-        ModelNode& cloudName(const string& name)
-        {
-            return mCloudName = name, *this;
-        }
-
-        const string& cloudName() const
-        {
-            return mCloudName.empty() ? name : mCloudName;
-        }
-
-        void generate(const fs::path& path, bool force)
-        {
-            const fs::path ourPath = path / fsName();
-
-            if (type == file)
-            {
-                if (changed || force)
-                {
-                    ASSERT_TRUE(createDataFile(ourPath, content));
-                    changed = false;
-                }
-            }
-            else
-            {
-                fs::create_directory(ourPath);
-
-                for (auto& child : kids)
-                {
-                    child->generate(ourPath, force);
-                }
-            }
-        }
-
-        string path()
-        {
-            string s;
-            for (auto p = this; p; p = p->parent)
-                s = "/" + p->name + s;
-            return s;
-        }
-
-        string fsPath()
-        {
-            string s;
-            for (auto p = this; p; p = p->parent)
-                s = "/" + p->fsName() + s;
-            return s;
-        }
-
-        ModelNode* addkid()
-        {
-            return addkid(::mega::make_unique<ModelNode>());
-        }
-
-        ModelNode* addkid(unique_ptr<ModelNode>&& p)
-        {
-            p->parent = this;
-            kids.emplace_back(move(p));
-
-            return kids.back().get();
-        }
-
-        bool typematchesnodetype(nodetype_t nodetype) const
-        {
-            switch (type)
-            {
-            case file: return nodetype == FILENODE;
-            case folder: return nodetype == FOLDERNODE;
-            }
-            return false;
-        }
-
-        void print(string prefix="")
-        {
-            out() << prefix << name;
-            prefix.append(name).append("/");
-            for (const auto &in: kids)
-            {
-                in->print(prefix);
-            }
-        }
-
-        std::unique_ptr<ModelNode> clone()
-        {
-            return ::mega::make_unique<ModelNode>(*this);
-        }
-    };
-
-    Model()
-      : root(makeModelSubfolder("root"))
-    {
+        addkid(child->clone());
     }
+}
 
-    Model(const Model& other)
-      : root(other.root->clone())
+Model::ModelNode& Model::ModelNode::fsName(const string& name)
+{
+    return mFsName = name, *this;
+}
+
+const string& Model::ModelNode::fsName() const
+{
+    return mFsName.empty() ? name : mFsName;
+}
+
+Model::ModelNode& Model::ModelNode::cloudName(const string& name)
+{
+    return mCloudName = name, *this;
+}
+
+const string& Model::ModelNode::cloudName() const
+{
+    return mCloudName.empty() ? name : mCloudName;
+}
+
+void Model::ModelNode::generate(const fs::path& path, bool force)
+{
+    const fs::path ourPath = path / fsName();
+
+    if (type == file)
     {
-    }
-
-    Model& operator=(const Model& rhs)
-    {
-        Model temp(rhs);
-
-        swap(temp);
-
-        return *this;
-    }
-
-    ModelNode* addfile(const string& path, const string& content)
-    {
-        auto* node = addnode(path, ModelNode::file);
-
-        node->content = content;
-        node->changed = true;
-
-        return node;
-    }
-
-    ModelNode* addfile(const string& path)
-    {
-        return addfile(path, path);
-    }
-
-    ModelNode* addfolder(const string& path)
-    {
-        return addnode(path, ModelNode::folder);
-    }
-
-    ModelNode* addnode(const string& path, ModelNode::nodetype type)
-    {
-        ModelNode* child;
-        ModelNode* node = root.get();
-        string name;
-        size_t current = 0;
-        size_t end = path.size();
-
-        while (current < end)
+        if (changed || force)
         {
-            size_t delimiter = path.find('/', current);
+            ASSERT_TRUE(createDataFile(ourPath, content));
+            changed = false;
+        }
+    }
+    else
+    {
+        fs::create_directory(ourPath);
 
-            if (delimiter == path.npos)
-            {
-                break;
-            }
+        for (auto& child : kids)
+        {
+            child->generate(ourPath, force);
+        }
+    }
+}
 
-            name = path.substr(current, delimiter - current);
+string Model::ModelNode::path()
+{
+    string s;
+    for (auto p = this; p; p = p->parent)
+        s = "/" + p->name + s;
+    return s;
+}
 
-            if (!(child = childnodebyname(node, name)))
-            {
-                child = node->addkid();
+string Model::ModelNode::fsPath()
+{
+    string s;
+    for (auto p = this; p; p = p->parent)
+        s = "/" + p->fsName() + s;
+    return s;
+}
 
-                child->name = name;
-                child->type = ModelNode::folder;
-            }
+Model::ModelNode* Model::ModelNode::addkid()
+{
+    return addkid(::mega::make_unique<ModelNode>());
+}
 
-            assert(child->type == ModelNode::folder);
+Model::ModelNode* Model::ModelNode::addkid(unique_ptr<ModelNode>&& p)
+{
+    p->parent = this;
+    kids.emplace_back(move(p));
 
-            current = delimiter + 1;
-            node = child;
+    return kids.back().get();
+}
+
+bool Model::ModelNode::typematchesnodetype(nodetype_t nodetype) const
+{
+    switch (type)
+    {
+    case file: return nodetype == FILENODE;
+    case folder: return nodetype == FOLDERNODE;
+    }
+    return false;
+}
+
+void Model::ModelNode::print(string prefix)
+{
+    out() << prefix << name;
+    prefix.append(name).append("/");
+    for (const auto &in: kids)
+    {
+        in->print(prefix);
+    }
+}
+
+std::unique_ptr<Model::ModelNode> Model::ModelNode::clone()
+{
+    return ::mega::make_unique<ModelNode>(*this);
+}
+
+Model::Model()
+    : root(makeModelSubfolder("root"))
+{
+}
+
+Model::Model(const Model& other)
+    : root(other.root->clone())
+{
+}
+
+Model& Model::operator=(const Model& rhs)
+{
+    Model temp(rhs);
+
+    swap(temp);
+
+    return *this;
+}
+
+Model::ModelNode* Model::addfile(const string& path, const string& content)
+{
+    auto* node = addnode(path, ModelNode::file);
+
+    node->content = content;
+    node->changed = true;
+
+    return node;
+}
+
+Model::ModelNode* Model::addfile(const string& path)
+{
+    return addfile(path, path);
+}
+
+Model::ModelNode* Model::addfolder(const string& path)
+{
+    return addnode(path, ModelNode::folder);
+}
+
+Model::ModelNode* Model::addnode(const string& path, ModelNode::nodetype type)
+{
+    ModelNode* child;
+    ModelNode* node = root.get();
+    string name;
+    size_t current = 0;
+    size_t end = path.size();
+
+    while (current < end)
+    {
+        size_t delimiter = path.find('/', current);
+
+        if (delimiter == path.npos)
+        {
+            break;
         }
 
-        assert(current < end);
-
-        name = path.substr(current);
+        name = path.substr(current, delimiter - current);
 
         if (!(child = childnodebyname(node, name)))
         {
             child = node->addkid();
 
             child->name = name;
-            child->type = type;
+            child->type = ModelNode::folder;
         }
 
-        assert(child->type == type);
+        assert(child->type == ModelNode::folder);
 
-        return child;
+        current = delimiter + 1;
+        node = child;
     }
 
-    ModelNode* copynode(const string& src, const string& dst)
+    assert(current < end);
+
+    name = path.substr(current);
+
+    if (!(child = childnodebyname(node, name)))
     {
-        const ModelNode* source = findnode(src);
-        ModelNode* destination = addnode(dst, source->type);
+        child = node->addkid();
 
-        destination->content = source->content;
-        destination->kids.clear();
+        child->name = name;
+        child->type = type;
+    }
 
-        for (auto& child : source->kids)
+    assert(child->type == type);
+
+    return child;
+}
+
+Model::ModelNode* Model::copynode(const string& src, const string& dst)
+{
+    const ModelNode* source = findnode(src);
+    ModelNode* destination = addnode(dst, source->type);
+
+    destination->content = source->content;
+    destination->kids.clear();
+
+    for (auto& child : source->kids)
+    {
+        destination->addkid(child->clone());
+    }
+
+    return destination;
+}
+
+unique_ptr<Model::ModelNode> Model::makeModelSubfolder(const string& utf8Name)
+{
+    unique_ptr<ModelNode> n(new ModelNode);
+    n->name = utf8Name;
+    return n;
+}
+
+unique_ptr<Model::ModelNode> Model::makeModelSubfile(const string& utf8Name, string content)
+{
+    unique_ptr<ModelNode> n(new ModelNode);
+    n->name = utf8Name;
+    n->type = ModelNode::file;
+    n->content = content.empty() ? utf8Name : std::move(content);
+    return n;
+}
+
+unique_ptr<Model::ModelNode> Model::buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir)
+{
+    if (suppressfiles) filesperdir = 0;
+
+    unique_ptr<ModelNode> nn = makeModelSubfolder(prefix);
+
+    for (int i = 0; i < filesperdir; ++i)
+    {
+        nn->addkid(makeModelSubfile("file" + to_string(i) + "_" + prefix));
+    }
+
+    if (recurselevel > 0)
+    {
+        for (int i = 0; i < n; ++i)
         {
-            destination->addkid(child->clone());
+            unique_ptr<ModelNode> sn = buildModelSubdirs(prefix + "_" + to_string(i), n, recurselevel - 1, filesperdir);
+            sn->parent = nn.get();
+            nn->addkid(move(sn));
         }
-
-        return destination;
     }
+    return nn;
+}
 
-    unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name)
+Model::ModelNode* Model::childnodebyname(ModelNode* n, const std::string& s)
+{
+    for (auto& m : n->kids)
     {
-        unique_ptr<ModelNode> n(new ModelNode);
-        n->name = utf8Name;
-        return n;
-    }
-
-    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name, string content = {})
-    {
-        unique_ptr<ModelNode> n(new ModelNode);
-        n->name = utf8Name;
-        n->type = ModelNode::file;
-        n->content = content.empty() ? utf8Name : std::move(content);
-        return n;
-    }
-
-    unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir)
-    {
-        if (suppressfiles) filesperdir = 0;
-
-        unique_ptr<ModelNode> nn = makeModelSubfolder(prefix);
-
-        for (int i = 0; i < filesperdir; ++i)
+        if (m->name == s)
         {
-            nn->addkid(makeModelSubfile("file" + to_string(i) + "_" + prefix));
+            return m.get();
         }
-
-        if (recurselevel > 0)
-        {
-            for (int i = 0; i < n; ++i)
-            {
-                unique_ptr<ModelNode> sn = buildModelSubdirs(prefix + "_" + to_string(i), n, recurselevel - 1, filesperdir);
-                sn->parent = nn.get();
-                nn->addkid(move(sn));
-            }
-        }
-        return nn;
     }
+    return nullptr;
+}
 
-    ModelNode* childnodebyname(ModelNode* n, const std::string& s)
+Model::ModelNode* Model::findnode(string path, ModelNode* startnode)
+{
+    ModelNode* n = startnode ? startnode : root.get();
+    while (n && !path.empty())
     {
-        for (auto& m : n->kids)
-        {
-            if (m->name == s)
-            {
-                return m.get();
-            }
-        }
-        return nullptr;
+        auto pos = path.find("/");
+        n = childnodebyname(n, path.substr(0, pos));
+        path.erase(0, pos == string::npos ? path.size() : pos + 1);
     }
+    return n;
+}
 
-    ModelNode* findnode(string path, ModelNode* startnode = nullptr)
+unique_ptr<Model::ModelNode> Model::removenode(const string& path)
+{
+    ModelNode* n = findnode(path);
+    if (n && n->parent)
     {
-        ModelNode* n = startnode ? startnode : root.get();
-        while (n && !path.empty())
-        {
-            auto pos = path.find("/");
-            n = childnodebyname(n, path.substr(0, pos));
-            path.erase(0, pos == string::npos ? path.size() : pos + 1);
-        }
-        return n;
+        unique_ptr<ModelNode> extracted;
+        ModelNode* parent = n->parent;
+        auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&extracted, n](unique_ptr<ModelNode>& v) { if (v.get() == n) return extracted = move(v), true; else return false; });
+        parent->kids.erase(newend, parent->kids.end());
+        return extracted;
     }
+    return nullptr;
+}
 
-    unique_ptr<ModelNode> removenode(const string& path)
+bool Model::movenode(const string& sourcepath, const string& destpath)
+{
+    ModelNode* source = findnode(sourcepath);
+    ModelNode* dest = findnode(destpath);
+    if (source && source && source->parent && dest)
     {
-        ModelNode* n = findnode(path);
-        if (n && n->parent)
+        auto replaced_node = removenode(destpath + "/" + source->name);
+
+        unique_ptr<ModelNode> n;
+        ModelNode* parent = source->parent;
+        auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&n, source](unique_ptr<ModelNode>& v) { if (v.get() == source) return n = move(v), true; else return false; });
+        parent->kids.erase(newend, parent->kids.end());
+        if (n)
         {
-            unique_ptr<ModelNode> extracted;
-            ModelNode* parent = n->parent;
-            auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&extracted, n](unique_ptr<ModelNode>& v) { if (v.get() == n) return extracted = move(v), true; else return false; });
-            parent->kids.erase(newend, parent->kids.end());
-            return extracted;
+            dest->addkid(move(n));
+            return true;
         }
-        return nullptr;
     }
+    return false;
+}
 
-    bool movenode(const string& sourcepath, const string& destpath)
+bool Model::movetosynctrash(const string& path, const string& syncrootpath)
+{
+    ModelNode* syncroot;
+    if (!(syncroot = findnode(syncrootpath)))
     {
-        ModelNode* source = findnode(sourcepath);
-        ModelNode* dest = findnode(destpath);
-        if (source && source && source->parent && dest)
-        {
-            auto replaced_node = removenode(destpath + "/" + source->name);
-
-            unique_ptr<ModelNode> n;
-            ModelNode* parent = source->parent;
-            auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&n, source](unique_ptr<ModelNode>& v) { if (v.get() == source) return n = move(v), true; else return false; });
-            parent->kids.erase(newend, parent->kids.end());
-            if (n)
-            {
-                dest->addkid(move(n));
-                return true;
-            }
-        }
         return false;
     }
 
-    bool movetosynctrash(const string& path, const string& syncrootpath)
+    ModelNode* trash;
+    if (!(trash = childnodebyname(syncroot, DEBRISFOLDER)))
     {
-        ModelNode* syncroot;
-        if (!(syncroot = findnode(syncrootpath)))
-        {
-            return false;
-        }
+        auto uniqueptr = makeModelSubfolder(DEBRISFOLDER);
+        trash = uniqueptr.get();
+        syncroot->addkid(move(uniqueptr));
+    }
 
+    char today[50];
+    auto rawtime = time(NULL);
+    strftime(today, sizeof today, "%F", localtime(&rawtime));
+
+    ModelNode* dayfolder;
+    if (!(dayfolder = findnode(today, trash)))
+    {
+        auto uniqueptr = makeModelSubfolder(today);
+        dayfolder = uniqueptr.get();
+        trash->addkid(move(uniqueptr));
+    }
+
+    if (auto uniqueptr = removenode(path))
+    {
+        dayfolder->addkid(move(uniqueptr));
+        return true;
+    }
+    return false;
+}
+
+void Model::ensureLocalDebrisTmpLock(const string& syncrootpath)
+{
+    // if we've downloaded a file then it's put in debris/tmp initially, and there is a lock file
+    if (ModelNode* syncroot = findnode(syncrootpath))
+    {
         ModelNode* trash;
         if (!(trash = childnodebyname(syncroot, DEBRISFOLDER)))
         {
             auto uniqueptr = makeModelSubfolder(DEBRISFOLDER);
             trash = uniqueptr.get();
+            trash->fsOnly = true;
             syncroot->addkid(move(uniqueptr));
         }
 
+        ModelNode* tmpfolder;
+        if (!(tmpfolder = findnode("tmp", trash)))
+        {
+            auto uniqueptr = makeModelSubfolder("tmp");
+            tmpfolder = uniqueptr.get();
+            trash->addkid(move(uniqueptr));
+        }
+
+        ModelNode* lockfile;
+        if (!(lockfile = findnode("lock", tmpfolder)))
+        {
+            tmpfolder->addkid(makeModelSubfile("lock"));
+        }
+    }
+}
+
+bool Model::removesynctrash(const string& syncrootpath, const string& subpath)
+{
+    if (subpath.empty())
+    {
+        return removenode(syncrootpath + "/" + DEBRISFOLDER).get();
+    }
+    else
+    {
         char today[50];
         auto rawtime = time(NULL);
         strftime(today, sizeof today, "%F", localtime(&rawtime));
 
-        ModelNode* dayfolder;
-        if (!(dayfolder = findnode(today, trash)))
-        {
-            auto uniqueptr = makeModelSubfolder(today);
-            dayfolder = uniqueptr.get();
-            trash->addkid(move(uniqueptr));
-        }
-
-        if (auto uniqueptr = removenode(path))
-        {
-            dayfolder->addkid(move(uniqueptr));
-            return true;
-        }
-        return false;
+        return removenode(syncrootpath + "/" + DEBRISFOLDER + "/" + today + "/" + subpath).get();
     }
+}
 
-    void ensureLocalDebrisTmpLock(const string& syncrootpath)
+void Model::emulate_rename(std::string nodepath, std::string newname)
+{
+    auto node = findnode(nodepath);
+    ASSERT_TRUE(!!node);
+    if (node) node->name = newname;
+}
+
+void Model::emulate_move(std::string nodepath, std::string newparentpath)
+{
+    auto removed = removenode(newparentpath + "/" + leafname(nodepath));
+
+    ASSERT_TRUE(movenode(nodepath, newparentpath));
+}
+
+void Model::emulate_copy(std::string nodepath, std::string newparentpath)
+{
+    auto node = findnode(nodepath);
+    auto newparent = findnode(newparentpath);
+    ASSERT_TRUE(!!node);
+    ASSERT_TRUE(!!newparent);
+    newparent->addkid(node->clone());
+}
+
+void Model::emulate_rename_copy(std::string nodepath, std::string newparentpath, std::string newname)
+{
+    auto node = findnode(nodepath);
+    auto newparent = findnode(newparentpath);
+    ASSERT_TRUE(!!node);
+    ASSERT_TRUE(!!newparent);
+    auto newnode = node->clone();
+    newnode->name = newname;
+    newparent->addkid(std::move(newnode));
+}
+
+void Model::emulate_delete(std::string nodepath)
+{
+    auto removed = removenode(nodepath);
+    // ASSERT_TRUE(!!removed);
+}
+
+void Model::generate(const fs::path& path, bool force)
+{
+    fs::create_directories(path);
+
+    for (auto& child : root->kids)
     {
-        // if we've downloaded a file then it's put in debris/tmp initially, and there is a lock file
-        if (ModelNode* syncroot = findnode(syncrootpath))
-        {
-            ModelNode* trash;
-            if (!(trash = childnodebyname(syncroot, DEBRISFOLDER)))
-            {
-                auto uniqueptr = makeModelSubfolder(DEBRISFOLDER);
-                trash = uniqueptr.get();
-                trash->fsOnly = true;
-                syncroot->addkid(move(uniqueptr));
-            }
-
-            ModelNode* tmpfolder;
-            if (!(tmpfolder = findnode("tmp", trash)))
-            {
-                auto uniqueptr = makeModelSubfolder("tmp");
-                tmpfolder = uniqueptr.get();
-                trash->addkid(move(uniqueptr));
-            }
-
-            ModelNode* lockfile;
-            if (!(lockfile = findnode("lock", tmpfolder)))
-            {
-                tmpfolder->addkid(makeModelSubfile("lock"));
-            }
-        }
+        child->generate(path, force);
     }
+}
 
-    bool removesynctrash(const string& syncrootpath, const string& subpath = "")
-    {
-        if (subpath.empty())
-        {
-            return removenode(syncrootpath + "/" + DEBRISFOLDER).get();
-        }
-        else
-        {
-            char today[50];
-            auto rawtime = time(NULL);
-            strftime(today, sizeof today, "%F", localtime(&rawtime));
+void Model::swap(Model& other)
+{
+    using std::swap;
 
-            return removenode(syncrootpath + "/" + DEBRISFOLDER + "/" + today + "/" + subpath).get();
-        }
-    }
-
-    void emulate_rename(std::string nodepath, std::string newname)
-    {
-        auto node = findnode(nodepath);
-        ASSERT_TRUE(!!node);
-        if (node) node->name = newname;
-    }
-
-    void emulate_move(std::string nodepath, std::string newparentpath)
-    {
-        auto removed = removenode(newparentpath + "/" + leafname(nodepath));
-
-        ASSERT_TRUE(movenode(nodepath, newparentpath));
-    }
-
-    void emulate_copy(std::string nodepath, std::string newparentpath)
-    {
-        auto node = findnode(nodepath);
-        auto newparent = findnode(newparentpath);
-        ASSERT_TRUE(!!node);
-        ASSERT_TRUE(!!newparent);
-        newparent->addkid(node->clone());
-    }
-
-    void emulate_rename_copy(std::string nodepath, std::string newparentpath, std::string newname)
-    {
-        auto node = findnode(nodepath);
-        auto newparent = findnode(newparentpath);
-        ASSERT_TRUE(!!node);
-        ASSERT_TRUE(!!newparent);
-        auto newnode = node->clone();
-        newnode->name = newname;
-        newparent->addkid(std::move(newnode));
-    }
-
-    void emulate_delete(std::string nodepath)
-    {
-        auto removed = removenode(nodepath);
-       // ASSERT_TRUE(!!removed);
-    }
-
-    void generate(const fs::path& path, bool force = false)
-    {
-        fs::create_directories(path);
-
-        for (auto& child : root->kids)
-        {
-            child->generate(path, force);
-        }
-    }
-
-    void swap(Model& other)
-    {
-        using std::swap;
-
-        swap(root, other.root);
-    }
-
-    unique_ptr<ModelNode> root;
-};
-
+    swap(root, other.root);
+}
 
 bool waitonresults(future<bool>* r1 = nullptr, future<bool>* r2 = nullptr, future<bool>* r3 = nullptr, future<bool>* r4 = nullptr)
 {
@@ -667,2328 +621,2187 @@ bool waitonresults(future<bool>* r1 = nullptr, future<bool>* r2 = nullptr, futur
 
 atomic<int> next_request_tag{ 1 << 30 };
 
-struct StandardClient : public MegaApp
+void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h)
 {
-    WAIT_CLASS waiter;
-#ifdef GFX_CLASS
-    GFX_CLASS gfx;
-#endif
-
-    string client_dbaccess_path;
-    std::unique_ptr<HttpIO> httpio;
-    std::unique_ptr<FileSystemAccess> fsaccess;
-    std::recursive_mutex clientMutex;
-    MegaClient client;
-    std::atomic<bool> clientthreadexit{false};
-    bool fatalerror = false;
-    string clientname;
-    std::function<void()> nextfunctionMC;
-    std::function<void()> nextfunctionSC;
-    std::condition_variable functionDone;
-    std::mutex functionDoneMutex;
-    std::string salt;
-    std::set<fs::path> localFSFilesThatMayDiffer;
-
-    fs::path fsBasePath;
-
-    handle basefolderhandle = UNDEF;
-
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP, SETATTR,
-                          COMPLETION };  // use COMPLETION when we use a completion function, rather than trying to match tags on callbacks
-
-    struct ResultProc
+    if (rpe != COMPLETION)
     {
-        StandardClient& client;
-        ResultProc(StandardClient& c) : client(c) {}
-
-        struct id_callback
-        {
-            int request_tag = 0;
-            handle h = UNDEF;
-            std::function<bool(error)> f;
-            id_callback(std::function<bool(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
-        };
-
-        recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
-        map<resultprocenum, deque<id_callback>> m;
-
-        void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
-        {
-            if (rpe != COMPLETION)
-            {
-                lock_guard<recursive_mutex> g(mtx);
-                auto& entry = m[rpe];
-                entry.emplace_back(move(f), tag, h);
-            }
-
-            std::lock_guard<std::recursive_mutex> lg(client.clientMutex);
-
-            assert(tag > 0);
-            int oldtag = client.client.reqtag;
-            client.client.reqtag = tag;
-            requestfunc();
-            client.client.reqtag = oldtag;
-
-            client.client.waiter->notify();
-        }
-
-        void processresult(resultprocenum rpe, error e, handle h = UNDEF)
-        {
-            int tag = client.client.restag;
-            if (tag == 0 && rpe != CATCHUP)
-            {
-                //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag; // too many of those to output
-                return;
-            }
-
-            if (tag < (2 << 30))
-            {
-                out() << "ignoring callback from SDK internal sync operation " << rpe << " tag " << tag;
-                return;
-            }
-
-            lock_guard<recursive_mutex> g(mtx);
-            auto& entry = m[rpe];
-
-            if (rpe == CATCHUP)
-            {
-                while (!entry.empty())
-                {
-                    entry.front().f(e);
-                    entry.pop_front();
-                }
-                return;
-            }
-
-            if (entry.empty())
-            {
-                //out() << client.client.clientname
-                //      << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag;
-                return;
-            }
-
-            if (tag != entry.front().request_tag)
-            {
-                out() << client.client.clientname
-                      << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag;
-                return;
-            }
-
-            if (entry.front().f(e))
-            {
-                entry.pop_front();
-            }
-        }
-    } resultproc;
-
-    // thread as last member so everything else is initialised before we start it
-    std::thread clientthread;
-
-    string ensureDir(const fs::path& p)
-    {
-        fs::create_directories(p);
-
-        string result = p.u8string();
-
-        if (result.back() != fs::path::preferred_separator)
-        {
-            result += fs::path::preferred_separator;
-        }
-
-        return result;
+        lock_guard<recursive_mutex> g(mtx);
+        auto& entry = m[rpe];
+        entry.emplace_back(move(f), tag, h);
     }
 
-    StandardClient(const fs::path& basepath, const string& name)
-        : client_dbaccess_path(ensureDir(basepath / name))
-        , httpio(new HTTPIO_CLASS)
-        , fsaccess(new FSACCESS_CLASS(makeFsAccess_<FSACCESS_CLASS>()))
-        , client(this,
-                 &waiter,
-                 httpio.get(),
-                 fsaccess.get(),
+    std::lock_guard<std::recursive_mutex> lg(client.clientMutex);
+
+    assert(tag > 0);
+    int oldtag = client.client.reqtag;
+    client.client.reqtag = tag;
+    requestfunc();
+    client.client.reqtag = oldtag;
+
+    client.client.waiter->notify();
+}
+
+void StandardClient::ResultProc::processresult(resultprocenum rpe, error e, handle h)
+{
+    int tag = client.client.restag;
+    if (tag == 0 && rpe != CATCHUP)
+    {
+        //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag; // too many of those to output
+        return;
+    }
+
+    if (tag < (2 << 30))
+    {
+        out() << "ignoring callback from SDK internal sync operation " << rpe << " tag " << tag;
+        return;
+    }
+
+    lock_guard<recursive_mutex> g(mtx);
+    auto& entry = m[rpe];
+
+    if (rpe == CATCHUP)
+    {
+        while (!entry.empty())
+        {
+            entry.front().f(e);
+            entry.pop_front();
+        }
+        return;
+    }
+
+    if (entry.empty())
+    {
+        //out() << client.client.clientname
+        //      << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag;
+        return;
+    }
+
+    if (tag != entry.front().request_tag)
+    {
+        out() << client.client.clientname
+                << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag;
+        return;
+    }
+
+    if (entry.front().f(e))
+    {
+        entry.pop_front();
+    }
+}
+
+string StandardClient::ensureDir(const fs::path& p)
+{
+    fs::create_directories(p);
+
+    string result = p.u8string();
+
+    if (result.back() != fs::path::preferred_separator)
+    {
+        result += fs::path::preferred_separator;
+    }
+
+    return result;
+}
+
+StandardClient::StandardClient(const fs::path& basepath, const string& name)
+    : client_dbaccess_path(ensureDir(basepath / name))
+    , httpio(new HTTPIO_CLASS)
+    , client(this,
+                &waiter,
+                httpio.get(),
+                makeFsAccess(),
 #ifdef DBACCESS_CLASS
-                 new DBACCESS_CLASS(LocalPath::fromPath(client_dbaccess_path, *fsaccess)),
+                new DBACCESS_CLASS(LocalPath::fromAbsolutePath(client_dbaccess_path)),
 #else
-                 NULL,
+                NULL,
 #endif
 #ifdef GFX_CLASS
-                 &gfx,
+                &gfx,
 #else
-                 NULL,
+                NULL,
 #endif
-                 "N9tSBJDC",
-                 USER_AGENT.c_str(),
-                 THREADS_PER_MEGACLIENT)
-        , clientname(name)
-        , fsBasePath(basepath / fs::u8path(name))
-        , resultproc(*this)
-        , clientthread([this]() { threadloop(); })
-    {
-        client.clientname = clientname + " ";
+                "N9tSBJDC",
+                USER_AGENT.c_str(),
+                THREADS_PER_MEGACLIENT)
+    , clientname(name)
+    , fsBasePath(basepath / fs::u8path(name))
+    , resultproc(*this)
+    , clientthread([this]() { threadloop(); })
+{
+    client.clientname = clientname + " ";
 #ifdef GFX_CLASS
-        gfx.startProcessingThread();
+    gfx.startProcessingThread();
 #endif
-    }
+}
 
-    ~StandardClient()
+StandardClient::~StandardClient()
+{
+    // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
+    auto result =
+        thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
+                        {
+                            mc.logout(false);
+                            result->set_value(true);
+                        });
+
+    // Make sure logout completes before we escape.
+    result.get();
+
+    clientthreadexit = true;
+    waiter.notify();
+    clientthread.join();
+}
+
+void StandardClient::localLogout()
+{
+    auto result =
+        thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
+                        {
+                            mc.locallogout(false, true);
+                            result->set_value(true);
+                        });
+
+    // Make sure logout completes before we escape.
+    result.get();
+}
+
+string StandardClient::lp(LocalNode* ln) { return ln->getLocalPath().toName(*client.fsaccess); }
+
+void StandardClient::onCallback() { lastcb = chrono::steady_clock::now(); };
+
+void StandardClient::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
+{
+    onCallback();
+
+    if (logcb)
     {
-        // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
-        auto result =
-          thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
-                          {
-                              mc.logout(false);
-                              result->set_value(true);
-                          });
+        lock_guard<mutex> guard(om);
 
-        // Make sure logout completes before we escape.
-        result.get();
-
-        clientthreadexit = true;
-        waiter.notify();
-        clientthread.join();
+        out() << clientname
+                << "sync_auto_resume_result(): id: "
+                << toHandle(config.mBackupId)
+                << ", attempted: "
+                << attempted
+                << ", hadAnError: "
+                << hadAnError;
     }
 
-    void localLogout()
+    if (onAutoResumeResult)
     {
-        auto result =
-          thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
-                          {
-                              mc.locallogout(false, true);
-                              result->set_value(true);
-                          });
-
-        // Make sure logout completes before we escape.
-        result.get();
+        onAutoResumeResult(config, attempted, hadAnError);
     }
+}
 
-    static mutex om;
-    bool logcb = false;
-    chrono::steady_clock::time_point lastcb = std::chrono::steady_clock::now();
+void StandardClient::syncs_restored()
+{
+    lock_guard<mutex> g(om);
+    out() << clientname << "sync restore complete";
+    received_syncs_restored = true;
+}
 
-    string lp(LocalNode* ln) { return ln->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN); }
-
-    void onCallback() { lastcb = chrono::steady_clock::now(); };
-
-    std::function<void(const SyncConfig&, bool, bool)> onAutoResumeResult;
-
-    void sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError) override
+void StandardClient::nodes_updated(Node** nodes, int numNodes)
+{
+    if (!nodes)
     {
-        onCallback();
-
-        if (logcb)
-        {
-            lock_guard<mutex> guard(om);
-
-            out() << clientname
-                  << "sync_auto_resume_result(): id: "
-                  << toHandle(config.mBackupId)
-                  << ", attempted: "
-                  << attempted
-                  << ", hadAnError: "
-                  << hadAnError;
-        }
-
-        if (onAutoResumeResult)
-        {
-            onAutoResumeResult(config, attempted, hadAnError);
-        }
+        out() << clientname << "nodes_updated: total reset.  total node count now: " << numNodes;
+        return;
     }
-
-    bool received_syncs_restored = false;
-    void syncs_restored() override
+    if (logcb)
     {
         lock_guard<mutex> g(om);
-        out() << clientname << "sync restore complete";
-        received_syncs_restored = true;
+        out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();
     }
+    received_node_actionpackets = true;
+    nodes_updated_cv.notify_all();
+}
 
-    bool received_node_actionpackets = false;
-    std::condition_variable nodes_updated_cv;
+bool StandardClient::waitForNodesUpdated(unsigned numSeconds)
+{
+    mutex nodes_updated_cv_mutex;
+    std::unique_lock<mutex> g(nodes_updated_cv_mutex);
+    nodes_updated_cv.wait_for(g, std::chrono::seconds(numSeconds),
+                                [&](){ return received_node_actionpackets; });
+    return received_node_actionpackets;
+}
 
-    void nodes_updated(Node** nodes, int numNodes) override
+void StandardClient::syncupdate_stateconfig(const SyncConfig& config) { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << config.mBackupId; } }
+void StandardClient::syncupdate_scanning(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
+void StandardClient::syncupdate_local_lockretry(bool b) { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
+
+#ifdef DEBUG
+void StandardClient::syncdebug_notification(const SyncConfig& config,
+                            int queue,
+                            const Notification& notification)
+{
+    if (mOnSyncDebugNotification)
+        mOnSyncDebugNotification(config, queue, notification);
+}
+#endif // DEBUG
+
+bool StandardClient::sync_syncable(Sync* sync, const char* name, LocalPath& path, Node*)
+{
+    return sync_syncable(sync, name, path);
+}
+
+bool StandardClient::sync_syncable(Sync*, const char*, LocalPath&)
+{
+    onCallback();
+
+    return true;
+}
+
+void StandardClient::notify_retry(dstime t, retryreason_t r)
+{
+    onCallback();
+
+    if (!logcb) return;
+
+    lock_guard<mutex> guard(om);
+
+    out() << clientname << " notify_retry: " << t << " " << r;
+}
+
+void StandardClient::request_error(error e)
+{
+    onCallback();
+
+    if (!logcb) return;
+
+    lock_guard<mutex> guard(om);
+
+    out() << clientname << " request_error: " << e;
+}
+
+void StandardClient::request_response_progress(m_off_t a, m_off_t b)
+{
+    onCallback();
+
+    if (!logcb) return;
+
+    lock_guard<mutex> guard(om);
+
+    out() << clientname << " request_response_progress: " << a << " " << b;
+}
+
+void StandardClient::threadloop()
+    try
+{
+    while (!clientthreadexit)
     {
-        if (!nodes)
+        int r;
+
         {
-            out() << clientname << "nodes_updated: total reset.  total node count now: " << numNodes;
-            return;
-        }
-        if (logcb)
-        {
-            lock_guard<mutex> g(om);
-            out() << clientname << "nodes_updated: received " << numNodes << " including " << nodes[0]->displaypath();
-        }
-        received_node_actionpackets = true;
-        nodes_updated_cv.notify_all();
-    }
-
-    bool waitForNodesUpdated(unsigned numSeconds)
-    {
-        mutex nodes_updated_cv_mutex;
-        std::unique_lock<mutex> g(nodes_updated_cv_mutex);
-        nodes_updated_cv.wait_for(g, std::chrono::seconds(numSeconds),
-                                  [&](){ return received_node_actionpackets; });
-        return received_node_actionpackets;
-    }
-
-    void syncupdate_stateconfig(const SyncConfig& config) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << config.mBackupId; } }
-    void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b; } }
-    void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_lockretry() " << b; }}
-    //void syncupdate_treestate(LocalNode* ln) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);   out() << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln); }}
-
-    bool sync_syncable(Sync* sync, const char* name, LocalPath& path, Node*) override
-    {
-        return sync_syncable(sync, name, path);
-    }
-
-    bool sync_syncable(Sync*, const char*, LocalPath&) override
-    {
-        onCallback();
-
-        return true;
-    }
-
-    std::atomic<unsigned> transfersAdded{0}, transfersRemoved{0}, transfersPrepared{0}, transfersFailed{0}, transfersUpdated{0}, transfersComplete{0};
-
-    void transfer_added(Transfer*) override { onCallback(); ++transfersAdded; }
-    void transfer_removed(Transfer*) override { onCallback(); ++transfersRemoved; }
-    void transfer_prepare(Transfer*) override { onCallback(); ++transfersPrepared; }
-    void transfer_failed(Transfer*,  const Error&, dstime = 0) override { onCallback(); ++transfersFailed; }
-    void transfer_update(Transfer*) override { onCallback(); ++transfersUpdated; }
-    void transfer_complete(Transfer*) override { onCallback(); ++transfersComplete; }
-
-    void notify_retry(dstime t, retryreason_t r) override
-    {
-        onCallback();
-
-        if (!logcb) return;
-
-        lock_guard<mutex> guard(om);
-
-        out() << clientname << " notify_retry: " << t << " " << r;
-    }
-
-    void request_error(error e) override
-    {
-        onCallback();
-
-        if (!logcb) return;
-
-        lock_guard<mutex> guard(om);
-
-        out() << clientname << " request_error: " << e;
-    }
-
-    void request_response_progress(m_off_t a, m_off_t b) override
-    {
-        onCallback();
-
-        if (!logcb) return;
-
-        lock_guard<mutex> guard(om);
-
-        out() << clientname << " request_response_progress: " << a << " " << b;
-    }
-
-    void threadloop()
-        try
-    {
-        while (!clientthreadexit)
-        {
-            int r;
-
-            {
-                std::lock_guard<std::recursive_mutex> lg(clientMutex);
-                r = client.preparewait();
-            }
-
-            if (!r)
-            {
-                r |= client.dowait();
-            }
-
             std::lock_guard<std::recursive_mutex> lg(clientMutex);
-            r |= client.checkevents();
-
-            {
-                std::lock_guard<mutex> g(functionDoneMutex);
-                if (nextfunctionMC)
-                {
-                    nextfunctionMC();
-                    nextfunctionMC = nullptr;
-                    functionDone.notify_all();
-                    r |= Waiter::NEEDEXEC;
-                }
-                if (nextfunctionSC)
-                {
-                    nextfunctionSC();
-                    nextfunctionSC = nullptr;
-                    functionDone.notify_all();
-                    r |= Waiter::NEEDEXEC;
-                }
-            }
-            if ((r & Waiter::NEEDEXEC))
-            {
-                client.exec();
-            }
+            r = client.preparewait();
         }
 
-        // shut down on the same thread, otherwise any ongoing async I/O fails to complete (on windows)
-        client.locallogout(false, true);
-
-        out() << clientname << " thread exiting naturally";
-    }
-    catch (std::exception& e)
-    {
-        out() << clientname << " thread exception, StandardClient " << clientname << " terminated: " << e.what();
-    }
-    catch (...)
-    {
-        out() << clientname << " thread exception, StandardClient " << clientname << " terminated";
-    }
-
-    static bool debugging;  // turn this on to prevent the main thread timing out when stepping in the MegaClient
-
-    template <class PROMISE_VALUE>
-    future<PROMISE_VALUE> thread_do(std::function<void(MegaClient&, shared_promise<PROMISE_VALUE>)> f)
-    {
-        unique_lock<mutex> guard(functionDoneMutex);
-        std::shared_ptr<promise<PROMISE_VALUE>> promiseSP(new promise<PROMISE_VALUE>());
-        nextfunctionMC = [this, promiseSP, f](){ f(this->client, promiseSP); };
-        waiter.notify();
-        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionMC; }))
+        if (!r)
         {
-            if (!debugging)
-            {
-                promiseSP->set_value(PROMISE_VALUE());
-                break;
-            }
+            r |= client.dowait();
         }
-        return promiseSP->get_future();
-    }
 
-    template <class PROMISE_VALUE>
-    future<PROMISE_VALUE> thread_do(std::function<void(StandardClient&, shared_promise<PROMISE_VALUE>)> f)
-    {
-        unique_lock<mutex> guard(functionDoneMutex);
-        std::shared_ptr<promise<PROMISE_VALUE>> promiseSP(new promise<PROMISE_VALUE>());
-        nextfunctionMC = [this, promiseSP, f]() { f(*this, promiseSP); };
-        waiter.notify();
-        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionSC; }))
+        std::lock_guard<std::recursive_mutex> lg(clientMutex);
+        r |= client.checkevents();
+
         {
-            if (!debugging)
+            std::lock_guard<mutex> g(functionDoneMutex);
+            if (nextfunctionMC)
             {
-                promiseSP->set_value(PROMISE_VALUE());
-                break;
+                nextfunctionMC();
+                nextfunctionMC = nullptr;
+                functionDone.notify_all();
+                r |= Waiter::NEEDEXEC;
+            }
+            if (nextfunctionSC)
+            {
+                nextfunctionSC();
+                nextfunctionSC = nullptr;
+                functionDone.notify_all();
+                r |= Waiter::NEEDEXEC;
             }
         }
-        return promiseSP->get_future();
+        if ((r & Waiter::NEEDEXEC))
+        {
+            client.exec();
+        }
     }
 
-    void preloginFromEnv(const string& userenv, PromiseBoolSP pb)
-    {
-        string user = getenv(userenv.c_str());
+    // shut down on the same thread, otherwise any ongoing async I/O fails to complete (on windows)
+    client.locallogout(false, true);
 
-        ASSERT_FALSE(user.empty());
+    out() << clientname << " thread exiting naturally";
+}
+catch (std::exception& e)
+{
+    out() << clientname << " thread exception, StandardClient " << clientname << " terminated: " << e.what();
+}
+catch (...)
+{
+    out() << clientname << " thread exception, StandardClient " << clientname << " terminated";
+}
 
-        resultproc.prepresult(PRELOGIN, ++next_request_tag,
-            [&](){ client.prelogin(user.c_str()); },
-            [pb](error e) { pb->set_value(!e); return true; });
+void StandardClient::preloginFromEnv(const string& userenv, PromiseBoolSP pb)
+{
+    string user = getenv(userenv.c_str());
 
-    }
+    ASSERT_FALSE(user.empty());
 
-    void loginFromEnv(const string& userenv, const string& pwdenv, PromiseBoolSP pb)
-    {
-        string user = getenv(userenv.c_str());
-        string pwd = getenv(pwdenv.c_str());
+    resultproc.prepresult(PRELOGIN, ++next_request_tag,
+        [&](){ client.prelogin(user.c_str()); },
+        [pb](error e) { pb->set_value(!e); return true; });
 
-        ASSERT_FALSE(user.empty());
-        ASSERT_FALSE(pwd.empty());
+}
 
-        byte pwkey[SymmCipher::KEYLENGTH];
+void StandardClient::loginFromEnv(const string& userenv, const string& pwdenv, PromiseBoolSP pb)
+{
+    string user = getenv(userenv.c_str());
+    string pwd = getenv(pwdenv.c_str());
 
-        resultproc.prepresult(LOGIN, ++next_request_tag,
-            [&](){
-                if (client.accountversion == 1)
+    ASSERT_FALSE(user.empty());
+    ASSERT_FALSE(pwd.empty());
+
+    ::mega::byte pwkey[SymmCipher::KEYLENGTH];
+
+    resultproc.prepresult(LOGIN, ++next_request_tag,
+        [&](){
+            if (client.accountversion == 1)
+            {
+                if (error e = client.pw_key(pwd.c_str(), pwkey))
                 {
-                    if (error e = client.pw_key(pwd.c_str(), pwkey))
-                    {
-                        ASSERT_TRUE(false) << "login error: " << e;
-                    }
-                    else
-                    {
-                        client.login(user.c_str(), pwkey);
-                    }
-                }
-                else if (client.accountversion == 2 && !salt.empty())
-                {
-                    client.login2(user.c_str(), pwd.c_str(), &salt);
+                    ASSERT_TRUE(false) << "login error: " << e;
                 }
                 else
                 {
-                    ASSERT_TRUE(false) << "Login unexpected error";
-                }
-            },
-            [pb](error e) { pb->set_value(!e); return true; });
-
-    }
-
-    void loginFromSession(const string& session, PromiseBoolSP pb)
-    {
-        resultproc.prepresult(LOGIN, ++next_request_tag,
-            [&](){ client.login(session); },
-            [pb](error e) { pb->set_value(!e);  return true; });
-    }
-
-    bool cloudCopyTreeAs(Node* from, Node* to, string name)
-    {
-        auto promise = newPromiseBoolSP();
-        auto future = promise->get_future();
-
-        cloudCopyTreeAs(from, to, std::move(name), std::move(promise));
-
-        return future.get();
-    }
-
-    class BasicPutNodesCompletion
-    {
-    public:
-        BasicPutNodesCompletion(std::function<void(const Error&)>&& callable)
-            : mCallable(std::move(callable))
-        {
-        }
-
-        void operator()(const Error& e, targettype_t, vector<NewNode>&, bool)
-        {
-            mCallable(e);
-        }
-
-    private:
-        std::function<void(const Error&)> mCallable;
-    }; // BasicPutNodesCompletion
-
-    void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb)
-    {
-        auto completion = BasicPutNodesCompletion([pb](const Error& e) {
-            pb->set_value(!e);
-        });
-
-        resultproc.prepresult(COMPLETION, ++next_request_tag,
-            [&](){
-                TreeProcCopy tc;
-                client.proctree(n1, &tc, false, true);
-                tc.allocnodes();
-                client.proctree(n1, &tc, false, true);
-                tc.nn[0].parenthandle = UNDEF;
-
-                SymmCipher key;
-                AttrMap attrs;
-                string attrstring;
-                key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
-                attrs = n1->attrs;
-                client.fsaccess->normalize(&newname);
-                attrs.map['n'] = newname;
-                attrs.getjson(&attrstring);
-                client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-                client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, 0, std::move(completion));
-            },
-            nullptr);
-    }
-
-    void putnodes(NodeHandle parentHandle, std::vector<NewNode>&& nodes, PromiseBoolSP pb)
-    {
-        auto completion = BasicPutNodesCompletion([pb](const Error& e) {
-            pb->set_value(!e);
-        });
-
-        resultproc.prepresult(COMPLETION,
-                              ++next_request_tag,
-                              [&]()
-                              {
-                                  client.putnodes(parentHandle, std::move(nodes), nullptr, 0, std::move(completion));
-                              },
-                              nullptr);
-    }
-
-    bool putnodes(NodeHandle parentHandle, std::vector<NewNode>&& nodes)
-    {
-        auto result =
-          thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
-                    {
-                        client.putnodes(parentHandle, std::move(nodes), pb);
-                    });
-
-        return result.get();
-    }
-
-    void uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes)
-    {
-        NewNode n;
-        client.putnodes_prepareOneFolder(&n, p.filename().u8string());
-        handle thishandle = n.nodehandle = h++;
-        n.parenthandle = parent;
-        newnodes.emplace_back(std::move(n));
-
-        for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
-        {
-            if (fs::is_directory(*i))
-            {
-                uploadFolderTree_recurse(thishandle, h, *i, newnodes);
-            }
-        }
-    }
-
-    void uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
-    {
-        auto completion = BasicPutNodesCompletion([pb](const Error& e) {
-            pb->set_value(!e);
-        });
-
-        resultproc.prepresult(COMPLETION, ++next_request_tag,
-            [&](){
-                vector<NewNode> newnodes;
-                handle h = 1;
-                uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-                client.putnodes(n2->nodeHandle(), move(newnodes), nullptr, 0, std::move(completion));
-            },
-            nullptr);
-    }
-
-    // Necessary to make sure we release the file once we're done with it.
-    struct FileGet : public File {
-        void completed(Transfer* t, LocalNode* n) override
-        {
-            File::completed(t, n);
-            result->set_value(true);
-            delete this;
-        }
-
-        void terminated() override
-        {
-            result->set_value(false);
-            delete this;
-        }
-
-        PromiseBoolSP result;
-    }; // FileGet
-
-    void downloadFile(const Node& node, const fs::path& destination, PromiseBoolSP result)
-    {
-        unique_ptr<FileGet> file(new FileGet());
-
-        file->h = node.nodeHandle();
-        file->hprivate = true;
-        file->localname = LocalPath::fromPath(destination.u8string(), *client.fsaccess);
-        file->name = node.displayname();
-        file->result = std::move(result);
-
-        reinterpret_cast<FileFingerprint&>(*file) = node;
-
-        DBTableTransactionCommitter committer(client.tctable);
-        client.startxfer(GET, file.release(), committer);
-    }
-
-    bool downloadFile(const Node& node, const fs::path& destination)
-    {
-        auto result =
-          thread_do<bool>([&](StandardClient& client, PromiseBoolSP result)
-                          {
-                              client.downloadFile(node, destination, result);
-                          });
-
-        return result.get();
-    }
-
-    struct FilePut : public File {
-        void completed(Transfer* t, LocalNode* n) override
-        {
-            File::completed(t, n);
-            delete this;
-        }
-
-        void terminated() override
-        {
-            delete this;
-        }
-    }; // FilePut
-
-    bool uploadFolderTree(fs::path p, Node* n2)
-    {
-        auto promise = newPromiseBoolSP();
-        auto future = promise->get_future();
-
-        uploadFolderTree(p, n2, std::move(promise));
-
-        return future.get();
-    }
-
-    void uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer)
-    {
-        unique_ptr<File> file(new FilePut());
-
-        file->h = parent->nodeHandle();
-        file->localname = LocalPath::fromPath(path.u8string(), *client.fsaccess);
-        file->name = name;
-
-        client.startxfer(PUT, file.release(), committer);
-    }
-
-    void uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb)
-    {
-        resultproc.prepresult(PUTNODES,
-                              ++next_request_tag,
-                              [&]()
-                              {
-                                  DBTableTransactionCommitter committer(client.tctable);
-                                  uploadFile(path, name, parent, committer);
-                              },
-                              [pb](error e)
-                              {
-                                  pb->set_value(!e);
-                                  return true;
-                              });
-    }
-
-    bool uploadFile(const fs::path& path, const string& name, Node* parent)
-    {
-        auto result =
-          thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
-                    {
-                        client.uploadFile(path, name, parent, pb);
-                    });
-
-        return result.get();
-    }
-
-    bool uploadFile(const fs::path& path, Node* parent)
-    {
-        return uploadFile(path, path.filename().u8string(), parent);
-    }
-
-    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer)
-    {
-        if (fs::is_regular_file(p))
-        {
-            ++inprogress;
-            uploadFile(p, p.filename().u8string(), target, committer);
-        }
-        else if (fs::is_directory(p))
-        {
-            if (auto newtarget = client.childnodebyname(target, p.filename().u8string().c_str()))
-            {
-                for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
-                {
-                    uploadFilesInTree_recurse(newtarget, *i, inprogress, committer);
+                    client.login(user.c_str(), pwkey);
                 }
             }
-        }
-    }
-
-    bool uploadFilesInTree(fs::path p, Node* n2)
-    {
-        auto promise = newPromiseBoolSP();
-        auto future = promise->get_future();
-
-        std::atomic_int dummy(0);
-        uploadFilesInTree(p, n2, dummy, std::move(promise));
-
-        return future.get();
-    }
-
-    void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb)
-    {
-        resultproc.prepresult(PUTNODES, ++next_request_tag,
-            [&](){
-                DBTableTransactionCommitter committer(client.tctable);
-                uploadFilesInTree_recurse(n2, p, inprogress, committer);
-            },
-            [pb, &inprogress](error e)
+            else if (client.accountversion == 2 && !salt.empty())
             {
-                if (!--inprogress)
-                    pb->set_value(true);
-                return !inprogress;
-            });
-    }
-
-
-
-    class TreeProcPrintTree : public TreeProc
-    {
-    public:
-        void proc(MegaClient* client, Node* n) override
-        {
-            //out() << "fetchnodes tree: " << n->displaypath();;
-        }
-    };
-
-    // mark node as removed and notify
-
-    std::function<void (StandardClient& mc, PromiseBoolSP pb)> onFetchNodes;
-
-    void fetchnodes(bool noCache, PromiseBoolSP pb)
-    {
-        resultproc.prepresult(FETCHNODES, ++next_request_tag,
-            [&](){ client.fetchnodes(noCache); },
-            [this, pb](error e)
-            {
-                if (e)
-                {
-                    pb->set_value(false);
-                }
-                else
-                {
-                    TreeProcPrintTree tppt;
-                    client.proctree(client.nodeByHandle(client.rootnodes.files), &tppt);
-
-                    if (onFetchNodes)
-                    {
-                        onFetchNodes(*this, pb);
-                    }
-                    else
-                    {
-                        pb->set_value(true);
-                    }
-                }
-                onFetchNodes = nullptr;
-                return true;
-            });
-    }
-
-    bool fetchnodes(bool noCache = false)
-    {
-        auto result =
-          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
-                          {
-                              client.fetchnodes(noCache, result);
-                          });
-
-        return result.get();
-    }
-
-    NewNode makeSubfolder(const string& utf8Name)
-    {
-        NewNode newnode;
-        client.putnodes_prepareOneFolder(&newnode, utf8Name);
-        return newnode;
-    }
-
-    void catchup(PromiseBoolSP pb)
-    {
-        resultproc.prepresult(CATCHUP, ++next_request_tag,
-            [&](){
-                client.catchup();
-            },
-            [pb](error e) {
-                if (e)
-                {
-                    out() << "catchup reports: " << e;
-                }
-                pb->set_value(!e);
-                return true;
-            });
-    }
-
-    void deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb)
-    {
-        if (Node* root = client.nodeByHandle(client.rootnodes.files))
-        {
-            if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
-            {
-                if (mayneeddeleting)
-                {
-                    auto completion = [this, pb](NodeHandle, Error e) {
-                        if (e) out() << "delete of test base folder reply reports: " << e;
-                        deleteTestBaseFolder(false, pb);
-                    };
-
-                    resultproc.prepresult(COMPLETION, ++next_request_tag,
-                        [&](){ client.unlink(basenode, false, 0, std::move(completion)); },
-                        nullptr);
-                    return;
-                }
-                out() << "base folder found, but not expected, failing";
-                pb->set_value(false);
-                return;
+                client.login2(user.c_str(), pwd.c_str(), &salt);
             }
             else
             {
-                //out() << "base folder not found, wasn't present or delete successful";
+                ASSERT_TRUE(false) << "Login unexpected error";
+            }
+        },
+        [pb](error e) { pb->set_value(!e); return true; });
+
+}
+
+void StandardClient::loginFromSession(const string& session, PromiseBoolSP pb)
+{
+    resultproc.prepresult(LOGIN, ++next_request_tag,
+        [&](){ client.login(session); },
+        [pb](error e) { pb->set_value(!e);  return true; });
+}
+
+bool StandardClient::cloudCopyTreeAs(Node* from, Node* to, string name)
+{
+    auto promise = newPromiseBoolSP();
+    auto future = promise->get_future();
+
+    cloudCopyTreeAs(from, to, std::move(name), std::move(promise));
+
+    return future.get();
+}
+
+
+void StandardClient::cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb)
+{
+    auto completion = BasicPutNodesCompletion([pb](const Error& e) {
+        pb->set_value(!e);
+    });
+
+    resultproc.prepresult(COMPLETION, ++next_request_tag,
+        [&](){
+            TreeProcCopy tc;
+            client.proctree(n1, &tc, false, true);
+            tc.allocnodes();
+            client.proctree(n1, &tc, false, true);
+            tc.nn[0].parenthandle = UNDEF;
+
+            SymmCipher key;
+            AttrMap attrs;
+            string attrstring;
+            key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
+            attrs = n1->attrs;
+            LocalPath::utf8_normalize(&newname);
+            attrs.map['n'] = newname;
+            attrs.getjson(&attrstring);
+            client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+            client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, 0, std::move(completion));
+        },
+        nullptr);
+}
+
+void StandardClient::putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP pb)
+{
+    auto completion = BasicPutNodesCompletion([pb](const Error& e) {
+        pb->set_value(!e);
+    });
+
+    resultproc.prepresult(COMPLETION,
+                            ++next_request_tag,
+                            [&]()
+                            {
+                                client.putnodes(parentHandle, vo, std::move(nodes), nullptr, 0, std::move(completion));
+                            },
+                            nullptr);
+}
+
+bool StandardClient::putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes)
+{
+    auto result =
+        thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
+                {
+                    client.putnodes(parentHandle, vo, std::move(nodes), pb);
+                });
+
+    return result.get();
+}
+
+void StandardClient::putnodes(const string& parentPath, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP result)
+{
+    if (auto* parent = drillchildnodebyname(gettestbasenode(), parentPath))
+    {
+        putnodes(parent->nodeHandle(), vo, std::move(nodes), std::move(result));
+    }
+    else
+    {
+        result->set_value(false);
+    }
+}
+
+bool StandardClient::putnodes(const string &parentPath, VersioningOption vo, std::vector<NewNode>&& nodes)
+{
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        client.putnodes(parentPath, vo, std::move(nodes), std::move(result));
+    });
+
+    return result.get();
+}
+
+void StandardClient::uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes)
+{
+    NewNode n;
+    client.putnodes_prepareOneFolder(&n, p.filename().u8string());
+    handle thishandle = n.nodehandle = h++;
+    n.parenthandle = parent;
+    newnodes.emplace_back(std::move(n));
+
+    for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
+    {
+        if (fs::is_directory(*i))
+        {
+            uploadFolderTree_recurse(thishandle, h, *i, newnodes);
+        }
+    }
+}
+
+void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
+{
+    auto completion = BasicPutNodesCompletion([pb](const Error& e) {
+        pb->set_value(!e);
+    });
+
+    resultproc.prepresult(COMPLETION, ++next_request_tag,
+        [&](){
+            vector<NewNode> newnodes;
+            handle h = 1;
+            uploadFolderTree_recurse(UNDEF, h, p, newnodes);
+            client.putnodes(n2->nodeHandle(), NoVersioning, move(newnodes), nullptr, 0, std::move(completion));
+        },
+        nullptr);
+}
+
+void StandardClient::downloadFile(const Node& node, const fs::path& destination, PromiseBoolSP result)
+{
+    unique_ptr<FileGet> file(new FileGet());
+
+    file->h = node.nodeHandle();
+    file->hprivate = true;
+    file->localname = LocalPath::fromAbsolutePath(destination.u8string());
+    file->name = node.displayname();
+    file->result = std::move(result);
+
+    reinterpret_cast<FileFingerprint&>(*file) = node;
+
+    DBTableTransactionCommitter committer(client.tctable);
+    client.startxfer(GET, file.release(), committer, false, false, false, NoVersioning);
+}
+
+bool StandardClient::downloadFile(const Node& node, const fs::path& destination)
+{
+    auto result =
+        thread_do<bool>([&](StandardClient& client, PromiseBoolSP result)
+                        {
+                            client.downloadFile(node, destination, result);
+                        });
+
+    return result.get();
+}
+
+bool StandardClient::uploadFolderTree(fs::path p, Node* n2)
+{
+    auto promise = newPromiseBoolSP();
+    auto future = promise->get_future();
+
+    uploadFolderTree(p, n2, std::move(promise));
+
+    return future.get();
+}
+
+void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo)
+{
+    unique_ptr<File> file(new FilePut());
+
+    file->h = parent->nodeHandle();
+    file->localname = LocalPath::fromAbsolutePath(path.u8string());
+    file->name = name;
+
+    client.startxfer(PUT, file.release(), committer, false, false, false, vo);
+}
+
+void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb, VersioningOption vo)
+{
+    resultproc.prepresult(PUTNODES,
+                            ++next_request_tag,
+                            [&]()
+                            {
+                                DBTableTransactionCommitter committer(client.tctable);
+                                uploadFile(path, name, parent, committer, vo);
+                            },
+                            [pb](error e)
+                            {
+                                pb->set_value(!e);
+                                return true;
+                            });
+}
+
+bool StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, int timeoutSeconds, VersioningOption vo)
+{
+    auto result =
+        thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
+            {
+                client.uploadFile(path, name, parent, pb, vo);
+            });
+
+    if (result.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+    {
+        LOG_warn << "Timed out waiting for uplaodFile";
+        return false;
+    }
+    return result.get();
+}
+
+bool StandardClient::uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds, VersioningOption vo)
+{
+    auto result =
+        thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
+            {
+                Node* parent = client.client.nodeByPath(parentPath.c_str(), nullptr);
+                if (!parent)
+                {
+                    LOG_warn << "nodeByPath found no node for parentPath " << parentPath << ", cannot call uploadFile";
+                    return pb->set_value(false);
+                }
+                client.uploadFile(path, name, parent, pb, vo);
+            });
+
+    if (result.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+    {
+        LOG_warn << "Timed out waiting for uploadFile";
+        return false;
+    }
+    return result.get();
+}
+
+bool StandardClient::uploadFile(const fs::path& path, Node* parent, int timeoutSeconds, VersioningOption vo)
+{
+    return uploadFile(path, path.filename().u8string(), parent, timeoutSeconds, vo);
+}
+
+bool StandardClient::uploadFile(const fs::path& path, const string& parentPath, int timeoutSeconds, VersioningOption vo)
+{
+    return uploadFile(path, path.filename().u8string(), parentPath, timeoutSeconds, vo);
+}
+
+void StandardClient::uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo)
+{
+    if (fs::is_regular_file(p))
+    {
+        ++inprogress;
+        uploadFile(p, p.filename().u8string(), target, committer, vo);
+    }
+    else if (fs::is_directory(p))
+    {
+        if (auto newtarget = client.childnodebyname(target, p.filename().u8string().c_str()))
+        {
+            for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
+            {
+                uploadFilesInTree_recurse(newtarget, *i, inprogress, committer, vo);
+            }
+        }
+    }
+}
+
+bool StandardClient::uploadFilesInTree(fs::path p, Node* n2, VersioningOption vo)
+{
+    auto promise = newPromiseBoolSP();
+    auto future = promise->get_future();
+
+    std::atomic_int dummy(0);
+    uploadFilesInTree(p, n2, dummy, std::move(promise), vo);
+
+    return future.get();
+}
+
+void StandardClient::uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo)
+{
+    resultproc.prepresult(PUTNODES, ++next_request_tag,
+        [&](){
+            DBTableTransactionCommitter committer(client.tctable);
+            uploadFilesInTree_recurse(n2, p, inprogress, committer, vo);
+        },
+        [pb, &inprogress](error e)
+        {
+            if (!--inprogress)
+                pb->set_value(true);
+            return !inprogress;
+        });
+}
+
+void StandardClient::fetchnodes(bool noCache, PromiseBoolSP pb)
+{
+    resultproc.prepresult(FETCHNODES, ++next_request_tag,
+        [&](){ client.fetchnodes(noCache); },
+        [this, pb](error e)
+        {
+            if (e)
+            {
+                pb->set_value(false);
+            }
+            else
+            {
+                TreeProcPrintTree tppt;
+                client.proctree(client.nodeByHandle(client.rootnodes.files), &tppt);
+
+                if (onFetchNodes)
+                {
+                    onFetchNodes(*this, pb);
+                }
+                else
+                {
+                    pb->set_value(true);
+                }
+            }
+            onFetchNodes = nullptr;
+            return true;
+        });
+}
+
+bool StandardClient::fetchnodes(bool noCache)
+{
+    auto result =
+        thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                        {
+                            client.fetchnodes(noCache, result);
+                        });
+
+    return result.get();
+}
+
+NewNode StandardClient::makeSubfolder(const string& utf8Name)
+{
+    NewNode newnode;
+    client.putnodes_prepareOneFolder(&newnode, utf8Name);
+    return newnode;
+}
+
+void StandardClient::catchup(PromiseBoolSP pb)
+{
+    resultproc.prepresult(CATCHUP, ++next_request_tag,
+        [&](){
+            client.catchup();
+        },
+        [pb](error e) {
+            if (e)
+            {
+                out() << "catchup reports: " << e;
+            }
+            pb->set_value(!e);
+            return true;
+        });
+}
+
+void StandardClient::deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb)
+{
+    if (Node* root = client.nodeByHandle(client.rootnodes.files))
+    {
+        if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
+        {
+            if (mayneeddeleting)
+            {
+                auto completion = [this, pb](NodeHandle, Error e) {
+                    if (e) out() << "delete of test base folder reply reports: " << e;
+                    deleteTestBaseFolder(false, pb);
+                };
+
+                resultproc.prepresult(COMPLETION, ++next_request_tag,
+                    [&](){ client.unlink(basenode, false, 0, std::move(completion)); },
+                    nullptr);
+                return;
+            }
+            out() << "base folder found, but not expected, failing";
+            pb->set_value(false);
+            return;
+        }
+        else
+        {
+            //out() << "base folder not found, wasn't present or delete successful";
+            pb->set_value(true);
+            return;
+        }
+    }
+    out() << "base folder not found, as root was not found!";
+    pb->set_value(false);
+}
+
+void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
+{
+    if (Node* root = client.nodeByHandle(client.rootnodes.files))
+    {
+        if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
+        {
+            if (basenode->type == FOLDERNODE)
+            {
+                basefolderhandle = basenode->nodehandle;
+                //out() << clientname << " Base folder: " << Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
+                //parentofinterest = Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
                 pb->set_value(true);
                 return;
             }
         }
-        out() << "base folder not found, as root was not found!";
-        pb->set_value(false);
-    }
-
-    void ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
-    {
-        if (Node* root = client.nodeByHandle(client.rootnodes.files))
+        else if (mayneedmaking)
         {
-            if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
-            {
-                if (basenode->type == FOLDERNODE)
-                {
-                    basefolderhandle = basenode->nodehandle;
-                    //out() << clientname << " Base folder: " << Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
-                    //parentofinterest = Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
-                    pb->set_value(true);
-                    return;
-                }
-            }
-            else if (mayneedmaking)
-            {
-                vector<NewNode> nn(1);
-                nn[0] = makeSubfolder("mega_test_sync");
+            vector<NewNode> nn(1);
+            nn[0] = makeSubfolder("mega_test_sync");
 
-                auto completion = BasicPutNodesCompletion([this, pb](const Error&) {
-                    ensureTestBaseFolder(false, pb);
-                });
-
-                resultproc.prepresult(COMPLETION, ++next_request_tag,
-                    [&](){ client.putnodes(root->nodeHandle(), move(nn), nullptr, 0, std::move(completion)); },
-                    nullptr);
-
-                return;
-            }
-        }
-        pb->set_value(false);
-    }
-
-    NewNode* buildSubdirs(list<NewNode>& nodes, const string& prefix, int n, int recurselevel)
-    {
-        nodes.emplace_back(makeSubfolder(prefix));
-        auto& nn = nodes.back();
-        nn.nodehandle = nodes.size();
-
-        if (recurselevel > 0)
-        {
-            for (int i = 0; i < n; ++i)
-            {
-                buildSubdirs(nodes, prefix + "_" + to_string(i), n, recurselevel - 1)->parenthandle = nn.nodehandle;
-            }
-        }
-
-        return &nn;
-    }
-
-    bool makeCloudSubdirs(const string& prefix, int depth, int fanout)
-    {
-        auto result =
-          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
-                          {
-                              client.makeCloudSubdirs(prefix, depth, fanout, result);
-                          });
-
-        return result.get();
-    }
-
-    void makeCloudSubdirs(const string& prefix, int depth, int fanout, PromiseBoolSP pb, const string& atpath = "")
-    {
-        assert(basefolderhandle != UNDEF);
-
-        std::list<NewNode> nodes;
-        NewNode* nn = buildSubdirs(nodes, prefix, fanout, depth);
-        nn->parenthandle = UNDEF;
-        nn->ovhandle = UNDEF;
-
-        Node* atnode = client.nodebyhandle(basefolderhandle);
-        if (atnode && !atpath.empty())
-        {
-            atnode = drillchildnodebyname(atnode, atpath);
-        }
-        if (!atnode)
-        {
-            out() << "path not found: " << atpath;
-            pb->set_value(false);
-        }
-        else
-        {
-            auto nodearray = vector<NewNode>(nodes.size());
-            size_t i = 0;
-            for (auto n = nodes.begin(); n != nodes.end(); ++n, ++i)
-            {
-                nodearray[i] = std::move(*n);
-            }
-
-            auto completion = [pb, this](const Error& e, targettype_t, vector<NewNode>& nodes, bool) {
-                lastPutnodesResultFirstHandle = nodes.empty() ? UNDEF : nodes[0].mAddedHandle;
-                pb->set_value(!e);
-            };
-
-            resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [&]() {
-                    client.putnodes(atnode->nodeHandle(), move(nodearray), nullptr, 0, std::move(completion));
-                },
-                nullptr);
-        }
-    }
-
-    struct SyncInfo
-    {
-        NodeHandle h;
-        fs::path localpath;
-    };
-
-    SyncConfig syncConfigByBackupID(handle backupID) const
-    {
-        SyncConfig c;
-        bool found = client.syncs.syncConfigByBackupId(backupID, c);
-
-        assert(found);
-
-        return c;
-    }
-
-    bool syncSet(handle backupId, SyncInfo& info) const
-    {
-        SyncConfig c;
-        if (client.syncs.syncConfigByBackupId(backupId, c))
-        {
-            info.h = c.getRemoteNode();
-            info.localpath = c.getLocalPath().toPath(*client.fsaccess);
-
-            return true;
-        }
-
-        return false;
-    }
-
-    SyncInfo syncSet(handle backupId)
-    {
-        SyncInfo result;
-
-        out() << "looking up id " << backupId;
-
-        client.syncs.forEachUnifiedSync([](UnifiedSync& us){
-            out() << " ids are: " << us.mConfig.mBackupId << " with local path '" << us.mConfig.getLocalPath().toPath(*us.mClient.fsaccess);
-        });
-
-        bool found = syncSet(backupId, result);
-        assert(found);
-
-        return result;
-    }
-
-    SyncInfo syncSet(handle backupId) const
-    {
-        return const_cast<StandardClient&>(*this).syncSet(backupId);
-    }
-
-    Node* getcloudrootnode()
-    {
-        return client.nodeByHandle(client.rootnodes.files);
-    }
-
-    Node* gettestbasenode()
-    {
-        return client.childnodebyname(getcloudrootnode(), "mega_test_sync", false);
-    }
-
-    Node* getcloudrubbishnode()
-    {
-        return client.nodeByHandle(client.rootnodes.rubbish);
-    }
-
-    Node* drillchildnodebyname(Node* n, const string& path)
-    {
-        for (size_t p = 0; n && p < path.size(); )
-        {
-            auto pos = path.find("/", p);
-            if (pos == string::npos) pos = path.size();
-            n = client.childnodebyname(n, path.substr(p, pos - p).c_str(), false);
-            p = pos == string::npos ? path.size() : pos + 1;
-        }
-        return n;
-    }
-
-    vector<Node*> drillchildnodesbyname(Node* n, const string& path)
-    {
-        auto pos = path.find("/");
-        if (pos == string::npos)
-        {
-            return client.childnodesbyname(n, path.c_str(), false);
-        }
-        else
-        {
-            vector<Node*> results, subnodes = client.childnodesbyname(n, path.c_str(), false);
-            for (size_t i = subnodes.size(); i--; )
-            {
-                if (subnodes[i]->type != FILENODE)
-                {
-                    vector<Node*> v = drillchildnodesbyname(subnodes[i], path.substr(pos + 1));
-                    results.insert(results.end(), v.begin(), v.end());
-                }
-            }
-            return results;
-        }
-    }
-
-    bool backupAdd_inthread(const string& drivePath,
-                            string sourcePath,
-                            const string& targetPath,
-                            std::function<void(error, SyncError, handle)> completion,
-                            const string& logname)
-    {
-        auto* rootNode = client.nodebyhandle(basefolderhandle);
-
-        // Root isn't in the cloud.
-        if (!rootNode)
-        {
-            return false;
-        }
-
-        auto* targetNode = drillchildnodebyname(rootNode, targetPath);
-
-        // Target path doesn't exist.
-        if (!targetNode)
-        {
-            return false;
-        }
-
-        // Generate drive ID if necessary.
-        auto id = UNDEF;
-        auto result = client.readDriveId(drivePath.c_str(), id);
-
-        if (result == API_ENOENT)
-        {
-            id = client.generateDriveId();
-            result = client.writeDriveId(drivePath.c_str(), id);
-        }
-
-        if (result != API_OK)
-        {
-            completion(result, NO_SYNC_ERROR, UNDEF);
-            return false;
-        }
-
-        auto config =
-          SyncConfig(LocalPath::fromPath(sourcePath, *client.fsaccess),
-                     sourcePath,
-                     targetNode->nodeHandle(),
-                     targetNode->displaypath(),
-                     0,
-                     LocalPath::fromPath(drivePath, *client.fsaccess),
-                     //string_vector(),
-                     true,
-                     SyncConfig::TYPE_BACKUP);
-
-        EXPECT_TRUE(!config.mOriginalPathOfRemoteRootNode.empty() &&
-            config.mOriginalPathOfRemoteRootNode.front() == '/')
-            << "config.mOriginalPathOfRemoteRootNode: " << config.mOriginalPathOfRemoteRootNode.c_str();
-
-        // Try and add the backup.
-        return client.addsync(config, true, completion, logname) == API_OK;
-    }
-
-    handle backupAdd_mainthread(const string& drivePath,
-                                const string& sourcePath,
-                                const string& targetPath,
-                                const string& logname)
-    {
-        const fs::path dp = fsBasePath / fs::u8path(drivePath);
-        const fs::path sp = fsBasePath / fs::u8path(sourcePath);
-
-        fs::create_directories(dp);
-        fs::create_directories(sp);
-
-        auto result =
-          thread_do<handle>(
-            [&](StandardClient& client, PromiseHandleSP result)
-            {
-                auto completion =
-                  [=](error e, SyncError, handle backupId)
-                  {
-                    result->set_value(backupId);
-                  };
-
-                  client.backupAdd_inthread(dp.u8string(),
-                                            sp.u8string(),
-                                            targetPath,
-                                            std::move(completion),
-                                            logname);
+            auto completion = BasicPutNodesCompletion([this, pb](const Error&) {
+                ensureTestBaseFolder(false, pb);
             });
 
-        return result.get();
+            resultproc.prepresult(COMPLETION, ++next_request_tag,
+                [&](){ client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, 0, std::move(completion)); },
+                nullptr);
+
+            return;
+        }
+    }
+    pb->set_value(false);
+}
+
+NewNode* StandardClient::buildSubdirs(list<NewNode>& nodes, const string& prefix, int n, int recurselevel)
+{
+    nodes.emplace_back(makeSubfolder(prefix));
+    auto& nn = nodes.back();
+    nn.nodehandle = nodes.size();
+
+    if (recurselevel > 0)
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            buildSubdirs(nodes, prefix + "_" + to_string(i), n, recurselevel - 1)->parenthandle = nn.nodehandle;
+        }
     }
 
-    bool setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
-        std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
-    {
-        if (Node* n = client.nodebyhandle(basefolderhandle))
-        {
-            if (Node* m = drillchildnodebyname(n, subfoldername))
-            {
-                out() << clientname << "Setting up sync from " << m->displaypath() << " to " << localpath;
-                auto syncConfig =
-                    SyncConfig(LocalPath::fromPath(localpath.u8string(), *client.fsaccess),
-                               localpath.u8string(),
-                               NodeHandle().set6byte(m->nodehandle),
-                               m->displaypath(),
-                               0,
-                               LocalPath(),
-                               //string_vector(),
-                               true,
-                               isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
-                EXPECT_TRUE(!syncConfig.mOriginalPathOfRemoteRootNode.empty() &&
-                            syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
-                    << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
+    return &nn;
+}
 
-                error e = client.addsync(syncConfig, true, addSyncCompletion, logname);
-                return !e;
+bool StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanout)
+{
+    auto result =
+        thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                        {
+                            client.makeCloudSubdirs(prefix, depth, fanout, result);
+                        });
+
+    return result.get();
+}
+
+void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanout, PromiseBoolSP pb, const string& atpath)
+{
+    assert(basefolderhandle != UNDEF);
+
+    std::list<NewNode> nodes;
+    NewNode* nn = buildSubdirs(nodes, prefix, fanout, depth);
+    nn->parenthandle = UNDEF;
+    nn->ovhandle = NodeHandle();
+
+    Node* atnode = client.nodebyhandle(basefolderhandle);
+    if (atnode && !atpath.empty())
+    {
+        atnode = drillchildnodebyname(atnode, atpath);
+    }
+    if (!atnode)
+    {
+        out() << "path not found: " << atpath;
+        pb->set_value(false);
+    }
+    else
+    {
+        auto nodearray = vector<NewNode>(nodes.size());
+        size_t i = 0;
+        for (auto n = nodes.begin(); n != nodes.end(); ++n, ++i)
+        {
+            nodearray[i] = std::move(*n);
+        }
+
+        auto completion = [pb, this](const Error& e, targettype_t, vector<NewNode>& nodes, bool) {
+            lastPutnodesResultFirstHandle = nodes.empty() ? UNDEF : nodes[0].mAddedHandle;
+            pb->set_value(!e);
+        };
+
+        resultproc.prepresult(COMPLETION, ++next_request_tag,
+            [&]() {
+                client.putnodes(atnode->nodeHandle(), NoVersioning, move(nodearray), nullptr, 0, std::move(completion));
+            },
+            nullptr);
+    }
+}
+
+SyncConfig StandardClient::syncConfigByBackupID(handle backupID) const
+{
+    SyncConfig c;
+    bool found = client.syncs.syncConfigByBackupId(backupID, c);
+
+    assert(found);
+
+    return c;
+}
+
+bool StandardClient::syncSet(handle backupId, SyncInfo& info) const
+{
+    SyncConfig c;
+    if (client.syncs.syncConfigByBackupId(backupId, c))
+    {
+        info.h = c.getRemoteNode();
+        info.localpath = c.getLocalPath().toPath();
+
+        return true;
+    }
+
+    return false;
+}
+
+StandardClient::SyncInfo StandardClient::syncSet(handle backupId)
+{
+    SyncInfo result;
+
+    out() << "looking up id " << backupId;
+
+    client.syncs.forEachUnifiedSync([](UnifiedSync& us){
+        out() << " ids are: " << us.mConfig.mBackupId << " with local path '" << us.mConfig.getLocalPath().toPath();
+    });
+
+    bool found = syncSet(backupId, result);
+    assert(found);
+
+    return result;
+}
+
+StandardClient::SyncInfo StandardClient::syncSet(handle backupId) const
+{
+    return const_cast<StandardClient&>(*this).syncSet(backupId);
+}
+
+Node* StandardClient::getcloudrootnode()
+{
+    return client.nodeByHandle(client.rootnodes.files);
+}
+
+Node* StandardClient::gettestbasenode()
+{
+    return client.childnodebyname(getcloudrootnode(), "mega_test_sync", false);
+}
+
+Node* StandardClient::getcloudrubbishnode()
+{
+    return client.nodeByHandle(client.rootnodes.rubbish);
+}
+
+Node* StandardClient::drillchildnodebyname(Node* n, const string& path)
+{
+    for (size_t p = 0; n && p < path.size(); )
+    {
+        auto pos = path.find("/", p);
+        if (pos == string::npos) pos = path.size();
+        n = client.childnodebyname(n, path.substr(p, pos - p).c_str(), false);
+        p = pos == string::npos ? path.size() : pos + 1;
+    }
+    return n;
+}
+
+vector<Node*> StandardClient::drillchildnodesbyname(Node* n, const string& path)
+{
+    auto pos = path.find("/");
+    if (pos == string::npos)
+    {
+        return client.childnodesbyname(n, path.c_str(), false);
+    }
+    else
+    {
+        vector<Node*> results, subnodes = client.childnodesbyname(n, path.c_str(), false);
+        for (size_t i = subnodes.size(); i--; )
+        {
+            if (subnodes[i]->type != FILENODE)
+            {
+                vector<Node*> v = drillchildnodesbyname(subnodes[i], path.substr(pos + 1));
+                results.insert(results.end(), v.begin(), v.end());
             }
         }
-        assert(false);
+        return results;
+    }
+}
+
+bool StandardClient::backupAdd_inthread(const string& drivePath,
+                        string sourcePath,
+                        const string& targetPath,
+                        std::function<void(error, SyncError, handle)> completion,
+                        const string& logname)
+{
+    auto* rootNode = client.nodebyhandle(basefolderhandle);
+
+    // Root isn't in the cloud.
+    if (!rootNode)
+    {
         return false;
     }
 
-    void importSyncConfigs(string configs, PromiseBoolSP result)
+    auto* targetNode = drillchildnodebyname(rootNode, targetPath);
+
+    // Target path doesn't exist.
+    if (!targetNode)
     {
-        auto completion = [result](error e) { result->set_value(!e); };
-        client.importSyncConfigs(configs.c_str(), std::move(completion));
+        return false;
     }
 
-    bool importSyncConfigs(string configs)
-    {
-        auto result =
-          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
-                          {
-                              client.importSyncConfigs(configs, result);
-                          });
+    // Generate drive ID if necessary.
+    auto id = UNDEF;
+    auto result = readDriveId(*client.fsaccess, drivePath.c_str(), id);
 
-        return result.get();
+    if (result == API_ENOENT)
+    {
+        id = generateDriveId(client.rng);
+        result = writeDriveId(*client.fsaccess, drivePath.c_str(), id);
     }
 
-    string exportSyncConfigs()
+    if (result != API_OK)
     {
-        auto result =
-          thread_do<string>([](MegaClient& client, PromiseStringSP result)
-                            {
-                                auto configs = client.syncs.exportSyncConfigs();
-                                result->set_value(configs);
-                            });
-
-        return result.get();
+        completion(result, NO_SYNC_ERROR, UNDEF);
+        return false;
     }
 
-    bool delSync_inthread(handle backupId, const bool keepCache)
+    auto config =
+        SyncConfig(LocalPath::fromAbsolutePath(sourcePath),
+                    sourcePath,
+                    targetNode->nodeHandle(),
+                    targetNode->displaypath(),
+                    0,
+                    LocalPath::fromAbsolutePath(drivePath),
+                    //string_vector(),
+                    true,
+                    SyncConfig::TYPE_BACKUP);
+
+    EXPECT_TRUE(!config.mOriginalPathOfRemoteRootNode.empty() &&
+        config.mOriginalPathOfRemoteRootNode.front() == '/')
+        << "config.mOriginalPathOfRemoteRootNode: " << config.mOriginalPathOfRemoteRootNode.c_str();
+
+    // Try and add the backup.
+    return client.addsync(config, true, completion, logname) == API_OK;
+}
+
+handle StandardClient::backupAdd_mainthread(const string& drivePath,
+                            const string& sourcePath,
+                            const string& targetPath,
+                            const string& logname)
+{
+    const fs::path dp = fsBasePath / fs::u8path(drivePath);
+    const fs::path sp = fsBasePath / fs::u8path(sourcePath);
+
+    fs::create_directories(dp);
+    fs::create_directories(sp);
+
+    auto result =
+        thread_do<handle>(
+        [&](StandardClient& client, PromiseHandleSP result)
+        {
+            auto completion =
+                [=](error e, SyncError, handle backupId)
+                {
+                result->set_value(backupId);
+                };
+
+                client.backupAdd_inthread(dp.u8string(),
+                                        sp.u8string(),
+                                        targetPath,
+                                        std::move(completion),
+                                        logname);
+        });
+
+    return result.get();
+}
+
+bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
+    std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
+{
+    if (Node* n = client.nodebyhandle(basefolderhandle))
     {
-        const auto handle = syncSet(backupId).h;
-        bool removed = false;
+        if (Node* m = drillchildnodebyname(n, subfoldername))
+        {
+            out() << clientname << "Setting up sync from " << m->displaypath() << " to " << localpath;
+            auto syncConfig =
+                SyncConfig(LocalPath::fromAbsolutePath(localpath.u8string()),
+                            localpath.u8string(),
+                            NodeHandle().set6byte(m->nodehandle),
+                            m->displaypath(),
+                            0,
+                            LocalPath(),
+                            //string_vector(),
+                            true,
+                            isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
+            EXPECT_TRUE(!syncConfig.mOriginalPathOfRemoteRootNode.empty() &&
+                        syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
+                << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
 
-        client.syncs.removeSelectedSyncs(
-          [&](SyncConfig& c, Sync*)
-          {
-              const bool matched = c.getRemoteNode() == handle;
+            error e = client.addsync(syncConfig, true, addSyncCompletion, logname);
+            return !e;
+        }
+    }
+    assert(false);
+    return false;
+}
 
-              removed |= matched;
+void StandardClient::importSyncConfigs(string configs, PromiseBoolSP result)
+{
+    auto completion = [result](error e) { result->set_value(!e); };
+    client.importSyncConfigs(configs.c_str(), std::move(completion));
+}
 
-              return matched;
-          });
+bool StandardClient::importSyncConfigs(string configs)
+{
+    auto result =
+        thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                        {
+                            client.importSyncConfigs(configs, result);
+                        });
 
-        return removed;
+    return result.get();
+}
+
+string StandardClient::exportSyncConfigs()
+{
+    auto result =
+        thread_do<string>([](MegaClient& client, PromiseStringSP result)
+                        {
+                            auto configs = client.syncs.exportSyncConfigs();
+                            result->set_value(configs);
+                        });
+
+    return result.get();
+}
+
+bool StandardClient::delSync_inthread(handle backupId, const bool keepCache)
+{
+    const auto handle = syncSet(backupId).h;
+    bool removed = false;
+
+    client.syncs.removeSelectedSyncs(
+        [&](SyncConfig& c, Sync*)
+        {
+            const bool matched = c.getRemoteNode() == handle;
+
+            removed |= matched;
+
+            return matched;
+        });
+
+    return removed;
+}
+
+bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported)
+{
+    // top level names can differ so we don't check those
+    if (!mn || !n) return false;
+
+    if (depth)
+    {
+        if (!CloudNameLess().equal(mn->cloudName(), n->displayname()))
+        {
+            out() << "Node name mismatch: " << mn->path() << " " << n->displaypath();
+            return false;
+        }
     }
 
-    struct CloudNameLess
+    if (!mn->typematchesnodetype(n->type))
+    {
+        out() << "Node type mismatch: " << mn->path() << ":" << mn->type << " " << n->displaypath() << ":" << n->type;
+        return false;
+    }
+
+    if (n->type == FILENODE)
+    {
+        // not comparing any file versioning (for now)
+        return true;
+    }
+
+    multimap<string, Model::ModelNode*, CloudNameLess> ms;
+    multimap<string, Node*, CloudNameLess> ns;
+    for (auto& m : mn->kids)
+    {
+        if (!m->fsOnly)
+        ms.emplace(m->cloudName(), m.get());
+    }
+    for (auto& n2 : n->children)
+    {
+        ns.emplace(n2->displayname(), n2);
+    }
+
+    int matched = 0;
+    vector<string> matchedlist;
+    for (auto m_iter = ms.begin(); m_iter != ms.end(); )
+    {
+        if (!depth && m_iter->first == DEBRISFOLDER)
+        {
+            m_iter = ms.erase(m_iter); // todo: add checks of the remote debris folder later
+            continue;
+        }
+
+        auto er = ns.equal_range(m_iter->first);
+        auto next_m = m_iter;
+        ++next_m;
+        bool any_equal_matched = false;
+        for (auto i = er.first; i != er.second; ++i)
+        {
+            int rdescendants = 0;
+            if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported))
+            {
+                ++matched;
+                matchedlist.push_back(m_iter->first);
+                ns.erase(i);
+                ms.erase(m_iter);
+                descendants += rdescendants;
+                any_equal_matched = true;
+                break;
+            }
+        }
+        if (!any_equal_matched)
+        {
+            break;
+        }
+        m_iter = next_m;
+    }
+    if (ns.empty() && ms.empty())
+    {
+        descendants += matched;
+        return true;
+    }
+    else if (!firstreported)
+    {
+        ostringstream ostream;
+        firstreported = true;
+        ostream << clientname << " " << identifier << " after matching " << matched << " child nodes [";
+        for (auto& ml : matchedlist) ostream << ml << " ";
+        ostream << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
+        for (auto& m : ms) ostream << " " << m.first;
+        ostream << " and unmatched remote nodes:";
+        for (auto& i : ns) ostream << " " << i.first;
+        out() << ostream.str();
+    };
+    return false;
+}
+
+bool localNodesMustHaveNodes = true;
+
+bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported)
+{
+    // top level names can differ so we don't check those
+    if (!mn || !n) return false;
+
+    if (depth)
+    {
+        if (!CloudNameLess().equal(mn->cloudName(), n->name))
+        {
+            out() << "LocalNode name mismatch: " << mn->path() << " " << n->name;
+            return false;
+        }
+    }
+
+    if (!mn->typematchesnodetype(n->type))
+    {
+        out() << "LocalNode type mismatch: " << mn->path() << ":" << mn->type << " " << n->name << ":" << n->type;
+        return false;
+    }
+
+    auto localpath = n->getLocalPath().toName(*client.fsaccess);
+    string n_localname = n->localname.toName(*client.fsaccess);
+    if (n_localname.size())
+    {
+        EXPECT_EQ(n->name, n_localname);
+    }
+    if (localNodesMustHaveNodes)
+    {
+        EXPECT_TRUE(n->node != nullptr);
+    }
+    if (depth && n->node)
+    {
+        EXPECT_EQ(n->node->displayname(), n->name);
+    }
+    if (depth && mn->parent)
+    {
+        EXPECT_EQ(mn->parent->type, Model::ModelNode::folder);
+        EXPECT_EQ(n->parent->type, FOLDERNODE);
+
+        string parentpath = n->parent->getLocalPath().toName(*client.fsaccess);
+        EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
+    }
+    if (n->node && n->parent && n->parent->node)
+    {
+        string p = n->node->displaypath();
+        string pp = n->parent->node->displaypath();
+        EXPECT_EQ(p.substr(0, pp.size()), pp);
+        EXPECT_EQ(n->parent->node, n->node->parent);
+    }
+
+    multimap<string, Model::ModelNode*, CloudNameLess> ms;
+    multimap<string, LocalNode*, CloudNameLess> ns;
+    for (auto& m : mn->kids)
+    {
+        ms.emplace(m->cloudName(), m.get());
+    }
+    for (auto& n2 : n->children)
+    {
+        if (!n2.second->deleted) ns.emplace(n2.second->name, n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
+    }
+
+    int matched = 0;
+    vector<string> matchedlist;
+    for (auto m_iter = ms.begin(); m_iter != ms.end(); )
+    {
+        if (!depth && m_iter->first == DEBRISFOLDER)
+        {
+            m_iter = ms.erase(m_iter); // todo: are there LocalNodes representing the trash?
+            continue;
+        }
+
+        auto er = ns.equal_range(m_iter->first);
+        auto next_m = m_iter;
+        ++next_m;
+        bool any_equal_matched = false;
+        for (auto i = er.first; i != er.second; ++i)
+        {
+            int rdescendants = 0;
+            if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported))
+            {
+                ++matched;
+                matchedlist.push_back(m_iter->first);
+                ns.erase(i);
+                ms.erase(m_iter);
+                descendants += rdescendants;
+                any_equal_matched = true;
+                break;
+            }
+        }
+        if (!any_equal_matched)
+        {
+            break;
+        }
+        m_iter = next_m;
+    }
+    if (ns.empty() && ms.empty())
+    {
+        return true;
+    }
+    else if (!firstreported)
+    {
+        ostringstream ostream;
+        firstreported = true;
+        ostream << clientname << " " << identifier << " after matching " << matched << " child nodes [";
+        for (auto& ml : matchedlist) ostream << ml << " ";
+        ostream << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
+        for (auto& m : ms) ostream << " " << m.first;
+        ostream << " and unmatched LocalNodes:";
+        for (auto& i : ns) ostream << " " << i.first;
+        out() << ostream.str();
+    };
+    return false;
+}
+
+
+bool StandardClient::recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported)
+{
+    struct Comparator
     {
         bool operator()(const string& lhs, const string& rhs) const
         {
             return compare(lhs, rhs) < 0;
         }
 
-        static int compare(const string& lhs, const string& rhs)
+        int compare(const string& lhs, const string& rhs) const
         {
-            return compareUtf(lhs, false, rhs, false, false);
+            return compareUtf(lhs, true, rhs, true, false);
         }
+    }; // Comparator
 
-        static bool equal(const string& lhs, const string& rhs)
-        {
-            return compare(lhs, rhs) == 0;
-        }
-    }; // CloudNameLess
+    static Comparator comparator;
 
-    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported)
+    if (!mn) return false;
+
+    if (depth)
     {
-        // top level names can differ so we don't check those
-        if (!mn || !n) return false;
-
-        if (depth)
+        if (comparator.compare(p.filename().u8string(), mn->fsName()))
         {
-            if (!CloudNameLess().equal(mn->cloudName(), n->displayname()))
-            {
-                out() << "Node name mismatch: " << mn->path() << " " << n->displaypath();
-                return false;
-            }
-        }
-
-        if (!mn->typematchesnodetype(n->type))
-        {
-            out() << "Node type mismatch: " << mn->path() << ":" << mn->type << " " << n->displaypath() << ":" << n->type;
+            out() << "filesystem name mismatch: " << mn->path() << " " << p;
             return false;
         }
-
-        if (n->type == FILENODE)
-        {
-            // not comparing any file versioning (for now)
-            return true;
-        }
-
-        multimap<string, Model::ModelNode*, CloudNameLess> ms;
-        multimap<string, Node*, CloudNameLess> ns;
-        for (auto& m : mn->kids)
-        {
-            if (!m->fsOnly)
-            ms.emplace(m->cloudName(), m.get());
-        }
-        for (auto& n2 : n->children)
-        {
-            ns.emplace(n2->displayname(), n2);
-        }
-
-        int matched = 0;
-        vector<string> matchedlist;
-        for (auto m_iter = ms.begin(); m_iter != ms.end(); )
-        {
-            if (!depth && m_iter->first == DEBRISFOLDER)
-            {
-                m_iter = ms.erase(m_iter); // todo: add checks of the remote debris folder later
-                continue;
-            }
-
-            auto er = ns.equal_range(m_iter->first);
-            auto next_m = m_iter;
-            ++next_m;
-            bool any_equal_matched = false;
-            for (auto i = er.first; i != er.second; ++i)
-            {
-                int rdescendants = 0;
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported))
-                {
-                    ++matched;
-                    matchedlist.push_back(m_iter->first);
-                    ns.erase(i);
-                    ms.erase(m_iter);
-                    descendants += rdescendants;
-                    any_equal_matched = true;
-                    break;
-                }
-            }
-            if (!any_equal_matched)
-            {
-                break;
-            }
-            m_iter = next_m;
-        }
-        if (ns.empty() && ms.empty())
-        {
-            descendants += matched;
-            return true;
-        }
-        else if (!firstreported)
-        {
-            ostringstream ostream;
-            firstreported = true;
-            ostream << clientname << " " << identifier << " after matching " << matched << " child nodes [";
-            for (auto& ml : matchedlist) ostream << ml << " ";
-            ostream << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
-            for (auto& m : ms) ostream << " " << m.first;
-            ostream << " and unmatched remote nodes:";
-            for (auto& i : ns) ostream << " " << i.first;
-            out() << ostream.str();
-        };
+    }
+    nodetype_t pathtype = fs::is_directory(p) ? FOLDERNODE : fs::is_regular_file(p) ? FILENODE : TYPE_UNKNOWN;
+    if (!mn->typematchesnodetype(pathtype))
+    {
+        out() << "Path type mismatch: " << mn->path() << ":" << mn->type << " " << p.u8string() << ":" << pathtype;
         return false;
     }
 
-    bool localNodesMustHaveNodes = true;
-
-    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported)
+    if (pathtype == FILENODE && p.filename().u8string() != "lock")
     {
-        // top level names can differ so we don't check those
-        if (!mn || !n) return false;
-
-        if (depth)
+        if (localFSFilesThatMayDiffer.find(p) == localFSFilesThatMayDiffer.end())
         {
-            if (!CloudNameLess().equal(mn->cloudName(), n->name))
+            ifstream fs(p, ios::binary);
+            std::vector<char> buffer;
+            buffer.resize(mn->content.size() + 1024);
+            fs.read(reinterpret_cast<char *>(buffer.data()), buffer.size());
+            EXPECT_EQ(size_t(fs.gcount()), mn->content.size()) << " file is not expected size " << p;
+            EXPECT_TRUE(!memcmp(buffer.data(), mn->content.data(), mn->content.size())) << " file data mismatch " << p;
+        }
+    }
+
+    if (pathtype != FOLDERNODE)
+    {
+        return true;
+    }
+
+    multimap<string, Model::ModelNode*, Comparator> ms;
+    multimap<string, fs::path, Comparator> ps;
+
+    for (auto& m : mn->kids)
+    {
+        ms.emplace(m->fsName(), m.get());
+    }
+
+    for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
+    {
+        ps.emplace(pi->path().filename().u8string(), pi->path());
+    }
+
+    if (ignoreDebris)
+    {
+        ms.erase(DEBRISFOLDER);
+        ps.erase(DEBRISFOLDER);
+    }
+
+    int matched = 0;
+    vector<string> matchedlist;
+    for (auto m_iter = ms.begin(); m_iter != ms.end(); )
+    {
+        auto er = ps.equal_range(m_iter->first);
+        auto next_m = m_iter;
+        ++next_m;
+        bool any_equal_matched = false;
+        for (auto i = er.first; i != er.second; ++i)
+        {
+            int rdescendants = 0;
+            if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris, firstreported))
             {
-                out() << "LocalNode name mismatch: " << mn->path() << " " << n->name;
-                return false;
-            }
-        }
-
-        if (!mn->typematchesnodetype(n->type))
-        {
-            out() << "LocalNode type mismatch: " << mn->path() << ":" << mn->type << " " << n->name << ":" << n->type;
-            return false;
-        }
-
-        auto localpath = n->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN);
-        string n_localname = n->localname.toName(*client.fsaccess, FS_UNKNOWN);
-        if (n_localname.size())
-        {
-            EXPECT_EQ(n->name, n_localname);
-        }
-        if (localNodesMustHaveNodes)
-        {
-            EXPECT_TRUE(n->node != nullptr);
-        }
-        if (depth && n->node)
-        {
-            EXPECT_EQ(n->node->displayname(), n->name);
-        }
-        if (depth && mn->parent)
-        {
-            EXPECT_EQ(mn->parent->type, Model::ModelNode::folder);
-            EXPECT_EQ(n->parent->type, FOLDERNODE);
-
-            string parentpath = n->parent->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN);
-            EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
-        }
-        if (n->node && n->parent && n->parent->node)
-        {
-            string p = n->node->displaypath();
-            string pp = n->parent->node->displaypath();
-            EXPECT_EQ(p.substr(0, pp.size()), pp);
-            EXPECT_EQ(n->parent->node, n->node->parent);
-        }
-
-        multimap<string, Model::ModelNode*, CloudNameLess> ms;
-        multimap<string, LocalNode*, CloudNameLess> ns;
-        for (auto& m : mn->kids)
-        {
-            ms.emplace(m->cloudName(), m.get());
-        }
-        for (auto& n2 : n->children)
-        {
-            if (!n2.second->deleted) ns.emplace(n2.second->name, n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
-        }
-
-        int matched = 0;
-        vector<string> matchedlist;
-        for (auto m_iter = ms.begin(); m_iter != ms.end(); )
-        {
-            if (!depth && m_iter->first == DEBRISFOLDER)
-            {
-                m_iter = ms.erase(m_iter); // todo: are there LocalNodes representing the trash?
-                continue;
-            }
-
-            auto er = ns.equal_range(m_iter->first);
-            auto next_m = m_iter;
-            ++next_m;
-            bool any_equal_matched = false;
-            for (auto i = er.first; i != er.second; ++i)
-            {
-                int rdescendants = 0;
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported))
-                {
-                    ++matched;
-                    matchedlist.push_back(m_iter->first);
-                    ns.erase(i);
-                    ms.erase(m_iter);
-                    descendants += rdescendants;
-                    any_equal_matched = true;
-                    break;
-                }
-            }
-            if (!any_equal_matched)
-            {
+                ++matched;
+                matchedlist.push_back(m_iter->first);
+                ps.erase(i);
+                ms.erase(m_iter);
+                descendants += rdescendants;
+                any_equal_matched = true;
                 break;
             }
-            m_iter = next_m;
         }
-        if (ns.empty() && ms.empty())
+        if (!any_equal_matched)
         {
-            return true;
+            break;
         }
-        else if (!firstreported)
-        {
-            ostringstream ostream;
-            firstreported = true;
-            ostream << clientname << " " << identifier << " after matching " << matched << " child nodes [";
-            for (auto& ml : matchedlist) ostream << ml << " ";
-            ostream << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
-            for (auto& m : ms) ostream << " " << m.first;
-            ostream << " and unmatched LocalNodes:";
-            for (auto& i : ns) ostream << " " << i.first;
-            out() << ostream.str();
-        };
-        return false;
+        m_iter = next_m;
     }
-
-
-    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported)
+    //if (ps.size() == 1 && !mn->parent && ps.begin()->first == DEBRISFOLDER)
+    //{
+    //    ps.clear();
+    //}
+    if (ps.empty() && ms.empty())
     {
-        struct Comparator
-        {
-            bool operator()(const string& lhs, const string& rhs) const
-            {
-                return compare(lhs, rhs) < 0;
-            }
-
-            int compare(const string& lhs, const string& rhs) const
-            {
-                return compareUtf(lhs, true, rhs, true, false);
-            }
-        }; // Comparator
-
-        static Comparator comparator;
-
-        if (!mn) return false;
-
-        if (depth)
-        {
-            if (comparator.compare(p.filename().u8string(), mn->fsName()))
-            {
-                out() << "filesystem name mismatch: " << mn->path() << " " << p;
-                return false;
-            }
-        }
-        nodetype_t pathtype = fs::is_directory(p) ? FOLDERNODE : fs::is_regular_file(p) ? FILENODE : TYPE_UNKNOWN;
-        if (!mn->typematchesnodetype(pathtype))
-        {
-            out() << "Path type mismatch: " << mn->path() << ":" << mn->type << " " << p.u8string() << ":" << pathtype;
-            return false;
-        }
-
-        if (pathtype == FILENODE && p.filename().u8string() != "lock")
-        {
-            if (localFSFilesThatMayDiffer.find(p) == localFSFilesThatMayDiffer.end())
-            {
-                ifstream fs(p, ios::binary);
-                std::vector<char> buffer;
-                buffer.resize(mn->content.size() + 1024);
-                fs.read(reinterpret_cast<char *>(buffer.data()), buffer.size());
-                EXPECT_EQ(size_t(fs.gcount()), mn->content.size()) << " file is not expected size " << p;
-                EXPECT_TRUE(!memcmp(buffer.data(), mn->content.data(), mn->content.size())) << " file data mismatch " << p;
-            }
-        }
-
-        if (pathtype != FOLDERNODE)
-        {
-            return true;
-        }
-
-        multimap<string, Model::ModelNode*, Comparator> ms;
-        multimap<string, fs::path, Comparator> ps;
-
-        for (auto& m : mn->kids)
-        {
-            ms.emplace(m->fsName(), m.get());
-        }
-
-        for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
-        {
-            ps.emplace(pi->path().filename().u8string(), pi->path());
-        }
-
-        if (ignoreDebris)
-        {
-            ms.erase(DEBRISFOLDER);
-            ps.erase(DEBRISFOLDER);
-        }
-
-        int matched = 0;
-        vector<string> matchedlist;
-        for (auto m_iter = ms.begin(); m_iter != ms.end(); )
-        {
-            auto er = ps.equal_range(m_iter->first);
-            auto next_m = m_iter;
-            ++next_m;
-            bool any_equal_matched = false;
-            for (auto i = er.first; i != er.second; ++i)
-            {
-                int rdescendants = 0;
-                if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris, firstreported))
-                {
-                    ++matched;
-                    matchedlist.push_back(m_iter->first);
-                    ps.erase(i);
-                    ms.erase(m_iter);
-                    descendants += rdescendants;
-                    any_equal_matched = true;
-                    break;
-                }
-            }
-            if (!any_equal_matched)
-            {
-                break;
-            }
-            m_iter = next_m;
-        }
-        //if (ps.size() == 1 && !mn->parent && ps.begin()->first == DEBRISFOLDER)
-        //{
-        //    ps.clear();
-        //}
-        if (ps.empty() && ms.empty())
-        {
-            return true;
-        }
-        else if (!firstreported)
-        {
-            ostringstream ostream;
-            firstreported = true;
-            ostream << clientname << " " << identifier << " after matching " << matched << " child nodes [";
-            for (auto& ml : matchedlist) ostream << ml << " ";
-            ostream << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
-            for (auto& m : ms) ostream << " " << m.first;
-            ostream << " and unmatched filesystem paths:";
-            for (auto& i : ps) ostream << " " << i.second.filename();
-            ostream << " in " << p;
-            out() << ostream.str();
-        };
-        return false;
+        return true;
     }
-
-    Sync* syncByBackupId(handle backupId)
+    else if (!firstreported)
     {
-        return client.syncs.runningSyncByBackupId(backupId);
-    }
-
-    void enableSyncByBackupId(handle id, PromiseBoolSP result)
-    {
-        UnifiedSync* sync;
-        result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync));
-    }
-
-    bool enableSyncByBackupId(handle id)
-    {
-        auto result =
-          thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
-                          {
-                              client.enableSyncByBackupId(id, result);
-                          });
-
-        return result.get();
-    }
-
-    void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result)
-    {
-        auto localPath = LocalPath::fromPath(path.u8string(), *client.fsaccess);
-        auto id = UNDEF;
-
-        client.syncs.forEachSyncConfig(
-          [&](const SyncConfig& config)
-          {
-              if (config.mLocalPath != localPath) return;
-              if (id != UNDEF) return;
-
-              id = config.mBackupId;
-          });
-
-        result->set_value(id);
-    }
-
-    handle backupIdForSyncPath(fs::path path)
-    {
-        auto result =
-          thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
-                            {
-                                client.backupIdForSyncPath(path, result);
-                            });
-
-        return result.get();
-    }
-
-    enum Confirm
-    {
-        CONFIRM_LOCALFS = 0x01,
-        CONFIRM_LOCALNODE = 0x02,
-        CONFIRM_LOCAL = CONFIRM_LOCALFS | CONFIRM_LOCALNODE,
-        CONFIRM_REMOTE = 0x04,
-        CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
+        ostringstream ostream;
+        firstreported = true;
+        ostream << clientname << " " << identifier << " after matching " << matched << " child nodes [";
+        for (auto& ml : matchedlist) ostream << ml << " ";
+        ostream << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
+        for (auto& m : ms) ostream << " " << m.first;
+        ostream << " and unmatched filesystem paths:";
+        for (auto& i : ps) ostream << " " << i.second.filename();
+        ostream << " in " << p;
+        out() << ostream.str();
     };
+    return false;
+}
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot)
-    {
-        auto result =
-          thread_do<bool>(
-            [=](StandardClient& client, PromiseBoolSP result)
-            {
-                result->set_value(client.confirmModel(id, mRoot, rRoot));
-            });
+Sync* StandardClient::syncByBackupId(handle backupId)
+{
+    return client.syncs.runningSyncByBackupId(backupId);
+}
 
-        return result.get();
-    }
+void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result)
+{
+    UnifiedSync* sync;
+    result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync));
+}
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot)
-    {
-        auto result =
-          thread_do<bool>(
-            [=](StandardClient& client, PromiseBoolSP result)
-            {
-                result->set_value(client.confirmModel(id, mRoot, lRoot));
-            });
+bool StandardClient::enableSyncByBackupId(handle id)
+{
+    auto result =
+        thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                        {
+                            client.enableSyncByBackupId(id, result);
+                        });
 
-        return result.get();
-    }
+    return result.get();
+}
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris = false)
-    {
-        auto result =
-          thread_do<bool>(
-            [=](StandardClient& client, PromiseBoolSP result)
-            {
-                result->set_value(client.confirmModel(id, mRoot, lRoot, ignoreDebris));
-            });
+void StandardClient::backupIdForSyncPath(const fs::path& path, PromiseHandleSP result)
+{
+    auto localPath = LocalPath::fromAbsolutePath(path.u8string());
+    auto id = UNDEF;
 
-        return result.get();
-    }
-
-    bool confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot)
-    {
-        string name = "Sync " + toHandle(id);
-        int descendents = 0;
-        bool reported = false;
-
-        if (!recursiveConfirm(mRoot, rRoot, descendents, name, 0, reported))
+    client.syncs.forEachSyncConfig(
+        [&](const SyncConfig& config)
         {
-            out() << clientname << " syncid " << toHandle(id) << " comparison against remote nodes failed";
+            if (config.mLocalPath != localPath) return;
+            if (id != UNDEF) return;
+
+            id = config.mBackupId;
+        });
+
+    result->set_value(id);
+}
+
+handle StandardClient::backupIdForSyncPath(fs::path path)
+{
+    auto result =
+        thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
+                        {
+                            client.backupIdForSyncPath(path, result);
+                        });
+
+    return result.get();
+}
+
+
+bool StandardClient::confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot)
+{
+    auto result =
+        thread_do<bool>(
+        [=](StandardClient& client, PromiseBoolSP result)
+        {
+            result->set_value(client.confirmModel(id, mRoot, rRoot));
+        });
+
+    return result.get();
+}
+
+bool StandardClient::confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot)
+{
+    auto result =
+        thread_do<bool>(
+        [=](StandardClient& client, PromiseBoolSP result)
+        {
+            result->set_value(client.confirmModel(id, mRoot, lRoot));
+        });
+
+    return result.get();
+}
+
+bool StandardClient::confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris)
+{
+    auto result =
+        thread_do<bool>(
+        [=](StandardClient& client, PromiseBoolSP result)
+        {
+            result->set_value(client.confirmModel(id, mRoot, lRoot, ignoreDebris));
+        });
+
+    return result.get();
+}
+
+bool StandardClient::confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot)
+{
+    string name = "Sync " + toHandle(id);
+    int descendents = 0;
+    bool reported = false;
+
+    if (!recursiveConfirm(mRoot, rRoot, descendents, name, 0, reported))
+    {
+        out() << clientname << " syncid " << toHandle(id) << " comparison against remote nodes failed";
+        return false;
+    }
+
+    return true;
+}
+
+bool StandardClient::confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot)
+{
+    string name = "Sync " + toHandle(id);
+    int descendents = 0;
+    bool reported = false;
+
+    if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, reported))
+    {
+        out() << clientname << " syncid " << toHandle(id) << " comparison against LocalNodes failed";
+        return false;
+    }
+
+    return true;
+}
+
+bool StandardClient::confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris)
+{
+    string name = "Sync " + toHandle(id);
+    int descendents = 0;
+    bool reported = false;
+
+    if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, ignoreDebris, reported))
+    {
+        out() << clientname << " syncid " << toHandle(id) << " comparison against local filesystem failed";
+        return false;
+    }
+
+    return true;
+}
+
+bool StandardClient::confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris)
+{
+    SyncInfo si;
+
+    if (!syncSet(backupId, si))
+    {
+        out() << clientname << " backupId " << toHandle(backupId) << " not found ";
+        return false;
+    }
+
+    // compare model against nodes representing remote state
+    if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodeByHandle(si.h)))
+    {
+        return false;
+    }
+
+    // compare model against LocalNodes
+    if (Sync* sync = syncByBackupId(backupId))
+    {
+        if ((confirm & CONFIRM_LOCALNODE) && !confirmModel(backupId, mnode, sync->localroot.get()))
+        {
             return false;
         }
-
-        return true;
     }
 
-    bool confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot)
+    // compare model against local filesystem
+    if ((confirm & CONFIRM_LOCALFS) && !confirmModel(backupId, mnode, si.localpath, ignoreDebris))
     {
-        string name = "Sync " + toHandle(id);
-        int descendents = 0;
-        bool reported = false;
+        return false;
+    }
 
-        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, reported))
+    return true;
+}
+
+void StandardClient::prelogin_result(int, string*, string* salt, error e)
+{
+    out() << clientname << " Prelogin: " << e;
+    if (!e)
+    {
+        this->salt = *salt;
+    }
+    resultproc.processresult(PRELOGIN, e, UNDEF);
+}
+
+void StandardClient::login_result(error e)
+{
+    out() << clientname << " Login: " << e;
+    resultproc.processresult(LOGIN, e, UNDEF);
+}
+
+void StandardClient::fetchnodes_result(const Error& e)
+{
+    out() << clientname << " Fetchnodes: " << e;
+    resultproc.processresult(FETCHNODES, e, UNDEF);
+}
+
+bool StandardClient::setattr(Node* node, attr_map&& updates)
+{
+    auto result =
+        thread_do<bool>(
+        [=](StandardClient& client, PromiseBoolSP result) mutable
         {
-            out() << clientname << " syncid " << toHandle(id) << " comparison against LocalNodes failed";
-            return false;
-        }
+            client.setattr(node, std::move(updates), result);
+        });
 
-        return true;
-    }
+    return result.get();
+}
 
-    bool confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris = false)
-    {
-        string name = "Sync " + toHandle(id);
-        int descendents = 0;
-        bool reported = false;
-
-        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, ignoreDebris, reported))
-        {
-            out() << clientname << " syncid " << toHandle(id) << " comparison against local filesystem failed";
-            return false;
-        }
-
-        return true;
-    }
-
-    bool confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris)
-    {
-        SyncInfo si;
-
-        if (!syncSet(backupId, si))
-        {
-            out() << clientname << " backupId " << toHandle(backupId) << " not found ";
-            return false;
-        }
-
-        // compare model against nodes representing remote state
-        if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodeByHandle(si.h)))
-        {
-            return false;
-        }
-
-        // compare model against LocalNodes
-        if (Sync* sync = syncByBackupId(backupId))
-        {
-            if ((confirm & CONFIRM_LOCALNODE) && !confirmModel(backupId, mnode, sync->localroot.get()))
-            {
-                return false;
-            }
-        }
-
-        // compare model against local filesystem
-        if ((confirm & CONFIRM_LOCALFS) && !confirmModel(backupId, mnode, si.localpath, ignoreDebris))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    void prelogin_result(int, string*, string* salt, error e) override
-    {
-        out() << clientname << " Prelogin: " << e;
-        if (!e)
-        {
-            this->salt = *salt;
-        }
-        resultproc.processresult(PRELOGIN, e, UNDEF);
-    }
-
-    void login_result(error e) override
-    {
-        out() << clientname << " Login: " << e;
-        resultproc.processresult(LOGIN, e, UNDEF);
-    }
-
-    void fetchnodes_result(const Error& e) override
-    {
-        out() << clientname << " Fetchnodes: " << e;
-        resultproc.processresult(FETCHNODES, e, UNDEF);
-    }
-
-    bool setattr(Node* node, attr_map&& updates)
-    {
-        auto result =
-          thread_do<bool>(
-            [=](StandardClient& client, PromiseBoolSP result) mutable
-            {
-                client.setattr(node, std::move(updates), result);
-            });
-
-        return result.get();
-    }
-
-    void setattr(Node* node, attr_map&& updates, PromiseBoolSP result)
-    {
-        resultproc.prepresult(COMPLETION,
-                              ++next_request_tag,
-                              [=]()
-                              {
-                                  client.setattr(node, attr_map(updates), client.reqtag, nullptr,
-                                      [result](NodeHandle, error e) { result->set_value(!e); });
-                              }, nullptr);
-    }
-
-    void unlink_result(handle h, error e) override
-    {
-        resultproc.processresult(UNLINK, e, h);
-    }
-
-    handle lastPutnodesResultFirstHandle = UNDEF;
-
-    void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride) override
-    {
-        resultproc.processresult(PUTNODES, e, client.restag);
-    }
-
-    void catchup_result() override
-    {
-        resultproc.processresult(CATCHUP, error(API_OK));
-    }
-
-    void disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result)
-    {
-        client.syncs.disableSelectedSyncs(
-            [id](SyncConfig& config, Sync*)
-            {
-                return config.mBackupId == id;
-            },
-            false,
-            error,
-            enabled,
-            [result](size_t nDisabled){
-                result->set_value(!!nDisabled);
-            });
-    }
-
-    bool disableSync(handle id, SyncError error, bool enabled)
-    {
-        auto result =
-            thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+void StandardClient::setattr(Node* node, attr_map&& updates, PromiseBoolSP result)
+{
+    resultproc.prepresult(COMPLETION,
+                            ++next_request_tag,
+                            [=]()
                             {
-                                client.disableSync(id, error, enabled, result);
-                            });
+                                client.setattr(node, attr_map(updates), client.reqtag, nullptr,
+                                    [result](NodeHandle, error e) { result->set_value(!e); });
+                            }, nullptr);
+}
 
-        return result.get();
-    }
+void StandardClient::unlink_result(handle h, error e)
+{
+    resultproc.processresult(UNLINK, e, h);
+}
 
+handle lastPutnodesResultFirstHandle = UNDEF;
 
-    void deleteremote(string path, PromiseBoolSP pb)
-    {
-        if (Node* n = drillchildnodebyname(gettestbasenode(), path))
+void StandardClient::putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride)
+{
+    resultproc.processresult(PUTNODES, e, client.restag);
+}
+
+void StandardClient::catchup_result()
+{
+    resultproc.processresult(CATCHUP, error(API_OK));
+}
+
+void StandardClient::disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result)
+{
+    client.syncs.disableSelectedSyncs(
+        [id](SyncConfig& config, Sync*)
         {
-            auto completion = [pb](NodeHandle, Error e) {
-                pb->set_value(!e);
+            return config.mBackupId == id;
+        },
+        false,
+        error,
+        enabled,
+        [result](size_t nDisabled){
+            result->set_value(!!nDisabled);
+        });
+}
+
+bool StandardClient::disableSync(handle id, SyncError error, bool enabled)
+{
+    auto result =
+        thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
+                        {
+                            client.disableSync(id, error, enabled, result);
+                        });
+
+    return result.get();
+}
+
+
+void StandardClient::deleteremote(string path, PromiseBoolSP pb)
+{
+    if (Node* n = drillchildnodebyname(gettestbasenode(), path))
+    {
+        auto completion = [pb](NodeHandle, Error e) {
+            pb->set_value(!e);
+        };
+
+        resultproc.prepresult(COMPLETION, ++next_request_tag,
+            [&](){ client.unlink(n, false, 0, std::move(completion)); },
+            nullptr);
+    }
+    else
+    {
+        pb->set_value(false);
+    }
+}
+
+bool StandardClient::deleteremote(string path)
+{
+    auto result =
+        thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb)
+                {
+                    sc.deleteremote(path, pb);
+                });
+
+    return result.get();
+}
+
+void StandardClient::deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
+{
+    if (ns.empty())
+    {
+        pb->set_value(true);
+    }
+    else
+    {
+        for (size_t i = ns.size(); i--; )
+        {
+            auto completion = [i, pb](NodeHandle, Error e) {
+                if (!i) pb->set_value(!e);
             };
 
             resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [&](){ client.unlink(n, false, 0, std::move(completion)); },
+                [&](){ client.unlink(ns[i], false, 0, std::move(completion)); },
                 nullptr);
         }
-        else
-        {
-            pb->set_value(false);
-        }
     }
+}
 
-    bool deleteremote(string path)
+bool StandardClient::movenode(string path, string newParentPath)
+{
+    auto promise = newPromiseBoolSP();
+    auto future = promise->get_future();
+
+    movenode(std::move(path),
+                std::move(newParentPath),
+                std::move(promise));
+
+    auto status = future.wait_for(DEFAULTWAIT);
+
+    return status == future_status::ready && future.get();
+}
+
+void StandardClient::movenode(string path, string newparentpath, PromiseBoolSP pb)
+{
+    Node* n = drillchildnodebyname(gettestbasenode(), path);
+    Node* p = drillchildnodebyname(gettestbasenode(), newparentpath);
+    if (n && p)
     {
-        auto result =
-          thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb)
-                    {
-                        sc.deleteremote(path, pb);
-                    });
-
-        return result.get();
-    }
-
-    void deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
-    {
-        if (ns.empty())
-        {
-            pb->set_value(true);
-        }
-        else
-        {
-            for (size_t i = ns.size(); i--; )
+        resultproc.prepresult(COMPLETION, ++next_request_tag,
+            [pb, n, p, this]()
             {
-                auto completion = [i, pb](NodeHandle, Error e) {
-                    if (!i) pb->set_value(!e);
-                };
-
-                resultproc.prepresult(COMPLETION, ++next_request_tag,
-                    [&](){ client.unlink(ns[i], false, 0, std::move(completion)); },
-                    nullptr);
-            }
-        }
-    }
-
-    bool movenode(string path, string newParentPath)
-    {
-        auto promise = newPromiseBoolSP();
-        auto future = promise->get_future();
-
-        movenode(std::move(path),
-                 std::move(newParentPath),
-                 std::move(promise));
-
-        auto status = future.wait_for(DEFAULTWAIT);
-
-        return status == future_status::ready && future.get();
-    }
-
-    void movenode(string path, string newparentpath, PromiseBoolSP pb)
-    {
-        Node* n = drillchildnodebyname(gettestbasenode(), path);
-        Node* p = drillchildnodebyname(gettestbasenode(), newparentpath);
-        if (n && p)
-        {
-            resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [pb, n, p, this]()
-                {
-                    client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
-                        [pb](NodeHandle h, Error e) { pb->set_value(!e); });
-                },
-                nullptr);
-            return;
-        }
-        out() << "node or new parent not found";
-        pb->set_value(false);
-    }
-
-    void movenode(handle h1, handle h2, PromiseBoolSP pb)
-    {
-        Node* n = client.nodebyhandle(h1);
-        Node* p = client.nodebyhandle(h2);
-        if (n && p)
-        {
-            resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [pb, n, p, this]()
-                {
-                    client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
-                        [pb](NodeHandle h, Error e) { pb->set_value(!e); });
-                },
-                nullptr);
-            return;
-        }
-        out() << "node or new parent not found by handle";
-        pb->set_value(false);
-    }
-
-    void movenodetotrash(string path, PromiseBoolSP pb)
-    {
-        Node* n = drillchildnodebyname(gettestbasenode(), path);
-        Node* p = getcloudrubbishnode();
-        if (n && p && n->parent)
-        {
-            resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [pb, n, p, this]()
-                {
-                    client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
-                        [pb](NodeHandle h, Error e) { pb->set_value(!e); });
-                },
-                nullptr);
-            return;
-        }
-        out() << "node or rubbish or node parent not found";
-        pb->set_value(false);
-    }
-
-    void exportnode(Node* n, int del, m_time_t expiry, bool writable, promise<Error>& pb)
-    {
-        resultproc.prepresult(COMPLETION, ++next_request_tag,
-            [&](){
-                error e = client.exportnode(n, del, expiry, writable, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); });
-                if (e)
-                {
-                    pb.set_value(e);
-                }
-            }, nullptr);  // no need to match callbacks with requests when we use completion functions
-    }
-
-    void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, promise<Error>& pb)
-    {
-        resultproc.prepresult(COMPLETION, ++next_request_tag,
-            [&](){ client.requestPublicLink(n, del, expiry, writable, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
+                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
+                    [pb](NodeHandle h, Error e) { pb->set_value(!e); });
+            },
             nullptr);
+        return;
     }
+    out() << "node or new parent not found";
+    pb->set_value(false);
+}
 
-
-    void waitonsyncs(chrono::seconds d = chrono::seconds(2))
+void StandardClient::movenode(handle h1, handle h2, PromiseBoolSP pb)
+{
+    Node* n = client.nodebyhandle(h1);
+    Node* p = client.nodebyhandle(h2);
+    if (n && p)
     {
-        auto start = chrono::steady_clock::now();
-        for (;;)
+        resultproc.prepresult(COMPLETION, ++next_request_tag,
+            [pb, n, p, this]()
+            {
+                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
+                    [pb](NodeHandle h, Error e) { pb->set_value(!e); });
+            },
+            nullptr);
+        return;
+    }
+    out() << "node or new parent not found by handle";
+    pb->set_value(false);
+}
+
+void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
+{
+    Node* n = drillchildnodebyname(gettestbasenode(), path);
+    Node* p = getcloudrubbishnode();
+    if (n && p && n->parent)
+    {
+        resultproc.prepresult(COMPLETION, ++next_request_tag,
+            [pb, n, p, this]()
+            {
+                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
+                    [pb](NodeHandle h, Error e) { pb->set_value(!e); });
+            },
+            nullptr);
+        return;
+    }
+    out() << "node or rubbish or node parent not found";
+    pb->set_value(false);
+}
+
+void StandardClient::exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
+{
+    resultproc.prepresult(COMPLETION, ++next_request_tag,
+        [&](){
+            error e = client.exportnode(n, del, expiry, writable, megaHosted, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); });
+            if (e)
+            {
+                pb.set_value(e);
+            }
+        }, nullptr);  // no need to match callbacks with requests when we use completion functions
+}
+
+void StandardClient::getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb)
+{
+    resultproc.prepresult(COMPLETION, ++next_request_tag,
+        [&](){ client.requestPublicLink(n, del, expiry, writable, megaHosted, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
+        nullptr);
+}
+
+
+void StandardClient::waitonsyncs(chrono::seconds d)
+{
+    auto start = chrono::steady_clock::now();
+    for (;;)
+    {
+        bool any_add_del = false;;
+        vector<int> syncstates;
+
+        thread_do<bool>([&syncstates, &any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
         {
-            bool any_add_del = false;;
-            vector<int> syncstates;
-
-            thread_do<bool>([&syncstates, &any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
-            {
-                mc.client.syncs.forEachRunningSync(
-                  [&](Sync* s)
-                  {
-                      syncstates.push_back(s->state());
-                      any_add_del |= !s->deleteq.empty();
-                      any_add_del |= !s->insertq.empty();
-                  });
-
-                if (!(client.todebris.empty() && client.tounlink.empty() /*&& client.synccreate.empty()*/))
+            mc.client.syncs.forEachRunningSync(
+                [&](Sync* s)
                 {
-                    any_add_del = true;
-                }
-                if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
-                {
-                    any_add_del = true;
-                }
-                pb->set_value(true);
-            }).get();
-            bool allactive = true;
-            {
-                lock_guard<mutex> g(StandardClient::om);
-                //std::out() << "sync state: ";
-                //for (auto n : syncstates)
-                //{
-                //    out() << n;
-                //    if (n != SYNC_ACTIVE) allactive = false;
-                //}
-                //out();
-            }
+                    syncstates.push_back(s->state());
+                    any_add_del |= !s->deleteq.empty();
+                    any_add_del |= !s->insertq.empty();
+                });
 
-            if (any_add_del || debugging)
+            if (!(client.todebris.empty() && client.tounlink.empty() /*&& client.synccreate.empty()*/))
             {
-                start = chrono::steady_clock::now();
+                any_add_del = true;
             }
+            if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
+            {
+                any_add_del = true;
+            }
+            pb->set_value(true);
+        }).get();
+        bool allactive = true;
+        {
+            lock_guard<mutex> g(StandardClient::om);
+            //std::out() << "sync state: ";
+            //for (auto n : syncstates)
+            //{
+            //    out() << n;
+            //    if (n != SYNC_ACTIVE) allactive = false;
+            //}
+            //out();
+        }
 
-            if (allactive && ((chrono::steady_clock::now() - start) > d) && ((chrono::steady_clock::now() - lastcb) > d))
-            {
-               break;
-            }
+        if (any_add_del || debugging)
+        {
+            start = chrono::steady_clock::now();
+        }
+
+        if (allactive && ((chrono::steady_clock::now() - start) > d) && ((chrono::steady_clock::now() - lastcb) > d))
+        {
+            break;
+        }
 //out() << "waiting 500";
-            WaitMillisec(500);
-        }
-
+        WaitMillisec(500);
     }
 
-    bool login_reset(const string& user, const string& pw, bool noCache = false)
+}
+
+bool StandardClient::login_reset(const string& user, const string& pw, bool noCache)
+{
+    future<bool> p1;
+    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
+    if (!waitonresults(&p1))
     {
-        future<bool> p1;
-        p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
-        if (!waitonresults(&p1))
-        {
-            out() << "preloginFromEnv failed";
-            return false;
-        }
-        p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
-        if (!waitonresults(&p1))
-        {
-            out() << "loginFromEnv failed";
-            return false;
-        }
-        p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); });
-        if (!waitonresults(&p1)) {
-            out() << "fetchnodes failed";
-            return false;
-        }
-        p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteTestBaseFolder(true, pb); });  // todo: do we need to wait for server response now
-        if (!waitonresults(&p1)) {
-            out() << "deleteTestBaseFolder failed";
-            return false;
-        }
-        p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
-        if (!waitonresults(&p1)) {
-            out() << "ensureTestBaseFolder failed";
-            return false;
-        }
-        return true;
-    }
-
-    bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false)
-    {
-        if (!login_reset(user, pw, noCache))
-        {
-            out() << "login_reset failed";
-            return false;
-        }
-        future<bool> p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.makeCloudSubdirs(prefix, depth, fanout, pb); });
-        if (!waitonresults(&p1))
-        {
-            out() << "makeCloudSubdirs failed";
-            return false;
-        }
-        return true;
-    }
-
-    void ensureSyncUserAttributes(PromiseBoolSP result)
-    {
-        auto completion = [result](Error e) { result->set_value(!e); };
-        client.ensureSyncUserAttributes(std::move(completion));
-    }
-
-    bool ensureSyncUserAttributes()
-    {
-        auto result =
-          thread_do<bool>([](StandardClient& client, PromiseBoolSP result)
-                          {
-                              client.ensureSyncUserAttributes(result);
-                          });
-
-        return result.get();
-    }
-
-    void copySyncConfig(SyncConfig config, PromiseHandleSP result)
-    {
-        auto completion =
-          [result](handle id, error e)
-          {
-              result->set_value(e ? UNDEF : id);
-          };
-
-        client.copySyncConfig(config, std::move(completion));
-    }
-
-    handle copySyncConfig(const SyncConfig& config)
-    {
-        auto result =
-          thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
-                          {
-                              client.copySyncConfig(config, result);
-                          });
-
-        return result.get();
-    }
-
-    bool login(const string& user, const string& pw)
-    {
-        future<bool> p;
-        p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
-        if (!waitonresults(&p)) return false;
-        p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
-        return waitonresults(&p);
-    }
-
-    bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false)
-    {
-        future<bool> p2;
-        p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
-        if (!waitonresults(&p2)) return false;
-        p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
-        if (!waitonresults(&p2)) return false;
-        p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); });
-        if (!waitonresults(&p2)) return false;
-        p2 = thread_do<bool>([makeBaseFolder](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); });
-        if (!waitonresults(&p2)) return false;
-        return true;
-    }
-
-    bool login_fetchnodes(const string& session)
-    {
-        future<bool> p2;
-        p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromSession(session, pb); });
-        if (!waitonresults(&p2)) return false;
-        p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, pb); });
-        if (!waitonresults(&p2)) return false;
-        p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); });
-        if (!waitonresults(&p2)) return false;
-        return true;
-    }
-
-    //bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, handle syncid)
-    //{
-    //    //SyncConfig config{(fsBasePath / fs::u8path(localsyncrootfolder)).u8string(), drillchildnodebyname(gettestbasenode(), remotesyncrootfolder)->nodehandle, 0};
-    //    return setupSync_mainthread(localsyncrootfolder, remotesyncrootfolder, syncid);
-    //}
-
-    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, const bool isBackup = false)
-    {
-        fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
-        fs::create_directory(syncdir);
-        auto fb = thread_do<handle>([=](StandardClient& mc, PromiseHandleSP pb)
-            {
-                mc.setupSync_inthread(remotesyncrootfolder, syncdir, isBackup,
-                    [pb](error e, SyncError, handle backupId)
-                    {
-                        pb->set_value(backupId);
-                    }, localsyncrootfolder + " ");
-            });
-        return fb.get();
-    }
-
-    bool delSync_mainthread(handle backupId, bool keepCache = false)
-    {
-        future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId, keepCache)); });
-        return fb.get();
-    }
-
-    bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, const bool ignoreDebris = false, const int confirm = CONFIRM_ALL)
-    {
-        future<bool> fb;
-        fb = thread_do<bool>([backupId, mnode, ignoreDebris, confirm](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris)); });
-        return fb.get();
-    }
-
-    bool match(handle id, const Model::ModelNode* source)
-    {
-        if (!source) return false;
-
-        auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
-            client.match(id, source, std::move(result));
-        });
-
-        return result.get();
-    }
-
-    void match(handle id, const Model::ModelNode* source, PromiseBoolSP result)
-    {
-        SyncInfo info;
-
-        if (!syncSet(id, info))
-        {
-            result->set_value(false);
-            return;
-        }
-
-        const auto* destination = client.nodeByHandle(info.h);
-        result->set_value(destination && match(*destination, *source));
-    }
-
-    template<typename Predicate>
-    bool waitFor(Predicate predicate, const std::chrono::seconds &timeout)
-    {
-        auto total = std::chrono::milliseconds(0);
-        auto sleepIncrement = std::chrono::milliseconds(500);
-
-        out() << "Waiting for predicate to match...";
-
-        do
-        {
-            if (predicate(*this))
-            {
-                out() << "Predicate has matched!";
-
-                return true;
-            }
-
-            std::this_thread::sleep_for(sleepIncrement);
-            total += sleepIncrement;
-        }
-        while (total < timeout);
-
-        out() << "Timed out waiting for predicate to match.";
-
+        out() << "preloginFromEnv failed";
         return false;
     }
-
-    bool match(const Node& destination, const Model::ModelNode& source) const
+    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
+    if (!waitonresults(&p1))
     {
-        list<pair<const Node*, decltype(&source)>> pending;
+        out() << "loginFromEnv failed";
+        return false;
+    }
+    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); });
+    if (!waitonresults(&p1)) {
+        out() << "fetchnodes failed";
+        return false;
+    }
+    p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteTestBaseFolder(true, pb); });  // todo: do we need to wait for server response now
+    if (!waitonresults(&p1)) {
+        out() << "deleteTestBaseFolder failed";
+        return false;
+    }
+    p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
+    if (!waitonresults(&p1)) {
+        out() << "ensureTestBaseFolder failed";
+        return false;
+    }
+    return true;
+}
 
-        pending.emplace_back(&destination, &source);
+bool StandardClient::login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache)
+{
+    if (!login_reset(user, pw, noCache))
+    {
+        out() << "login_reset failed";
+        return false;
+    }
+    future<bool> p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.makeCloudSubdirs(prefix, depth, fanout, pb); });
+    if (!waitonresults(&p1))
+    {
+        out() << "makeCloudSubdirs failed";
+        return false;
+    }
+    return true;
+}
 
-        for ( ; !pending.empty(); pending.pop_front())
+void StandardClient::ensureSyncUserAttributes(PromiseBoolSP result)
+{
+    auto completion = [result](Error e) { result->set_value(!e); };
+    client.ensureSyncUserAttributes(std::move(completion));
+}
+
+bool StandardClient::ensureSyncUserAttributes()
+{
+    auto result =
+        thread_do<bool>([](StandardClient& client, PromiseBoolSP result)
+                        {
+                            client.ensureSyncUserAttributes(result);
+                        });
+
+    return result.get();
+}
+
+void StandardClient::copySyncConfig(SyncConfig config, PromiseHandleSP result)
+{
+    auto completion =
+        [result](handle id, error e)
         {
-            const auto& dn = *pending.front().first;
-            const auto& sn = *pending.front().second;
+            result->set_value(e ? UNDEF : id);
+        };
 
-            // Nodes must have matching types.
-            if (!sn.typematchesnodetype(dn.type)) return false;
+    client.copySyncConfig(config, std::move(completion));
+}
 
-            // Files require no further processing.
-            if (dn.type == FILENODE) continue;
+handle StandardClient::copySyncConfig(const SyncConfig& config)
+{
+    auto result =
+        thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
+                        {
+                            client.copySyncConfig(config, result);
+                        });
 
-            map<string, decltype(&dn), CloudNameLess> dc;
-            map<string, decltype(&sn), CloudNameLess> sc;
+    return result.get();
+}
 
-            // Index children for pairing.
-            for (const auto* child : dn.children)
-            {
-                auto result = dc.emplace(child->displayname(), child);
+bool StandardClient::login(const string& user, const string& pw)
+{
+    future<bool> p;
+    p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
+    if (!waitonresults(&p)) return false;
+    p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
+    return waitonresults(&p);
+}
 
-                // For simplicity, duplicates consistute a match failure.
-                if (!result.second) return false;
-            }
+bool StandardClient::login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder, bool noCache)
+{
+    future<bool> p2;
+    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
+    if (!waitonresults(&p2)) return false;
+    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
+    if (!waitonresults(&p2)) return false;
+    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); });
+    if (!waitonresults(&p2)) return false;
+    p2 = thread_do<bool>([makeBaseFolder](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); });
+    if (!waitonresults(&p2)) return false;
+    return true;
+}
 
-            for (const auto& child : sn.kids)
-            {
-                auto result = sc.emplace(child->cloudName(), child.get());
-                if (!result.second) return false;
-            }
+bool StandardClient::login_fetchnodes(const string& session)
+{
+    future<bool> p2;
+    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromSession(session, pb); });
+    if (!waitonresults(&p2)) return false;
+    p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, pb); });
+    if (!waitonresults(&p2)) return false;
+    p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); });
+    if (!waitonresults(&p2)) return false;
+    return true;
+}
 
-            // Pair children.
-            for (const auto& s : sc)
-            {
-                // Skip the debris folder if it appears in the root.
-                if (&sn == &source)
+//bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, handle syncid)
+//{
+//    //SyncConfig config{(fsBasePath / fs::u8path(localsyncrootfolder)).u8string(), drillchildnodebyname(gettestbasenode(), remotesyncrootfolder)->nodehandle, 0};
+//    return setupSync_mainthread(localsyncrootfolder, remotesyncrootfolder, syncid);
+//}
+
+handle StandardClient::setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, const bool isBackup)
+{
+    fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
+    fs::create_directory(syncdir);
+    auto fb = thread_do<handle>([=](StandardClient& mc, PromiseHandleSP pb)
+        {
+            mc.setupSync_inthread(remotesyncrootfolder, syncdir, isBackup,
+                [pb](error e, SyncError, handle backupId)
                 {
-                    if (CloudNameLess::equal(s.first, DEBRISFOLDER))
-                    {
-                        continue;
-                    }
-                }
+                    pb->set_value(backupId);
+                }, localsyncrootfolder + " ");
+        });
+    return fb.get();
+}
 
-                // Does this node have a pair in the destination?
-                auto d = dc.find(s.first);
+bool StandardClient::delSync_mainthread(handle backupId, bool keepCache)
+{
+    future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId, keepCache)); });
+    return fb.get();
+}
 
-                // If not then there can be no match.
-                if (d == dc.end()) return false;
+bool StandardClient::confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, const bool ignoreDebris, const int confirm)
+{
+    future<bool> fb;
+    fb = thread_do<bool>([backupId, mnode, ignoreDebris, confirm](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris)); });
+    return fb.get();
+}
 
-                // Queue pair for more detailed matching.
-                pending.emplace_back(d->second, s.second);
+bool StandardClient::match(handle id, const Model::ModelNode* source)
+{
+    if (!source) return false;
 
-                // Consider the destination node paired.
-                dc.erase(d);
-            }
+    auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
+        client.match(id, source, std::move(result));
+    });
 
-            // Can't have a match if we couldn't pair all destination nodes.
-            if (!dc.empty()) return false;
+    return result.get();
+}
+
+void StandardClient::match(handle id, const Model::ModelNode* source, PromiseBoolSP result)
+{
+    SyncInfo info;
+
+    if (!syncSet(id, info))
+    {
+        result->set_value(false);
+        return;
+    }
+
+    const auto* destination = client.nodeByHandle(info.h);
+    result->set_value(destination && match(*destination, *source));
+}
+
+//template<typename Predicate>
+//bool StandardClient::waitFor(Predicate predicate, const std::chrono::seconds &timeout)
+//{
+//    auto total = std::chrono::milliseconds(0);
+//    auto sleepIncrement = std::chrono::milliseconds(500);
+//
+//    out() << "Waiting for predicate to match...";
+//
+//    do
+//    {
+//        if (predicate(*this))
+//        {
+//            out() << "Predicate has matched!";
+//
+//            return true;
+//        }
+//
+//        std::this_thread::sleep_for(sleepIncrement);
+//        total += sleepIncrement;
+//    }
+//    while (total < timeout);
+//
+//    out() << "Timed out waiting for predicate to match.";
+//
+//    return false;
+//}
+
+bool StandardClient::match(const Node& destination, const Model::ModelNode& source) const
+{
+    list<pair<const Node*, decltype(&source)>> pending;
+
+    pending.emplace_back(&destination, &source);
+
+    for ( ; !pending.empty(); pending.pop_front())
+    {
+        const auto& dn = *pending.front().first;
+        const auto& sn = *pending.front().second;
+
+        // Nodes must have matching types.
+        if (!sn.typematchesnodetype(dn.type)) return false;
+
+        // Files require no further processing.
+        if (dn.type == FILENODE) continue;
+
+        map<string, decltype(&dn), CloudNameLess> dc;
+        map<string, decltype(&sn), CloudNameLess> sc;
+
+        // Index children for pairing.
+        for (const auto* child : dn.children)
+        {
+            auto result = dc.emplace(child->displayname(), child);
+
+            // For simplicity, duplicates consistute a match failure.
+            if (!result.second) return false;
         }
 
-        return true;
+        for (const auto& child : sn.kids)
+        {
+            auto result = sc.emplace(child->cloudName(), child.get());
+            if (!result.second) return false;
+        }
+
+        // Pair children.
+        for (const auto& s : sc)
+        {
+            // Skip the debris folder if it appears in the root.
+            if (&sn == &source)
+            {
+                if (CloudNameLess::equal(s.first, DEBRISFOLDER))
+                {
+                    continue;
+                }
+            }
+
+            // Does this node have a pair in the destination?
+            auto d = dc.find(s.first);
+
+            // If not then there can be no match.
+            if (d == dc.end()) return false;
+
+            // Queue pair for more detailed matching.
+            pending.emplace_back(d->second, s.second);
+
+            // Consider the destination node paired.
+            dc.erase(d);
+        }
+
+        // Can't have a match if we couldn't pair all destination nodes.
+        if (!dc.empty()) return false;
     }
 
-    bool backupOpenDrive(const fs::path& drivePath)
-    {
-        auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
-            client.backupOpenDrive(drivePath, std::move(result));
-        });
+    return true;
+}
 
-        return result.get();
-    }
+bool StandardClient::backupOpenDrive(const fs::path& drivePath)
+{
+    auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
+        client.backupOpenDrive(drivePath, std::move(result));
+    });
 
-    void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
-    {
-        auto localDrivePath = LocalPath::fromPath(drivePath.u8string(), *client.fsaccess);
-        result->set_value(client.syncs.backupOpenDrive(localDrivePath) == API_OK);
-    }
-};
+    return result.get();
+}
 
+void StandardClient::backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
+{
+    auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
+    result->set_value(client.syncs.backupOpenDrive(localDrivePath) == API_OK);
+}
 
 void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
 {
@@ -3180,7 +2993,7 @@ bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
 }
 #endif
 
-} // anonymous
+
 
 class SyncFingerprintCollision
   : public ::testing::Test
@@ -3284,23 +3097,21 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_1" / "a";
 
-    // Alter MAC but leave fingerprint untouched.
-    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
-
     ASSERT_TRUE(createDataFile(path0, data0));
     waitOnSyncs();
 
-    auto result0 =
-      client0->thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
-                         {
-                             p->set_value(
-                                 createDataFileWithTimestamp(
-                                 path1,
-                                 data1,
-                                 fs::last_write_time(path0)));
-                         });
+    // Alter MAC but leave fingerprint untouched.
+    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
 
-    ASSERT_TRUE(waitonresults(&result0));
+    // Prepare the file outside of the sync's view.
+    auto stamp = fs::last_write_time(path0);
+
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, stamp));
+
+    // Move the file into place.
+    fs::rename(client0->fsBasePath / "a", path1);
+
+    // Wait for the engine to process changes.
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
@@ -3319,22 +3130,21 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_0" / "b";
 
-    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
-
     ASSERT_TRUE(createDataFile(path0, data0));
     waitOnSyncs();
 
-    auto result0 =
-      client0->thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
-                         {
-                             p->set_value(
-                                 createDataFileWithTimestamp(
-                                 path1,
-                                 data1,
-                                 fs::last_write_time(path0)));
-                         });
+    // Alter MAC but leave fingerprint untouched.
+    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
 
-    ASSERT_TRUE(waitonresults(&result0));
+    // Prepare the file outside of the engine's view.
+    auto stamp = fs::last_write_time(path0);
+
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, stamp));
+
+    // Move the file into place.
+    fs::rename(client0->fsBasePath / "a", path1);
+
+    // Wait for the engine to process our change.
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
@@ -3355,17 +3165,15 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     ASSERT_TRUE(createDataFile(path0, data0));
     waitOnSyncs();
 
-    auto result0 =
-      client0->thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
-                         {
-                            p->set_value(
-                                 createDataFileWithTimestamp(
-                                 path1,
-                                 data0,
-                                 fs::last_write_time(path0)));
-                         });
+    // Build the file somewhere the sync won't notice.
+    auto stamp = fs::last_write_time(path0);
 
-    ASSERT_TRUE(waitonresults(&result0));
+    ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "b", data0, stamp));
+
+    // Move file into place.
+    fs::rename(client0->fsBasePath / "b", path1);
+
+    // Wait for the engine to process our changes.
     waitOnSyncs();
 
     addModelFile(model0, "d/d_0", "a", data0);
@@ -3425,8 +3233,14 @@ TEST_F(SyncTest, BasicSync_DelRemoteFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // delete something remotely and let sync catch up
-    future<bool> fb = clientA1.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_2/f_2_1", pb); });
-    ASSERT_TRUE(waitonresults(&fb));
+    clientA1.received_node_actionpackets = false;
+    clientA2.received_node_actionpackets = false;
+
+    ASSERT_TRUE(clientA1.deleteremote("f/f_2/f_2_1"));
+
+    ASSERT_TRUE(clientA1.waitForNodesUpdated(60));
+    ASSERT_TRUE(clientA2.waitForNodesUpdated(60));
+
     waitonsyncs(std::chrono::seconds(60), &clientA1, &clientA2);
 
     // check everything matches in both syncs (model has expected state of remote and local)
@@ -4036,6 +3850,8 @@ TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
     fs::path sync1path = pclientA1->syncSet(backupId1).localpath;
     pclientA1->localLogout();
 
+    pclientA1->received_syncs_restored = false;
+
     // remove local folders
     error_code e;
     ASSERT_TRUE(fs::remove_all(sync1path / "f_2", e) != static_cast<std::uintmax_t>(-1)) << e;
@@ -4043,6 +3859,9 @@ TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
     // resume session, see if nodes and localnodes get in sync
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes(session));
+
+    // wait for normal sync resumes to complete
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
 
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
 
@@ -4185,6 +4004,11 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
+
+    // wait for normal sync resumes to complete
+    // wait bumped to 40 seconds here because we've seen a case where the 2nd client didn't receive actionpackets for 30 seconds
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(40));
+
     waitonsyncs(DEFAULTWAIT, pclientA1.get(), &clientA2);
 
     out() << "*********************  check everything matches (model has expected state of remote and local)";
@@ -4240,14 +4064,32 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
-    waitonsyncs(std::chrono::seconds(10), pclientA1.get(), &clientA2);
 
-    // check everything matches (model has expected state of remote and local)
-    model.findnode("f/f_1/f_1_2")->addkid(model.buildModelSubdirs("newlocal", 2, 2, 2));
-    ASSERT_TRUE(model.movetosynctrash("f/f_1", "f"));
-    ASSERT_TRUE(pclientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
-    ASSERT_TRUE(model.removesynctrash("f", "f_1/f_1_2/newlocal"));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
+    // wait for normal sync resumes to complete
+    pclientA1->waitFor([&](StandardClient& sc){ return sc.received_syncs_restored; }, std::chrono::seconds(30));
+
+    waitonsyncs(chrono::seconds(4), pclientA1.get(), &clientA2);
+
+    // Sync rework update:  for now at least, delete wins in this case
+
+    //ASSERT_EQ(waitResult[0].syncStalled, true);
+    //ASSERT_EQ(1, waitResult[0].stalledNodePaths.size());
+    //ASSERT_EQ(1, waitResult[0].stalledLocalPaths.size());
+
+    Model modelLocal1;
+    modelLocal1.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+    modelLocal1.findnode("f/f_1/f_1_2")->addkid(model.buildModelSubdirs("newlocal", 2, 2, 2));
+    //pclientA1->localNodesMustHaveNodes = false;
+    ASSERT_TRUE(modelLocal1.movetosynctrash("f/f_1", "f"));
+
+    Model modelRemote1;
+    modelRemote1.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+    ASSERT_TRUE(modelRemote1.movetosynctrash("f/f_1", "f"));
+
+    ASSERT_TRUE(pclientA1->confirmModel_mainthread(modelLocal1.findnode("f"), backupId1, false, StandardClient::CONFIRM_LOCAL));
+    ASSERT_TRUE(pclientA1->confirmModel_mainthread(modelRemote1.findnode("f"), backupId1, false, StandardClient::CONFIRM_REMOTE));
+    //ASSERT_TRUE(modelRemote1.removesynctrash("f", "f_1/f_1_2/newlocal"));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(modelRemote1.findnode("f"), backupId2));
 }
 
 
@@ -4500,7 +4342,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     std::atomic<bool> putnodesDone{false};
     standardclient.resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
-        [&](){ standardclient.client.putnodes(targethandle, move(newnodes), nullptr, standardclient.client.reqtag); },
+        [&](){ standardclient.client.putnodes(targethandle, NoVersioning, move(newnodes), nullptr, standardclient.client.reqtag); },
         [&putnodesDone](error e) { putnodesDone = true; return true; });
 
     while (!putnodesDone)
@@ -4538,24 +4380,24 @@ TEST_F(SyncTest, DISABLED_ExerciseCommands)
 
     // try to get a link on an existing unshared folder
     promise<Error> pe1, pe1a, pe2, pe3, pe4;
-    standardclient.getpubliclink(n2, 0, 0, false, pe1);
+    standardclient.getpubliclink(n2, 0, 0, false, false, pe1);
     ASSERT_EQ(API_EACCESS, pe1.get_future().get());
 
     // create on existing node
-    standardclient.exportnode(n2, 0, 0, false, pe1a);
+    standardclient.exportnode(n2, 0, 0, false, false, pe1a);
     ASSERT_EQ(API_OK, pe1a.get_future().get());
 
     // get link on existing shared folder node, with link already  (different command response)
-    standardclient.getpubliclink(n2, 0, 0, false, pe2);
+    standardclient.getpubliclink(n2, 0, 0, false, false, pe2);
     ASSERT_EQ(API_OK, pe2.get_future().get());
 
     // delete existing link on node
-    standardclient.getpubliclink(n2, 1, 0, false, pe3);
+    standardclient.getpubliclink(n2, 1, 0, false, false, pe3);
     ASSERT_EQ(API_OK, pe3.get_future().get());
 
     // create on non existent node
     n2->nodehandle = UNDEF;
-    standardclient.getpubliclink(n2, 0, 0, false, pe4);
+    standardclient.getpubliclink(n2, 0, 0, false, false, pe4);
     ASSERT_EQ(API_EACCESS, pe4.get_future().get());
 }
 
@@ -4805,7 +4647,7 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
           auto fileAccess = fsAccess.newfileaccess(false);
 
           // Translate input path into something useful.
-          auto path = LocalPath::fromPath(fsPath.u8string(), fsAccess);
+          auto path = LocalPath::fromAbsolutePath(fsPath.u8string());
 
           // Try and open file for reading.
           if (fileAccess->fopen(path, true, false))
@@ -4967,8 +4809,8 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
         config1.mBackupId = UNDEF;
 
         // Update path for c1.
-        config0.mLocalPath = LocalPath::fromPath(root0.u8string(), fsAccess);
-        config1.mLocalPath = LocalPath::fromPath(root1.u8string(), fsAccess);
+        config0.mLocalPath = LocalPath::fromAbsolutePath(root0.u8string());
+        config1.mLocalPath = LocalPath::fromAbsolutePath(root1.u8string());
 
         // Make sure local sync roots exist.
         fs::create_directories(root0);
@@ -5344,7 +5186,7 @@ TEST_F(SyncTest, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
         cu.client.putnodes_prepareOneFolder(&nodes[0], "d\7");
         cu.client.putnodes_prepareOneFolder(&nodes[1], "d");
 
-        ASSERT_TRUE(cu.putnodes(node->nodeHandle(), std::move(nodes)));
+        ASSERT_TRUE(cu.putnodes(node->nodeHandle(), NoVersioning, std::move(nodes)));
 
         // Do the same but with some files.
         auto root = TESTROOT / "cu" / "x";
@@ -5572,7 +5414,7 @@ public:
         int type;
     }; // Anomaly
 
-    AnomalyReporter(const string& localRoot, const string& remoteRoot)
+    AnomalyReporter(const LocalPath& localRoot, const string& remoteRoot)
       : mAnomalies()
       , mLocalRoot(localRoot)
       , mRemoteRoot(remoteRoot)
@@ -5581,10 +5423,7 @@ public:
         assert(!mRemoteRoot.empty());
 
         // Add trailing separators if necessary.
-        if (string(1, mLocalRoot.back()) != SEP)
-        {
-            mLocalRoot.append(SEP);
-        }
+        mLocalRoot.appendWithSeparator(LocalPath::fromRelativePath(""), true);
 
         if (mRemoteRoot.back() != '/')
         {
@@ -5593,16 +5432,16 @@ public:
     }
 
     void anomalyDetected(FilenameAnomalyType type,
-                         const string& localPath,
+                         const LocalPath& localPath,
                          const string& remotePath) override
     {
-        assert(startsWith(localPath, mLocalRoot));
+        assert(startsWith(localPath.toPath(), mLocalRoot.toPath()));
         assert(startsWith(remotePath, mRemoteRoot));
 
         mAnomalies.emplace_back();
 
         auto& anomaly = mAnomalies.back();
-        anomaly.localPath = localPath.substr(mLocalRoot.size());
+        anomaly.localPath = localPath.toPath().substr(mLocalRoot.toPath().size());
         anomaly.remotePath = remotePath.substr(mRemoteRoot.size());
         anomaly.type = type;
     }
@@ -5615,7 +5454,7 @@ private:
         return lhs.compare(0, rhs.size(), rhs) == 0;
     }
 
-    string mLocalRoot;
+    LocalPath mLocalRoot;
     string mRemoteRoot;
 }; // AnomalyReporter
 
@@ -5668,7 +5507,7 @@ TEST_F(SyncTest, AnomalousManualDownload)
 
     // Set anomalous filename reporter.
     AnomalyReporter* reporter =
-      new AnomalyReporter(root.u8string(),
+      new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()),
                           cd.gettestbasenode()->displaypath());
 
     cd.client.mFilenameAnomalyReporter.reset(reporter);
@@ -5762,7 +5601,7 @@ TEST_F(SyncTest, AnomalousManualUpload)
 
     // Set up anomalous name reporter.
     AnomalyReporter* reporter =
-      new AnomalyReporter(root.u8string(),
+      new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()),
                           cu.gettestbasenode()->displaypath());
 
     cu.client.mFilenameAnomalyReporter.reset(reporter);
@@ -5842,24 +5681,38 @@ TEST_F(SyncTest, AnomalousSyncDownload)
         // Log in client.
         ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
-        // Add and start sync.
-        auto id = cu.setupSync_mainthread("s", "s");
-        ASSERT_NE(id, UNDEF);
+        // Create the directories d and d/0.
+        {
+            vector<NewNode> nodes(2);
 
-        // Add test files for upload.
-        auto root = cu.syncSet(id).localpath;
+            // Prepare nodes.
+            cu.client.putnodes_prepareOneFolder(&nodes[0], "d");
+            cu.client.putnodes_prepareOneFolder(&nodes[1], "d/0");
 
-        model.addfile("f");
-        model.addfile("f:0")->fsName("f%3a0");
-        model.addfolder("d");
-        model.addfolder("d:0")->fsName("d%3a0");
-        model.generate(root);
+            // Create the nodes in the cloud.
+            ASSERT_TRUE(cu.putnodes("s", NoVersioning, std::move(nodes)));
 
-        // Wait for sync to complete.
-        waitonsyncs(TIMEOUT, &cu);
+            // Update model.
+            model.addfolder("d");
+            model.addfolder("d?0")->fsName("d%2f0").name = "d/0";
+        }
 
-        // Did the files upload okay?
-        ASSERT_TRUE(cu.confirmModel_mainthread(model.root.get(), id));
+        // Upload the files f and f/0.
+        {
+            auto filePath = cu.fsBasePath / "f";
+            auto rootPath = string("/mega_test_sync/s");
+
+            // Create a dummy for us to upload.
+            ASSERT_TRUE(createDataFile(filePath, "f"));
+
+            // Upload the files.
+            ASSERT_TRUE(cu.uploadFile(filePath, string("f"), rootPath));
+            ASSERT_TRUE(cu.uploadFile(filePath, string("f/0"), rootPath));
+
+            // Update the model.
+            model.addfile("f", "f");
+            model.addfile("f?0", "f")->fsName("f%2f0").name = "f/0";
+        }
     }
 
     // Download test files.
@@ -5880,13 +5733,16 @@ TEST_F(SyncTest, AnomalousSyncDownload)
         auto local = (TESTROOT / "cd" / "s").u8string();
         auto remote = s->displaypath();
 
-        reporter = new AnomalyReporter(local, remote);
+        reporter = new AnomalyReporter(LocalPath::fromAbsolutePath(local), remote);
         cd.client.mFilenameAnomalyReporter.reset(reporter);
     }
 
     // Add and start sync.
     auto id = cd.setupSync_mainthread("s", "s");
     ASSERT_NE(id, UNDEF);
+
+    // Get our hands on the sync root.
+    auto root = cd.syncSet(id).localpath;
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cd);
@@ -5903,15 +5759,15 @@ TEST_F(SyncTest, AnomalousSyncDownload)
     auto anomaly = reporter->mAnomalies.begin();
 
     // d:0
-    ASSERT_EQ(anomaly->localPath, "d%3a0");
-    ASSERT_EQ(anomaly->remotePath, "d:0");
+    ASSERT_EQ(anomaly->localPath, "d%2f0");
+    ASSERT_EQ(anomaly->remotePath, "d/0");
     ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
 
     ++anomaly;
 
     // f:0
-    ASSERT_EQ(anomaly->localPath, "f%3a0");
-    ASSERT_EQ(anomaly->remotePath, "f:0");
+    ASSERT_EQ(anomaly->localPath, "f%2f0");
+    ASSERT_EQ(anomaly->remotePath, "f/0");
     ASSERT_EQ(anomaly->type, FILENAME_ANOMALY_NAME_MISMATCH);
 }
 
@@ -5934,7 +5790,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
 
     // Set anomalous filename reporter.
     AnomalyReporter* reporter =
-      new AnomalyReporter(root.u8string(), "/mega_test_sync/s");
+      new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()), "/mega_test_sync/s");
 
     cx.client.mFilenameAnomalyReporter.reset(reporter);
 
@@ -6022,7 +5878,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     auto root = cx.syncSet(id).localpath;
 
     // Set up anomalous filename reporter.
-    auto* reporter = new AnomalyReporter(root.u8string(), "/mega_test_sync/s");
+    auto* reporter = new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()), "/mega_test_sync/s");
     cx.client.mFilenameAnomalyReporter.reset(reporter);
 
     // Populate filesystem.
@@ -6069,14 +5925,14 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
         auto* g = cr.drillchildnodebyname(d, "g");
         ASSERT_TRUE(g);
 
-        ASSERT_TRUE(cr.setattr(g, attr_map('n', "g:0")));
+        ASSERT_TRUE(cr.setattr(g, attr_map('n', "g/0")));
     }
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cx);
 
     // Update model.
-    model.findnode("d/g")->fsName("g%3a0").name = "g:0";
+    model.findnode("d/g")->fsName("g%2f0").name = "g/0";
 
     // Verify rename.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
@@ -6086,8 +5942,8 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     {
         auto& anomaly = reporter->mAnomalies.back();
 
-        ASSERT_EQ(anomaly.localPath, "d" SEP "g%3a0");
-        ASSERT_EQ(anomaly.remotePath, "d/g:0");
+        ASSERT_EQ(anomaly.localPath, "d" SEP "g%2f0");
+        ASSERT_EQ(anomaly.remotePath, "d/g/0");
         ASSERT_EQ(anomaly.type, FILENAME_ANOMALY_NAME_MISMATCH);
     }
     reporter->mAnomalies.clear();
@@ -6112,7 +5968,7 @@ TEST_F(SyncTest, AnomalousSyncUpload)
 
     // Set up anomalous filename reporter.
     AnomalyReporter* reporter =
-      new AnomalyReporter(root.u8string(), "/mega_test_sync/s");
+      new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()), "/mega_test_sync/s");
 
     cu.client.mFilenameAnomalyReporter.reset(reporter);
 
@@ -6369,70 +6225,131 @@ TEST_F(SyncTest, RenameReplaceFileBetweenSyncs)
 
 TEST_F(SyncTest, RenameReplaceFileWithinSync)
 {
-    const auto TESTROOT = makeNewTestRoot();
-    const auto TIMEOUT  = chrono::seconds(4);
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT = std::chrono::seconds(8);
 
-    StandardClient c0(TESTROOT, "c0");
+    // Create the client.
+    auto c = ::mega::make_unique<StandardClient>(TESTROOT, "c");
 
-    // Log callbacks.
-    c0.logcb = true;
+    // Log in the client, taking care to clear the cloud.
+    ASSERT_TRUE(c->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
-    // Log in client and clear remote contents.
-    ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s0", 0, 0));
+    // Populate model.
+    Model m;
 
-    // Set up sync.
-    const auto id = c0.setupSync_mainthread("s0", "s0");
+    // Will be rename-replaced to /ft.
+    m.addfile("fs");
+
+    // Will be rename-replaced down to /dd/dt/ft.
+    m.addfile("dd/fs");
+    m.addfolder("dd/dt");
+
+    // Will be rename-replaced up to /du/ft.
+    m.addfile("du/ds/fs");
+
+    // Populate local filesystem.
+    m.generate(c->fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = c->setupSync_mainthread("s", "s");
     ASSERT_NE(id, UNDEF);
 
-    // Populate local FS.
-    const auto SYNCROOT = TESTROOT / "c0" / "s0";
+    // Wait for the initial sync to complete.
+    waitonsyncs(TIMEOUT, c.get());
 
-    Model model;
+    // Make sure the initial sync was successful.
+    ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
 
-    model.addfile("f1");
-    model.generate(SYNCROOT);
+    // Rename/replace across siblings.
+    //
+    // Models this case:
+    //   echo fs > fs
+    //   <synchronize>
+    //   mv fs ft && echo x > fs
+    //   <synchronize>
+    {
+        // Locally move fs to ft.
+        fs::rename(c->fsBasePath / "s" / "fs",
+                   c->fsBasePath / "s" / "ft");
 
-    // Wait for synchronization to complete.
-    waitonsyncs(TIMEOUT, &c0);
+        m.findnode("fs")->name = "ft";
 
-    // Confirm model.
-    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+        // Replace fs.
+        ASSERT_TRUE(createDataFile(c->fsBasePath / "s" / "fs", "x"));
 
-    // Rename /f1 to /f2.
-    // This tests the case where the target is processed after the source.
-    model.addfile("f2", "f1");
-    model.removenode("f1");
+        m.addfile("fs", "x");
 
-    fs::rename(SYNCROOT / "f1", SYNCROOT / "f2");
+        // For periodic scanning.
+        //c->triggerFullScan(id);
 
-    // Replace /d1.
-    model.addfile("f1", "x");
+        // Wait for the change to be synchronized.
+        waitonsyncs(TIMEOUT, c.get());
 
-    ASSERT_TRUE(createDataFile(SYNCROOT / "f1", "x"));
+        // Was the change correctly synchronized?
+        ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
+    }
 
-    // Wait for synchronization to complete.
-    waitonsyncs(TIMEOUT, &c0);
+    // Rename/replace down the hierarchy.
+    //
+    // Models this case:
+    //   mkdir -p dd/dt
+    //   echo dd/fs > dd/fs
+    //   <synchronize>
+    //   mv dd/fs dd/dt/ft && echo x > dd/fs
+    //   <synchronize>
+    {
+        // Move /dd/fs to /dd/dt/ft.
+        fs::rename(c->fsBasePath / "s" / "dd" / "fs",
+                   c->fsBasePath / "s" / "dd" / "dt" / "ft");
 
-    // Confirm model.
-    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+        m.movenode("dd/fs", "dd/dt");
+        m.findnode("dd/dt/fs")->name = "ft";
 
-    // Rename /f2 to /f0.
-    // This tests the case where the target is processed before the source.
-    model.addfile("f0", "f1");
-    model.removenode("f2");
+        // Replace /dd/fs.
+        ASSERT_TRUE(createDataFile(c->fsBasePath / "s" / "dd" / "fs", "x"));
 
-    fs::rename(SYNCROOT / "f2", SYNCROOT / "f0");
+        m.addfile("dd/fs", "x");
 
-    // Replace /d2.
-    model.addfile("f2", "y");
+        // For periodic scanning.
+        //c->triggerFullScan(id);
 
-    ASSERT_TRUE(createDataFile(SYNCROOT / "f2", "y"));
+        // Wait for the change to be synchronized.
+        waitonsyncs(TIMEOUT, c.get());
 
-    // Wait for synchronization to complete.
-    waitonsyncs(TIMEOUT, &c0);
+        // Was the change correctly synchronized?
+        ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
+    }
 
-    // Confirm model.
-    ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
+    // Rename/replace up the hierarchy.
+    //
+    // Models this case:
+    //   mkdir -p du/ds
+    //   echo du/ds/fs > du/ds/fs
+    //   <synchronize>
+    //   mv du/ds/fs du/fs && echo x > du/ds/fs
+    //   <synchronize>
+    {
+        // Move du/ds/fs to du/ft.
+        fs::rename(c->fsBasePath / "s" / "du" / "ds" / "fs",
+                   c->fsBasePath / "s" / "du" / "ft");
+
+        m.movenode("du/ds/fs", "du");
+        m.findnode("du/fs")->name = "ft";
+
+        // Replace du/ds/fs.
+        ASSERT_TRUE(createDataFile(c->fsBasePath / "s" / "du" / "ds" / "fs", "x"));
+
+        m.addfile("du/ds/fs", "x");
+
+        // For periodic scanning.
+        //c->triggerFullScan(id);
+
+        // Wait for the change to be synchronized.
+        waitonsyncs(TIMEOUT, c.get());
+
+        // Was the change correctly synchronized?
+        ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
+    }
 }
 
 // TODO: re-enable after sync rework is merged
@@ -6555,7 +6472,7 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     model.generate(SYNCROOT);
 
     // Wait for synchronization to complete.
-    waitonsyncs(TIMEOUT, &c0);
+    waitonsyncs(chrono::seconds(15), &c0);
 
     // Confirm model.
     ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id));
@@ -6618,7 +6535,7 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
         ASSERT_TRUE(root);
 
         // Create new node in the cloud.
-        ASSERT_TRUE(c.putnodes(root->nodeHandle(), std::move(nodes)));
+        ASSERT_TRUE(c.putnodes(root->nodeHandle(), NoVersioning, std::move(nodes)));
     }
 
     // Add and start sync.
@@ -6713,6 +6630,8 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         ASSERT_TRUE(c->confirmModel_mainthread(model.root.get(), id));
     }
 
+    c->received_node_actionpackets = false;
+
     // Trigger some filesystem notifications.
     {
         model.addfile("f", "f");
@@ -6724,6 +6643,8 @@ TEST_F(SyncTest, FilesystemWatchesPresentAfterResume)
         model.addfile("d0/d0d0/d0d0f", "d0d0f");
         ASSERT_TRUE(createDataFile(SYNCROOT / "d0" / "d0d0" / "d0d0f", "d0d0f"));
     }
+
+    ASSERT_TRUE(c->waitForNodesUpdated(30)) << " no actionpacket received";
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, c.get());
@@ -6799,6 +6720,9 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
     // Have the files made it up to the cloud?
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
+    // So we can detect whether we've received packets for the below.
+    c.received_node_actionpackets = false;
+
     // Remotely move.
     {
         StandardClient cr(TESTROOT, "cr");
@@ -6816,6 +6740,9 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
 
         ASSERT_TRUE(cr.movenode("s/d1/dx", "s/d0"));
     }
+
+    // Wait for the client to receive action packets for the above change.
+    ASSERT_TRUE(c.waitForNodesUpdated(30));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -7069,7 +6996,8 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
         ASSERT_TRUE(cr.setattr(dy, attr_map('n', "dx")));
     }
 
-    WaitMillisec(4000); // it can take a while for APs to arrive (or to be sent)
+    // it can take a while for APs to arrive (or to be sent)
+    WaitMillisec(4000);
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -7077,12 +7005,15 @@ TEST_F(SyncTest, RenameTargetHasFilesystemWatch)
     // Confirm move has occured locally.
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
+    c.received_node_actionpackets = false;
+
     // Check that /ds and /dx receive notifications.
     model.removenode("ds/f");
     model.removenode("dx/f");
-
     fs::remove(SYNCROOT / "ds" / "f");
     fs::remove(SYNCROOT / "dx" / "f");
+
+    ASSERT_TRUE(c.waitForNodesUpdated(30)) << " no actionpacket received in c";
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &c);
@@ -7525,7 +7456,7 @@ struct TwoWaySyncSymmetryCase
         attrs = n1->attrs;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag);
     }
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -7556,11 +7487,11 @@ struct TwoWaySyncSymmetryCase
         string attrstring;
         key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
         attrs = n1->attrs;
-        client1().client.fsaccess->normalize(&newname);
+        LocalPath::utf8_normalize(&newname);
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag);
     }
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -8202,8 +8133,8 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     ASSERT_NE(backupId1, UNDEF);
     handle backupId2 = clientA1Resume.setupSync_mainthread("twoway", "twoway");
     ASSERT_NE(backupId2, UNDEF);
-    assert(allstate.localBaseFolderSteady == clientA1Steady.syncSet(backupId1).localpath);
-    assert(allstate.localBaseFolderResume == clientA1Resume.syncSet(backupId2).localpath);
+    ASSERT_EQ(allstate.localBaseFolderSteady, clientA1Steady.syncSet(backupId1).localpath);
+    ASSERT_EQ(allstate.localBaseFolderResume, clientA1Resume.syncSet(backupId2).localpath);
 
     out() << "Full-sync all test folders to the cloud for setup";
     waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
@@ -8211,25 +8142,8 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Stopping full-sync";
-    auto removeSyncByBackupId =
-      [](StandardClient& sc, handle backupId)
-      {
-          bool removed = false;
-
-          sc.client.syncs.removeSelectedSyncs(
-            [&](SyncConfig& config, Sync*)
-            {
-                const bool matched = config.getBackupId() == backupId;
-                removed |= matched;
-                return matched;
-            });
-
-          return removed;
-      };
-
-    future<bool> fb1 = clientA1Steady.thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(removeSyncByBackupId(sc, backupId1)); });
-    future<bool> fb2 = clientA1Resume.thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb) { pb->set_value(removeSyncByBackupId(sc, backupId2)); });
-    ASSERT_TRUE(waitonresults(&fb1, &fb2));
+    ASSERT_TRUE(clientA1Steady.delSync_mainthread(backupId1));
+    ASSERT_TRUE(clientA1Resume.delSync_mainthread(backupId2));
 
     out() << "Setting up each sub-test's Two-way sync of 'f'";
     for (auto& testcase : cases)
@@ -8266,6 +8180,31 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         testcase.second.CheckSetup(allstate, false);
     }
 
+    auto backupsAreMonitoring = [&cases]() {
+        for (auto& i : cases)
+        {
+            // Convenience.
+            auto& testcase = i.second;
+
+            // Only check backup syncs.
+            if (!testcase.isBackup()) continue;
+
+            // Only check active syncs.
+            if (!testcase.client1().syncByBackupId(testcase.backupId)) continue;
+
+            // Get the sync's config so we can determine if it's monitoring.
+            auto config = testcase.client1().syncConfigByBackupID(testcase.backupId);
+
+            // Is the sync monitoring as it should be?
+            if (config.getBackupState() != SYNC_BACKUP_MONITOR) return false;
+        }
+
+        // Everyone's monitoring as they should be.
+        return true;
+    };
+
+    out() << "Checking Backups are Monitoring";
+    ASSERT_TRUE(backupsAreMonitoring());
 
     int paused = 0;
     for (auto& testcase : cases)
@@ -8335,6 +8274,9 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
+
+    out() << "Checking Backups are Monitoring";
+    ASSERT_TRUE(backupsAreMonitoring());
 
     out() << "Checking local and remote state in each sub-test";
 
@@ -8487,7 +8429,7 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
 
         cu.client.putnodes_prepareOneFolder(&node[0], "d");
 
-        ASSERT_TRUE(cu.putnodes(c.syncSet(id).h, std::move(node)));
+        ASSERT_TRUE(cu.putnodes(c.syncSet(id).h, NoVersioning, std::move(node)));
     }
 
     // Give our sync some time to process remote changes.
@@ -8562,11 +8504,11 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
         // Add and start sync.
         {
             // Generate drive ID.
-            auto driveID = cb.client.generateDriveId();
+            auto driveID = generateDriveId(cb.client.rng);
 
             // Write drive ID.
             auto drivePath = cb.fsBasePath.u8string();
-            auto result = cb.client.writeDriveId(drivePath.c_str(), driveID);
+            auto result = writeDriveId(*cb.client.fsaccess, drivePath.c_str(), driveID);
             ASSERT_EQ(result, API_OK);
 
             // Add sync.
@@ -8606,7 +8548,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
 
         cb.client.putnodes_prepareOneFolder(&node[0], "g");
 
-        ASSERT_TRUE(cb.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cb.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
 
     // Restore the backup sync.
@@ -8647,11 +8589,11 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
 
     {
         // Generate drive ID.
-        auto driveID = cb.client.generateDriveId();
+        auto driveID = generateDriveId(cb.client.rng);
 
         // Write drive ID.
         auto drivePath = cb.fsBasePath.u8string();
-        auto result = cb.client.writeDriveId(drivePath.c_str(), driveID);
+        auto result = writeDriveId(*cb.client.fsaccess, drivePath.c_str(), driveID);
         ASSERT_EQ(result, API_OK);
 
         // Add sync.
@@ -8690,7 +8632,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
         cb.client.putnodes_prepareOneFolder(&node[0], "g");
 
         auto rootHandle = cb.syncSet(id).h;
-        ASSERT_TRUE(cb.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cb.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
 
     // Re-enable the sync.
@@ -8751,22 +8693,21 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Disable the sync when it starts uploading a file.
-        cb.mOnFileAdded = [&cb](File& file) {
-            // Get our hands on the local node.
-            auto* node = dynamic_cast<LocalNode*>(&file);
-            if (!node) return;
+        cb.mOnFileAdded = [&cb, &id](File& file) {
 
-            // Get our hands on the sync.
-            auto& sync = *node->sync;
+            // the upload has been set super slow so there's loads of time.
+
+            // get the single sync
+            SyncConfig config;
+            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config));
 
             // Make sure the sync's in mirroring mode.
-            ASSERT_TRUE(sync.isBackupAndMirroring());
+            ASSERT_EQ(config.mBackupId, id);
+            ASSERT_EQ(config.mSyncType, SyncConfig::TYPE_BACKUP);
+            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
 
             // Disable the sync.
-            sync.changestate(SYNC_DISABLED, NO_SYNC_ERROR, true, true);
-
-            // Mimic disableSelectedSyncs(...).
-            cb.client.syncactivity = true;
+            cb.client.syncs.disableSyncs(NO_SYNC_ERROR, true);
 
             // Callback's done its job.
             cb.mOnFileAdded = nullptr;
@@ -8800,18 +8741,21 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 
         cf.client.putnodes_prepareOneFolder(&node[0], "g");
 
-        ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(node)));
 
         // Log out the client when we try and upload a file.
         std::promise<void> waiter;
 
-        cb.mOnFileAdded = [&cb, &waiter](File& file) {
-            // Get our hands on the local node.
-            auto* node = dynamic_cast<LocalNode*>(&file);
-            if (!node) return;
+        cb.mOnFileAdded = [&cb, &waiter, &id](File& file) {
+
+            // get the single sync
+            SyncConfig config;
+            ASSERT_TRUE(cb.client.syncs.syncConfigByBackupId(id, config));
 
             // Make sure we're mirroring.
-            ASSERT_TRUE(node->sync->isBackupAndMirroring());
+            ASSERT_EQ(config.mBackupId, id);
+            ASSERT_EQ(config.mSyncType, SyncConfig::TYPE_BACKUP);
+            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
 
             // Notify the waiter.
             waiter.set_value();
@@ -8840,7 +8784,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         cf.client.putnodes_prepareOneFolder(&nodes[0], "h0");
         cf.client.putnodes_prepareOneFolder(&nodes[1], "h1");
 
-        ASSERT_TRUE(cf.putnodes(rootHandle, std::move(nodes)));
+        ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(nodes)));
     }
 
     // Check automatic resume.
@@ -8849,10 +8793,21 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     // Log callbacks.
     cb.logcb = true;
 
+    // So we can pause execution until al the syncs are restored.
+    promise<void> notifier;
+
+    // Hook the onAutoResumeResult callback.
+    cb.onAutoResumeResult = [&](const SyncConfig&, bool, bool) {
+        // Let waiters know we've restored the sync.
+        notifier.set_value();
+    };
+
     // Log in client, resuming prior session.
     ASSERT_TRUE(cb.login_fetchnodes(sessionID));
 
-    WaitMillisec(3000);
+    // Wait for the sync to be restored.
+    ASSERT_NE(notifier.get_future().wait_for(std::chrono::seconds(8)),
+              future_status::timeout);
 
     // Check config has been resumed.
     ASSERT_TRUE(cb.syncByBackupId(id));
@@ -8938,7 +8893,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
             cf.client.putnodes_prepareOneFolder(&node[0], "g");
 
-            ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
+            ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(node)));
         }
 
         // Enable the backup.
@@ -8982,7 +8937,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
         cf.client.putnodes_prepareOneFolder(&node[0], "h");
 
-        ASSERT_TRUE(cf.putnodes(rootHandle, std::move(node)));
+        ASSERT_TRUE(cf.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
 
     // Automatic resume.
@@ -9029,5 +8984,119 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
+#ifdef DEBUG
+
+class BackupBehavior
+  : public ::testing::Test
+{
+public:
+    void doTest(const string& initialContent, const string& updatedContent);
+}; // BackupBehavior
+
+void BackupBehavior::doTest(const string& initialContent,
+                            const string& updatedContent)
+{
+    auto TESTROOT = makeNewTestRoot();
+    auto TIMEOUT  = std::chrono::seconds(8);
+
+    StandardClient cu(TESTROOT, "cu");
+
+    // Log callbacks.
+    cu.logcb = true;
+
+    // Log in uploader client.
+    ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+
+    // Add and start a backup sync.
+    const auto idU = cu.setupSync_mainthread("su", "s", true);
+    ASSERT_NE(idU, UNDEF);
+
+    // Add a file for the engine to synchronize.
+    Model m;
+
+    m.addfile("f", initialContent);
+    m.generate(cu.fsBasePath / "su");
+
+    // Wait for the engine to process and upload the file.
+    waitonsyncs(TIMEOUT, &cu);
+
+    // Make sure the file made it to the cloud.
+    ASSERT_TRUE(cu.confirmModel_mainthread(m.root.get(), idU));
+
+    // Update file.
+    {
+        // Capture file's current mtime.
+        auto mtime = fs::last_write_time(cu.fsBasePath / "su" / "f");
+
+        // Update the file's content.
+        m.addfile("f", updatedContent);
+
+        // Hook callback so we can tweak the mtime.
+        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification& notification) {
+            // Roll back the mtime now that we know it will be processed.
+            fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
+
+            // No need for the engine to call us again.
+            cu.mOnSyncDebugNotification = nullptr;
+        };
+
+        // Write the file.
+        m.generate(cu.fsBasePath / "su");
+    }
+
+    // Wait for the engine to process the change.
+    waitonsyncs(TIMEOUT, &cu);
+
+    // Make sure the sync hasn't been disabled.
+    {
+        auto config = cu.syncConfigByBackupID(idU);
+
+        ASSERT_EQ(config.mEnabled, true);
+        ASSERT_EQ(config.mError, NO_SYNC_ERROR);
+    }
+
+    // Check that the file's been uploaded to the cloud.
+    {
+        StandardClient cd(TESTROOT, "cd");
+
+        // Log in client.
+        ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+        // Add and start a new sync.
+        auto idD = cd.setupSync_mainthread("sd", "s");
+        ASSERT_NE(idD, UNDEF);
+
+        // Wait for the sync to complete.
+        waitonsyncs(TIMEOUT, &cd);
+
+        // Make sure we haven't uploaded anything.
+        ASSERT_TRUE(cu.confirmModel_mainthread(m.root.get(), idU));
+
+        // Necessary since we've downloaded a file.
+        m.ensureLocalDebrisTmpLock("");
+
+        // Check that we've downloaded what we should've.
+        ASSERT_TRUE(cd.confirmModel_mainthread(m.root.get(), idD));
+    }
+}
+
+TEST_F(BackupBehavior, SameMTimeSmallerCRC)
+{
+    // File's small enough that the content is the CRC.
+    auto initialContent = string("f");
+    auto updatedContent = string("e");
+
+    doTest(initialContent, updatedContent);
+}
+
+TEST_F(BackupBehavior, SameMTimeSmallerSize)
+{
+    auto initialContent = string("ff");
+    auto updatedContent = string("f");
+
+    doTest(initialContent, updatedContent);
+}
+
+#endif // DEBUG
 
 #endif

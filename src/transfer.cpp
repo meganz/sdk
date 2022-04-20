@@ -147,7 +147,7 @@ bool Transfer::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
 
-    d->append((const char*)filekey, sizeof(filekey));
+    d->append((const char*)&filekey.bytes, sizeof(filekey.bytes));
     d->append((const char*)&ctriv, sizeof(ctriv));
     d->append((const char*)&metamac, sizeof(metamac));
     d->append((const char*)transferkey.data(), sizeof (transferkey));
@@ -173,7 +173,7 @@ bool Transfer::serialize(string *d)
     {
         hasUltoken = 2;
         d->append((const char*)&hasUltoken, sizeof(char));
-        d->append((const char*)ultoken.get(), NewNode::UPLOADTOKENLEN);
+        d->append((const char*)ultoken.get(), UPLOADTOKENLEN);
     }
     else
     {
@@ -252,7 +252,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     unique_ptr<Transfer> t(new Transfer(client, type));
 
-    memcpy(t->filekey, ptr, sizeof t->filekey);
+    memcpy(&t->filekey, ptr, sizeof t->filekey);
     ptr += sizeof(t->filekey);
 
     t->ctriv = MemAccess::get<int64_t>(ptr);
@@ -264,7 +264,10 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     memcpy(t->transferkey.data(), ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
-    t->localfilename = LocalPath::fromPlatformEncoded(std::string(filepath, ll));
+    if (ll > 0)
+    {
+        t->localfilename = LocalPath::fromPlatformEncodedAbsolute(std::string(filepath, ll));
+    }
 
     if (!t->chunkmacs.unserialize(ptr, end))
     {
@@ -304,7 +307,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     char hasUltoken = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : NewNode::UPLOADTOKENLEN) : 0;
+    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : UPLOADTOKENLEN) : 0;
     if (hasUltoken < 0 || hasUltoken > 2
             || (ptr + ll + sizeof(unsigned short) > end))
     {
@@ -314,7 +317,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     if (hasUltoken)
     {
-        t->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
+        t->ultoken.reset(new UploadToken);
         memcpy(t->ultoken.get(), ptr, ll);
         ptr += ll;
     }
@@ -577,7 +580,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
         !client->mediaFileInfo.mediaCodecsFailed)
     {
         // for upload, the key is in the transfer.  for download, the key is in the node.
-        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey().data());
+        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey.bytes.data() : (byte*)node->nodekey().data());
 
         if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
@@ -586,7 +589,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 
             // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
             MediaProperties vp;
-            vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess);
+            vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess.get());
 
             if (type == PUT)
             {
@@ -807,7 +810,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                             do
                             {
                                 num++;
-                                localnewname = localname.insertFilenameCounter(num, *client->fsaccess);
+                                localnewname = localname.insertFilenameCounter(num);
                             } while (fa->fopen(localnewname) || fa->type == FOLDERNODE);
 
 
@@ -907,7 +910,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                         if (type != FILENAME_ANOMALY_NONE)
                         {
-                            client->filenameAnomalyDetected(type, path.toPath(), node->displaypath());
+                            client->filenameAnomalyDetected(type, path, node->displaypath());
                         }
                     }
 
@@ -963,6 +966,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         {
             state = TRANSFERSTATE_COMPLETED;
             localfilename = localname;
+            assert(localfilename.isAbsolute());
             finished = true;
             client->looprequested = true;
             client->app->transfer_complete(this);
@@ -1019,7 +1023,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                << (node->parent ? "/" : "")
                                << f->name;
 
-                    client->filenameAnomalyDetected(type, localpath->toPath(), remotepath.str());
+                    client->filenameAnomalyDetected(type, *localpath, remotepath.str());
                 }
             }
 
@@ -1449,27 +1453,9 @@ bool DirectReadSlot::doio()
         {
             if (req->httpstatus == 509)
             {
-                if (req->timeleft < 0)
-                {
-                    int creqtag = dr->drn->client->reqtag;
-                    dr->drn->client->reqtag = 0;
-                    dr->drn->client->sendevent(99408, "Overquota without timeleft");
-                    dr->drn->client->reqtag = creqtag;
-                }
-
-                dstime backoff;
-
                 LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
-                if (req->timeleft > 0)
-                {
-                    backoff = dstime(req->timeleft * 10);
-                }
-                else
-                {
-                    // default retry interval
-                    backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
-                }
 
+                dstime backoff = dr->drn->client->overTransferQuotaBackoff(req);
                 dr->drn->retry(API_EOVERQUOTA, backoff);
             }
             else

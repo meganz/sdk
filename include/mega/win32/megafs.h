@@ -56,7 +56,8 @@ public:
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
 
-    DirAccess* newdiraccess() override;
+    unique_ptr<DirAccess>  newdiraccess() override;
+
 #ifdef ENABLE_SYNC
     DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
 #endif
@@ -65,20 +66,14 @@ public:
 
     void tmpnamelocal(LocalPath&) const override;
 
-    void path2local(const std::string*, std::string*) const override;
-    void local2path(const std::string*, std::string*) const override;
-
-    void local2path(const std::wstring*, std::string*) const override;
-    void path2local(const std::string*, std::wstring*) const override;
-
     bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
-    bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
+    bool copylocal(const LocalPath&, const LocalPath&, m_time_t) override;
     bool unlinklocal(const LocalPath&) override;
     bool rmdirlocal(const LocalPath&) override;
     bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
-    bool setmtimelocal(LocalPath&, m_time_t) override;
+    bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, string&) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
@@ -87,6 +82,9 @@ public:
 
     static bool istransient(DWORD);
     bool istransientorexists(DWORD);
+
+    bool exists(const LocalPath& path) const;
+    bool isPathError(DWORD error) const;
 
     void osversion(string*, bool includeArchExtraInfo) const override;
     void statsid(string*) const override;

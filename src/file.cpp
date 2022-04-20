@@ -207,7 +207,7 @@ File *File::unserialize(string *d)
     delete fp;
 
     file->name.assign(name, namelen);
-    file->localname = LocalPath::fromPlatformEncoded(std::string(localname, localnamelen));
+    file->localname = LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
@@ -300,10 +300,11 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->uploadhandle = t->uploadhandle;
 
         // reference to uploaded file
-        memcpy(newnode->uploadtoken, t->ultoken.get(), sizeof newnode->uploadtoken);
+        newnode->uploadtoken = *t->ultoken;
 
         // file's crypto key
-        newnode->nodekey.assign((char*)t->filekey, FILENODEKEYLENGTH);
+        static_assert(sizeof(filekey) == FILENODEKEYLENGTH, "File completed: filekey size doesn't match with FILENODEKEYLENGTH");
+        newnode->nodekey.assign((char*)&t->filekey, FILENODEKEYLENGTH);
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
 #ifdef ENABLE_SYNC
@@ -337,12 +338,6 @@ void File::completed(Transfer* t, LocalNode* l)
         else
         {
             NodeHandle th = h;
-
-            // inaccessible target folder - use //bin instead
-            if (!t->client->nodeByHandle(th))
-            {
-                th = t->client->rootnodes.rubbish;
-            }
 #ifdef ENABLE_SYNC
             if (l)
             {
@@ -356,20 +351,26 @@ void File::completed(Transfer* t, LocalNode* l)
                     }
                     else
                     {
-                        newnode->ovhandle = l->node->nodehandle;
+                        newnode->ovhandle = l->node->nodeHandle();
                     }
                 }
 
                 t->client->syncadding++;
             }
 #endif
-            if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
+            if (mVersioningOption != NoVersioning &&
+                newnode->ovhandle.isUndef())
             {
-                newnode->ovhandle = t->client->getovhandle(t->client->nodeByHandle(th), &name);
+                if (Node* ovNode = t->client->getovnode(t->client->nodeByHandle(th), &name))
+                {
+                    newnode->ovhandle = ovNode->nodeHandle();
+                }
+
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,
                                                     th, NULL,
+                                                    mVersioningOption,
                                                     move(newnodes),
                                                     tag,
 #ifdef ENABLE_SYNC
@@ -467,7 +468,7 @@ void SyncFileGet::prepare()
 {
     if (transfer->localfilename.empty())
     {
-        LocalPath tmpname = LocalPath::fromName("tmp", *sync->client->fsaccess, sync->mFilesystemType);
+        LocalPath tmpname = LocalPath::fromRelativeName("tmp", *sync->client->fsaccess, sync->mFilesystemType);
 
         if (!sync->tmpfa)
         {
@@ -484,7 +485,7 @@ void SyncFileGet::prepare()
                 sync->client->fsaccess->mkdirlocal(transfer->localfilename, false, true);
 
                 // lock it
-                LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess, sync->mFilesystemType);
+                LocalPath lockname = LocalPath::fromRelativeName("lock", *sync->client->fsaccess, sync->mFilesystemType);
                 transfer->localfilename.appendWithSeparator(lockname, true);
 
                 if (sync->tmpfa->fopen(transfer->localfilename, false, true))
@@ -565,7 +566,7 @@ void SyncFileGet::updatelocalname()
         if (n->parent && n->parent->localnode)
         {
             localname = n->parent->localnode->getLocalPath();
-            localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
+            localname.appendWithSeparator(LocalPath::fromRelativeName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
         }
     }
 }

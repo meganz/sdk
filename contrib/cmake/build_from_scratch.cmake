@@ -6,6 +6,10 @@
 	eg, for getting started on windows:
 	
 		cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
+
+        eg, for getting started on iOS (building for x64 ios simulator) (comment out unused libs in preferred-ports.sdk first):
+
+                cmake -DTRIPLET=x64-ios-mega -DPLATFORM=ios -DEXTRA_ARGS="-DUSE_PDFIUM=0;-DUSE_MEDIAINFO=0;-DUSE_OPENSSL=0;-DUSE_FREEIMAGE=0;-DUSE_FFMPEG=0;-DUSE_PCRE=0;-DMEGA_USE_C_ARES=0" -P build_from_scratch.cmake
 		
     It will set up and build 3rdparty dependencies in a folder next to the SDK folder, and also
     set up the project (Visual Studio on Windows) and bulid it in an SDK subfolder "build-<triplet>"
@@ -38,7 +42,6 @@
 	before first running this script, copy it to 3rdParty_sdk/vcpkg/pdfium once the script has created that folder
 	and it will be built during the first run - avoid disabling it by leaving out those steps flags of course.
 ]]
-
 function(usage_exit err_msg)
     message(FATAL_ERROR
 "${err_msg}
@@ -209,7 +212,7 @@ if(WIN32)
             ${_extra_cmake_args}
     )
 
-    foreach(_config "Debug" "Release")
+    foreach(_config "Release" "Debug")
         execute_checked_command(
             COMMAND ${_cmake}
                 --build ${_build_dir}
@@ -234,6 +237,28 @@ else()
             "-DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}"
         )
     endif()
+
+    # Are we building for OSX?
+    if (VCPKG_CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+        # Determine the host's architecture.
+        execute_process(
+            COMMAND uname -m
+            OUTPUT_VARIABLE HOST_ARCHITECTURE
+            OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+        # Are we building on Apple Silicon?
+        if (HOST_ARCHITECTURE STREQUAL "arm64")
+            # Are we building for x86_64?
+            if (VCPKG_OSX_ARCHITECTURES STREQUAL "x86_64")
+                # Then make sure we build using the correct toolchain.
+                set(_toolchain_cross_compile_args
+                    "-DCMAKE_OSX_ARCHITECTURES=${VCPKG_OSX_ARCHITECTURES}")
+            endif ()
+        endif ()
+
+        # Clean up after ourselves.
+        unset(HOST_ARCHITECTURE)
+    endif ()
 
     foreach(_config "Debug" "Release")
         set(_build_dir "${_sdk_dir}/build-${_triplet}-${_config}")

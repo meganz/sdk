@@ -167,7 +167,7 @@ int evt_tls_accept( evt_tls_t *tls, evt_handshake_cb cb);
 
 /*Perform wrapping of text and do network write, `evt_write_cb` is called on
 completion and status is used for status */
-int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write);
+int evt_tls_write(evt_tls_t *c, void *msg, size_t str_len, evt_write_cb on_write);
 
 /*Perform a unwrapping of network received data, equivalent of `SSL_read` and
 `evt_read_cb is called on completion */

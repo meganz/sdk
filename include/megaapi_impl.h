@@ -142,28 +142,6 @@ private:
     long long mLinkStatus = MegaError::LinkErrorCode::LINK_UNKNOWN;
 };
 
-class ExternalLogger : public Logger
-{
-public:
-    ExternalLogger();
-    ~ExternalLogger();
-    void addMegaLogger(MegaLogger* logger);
-    void removeMegaLogger(MegaLogger *logger);
-    void setLogLevel(int logLevel);
-    void setLogToConsole(bool enable);
-    void postLog(int logLevel, const char *message, const char *filename, int line);
-    void log(const char *time, int loglevel, const char *source, const char *message
-#ifdef ENABLE_LOG_PERFORMANCE
-             , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
-#endif
-            ) override;
-
-private:
-    std::recursive_mutex mutex;
-    set <MegaLogger *> megaLoggers;
-    bool logToConsole;
-};
-
 class MegaFilenameAnomalyReporterProxy
   : public FilenameAnomalyReporter
 {
@@ -175,7 +153,7 @@ public:
     }
 
     void anomalyDetected(FilenameAnomalyType type,
-                         const string& localPath,
+                         const LocalPath& localPath,
                          const string& remotePath) override
     {
         using MegaAnomalyType =
@@ -184,7 +162,7 @@ public:
         assert(type < FILENAME_ANOMALY_NONE);
 
         mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
-                                  localPath.c_str(),
+                                  localPath.toPath().c_str(),
                                   remotePath.c_str());
     }
 
@@ -429,7 +407,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *fileattrstring,
                         const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
-                        bool isForeign = false, const char *chatauth = NULL);
+                        bool isForeign = false, const char *chatauth = NULL, bool isNodeDecrypted = true);
 
         MegaNodePrivate(MegaNode *node);
         ~MegaNodePrivate() override;
@@ -457,6 +435,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getRestoreHandle() override;
         MegaHandle getParentHandle() override;
         std::string* getNodeKey() override;
+        bool isNodeKeyDecrypted() override;
         char *getBase64Key() override;
         char* getFileAttrString() override;
         int64_t getExpirationTime() override;
@@ -545,6 +524,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle owner;
         bool mFavourite;
         nodelabel_t mLabel;
+        bool mIsNodeKeyDecrypted = false;
 };
 
 
@@ -1087,6 +1067,10 @@ class MegaRequestPrivate : public MegaRequest
         MegaRequestPrivate(int type, MegaRequestListener *listener = NULL);
         MegaRequestPrivate(MegaRequestPrivate *request);
 
+        // Set this action to be executed in sendPendingRequests()
+        // instead of the huge switch, as a structural improvement
+        std::function<void()> action;
+
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
         void setNodeHandle(MegaHandle nodeHandle);
@@ -1154,7 +1138,7 @@ class MegaRequestPrivate : public MegaRequest
         int getTag() const override;
         MegaPricing *getPricing() const override;
         MegaCurrency *getCurrency() const override;
-        AccountDetails * getAccountDetails() const;
+        std::shared_ptr<AccountDetails> getAccountDetails() const;
         MegaAchievementsDetails *getMegaAchievementsDetails() const override;
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
@@ -1189,7 +1173,7 @@ class MegaRequestPrivate : public MegaRequest
         void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
 
 protected:
-        AccountDetails *accountDetails;
+        std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
         MegaCurrencyPrivate *megaCurrency;
         AchievementsDetails *achievementsDetails;
@@ -2195,6 +2179,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
+        void loggedInStateChanged(sessiontype_t, handle me) override;
         bool isEphemeralPlusPlus();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
@@ -2218,8 +2203,8 @@ class MegaApiImpl : public MegaApp
         char* getMyRSAPrivateKey();
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);
-        static void addLoggerClass(MegaLogger *megaLogger);
-        static void removeLoggerClass(MegaLogger *megaLogger);
+        static void addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
+        static void removeLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
@@ -2227,9 +2212,6 @@ class MegaApiImpl : public MegaApp
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
 #endif
         void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
-
-        bool platformSetRLimitNumFile(int newNumFileLimit) const;
-        int platformGetRLimitNumFile() const;
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
@@ -2292,7 +2274,7 @@ class MegaApiImpl : public MegaApp
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
-        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
@@ -2817,7 +2799,6 @@ protected:
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, int fseventsfd /*= -1*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);
-        static ExternalLogger externalLogger;
 
         MegaTransferPrivate* getMegaTransferPrivate(int tag);
 
@@ -2840,7 +2821,7 @@ protected:
         void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
         void fireOnSyncDisabled(MegaSyncPrivate *sync);
         void fireOnSyncEnabled(MegaSyncPrivate *sync);
-        void fireonSyncDeleted(MegaSyncPrivate *sync);
+        void fireOnSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
 
@@ -2864,6 +2845,14 @@ protected:
         GfxProc *gfxAccess;
         string basePath;
         bool nocache;
+
+        mutex mLastRecievedLoggedMeMutex;
+        sessiontype_t mLastReceivedLoggedInState = NOTLOGGEDIN;
+        handle mLastReceivedLoggedInMeHandle = UNDEF;
+
+        unique_ptr<MegaNode> mLastKnownRootNode;
+        unique_ptr<MegaNode> mLastKnownInboxNode;
+        unique_ptr<MegaNode> mLastKnownRubbishNode;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;
@@ -3286,28 +3275,28 @@ class StreamingBuffer
 public:
     StreamingBuffer();
     ~StreamingBuffer();
-    void init(m_off_t capacity);
-    unsigned int append(const char *buf, unsigned int len);
-    unsigned int availableData();
-    unsigned int availableSpace();
-    unsigned int availableCapacity();
+    void init(size_t capacity);
+    size_t append(const char *buf, size_t len);
+    size_t availableData();
+    size_t availableSpace();
+    size_t availableCapacity();
     uv_buf_t nextBuffer();
-    void freeData(unsigned int len);
+    void freeData(size_t len);
     void setMaxBufferSize(unsigned int bufferSize);
     void setMaxOutputSize(unsigned int outputSize);
 
     static const unsigned int MAX_BUFFER_SIZE = 2097152;
-    static const unsigned int MAX_OUTPUT_SIZE = 16384;
+    static const unsigned int MAX_OUTPUT_SIZE = MAX_BUFFER_SIZE / 10;
 
 protected:
     char *buffer;
-    unsigned int capacity;
-    unsigned int size;
-    unsigned int free;
-    unsigned int inpos;
-    unsigned int outpos;
-    unsigned int maxBufferSize;
-    unsigned int maxOutputSize;
+    size_t capacity;
+    size_t size;
+    size_t free;
+    size_t inpos;
+    size_t outpos;
+    size_t maxBufferSize;
+    size_t maxOutputSize;
 };
 
 class MegaTCPServer;
@@ -3326,7 +3315,7 @@ public:
     m_off_t bytesWritten;
     m_off_t size;
     char *lastBuffer;
-    int lastBufferLen;
+    size_t lastBufferLen;
     bool nodereceived;
     bool finished;
     bool failed;
@@ -3479,7 +3468,7 @@ public:
     std::unique_ptr<MegaTransferPrivate> transfer;
     http_parser parser;
     char *lastBuffer;
-    int lastBufferLen;
+    size_t lastBufferLen;
     bool nodereceived;
     bool failed;
     bool pause;
@@ -3772,7 +3761,7 @@ public:
     StreamingBuffer streamingBuffer;
     MegaTransferPrivate *transfer;
     char *lastBuffer;
-    int lastBufferLen;
+    size_t lastBufferLen;
     bool failed;
     int ecode;
     bool pause;

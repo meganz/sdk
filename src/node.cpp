@@ -30,6 +30,7 @@
 #include "mega/transferslot.h"
 #include "mega/logging.h"
 #include "mega/heartbeats.h"
+#include "megafs.h"
 
 namespace mega {
 
@@ -416,7 +417,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     attr_map::iterator it = n->attrs.map.find('n');
     if (it != n->attrs.map.end())
     {
-        client->fsaccess->normalize(&(it->second));
+        LocalPath::utf8_normalize(&(it->second));
     }
 
     PublicLink *plink = NULL;
@@ -710,6 +711,7 @@ void Node::setattr()
         nameid name;
         string* t;
 
+        AttrMap oldAttrs(attrs);
         attrs.map.clear();
         json.begin((char*)buf + 5);
 
@@ -719,9 +721,12 @@ void Node::setattr()
 
             if (name == 'n')
             {
-                client->fsaccess->normalize(t);
+                LocalPath::utf8_normalize(t);
             }
         }
+
+        changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
+        changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
 
         setfingerprint();
 
@@ -759,6 +764,12 @@ void Node::setfingerprint()
 
         client->mFingerprints.add(this);
     }
+}
+
+bool Node::hasName(const string& name) const
+{
+    auto it = attrs.map.find('n');
+    return it != attrs.map.end() && it->second == name;
 }
 
 // return file/folder name or special status strings
@@ -1078,6 +1089,19 @@ const Node* Node::firstancestor() const
     return n;
 }
 
+const Node* Node::latestFileVersion() const
+{
+    const Node* n = this;
+    if (type == FILENODE)
+    {
+        while (n->parent && n->parent->type == FILENODE)
+        {
+            n = n->parent;
+        }
+    }
+    return n;
+}
+
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
 {
@@ -1203,14 +1227,14 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     if (newlocalpath)
     {
         // extract name component from localpath, check for rename unless newnode
-        size_t p = newlocalpath->getLeafnameByteIndex(*sync->client->fsaccess);
+        size_t p = newlocalpath->getLeafnameByteIndex();
 
         // has the name changed?
         if (!newlocalpath->backEqual(p, localname))
         {
             // set new name
             localname = newlocalpath->subpathFrom(p);
-            name = localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
+            name = localname.toName(*sync->client->fsaccess);
 
             if (node)
             {
@@ -1378,7 +1402,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
-        name = localname.toPath(*sync->client->fsaccess);
+        name = localname.toPath();
     }
 
     scanseqno = sync->scanseqno;
@@ -1554,11 +1578,11 @@ LocalNode::~LocalNode()
 
         if (type == FOLDERNODE)
         {
-            LOG_debug << "Sync - local folder deletion detected: " << getLocalPath().toPath(*sync->client->fsaccess);
+            LOG_debug << "Sync - local folder deletion detected: " << getLocalPath().toPath();
         }
         else
         {
-            LOG_debug << "Sync - local file deletion detected: " << getLocalPath().toPath(*sync->client->fsaccess);
+            LOG_debug << "Sync - local file deletion detected: " << getLocalPath().toPath();
         }
     }
 
@@ -1664,7 +1688,7 @@ void LocalNode::getlocalpath(LocalPath& path) const
         return;
     }
 
-    path.erase();
+    path.clear();
 
     for (const LocalNode* l = this; l != nullptr; l = l->parent)
     {
@@ -1673,13 +1697,6 @@ void LocalNode::getlocalpath(LocalPath& path) const
         // sync root has absolute path, the rest are just their leafname
         path.prependWithSeparator(l->localname);
     }
-}
-
-string LocalNode::localnodedisplaypath(FileSystemAccess& fsa) const
-{
-    LocalPath local;
-    getlocalpath(local);
-    return local.toPath(fsa);
 }
 
 // locate child by localname or slocalname
@@ -1698,6 +1715,8 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
 void LocalNode::prepare()
 {
     getlocalpath(transfer->localfilename);
+    assert(transfer->localfilename.isAbsolute());
+
 
     // is this transfer in progress? update file's filename.
     if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
@@ -1830,10 +1849,10 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->fsid = fsid;
     l->fsid_it = sync->client->fsidnode.end();
 
-    l->localname = LocalPath::fromPlatformEncoded(localname);
-    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncoded(shortname)));
+    l->localname = LocalPath::fromPlatformEncodedRelative(localname);
+    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncodedRelative(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
-    l->name = l->localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
+    l->name = l->localname.toName(*sync->client->fsaccess);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;

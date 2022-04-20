@@ -84,10 +84,6 @@ public:
     NodeHandle getRemoteNode() const;
     void setRemoteNode(NodeHandle remoteNode);
 
-    // the fingerprint of the local sync root folder
-    fsfp_t getLocalFingerprint() const;
-    void setLocalFingerprint(fsfp_t fingerprint);
-
     // returns the type of the sync
     Type getType() const;
 
@@ -135,8 +131,8 @@ public:
     // the path to the remote node, as last known (not definitive)
     string mOriginalPathOfRemoteRootNode;
 
-    // the local fingerprint
-    fsfp_t mLocalFingerprint;
+    // uniquely identifies the filesystem, we check this is unchanged.
+    fsfp_t mFilesystemFingerprint;
 
     // type of the sync, defaults to bidirectional
     Type mSyncType;
@@ -184,7 +180,7 @@ struct UnifiedSync
     // Reference to containing Syncs object
     Syncs& syncs;
     MegaClient& mClient;
-	
+
     // We always have a config
     SyncConfig mConfig;
 
@@ -395,11 +391,14 @@ public:
     // Remember whether we need to update the file containing configs on this drive.
     void markDriveDirty(const LocalPath& drivePath);
 
+    // Retrieve a drive's unique backup ID.
+    handle driveID(const LocalPath& drivePath) const;
+
     // Whether any config data has changed and needs to be written to disk
     bool dirty() const;
 
     // Reads a database from disk.
-    error read(const LocalPath& drivePath, SyncConfigVector& configs);
+    error read(const LocalPath& drivePath, SyncConfigVector& configs, bool isExternal);
 
     // Write the configs with this drivepath to disk.
     error write(const LocalPath& drivePath, const SyncConfigVector& configs);
@@ -426,6 +425,10 @@ private:
         // Path to the drive itself.
         LocalPath drivePath;
 
+        // The drive's unique backup ID.
+        // Meaningful only for external backups.
+        handle driveID = UNDEF;
+
         // Tracks which 'slot' we're writing to.
         unsigned int slot = 0;
 
@@ -441,7 +444,7 @@ private:
     LocalPath dbPath(const LocalPath& drivePath) const;
 
     // Reads a database from the specified slot on disk.
-    error read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot);
+    error read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot, bool isExternal);
 
     // Where we store databases for internal syncs.
     const LocalPath mInternalSyncStorePath;
@@ -471,10 +474,15 @@ public:
     bool deserialize(const LocalPath& dbPath,
                      SyncConfigVector& configs,
                      JSON& reader,
-                     unsigned int slot) const;
+                     unsigned int slot,
+                     bool isExternal) const;
 
     bool deserialize(SyncConfigVector& configs,
-                     JSON& reader) const;
+                     JSON& reader,
+                     bool isExternal) const;
+
+    // Retrieve a drive's unique backup ID.
+    virtual handle driveID(const LocalPath& drivePath) const;
 
     // Return a reference to this context's filesystem access.
     FileSystemAccess& fsAccess() const;
@@ -516,7 +524,7 @@ private:
     bool decrypt(const string& in, string& out);
 
     // Deserialize a config from JSON.
-    bool deserialize(SyncConfig& config, JSON& reader) const;
+    bool deserialize(SyncConfig& config, JSON& reader, bool isExternal) const;
 
     // Encrypt data.
     string encrypt(const string& data);
@@ -682,7 +690,7 @@ private:
     void exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const;
 
     bool importSyncConfig(JSON& reader, SyncConfig& config);
-    bool importSyncConfigs(const char* data, SyncConfigVector& configs);
+    bool importSyncConfigs(const string& data, SyncConfigVector& configs);
 
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();

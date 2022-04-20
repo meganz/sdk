@@ -60,9 +60,11 @@ std::string toHandle(handle h);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
 class SimpleLogger;
+class LocalPath;
 SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
 SimpleLogger& operator<<(SimpleLogger&, UploadHandle h);
 SimpleLogger& operator<<(SimpleLogger&, NodeOrUploadHandle h);
+SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp);
 
 std::string backupTypeToStr(BackupType type);
 
@@ -421,6 +423,9 @@ public:
     {
         return utf8proc_toupper(c);
     }
+
+    static string toUpperUtf8(const string& text);
+    static string toLowerUtf8(const string& text);
 
     // Platform-independent case-insensitive comparison.
     static int icasecmp(const std::string& lhs,
@@ -896,10 +901,34 @@ inline int hexval(const int c)
     return ((c & 0xf) + (c >> 6)) | ((c >> 3) & 0x8);
 }
 
-bool islchex(const int c);
+bool islchex_high(const int c);
+bool islchex_low(const int c);
 
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
+
+bool wildcardMatch(const string& text, const string& pattern);
+bool wildcardMatch(const char* text, const char* pattern);
+
+struct MEGA_API FileSystemAccess;
+
+// generate a new drive id
+handle generateDriveId(PrnGen& rng);
+
+// return API_OK if success and set driveID handle to the drive id read from the drive,
+// otherwise return error code and set driveId to UNDEF
+error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId);
+error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, handle& driveId);
+
+// return API_OK if success, otherwise error code
+error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId);
+
+int platformGetRLimitNumFile();
+
+bool platformSetRLimitNumFile(int newNumFileLimit = -1);
+
+void debugLogHeapUsage();
+
 
 } // namespace
 

@@ -258,11 +258,15 @@ nameid JSON::getnameid()
 
         assert(*ptr == '"'); // if either assert fails, check the json syntax, it might be something new/changed
         pos = ptr + 1;
-        assert(*pos == ':' || *pos == ',');
 
-        if (*pos != '}' && *pos != ']')
+        if (*pos == ':' || *pos == ',' )
         {
-            pos++;  // don't skip the following char if we're at the end of a structure eg. actionpacket with only {"a":"xyz"}
+            pos++;
+        }
+        else
+        {
+            // don't skip the char if we're at the end of a structure eg. actionpacket with only {"a":"xyz"}
+            assert(*pos == '}' || *pos == ']');
         }
     }
 
@@ -723,6 +727,39 @@ void JSON::copystring(string* s, const char* p)
     {
         s->clear();
     }
+}
+
+string JSON::stripWhitespace(const string& text)
+{
+    return stripWhitespace(text.c_str());
+}
+
+string JSON::stripWhitespace(const char* text)
+{
+    JSON reader(text);
+    string result;
+
+    while (*reader.pos)
+    {
+        if (*reader.pos == '"')
+        {
+            string temp;
+
+            result.push_back('"');
+
+            if (!reader.storeobject(&temp))
+                return result;
+
+            result.append(temp);
+            result.push_back('"');
+        }
+        else if (std::isspace(*reader.pos))
+            ++reader.pos;
+        else
+            result.push_back(*reader.pos++);
+    }
+
+    return result;
 }
 
 JSONWriter::JSONWriter()

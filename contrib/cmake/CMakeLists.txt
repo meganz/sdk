@@ -14,10 +14,12 @@
 
 
 if (WIN32)
-cmake_minimum_required(VERSION 3.15)
-cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
+  cmake_minimum_required(VERSION 3.15)
+  cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
 else()
-cmake_minimum_required(VERSION 3.13)
+  cmake_minimum_required(VERSION 3.13)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Useful for make or ninja
+  message( "CMAKE_EXPORT_COMPILE_COMMANDS ON")
 endif()
 
 project(MegaSDK)
@@ -46,7 +48,7 @@ set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web an
 set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
 set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
-set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
+set (USE_PCRE 0 CACHE STRING "Can be used by client apps. The SDK does not use it itself anymore")
 set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
 set (MEGA_USE_C_ARES 1 CACHE STRING "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL")
 set (MEGA_QT_VERSION 5.12.11 CACHE STRING "Qt version installed in c:/Qt")
@@ -396,7 +398,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 #find_package(CURL CONFIG REQUIRED PATHS "${vcpkg_dir}/share/curl" NO_DEFAULT_PATH )
             ENDIF()
         ENDIF()
-        IF(USE_CURL)
+        IF(MEGA_USE_C_ARES)
             ImportStdVcpkgLibrary(cares       cares cares libcares libcares)
         ENDIF()
 
@@ -417,8 +419,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
 
-        ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
+        IF (NOT IOS)
+	ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
         ImportStdVcpkgLibrary(gmock           gmockd gmock libgmockd libgmock)
+	ENDIF()
 
         IF(USE_MEDIAINFO)
             IF(CMAKE_HOST_APPLE)
@@ -570,7 +574,10 @@ set(UNICODE 1)
 
 if(WIN32)
 
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -D_CONSOLE )
+    IF(USE_PCRE)
+        add_definitions(-DPCRE_STATICWIN32 )
+    ENDIF(USE_PCRE)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
     SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<$<OR:${USE_CURL},${USE_WEBRTC}>:Wldap32.lib> )
     IF(USE_LIBUV)
@@ -609,6 +616,11 @@ ELSE(WIN32)
 
     IF(APPLE)
         SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm)
+
+        # if building all-static megacli for mac, you will need these (uncomment to enable)
+        #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework LDAP")
+        #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "libresolv.dylib")
+
     ENDIF()
 
     IF(USE_DRIVE_NOTIFICATIONS)
@@ -858,7 +870,6 @@ target_compile_definitions(Mega PUBLIC
                 $<${ENABLE_CHAT}:ENABLE_CHAT>
                 $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
                 $<${USE_ROTATIVEPERFORMANCELOGGER}:USE_ROTATIVEPERFORMANCELOGGER>
-                $<${USE_ROTATIVEPERFORMANCELOGGER}:ENABLE_LOG_PERFORMANCE>
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE>
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>
@@ -916,6 +927,7 @@ if(IOS)
         ${MegaDir}/bindings/ios/MEGAChildrenLists.mm
         ${MegaDir}/bindings/ios/MEGAContactRequest.mm
         ${MegaDir}/bindings/ios/MEGAContactRequestList.mm
+	${MegaDir}/bindings/ios/MEGACurrency.mm
         ${MegaDir}/bindings/ios/MEGAError.mm
         ${MegaDir}/bindings/ios/MEGAEvent.mm
         ${MegaDir}/bindings/ios/MEGAFolderInfo.mm
@@ -1050,10 +1062,14 @@ endif()
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
+configure_file("${MegaDir}/tests/integration/test_cover_png.mp3" test_cover_png.mp3 COPYONLY)
 
 # actual apps
 
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
+if (APPLE)
+    add_executable(megacli_fsloader ${MegaDir}/examples/fsevents_loader_megacli_maconly.cpp)
+endif()
 target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
     target_link_libraries(megacli ${readline_LIBRARIES})
@@ -1082,6 +1098,8 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")  # declaration hides previous local declaration
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4266")  # derived class did not override all overloads of a virtual function
     #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
+
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")  # Sync_test.cpp : fatal error C1128: number of sections exceeded object file format limit: compile with /bigobj
 
     set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET megacli PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
