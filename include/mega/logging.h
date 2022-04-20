@@ -202,7 +202,7 @@ private:
     std::array<char, LOGGER_CHUNKS_SIZE>::iterator mBufferIt;
 
     using DiffType = std::array<char, LOGGER_CHUNKS_SIZE>::difference_type;
-    using NumBuf = std::array<char, 24>;
+    using NumBuf = char[24];
     const char* filenameStr;
     int lineNum;
 
@@ -259,8 +259,8 @@ private:
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = snprintf(buf.data(), buf.size(), "%d", static_cast<int>(value));
-        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
+        const auto size = snprintf(buf, sizeof(buf), "%d", static_cast<int>(value));
+        copyToBuffer(buf, std::min(size, static_cast<int>(sizeof(buf)) - 1));
     }
 
     template<typename T>
@@ -268,8 +268,8 @@ private:
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = snprintf(buf.data(), buf.size(), "%p", reinterpret_cast<const void*>(value));
-        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
+        const auto size = snprintf(buf, sizeof(buf), "%p", reinterpret_cast<const void*>(value));
+        copyToBuffer(buf, std::min(size, static_cast<int>(sizeof(buf)) - 1));
     }
 
     template<typename T>
@@ -278,8 +278,8 @@ private:
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = snprintf(buf.data(), buf.size(), "%d", value);
-        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
+        const auto size = snprintf(buf, sizeof(buf), "%d", value);
+        copyToBuffer(buf, std::min(size, static_cast<int>(sizeof(buf)) - 1));
     }
 
     template<typename T>
@@ -288,8 +288,8 @@ private:
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = snprintf(buf.data(), buf.size(), "%ld", value);
-        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
+        const auto size = snprintf(buf, sizeof(buf), "%ld", value);
+        copyToBuffer(buf, std::min(size, static_cast<int>(sizeof(buf)) - 1));
     }
 
     template<typename T>
@@ -298,8 +298,8 @@ private:
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = snprintf(buf.data(), buf.size(), "%lld", value);
-        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
+        const auto size = snprintf(buf, sizeof(buf), "%lld", value);
+        copyToBuffer(buf, std::min(size, static_cast<int>(sizeof(buf)) - 1));
     }
 
     template<typename T>
@@ -308,8 +308,8 @@ private:
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = snprintf(buf.data(), buf.size(), "%u", value);
-        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
+        const auto size = snprintf(buf, sizeof(buf), "%u", value);
+        copyToBuffer(buf, std::min(size, static_cast<int>(sizeof(buf)) - 1));
     }
 
     template<typename T>
@@ -318,8 +318,8 @@ private:
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = snprintf(buf.data(), buf.size(), "%lu", value);
-        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
+        const auto size = snprintf(buf, sizeof(buf), "%lu", value);
+        copyToBuffer(buf, std::min(size, static_cast<int>(sizeof(buf)) - 1));
     }
 
     template<typename T>
@@ -328,8 +328,8 @@ private:
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = snprintf(buf.data(), buf.size(), "%llu", value);
-        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
+        const auto size = snprintf(buf, sizeof(buf), "%llu", value);
+        copyToBuffer(buf, std::min(size, static_cast<int>(sizeof(buf)) - 1));
     }
 
     template<typename T>
@@ -337,8 +337,8 @@ private:
     logValue(const T value)
     {
         NumBuf buf;
-        const auto size = snprintf(buf.data(), buf.size(), "%g", value);
-        copyToBuffer(buf.data(), std::min(size, static_cast<int>(buf.size()) - 1));
+        const auto size = snprintf(buf, sizeof(buf), "%g", value);
+        copyToBuffer(buf, std::min(size, static_cast<int>(sizeof(buf)) - 1));
     }
 
     void logValue(const char* value)
@@ -638,28 +638,23 @@ std::ostream& operator <<(std::ostream&, const std::system_error&);
 std::ostream& operator <<(std::ostream&, const std::error_code&);
 
 #define LOG_verbose \
-    if (::mega::SimpleLogger::logCurrentLevel < ::mega::logMax) ;\
-    else \
+    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logMax) \
         ::mega::SimpleLogger(::mega::logMax, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_debug \
-    if (::mega::SimpleLogger::logCurrentLevel < ::mega::logDebug) ;\
-    else \
+    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logDebug) \
         ::mega::SimpleLogger(::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_info \
-    if (::mega::SimpleLogger::logCurrentLevel < ::mega::logInfo) ;\
-    else \
+    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logInfo) \
         ::mega::SimpleLogger(::mega::logInfo, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_warn \
-    if (::mega::SimpleLogger::logCurrentLevel < ::mega::logWarning) ;\
-    else \
+    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logWarning) \
         ::mega::SimpleLogger(::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_err \
-    if (::mega::SimpleLogger::logCurrentLevel < ::mega::logError) ;\
-    else \
+    if (::mega::SimpleLogger::logCurrentLevel >= ::mega::logError) \
         ::mega::SimpleLogger(::mega::logError, ::mega::log_file_leafname(__FILE__), __LINE__)
 
 #define LOG_fatal \

@@ -586,6 +586,11 @@ public:
     // check if logged in
     sessiontype_t loggedin();
 
+    // provide state by change callback
+    void reportLoggedInChanges();
+    sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
+    handle mLastLoggedInMeHandle = UNDEF;
+
     // check if logged in a folder link
     bool loggedinfolderlink();
 
@@ -737,10 +742,6 @@ public:
     bool xferpaused[2];
 
     MegaClientAsyncQueue mAsyncQueue;
-
-    // if set, symlinks will be followed except in recursive deletions
-    // (give the user ample warning about possible sync repercussions)
-    bool followsymlinks;
 
     // number of parallel connections per transfer (PUT/GET)
     unsigned char connections[2];
@@ -1095,7 +1096,7 @@ public:
     Node* getovnode(Node *parent, string *name);
 
     // Load from db node children at first level
-    node_list getChildren(Node *parent);
+    node_list getChildren(const Node *parent);
 
     // Get number of children from a node
     int getNumberOfChildren(NodeHandle parentHandle);
@@ -2127,16 +2128,6 @@ public:
     } performanceStats;
 
     std::string getDeviceidHash();
-
-    // generate a new drive id
-    handle generateDriveId();
-
-    // return API_OK if success and set driveId handle to the drive id read from the drive,
-    // otherwise return error code and set driveId to UNDEF
-    error readDriveId(const char *pathToDrive, handle &driveId) const;
-
-    // return API_OK if success, otherwise error code
-    error writeDriveId(const char *pathToDrive, handle driveId);
 
     /**
      * @brief This function calculates the time (in deciseconds) that a user
