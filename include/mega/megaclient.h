@@ -308,7 +308,7 @@ public:
     void cleanNodes();
 
     // reads from DB and loads the node in memory
-    Node* unserializeNode(const string*, bool decrypted = true);
+    Node* unserializeNode(const string*, bool decrypted = true, bool fromOldCache = false);
 
     // attempt to apply received keys to decrypt node's keys
     void applyKeys(uint32_t appliedKeys);
@@ -398,6 +398,9 @@ public:
     // Returns true if a node has versions
     bool hasVersion(NodeHandle nodeHandle);
 
+    // Called to initialize and set values to counters
+    void initializeCounters();
+
 private:
     // TODO Nodes on demand remove reference
     MegaClient& mClient;
@@ -439,8 +442,8 @@ private:
 
     Node* getNodeFromDataBase(NodeHandle handle);
 
-    // This method is called to increase a counters with a node that it's going to be stored only at DB
-    void updateCountersWithNode(const Node& node);
+    // Returns root nodes without nested in-shares
+    node_vector getRootNodesWithoutNestedInshares();
 
     // node temporary in memory, which will be removed upon write to DB
     Node *mNodeToWriteInDb = nullptr;
@@ -591,6 +594,11 @@ public:
 
     // check if logged in
     sessiontype_t loggedin();
+
+    // provide state by change callback
+    void reportLoggedInChanges();
+    sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
+    handle mLastLoggedInMeHandle = UNDEF;
 
     // check if logged in a folder link
     bool loggedinfolderlink();
@@ -743,10 +751,6 @@ public:
     bool xferpaused[2];
 
     MegaClientAsyncQueue mAsyncQueue;
-
-    // if set, symlinks will be followed except in recursive deletions
-    // (give the user ample warning about possible sync repercussions)
-    bool followsymlinks;
 
     // number of parallel connections per transfer (PUT/GET)
     unsigned char connections[2];
@@ -1101,7 +1105,7 @@ public:
     Node* getovnode(Node *parent, string *name);
 
     // Load from db node children at first level
-    node_list getChildren(Node *parent);
+    node_list getChildren(const Node *parent);
 
     // Get number of children from a node
     int getNumberOfChildren(NodeHandle parentHandle);
@@ -2133,16 +2137,6 @@ public:
     } performanceStats;
 
     std::string getDeviceidHash();
-
-    // generate a new drive id
-    handle generateDriveId();
-
-    // return API_OK if success and set driveId handle to the drive id read from the drive,
-    // otherwise return error code and set driveId to UNDEF
-    error readDriveId(const char *pathToDrive, handle &driveId) const;
-
-    // return API_OK if success, otherwise error code
-    error writeDriveId(const char *pathToDrive, handle driveId);
 
     /**
      * @brief This function calculates the time (in deciseconds) that a user

@@ -63,7 +63,7 @@ libpng/7375bb408f2278d2f1875c259beef93332697ba7
 
 # tests and tools
 asio/c303dd024e2dc03a0665ddffbb12a1077933e649
-gtest/c303dd024e2dc03a0665ddffbb12a1077933e649 all:gtest-fix-uninitialized-variable-warning.patch
+gtest/c303dd024e2dc03a0665ddffbb12a1077933e649 all:gtest-warnings-are-not-errors.patch
 
 # previously listed - possibly for mega chat,sync,cmd.  Re-add with comment if the SDK alone needs them
 #x264/c303dd024e2dc03a0665ddffbb12a1077933e649

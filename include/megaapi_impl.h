@@ -2103,6 +2103,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
+        void loggedInStateChanged(sessiontype_t, handle me) override;
         bool isEphemeralPlusPlus();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
@@ -2135,9 +2136,6 @@ class MegaApiImpl : public MegaApp
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
 #endif
         void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
-
-        bool platformSetRLimitNumFile(int newNumFileLimit) const;
-        int platformGetRLimitNumFile() const;
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
@@ -2775,6 +2773,14 @@ protected:
         string basePath;
         bool nocache;
 
+        mutex mLastRecievedLoggedMeMutex;
+        sessiontype_t mLastReceivedLoggedInState = NOTLOGGEDIN;
+        handle mLastReceivedLoggedInMeHandle = UNDEF;
+
+        unique_ptr<MegaNode> mLastKnownRootNode;
+        unique_ptr<MegaNode> mLastKnownInboxNode;
+        unique_ptr<MegaNode> mLastKnownRubbishNode;
+
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;
         int httpServerMaxBufferSize;
@@ -3161,10 +3167,6 @@ private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 
-        // Generic method to get outShares nodes or pending outShares
-        // pending is true if we want receive pending outShares, false for outShares
-        MegaShareList *getOutSharesOrPending(int order, bool pending);
-
 #ifdef ENABLE_SYNC
         error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
 #endif
@@ -3211,7 +3213,7 @@ public:
     void setMaxOutputSize(unsigned int outputSize);
 
     static const unsigned int MAX_BUFFER_SIZE = 2097152;
-    static const unsigned int MAX_OUTPUT_SIZE = 16384;
+    static const unsigned int MAX_OUTPUT_SIZE = MAX_BUFFER_SIZE / 10;
 
 protected:
     char *buffer;

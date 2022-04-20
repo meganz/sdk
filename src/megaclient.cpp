@@ -591,7 +591,7 @@ bool MegaClient::isValidFolderLink()
         if (!h.isUndef())
         {
             Node *n = nodeByHandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))    // is it decrypted? (valid key)
+            if (n && (n->attrs.map.find('n') != n->attrs.map.end()))    // is it decrypted? (valid key)
             {
                 return true;
             }
@@ -1012,80 +1012,6 @@ std::string MegaClient::getDeviceidHash()
     return deviceIdHash;
 }
 
-handle MegaClient::generateDriveId()
-{
-    handle driveId;
-    rng.genblock((byte *)&driveId, sizeof(driveId));
-    driveId |= m_time(nullptr);
-    return driveId;
-}
-
-error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
-{
-    driveId = UNDEF;
-
-    if (pathToDrive && strlen(pathToDrive))
-    {
-
-        LocalPath pd = LocalPath::fromAbsolutePath(pathToDrive);
-        LocalPath dotDir = LocalPath::fromRelativePath(".megabackup");
-        pd.appendWithSeparator(dotDir, false);
-        LocalPath idFile = LocalPath::fromRelativePath("drive-id");
-        pd.appendWithSeparator(idFile, false);
-
-        auto fa = fsaccess->newfileaccess(false);
-        if (!fa->fopen(pd, true, false))
-        {
-            // This case is valid when only checking for file existence
-            return API_ENOENT;
-        }
-
-        if (!fa->frawread((byte*)&driveId, sizeof(driveId), 0))
-        {
-            LOG_err << "Unable to read drive-id from file: " << pd.toPath();
-            return API_EREAD;
-        }
-    }
-    else return API_EREAD;
-
-    return API_OK;
-}
-
-error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
-{
-    LocalPath pd = LocalPath::fromAbsolutePath(pathToDrive);
-    LocalPath dotDir = LocalPath::fromRelativePath(".megabackup");
-    pd.appendWithSeparator(dotDir, false);
-
-    // Try and create the backup configuration directory
-    if (!(fsaccess->mkdirlocal(pd, false, false) || fsaccess->target_exists))
-    {
-        LOG_err << "Unable to create config DB directory: " << pd;
-
-        // Couldn't create the directory and it doesn't exist.
-        return API_EWRITE;
-    }
-
-    // Open the file for writing
-    LocalPath idFile = LocalPath::fromRelativePath("drive-id");
-    pd.appendWithSeparator(idFile, false);
-    auto fa = fsaccess->newfileaccess(false);
-    if (!fa->fopen(pd, false, true))
-    {
-        LOG_err << "Unable to open file to write drive-id: " << pd;
-        return API_EWRITE;
-    }
-
-    // Write the drive-id to file
-    if (!fa->fwrite((byte*)&driveId, sizeof(driveId), 0))
-    {
-        LOG_err << "Unable to write drive-id to file: " << pd;
-        return API_EWRITE;
-    }
-
-    return API_OK;
-}
-
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -1339,7 +1265,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     tctable = NULL;
     statusTable = nullptr;
     me = UNDEF;
-    followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
@@ -3300,6 +3225,8 @@ void MegaClient::exec()
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
+
+        debugLogHeapUsage();
     }
 #endif
 
@@ -3310,6 +3237,8 @@ void MegaClient::exec()
         app->drive_presence_changed(di.second, LocalPath::fromPlatformEncodedAbsolute(move(di.first)));
     }
 #endif
+
+    reportLoggedInChanges();
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -4378,6 +4307,7 @@ void MegaClient::logout(bool keepSyncConfigsFile)
 
         restag = reqtag;
         app->logout_result(API_OK);
+        reportLoggedInChanges();
         return;
     }
 
@@ -4539,6 +4469,9 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mAuthRings.clear();
     mAuthRingsTemp.clear();
     mFetchingAuthrings = false;
+
+    reportLoggedInChanges();
+    mLastLoggedInReportedState = NOTLOGGEDIN;
 
     init();
 
@@ -9623,6 +9556,7 @@ void MegaClient::login(string session)
                 checkForResumeableSCDatabase();
                 openStatusTable(true);
                 app->login_result(API_OK);
+                reportLoggedInChanges();
             }
         }
     }
@@ -11813,6 +11747,18 @@ sessiontype_t MegaClient::loggedin()
     return FULLACCOUNT;
 }
 
+void MegaClient::reportLoggedInChanges()
+{
+    auto currState = loggedin();
+    if (mLastLoggedInReportedState != currState ||
+        mLastLoggedInMeHandle != me)
+    {
+        mLastLoggedInReportedState = currState;
+        mLastLoggedInMeHandle = me;
+        app->loggedInStateChanged(currState, me);
+    }
+}
+
 void MegaClient::whyamiblocked()
 {
     // make sure the smsve flag is up to date when we get the response
@@ -12070,8 +12016,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
     WAIT_CLASS::bumpds();
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
-    // Used to update to nodes on demand cache
-    bool isDbUpgraded = false;
+    bool isDbUpgraded = false;      // true when legacy DB is migrated to NOD db
+    node_vector nodesUpgradeCache;  // stores nodes while migration from legacy DB to NOD DB
 
     while (hasNext)
     {
@@ -12086,7 +12032,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
             case CACHEDNODE:
                 LOG_info << "Loading nodes from old cache";
-                if ((n = mNodeManager.unserializeNode(&data, true)))
+                if ((n = mNodeManager.unserializeNode(&data, true, true)))
                 {
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
@@ -12094,7 +12040,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    // Add nodes from old DB schema to the new table 'nodes' in the
                    // new DB schema for nodes on demand
                    mNodeManager.addNode(n, false);
-                   mNodeManager.saveNodeInDb(n);    // dump to new DB table for 'nodes'
+                   nodesUpgradeCache.push_back(n);
                    sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else
@@ -12149,11 +12095,18 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
-    if (isDbUpgraded)
+    if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
-        // nodes are loaded during the migration from `statecache` to `nodes` table and kept in RAM
+        // now that Users and PCRs are loaded, need to mergenewshare()
+        mergenewshares(0);
 
-        // force commit, since old DB has been upgraded to new schema for NOD
+        // finally write nodes in DB
+        for (Node* node : nodesUpgradeCache)
+        {
+            mNodeManager.saveNodeInDb(node);
+        }
+
+        // and force commit, since old DB has been upgraded to new schema for NOD
         sctable->commit();
         sctable->begin();
     }
@@ -12167,8 +12120,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
-
-    mergenewshares(0);
 
     return true;
 }
@@ -12307,36 +12258,46 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     uint32_t id;
     string data;
     Transfer* t;
+    size_t cachedTransfersLoaded = 0;
+    size_t cachedFilesLoaded = 0;
 
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
-    while (tctable->next(&id, &data, &tckey))
     {
-        switch (id & 15)
+        DBTableTransactionCommitter committer(tctable);
+        while (tctable->next(&id, &data, &tckey))
         {
-            case CACHEDTRANSFER:
-                if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
-                {
-                    t->dbid = id;
-                    if (t->priority > transferlist.currentpriority)
+            switch (id & 15)
+            {
+                case CACHEDTRANSFER:
+                    if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
                     {
-                        transferlist.currentpriority = t->priority;
+                        t->dbid = id;
+                        if (t->priority > transferlist.currentpriority)
+                        {
+                            transferlist.currentpriority = t->priority;
+                        }
+                        cachedTransfersLoaded += 1;
                     }
-                    LOG_debug << "Cached transfer loaded";
-                }
-                else
-                {
-                    tctable->del(id);
-                    LOG_err << "Failed - transfer record read error";
-                }
-                break;
-            case CACHEDFILE:
-                cachedfiles.push_back(data);
-                cachedfilesdbids.push_back(id);
-                LOG_debug << "Cached file loaded";
-                break;
+                    else
+                    {
+                        tctable->del(id);
+                        LOG_err << "Failed - transfer record read error, or duplicate";
+                    }
+                    break;
+                case CACHEDFILE:
+                    cachedfiles.push_back(data);
+                    cachedfilesdbids.push_back(id);
+                    cachedFilesLoaded += 1;
+                    break;
+            }
         }
     }
+    LOG_debug << "Cached transfers loaded: " << cachedTransfersLoaded;
+    LOG_debug << "Cached files loaded: " << cachedFilesLoaded;
+
+    LOG_debug << "Cached transfer PUT count: " << cachedtransfers[PUT].size();
+    LOG_debug << "Cached transfer GET count: " << cachedtransfers[GET].size();
 
     // if we are logged in but the filesystem is not current yet
     // postpone the resumption until the filesystem is updated
@@ -12424,6 +12385,7 @@ void MegaClient::fetchnodes(bool nocache)
 
     if (sctable && cachedscsn == UNDEF)
     {
+        LOG_debug << "Cachedscsn is UNDEF so we will not load the account database (and we are truncating it, for clean operation)";
         sctable->truncate();
     }
 
@@ -12433,6 +12395,8 @@ void MegaClient::fetchnodes(bool nocache)
             !mNodeManager.hasCacheLoaded() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable.get()))
     {
+        debugLogHeapUsage();
+
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
@@ -13541,7 +13505,6 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
 {
-#ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
@@ -13649,9 +13612,6 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
         *isinshare = inshare;
     }
     return API_OK;
-#else
-    return API_EINCOMPLETE;
-#endif
 }
 
 error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId, SyncError *syncError)
@@ -13700,8 +13660,6 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 // (FIXME: perform the same check for local paths!)
 error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork)
 {
-#ifdef ENABLE_SYNC
-
     // Checking for conditions where we would not even add the sync config
     // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
 
@@ -13727,6 +13685,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
     if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
+        LOG_debug << "Node is not syncable for sync add";
         syncConfig.mEnabled = false;
         return e;
     }
@@ -13745,6 +13704,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         // Source must be on the drive.
         if (!drivePath.isContainingPathOf(sourcePath))
         {
+            LOG_debug << "Drive path inconsistent for sync add";
             syncConfig.mEnabled = false;
             syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
 
@@ -13812,28 +13772,27 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     // the order is important here: a user needs to resolve blocked in order to resolve storage
     if (overStorage)
     {
+        LOG_debug << "Overstorage for sync add";
         syncConfig.mError = STORAGE_OVERQUOTA;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
     else if (businessExpired)
     {
+        LOG_debug << "Business expired for sync add";
         syncConfig.mError = BUSINESS_EXPIRED;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
     else if (blocked)
     {
+        LOG_debug << "Account blocked for sync add";
         syncConfig.mError = ACCOUNT_BLOCKED;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
 
     return API_OK;
-#else
-    syncConfig.mEnabled = false;
-    return API_EINCOMPLETE;
-#endif
 }
 
 void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
@@ -14036,16 +13995,11 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
             }
         }
 
+        driveId = store->driveID(drivePath);
+        assert(driveId != UNDEF);
+
         config.mExternalDrivePath = std::move(drivePath);
         config.mLocalPath = std::move(sourcePath);
-
-        const string& p = config.mExternalDrivePath.toPath();
-        e = readDriveId(p.c_str(), driveId);
-        if (e != API_OK)
-        {
-            completion(e, config.mError, UNDEF);
-            return e;
-        }
     }
 
     // Add the sync.
@@ -16392,7 +16346,7 @@ Node* MegaClient::getovnode(Node *parent, string *name)
     return nullptr;
 }
 
-node_list MegaClient::getChildren(Node* parent)
+node_list MegaClient::getChildren(const Node* parent)
 {
     return mNodeManager.getChildren(parent);
 }
@@ -16899,12 +16853,6 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 
     // mClient.rootnodes.files is always set for folder links before adding any node (upon login)
     bool isFolderLink = mClient.rootnodes.files == node->nodeHandle();
-
-    // add counter only for rootnodes
-    if (rootNode || isFolderLink)
-    {
-        addCounter(node->nodeHandle());
-    }
 
     // TODO nodes on demand: we should also keep in RAM the inshares (when fetching nodes)
     bool keepNodeInMemory = mKeepAllNodesInMemory
@@ -17471,7 +17419,7 @@ void NodeManager::cleanNodes()
 
 // parse serialized node and return Node object - updates nodes hash and parent
 // mismatch vector
-Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
+Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fromOldCache)
 {
     handle h, ph;
     nodetype_t t;
@@ -17660,7 +17608,17 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted)
             break;
         }
 
-        ownNewshares.push_back(std::move(newShare));
+        if (fromOldCache)
+        {
+            // mergenewshare should be called when users and pcr are loaded
+            // It's used only when we are migrating the cache
+            // mergenewshares is called when all nodes, user and pcr are loaded (fetchsc)
+            mClient.newshares.push_back(newShare.release());
+        }
+        else
+        {
+            ownNewshares.push_back(std::move(newShare));
+        }
 
         if (numshares > 0)  // outshare/s
         {
@@ -17946,29 +17904,7 @@ void NodeManager::loadNodes()
         addChild(pair.first, pair.second);
     }
 
-    node_vector rootnodes;
-    if (mClient.loggedIntoFolder())
-    {
-        Node* rootNode = getNodeFromDataBase(mClient.rootnodes.files);
-        assert(rootNode);
-
-        rootnodes.push_back(rootNode);
-    }
-    else    // logged into user's account: load rootnodes and incoming shared folders
-    {
-        rootnodes = getRootNodes();
-
-        node_vector inSharesNodes = getNodesWithInShares();
-        for (auto& node : inSharesNodes)
-        {
-            // If parent exits => nested in-share. We don't need to add
-            // Nested in-shares aren't added to node counters
-            if (!node->parent)
-            {
-                rootnodes.push_back(node);
-            }
-        }
-    }
+    node_vector rootnodes = getRootNodesWithoutNestedInshares();
 
     if (mKeepAllNodesInMemory)
     {
@@ -18028,17 +17964,17 @@ void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
         {
             addNodeWithMissingParent(node);
         }
+    }
 
-        auto it = mNodesWithMissingParent.find(node->nodeHandle());
-        if (it != mNodesWithMissingParent.end())
+    auto it = mNodesWithMissingParent.find(node->nodeHandle());
+    if (it != mNodesWithMissingParent.end())
+    {
+        for (Node* n : it->second)
         {
-            for (Node* n : it->second)
-            {
-                n->setparent(node);
-            }
-
-            mNodesWithMissingParent.erase(it);
+            n->setparent(node);
         }
+
+        mNodesWithMissingParent.erase(it);
     }
 }
 
@@ -18112,6 +18048,16 @@ bool NodeManager::hasVersion(NodeHandle nodeHandle)
     return false;
 }
 
+void NodeManager::initializeCounters()
+{
+    node_vector rootNodes = getRootNodesWithoutNestedInshares();
+    for (Node* node : rootNodes)
+    {
+        assert(mNodeCounters.find(node->nodeHandle()) == mNodeCounters.end());
+        mNodeCounters[node->nodeHandle()] = getNodeCounter(*node);
+    }
+}
+
 NodeCounter NodeManager::getCounterOfRootNodes()
 {
     NodeCounter c;
@@ -18154,9 +18100,9 @@ void NodeManager::addCounter(const NodeHandle &h)
 void NodeManager::calculateCounter(const Node& n)
 {
     // while processing command f (fetchnodes), node counters for in-shares are first added
-    // via NodeManager::addNode. Later, MegaClient::mergeNewShare call this method, but the
+    // at the end of fetch node proc result. Later, MegaClient::mergeNewShare call this method, but the
     // counter is already there. Need to skip adding it again here for this case
-    if (!mKeepAllNodesInMemory && mClient.fetchingnodes && !n.notified)
+    if (mClient.fetchingnodes && !n.notified)
     {
         return;
     }
@@ -18318,7 +18264,6 @@ void NodeManager::saveNodeInDb(Node *node)
 
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
-        updateCountersWithNode(*node);
         assert(mNodeToWriteInDb->nodeHandle() == node->nodeHandle());
         delete mNodeToWriteInDb;
         mNodeToWriteInDb = nullptr;
@@ -18367,49 +18312,33 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     return node;
 }
 
-void NodeManager::updateCountersWithNode(const Node &node)
+node_vector NodeManager::getRootNodesWithoutNestedInshares()
 {
-    NodeHandle firstValidAncestor = getFirstAncestor(node.nodeHandle());
-    // If firstValidAncestor is undef, own node is its first valid Ancestor
-    firstValidAncestor = (!firstValidAncestor.isUndef()) ? firstValidAncestor : node.nodeHandle();
-
-    if (firstValidAncestor != UNDEF)
+    node_vector rootnodes;
+    if (mClient.loggedIntoFolder())
     {
-        // Add a node counter for our first valid Ancestor (it can be our own node)
-        increaseCounter(&node, firstValidAncestor);
+        Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
+        assert(rootNode);
 
-        // When we receive a node check if some of its children has been added to node counter
-        // in that case the node counter is added to the first valid ancestor (Used for delay parents)
-        auto itChild = mNodeChildren.find(node.nodeHandle());
-        if (itChild != mNodeChildren.end())
+        rootnodes.push_back(rootNode);
+    }
+    else    // logged into user's account: load rootnodes and incoming shared folders
+    {
+        rootnodes = getRootNodes();
+
+        node_vector inSharesNodes = getNodesWithInShares();
+        for (auto& node : inSharesNodes)
         {
-            for (NodeHandle child : itChild->second)
+            // If parent exits => nested in-share. We don't need to add
+            // Nested in-shares aren't added to node counters
+            if (!node->parent)
             {
-                auto it = mNodeCounters.find(child);
-                if (it != mNodeCounters.end())
-                {
-                    if (node.type == FILENODE)
-                    {
-                        // file versions may have been counted as files instead of versions upon
-                        // processing fetchnodes from API. In result, if the parent was unknown (not
-                        // processed yet), it's not possible to differentiate between a file and a version
-                        // --> if this node is a file, child nodes were versions
-                        it->second.versions += it->second.files;
-                        it->second.versionStorage += it->second.storage;
-                        it->second.files = 0;
-                        it->second.storage = 0;
-                    }
-
-                    mNodeCounters[firstValidAncestor].files += it->second.files;
-                    mNodeCounters[firstValidAncestor].storage += it->second.storage;
-                    mNodeCounters[firstValidAncestor].folders += it->second.folders;
-                    mNodeCounters[firstValidAncestor].versions += it->second.versions;
-                    mNodeCounters[firstValidAncestor].versionStorage += it->second.versionStorage;
-                    mNodeCounters.erase(it);
-                }
+                rootnodes.push_back(node);
             }
         }
     }
+
+    return rootnodes;
 }
 
 size_t NodeManager::nodeNotifySize() const
