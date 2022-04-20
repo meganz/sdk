@@ -2429,6 +2429,7 @@ void StandardClient::deleteremote(string path, bool fromroot, PromiseBoolSP pb)
     if (Node* n = drillchildnodebyname(fromroot ? getcloudrootnode() : gettestbasenode(), path))
     {
         auto completion = [pb](NodeHandle, Error e) {
+            if (e) LOG_debug << "deleteremote received failure code from unlink: " << e;
             pb->set_value(!e);
         };
 
@@ -2438,6 +2439,7 @@ void StandardClient::deleteremote(string path, bool fromroot, PromiseBoolSP pb)
     }
     else
     {
+        LOG_debug << "Node not found for deleteremote, at path " << path << " (fromroot: " << fromroot << ")";
         pb->set_value(false);
     }
 }

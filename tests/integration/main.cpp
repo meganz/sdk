@@ -313,7 +313,24 @@ int main (int argc, char *argv[])
         listeners.Append(new GTestLogger());
     }
 
-    return RUN_ALL_TESTS();
+    bool exitFlag = false;
+    std::thread one_sec_logger([&](){
+        int count = 0;
+        while (!exitFlag)
+        {
+            LOG_debug << "onesec count: " << ++count;
+            WaitMillisec(1000);
+        }
+    });
+
+    auto ret = RUN_ALL_TESTS();
+
+    exitFlag = true;
+    one_sec_logger.join();
+
+    SimpleLogger::setOutputClass(nullptr);
+
+    return ret;
 }
 
 

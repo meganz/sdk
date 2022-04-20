@@ -116,6 +116,9 @@ int PosixWaiter::wait()
         tv.tv_usec = us - tv.tv_sec * 1000000;
     }
 
+    bumpds();
+    auto ds_before = ds;
+
 #ifdef USE_POLL
     dstime ms = 1000 / 10 * maxds;
 
@@ -148,6 +151,12 @@ int PosixWaiter::wait()
 #else
     numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 #endif
+
+    bumpds();
+    if (ds - ds_before > 100)
+    {
+        LOG_debug << "Waiter waited more than 10 sec.  ds before/after: " << ds_before << " " << ds << " maxds: " << maxds;
+    }
 
     // empty pipe
     uint8_t buf;
