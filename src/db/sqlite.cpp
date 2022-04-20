@@ -1011,39 +1011,6 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
     return true;
 }
 
-int SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    sqlite3_stmt *stmt;
-    int numChildren = 0;
-    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
-        {
-            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-            {
-               numChildren = sqlite3_column_int(stmt, 0);
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get number of children from database: " << dbfile << err;
-        assert(!"Unable to get number of children from database.");
-    }
-
-    return numChildren;
-}
-
 m_off_t SqliteAccountState::getNodeSize(NodeHandle node)
 {
     m_off_t size = 0;

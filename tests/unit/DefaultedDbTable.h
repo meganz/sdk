@@ -93,11 +93,6 @@ public:
         return 0;
         //throw NotImplemented(__func__);
     }
-    int getNumberOfChildren(mega::NodeHandle) override
-    {
-        return 0;
-        //throw NotImplemented(__func__);
-    }
     bool isNodesOnDemandDb() override
     {
         return false;

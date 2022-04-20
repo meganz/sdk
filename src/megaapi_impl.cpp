@@ -17447,18 +17447,8 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
         return 0;
     }
 
-    sdkMutex.lock();
-    Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent || parent->type == FILENODE)
-    {
-        sdkMutex.unlock();
-        return 0;
-    }
-
-    int numChildren = client->getNumberOfChildren(parent->nodeHandle());
-    sdkMutex.unlock();
-
-    return numChildren;
+    SdkMutexGuard lock(sdkMutex);
+    return client->getNumberOfChildren(NodeHandle().set6byte(p->getHandle()));
 }
 
 int MegaApiImpl::getNumChildFiles(MegaNode* p)

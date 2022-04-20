@@ -120,7 +120,6 @@ public:
     virtual bool getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized>& children) = 0;
     virtual bool getChildrenHandles(NodeHandle parentHandle, std::set<NodeHandle>& nodes) = 0;
     virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
-    virtual int getNumberOfChildren(NodeHandle parentHandle) = 0;
 
     // true if 'nodes' table is already populated -> legacy DB has been migrated to new schema for NOD
     virtual bool isNodesOnDemandDb() = 0;

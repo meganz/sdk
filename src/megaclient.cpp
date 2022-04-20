@@ -17358,7 +17358,7 @@ std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, u
 int NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
     auto it = mNodeChildren.find(parentHandle);
-    return (it != mNodeChildren.end()) ? it->second.size() : 0;
+    return (it == mNodeChildren.end()) ? 0 : static_cast<int>(it->second.size());
 }
 
 bool NodeManager::isNodesOnDemandReady()
