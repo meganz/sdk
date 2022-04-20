@@ -779,8 +779,17 @@ termcap_pkg() {
     fi
 
     package_extract $name $termcap_file $termcap_dir
+    local OLD_CPPFLAGS="$CPPFLAGS"
+
+    # linking with static library requires -fPIC
+    if [ $use_dynamic -eq 0 ]; then
+        export CPPFLAGS="$CPPFLAGS -fPIC"
+    fi
     package_configure $name $termcap_dir $install_dir "$termcap_params"
     package_build $name $termcap_dir
+
+    export CPPFLAGS="$OLD_CPPFLAGS"
+
     package_install $name $termcap_dir $install_dir $termcap_md5
 }
 
