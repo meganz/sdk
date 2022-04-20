@@ -9388,10 +9388,12 @@ void BackupBehavior::doTest(const string& initialContent,
         };
 
         // Write the file.
-        m.generate(cu.fsBasePath / "su");
+        m.generate(cu.fsBasePath / "su", true);
 
-        // Rewind the file's mtime.
-        fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
+        // do not Rewind the file's mtime here. Let the callback just above do it.
+        // otherwise, on checking the fs notification we will conclude "Self filesystem notification skipped"
+        // possibly we could do it this way after sync rework is merged.
+        // fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
 
         cu.triggerPeriodicScanEarly(idU);
     }
