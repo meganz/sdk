@@ -19482,16 +19482,14 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_CLOUD_STORAGE_USED:
         {
-            if (client->loggedin() != FULLACCOUNT)
+            if (client->loggedin() != FULLACCOUNT && !client->loggedIntoFolder())
             {
                 e = API_EACCESS;
                 break;
             }
 
-            m_off_t filesSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.files)).storage;
-            m_off_t inboxSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.inbox)).storage;
-            m_off_t rubbishSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.rubbish)).storage;
-            request->setNumber(filesSize + inboxSize + rubbishSize);
+            NodeCounter nc = client->mNodeManager.getCounterOfRootNodes();
+            request->setNumber(nc.storage + nc.versionStorage);
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }

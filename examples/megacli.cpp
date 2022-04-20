@@ -2773,10 +2773,14 @@ void exec_lrenamereplace(autocomplete::ACState& s)
 
 void exec_getcloudstorageused(autocomplete::ACState&)
 {
-    m_off_t filesSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.files)).storage;
-    m_off_t inboxSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.inbox)).storage;
-    m_off_t rubbishSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.rubbish)).storage;
-    cout << filesSize + inboxSize + rubbishSize << endl;
+    if (client->loggedin() != FULLACCOUNT && !client->loggedIntoFolder())
+    {
+        cout << "Not logged in" << endl;
+        return;
+    }
+
+    NodeCounter nc = client->mNodeManager.getCounterOfRootNodes();
+    cout << "Total cloud storage: " << nc.storage + nc.versionStorage << " bytes" << endl;
 }
 
 void exec_getuserquota(autocomplete::ACState& s)
