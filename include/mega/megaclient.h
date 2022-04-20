@@ -392,6 +392,12 @@ public:
     // true when loading nodes (at startup, not node per node afterwards)
     bool isLoadingNodes() { return mLoadingNodes; }
 
+    // Returns the number of versions for a node (including the current version)
+    int getNumVersions(NodeHandle nodeHandle);
+
+    // Returns true if a node has versions
+    bool hasVersion(NodeHandle nodeHandle);
+
     // Called to initialize and set values to counters
     void initializeCounters();
 

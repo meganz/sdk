@@ -17615,34 +17615,8 @@ int MegaApiImpl::getNumVersions(MegaNode *node)
         return 0;
     }
 
-    sdkMutex.lock();
-    Node *current = client->nodebyhandle(node->getHandle());
-    if (!current || current->type != FILENODE)
-    {
-        sdkMutex.unlock();
-        return 0;
-    }
-
-    // TODO Nodes on Demand: it can be implemented with a query to DB
-    int numVersions = 1;
-    bool looking = true;
-    while (looking)
-    {
-        node_list nodeList = client->getChildren(current);
-        if (nodeList.empty())
-        {
-            looking = false;
-            break;
-        }
-
-        assert(nodeList.back()->parent == current);
-        current = nodeList.back();
-        assert(current->type == FILENODE);
-        numVersions++;
-    }
-
-    sdkMutex.unlock();
-    return numVersions;
+    SdkMutexGuard guard(sdkMutex);
+    return client->mNodeManager.getNumVersions(NodeHandle().set6byte(node->getHandle()));
 }
 
 bool MegaApiImpl::hasVersions(MegaNode *node)
@@ -17652,23 +17626,8 @@ bool MegaApiImpl::hasVersions(MegaNode *node)
         return false;
     }
 
-    sdkMutex.lock();
-    // TODO Nodes on Demand: it can be implemented with a query to DB
-    Node *current = client->nodebyhandle(node->getHandle());
-    if (!current || current->type != FILENODE)
-    {
-        sdkMutex.unlock();
-        return false;
-    }
-
-    node_list nodeList = client->getChildren(current);
-    assert(!nodeList.size()
-           || (nodeList.back()->parent == current
-               && nodeList.back()->type == FILENODE));
-
-    bool result = nodeList.size() != 0;
-    sdkMutex.unlock();
-    return result;
+    SdkMutexGuard guard(sdkMutex);
+    return client->mNodeManager.hasVersion(NodeHandle().set6byte(node->getHandle()));
 }
 
 void MegaApiImpl::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
