@@ -166,6 +166,7 @@ int PosixWaiter::wait()
     }
 
     // timeout or error
+    int retval;
     if (external || numfd <= 0)
     {
         retval = NEEDEXEC;
@@ -181,9 +182,9 @@ int PosixWaiter::wait()
             return NEEDEXEC;
         }
     }
-    int retval = 0;
+    retval = 0;
 #else
-    int retval = (fd_filter(maxfd + 1, &rfds, &ignorefds)
+    retval = (fd_filter(maxfd + 1, &rfds, &ignorefds)
          || fd_filter(maxfd + 1, &wfds, &ignorefds)
          || fd_filter(maxfd + 1, &efds, &ignorefds)) ? NEEDEXEC : 0;
 
