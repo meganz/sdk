@@ -1104,7 +1104,7 @@ public:
     node_list getChildren(const Node *parent);
 
     // Get number of children from a node
-    int getNumberOfChildren(NodeHandle parentHandle);
+    size_t getNumberOfChildren(NodeHandle parentHandle);
 
     // Get sub tree info from a node
     NodeCounter getTreeInfoFromNode(const Node& node);

@@ -16341,7 +16341,7 @@ node_list MegaClient::getChildren(const Node* parent)
     return mNodeManager.getChildren(parent);
 }
 
-int MegaClient::getNumberOfChildren(NodeHandle parentHandle)
+size_t MegaClient::getNumberOfChildren(NodeHandle parentHandle)
 {
     return mNodeManager.getNumberOfChildrenFromNode(parentHandle);
 }

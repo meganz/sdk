@@ -17433,7 +17433,7 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
     }
 
     SdkMutexGuard lock(sdkMutex);
-    return client->getNumberOfChildren(NodeHandle().set6byte(p->getHandle()));
+    return static_cast<int>(client->getNumberOfChildren(NodeHandle().set6byte(p->getHandle())));
 }
 
 int MegaApiImpl::getNumChildFiles(MegaNode* p)
