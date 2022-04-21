@@ -177,11 +177,10 @@ void MegaClient::mergenewshares(bool notify)
     mNewKeyRepository.clear();
 }
 
-void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
+void MegaClient::mergenewshare(NewShare *s, bool notify)
 {
     bool skreceived = false;
-
-    n = n ? n : nodebyhandle(s->h);
+    Node* n = nodebyhandle(s->h);
     if (!n)
     {
         return;
