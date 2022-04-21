@@ -69,11 +69,6 @@ const int MegaClient::MAXQUEUEDFA = 30;
 // maximum number of concurrent putfa
 const int MegaClient::MAXPUTFA = 10;
 
-// Key in DB table `var`
-string MegaClient::STORAGE_SIZE = "STORAGE";
-string MegaClient::FOLDERS_COUNT = "FOLDERS";
-string MegaClient::FILES_COUNT = "FILES";
-
 #ifdef ENABLE_SYNC
 // hearbeat frequency
 static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
@@ -542,7 +537,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n)
         }
 #endif
     }
-
 
     if (!notify)
     {
@@ -3209,10 +3203,11 @@ void MegaClient::exec()
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
 
 
-    NodeCounter storagesum = mNodeManager.getCounterOfRootNodes();
-    if (mNotifiedSumSize != storagesum.storage)
+    NodeCounter nc = mNodeManager.getCounterOfRootNodes();
+    m_off_t sum = nc.storage + nc.versionStorage;
+    if (mNotifiedSumSize != sum)
     {
-        mNotifiedSumSize = storagesum.storage;
+        mNotifiedSumSize = sum;
         app->storagesum_changed(mNotifiedSumSize);
     }
 
@@ -5192,16 +5187,6 @@ void MegaClient::updatesc()
                 }
             }
         }
-
-        // TODO Nodes on demand NodeManager has node ownership, all operations are implemented at MegaClient::notifypurge
-//        if (complete)
-//        {
-//            // 3. write new or modified nodes, purge deleted nodes
-//            for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
-//            {
-
-//            }
-//        }
 
         if (complete)
         {
@@ -17319,15 +17304,10 @@ std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, u
     return nodeHandles;
 }
 
-int NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
+size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
-    if (!mTable)
-    {
-        assert(false);
-        return -1;
-    }
-
-    return mTable->getNumberOfChildren(parentHandle);
+    auto it = mNodeChildren.find(parentHandle);
+    return (it != mNodeChildren.end()) ? it->second.size() : 0;
 }
 
 bool NodeManager::isNodesOnDemandReady()
@@ -17930,11 +17910,6 @@ void NodeManager::loadNodes()
     }
 
     mLoadingNodes = false;
-}
-
-MegaClient &NodeManager::getMegaClient()
-{
-    return mClient;
 }
 
 Node* NodeManager::getNodeInRAM(NodeHandle handle)

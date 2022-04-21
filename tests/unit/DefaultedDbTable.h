@@ -65,16 +65,6 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getChildren(mega::NodeHandle, std::map<mega::NodeHandle, mega::NodeSerialized>&) override
-    {
-        return false;
-        //throw NotImplemented(__func__);
-    }
-    bool getChildrenHandles(mega::NodeHandle, std::set<mega::NodeHandle>&) override
-    {
-        return false;
-        //throw NotImplemented(__func__);
-    }
     bool getNodesByName(const std::string&, std::map<mega::NodeHandle, mega::NodeSerialized>&) override
     {
         return false;
@@ -89,11 +79,6 @@ public:
         return false;
     }
     m_off_t getNodeSize(mega::NodeHandle) override
-    {
-        return 0;
-        //throw NotImplemented(__func__);
-    }
-    int getNumberOfChildren(mega::NodeHandle) override
     {
         return 0;
         //throw NotImplemented(__func__);

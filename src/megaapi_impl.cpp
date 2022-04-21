@@ -10763,9 +10763,6 @@ MegaNodeList* MegaApiImpl::getInShares(int order)
     {
         Node *n;
         User *user = &(it->second);
-        // TODO it can be implemented with a query to DB
-        // we can use method client->sctable->getNodesWithShares()
-        // This method returns all in-shares
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
         {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
@@ -17435,18 +17432,8 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
         return 0;
     }
 
-    sdkMutex.lock();
-    Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent || parent->type == FILENODE)
-    {
-        sdkMutex.unlock();
-        return 0;
-    }
-
-    int numChildren = client->getNumberOfChildren(parent->nodeHandle());
-    sdkMutex.unlock();
-
-    return numChildren;
+    SdkMutexGuard lock(sdkMutex);
+    return client->getNumberOfChildren(NodeHandle().set6byte(p->getHandle()));
 }
 
 int MegaApiImpl::getNumChildFiles(MegaNode* p)
@@ -17464,7 +17451,6 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
         return 0;
     }
 
-    // TODO Nodes on Demand: it can be implemented with a query to DB
     int numFiles = 0;
     node_list nodeList = client->getChildren(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
@@ -17492,7 +17478,6 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
         return 0;
     }
 
-    // TODO Nodes on Demand: it can be implemented with a query to DB
     int numFolders = 0;
     node_list nodeList = client->getChildren(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
@@ -19497,16 +19482,14 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_CLOUD_STORAGE_USED:
         {
-            if (client->loggedin() != FULLACCOUNT)
+            if (client->loggedin() != FULLACCOUNT && !client->loggedIntoFolder())
             {
                 e = API_EACCESS;
                 break;
             }
 
-            m_off_t filesSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.files)).storage;
-            m_off_t inboxSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.inbox)).storage;
-            m_off_t rubbishSize = client->mNodeManager.getNodeCounter(*client->nodeByHandle(client->rootnodes.rubbish)).storage;
-            request->setNumber(filesSize + inboxSize + rubbishSize);
+            NodeCounter nc = client->mNodeManager.getCounterOfRootNodes();
+            request->setNumber(nc.storage + nc.versionStorage);
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }

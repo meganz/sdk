@@ -287,7 +287,7 @@ public:
     node_vector getNodesWithLinks();
 
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
-    int getNumberOfChildrenFromNode(NodeHandle parentHandle);
+    size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
 
     // Returns true when nodes on demand is ready to operate after load a session with old cache
     bool isNodesOnDemandReady();
@@ -329,13 +329,9 @@ public:
     // Futhermore, calculate mNodeCounters
     void loadNodes();
 
-    // TODO nodes on demand remove
-    MegaClient& getMegaClient();
-
-
     // ===--- Node Counters ---===
 
-    // returns the counter for 'node', recursively, accessing to DB
+    // returns the counter for 'node', recursively, accessing to DB if it's neccesary
 private:
     NodeCounter getNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
 public:
@@ -356,7 +352,7 @@ public:
     // add the counter for 'h' (it must not exist yet)
     void addCounter(const NodeHandle &h);
 
-    // create the counter and calculate its count recursively
+    // create the counter and calculate its count recursively (it must not exist yet)
     void calculateCounter(const Node &n);
 
     // subtract the counter of 'n' (calculated from DB) from its first antecesor, which must be a rootnode
@@ -402,7 +398,6 @@ public:
     void initializeCounters();
 
 private:
-    // TODO Nodes on demand remove reference
     MegaClient& mClient;
 
     // interface to handle accesses to "nodes" table
@@ -440,6 +435,7 @@ private:
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
 
+    // Return a node from Data base, node shouldn't be in RAM previously
     Node* getNodeFromDataBase(NodeHandle handle);
 
     // Returns root nodes without nested in-shares
@@ -1204,10 +1200,6 @@ public:
 
     // stats id
     std::string statsid;
-
-    static string STORAGE_SIZE;
-    static string FOLDERS_COUNT;
-    static string FILES_COUNT;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;

@@ -663,6 +663,7 @@ bool SqliteAccountState::put(Node *node)
         int shareType = node->getShareType();
         sqlite3_bind_int(stmt, 8, shareType);
 
+        // node->attrstring has value => node is encrypted
         sqlite3_bind_int(stmt, 9, !node->attrstring);
         nameid favId = AttrMap::string2nameid("fav");
         bool fav = (node->attrs.map.find(favId) != node->attrs.map.end());
@@ -821,70 +822,6 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     return result;
 }
 
-bool SqliteAccountState::getChildren(NodeHandle parentHandle, std::map<NodeHandle, NodeSerialized> &children)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    sqlite3_stmt *stmt;
-    bool result = false;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
-        {
-            result = processSqlQueryNodes(stmt, children);
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get children from database: " << dbfile << err;
-        assert(!"Unable to get children from database.");
-    }
-
-    return result;
-}
-
-bool SqliteAccountState::getChildrenHandles(mega::NodeHandle parentHandle, std::set<NodeHandle> & children)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
-        {
-            while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-            {
-                int64_t h = sqlite3_column_int64(stmt, 0);
-                children.insert(NodeHandle().set6byte(h));
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get children handle from database: " << dbfile << err;
-        assert(!"Unable to get children handle from database.");
-        return false;
-    }
-
-    return true;
-}
-
 bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::NodeHandle, NodeSerialized> &nodes)
 {
     if (!db)
@@ -1008,39 +945,6 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
     }
 
     return true;
-}
-
-int SqliteAccountState::getNumberOfChildren(NodeHandle parentHandle)
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    sqlite3_stmt *stmt;
-    int numChildren = 0;
-    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE parenthandle = ?", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
-        {
-            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-            {
-               numChildren = sqlite3_column_int(stmt, 0);
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get number of children from database: " << dbfile << err;
-        assert(!"Unable to get number of children from database.");
-    }
-
-    return numChildren;
 }
 
 m_off_t SqliteAccountState::getNodeSize(NodeHandle node)
