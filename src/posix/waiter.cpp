@@ -200,7 +200,7 @@ int PosixWaiter::wait()
         int nfds = maxfd + 1;
         while (nfds--)
         {
-            if (MEGA_FD_ISSET(nfds, ignorefds)) LOG_debug << " ignored socket " << nfds;
+            if (MEGA_FD_ISSET(maxfd + 1, &ignorefds)) LOG_debug << " ignored socket " << nfds;
         }
 
         // don't report more often than that once per 0.5 second though
