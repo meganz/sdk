@@ -957,7 +957,7 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
     // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase
     // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
     // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
-    std::string sqlQuery = "SELECT nodehandle, decrypted, node FROM nodes WHERE parenthandle = ? AND LOWER(name) LIKE LOWER(";
+    std::string sqlQuery = "SELECT nodehandle, node FROM nodes WHERE parenthandle = ? AND LOWER(name) LIKE LOWER(";
     sqlQuery.append("'")
             .append(name)
             .append("')");
@@ -985,9 +985,10 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
                 if((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
                 {
                     node.first.set6byte(sqlite3_column_int64(stmt, 0));
-                    node.second.mDecrypted = sqlite3_column_int(stmt, 1);
-                    const void* data = sqlite3_column_blob(stmt, 2);
-                    int size = sqlite3_column_bytes(stmt, 2);
+                    // matches by 'name' requires node to be decrypted at all times
+                    node.second.mDecrypted = true;
+                    const void* data = sqlite3_column_blob(stmt, 1);
+                    int size = sqlite3_column_bytes(stmt, 1);
                     if (data && size)
                     {
                         node.second.mNode.assign(static_cast<const char*>(data), size);
