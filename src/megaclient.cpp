@@ -1413,6 +1413,13 @@ void MegaClient::exec()
 
     WAIT_CLASS::bumpds();
 
+    dstime exec_call_start = Waiter::ds;
+
+    if (exec_call_start - last_exec_call > 30)
+    {
+        LOG_debug << clientname << "exec() was not called for ds: " << exec_call_start - last_exec_call;
+    }
+
     if (overquotauntil && overquotauntil < Waiter::ds)
     {
         overquotauntil = 0;
@@ -1471,6 +1478,7 @@ void MegaClient::exec()
         if (!first)
         {
             WAIT_CLASS::bumpds();
+            LOG_debug << "looping an extra time in exec()";
         }
         first = false;
 
@@ -3178,7 +3186,13 @@ void MegaClient::exec()
     reportLoggedInChanges();
 
     waiter->bumpds();
-    waiter->last_exec_ds = Waiter::ds;
+
+    last_exec_call = Waiter::ds;
+
+    if (last_exec_call - exec_call_start > 10)
+    {
+        LOG_debug << clientname << "exec() took ds: " << last_exec_call - exec_call_start;
+    }
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed

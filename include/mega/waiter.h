@@ -46,7 +46,7 @@ struct MEGA_API Waiter
     static dstime ds;
 
     // last time we called exec() on any megaclient using this waiter
-    dstime last_exec_ds = 0;
+    dstime last_waiter_ds = 0;
 
     // set ds to current time
     static void bumpds();

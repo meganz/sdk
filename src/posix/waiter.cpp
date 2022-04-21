@@ -191,20 +191,14 @@ int PosixWaiter::wait()
 #endif
     }
 
-    if (ds_before > last_exec_ds + 5)
+    if (ds_before > last_waiter_ds + 10)
     {
-        // report what the waiter is doing, if it's been more than 0.5 second since exec()
+        // report what the waiter is doing
         bumpds();
         LOG_debug << "Waiter waited " << (ds - ds_before) << "ds, for maxds: " << maxds << ", will return " << retval << ". maxfd: " << maxfd << " numfd: " << numfd << " external: " << external << " now: " << ds;
 
-        int nfds = maxfd + 1;
-        while (nfds--)
-        {
-            if (MEGA_FD_ISSET(maxfd + 1, &ignorefds)) LOG_debug << " ignored socket " << nfds;
-        }
-
-        // don't report more often than that once per 0.5 second though
-        last_exec_ds = ds;
+        // don't report more often than that once per 1 second though
+        last_waiter_ds = ds;
     }
 
     return retval;
