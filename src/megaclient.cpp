@@ -3176,6 +3176,9 @@ void MegaClient::exec()
 #endif
 
     reportLoggedInChanges();
+
+    waiter->bumpds();
+    waiter->last_exec_ds = Waiter::ds;
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed

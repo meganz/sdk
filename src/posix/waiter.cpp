@@ -152,12 +152,6 @@ int PosixWaiter::wait()
     numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 #endif
 
-    bumpds();
-    if (ds - ds_before > 100)
-    {
-        LOG_debug << "Waiter waited more than 10 sec.  ds before/after: " << ds_before << " " << ds << " maxds: " << maxds;
-    }
-
     // empty pipe
     uint8_t buf;
     bool external = false;
@@ -174,9 +168,10 @@ int PosixWaiter::wait()
     // timeout or error
     if (external || numfd <= 0)
     {
-        return NEEDEXEC;
+        retval = NEEDEXEC;
     }
-
+    else
+    {
     // request exec() to be run only if a non-ignored fd was triggered
 #ifdef USE_POLL
     for (unsigned int i = 0 ; i < total ; i++)
@@ -186,13 +181,32 @@ int PosixWaiter::wait()
             return NEEDEXEC;
         }
     }
-    return 0;
+    int retval = 0;
 #else
-    return (fd_filter(maxfd + 1, &rfds, &ignorefds)
+    int retval = (fd_filter(maxfd + 1, &rfds, &ignorefds)
          || fd_filter(maxfd + 1, &wfds, &ignorefds)
          || fd_filter(maxfd + 1, &efds, &ignorefds)) ? NEEDEXEC : 0;
 
 #endif
+    }
+
+    if (ds_before > last_exec_ds + 5)
+    {
+        // report what the waiter is doing, if it's been more than 0.5 second since exec()
+        bumpds();
+        LOG_debug << "Waiter waited " << (ds - ds_before) << "ds, for maxds: " << maxds << ", will return " << retval << ". maxfd: " << maxfd << " numfd: " << numfd << " external: " << external << " now: " << ds;
+
+        int nfds = maxfd + 1;
+        while (nfds--)
+        {
+            if (MEGA_FD_ISSET(nfds, ignorefds)) LOG_debug << " ignored socket " << nfds;
+        }
+
+        // don't report more often than that once per 0.5 second though
+        last_exec_ds = ds;
+    }
+
+    return retval;
 }
 
 void PosixWaiter::notify()
