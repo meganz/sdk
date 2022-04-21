@@ -271,9 +271,6 @@ public:
     // Server-Side Rubbish-bin Scheduler enabled (autopurging)
     bool ssrs_enabled;
 
-    // New Secure Registration method enabled
-    bool nsr_enabled;
-
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
 

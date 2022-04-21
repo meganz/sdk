@@ -13592,37 +13592,20 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
             // Ephemeral accounts have an email -> send signup link
             if (!request->getPrivateKey()) // ...and finally send confirmation link
             {
-                if (client->nsr_enabled)
-                {
-                    string fullname = firstname + lastname;
-                    string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), fullname.c_str());
-                    string b64derivedKey;
-                    Base64::btoa(derivedKey, b64derivedKey);
-                    request->setPrivateKey(b64derivedKey.c_str());
+                string fullname = firstname + lastname;
+                string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), fullname.c_str());
+                string b64derivedKey;
+                Base64::btoa(derivedKey, b64derivedKey);
+                request->setPrivateKey(b64derivedKey.c_str());
 
-                    char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
-                    Base64::btoa((byte*) &client->me, sizeof client->me, buf);
-                    string sid;
-                    sid.append(buf);
-                    sid.append("#");
-                    Base64::btoa((byte *)derivedKey.data(), SymmCipher::KEYLENGTH, buf);
-                    sid.append(buf);
-                    request->setSessionKey(sid.c_str());
-                }
-                else
-                {
-                    byte pwkey[SymmCipher::KEYLENGTH];
-                    client->pw_key(request->getPassword(), pwkey);
-
-                    client->reqtag = client->restag;    // use result-tag to chain the request to this one
-                    client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
-                    client->reqtag = creqtag;
-
-                    char* buf = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
-                    Base64::btoa((byte *)pwkey, SymmCipher::KEYLENGTH, buf);
-                    request->setPrivateKey(buf);
-                    delete [] buf;
-                }
+                char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
+                Base64::btoa((byte*) &client->me, sizeof client->me, buf);
+                string sid;
+                sid.append(buf);
+                sid.append("#");
+                Base64::btoa((byte *)derivedKey.data(), SymmCipher::KEYLENGTH, buf);
+                sid.append(buf);
+                request->setSessionKey(sid.c_str());
             }
             else
             {

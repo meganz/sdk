@@ -1209,7 +1209,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
-    nsr_enabled = false;
     aplvp_enabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
@@ -4288,7 +4287,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     accountsince = 0;
     gmfa_enabled = false;
     ssrs_enabled = false;
-    nsr_enabled = false;
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
@@ -9078,9 +9076,6 @@ error MegaClient::readmiscflags(JSON *json)
             break;
         case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler (only available when logged in)
             ssrs_enabled = bool(json->getint());
-            break;
-        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-            nsr_enabled = bool(json->getint());
             break;
         case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled (only available when logged in)
             aplvp_enabled = bool(json->getint());
