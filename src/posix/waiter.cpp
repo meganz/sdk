@@ -175,14 +175,16 @@ int PosixWaiter::wait()
     {
     // request exec() to be run only if a non-ignored fd was triggered
 #ifdef USE_POLL
+    LOG_debug << "USE_POLL is on";
+    retval = 0;
     for (unsigned int i = 0 ; i < total ; i++)
     {
         if  ((fds[i].revents & (POLLIN_SET | POLLOUT_SET | POLLEX_SET) )  && !MEGA_FD_ISSET(fds[i].fd, &ignorefds) )
         {
-            return NEEDEXEC;
+            retval = NEEDEXEC;
+            break;
         }
     }
-    retval = 0;
 #else
     retval = (fd_filter(maxfd + 1, &rfds, &ignorefds)
          || fd_filter(maxfd + 1, &wfds, &ignorefds)
@@ -191,13 +193,13 @@ int PosixWaiter::wait()
 #endif
     }
 
-    if (ds_before > last_waiter_ds + 10)
+    if (ds_before > last_waiter_ds + 1)
     {
         // report what the waiter is doing
         bumpds();
         LOG_debug << "Waiter waited " << (ds - ds_before) << "ds, for maxds: " << maxds << ", will return " << retval << ". maxfd: " << maxfd << " numfd: " << numfd << " external: " << external << " now: " << ds;
 
-        // don't report more often than that once per 1 second though
+        // don't report more often than that once per 2 deci-second though
         last_waiter_ds = ds;
     }
 

@@ -952,6 +952,7 @@ void StandardClient::threadloop()
 
             r = client.preparewait();
         }
+        assert(r == 0 || r == Waiter::NEEDEXEC);
 
         client.waiter->bumpds();
         dstime t2 = client.waiter->ds;
@@ -961,6 +962,7 @@ void StandardClient::threadloop()
         if (!r)
         {
             r |= client.dowait();
+            assert(r == 0 || r == Waiter::NEEDEXEC);
         }
 
         client.waiter->bumpds();
@@ -974,6 +976,7 @@ void StandardClient::threadloop()
         if (t3a - t3 > 20) LOG_debug << "lock for exec took ds: " << t3a - t3;
 
         r |= client.checkevents();
+        assert(r == 0 || r == Waiter::NEEDEXEC);
 
         client.waiter->bumpds();
         dstime t4 = client.waiter->ds;
