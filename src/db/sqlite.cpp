@@ -947,6 +947,67 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
     return true;
 }
 
+bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized> &node)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
+    // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
+    // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
+    std::string sqlQuery = "SELECT nodehandle, decrypted, node FROM nodes WHERE parenthandle = ? AND LOWER(name) LIKE LOWER(";
+    sqlQuery.append("'")
+            .append(name)
+            .append("')");
+    if (nodeType == FILENODE || nodeType == FOLDERNODE)
+    {
+        sqlQuery.append(" AND type = ?");
+    }
+    else
+    {
+        assert(nodeType == TYPE_UNKNOWN);
+    }
+
+    sqlQuery.append(" limit 1");
+
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHanlde.as8byte())) == SQLITE_OK)
+        {
+            if ((nodeType != FILENODE && nodeType != FOLDERNODE) || (sqlResult = sqlite3_bind_int64(stmt, 2, nodeType) == SQLITE_OK))
+            {
+                if((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+                {
+                    node.first.set6byte(sqlite3_column_int64(stmt, 0));
+                    node.second.mDecrypted = sqlite3_column_int(stmt, 1);
+                    const void* data = sqlite3_column_blob(stmt, 2);
+                    int size = sqlite3_column_bytes(stmt, 2);
+                    if (data && size)
+                    {
+                        node.second.mNode.assign(static_cast<const char*>(data), size);
+                    }
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get nodes by name from database: " << dbfile << err;
+        assert(!"Unable to get node by name from database (Only search at first level).");
+        return false;
+    }
+
+    return node.second.mNode.size() ? true : false;
+}
+
 m_off_t SqliteAccountState::getNodeSize(NodeHandle node)
 {
     m_off_t size = 0;
