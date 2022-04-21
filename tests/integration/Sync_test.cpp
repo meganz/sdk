@@ -954,6 +954,8 @@ void StandardClient::threadloop()
         r |= client.checkevents();
 
         {
+            client.waiter->bumpds();
+            auto start = client.waiter->ds;
             std::lock_guard<mutex> g(functionDoneMutex);
             if (nextfunctionMC)
             {
@@ -968,6 +970,13 @@ void StandardClient::threadloop()
                 nextfunctionSC = nullptr;
                 functionDone.notify_all();
                 r |= Waiter::NEEDEXEC;
+            }
+            client.waiter->bumpds();
+            auto end = client.waiter->ds;
+            if (end - start > 50)
+            {
+                LOG_err << "test functions passed to be executed on the client thread should queue work but not wait for the results themselves";
+                assert(false);
             }
         }
         if ((r & Waiter::NEEDEXEC))
