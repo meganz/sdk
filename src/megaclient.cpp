@@ -602,7 +602,6 @@ Node *MegaClient::getrootnode(Node *node)
         return NULL;
     }
 
-    // TODO it can be implemented with a query to DB
     Node *n = node;
     while (n->parent)
     {
@@ -1111,7 +1110,11 @@ Node* MegaClient::childnodebyattribute(Node* p, nameid attrId, const char* attrV
         return nullptr;
     }
 
-    // TODO Nodes on Demand: it can be implemented with a query to DB
+    // Using a DB query to avoid loading all children of 'p' (instead of only the matching
+    // child nodes) will require to have dedicated columns for each attribute ID.
+    // On top of that, this method is used exclusively upon creation of a new backup,
+    // which implies ENABLE_SYNC.
+    // (syncing always have all nodes in memory, so the DB query won't be faster)
     node_list childrenNodeList = getChildren(p);
     for (Node* child : childrenNodeList)
     {
@@ -1141,7 +1144,9 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
 
     LocalPath::utf8_normalize(&nname);
 
-    // TODO Nodes on Demand: it can be implemented with a query to DB
+    // TODO: a DB query could return the matching child nodes directly, avoiding to load all
+    // children. However, currently this method is used only for internal sync tests.
+    // (syncing always have all nodes in memory, so the DB query won't be faster)
     node_list nodeList = getChildren(p);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
