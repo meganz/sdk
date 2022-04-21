@@ -954,7 +954,7 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
         return false;
     }
 
-    // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
+    // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase
     // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
     // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
     std::string sqlQuery = "SELECT nodehandle, decrypted, node FROM nodes WHERE parenthandle = ? AND LOWER(name) LIKE LOWER(";
@@ -978,7 +978,9 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
     {
         if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHanlde.as8byte())) == SQLITE_OK)
         {
-            if ((nodeType != FILENODE && nodeType != FOLDERNODE) || (sqlResult = sqlite3_bind_int64(stmt, 2, nodeType) == SQLITE_OK))
+            // if nodeType is unknown, no need to bind the value, but to proceed to sqlite3_step()
+            if ((nodeType == TYPE_UNKNOWN) 
+                || (sqlResult = sqlite3_bind_int64(stmt, 2, nodeType) == SQLITE_OK))
             {
                 if((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
                 {
@@ -1000,7 +1002,7 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
     if (sqlResult == SQLITE_ERROR)
     {
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get nodes by name from database: " << dbfile << err;
+        LOG_err << "Unable to get nodes by name and type from database: " << dbfile << err;
         assert(!"Unable to get node by name from database (Only search at first level).");
         return false;
     }

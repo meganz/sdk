@@ -278,8 +278,8 @@ public:
     node_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
     Node *getNodeByFingerprint(const FileFingerprint& fingerprint);
 
-    // Return a first level child which name match with 'name'
-    // Valid nodeType: FILENODE, FOLDERNODE, TYPE_UNKNOWN (Return both files and folder)
+    // Return a first level child node whose name matches with 'name'
+    // Valid values for nodeType: FILENODE, FOLDERNODE, TYPE_UNKNOWN (when unknown, it returns both files and folders)
     Node* getNodeByNameFirstLevel(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
 
     // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE
