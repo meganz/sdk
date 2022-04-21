@@ -940,18 +940,44 @@ void StandardClient::threadloop()
     {
         int r;
 
+        client.waiter->bumpds();
+        dstime t1 = client.waiter->ds;
+
         {
             std::lock_guard<std::recursive_mutex> lg(clientMutex);
+
+            client.waiter->bumpds();
+            dstime t1a = client.waiter->ds;
+            if (t1a - t1 > 20) LOG_debug << "lock for preparewait took ds: " << t1a - t1;
+
             r = client.preparewait();
         }
+
+        client.waiter->bumpds();
+        dstime t2 = client.waiter->ds;
+        if (t2 - t1 > 20) LOG_debug << "lock and preparewait took ds: " << t2 - t1;
+
 
         if (!r)
         {
             r |= client.dowait();
         }
 
+        client.waiter->bumpds();
+        dstime t3 = client.waiter->ds;
+        if (t3 - t2 > 20) LOG_debug << "dowait took ds: " << t3 - t2;
+
         std::lock_guard<std::recursive_mutex> lg(clientMutex);
+
+        client.waiter->bumpds();
+        dstime t3a = client.waiter->ds;
+        if (t3a - t3 > 20) LOG_debug << "lock for exec took ds: " << t3a - t3;
+
         r |= client.checkevents();
+
+        client.waiter->bumpds();
+        dstime t4 = client.waiter->ds;
+        if (t4 - t3a > 20) LOG_debug << "checkevents took ds: " << t4 - t3a;
 
         {
             client.waiter->bumpds();
@@ -959,17 +985,21 @@ void StandardClient::threadloop()
             std::lock_guard<mutex> g(functionDoneMutex);
             if (nextfunctionMC)
             {
+                LOG_debug << "executing nextfunctionMC";
                 nextfunctionMC();
                 nextfunctionMC = nullptr;
                 functionDone.notify_all();
                 r |= Waiter::NEEDEXEC;
+                LOG_debug << "executed nextfunctionMC";
             }
             if (nextfunctionSC)
             {
+                LOG_debug << "executing nextfunctionSC";
                 nextfunctionSC();
                 nextfunctionSC = nullptr;
                 functionDone.notify_all();
                 r |= Waiter::NEEDEXEC;
+                LOG_debug << "executed nextfunctionSC";
             }
             client.waiter->bumpds();
             auto end = client.waiter->ds;
@@ -979,10 +1009,20 @@ void StandardClient::threadloop()
                 assert(false);
             }
         }
+
+        client.waiter->bumpds();
+        dstime t5 = client.waiter->ds;
+        if (t5 - t4 > 20) LOG_debug << "inected functions took ds: " << t5 - t4;
+
         if ((r & Waiter::NEEDEXEC))
         {
             client.exec();
         }
+
+        client.waiter->bumpds();
+        dstime t6 = client.waiter->ds;
+        if (t6 - t5 > 20) LOG_debug << "exec took ds: " << t6 - t5;
+
     }
 
     // shut down on the same thread, otherwise any ongoing async I/O fails to complete (on windows)
