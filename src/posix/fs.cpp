@@ -750,6 +750,8 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #ifdef ENABLE_SYNC
                 notifyfailed = false;
 #endif
+                // Set non blocking
+                fcntl(notifyfd, F_SETFL, O_NONBLOCK);
             }
             else
             {
