@@ -15988,7 +15988,7 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fp)
 #ifdef ENABLE_SYNC
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 {
-    const node_vector& remoteNodes = mNodeManager.getNodesByFingerprint(*localNode);
+    node_vector remoteNodes = mNodeManager.getNodesByFingerprint(*localNode);
 
     if (remoteNodes.empty())
         return nullptr;
