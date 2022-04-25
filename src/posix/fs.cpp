@@ -750,8 +750,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #ifdef ENABLE_SYNC
                 notifyfailed = false;
 #endif
-                // Set non blocking
-                fcntl(notifyfd, F_SETFL, O_NONBLOCK);
             }
             else
             {
@@ -995,14 +993,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         // ensure nonblocking behaviour
         if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;
 
-        LOG_debug << "Reading notifications";
         if ((avail = read(notifyfd, buffer, int(sizeof buffer))) < 0)
         {
-            LOG_debug << "Read notifications failed";
             notifyerr = true;
             break;
         }
-        LOG_debug << "Read notifications";
 
         for (pos = 0; pos < avail; )
         {

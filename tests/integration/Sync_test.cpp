@@ -988,26 +988,23 @@ void StandardClient::threadloop()
             std::lock_guard<mutex> g(functionDoneMutex);
             if (nextfunctionMC)
             {
-                LOG_debug << "executing nextfunctionMC";
                 nextfunctionMC();
                 nextfunctionMC = nullptr;
                 functionDone.notify_all();
                 r |= Waiter::NEEDEXEC;
-                LOG_debug << "executed nextfunctionMC";
             }
             if (nextfunctionSC)
             {
-                LOG_debug << "executing nextfunctionSC";
                 nextfunctionSC();
                 nextfunctionSC = nullptr;
                 functionDone.notify_all();
                 r |= Waiter::NEEDEXEC;
-                LOG_debug << "executed nextfunctionSC";
             }
             client.waiter->bumpds();
             auto end = client.waiter->ds;
-            if (end - start > 50)
+            if (end - start > 200)
             {
+                // note that in Debug builds (for windows at least), prep for logging in can take 15 seconds in pbkdf2.DeriveKey
                 LOG_err << "test functions passed to be executed on the client thread should queue work but not wait for the results themselves";
                 assert(false);
             }
@@ -1015,7 +1012,7 @@ void StandardClient::threadloop()
 
         client.waiter->bumpds();
         dstime t5 = client.waiter->ds;
-        if (t5 - t4 > 20) LOG_debug << "inected functions took ds: " << t5 - t4;
+        if (t5 - t4 > 20) LOG_debug << "injected functions took ds: " << t5 - t4;
 
         if ((r & Waiter::NEEDEXEC))
         {

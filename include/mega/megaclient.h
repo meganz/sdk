@@ -231,8 +231,6 @@ public:
 class MEGA_API MegaClient
 {
 public:
-    dstime last_exec_call = 0;
-
     // own identity
     handle me;
     string uid;

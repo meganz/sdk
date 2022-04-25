@@ -1413,13 +1413,6 @@ void MegaClient::exec()
 
     WAIT_CLASS::bumpds();
 
-    dstime exec_call_start = Waiter::ds;
-
-    if (exec_call_start - last_exec_call > 10)
-    {
-        LOG_debug << clientname << "exec() was not called for ds: " << exec_call_start - last_exec_call;
-    }
-
     if (overquotauntil && overquotauntil < Waiter::ds)
     {
         overquotauntil = 0;
@@ -1478,7 +1471,6 @@ void MegaClient::exec()
         if (!first)
         {
             WAIT_CLASS::bumpds();
-            LOG_debug << "looping an extra time in exec()";
         }
         first = false;
 
@@ -3184,15 +3176,6 @@ void MegaClient::exec()
 #endif
 
     reportLoggedInChanges();
-
-    waiter->bumpds();
-
-    last_exec_call = Waiter::ds;
-
-    if (last_exec_call - exec_call_start > 10)
-    {
-        LOG_debug << clientname << "exec() took ds: " << last_exec_call - exec_call_start;
-    }
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -3516,30 +3499,12 @@ int MegaClient::checkevents()
 {
     CodeCounter::ScopeTimer ccst(performanceStats.checkEvents);
 
-    waiter->bumpds();
-    dstime t0 = waiter->ds;
-
     int r =  httpio->checkevents(waiter);
-
-    waiter->bumpds();
-    dstime t1 = waiter->ds;
-    if (t1 - t0 > 20) LOG_debug << "httpio->checkevents took ds: " << t1 - t0;
-
     r |= fsaccess->checkevents(waiter);
-
-    waiter->bumpds();
-    dstime t2 = waiter->ds;
-    if (t2 - t1 > 20) LOG_debug << "fsaccess->checkevents took ds: " << t2 - t1;
-
     if (gfx)
     {
         r |= gfx->checkevents(waiter);
     }
-
-    waiter->bumpds();
-    dstime t3 = waiter->ds;
-    if (t3 - t2 > 20) LOG_debug << "gfx->checkevents took ds: " << t3 - t2;
-
     return r;
 }
 
