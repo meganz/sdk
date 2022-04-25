@@ -424,6 +424,9 @@ public:
         return utf8proc_toupper(c);
     }
 
+    static string toUpperUtf8(const string& text);
+    static string toLowerUtf8(const string& text);
+
     // Platform-independent case-insensitive comparison.
     static int icasecmp(const std::string& lhs,
                         const std::string& rhs,
@@ -904,6 +907,9 @@ bool islchex_low(const int c);
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
 
+bool wildcardMatch(const string& text, const string& pattern);
+bool wildcardMatch(const char* text, const char* pattern);
+
 struct MEGA_API FileSystemAccess;
 
 // generate a new drive id
@@ -920,6 +926,9 @@ error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle d
 int platformGetRLimitNumFile();
 
 bool platformSetRLimitNumFile(int newNumFileLimit = -1);
+
+void debugLogHeapUsage();
+
 
 } // namespace
 

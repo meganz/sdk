@@ -1195,7 +1195,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     tctable = NULL;
     statusTable = nullptr;
     me = UNDEF;
-    followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
@@ -3163,6 +3162,8 @@ void MegaClient::exec()
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
+
+        debugLogHeapUsage();
     }
 #endif
 
@@ -3173,6 +3174,8 @@ void MegaClient::exec()
         app->drive_presence_changed(di.second, LocalPath::fromPlatformEncodedAbsolute(move(di.first)));
     }
 #endif
+
+    reportLoggedInChanges();
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -4241,6 +4244,7 @@ void MegaClient::logout(bool keepSyncConfigsFile)
 
         restag = reqtag;
         app->logout_result(API_OK);
+        reportLoggedInChanges();
         return;
     }
 
@@ -4402,6 +4406,9 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mAuthRings.clear();
     mAuthRingsTemp.clear();
     mFetchingAuthrings = false;
+
+    reportLoggedInChanges();
+    mLastLoggedInReportedState = NOTLOGGEDIN;
 
     init();
 
@@ -9629,6 +9636,7 @@ void MegaClient::login(string session)
                 checkForResumeableSCDatabase();
                 openStatusTable(true);
                 app->login_result(API_OK);
+                reportLoggedInChanges();
             }
         }
     }
@@ -11807,6 +11815,18 @@ sessiontype_t MegaClient::loggedin()
     return FULLACCOUNT;
 }
 
+void MegaClient::reportLoggedInChanges()
+{
+    auto currState = loggedin();
+    if (mLastLoggedInReportedState != currState ||
+        mLastLoggedInMeHandle != me)
+    {
+        mLastLoggedInReportedState = currState;
+        mLastLoggedInMeHandle = me;
+        app->loggedInStateChanged(currState, me);
+    }
+}
+
 void MegaClient::whyamiblocked()
 {
     // make sure the smsve flag is up to date when we get the response
@@ -12284,36 +12304,46 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     uint32_t id;
     string data;
     Transfer* t;
+    size_t cachedTransfersLoaded = 0;
+    size_t cachedFilesLoaded = 0;
 
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
-    while (tctable->next(&id, &data, &tckey))
     {
-        switch (id & 15)
+        DBTableTransactionCommitter committer(tctable);
+        while (tctable->next(&id, &data, &tckey))
         {
-            case CACHEDTRANSFER:
-                if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
-                {
-                    t->dbid = id;
-                    if (t->priority > transferlist.currentpriority)
+            switch (id & 15)
+            {
+                case CACHEDTRANSFER:
+                    if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
                     {
-                        transferlist.currentpriority = t->priority;
+                        t->dbid = id;
+                        if (t->priority > transferlist.currentpriority)
+                        {
+                            transferlist.currentpriority = t->priority;
+                        }
+                        cachedTransfersLoaded += 1;
                     }
-                    LOG_debug << "Cached transfer loaded";
-                }
-                else
-                {
-                    tctable->del(id);
-                    LOG_err << "Failed - transfer record read error";
-                }
-                break;
-            case CACHEDFILE:
-                cachedfiles.push_back(data);
-                cachedfilesdbids.push_back(id);
-                LOG_debug << "Cached file loaded";
-                break;
+                    else
+                    {
+                        tctable->del(id);
+                        LOG_err << "Failed - transfer record read error, or duplicate";
+                    }
+                    break;
+                case CACHEDFILE:
+                    cachedfiles.push_back(data);
+                    cachedfilesdbids.push_back(id);
+                    cachedFilesLoaded += 1;
+                    break;
+            }
         }
     }
+    LOG_debug << "Cached transfers loaded: " << cachedTransfersLoaded;
+    LOG_debug << "Cached files loaded: " << cachedFilesLoaded;
+
+    LOG_debug << "Cached transfer PUT count: " << cachedtransfers[PUT].size();
+    LOG_debug << "Cached transfer GET count: " << cachedtransfers[GET].size();
 
     // if we are logged in but the filesystem is not current yet
     // postpone the resumption until the filesystem is updated
@@ -12401,6 +12431,7 @@ void MegaClient::fetchnodes(bool nocache)
 
     if (sctable && cachedscsn == UNDEF)
     {
+        LOG_debug << "Cachedscsn is UNDEF so we will not load the account database (and we are truncating it, for clean operation)";
         sctable->truncate();
     }
 
@@ -12409,6 +12440,8 @@ void MegaClient::fetchnodes(bool nocache)
             !nodes.size() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable.get()))
     {
+        debugLogHeapUsage();
+
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
@@ -13527,7 +13560,6 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
 {
-#ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
@@ -13635,9 +13667,6 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
         *isinshare = inshare;
     }
     return API_OK;
-#else
-    return API_EINCOMPLETE;
-#endif
 }
 
 error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId, SyncError *syncError)
@@ -13686,8 +13715,6 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 // (FIXME: perform the same check for local paths!)
 error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork)
 {
-#ifdef ENABLE_SYNC
-
     // Checking for conditions where we would not even add the sync config
     // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
 
@@ -13713,6 +13740,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
     if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
+        LOG_debug << "Node is not syncable for sync add";
         syncConfig.mEnabled = false;
         return e;
     }
@@ -13731,6 +13759,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         // Source must be on the drive.
         if (!drivePath.isContainingPathOf(sourcePath))
         {
+            LOG_debug << "Drive path inconsistent for sync add";
             syncConfig.mEnabled = false;
             syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
 
@@ -13798,28 +13827,27 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     // the order is important here: a user needs to resolve blocked in order to resolve storage
     if (overStorage)
     {
+        LOG_debug << "Overstorage for sync add";
         syncConfig.mError = STORAGE_OVERQUOTA;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
     else if (businessExpired)
     {
+        LOG_debug << "Business expired for sync add";
         syncConfig.mError = BUSINESS_EXPIRED;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
     else if (blocked)
     {
+        LOG_debug << "Account blocked for sync add";
         syncConfig.mError = ACCOUNT_BLOCKED;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
 
     return API_OK;
-#else
-    syncConfig.mEnabled = false;
-    return API_EINCOMPLETE;
-#endif
 }
 
 void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
