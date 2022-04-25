@@ -16041,6 +16041,11 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 }
 #endif /* ENABLE_SYNC */
 
+static bool nodes_ctime_greater(const Node* a, const Node* b)
+{
+    return a->ctime > b->ctime;
+}
+
 node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since)
 {
     return mNodeManager.getRecentNodes(maxcount, since);
@@ -16242,6 +16247,13 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
             i = j;
         }
         i = bucketend;
+    }
+    // sort nodes inside each bucket
+    for (recentactions_vector::iterator i = rav.begin(); i != rav.end(); ++i)
+    {
+        // for the bucket vector, most recent (larger ctime) first
+        std::sort(i->nodes.begin(), i->nodes.end(), nodes_ctime_greater);
+        i->time = i->nodes.front()->ctime;
     }
     // sort buckets in the vector
     std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
