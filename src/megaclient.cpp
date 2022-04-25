@@ -16839,13 +16839,14 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     // mClient.rootnodes.files is always set for folder links before adding any node (upon login)
     bool isFolderLink = mClient.rootnodes.files == node->nodeHandle();
 
-    // TODO nodes on demand: we should also keep in RAM the inshares (when fetching nodes)
     bool keepNodeInMemory = mKeepAllNodesInMemory
             || rootNode
             || isFolderLink
             || !isFetching
             || notify
             || node->parentHandle() == mClient.rootnodes.files; // first level of children for CloudDrive
+    // Note: incoming shares are not kept in ram during fetchnodes from API. Instead, they are loaded
+    // upon mergenewshares(), when fetchnodes is completed
 
     if (keepNodeInMemory)
     {
