@@ -17389,11 +17389,15 @@ void NodeManager::cleanNodes()
         delete node.second;
     }
 
+    delete mNodeToWriteInDb;
+    mNodeToWriteInDb = nullptr;
+
     mNodeNotify.clear();
     mNodes.clear();
     mNodeCounters.clear();
     mNodesWithMissingParent.clear();
     mNodeChildren.clear();
+    mLoadingNodes = false;
 
     if (mTable)
         mTable->removeNodes();
