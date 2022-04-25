@@ -572,8 +572,7 @@ typedef map<int, GenericHttpReq*> pendinghttp_map;
 typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
-// TODO Nodes on demand convertir Node* en unique_ptr
-typedef map<NodeHandle, Node*> node_map;
+typedef map<NodeHandle, unique_ptr<Node>> node_map;
 
 struct NodeCounter
 {

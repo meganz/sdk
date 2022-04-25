@@ -16925,7 +16925,7 @@ node_list NodeManager::getChildren(const Node *parent)
             }
             else
             {
-                n = nodeIt->second;
+                n = nodeIt->second.get();
             }
 
             if (n)
@@ -16960,7 +16960,7 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         }
         else
         {
-            n = nodeIt->second;
+            n = nodeIt->second.get();
         }
 
         nodes.push_back(n);
@@ -17027,7 +17027,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         }
         else
         {
-            n = nodeIt->second;
+            n = nodeIt->second.get();
         }
 
         nodes.push_back(n);
@@ -17084,7 +17084,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
         }
         else
         {
-            n = nodeIt->second;
+            n = nodeIt->second.get();
         }
 
         if (n && (!parent || (parent && isAncestor(n->nodeHandle(), parent->nodeHandle()))))
@@ -17141,7 +17141,7 @@ node_vector NodeManager::getRootNodes()
         }
         else
         {
-            n = nodeIt->second;
+            n = nodeIt->second.get();
         }
         nodes.push_back(n);
 
@@ -17192,7 +17192,7 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         }
         else
         {
-            n = nodeIt->second;
+            n = nodeIt->second.get();
         }
 
         nodes.push_back(n);
@@ -17380,14 +17380,9 @@ void NodeManager::removeChanges()
 void NodeManager::cleanNodes()
 {
     mFingerPrints.clear();
-    for (auto node : mNodes)
-    {
-        delete node.second;
-    }
-    mNodeToWriteInDb.reset();
-
-    mNodeNotify.clear();
     mNodes.clear();
+    mNodeToWriteInDb.reset();
+    mNodeNotify.clear();
     mNodeCounters.clear();
     mNodesWithMissingParent.clear();
     mNodeChildren.clear();
@@ -17560,7 +17555,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     }
 
     n = new Node(mClient, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
-    mNodes[n->nodeHandle()] = n;
+    mNodes[n->nodeHandle()].reset(n);
 
     // setparent() skiping update of node counters, since they are already calculated
     // before loading specific nodes from database
@@ -17615,7 +17610,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
         ptr = n->attrs.unserialize(ptr, end);
         if (!ptr)
         {
-            delete n;
+            mNodes.erase(n->nodeHandle());
             LOG_err << "Failed to unserialize attrs";
             assert(false);
             return NULL;
@@ -17628,7 +17623,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
 
         if (ptr + ll > end)
         {
-            delete n;
+            mNodes.erase(n->nodeHandle());
             return NULL;
         }
 
@@ -17653,7 +17648,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     {
         if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
         {
-            delete n;
+            mNodes.erase(n->nodeHandle());
             return NULL;
         }
 
@@ -17696,7 +17691,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     else
     {
         mNodes.erase(n->nodeHandle());
-        delete n;
         return NULL;
     }
 }
@@ -17844,9 +17838,8 @@ void NodeManager::notifyPurge()
 
                 // effectively delete node from RAM
                 mNodesWithMissingParent.erase(n->nodeHandle());
-                mNodes.erase(n->nodeHandle());
                 mTable->remove(n->nodeHandle());
-                delete n;
+                mNodes.erase(n->nodeHandle());
             }
             else
             {
@@ -17917,7 +17910,7 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
     auto itNode = mNodes.find(handle);
     if (itNode != mNodes.end())
     {
-        return itNode->second;
+        return itNode->second.get();
     }
 
     return nullptr;
@@ -17925,7 +17918,7 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
 
 void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 {
-    mNodes[node->nodeHandle()] = node;   // takes ownership
+    mNodes[node->nodeHandle()].reset(node);   // takes ownership
 
     // In case of rootnode, no need to add to mNodesWithMissingParent
     if (!isRootnode)
@@ -18237,7 +18230,7 @@ void NodeManager::dumpNodes()
 
     for (auto &it : mNodes)
     {
-        mTable->put(it.second);
+        mTable->put(it.second.get());
     }
 }
 
