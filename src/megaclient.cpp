@@ -16886,19 +16886,11 @@ void NodeManager::addNodeWithMissingParent(Node *node)
 
 Node *NodeManager::getNodeByHandle(NodeHandle handle)
 {
-    if (!mTable)
-    {
-        assert(false);
-        return nullptr;
-    }
-
     Node* node = getNodeInRAM(handle);
-    if (node)
+    if (!node)
     {
-        return node;
+        node = getNodeFromDataBase(handle);
     }
-
-    node = getNodeFromDataBase(handle);
 
     return node;
 }
@@ -16906,7 +16898,7 @@ Node *NodeManager::getNodeByHandle(NodeHandle handle)
 node_list NodeManager::getChildren(const Node *parent)
 {
     node_list childrenList;
-    if (!parent || !mTable)
+    if (!parent)
     {
         return childrenList;
     }
@@ -16917,17 +16909,7 @@ node_list NodeManager::getChildren(const Node *parent)
         std::set<NodeHandle>& children = it->second;
         for (const auto &childHandle : children)
         {
-            Node* n;
-            auto nodeIt = mNodes.find(childHandle);
-            if (nodeIt == mNodes.end())
-            {
-                n = getNodeFromDataBase(childHandle);
-            }
-            else
-            {
-                n = nodeIt->second.get();
-            }
-
+            Node* n = getNodeByHandle(childHandle);
             if (n)
             {
                 childrenList.push_back(n);
