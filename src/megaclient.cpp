@@ -12004,7 +12004,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
     bool isDbUpgraded = false;      // true when legacy DB is migrated to NOD's DB schema
-    node_vector nodesDbUpgraded;  // stores nodes while migration from legacy DB to NOD's DB
 
     while (hasNext)
     {
@@ -12027,7 +12026,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    // Add nodes from old DB schema to the new table 'nodes' in the
                    // new DB schema for nodes on demand
                    mNodeManager.addNode(n, false);
-                   nodesDbUpgraded.push_back(n);
                    sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else
@@ -12088,10 +12086,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
         mergenewshares(0);
 
         // finally write nodes in DB
-        for (Node* node : nodesDbUpgraded)
-        {
-            mNodeManager.saveNodeInDb(node);
-        }
+        mNodeManager.dumpNodes();
 
         // and force commit, since old DB has been upgraded to new schema for NOD
         sctable->commit();
@@ -16856,6 +16851,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     else
     {
         // still keep it in memory temporary, until saveNodeInDb()
+        assert(!mNodeToWriteInDb);
         mNodeToWriteInDb = node; // takes ownership
 
         // when keepNodeInMemory is true, NodeManager::addChild is called by Node::setParent (from NodeManager::saveNodeInRAM)
@@ -18231,6 +18227,20 @@ void NodeManager::removeFingerprint(Node *node)
 FingerprintMapPosition NodeManager::getInvalidPosition()
 {
     return mFingerPrints.end();
+}
+
+void NodeManager::dumpNodes()
+{
+    if (!mTable)
+    {
+        assert(false);
+        return;
+    }
+
+    for (auto &it : mNodes)
+    {
+        mTable->put(it.second);
+    }
 }
 
 void NodeManager::saveNodeInDb(Node *node)
