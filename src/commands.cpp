@@ -5870,15 +5870,14 @@ bool CommandFetchNodes::procresult(Result r)
                 }
 
                 client->mergenewshares(0);
+                client->mNodeManager.initializeCounters();
+
                 client->initsc();
                 client->pendingsccommit = false;
                 client->fetchnodestag = tag;
 
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
-
-                client->mNodeManager.initializeCounters();
-
                 client->fnstats.nodesCached = client->mNodeManager.getNodeCount();
                 return true;
             }
