@@ -305,7 +305,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     // recalculate node counter(s) for any nested in-share below deleted one
                     // Scan the tree downwards for nested in-shares. Note that deleted in-share(s)
                     // are effectively removed at notify purge, so the child relationship is valid
-                    // If we find an in-share, stop scanning that branch, since an share below will
+                    // If we find an in-share, stop scanning that branch, since any share below will
                     // be considered a nested in-share (no node counter for it)
                     std::stack<Node*> nodeStack;
                     node_list children = getChildren(n);
@@ -7373,10 +7373,7 @@ Node* MegaClient::nodebyhandle(handle h)
 
 Node* MegaClient::nodeByHandle(NodeHandle h)
 {
-    if (h.isUndef())
-    {
-        return nullptr;
-    }
+    if (h.isUndef()) return nullptr;
 
     return mNodeManager.getNodeByHandle(h);
 }
@@ -8044,7 +8041,6 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
         }
     }
 
-    // TODO Nodes on Demand: Review if it's possible this method with DB method
     for (auto& c : getChildren(n))
     {
         removeOutSharesFromSubtree(c, tag);
@@ -8080,10 +8076,10 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     if (kv)
     {
         Node *newerversion = n->parent;
-        node_list nodeList = getChildren(n);
-        if (nodeList.size())
+        node_list children = getChildren(n);
+        if (children.size())
         {
-            Node *olderversion = nodeList.back();
+            Node *olderversion = children.back();
             olderversion->setparent(newerversion);
             olderversion->changed.parent = true;
             olderversion->tag = reqtag;
@@ -8726,7 +8722,6 @@ void MegaClient::readokelement(JSON* j)
                 {
                     newshares.push_back(new NewShare(h, 1, UNDEF, ACCESS_UNKNOWN, 0, buf, ha));
                     mNewKeyRepository[NodeHandle().set6byte(h)] = mega::make_unique<SymmCipher>(buf);
-
                 }
                 return;
 
@@ -9360,7 +9355,6 @@ void MegaClient::checkForResumeableSCDatabase()
 {
     // see if we can resume from an already cached set of nodes for this folder
     opensctable();
-
     string t;
     if (sctable && sctable->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
     {
@@ -10102,8 +10096,8 @@ void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipver
 
     if (!skipversions || n->type != FILENODE)
     {
-        node_list nodeList = getChildren(n);
-        for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
+        node_list children = getChildren(n);
+        for (node_list::iterator it = children.begin(); it != children.end(); )
         {
             Node *child = *it++;
             if (!(skipinshares && child->inshare))
@@ -12009,8 +12003,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
     WAIT_CLASS::bumpds();
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
-    bool isDbUpgraded = false;      // true when legacy DB is migrated to NOD db
-    node_vector nodesUpgradeCache;  // stores nodes while migration from legacy DB to NOD DB
+    bool isDbUpgraded = false;      // true when legacy DB is migrated to NOD's DB schema
+    node_vector nodesDbUpgraded;  // stores nodes while migration from legacy DB to NOD's DB
 
     while (hasNext)
     {
@@ -12033,7 +12027,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    // Add nodes from old DB schema to the new table 'nodes' in the
                    // new DB schema for nodes on demand
                    mNodeManager.addNode(n, false);
-                   nodesUpgradeCache.push_back(n);
+                   nodesDbUpgraded.push_back(n);
                    sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else
@@ -12094,7 +12088,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
         mergenewshares(0);
 
         // finally write nodes in DB
-        for (Node* node : nodesUpgradeCache)
+        for (Node* node : nodesDbUpgraded)
         {
             mNodeManager.saveNodeInDb(node);
         }
