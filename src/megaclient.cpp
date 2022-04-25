@@ -16872,12 +16872,8 @@ bool NodeManager::updateNode(Node *node)
         return false;
     }
 
-    // TODO: this block can be replaced by a mTable->update(node), which would fail
-    // if the node is not in DB already. It would save a query to DB.
-    if (mTable->isNodeInDB(node->nodeHandle()))
-    {
-        mTable->put(node);
-    }
+    assert(mTable->isNodeInDB(node->nodeHandle()));
+    mTable->put(node);
 
     return true;
 }
