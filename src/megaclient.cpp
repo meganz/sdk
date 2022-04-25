@@ -16852,7 +16852,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     {
         // still keep it in memory temporary, until saveNodeInDb()
         assert(!mNodeToWriteInDb);
-        mNodeToWriteInDb = node; // takes ownership
+        mNodeToWriteInDb.reset(node);
 
         // when keepNodeInMemory is true, NodeManager::addChild is called by Node::setParent (from NodeManager::saveNodeInRAM)
         addChild(node->parentHandle(), node->nodeHandle());
@@ -17384,9 +17384,7 @@ void NodeManager::cleanNodes()
     {
         delete node.second;
     }
-
-    delete mNodeToWriteInDb;
-    mNodeToWriteInDb = nullptr;
+    mNodeToWriteInDb.reset();
 
     mNodeNotify.clear();
     mNodes.clear();
@@ -18255,9 +18253,8 @@ void NodeManager::saveNodeInDb(Node *node)
 
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
-        assert(mNodeToWriteInDb->nodeHandle() == node->nodeHandle());
-        delete mNodeToWriteInDb;
-        mNodeToWriteInDb = nullptr;
+        assert(mNodeToWriteInDb.get() == node);
+        mNodeToWriteInDb.reset();
     }
 }
 

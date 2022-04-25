@@ -445,7 +445,7 @@ private:
     node_vector getRootNodesWithoutNestedInshares();
 
     // node temporary in memory, which will be removed upon write to DB
-    Node *mNodeToWriteInDb = nullptr;
+    unique_ptr<Node> mNodeToWriteInDb;
 
     // store relationship between nodes and their children (nodes without children are not in the map)
     std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
