@@ -745,10 +745,16 @@ bool Node::applykey()
         setattr();
     }
 
-    // TODO Nodes on Demand: commented to avoid crash when A shares a folder 1 with B and, folder 1 has a subfolder
-    /// folder 1_1, A shares Folder 1_1 with C and C adds some files
-    //assert(keyApplied());
     bool applied = keyApplied();
+    if (!applied)
+    {
+        LOG_warn << "Failed to apply key for node: " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
+        // keys could be missing due to nested inshares with multiple users: user A shares a folder 1
+        // with user B and folder 1 has a subfolder folder 1_1. User A shares folder 1_1 with user C
+        // and user C adds some files, which will be undecryptable for user B.
+        // The ticket SDK-1959 aims to mitigate the problem. Uncomment next line when done:
+        // assert(applied);
+    }
 
     // Only update node at DB, if key has been applied or node isn't going to be saved after this call
     // Node is going to be save later at BD notifypuge (notified) or in saveInDb (fetchingnodes)
