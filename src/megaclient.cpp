@@ -16041,18 +16041,9 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 }
 #endif /* ENABLE_SYNC */
 
-// TODO nodes on demand check if we it's necessary when SDK-1753 will be implemented
-//static bool nodes_ctime_less(const Node* a, const Node* b)
-//{
-//    // heaps return the largest element
-//    return a->ctime < b->ctime;
-//}
-
 node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since)
 {
-    node_vector v = mNodeManager.getRecentNodes(maxcount, since);
-
-    return v;
+    return mNodeManager.getRecentNodes(maxcount, since);
 }
 
 
@@ -16120,9 +16111,9 @@ namespace action_bucket_compare
         if (a->parent != b->parent) return a->parent > b->parent;
 
         // added/updated - distinguish by versioning
-        size_t aChildren = mc->getNumberOfChildren(a->nodeHandle());
-        size_t bChildren = mc->getNumberOfChildren(b->nodeHandle());
-        if (aChildren != bChildren) return aChildren > bChildren;
+        size_t aChildrenCount = mc->getNumberOfChildren(a->nodeHandle());
+        size_t bChildrenCount = mc->getNumberOfChildren(b->nodeHandle());
+        if (aChildrenCount != bChildrenCount) return aChildrenCount > bChildrenCount;
 
         // media/nonmedia
         bool a_media = mc->nodeIsMedia(a, nullptr, nullptr);
