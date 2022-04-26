@@ -487,13 +487,6 @@ public:
 
     void notify(notifyqueue, LocalNode *, LocalPath&&, bool = false);
 
-    // filesystem fingerprint
-    virtual fsfp_t fsfingerprint() const;
-
-    // Returns true if the filesystem's IDs are stable (e.g. never change between mounts).
-    // This should return false for any FAT filesystem.
-    virtual bool fsstableids() const;
-
     // ignore this (debris folder)
     LocalPath ignore;
 

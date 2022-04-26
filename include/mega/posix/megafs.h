@@ -205,9 +205,6 @@ public:
     void addnotify(LocalNode*, const LocalPath&) override;
     void delnotify(LocalNode*) override;
 
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
-
     PosixDirNotify(const LocalPath&, const LocalPath&, Sync* s);
 };
 #endif

@@ -756,17 +756,6 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immed
 
 }
 
-// default: no fingerprint
-fsfp_t DirNotify::fsfingerprint() const
-{
-    return 0;
-}
-
-bool DirNotify::fsstableids() const
-{
-    return true;
-}
-
 DirNotify* FileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter*, LocalNode* syncroot)
 {
     return new DirNotify(localpath, ignore, syncroot->sync);
