@@ -512,8 +512,7 @@ void SyncFileGet::prepare()
             transfer->localfilename = sync->localroot->localname;
         }
 
-        LocalPath tmpfilename;
-        sync->client->fsaccess->tmpnamelocal(tmpfilename);
+        LocalPath tmpfilename = LocalPath::tmpNameLocal();
         transfer->localfilename.appendWithSeparator(tmpfilename, true);
     }
 
