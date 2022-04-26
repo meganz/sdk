@@ -16901,16 +16901,11 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
 
     for (const auto& nHandleSerialized : nodesFromTable)
     {
-        Node* n;
-        auto nodeIt = mNodes.find(nHandleSerialized.first);
-        if (nodeIt == mNodes.end())
+        Node* n = getNodeInRAM(nHandleSerialized.first);
+        if (!n)
         {
             const NodeSerialized& ns = nHandleSerialized.second;
             n = unserializeNode(&ns.mNode, ns.mDecrypted);
-        }
-        else
-        {
-            n = nodeIt->second.get();
         }
 
         nodes.push_back(n);
@@ -16971,15 +16966,10 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
 
     for (const auto& nodeMapIt : nodeMap)
     {
-        Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
-        if (nodeIt == mNodes.end())
+        Node* n = getNodeInRAM(nodeMapIt.first);
+        if (!n)
         {
             n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
-        }
-        else
-        {
-            n = nodeIt->second.get();
         }
 
         nodes.push_back(n);
@@ -16994,19 +16984,18 @@ node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprin
     auto it = mFingerPrints.find(fingerprint);
     if (it != mFingerPrints.end())
     {
-        for (auto itNode : it->second)
+        for (auto itNode : it->second)  // for all nodes with matching fingerprint
         {
-            if (itNode.second)
+            Node* node = itNode.second;
+            if (!node)  // not loaded yet
             {
-                nodes.push_back(itNode.second);
+                node = getNodeFromDataBase(itNode.first);
             }
-            else
+
+            assert(node && "getNodesByFingerprint: failed to get node that should exist");
+            if (node)
             {
-                Node* node = getNodeFromDataBase(itNode.first);
-                if (node)
-                {
-                    nodes.push_back(node);
-                }
+                nodes.push_back(node);
             }
         }
     }
@@ -17028,15 +17017,10 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
 
     for (const auto& nHandleSerialized : nodesFromTable)
     {
-        Node* n;
-        auto nodeIt = mNodes.find(nHandleSerialized.first);
-        if (nodeIt == mNodes.end())
+        Node* n = getNodeInRAM(nHandleSerialized.first);
+        if (!n)
         {
             n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
-        }
-        else
-        {
-            n = nodeIt->second.get();
         }
 
         if (n && (!parent || (parent && isAncestor(n->nodeHandle(), parent->nodeHandle()))))
@@ -17053,16 +17037,15 @@ Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
     auto it = mFingerPrints.find(fingerprint);
     if (it != mFingerPrints.end())
     {
-        for (auto itNode : it->second)
+        for (auto itNode : it->second)  // for all nodes with matching fingerprint
         {
-            if (itNode.second)
+            if (itNode.second)  // if there's any node already loaded, return it
             {
-                return static_cast<Node*>(itNode.second);
+                return itNode.second;
             }
         }
 
-        // If we don't have any Node load for that fingerprint, we return the first one
-        if (it->second.size())
+        if (it->second.size())  // if there are nodes with matching fingerprint, but not loaded yet, return the first one
         {
             return getNodeFromDataBase(it->second.begin()->first);
         }
@@ -17085,15 +17068,10 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
         return nullptr;
     }
 
-    Node* n = nullptr;
-    auto nodeIt = mNodes.find(nodeSerialized.first);
-    if (nodeIt == mNodes.end())
+    Node* n = getNodeInRAM(nodeSerialized.first);
+    if (!n) // not loaded yet
     {
         n = unserializeNode(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
-    }
-    else
-    {
-        n = nodeIt->second.get();
     }
 
     return n;
@@ -17113,15 +17091,10 @@ node_vector NodeManager::getRootNodes()
 
     for (const auto& nHandleSerialized : nodesFromTable)
     {
-        Node* n;
-        auto nodeIt = mNodes.find(nHandleSerialized.first);
-        if (nodeIt == mNodes.end())
+        Node* n = getNodeInRAM(nHandleSerialized.first);
+        if (!n)
         {
             n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
-        }
-        else
-        {
-            n = nodeIt->second.get();
         }
         nodes.push_back(n);
 
@@ -17164,15 +17137,10 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
     mTable->getNodesWithSharesOrLink(nodesFromTable, shareType);
     for (const auto& nHandleSerialized : nodesFromTable)
     {
-        Node* n;
-        auto nodeIt = mNodes.find(nHandleSerialized.first);
-        if (nodeIt == mNodes.end())
+        Node* n = getNodeInRAM(nHandleSerialized.first);
+        if (!n)
         {
             n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
-        }
-        else
-        {
-            n = nodeIt->second.get();
         }
 
         nodes.push_back(n);
@@ -17299,7 +17267,7 @@ bool NodeManager::isNodesOnDemandReady()
     return mTable->isNodesOnDemandDb();
 }
 
-NodeHandle NodeManager::getFirstAncestor(NodeHandle node)
+NodeHandle NodeManager::getFirstAncestor(NodeHandle nodehandle)
 {
     if (!mTable)
     {
@@ -17307,21 +17275,20 @@ NodeHandle NodeManager::getFirstAncestor(NodeHandle node)
         return NodeHandle();  // It's initialized to undef
     }
 
-    auto it = mNodes.find(node);
-    if (it != mNodes.end())
+    Node* n = getNodeInRAM(nodehandle);
+    if (n)
     {
-        assert(!!it->second);
-        const Node* ancestor = it->second->firstancestor();
+        const Node* ancestor = n->firstancestor();
         if (ancestor)
         {
             return ancestor->nodeHandle();
         }
     }
 
-    return mTable->getFirstAncestor(node);
+    return mTable->getFirstAncestor(nodehandle);
 }
 
-bool NodeManager::isAncestor(NodeHandle node, NodeHandle ancestor)
+bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)
 {
     if (!mTable)
     {
@@ -17329,15 +17296,15 @@ bool NodeManager::isAncestor(NodeHandle node, NodeHandle ancestor)
         return false;
     }
 
-    return mTable->isAncestor(node, ancestor);
+    return mTable->isAncestor(nodehandle, ancestor);
 }
 
-bool NodeManager::isFileNode(NodeHandle node)
+bool NodeManager::isFileNode(NodeHandle nodehandle)
 {
-    auto it = mNodes.find(node);
-    if (it != mNodes.end())
+    Node* n = getNodeInRAM(nodehandle);
+    if (n)
     {
-        return it->second->type == FILENODE;
+        return n->type == FILENODE;
     }
 
     if (!mTable)
@@ -17346,7 +17313,7 @@ bool NodeManager::isFileNode(NodeHandle node)
         return false;
     }
 
-    return mTable->getNodeType(node) == FILENODE;
+    return mTable->getNodeType(nodehandle) == FILENODE;
 }
 
 void NodeManager::removeChanges()

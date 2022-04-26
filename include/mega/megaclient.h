@@ -297,13 +297,13 @@ public:
     bool isNodesOnDemandReady();
 
     // Returns first ancestor available in cache
-    NodeHandle getFirstAncestor(NodeHandle node);
+    NodeHandle getFirstAncestor(NodeHandle nodehandle);
 
     // true if 'node' is a child node of 'ancestor', false otherwise.
-    bool isAncestor(NodeHandle node, NodeHandle ancestor);
+    bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor);
 
     // true if 'node' is a file (note: requires DB query if not available in ram)
-    bool isFileNode(NodeHandle node);
+    bool isFileNode(NodeHandle nodehandle);
 
     // Clean 'changed' flag from all nodes
     void removeChanges();
