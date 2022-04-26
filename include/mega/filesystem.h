@@ -622,11 +622,13 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     static bool cwd_static(LocalPath& path);
     virtual bool cwd(LocalPath& path) const = 0;
 
+#ifdef ENABLE_SYNC
     // Retrieve the fingerprint of the filesystem containing the specified path.
     virtual fsfp_t fsFingerprint(const LocalPath& path) const = 0;
 
     // True if the filesystem indicated by the specified path has stable FSIDs.
     virtual bool fsStableIDs(const LocalPath& path) const = 0;
+#endif // ENABLE_SYNC
 
     // Retrieve the FSID of the item at the specified path.
     // UNDEF is returned if we cannot determine the item's FSID.
