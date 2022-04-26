@@ -12051,6 +12051,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
         // now that Users and PCRs are loaded, need to mergenewshare()
+        // Node counters for inshares are calculated at this method
         mergenewshares(0);
 
         // finally write nodes in DB
@@ -12058,6 +12059,19 @@ bool MegaClient::fetchsc(DbTable* sctable)
         {
             mNodeManager.saveNodeInDb(node);
         }
+
+        // Calculate counters for rootnodes
+        Node* rootNodeFile = mNodeManager.getNodeByHandle(rootnodes.files);
+        assert(rootNodeFile);
+        mNodeManager.calculateCounter(*rootNodeFile);
+
+        Node* rootNodeInbox = mNodeManager.getNodeByHandle(rootnodes.inbox);
+        assert(rootNodeInbox);
+        mNodeManager.calculateCounter(*rootNodeInbox);
+
+        Node* rootNodeRubbish = mNodeManager.getNodeByHandle(rootnodes.rubbish);
+        assert(rootNodeRubbish);
+        mNodeManager.calculateCounter(*rootNodeRubbish);
 
         // and force commit, since old DB has been upgraded to new schema for NOD
         sctable->commit();
