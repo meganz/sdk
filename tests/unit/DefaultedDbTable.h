@@ -78,6 +78,10 @@ public:
     {
         return false;
     }
+    bool getNodeByNameAtFirstLevel(mega::NodeHandle, const std::string& name, mega::nodetype_t, std::pair<mega::NodeHandle, mega::NodeSerialized>&) override
+    {
+        return false;
+    }
     m_off_t getNodeSize(mega::NodeHandle) override
     {
         return 0;

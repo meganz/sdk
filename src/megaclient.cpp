@@ -1047,35 +1047,14 @@ void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
 {
     string nname = name;
-    Node *found = NULL;
-
     if (!p || p->type == FILENODE)
     {
-        return NULL;
+        return nullptr;
     }
 
     LocalPath::utf8_normalize(&nname);
 
-    // TODO Nodes on Demand: it can be implemented with a query to DB
-    node_list nodeList = getChildren(p);
-    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
-    {
-        if (!strcmp(nname.c_str(), (*it)->displayname()))
-        {
-            if ((*it)->type != FILENODE && !skipfolders)
-            {
-                return *it;
-            }
-
-            found = *it;
-            if (skipfolders)
-            {
-                return found;
-            }
-        }
-    }
-
-    return found;
+    return mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, skipfolders ? FILENODE : TYPE_UNKNOWN);
 }
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
@@ -1086,23 +1065,12 @@ Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t must
 
     if (!p || p->type == FILENODE)
     {
-        return NULL;
+        return nullptr;
     }
 
     LocalPath::utf8_normalize(&nname);
 
-    // TODO Nodes on Demand: it can be implemented with a query to DB
-    node_list childrenNodeList = getChildren(p);
-    for (Node* child : childrenNodeList)
-    {
-        if (child->type == mustBeType &&
-            !strcmp(nname.c_str(), child->displayname()))
-        {
-            return child;
-        }
-    }
-
-    return nullptr;
+     return mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, mustBeType);
 }
 
 // returns a matching child node that has the given attribute with the given value
@@ -17101,6 +17069,34 @@ Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
     }
 
     return nullptr;
+}
+
+Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::string &name, nodetype_t nodeType)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return nullptr;
+    }
+
+    std::pair<NodeHandle, NodeSerialized> nodeSerialized;
+    if (!mTable->getNodeByNameAtFirstLevel(parentHandle, name, nodeType, nodeSerialized))
+    {
+        return nullptr;
+    }
+
+    Node* n = nullptr;
+    auto nodeIt = mNodes.find(nodeSerialized.first);
+    if (nodeIt == mNodes.end())
+    {
+        n = unserializeNode(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
+    }
+    else
+    {
+        n = nodeIt->second.get();
+    }
+
+    return n;
 }
 
 node_vector NodeManager::getRootNodes()
