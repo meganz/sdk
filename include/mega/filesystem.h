@@ -693,6 +693,10 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
 FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
 #endif
 
+
+// True if type denotes a network filesystem.
+bool isNetworkFilesystem(FileSystemType type);
+
 } // namespace
 
 #endif
