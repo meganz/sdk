@@ -2385,6 +2385,9 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
     // Always called from the client thread
     weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
 
+    // So we know whether it's safe to update putnodesCompleted.
+    weak_ptr<SyncUpload_inClient> self = shared_from_this();
+
     // since we are now sending putnodes, no need to remember puts to inform the client on abandonment
     syncThreadSafeState->client()->transferBackstop.forget(transferTag);
 
@@ -2394,7 +2397,20 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
         fileNodeKey,
         PUTNODES_SYNC,
         ovHandle,
-        [stts](const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride){
+        [self, stts](const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride){
+            // Is the originating transfer still alive?
+            if (auto s = self.lock())
+            {
+                // Then track the result of its putnodes request.
+                s->putnodesFailed = e != API_OK;
+
+                // Capture the handle if the putnodes was successful.
+                if (!s->putnodesFailed)
+                    s->putnodesResultHandle = nn.front().mAddedHandle;
+
+                // Let the engine know the putnodes has completed.
+                s->wasPutnodesCompleted.store(true);
+            }
 
             if (auto s = stts.lock())
             {

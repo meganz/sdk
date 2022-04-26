@@ -1938,6 +1938,26 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 }
             }
 
+            // Check if the move source is part of an ongoing upload.
+            if (auto upload = std::dynamic_pointer_cast<SyncUpload_inClient>(sourceSyncNode->transferSP))
+            {
+                // If the putnodes request has started, we need to wait.
+                if (upload->putnodesStarted)
+                {
+                    LOG_debug << "Move-source has outstanding putnodes: "
+                              << logTriplet(row, fullPath);
+
+                    // Make sure we visit the source again.
+                    sourceSyncNode->setSyncAgain(false, true, false);
+
+                    // We can't move just yet.
+                    return rowResult = false, true;
+                }
+
+                // Otherwise, we can safely cancel the upload.
+                sourceSyncNode->resetTransfer(nullptr);
+            }
+
             // logic to detect files being updated in the local computer moving the original file
             // to another location as a temporary backup
             if (!pendingTo
@@ -6518,6 +6538,24 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         row.syncNode->parentSetContainsConflicts = false;
     }
 
+    // Does this row have a sync node?
+    if (auto* s = row.syncNode)
+    {
+        // Is this row part of an ongoing upload?
+        if (auto u = std::dynamic_pointer_cast<SyncUpload_inClient>(s->transferSP))
+        {
+            // Is it waiting for a putnodes request to complete?
+            if (u->putnodesStarted && !u->wasPutnodesCompleted)
+            {
+                LOG_debug << "Waiting for putnodes to complete: "
+                          << logTriplet(row, fullPath);
+                          
+                // Then come back later.
+                return false;
+            }
+        }
+    }
+
     // Under some circumstances on sync startup, our shortname records can be out of date.
     // If so, we adjust for that here, as the diretories are scanned
     if (row.syncNode && row.fsNode && row.fsNode->shortname)
@@ -6955,26 +6993,23 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             return false;  // let the next pass determine if it's a move
         }
 
-        if (row.syncNode->fsid_lastSynced == UNDEF)
+        if (auto uploadPtr = threadSafeState->isNodeAnExpectedUpload(row.cloudNode->parentHandle, row.cloudNode->name))
         {
-            if (auto uploadPtr = threadSafeState->isNodeAnExpectedUpload(row.cloudNode->parentHandle, row.cloudNode->name))
-            {
-                // The local file is no longer at the matching position
-                // and we need to set it up to be moved/deleted correspondingly
-                // Setting the synced fsid without a corresponding FSNode will cause move detection
+            // The local file is no longer at the matching position
+           // and we need to set it up to be moved/deleted correspondingly
+            // Setting the synced fsid without a corresponding FSNode will cause move detection
 
-                SYNC_verbose << syncname << "Node is a recent upload, sync node present, source FS file is no longer here: " << fullPath.cloudPath << logTriplet(row, fullPath);
-                row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
-                row.syncNode->setSyncedFsid(uploadPtr->sourceFsid, syncs.localnodeBySyncedFsid, uploadPtr->sourceLocalname, nullptr);
-                row.syncNode->syncedFingerprint  = row.cloudNode->fingerprint;
-                row.syncNode->transferSP.reset();
-                return false;
-            }
-            else
-            {
-                // fs item did not exist before; downsync
-                return resolve_downsync(row, parentRow, fullPath, false);
-            }
+            SYNC_verbose << syncname << "Node is a recent upload, sync node present, source FS file is no longer here: " << fullPath.cloudPath << logTriplet(row, fullPath);
+            row.syncNode->setSyncedNodeHandle(row.cloudNode->handle);
+            row.syncNode->setSyncedFsid(uploadPtr->sourceFsid, syncs.localnodeBySyncedFsid, uploadPtr->sourceLocalname, nullptr);
+            row.syncNode->syncedFingerprint  = row.cloudNode->fingerprint;
+            row.syncNode->transferSP.reset();
+            return false;
+        }
+        else if (row.syncNode->fsid_lastSynced == UNDEF)
+        {
+            // fs item did not exist before; downsync
+            return resolve_downsync(row, parentRow, fullPath, false);
         }
         else if (//!row.syncNode->syncedCloudNodeHandle.isUndef() &&
                  row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
@@ -7643,6 +7678,20 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             NodeHandle displaceHandle = row.cloudNode ? row.cloudNode->handle : NodeHandle();
             auto noDebris = inshare;
 
+            std::function<void(MegaClient&)> signalPutnodesBegin = [](MegaClient&) {};
+
+#ifndef NDEBUG
+            {
+                // So we can capture the local path.
+                auto localPath = fullPath.localPath;
+
+                // Signal the putnodes_begin(...) event.
+                signalPutnodesBegin = [localPath](MegaClient& client) {
+                    client.app->putnodes_begin(localPath);
+                };
+            }
+#endif // ! NDEBUG
+
             // Check for filename anomalies.
             std::function<void(MegaClient&)> signalFilenameAnomaly = [](MegaClient&) {};
 
@@ -7662,7 +7711,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 }
             }
 
-            syncs.queueClient([existingUpload, displaceHandle, noDebris, signalFilenameAnomaly](MegaClient& mc, DBTableTransactionCommitter& committer)
+            syncs.queueClient([existingUpload, displaceHandle, noDebris, signalFilenameAnomaly, signalPutnodesBegin](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     // Signal detected anomaly, if any.
                     signalFilenameAnomaly(mc);
@@ -7674,7 +7723,8 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                         mc.movetosyncdebris(displaceNode, noDebris,
 
                             // after the old node is out of the way, we wll putnodes
-                            [c, existingUpload](NodeHandle, Error){
+                            [c, existingUpload, signalPutnodesBegin](NodeHandle, Error){
+                                signalPutnodesBegin(*c);
                                 existingUpload->sendPutnodes(c, NodeHandle());
                             });
 
@@ -7684,6 +7734,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     }
 
                     // the case where we are making versions, or not displacing something with the same name
+                    signalPutnodesBegin(mc);
                     existingUpload->sendPutnodes(&mc, displaceNode ? displaceNode->nodeHandle() : NodeHandle());
                 });
         }
@@ -8262,13 +8313,23 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, 
             }
         }
 #endif
-        if (type == FILENODE &&
-            (fingerprint.mtime != it->second->syncedFingerprint.mtime ||
-                fingerprint.size != it->second->syncedFingerprint.size))
+        if (type == FILENODE)
         {
-            // fsid match, but size or mtime mismatch
-            // treat as different
-            continue;
+            auto& node = *it->second;
+            auto& synced = node.syncedFingerprint;
+
+            if (synced.mtime != fingerprint.mtime
+                || synced.size != fingerprint.size)
+            {
+                auto& scanned = node.scannedFingerprint;
+
+                if (node.fsid_asScanned != fsid
+                    || scanned.mtime != fingerprint.mtime
+                    || scanned.size != fingerprint.size)
+                {
+                    continue;
+                }
+            }
         }
 
         // If we got this far, it's a good enough match to use

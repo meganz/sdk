@@ -15919,6 +15919,180 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
     }
 }
 
+TEST_F(SyncTest, MoveJustAsPutNodesSent)
+{
+    auto TIMEOUT = std::chrono::seconds(16);
+
+    // Get our hands on a clean client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud is clear.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Make sure a remote sync root exists.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate local filesystem.
+    Model model;
+
+    model.addfolder("d");
+    model.addfile("f", "x");
+    model.generate(client->fsBasePath / "s");
+
+    // Add and start sync.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure our hierarchy made it into the cloud.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // So we can wait for the putnodes to begin.
+    promise<void> notifier;
+
+    // Signal the waiter when the putnodes request is sent.
+    auto putnodesBeginHandler = [&](const LocalPath&) {
+        // Let the test thread know it can continue.
+        notifier.set_value();
+
+        // Disconnect the callback as our work is done.
+        client->mOnPutnodesBegin = nullptr;
+    };
+
+    // Hook the putnodes callback.
+    client->mOnPutnodesBegin = putnodesBeginHandler;
+
+    // Make a local change for the engine to upload.
+    model.addfile("f", "y");
+    model.generate(client->fsBasePath / "s");
+
+    // Wait for the engine to process our changes.
+    ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
+
+    // Move the file elsewhere.
+    fs::rename(client->fsBasePath / "s" / "f",
+               client->fsBasePath / "s" / "d" / "f");
+
+    model.movenode("f", "d");
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure everything's as we expect.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Try the same test in reverse.
+    //
+    // That is, process the move target first.
+    notifier = promise<void>();
+
+    // Hook the putnodes callback.
+    client->mOnPutnodesBegin = putnodesBeginHandler;
+
+    // Make a change for the engine to synchronize.
+    model.addfile("d/f", "z");
+    model.generate(client->fsBasePath / "s");
+
+    // Wait for the engine to send the putnodes request.
+    ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
+
+    // Move the local file up the hierarchy.
+    model.movenode("d/f", "");
+
+    fs::rename(client->fsBasePath / "s" / "d" / "f",
+               client->fsBasePath / "s" / "f");
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(TIMEOUT, client);
+
+    // Check that the client is as we expect.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+}
+
+TEST_F(SyncTest, RemovedJustAsPutNodesSent)
+{
+    auto TIMEOUT = std::chrono::seconds(16);
+
+    // Get our hands on a clean client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud is clear.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Make sure a remote sync root exists.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Add and start sync.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Populate local filesystem.
+    Model model;
+
+    model.addfile("f", "x");
+    model.generate(client->fsBasePath / "s");
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, client);
+
+    // Check if the cloud is as we expect.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // So we can wait for the putnodes to be sent.
+    promise<void> notifier;
+
+    // Signal the waiter when putnodes is sent.
+    auto putnodesBeginHandler = [&](const LocalPath&) {
+        notifier.set_value();
+        client->mOnPutnodesBegin = nullptr;
+    };
+
+    client->mOnPutnodesBegin = putnodesBeginHandler;
+
+    // Make a change for the engine to upload.
+    model.addfile("f", "y");
+    model.generate(client->fsBasePath / "s");
+
+    // Wait for the putnodes to be sent.
+    ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
+
+    // Remove the local file.
+    model.removenode("f");
+
+    fs::remove(client->fsBasePath / "s" / "f");
+
+    // Let the engine process our changes.
+    waitonsyncs(TIMEOUT, client);
+
+    // Check if the cloud is as we expect.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Try the same scenario when the file hasn't previously been synchronized.
+    client->mOnPutnodesBegin = putnodesBeginHandler;
+
+    // Add a new file for the engine to synchronize.
+    model.addfile("g", "x");
+    model.generate(client->fsBasePath / "s");
+
+    // Wait for the engine to send the putnodes request.
+    notifier = promise<void>();
+
+    ASSERT_NE(notifier.get_future().wait_for(TIMEOUT), future_status::timeout);
+
+    // Remove the local file.
+    model.removenode("g");
+
+    fs::remove(client->fsBasePath / "s" / "g");
+
+    // Wait for the engine to synchronize our changes.
+    waitonsyncs(TIMEOUT, client);
+
+    // Make sure the cloud is as we expect.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+}
+
 #endif // ! NDEBUG
 
 #endif

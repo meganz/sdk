@@ -125,6 +125,9 @@ struct MEGA_API MegaApp
 #ifndef NDEBUG
     // So that tests can make a change as soon as a cloud node is moved.
     virtual void move_begin(const LocalPath&, const LocalPath&) { };
+
+    // So that tests can make a change as soon as a putnodes is sent.
+    virtual void putnodes_begin(const LocalPath&) { };
 #endif // ! NDEBUG
 
     // node addition has failed
