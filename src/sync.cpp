@@ -2151,7 +2151,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                         }
                     }
 
-                    std::function<void(MegaClient&)> signalMoveBegin = [](MegaClient&) { };
+                    std::function<void(MegaClient&)> signalMoveBegin;
 #ifndef NDEBUG
                     {
                         // For purposes of capture.
@@ -2184,7 +2184,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                         simultaneousMoveReplacedNodeToDebris(mc, committer);
                                     }
 
-                                    signalMoveBegin(mc);
+                                    if (signalMoveBegin)
+                                        signalMoveBegin(mc);
 
                                     mc.setattr(n, attr_map('n', newName), [&mc, movePtr, newName, anomalyReport](NodeHandle, Error err){
 
@@ -2215,7 +2216,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                         syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin](MegaClient& mc, DBTableTransactionCommitter& committer)
                         {
-                            signalMoveBegin(mc);
+                            if (signalMoveBegin)
+                                signalMoveBegin(mc);
 
                             auto fromNode = mc.nodeByHandle(sourceCloudNode.handle, true);  // yes, it must be the exact version (should there be a version chain)
                             auto toNode = mc.nodeByHandle(targetCloudNode.handle);   // folders don't have version chains
@@ -7691,7 +7693,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             NodeHandle displaceHandle = row.cloudNode ? row.cloudNode->handle : NodeHandle();
             auto noDebris = inshare;
 
-            std::function<void(MegaClient&)> signalPutnodesBegin = [](MegaClient&) {};
+            std::function<void(MegaClient&)> signalPutnodesBegin;
 
 #ifndef NDEBUG
             {
@@ -7706,7 +7708,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 #endif // ! NDEBUG
 
             // Check for filename anomalies.
-            std::function<void(MegaClient&)> signalFilenameAnomaly = [](MegaClient&) {};
+            std::function<void(MegaClient&)> signalFilenameAnomaly;
 
             {
                 // So we can capture if necessary.
@@ -7727,7 +7729,8 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             syncs.queueClient([existingUpload, displaceHandle, noDebris, signalFilenameAnomaly, signalPutnodesBegin](MegaClient& mc, DBTableTransactionCommitter& committer)
                 {
                     // Signal detected anomaly, if any.
-                    signalFilenameAnomaly(mc);
+                    if (signalFilenameAnomaly)
+                        signalFilenameAnomaly(mc);
 
                     Node* displaceNode = mc.nodeByHandle(displaceHandle);
                     if (displaceNode && mc.versions_disabled)
@@ -7737,7 +7740,9 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
                             // after the old node is out of the way, we wll putnodes
                             [c, existingUpload, signalPutnodesBegin](NodeHandle, Error){
-                                signalPutnodesBegin(*c);
+                                if (signalPutnodesBegin)
+                                    signalPutnodesBegin(*c);
+
                                 existingUpload->sendPutnodes(c, NodeHandle());
                             });
 
@@ -7747,7 +7752,9 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     }
 
                     // the case where we are making versions, or not displacing something with the same name
-                    signalPutnodesBegin(mc);
+                    if (signalPutnodesBegin)
+                        signalPutnodesBegin(mc);
+
                     existingUpload->sendPutnodes(&mc, displaceNode ? displaceNode->nodeHandle() : NodeHandle());
                 });
         }
