@@ -329,8 +329,6 @@ public:
     void cancelsignup();
 
     // full account confirmation/creation support
-//    void sendsignuplink(const char*, const char*, const byte*);
-
     string sendsignuplink2(const char*, const char *, const char*);
     void resendsignuplink2(const char*, const char *);
 

@@ -20430,7 +20430,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             if (request->getPrivateKey())
             {
-                // obsolete. Use registration flow v2: calling (re)sendSingupLink() instead of fastSendSignupLink()
+                // obsolete. Use registration flow v2: calling (re)sendSignupLink() instead of fastSendSignupLink()
                 e = API_EINTERNAL;
                 break;
             }
