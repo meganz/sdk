@@ -3205,7 +3205,6 @@ autocomplete::ACN autocompleteSyntax()
                                         param("confirmationlink"))));
 
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
-    p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
     p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
@@ -6616,20 +6615,6 @@ void exec_lmkdir(autocomplete::ACState& s)
     }
 }
 #endif
-
-
-void exec_confirm(autocomplete::ACState& s)
-{
-    if (signupemail.size() && signupcode.size())
-    {
-        cout << "Please type " << signupemail << "'s password to confirm the signup." << endl;
-        setprompt(LOGINPASSWORD);
-    }
-    else
-    {
-        cout << "Need to query link first. Type 'signup code'";
-    }
-}
 
 void exec_recover(autocomplete::ACState& s)
 {

@@ -272,7 +272,6 @@ void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);
 void exec_cancelsignup(autocomplete::ACState& s);
-void exec_confirm(autocomplete::ACState& s);
 void exec_session(autocomplete::ACState& s);
 void exec_mount(autocomplete::ACState& s);
 void exec_ls(autocomplete::ACState& s);
