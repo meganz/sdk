@@ -1304,7 +1304,7 @@ string getUniqueAlias()
  *  - Extract cancel account link from the mailbox
  *  - Use the link to cancel the account
  */
-TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
+TEST_F(SdkTest, SdkTestCreateAccount)
 {
     LOG_info << "___TEST Create account___";
 
