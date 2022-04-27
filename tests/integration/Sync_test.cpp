@@ -1335,18 +1335,47 @@ void StandardClient::threadloop()
     {
         int r;
 
+        client.waiter->bumpds();
+        dstime t1 = client.waiter->ds;
+
         {
             std::lock_guard<std::recursive_mutex> lg(clientMutex);
+
+            client.waiter->bumpds();
+            dstime t1a = client.waiter->ds;
+            if (t1a - t1 > 20) LOG_debug << "lock for preparewait took ds: " << t1a - t1;
+
             r = client.preparewait();
         }
+        assert(r == 0 || r == Waiter::NEEDEXEC);
+
+        client.waiter->bumpds();
+        dstime t2 = client.waiter->ds;
+        if (t2 - t1 > 20) LOG_debug << "lock and preparewait took ds: " << t2 - t1;
+
 
         if (!r)
         {
             r |= client.dowait();
+            assert(r == 0 || r == Waiter::NEEDEXEC);
         }
 
+        client.waiter->bumpds();
+        dstime t3 = client.waiter->ds;
+        if (t3 - t2 > 20) LOG_debug << "dowait took ds: " << t3 - t2;
+
         std::lock_guard<std::recursive_mutex> lg(clientMutex);
+
+        client.waiter->bumpds();
+        dstime t3a = client.waiter->ds;
+        if (t3a - t3 > 20) LOG_debug << "lock for exec took ds: " << t3a - t3;
+
         r |= client.checkevents();
+        assert(r == 0 || r == Waiter::NEEDEXEC);
+
+        client.waiter->bumpds();
+        dstime t4 = client.waiter->ds;
+        if (t4 - t3a > 20) LOG_debug << "checkevents took ds: " << t4 - t3a;
 
         {
             client.waiter->bumpds();
@@ -1370,14 +1399,24 @@ void StandardClient::threadloop()
             auto end = client.waiter->ds;
             if (end - start > 200)
             {
-                LOG_err << "test functions passed to be executed on the client thread should queue work but not wait for it themselves";
+                LOG_err << "test functions passed to be executed on the client thread should queue work but not wait for the results themselves";
                 assert(false);
             }
         }
+
+        client.waiter->bumpds();
+        dstime t5 = client.waiter->ds;
+        if (t5 - t4 > 20) LOG_debug << "injected functions took ds: " << t5 - t4;
+
         if ((r & Waiter::NEEDEXEC))
         {
             client.exec();
         }
+
+        client.waiter->bumpds();
+        dstime t6 = client.waiter->ds;
+        if (t6 - t5 > 20) LOG_debug << "exec took ds: " << t6 - t5;
+
     }
 
     // shut down on the same thread, otherwise any ongoing async I/O fails to complete (on windows)
@@ -2919,6 +2958,7 @@ void StandardClient::deleteremote(string path, bool fromroot, PromiseBoolSP pb)
     if (Node* n = drillchildnodebyname(fromroot ? getcloudrootnode() : gettestbasenode(), path))
     {
         auto completion = [pb](NodeHandle, Error e) {
+            if (e) LOG_debug << "deleteremote received failure code from unlink: " << e;
             pb->set_value(!e);
         };
 
@@ -2928,6 +2968,7 @@ void StandardClient::deleteremote(string path, bool fromroot, PromiseBoolSP pb)
     }
     else
     {
+        LOG_debug << "Node not found for deleteremote, at path " << path << " (fromroot: " << fromroot << ")";
         pb->set_value(false);
     }
 }
@@ -4740,8 +4781,9 @@ TEST_F(SyncTest, BasicSync_RemoveLocalNodeBeforeSessionResume)
     handle backupId2 = clientA2.setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
 
-    ASSERT_TRUE(pclientA1->waitForNodesUpdated(30)) << " no actionpacket received in clientA1";
-    ASSERT_TRUE(clientA2.waitForNodesUpdated(30)) << " no actionpacket received in clientA2";
+    // actually for this one, we don't expect actionpackets because all the cloud nodes are already present before the sync starts
+    // ASSERT_TRUE(pclientA1->waitForNodesUpdated(30)) << " no actionpacket received in clientA1";
+    // ASSERT_TRUE(clientA2.waitForNodesUpdated(30)) << " no actionpacket received in clientA2";
 
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
     pclientA1->logcb = clientA2.logcb = true;
@@ -10564,10 +10606,12 @@ void BackupBehavior::doTest(const string& initialContent,
         };
 
         // Write the file.
-        m.generate(cu.fsBasePath / "su");
+        m.generate(cu.fsBasePath / "su", true);
 
-        // Rewind the file's mtime.
-        fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
+        // do not Rewind the file's mtime here. Let the callback just above do it.
+        // otherwise, on checking the fs notification we will conclude "Self filesystem notification skipped"
+        // possibly we could do it this way after sync rework is merged.
+        // fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
 
         cu.triggerPeriodicScanEarly(idU);
     }
