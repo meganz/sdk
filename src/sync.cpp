@@ -8427,8 +8427,8 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type,
         if (fingerprint)
         {
             if (type == FILENODE &&
-                (fingerprint->mtime != it->second->syncedFingerprint.mtime ||
-                    fingerprint->size != it->second->syncedFingerprint.size))
+                (fingerprint->mtime != it->second->scannedFingerprint.mtime ||
+                    fingerprint->size != it->second->scannedFingerprint.size))
             {
                 // fsid match, but size or mtime mismatch
                 // treat as different
