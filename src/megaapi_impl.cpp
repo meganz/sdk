@@ -5072,10 +5072,7 @@ void MegaFileGet::prepare()
 
         size_t leafIndex = transfer->localfilename.getLeafnameByteIndex();
         transfer->localfilename.truncate(leafIndex);
-
-        LocalPath suffix;
-        transfer->client->fsaccess->tmpnamelocal(suffix);
-        transfer->localfilename.append(suffix);
+        transfer->localfilename.appendWithSeparator(LocalPath::tmpNameLocal(), false);
     }
 }
 
@@ -28016,9 +28013,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
         {
             httpctx->tmpFileName=httpctx->server->basePath;
             httpctx->tmpFileName.append("httputfile");
-            LocalPath suffix;
-            httpctx->server->fsAccess->tmpnamelocal(suffix);
-            httpctx->tmpFileName.append(suffix.toPath());
+            httpctx->tmpFileName.append(LocalPath::tmpNameLocal().toPath());
 
             string ext;
             LocalPath localpath = LocalPath::fromAbsolutePath(httpctx->path);
@@ -29079,7 +29074,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             {
                 httpctx->tmpFileName=httpctx->server->basePath;
                 httpctx->tmpFileName.append("httputfile");
-                httpctx->tmpFileName.append(LocalPath::tmpNameLocal(*httpctx->server->fsAccess).toPath());
+                httpctx->tmpFileName.append(LocalPath::tmpNameLocal().toPath());
                 string ext;
                 if (httpctx->server->fsAccess->getextension(LocalPath::fromAbsolutePath(httpctx->path), ext))
                 {
@@ -31784,9 +31779,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         {
             ftpdatactx->tmpFileName = fds->basePath;
             ftpdatactx->tmpFileName.append("ftpstorfile");
-            LocalPath suffix;
-            fds->fsAccess->tmpnamelocal(suffix);
-            ftpdatactx->tmpFileName.append(suffix.toPath());
+            ftpdatactx->tmpFileName.append(LocalPath::tmpNameLocal().toPath());
 
             string ext;
             if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromAbsolutePath(fds->controlftpctx->arg1), ext))
