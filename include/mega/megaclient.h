@@ -297,13 +297,13 @@ public:
     bool isNodesOnDemandReady();
 
     // Returns first ancestor available in cache
-    NodeHandle getFirstAncestor(NodeHandle node);
+    NodeHandle getFirstAncestor(NodeHandle nodehandle);
 
     // true if 'node' is a child node of 'ancestor', false otherwise.
-    bool isAncestor(NodeHandle node, NodeHandle ancestor);
+    bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor);
 
     // true if 'node' is a file (note: requires DB query if not available in ram)
-    bool isFileNode(NodeHandle node);
+    bool isFileNode(NodeHandle nodehandle);
 
     // Clean 'changed' flag from all nodes
     void removeChanges();
@@ -378,6 +378,9 @@ public:
     // Node has received last updates and it's ready to store in DB
     void saveNodeInDb(Node *node);
 
+    // write all nodes into DB (used for migration from legacy to NOD DB schema)
+    void dumpNodes();
+
     // This method only can be used in Megacli for testing purposes
     uint64_t getNumberNodesInRam() const;
 
@@ -446,7 +449,7 @@ private:
     node_vector getRootNodesWithoutNestedInshares();
 
     // node temporary in memory, which will be removed upon write to DB
-    Node *mNodeToWriteInDb = nullptr;
+    unique_ptr<Node> mNodeToWriteInDb;
 
     // store relationship between nodes and their children (nodes without children are not in the map)
     std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
@@ -1108,7 +1111,7 @@ public:
     node_list getChildren(const Node *parent);
 
     // Get number of children from a node
-    int getNumberOfChildren(NodeHandle parentHandle);
+    size_t getNumberOfChildren(NodeHandle parentHandle);
 
     // Get sub tree info from a node
     NodeCounter getTreeInfoFromNode(const Node& node);
@@ -1557,7 +1560,7 @@ public:
 
     // merge newly received share into nodes
     void mergenewshares(bool);
-    void mergenewshare(NewShare *s, bool notify, Node* node = nullptr);    // merge only the given share
+    void mergenewshare(NewShare *s, bool notify);    // merge only the given share
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
