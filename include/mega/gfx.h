@@ -63,34 +63,6 @@ class MEGA_API GfxJobQueue
         GfxJob *pop();
 };
 
-class MEGA_API IGfxProc
-{
-public:
-    virtual ~IGfxProc();
-
-    virtual void setClient(MegaClient*) = 0;
-
-    virtual int checkevents(Waiter*) = 0;
-
-    // check whether the filename looks like a supported media type
-    virtual bool isgfx(const LocalPath&) = 0;
-
-    // check whether the filename looks like a video
-    virtual bool isvideo(const LocalPath&) = 0;
-
-    // generate all dimensions, write to metadata server and attach to PUT transfer or existing node
-    // handle is uploadhandle or nodehandle
-    // - must respect JPEG EXIF rotation tag
-    // - must save at 85% quality (120*120 pixel result: ~4 KB)
-    virtual int gendimensionsputfa(FileAccess*, const LocalPath&, NodeOrUploadHandle, SymmCipher*, int missingattr) = 0;
-
-    // generate and save a fa to a file
-    virtual bool savefa(const LocalPath& source, int, int, LocalPath& destination) = 0;
-
-    // start a thread that will do the processing
-    virtual void startProcessingThread() = 0;
-};
-
 class MEGA_API IGfxProvider
 {
 public: // read and store bitmap
@@ -121,7 +93,7 @@ protected:
 };
 
 // bitmap graphics processor
-class MEGA_API GfxProc : public IGfxProc
+class MEGA_API GfxProc
 {
     bool finished;
     WAIT_CLASS waiter;
@@ -137,38 +109,36 @@ class MEGA_API GfxProc : public IGfxProc
     void loop();
 
 public:
-    int checkevents(Waiter*) override;
+    int checkevents(Waiter*);
 
     // check whether the filename looks like a supported media type
-    bool isgfx(const LocalPath&) override;
+    bool isgfx(const LocalPath&);
 
     // check whether the filename looks like a video
-    bool isvideo(const LocalPath&) override;
+    bool isvideo(const LocalPath&);
 
     // generate all dimensions, write to metadata server and attach to PUT transfer or existing node
     // handle is uploadhandle or nodehandle
     // - must respect JPEG EXIF rotation tag
     // - must save at 85% quality (120*120 pixel result: ~4 KB)
-    int gendimensionsputfa(FileAccess*, const LocalPath&, NodeOrUploadHandle, SymmCipher*, int missingattr) override;
+    int gendimensionsputfa(FileAccess*, const LocalPath&, NodeOrUploadHandle, SymmCipher*, int missingattr);
 
     // FIXME: read dynamically from API server
     typedef enum { THUMBNAIL, PREVIEW } meta_t;
     typedef enum { AVATAR250X250 } avatar_t;
 
     // generate and save a fa to a file
-    bool savefa(const LocalPath& source, int, int, LocalPath& destination) override;
+    bool savefa(const LocalPath& source, int, int, LocalPath& destination);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
     // - w*h: resize to fit inside w*h bounding box
     static const int dimensions[][2];
     static const int dimensionsavatar[][2];
 
-    void setClient(MegaClient* c)  override { client = c; }
-
     MegaClient* client;
 
     // start a thread that will do the processing
-    void startProcessingThread() override;
+    void startProcessingThread();
 
     GfxProc(std::unique_ptr<IGfxProvider>);
     virtual ~GfxProc();

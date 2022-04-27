@@ -32,10 +32,6 @@ const int GfxProc::dimensionsavatar[][2] = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
-IGfxProc::~IGfxProc()
-{
-}
-
 bool GfxProc::isgfx(const LocalPath& localfilename)
 {
     const char* supported;

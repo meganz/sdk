@@ -2842,7 +2842,7 @@ protected:
         MegaWaiter *waiter;
         MegaFileSystemAccess *fsAccess;
         MegaDbAccess *dbAccess;
-        IGfxProc *gfxAccess;
+        GfxProc *gfxAccess;
         string basePath;
         bool nocache;
 

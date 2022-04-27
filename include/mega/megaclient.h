@@ -1190,7 +1190,7 @@ public:
     unique_ptr<FileSystemAccess> fsaccess;
 
     // bitmap graphics handling
-    IGfxProc* gfx;
+    GfxProc* gfx;
 
     // enable / disable the gfx layer
     bool gfxdisabled;
@@ -1922,7 +1922,7 @@ public:
      */
     dstime overTransferQuotaBackoff(HttpReq* req);
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, unique_ptr<FileSystemAccess>&&, DbAccess*, IGfxProc*, const char*, const char*, unsigned workerThreadCount);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, unique_ptr<FileSystemAccess>&&, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 
     void filenameAnomalyDetected(FilenameAnomalyType type, const LocalPath& localPath, const string& remotePath);
