@@ -12065,13 +12065,16 @@ bool MegaClient::fetchsc(DbTable* sctable)
         assert(rootNodeFile);
         mNodeManager.calculateCounter(*rootNodeFile);
 
-        Node* rootNodeInbox = mNodeManager.getNodeByHandle(rootnodes.inbox);
-        assert(rootNodeInbox);
-        mNodeManager.calculateCounter(*rootNodeInbox);
+        if (!loggedIntoFolder())
+        {
+            Node* rootNodeInbox = mNodeManager.getNodeByHandle(rootnodes.inbox);
+            assert(rootNodeInbox);
+            mNodeManager.calculateCounter(*rootNodeInbox);
 
-        Node* rootNodeRubbish = mNodeManager.getNodeByHandle(rootnodes.rubbish);
-        assert(rootNodeRubbish);
-        mNodeManager.calculateCounter(*rootNodeRubbish);
+            Node* rootNodeRubbish = mNodeManager.getNodeByHandle(rootnodes.rubbish);
+            assert(rootNodeRubbish);
+            mNodeManager.calculateCounter(*rootNodeRubbish);
+        }
 
         // and force commit, since old DB has been upgraded to new schema for NOD
         sctable->commit();
