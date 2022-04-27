@@ -508,7 +508,7 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mName(std::move(name))
     , mRemoteNode(remoteNode)
     , mOriginalPathOfRemoteRootNode(remotePath)
-    , mLocalFingerprint(localFingerprint)
+    , mFilesystemFingerprint(localFingerprint)
     , mSyncType(syncType)
     , mError(error)
     , mWarning(warning)
@@ -525,7 +525,7 @@ bool SyncConfig::operator==(const SyncConfig& rhs) const
            && mName == rhs.mName
            && mRemoteNode == rhs.mRemoteNode
            && mOriginalPathOfRemoteRootNode == rhs.mOriginalPathOfRemoteRootNode
-           && mLocalFingerprint == rhs.mLocalFingerprint
+           && mFilesystemFingerprint == rhs.mFilesystemFingerprint
            && mSyncType == rhs.mSyncType
            && mError == rhs.mError
            && mBackupId == rhs.mBackupId
@@ -561,16 +561,6 @@ NodeHandle SyncConfig::getRemoteNode() const
 void SyncConfig::setRemoteNode(NodeHandle remoteNode)
 {
     mRemoteNode = remoteNode;
-}
-
-handle SyncConfig::getLocalFingerprint() const
-{
-    return mLocalFingerprint;
-}
-
-void SyncConfig::setLocalFingerprint(fsfp_t fingerprint)
-{
-    mLocalFingerprint = fingerprint;
 }
 
 SyncConfig::Type SyncConfig::getType() const
@@ -666,7 +656,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Remote node moved to Rubbish Bin";
     case SHARE_NON_FULL_ACCESS:
         return "Share without full access";
-    case LOCAL_FINGERPRINT_MISMATCH:
+    case LOCAL_FILESYSTEM_MISMATCH:
         return "Local fingerprint mismatch";
     case PUT_NODES_ERROR:
         return "Put nodes error";
@@ -850,7 +840,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     dirnotify->addnotify(localroot.get(), mLocalPath);
 
     // set specified fsfp or get from fs if none
-    const auto cfsfp = mUnifiedSync.mConfig.getLocalFingerprint();
+    const auto cfsfp = mUnifiedSync.mConfig.mFilesystemFingerprint;
     if (cfsfp)
     {
         fsfp = cfsfp;
@@ -1337,7 +1327,6 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
     }
     if (!localdebris.isContainingPathOf(*localpath))
     {
-        DirAccess* da;
         LocalPath localname;
         string name;
         bool success;
@@ -1347,12 +1336,12 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
             LOG_debug << "Scanning folder: " << localpath;
         }
 
-        da = client->fsaccess->newdiraccess();
+       auto da = client->fsaccess->newdiraccess();
 
         // scan the dir, mark all items with a unique identifier
         if ((success = da->dopen(localpath, fa, false)))
         {
-            while (da->dnext(*localpath, localname, client->followsymlinks))
+            while (da->dnext(*localpath, localname, false))
             {
                 name = localname.toName(*client->fsaccess);
 
@@ -1369,7 +1358,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                         if (initializing)
                         {
                             // preload all cached LocalNodes
-                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da);
+                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da.get());
                         }
 
                         if (!l || l == (LocalNode*)~0)
@@ -1385,8 +1374,6 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                 }
             }
         }
-
-        delete da;
 
         return success;
     }
@@ -2139,7 +2126,7 @@ dstime Sync::procscanq(int q)
 
         if (notification.timestamp > dsmin)
         {
-            LOG_verbose << "Scanning postponed. Modification too recent";
+            LOG_verbose << syncname << "Scanning postponed. Modification too recent: " << notification.timestamp << " (ds) vs now " << Waiter::ds << " at " << notification.path;
             dirnotify->notifyq[q].unpopFront(notification);
             return notification.timestamp - dsmin;
         }
@@ -2333,7 +2320,7 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
 
     if (resetFingerprint)
     {
-        mConfig.setLocalFingerprint(0); //This will cause the local filesystem fingerprint to be recalculated
+        mConfig.mFilesystemFingerprint = 0; //This will cause the local filesystem fingerprint to be recalculated
     }
 
     LocalPath rootpath;
@@ -2402,7 +2389,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     NodeHandle rootNodeHandle, bool inshare, bool isNetwork, LocalPath& rootpath,
     std::unique_ptr<FileAccess>& openedLocalFolder)
 {
-    auto prevFingerprint = mConfig.getLocalFingerprint();
+    auto prevFingerprint = mConfig.mFilesystemFingerprint;
 
     Node* remotenode = client->nodeByHandle(rootNodeHandle);
     if (!remotenode)
@@ -2412,14 +2399,14 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
 
     assert(!mSync);
     mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare));
-    mConfig.setLocalFingerprint(mSync->fsfp);
+    mConfig.mFilesystemFingerprint = mSync->fsfp;
 
-    if (prevFingerprint && prevFingerprint != mConfig.getLocalFingerprint())
+    if (prevFingerprint && prevFingerprint != mConfig.mFilesystemFingerprint)
     {
         LOG_err << "New sync local fingerprint mismatch. Previous: " << prevFingerprint
-            << "  Current: " << mConfig.getLocalFingerprint();
-        mSync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH, false, true);
-        mConfig.mError = LOCAL_FINGERPRINT_MISMATCH;
+            << "  Current: " << mConfig.mFilesystemFingerprint;
+        mSync->changestate(SYNC_FAILED, LOCAL_FILESYSTEM_MISMATCH, false, true);
+        mConfig.mError = LOCAL_FILESYSTEM_MISMATCH;
         mConfig.mEnabled = false;
         mSync.reset();
         return API_EFAILED;
@@ -3167,7 +3154,7 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
     config.mBackupState = SYNC_BACKUP_NONE;
     config.mEnabled = false;
     config.mError = NO_SYNC_ERROR;
-    config.mLocalFingerprint = 0;
+    config.mFilesystemFingerprint = 0;
     config.mLocalPath = LocalPath::fromAbsolutePath(localPath);
     config.mName = std::move(name);
     config.mOriginalPathOfRemoteRootNode = remotePath;
@@ -3441,10 +3428,10 @@ bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
             // double check we updated fsfp_t
             if (s->mSync)
             {
-                assert(c.mLocalFingerprint == s->mSync->fsfp);
+                assert(c.mFilesystemFingerprint == s->mSync->fsfp);
 
                 // just in case, for now
-                c.mLocalFingerprint = s->mSync->fsfp;
+                c.mFilesystemFingerprint = s->mSync->fsfp;
             }
 
             return true;
@@ -3874,18 +3861,18 @@ void Syncs::resumeResumableSyncsOnStartup()
                 assert(!hadAnError);
 
 #ifdef __APPLE__
-                unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
+                unifiedSync->mConfig.mFilesystemFingerprint = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
-                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
 
                 unifiedSync->enableSync(false, false);
-                LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
 
                 mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
             }
             else
             {
-                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
                 mClient.app->sync_auto_resume_result(unifiedSync->mConfig, false, hadAnError);
             }
         }
@@ -3925,6 +3912,18 @@ void SyncConfigStore::markDriveDirty(const LocalPath& drivePath)
     assert(mKnownDrives.count(drivePath));
 
     mKnownDrives[drivePath].dirty = true;
+}
+
+handle SyncConfigStore::driveID(const LocalPath& drivePath) const
+{
+    auto i = mKnownDrives.find(drivePath);
+
+    if (i != mKnownDrives.end())
+        return i->second.driveID;
+
+    assert(!"Drive should be known!");
+
+    return UNDEF;
 }
 
 bool SyncConfigStore::equal(const LocalPath& lhs, const LocalPath& rhs) const
@@ -3980,8 +3979,22 @@ bool SyncConfigStore::removeDrive(const LocalPath& drivePath)
 error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& configs, bool isExternal)
 {
     DriveInfo driveInfo;
+
     driveInfo.dbPath = dbPath(drivePath);
     driveInfo.drivePath = drivePath;
+
+    if (isExternal)
+    {
+        driveInfo.driveID = mIOContext.driveID(drivePath);
+
+        if (driveInfo.driveID == UNDEF)
+        {
+            LOG_err << "Failed to retrieve drive ID for: "
+                    << drivePath.toPath();
+
+            return API_EREAD;
+        }
+    }
 
     vector<unsigned int> confSlots;
 
@@ -4247,6 +4260,15 @@ bool SyncConfigIOContext::deserialize(SyncConfigVector& configs,
             break;
         }
     }
+}
+
+handle SyncConfigIOContext::driveID(const LocalPath& drivePath) const
+{
+    handle result = UNDEF;
+
+    readDriveId(mFsAccess, drivePath, result);
+
+    return result;
 }
 
 FileSystemAccess& SyncConfigIOContext::fsAccess() const
@@ -4588,7 +4610,7 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
             break;
 
         case TYPE_FINGERPRINT:
-            config.mLocalFingerprint = reader.getfp();
+            config.mFilesystemFingerprint = reader.getfp();
             break;
 
         case TYPE_LAST_ERROR:
@@ -4702,7 +4724,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("sp", sourcePath);
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOriginalPathOfRemoteRootNode);
-    writer.arg_fsfp("fp", config.mLocalFingerprint);
+    writer.arg_fsfp("fp", config.mFilesystemFingerprint);
     writer.arg("th", config.mRemoteNode);
     writer.arg("le", config.mError);
     writer.arg("lw", config.mWarning);

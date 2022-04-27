@@ -69,6 +69,7 @@ struct MEGA_API User : public Cacheable
         bool language : 1;      // preferred language code
         bool pwdReminder : 1;   // password-reminder-dialog information
         bool disableVersions : 1;   // disable fileversioning
+        bool noCallKit : 1;   // disable CallKit
         bool contactLinkVerification : 1; // Verify contact requests with contact links
         bool richPreviews : 1;  // enable messages with rich previews
         bool lastPsa : 1;

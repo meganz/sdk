@@ -63,6 +63,11 @@
 #include <winioctl.h>
 #endif
 
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+#include "mega/rotativeperformancelogger.h"
+#endif
+
+
 namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
@@ -140,7 +145,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
 // converts the given sync configuration to a string
 std::string syncConfigToString(const SyncConfig& config)
 {
-    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
+    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.mBackupId));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
         description.append(" TWOWAY");
@@ -351,7 +356,7 @@ void AppFile::progress()
 {
 }
 
-static void displaytransferdetails(Transfer* t, const char* action)
+static void displaytransferdetails(Transfer* t, const string& action)
 {
     string name;
 
@@ -387,14 +392,13 @@ void DemoApp::transfer_update(Transfer* /*t*/)
 
 void DemoApp::transfer_failed(Transfer* t, const Error& e, dstime)
 {
-    displaytransferdetails(t, "failed (");
     if (e == API_ETOOMANY && e.hasExtraInfo())
     {
-         cout << getExtraInfoErrorString(e) << ")" << endl;
+        displaytransferdetails(t, "failed (" + getExtraInfoErrorString(e) + ")\n");
     }
     else
     {
-        cout << errorstring(e) << ")" << endl;
+        displaytransferdetails(t, "failed (" + string(errorstring(e)) + ")\n");
     }
 }
 
@@ -1036,7 +1040,7 @@ void DemoApp::fetchnodes_result(const Error& e)
             else
             {
                 assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+                cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
 
@@ -1342,7 +1346,7 @@ static void store_line(char*);
 static void process_line(char *);
 static char* line;
 
-static AccountDetails account;
+static std::shared_ptr<AccountDetails> account = std::make_shared<AccountDetails>();
 
 // Current remote directory.
 static NodeHandle cwd;
@@ -2796,7 +2800,7 @@ void exec_getuserquota(autocomplete::ACState& s)
         storage = transfer = pro = true;
     }
 
-    client->getaccountdetails(new AccountDetails, storage, transfer, pro, false, false, false, -1);
+    client->getaccountdetails(std::make_shared<AccountDetails>(), storage, transfer, pro, false, false, false, -1);
 }
 
 void exec_getuserdata(autocomplete::ACState& s)
@@ -3217,7 +3221,12 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_import, sequence(text("import"), exportedLink(true, false)));
     p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
-    p->Add(exec_open, sequence(text("open"), exportedLink(false, true)));
+
+    p->Add(exec_open,
+           sequence(text("open"),
+                    exportedLink(false, true),
+                    opt(param("authToken"))));
+
     p->Add(exec_put, sequence(text("put"), opt(flag("-r")), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(exec_putq, sequence(text("putq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
@@ -3304,7 +3313,7 @@ autocomplete::ACN autocompleteSyntax()
 
 #endif
 
-    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
+    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(flag("-mega-hosted")), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
@@ -3341,12 +3350,16 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_reload, sequence(text("reload"), opt(text("nocache"))));
     p->Add(exec_logout, sequence(text("logout"), opt(flag("-keepsyncconfigs"))));
     p->Add(exec_locallogout, sequence(text("locallogout")));
-    p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
     p->Add(exec_debug, sequence(text("debug"),
                 opt(either(flag("-on"), flag("-off"), flag("-verbose"))),
                 opt(either(flag("-console"), flag("-noconsole"))),
-                opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile())))));
+                opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile())))
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+                ,opt(sequence(flag("-rotative_performance_logger_file"), localFSFile(), opt(flag("-rotative_performance_logger_toconsole")), opt(flag("-rotative_performance_logger_exerciseOutput"))))
+#endif
+                ));
+
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
@@ -4031,7 +4044,7 @@ void exec_cp(autocomplete::ACState& s)
             }
 
             TreeProcCopy_mcli tc;
-            handle ovhandle = UNDEF;
+            NodeHandle ovhandle;
 
             if (!n->keyApplied())
             {
@@ -4076,17 +4089,17 @@ void exec_cp(autocomplete::ACState& s)
                         return;
                     }
 
-                    ovhandle = ovn->nodehandle;
+                    ovhandle = ovn->nodeHandle();
                 }
             }
 
             // determine number of nodes to be copied
-            client->proctree(n, &tc, false, ovhandle != UNDEF);
+            client->proctree(n, &tc, false, !ovhandle.isUndef());
 
             tc.allocnodes();
 
             // build new nodes array
-            client->proctree(n, &tc, false, ovhandle != UNDEF);
+            client->proctree(n, &tc, false, !ovhandle.isUndef());
 
             // if specified target is a filename, use it
             if (newname.size())
@@ -4469,7 +4482,7 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
 {
-    DirAccess* da = client->fsaccess->newdiraccess();
+    auto da = client->fsaccess->newdiraccess();
 
     LocalPath lp(localname);
     if (da->dopen(&lp, NULL, false))
@@ -4539,7 +4552,7 @@ void exec_put(autocomplete::ACState& s)
 
     auto localname = localPathArg(s.words[1].s);
 
-    DirAccess* da = client->fsaccess->newdiraccess();
+    auto da = client->fsaccess->newdiraccess();
 
     if (da->dopen(&localname, NULL, true))
     {
@@ -4558,8 +4571,6 @@ void exec_put(autocomplete::ACState& s)
             uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo);
         }
     }
-
-    delete da;
 
     cout << "Queued " << total << " file(s) for upload, " << appxferq[PUT].size()
         << " file(s) in queue" << endl;
@@ -4790,7 +4801,12 @@ void exec_open(autocomplete::ACState& s)
             clientFolder->logout(false);
         }
 
-        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), nullptr));
+        const char* authToken = nullptr;
+
+        if (s.words.size() > 2)
+            authToken = s.words[2].s.c_str();
+
+        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), authToken));
     }
     else
     {
@@ -5498,6 +5514,68 @@ void exec_debug(autocomplete::ACState& s)
             }
         }
     }
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+    string rpl_filename;
+    string rpl_toconsole;
+    if (s.extractflagparam("-rotative_performance_logger_file", rpl_filename))
+    {
+        bool toconsole = s.extractflag("-rotative_performance_logger_toconsole");
+
+        bool exerciseOutput = s.extractflag("-rotative_performance_logger_exerciseOutput");
+
+        // singletons...
+        RotativePerformanceLogger::Instance().initialize(".", rpl_filename.c_str(), toconsole);
+
+        if (exerciseOutput)
+        {
+            // two competing threads, both logging, so we're not just paused during gzipping
+
+            new std::thread([](){
+                std::map<long, int> fps;
+
+                auto start = std::chrono::high_resolution_clock::now();
+                while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() < 10)
+                {
+                    LOG_info << "Logging from thread 1" ;
+                    fps[long(m_time())]++;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000/30));
+                }
+                auto cl = conlock(cout);
+                cl << "thread 1:";
+                for (auto& n : fps) cl << " " << n.second;
+                cl << "\n";
+            });
+
+
+            new std::thread([](){
+                std::map<long, int> fps;
+
+                auto start = std::chrono::high_resolution_clock::now();
+                while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() < 10)
+                {
+                    LOG_info << "Logging from thread 2" ;
+                    fps[long(m_time())]++;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000/30));
+                }
+                auto cl = conlock(cout);
+                cl << "thread 2:";
+                for (auto& n : fps) cl << " " << n.second;
+                cl << "\n";
+            });
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            string dm(99999999, 'x');
+            for (int i = 0 ; i < 30 ; i++)
+            {
+                LOG_err << DirectMessage(dm.c_str());
+            }
+
+
+        }
+
+    }
+#endif
+
 
     cout << "Debug level set to " << SimpleLogger::logCurrentLevel << endl;
     cout << "Log to console: " << (gLogger.logToConsole ? "on" : "off") << endl;
@@ -6082,7 +6160,7 @@ void exec_whoami(autocomplete::ACState& s)
 
         cout << "Retrieving account status..." << endl;
 
-        client->getaccountdetails(&account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
+        client->getaccountdetails(account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
     }
 }
 
@@ -6155,6 +6233,7 @@ void exec_export(autocomplete::ACState& s)
     int etstmp = 0;
 
     bool writable = s.extractflag("-writable");
+    bool megaHosted = s.extractflag("-mega-hosted");
 
 
     if ((n = nodebypath(s.words[1].s.c_str())))
@@ -6172,7 +6251,7 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable, gNextClientTag++, [](Error e, handle h, handle ph){
+        if ((e = client->exportnode(n, deltmp, etstmp, writable, megaHosted, gNextClientTag++, [](Error e, handle h, handle ph){
             exportnode_result(e, h, ph);
         })))
         {
@@ -6627,18 +6706,6 @@ void exec_session(autocomplete::ACState& s)
     }
 }
 
-void exec_symlink(autocomplete::ACState& s)
-{
-    if (client->followsymlinks ^= true)
-    {
-        cout << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
-    }
-    else
-    {
-        cout << "No longer following symlinks." << endl;
-    }
-}
-
 void exec_version(autocomplete::ACState& s)
 {
     cout << "MEGA SDK version: " << MEGA_MAJOR_VERSION << "." << MEGA_MINOR_VERSION << "." << MEGA_MICRO_VERSION << endl;
@@ -7052,7 +7119,7 @@ void exec_driveid(autocomplete::ACState& s)
     if (!force)
     {
         auto id = UNDEF;
-        auto result = client->readDriveId(drivePath, id);
+        auto result = readDriveId(*client->fsaccess, drivePath, id);
 
         switch (result)
         {
@@ -7087,8 +7154,8 @@ void exec_driveid(autocomplete::ACState& s)
         }
     }
 
-    auto id = client->generateDriveId();
-    auto result = client->writeDriveId(drivePath, id);
+    auto id = generateDriveId(client->rng);
+    auto result = writeDriveId(*client->fsaccess, drivePath, id);
 
     if (result != API_OK)
     {
@@ -7784,7 +7851,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                     }
                 }
 
-                newnode->ovhandle = ovn->nodehandle;
+                newnode->ovhandle = ovn->nodeHandle();
             }
         }
 
@@ -8683,7 +8750,21 @@ int main(int argc, char* argv[])
     }
 
     SimpleLogger::setLogLevel(logMax);
-    SimpleLogger::setOutputClass(&gLogger);
+    //SimpleLogger::setOutputClass(&gLogger);
+    auto gLoggerAddr = &gLogger;
+    g_externalLogger.addMegaLogger(&gLogger,
+
+        [gLoggerAddr](const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+            ){
+                gLoggerAddr->log(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+                    , directMessages, directMessagesSizes, numberMessages
+#endif
+                );
+         });
 
     console = new CONSOLE_CLASS;
 
@@ -8697,6 +8778,9 @@ int main(int argc, char* argv[])
     // Needed so we can get the cwd.
 #ifdef __APPLE__
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
+
+    // Try and raise the file descriptor limit as high as we can.
+    platformSetRLimitNumFile();
 #else
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 #endif
@@ -8791,31 +8875,37 @@ void DemoAppFolder::login_result(error e)
 
 void DemoAppFolder::fetchnodes_result(const Error& e)
 {
+    bool success = false;
     if (e)
     {
         if (e == API_ENOENT && e.hasExtraInfo())
         {
-            cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
+            cout << "Folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
         }
         else
         {
-            cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+            cout << "Folder retrieval failed (" << errorstring(e) << ")" << endl;
         }
     }
     else
     {
-        // check if we fetched a folder link and the key is invalid
+        // check if the key is invalid
         if (clientFolder->isValidFolderLink())
         {
-            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            cout << "Folder link loaded correctly." << endl;
+            success = true;
         }
         else
         {
-            cout << "Failed to load folder link" << endl;
-
-            delete clientFolder;
-            clientFolder = NULL;
+            assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
+            cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
         }
+    }
+
+    if (!success)
+    {
+        delete clientFolder;
+        clientFolder = NULL;
     }
 }
 
@@ -9004,12 +9094,12 @@ void exec_syncadd(autocomplete::ACState& s)
 
         // Try and generate a drive ID.
         auto id = UNDEF;
-        auto result = client->readDriveId(drive.c_str(), id);
+        auto result = readDriveId(*client->fsaccess, drive.c_str(), id);
 
         if (result == API_ENOENT)
         {
-            id = client->generateDriveId();
-            result = client->writeDriveId(drive.c_str(), id);
+            id = generateDriveId(client->rng);
+            result = writeDriveId(*client->fsaccess, drive.c_str(), id);
         }
 
         if (result != API_OK)

@@ -149,22 +149,6 @@ void BackoffTimerGroupTracker::update(dstime* waituntil, bool transfers)
 
     if (transfers)
     {
-        // used to be:
-        //for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
-        //{
-        //    if ((!it->second->slot || !it->second->slot->fa)
-        //     && it->second->bt.nextset())
-        //    {
-        //        it->second->bt.update(dsmin);
-        //        if (it->second->bt.armed())
-        //        {
-        //            // fire the timer only once but keeping it armed
-        //            it->second->bt.set(0);
-        //            LOG_debug << "Disabling armed transfer backoff";
-        //        }
-        //    }
-        //}
-
         for (auto t : timeouts)
         {
             // put the ones to work on in a vector, as working on them changes their position in the map
@@ -192,15 +176,6 @@ void BackoffTimerGroupTracker::update(dstime* waituntil, bool transfers)
     }
     else
     {
-        // used to be:
-        //for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
-        //{
-        //    if (!(*it)->retrybt.armed())
-        //    {
-        //        (*it)->retrybt.update(&nds);
-        //    }
-        //}
-
         // put the ones to work on in a vector, as working on them changes their position in the map
         for (auto t : timeouts)
         {

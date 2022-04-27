@@ -44,7 +44,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    mega::DirAccess* newdiraccess() override
+    std::unique_ptr<mega::DirAccess> newdiraccess() override
     {
         throw NotImplemented{__func__};
     }

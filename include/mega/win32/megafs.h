@@ -56,7 +56,8 @@ public:
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
 
-    DirAccess* newdiraccess() override;
+    unique_ptr<DirAccess>  newdiraccess() override;
+
 #ifdef ENABLE_SYNC
     DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
 #endif

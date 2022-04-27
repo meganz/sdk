@@ -84,10 +84,6 @@ public:
     NodeHandle getRemoteNode() const;
     void setRemoteNode(NodeHandle remoteNode);
 
-    // the fingerprint of the local sync root folder
-    fsfp_t getLocalFingerprint() const;
-    void setLocalFingerprint(fsfp_t fingerprint);
-
     // returns the type of the sync
     Type getType() const;
 
@@ -135,8 +131,8 @@ public:
     // the path to the remote node, as last known (not definitive)
     string mOriginalPathOfRemoteRootNode;
 
-    // the local fingerprint
-    fsfp_t mLocalFingerprint;
+    // uniquely identifies the filesystem, we check this is unchanged.
+    fsfp_t mFilesystemFingerprint;
 
     // type of the sync, defaults to bidirectional
     Type mSyncType;
@@ -395,6 +391,9 @@ public:
     // Remember whether we need to update the file containing configs on this drive.
     void markDriveDirty(const LocalPath& drivePath);
 
+    // Retrieve a drive's unique backup ID.
+    handle driveID(const LocalPath& drivePath) const;
+
     // Whether any config data has changed and needs to be written to disk
     bool dirty() const;
 
@@ -425,6 +424,10 @@ private:
 
         // Path to the drive itself.
         LocalPath drivePath;
+
+        // The drive's unique backup ID.
+        // Meaningful only for external backups.
+        handle driveID = UNDEF;
 
         // Tracks which 'slot' we're writing to.
         unsigned int slot = 0;
@@ -477,6 +480,9 @@ public:
     bool deserialize(SyncConfigVector& configs,
                      JSON& reader,
                      bool isExternal) const;
+
+    // Retrieve a drive's unique backup ID.
+    virtual handle driveID(const LocalPath& drivePath) const;
 
     // Return a reference to this context's filesystem access.
     FileSystemAccess& fsAccess() const;

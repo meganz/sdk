@@ -300,10 +300,11 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->uploadhandle = t->uploadhandle;
 
         // reference to uploaded file
-        memcpy(newnode->uploadtoken, t->ultoken.get(), sizeof newnode->uploadtoken);
+        newnode->uploadtoken = *t->ultoken;
 
         // file's crypto key
-        newnode->nodekey.assign((char*)t->filekey, FILENODEKEYLENGTH);
+        static_assert(sizeof(filekey) == FILENODEKEYLENGTH, "File completed: filekey size doesn't match with FILENODEKEYLENGTH");
+        newnode->nodekey.assign((char*)&t->filekey, FILENODEKEYLENGTH);
         newnode->type = FILENODE;
         newnode->parenthandle = UNDEF;
 #ifdef ENABLE_SYNC
@@ -350,7 +351,7 @@ void File::completed(Transfer* t, LocalNode* l)
                     }
                     else
                     {
-                        newnode->ovhandle = l->node->nodehandle;
+                        newnode->ovhandle = l->node->nodeHandle();
                     }
                 }
 
@@ -358,9 +359,13 @@ void File::completed(Transfer* t, LocalNode* l)
             }
 #endif
             if (mVersioningOption != NoVersioning &&
-                ISUNDEF(newnode->ovhandle))
+                newnode->ovhandle.isUndef())
             {
-                newnode->ovhandle = t->client->getovhandle(t->client->nodeByHandle(th), &name);
+                if (Node* ovNode = t->client->getovnode(t->client->nodeByHandle(th), &name))
+                {
+                    newnode->ovhandle = ovNode->nodeHandle();
+                }
+
             }
 
             t->client->reqs.add(new CommandPutNodes(t->client,
