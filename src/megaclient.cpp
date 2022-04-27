@@ -2232,7 +2232,7 @@ void MegaClient::exec()
             case REQ_INFLIGHT:
                 if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
-                    LOG_debug << "sc timeout expired";
+                    LOG_debug << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
                     // In almost all cases the server won't take more than SCREQUESTTIMEOUT seconds.  But if it does, break the cycle of endless requests for the same thing
                     pendingscTimedOut = true;
                     pendingsc.reset();
@@ -13243,10 +13243,10 @@ void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(han
     }));
 }
 
-void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion, bool startSyncs)
+void MegaClient::importSyncConfigs(const char* configs, std::function<void(error)> completion)
 {
     auto onUserAttributesCompleted = std::bind(
-      [configs, startSyncs, this](std::function<void(error)>& completion, Error result)
+      [configs, this](std::function<void(error)>& completion, Error result)
       {
           // Do we have the attributes necessary for the sync config store?
           if (result != API_OK)
@@ -13257,7 +13257,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
           }
 
           // Kick off the import.
-          syncs.importSyncConfigs(configs, std::move(completion), startSyncs);
+          syncs.importSyncConfigs(configs, std::move(completion));
       },
       std::move(completion), std::placeholders::_1);
 

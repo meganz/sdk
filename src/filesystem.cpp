@@ -447,7 +447,7 @@ void LocalPath::normalizeAbsolute()
 #ifdef USE_IOS
     // iOS is a tricky case.
     // We need to be able to use and persist absolute paths.  however on iOS app restart,
-    // our app base path may be different.  So, we only record the path beyone that app
+    // our app base path may be different.  So, we only record the path beyond that app
     // base path.   That is what the app supplies for absolute paths, that's what is persisted.
     // Actual filesystem functions passed such an "absolute" path will prepend the app base path
     // unless it already started with /
@@ -534,7 +534,7 @@ bool LocalPath::invariant() const
 #ifdef USE_IOS
     // iOS is a tricky case.
     // We need to be able to use and persist absolute paths.  however on iOS app restart,
-    // our app base path may be different.  So, we only record the path beyone that app
+    // our app base path may be different.  So, we only record the path beyond that app
     // base path.   That is what the app supplies for absolute paths, that's what is persisted.
     // Actual filesystem functions passed such an "absolute" path will prepend the app base path
     // unless it already started with /
@@ -1288,7 +1288,6 @@ void LocalPath::clear()
     isFromRoot = false;
     assert(invariant());
 }
-
 
 void LocalPath::truncate(size_t bytePos)
 {

@@ -1230,7 +1230,9 @@ bool PosixFileSystemAccess::expanselocalpath(LocalPath& source, LocalPath& desti
 
         // Retrieve current working directory.
         if (!cwd(destination))
+        {
             return false;
+        }
 
         // Compute absolute path.
         destination.appendWithSeparator(source, false);

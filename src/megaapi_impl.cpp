@@ -21312,7 +21312,7 @@ void MegaApiImpl::sendPendingRequests()
                       fireOnRequestFinish(request, std::move(error));
                   };
 
-                client->importSyncConfigs(configs, std::move(completion), false);
+                client->importSyncConfigs(configs, std::move(completion));
                 break;
             }
 

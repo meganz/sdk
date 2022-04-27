@@ -658,9 +658,6 @@ public:
      * @param completion
      * The function to call when we've completed importing the configs.
      *
-     * @param startSyncs
-     * True if we should start the syncs as they are imported.
-     *
      * @see MegaApi::exportSyncConfigs
      * @see MegaApi::importSyncConfigs
      * @see Syncs::exportSyncConfig
@@ -668,7 +665,7 @@ public:
      * @see Syncs::importSyncConfig
      * @see Syncs::importSyncConfigs
      */
-    void importSyncConfigs(const char* configs, std::function<void(error)> completion, bool startSyncs);
+    void importSyncConfigs(const char* configs, std::function<void(error)> completion);
 
     /**
      * @brief This method ensures that sync user attributes are available.

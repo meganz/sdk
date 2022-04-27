@@ -9258,7 +9258,7 @@ void exec_syncimport(autocomplete::ACState& s)
     cout << "Importing sync configs..."
          << endl;
 
-    client->importSyncConfigs(data.c_str(), std::move(completion), true);
+    client->importSyncConfigs(data.c_str(), std::move(completion));
 }
 
 void exec_syncexport(autocomplete::ACState& s)
