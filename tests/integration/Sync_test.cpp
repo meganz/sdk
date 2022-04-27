@@ -15218,7 +15218,9 @@ TEST_F(SyncTest, MaximumTreeDepthBehavior)
             nodes[i].parenthandle = i;
         }
 
+        client->received_node_actionpackets = false;
         ASSERT_TRUE(client->putnodes(root->nodeHandle(), NoVersioning, std::move(nodes)));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
     }
 
     // Add and start a new sync.
