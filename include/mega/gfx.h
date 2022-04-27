@@ -63,6 +63,10 @@ class MEGA_API GfxJobQueue
         GfxJob *pop();
 };
 
+// Interface for graphic processor provider used by GfxProc
+// Implementations should be able to allocate/deallocate and manipulate bitmaps,
+// as well as inform about its supported format capabilities
+// No thread safety is requied among the operations
 class MEGA_API IGfxProvider
 {
 public: // read and store bitmap
@@ -109,15 +113,19 @@ class MEGA_API GfxProc
     void loop();
 
 public:
+    // synchronously processes the results of gendimensionsputfa() (if any) in a thread safe manner
     int checkevents(Waiter*);
 
-    // check whether the filename looks like a supported media type
+    // synchronously check whether the filename looks like a supported media type
     bool isgfx(const LocalPath&);
 
-    // check whether the filename looks like a video
+    // synchronously check whether the filename looks like a video
     bool isvideo(const LocalPath&);
 
-    // generate all dimensions, write to metadata server and attach to PUT transfer or existing node
+    // synchronously generate all dimensions and returns the count
+    // asynchronously write to metadata server and attach to PUT transfer or existing node,
+    // upon finalization the job is stored in responses object in a thread safe manner, and client waiter is notified
+    // The results can be processed by calling checkevents()
     // handle is uploadhandle or nodehandle
     // - must respect JPEG EXIF rotation tag
     // - must save at 85% quality (120*120 pixel result: ~4 KB)
@@ -127,7 +135,7 @@ public:
     typedef enum { THUMBNAIL, PREVIEW } meta_t;
     typedef enum { AVATAR250X250 } avatar_t;
 
-    // generate and save a fa to a file
+    // synchronously generate and save a fa to a file
     bool savefa(const LocalPath& source, int, int, LocalPath& destination);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
@@ -140,6 +148,8 @@ public:
     // start a thread that will do the processing
     void startProcessingThread();
 
+    // The provided IGfxProvider implements library specific image processing
+    // Thread safety among IGfxProvider methods is guaranteed by GfxProc
     GfxProc(std::unique_ptr<IGfxProvider>);
     virtual ~GfxProc();
 };
