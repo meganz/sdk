@@ -5342,40 +5342,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)getCameraUploadsFolder;
 
 /**
- * @brief Gets My Backups target folder.
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
- * - [MEGARequest flag] - Returns NO
- *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
- *
- * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
- *
- * @param delegate MEGARequestDelegate to track this request
- */
-- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Gets My Backups target folder.
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
- * - [MEGARequest flag] - Returns NO
- *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
- *
- * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
- */
-- (void)getMyBackupsFolder;
-
-/**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
