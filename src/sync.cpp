@@ -1806,9 +1806,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         // was the file overwritten by moving an existing file over it?
         if (LocalNode* sourceSyncNode = syncs.findLocalNodeByFsid(row.fsNode->fsid, row.fsNode->type, row.fsNode->fingerprint, this, nullptr))   // todo: maybe null for sync* to detect moves between sync?
         {
-            assert(parentRow.syncNode);
-            ProgressingMonitor monitor(syncs);
-
             // We've found a node associated with the local file's FSID.
             //
             // Note however, that the lookup function above doesn't
@@ -1838,6 +1835,9 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             // process of being uploaded.
             if (sourceSyncNode->fsid_lastSynced != row.fsNode->fsid)
                 return false;
+
+            assert(parentRow.syncNode);
+            ProgressingMonitor monitor(syncs);
 
             // Are we moving an ignore file?
             if (row.isIgnoreFile() || sourceSyncNode->isIgnoreFile())
