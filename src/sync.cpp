@@ -1804,10 +1804,14 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         //SYNC_verbose << "Is this a local move destination, by fsid " << toHandle(row.fsNode->fsid) << " at " << logTriplet(row, fullPath);
 
         // was the file overwritten by moving an existing file over it?
-        if (LocalNode* sourceSyncNode = syncs.findLocalNodeBySyncedFsid(row.fsNode->fsid, row.fsNode->type, row.fsNode->fingerprint, this, nullptr))   // todo: maybe null for sync* to detect moves between sync?
+        if (LocalNode* sourceSyncNode = syncs.findLocalNodeByFsid(row.fsNode->fsid, row.fsNode->type, row.fsNode->fingerprint, this, nullptr))   // todo: maybe null for sync* to detect moves between sync?
         {
             assert(parentRow.syncNode);
             ProgressingMonitor monitor(syncs);
+
+            // Only continue if the synced FSID matches.
+            if (sourceSyncNode->fsid_lastSynced != row.fsNode->fsid)
+                return false;
 
             // Are we moving an ignore file?
             if (row.isIgnoreFile() || sourceSyncNode->isIgnoreFile())
@@ -8333,23 +8337,13 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, 
             }
         }
 #endif
-        if (type == FILENODE)
+        if (type == FILENODE &&
+            (fingerprint.mtime != it->second->syncedFingerprint.mtime ||
+                fingerprint.size != it->second->syncedFingerprint.size))
         {
-            auto& node = *it->second;
-            auto& synced = node.syncedFingerprint;
-
-            if (synced.mtime != fingerprint.mtime
-                || synced.size != fingerprint.size)
-            {
-                auto& scanned = node.scannedFingerprint;
-
-                if (node.fsid_asScanned != fsid
-                    || scanned.mtime != fingerprint.mtime
-                    || scanned.size != fingerprint.size)
-                {
-                    continue;
-                }
-            }
+            // fsid match, but size or mtime mismatch
+            // treat as different
+            continue;
         }
 
         // If we got this far, it's a good enough match to use
@@ -8425,6 +8419,16 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type,
         }
     }
     return nullptr;
+}
+
+LocalNode* Syncs::findLocalNodeByFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck)
+{
+    // First try and match based on synced details.
+    if (auto* node = findLocalNodeBySyncedFsid(fsid, type, fingerprint, filesystemSync, extraCheck))
+        return node;
+
+    // Otherwise, try and match on scanned details.
+    return findLocalNodeByScannedFsid(fsid, type, &fingerprint, filesystemSync, extraCheck);
 }
 
 void Syncs::setSyncedFsidReused(mega::handle fsid)
