@@ -3706,12 +3706,14 @@ void Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBa
         // unregister this sync/backup from API (backup center)
         mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
 
-        if (config.isBackup()) // thus in Vault
+        if (config.isBackup() && !skipMoveOrDelBackup) // thus in Vault && needs to be moved/deleted
         {
+            // remote node may be missing, due to an incomplete earlier removal that ended in error,
+            // but if it's there then it must be in Vault
             Node* remoteNode = mClient.nodeByHandle(config.getRemoteNode());
-            assert(remoteNode && remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault);
+            assert(!remoteNode || remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault);
 
-            if (!skipMoveOrDelBackup && remoteNode)
+            if (remoteNode)
             {
                 if (bkpDest == UNDEF) // permanently delete
                 {
@@ -3728,7 +3730,7 @@ void Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBa
                     }
                 }
             }
-            else if (!remoteNode)
+            else
             {
                 LOG_warn << "Remote node of the backup not found";
             }
