@@ -282,6 +282,17 @@ struct StandardClient : public ::mega::MegaApp
 
     void syncupdate_local_lockretry(bool b) override;
 
+#ifdef DEBUG
+    using SyncDebugNotificationHandler =
+        std::function<void(const SyncConfig&, int, const Notification&)>;
+
+    SyncDebugNotificationHandler mOnSyncDebugNotification;
+
+    void syncdebug_notification(const SyncConfig& config,
+        int queue,
+        const Notification& notification) override;
+#endif // DEBUG
+
     std::atomic<unsigned> transfersAdded{0}, transfersRemoved{0}, transfersPrepared{0}, transfersFailed{0}, transfersUpdated{0}, transfersComplete{0};
 
     void transfer_added(Transfer*) override { onCallback(); ++transfersAdded; }
@@ -469,14 +480,16 @@ struct StandardClient : public ::mega::MegaApp
         const string& targetPath,
         std::function<void(error, SyncError, handle)> completion,
         const string& logname);
+
     handle backupAdd_mainthread(const string& drivePath,
         const string& sourcePath,
         const string& targetPath,
         const string& logname);
+
     void setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
         std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);
-    void importSyncConfigs(string configs, bool startSync, PromiseBoolSP result);
-    bool importSyncConfigs(string configs, bool startSync);
+    void importSyncConfigs(string configs, PromiseBoolSP result);
+    bool importSyncConfigs(string configs);
     string exportSyncConfigs();
     bool delSync_inthread(handle backupId);
 

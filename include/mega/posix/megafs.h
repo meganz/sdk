@@ -18,6 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
+
 #ifndef MEGA_POSIX_FS_H
 #define MEGA_POSIX_FS_H
 

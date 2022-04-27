@@ -1212,6 +1212,16 @@ void StandardClient::syncupdate_stateconfig(const SyncConfig& config)
         mOnSyncStateConfig(config);
 }
 
+#ifdef DEBUG
+void StandardClient::syncdebug_notification(const SyncConfig& config,
+                            int queue,
+                            const Notification& notification)
+{
+    if (mOnSyncDebugNotification)
+        mOnSyncDebugNotification(config, queue, notification);
+}
+#endif // DEBUG
+
 void StandardClient::syncupdate_scanning(bool b)
 {
     if (logcb)
@@ -1339,6 +1349,8 @@ void StandardClient::threadloop()
         r |= client.checkevents();
 
         {
+            client.waiter->bumpds();
+            auto start = client.waiter->ds;
             std::lock_guard<mutex> g(functionDoneMutex);
             if (nextfunctionMC)
             {
@@ -1353,6 +1365,13 @@ void StandardClient::threadloop()
                 nextfunctionSC = nullptr;
                 functionDone.notify_all();
                 r |= Waiter::NEEDEXEC;
+            }
+            client.waiter->bumpds();
+            auto end = client.waiter->ds;
+            if (end - start > 200)
+            {
+                LOG_err << "test functions passed to be executed on the client thread should queue work but not wait for it themselves";
+                assert(false);
             }
         }
         if ((r & Waiter::NEEDEXEC))
@@ -2144,18 +2163,18 @@ void StandardClient::setupSync_inthread(const string& subfoldername, const fs::p
     assert(false);
 }
 
-void StandardClient::importSyncConfigs(string configs, bool startSyncs, PromiseBoolSP result)
+void StandardClient::importSyncConfigs(string configs, PromiseBoolSP result)
 {
     auto completion = [result](error e) { result->set_value(!e); };
-    client.importSyncConfigs(configs.c_str(), std::move(completion), startSyncs);
+    client.importSyncConfigs(configs.c_str(), std::move(completion));
 }
 
-bool StandardClient::importSyncConfigs(string configs, bool startSyncs)
+bool StandardClient::importSyncConfigs(string configs)
 {
     auto result =
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                         {
-                            client.importSyncConfigs(configs, startSyncs, result);
+                            client.importSyncConfigs(configs, result);
                         });
 
     return result.get();
@@ -7234,7 +7253,7 @@ TEST_F(SyncTest, BasicSyncExportImport)
     ASSERT_TRUE(cx->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
     // Import the syncs.
-    ASSERT_TRUE(cx->importSyncConfigs(std::move(configs), false));
+    ASSERT_TRUE(cx->importSyncConfigs(std::move(configs)));
 
     // Determine the imported sync's backup IDs.
     id0 = cx->backupIdForSyncPath(root0);
@@ -10534,6 +10553,15 @@ void BackupBehavior::doTest(const string& initialContent,
 
         // Update the file's content.
         m.addfile("f", updatedContent);
+
+        // Hook callback so we can tweak the mtime.
+        cu.mOnSyncDebugNotification = [&](const SyncConfig&, int, const Notification& notification) {
+            // Roll back the mtime now that we know it will be processed.
+            fs::last_write_time(cu.fsBasePath / "su" / "f", mtime);
+
+            // No need for the engine to call us again.
+            cu.mOnSyncDebugNotification = nullptr;
+        };
 
         // Write the file.
         m.generate(cu.fsBasePath / "su");

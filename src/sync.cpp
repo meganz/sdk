@@ -3920,7 +3920,7 @@ string Syncs::exportSyncConfigs() const
     return exportSyncConfigs(configsForDrive(LocalPath()));
 }
 
-void Syncs::importSyncConfigs(const char* data, std::function<void(error)> completion, bool startSyncs)
+void Syncs::importSyncConfigs(const char* data, std::function<void(error)> completion)
 {
     assert(!onSyncThread());
 
@@ -4024,7 +4024,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
                     // Add the new sync, optionally enabling it.
                     syncs.appendNewSync(config,
-                                        context->mStartSyncs,
+                                        false,
                                         false,
                                         std::move(completion),
                                         false,
@@ -4074,9 +4074,6 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
         // Who we're adding the configs to.
         Syncs* mSyncs;
-
-        // Whether we should start the syncs we've imported.
-        bool mStartSyncs;
     }; // Context
 
     // Sanity.
@@ -4143,7 +4140,6 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
     context->mConfig = context->mConfigs.begin();
     context->mDeviceHash = mClient.getDeviceidHash();
     context->mSyncs = this;
-    context->mStartSyncs = startSyncs;
 
     LOG_debug << "Attempting to generate backup IDs for "
               << context->mConfigs.size()
@@ -7616,7 +7612,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             {
                 SYNC_verbose << "Delay creating cloud node until parent cloud node exists: " << fullPath.localPath_utf8() << logTriplet(row, fullPath);
                 row.syncNode->setSyncAgain(true, false, false);
-                monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::UpsyncNeedsTargetFolder);
+                  monitor.waitingLocal(fullPath.localPath, LocalPath(), fullPath.cloudPath, SyncWaitReason::UpsyncNeedsTargetFolder);
             }
         }
         // we may not see some moves/renames until the entire folder structure is created.
