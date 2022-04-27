@@ -1373,7 +1373,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             {
                 case API_EC_IMPORT:
                 case API_EC_DOWNLOAD:
-                    return "Not accessible due to ToS/AUP violation";
+                    return "File removed as it violated our Terms of Service";
                 default:
                     return "Blocked";
             }
@@ -4324,12 +4324,12 @@ MegaApiLock* MegaApi::getMegaApiLock(bool lockNow)
 
 bool MegaApi::platformSetRLimitNumFile(int newNumFileLimit) const
 {
-    return pImpl->platformSetRLimitNumFile(newNumFileLimit);
+    return mega::platformSetRLimitNumFile(newNumFileLimit);
 }
 
 int MegaApi::platformGetRLimitNumFile() const
 {
-    return pImpl->platformGetRLimitNumFile();
+    return mega::platformGetRLimitNumFile();
 }
 
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
