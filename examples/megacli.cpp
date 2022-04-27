@@ -6044,35 +6044,36 @@ void exec_signup(autocomplete::ACState& s)
             ptr = tptr + 7;
 
             std::string code = Base64::atob(std::string(ptr));
-            if (!code.empty())
+            if (code.find("ConfirmCodeV2") != string::npos)
             {
-                if (code.find("ConfirmCodeV2") != string::npos)
+                size_t posEmail = 13 + 15;
+                size_t endEmail = code.find("\t", posEmail);
+                if (endEmail != string::npos)
                 {
-                    size_t posEmail = 13 + 15;
-                    size_t endEmail = code.find("\t", posEmail);
-                    if (endEmail != string::npos)
-                    {
-                        signupemail = code.substr(posEmail, endEmail - posEmail);
-                        signupname = code.substr(endEmail + 1, code.size() - endEmail - 9);
+                    signupemail = code.substr(posEmail, endEmail - posEmail);
+                    signupname = code.substr(endEmail + 1, code.size() - endEmail - 9);
 
-                        if (client->loggedin() == FULLACCOUNT)
-                        {
-                            cout << "Already logged in." << endl;
-                        }
-                        else    // not-logged-in / ephemeral account / partially confirmed
-                        {
-                            client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
-                        }
+                    if (client->loggedin() == FULLACCOUNT)
+                    {
+                        cout << "Already logged in." << endl;
+                    }
+                    else    // not-logged-in / ephemeral account / partially confirmed
+                    {
+                        client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
                     }
                 }
-                else
-                {
-                    cout << "New accounts must follow registration flow v2. Old folw is not supported anymore." << endl;
-                }
+            }
+            else
+            {
+                cout << "Received argument was not a confirmation link." << endl;
             }
         }
+        else
+        {
+            cout << "New accounts must follow registration flow v2. Old flow is not supported anymore." << endl;
+        }
     }
-    else if (s.words.size() == 2 || s.words.size() == 3)
+    else if (s.words.size() == 3)
     {
         switch (client->loggedin())
         {
