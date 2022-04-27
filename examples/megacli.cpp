@@ -98,14 +98,11 @@ bool gVerboseMode = false;
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
-// true by default, to register a new account v2 (false means account v1)
-bool signupV2 = true;
-
 // signup code being confirmed
 static string signupcode;
 
 // signup password challenge and encrypted master key
-static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[SymmCipher::KEYLENGTH];
+static byte signuppwchallenge[SymmCipher::KEYLENGTH];
 
 // password recovery e-mail address and code being confirmed
 static string recoveryemail, recoverycode;
@@ -3203,7 +3200,9 @@ autocomplete::ACN autocompleteSyntax()
                                 opt(either(sequence(param("firstname"), param("lastname")),     // to create an ephemeral++
                                         param("ephemeralhandle#ephemeralpw"),               // to resume an ephemeral
                                         param("session")))));                                 // to resume an ephemeral++
-    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
+    p->Add(exec_signup, sequence(text("signup"),
+                                 either(sequence(param("email"), param("name")),
+                                        param("confirmationlink"))));
 
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
@@ -3608,11 +3607,6 @@ static void process_line(char* l)
             {
                 cout << endl << "Incorrect password, please try again." << endl;
             }
-            else
-            {
-                client->confirmsignuplink((const byte*)signupcode.data(), unsigned(signupcode.size()),
-                    MegaClient::stringhash64(&signupemail, &pwcipher));
-            }
 
             signupcode.clear();
         }
@@ -3672,14 +3666,7 @@ static void process_line(char* l)
 
             if (signupemail.size())
             {
-                if (signupV2)
-                {
-                    client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
-                }
-                else
-                {
-                    client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
-                }
+                client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
             }
             else if (recoveryemail.size() && recoverycode.size())
             {
@@ -3715,7 +3702,6 @@ static void process_line(char* l)
 
         setprompt(COMMAND);
         signupemail.clear();
-        signupV2 = true;
         return;
 
     case MASTERKEY:
@@ -6081,15 +6067,12 @@ void exec_signup(autocomplete::ACState& s)
                 }
                 else
                 {
-                    // we first just query the supplied signup link,
-                    // then collect and verify the password,
-                    // then confirm the account
-                    client->querysignuplink((const byte*)code.data(), (unsigned)code.size());
+                    cout << "New accounts must follow registration flow v2. Old folw is not supported anymore." << endl;
                 }
             }
         }
     }
-    else if (s.words.size() == 3 || s.words.size() == 4)
+    else if (s.words.size() == 2 || s.words.size() == 3)
     {
         switch (client->loggedin())
         {
@@ -6107,7 +6090,6 @@ void exec_signup(autocomplete::ACState& s)
             {
                 signupemail = s.words[1].s;
                 signupname = s.words[2].s;
-                signupV2 = !s.extractflag("-v1");
 
                 cout << endl;
                 setprompt(NEWPASSWORD);
@@ -7357,38 +7339,6 @@ void DemoApp::sendsignuplink_result(error e)
     }
 }
 
-// signup link query result
-void DemoApp::querysignuplink_result(handle /*uh*/, const char* email, const char* name, const byte* pwc, const byte* /*kc*/,
-                                     const byte* c, size_t len)
-{
-    cout << "Ready to confirm user account " << email << " (" << name << ") - enter confirm to execute." << endl;
-
-    signupemail = email;
-    signupcode.assign((char*) c, len);
-    memcpy(signuppwchallenge, pwc, sizeof signuppwchallenge);
-    memcpy(signupencryptedmasterkey, pwc, sizeof signupencryptedmasterkey);
-}
-
-// signup link query failed
-void DemoApp::querysignuplink_result(error e)
-{
-    cout << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
-}
-
-// signup link (account e-mail) confirmation result
-void DemoApp::confirmsignuplink_result(error e)
-{
-    if (e)
-    {
-        cout << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        cout << "Signup confirmed, logging in..." << endl;
-        client->login(signupemail.c_str(), pwkey);
-    }
-}
-
 void DemoApp::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
 {
     if (e)
@@ -7603,7 +7553,6 @@ void DemoApp::cancelsignup_result(error)
     signupcode.clear();
     signupemail.clear();
     signupname.clear();
-    signupV2 = true;
 }
 
 void DemoApp::whyamiblocked_result(int code)

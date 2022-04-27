@@ -2981,9 +2981,6 @@ protected:
 
         // account creation
         void sendsignuplink_result(error) override;
-        void querysignuplink_result(error) override;
-        void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
-        void confirmsignuplink_result(error) override;
         void confirmsignuplink2_result(handle, const char*, const char*, error) override;
         void setkeypair_result(error) override;
 

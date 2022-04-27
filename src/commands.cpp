@@ -5524,22 +5524,6 @@ bool CommandWhyAmIblocked::procresult(Result r)
 	return false;
 }
 
-CommandSendSignupLink::CommandSendSignupLink(MegaClient* client, const char* email, const char* name, byte* c)
-{
-    cmd("uc");
-    arg("c", c, 2 * SymmCipher::KEYLENGTH);
-    arg("n", (byte*)name, int(strlen(name)));
-    arg("m", (byte*)email, int(strlen(email)));
-
-    tag = client->reqtag;
-}
-
-bool CommandSendSignupLink::procresult(Result r)
-{
-    client->app->sendsignuplink_result(r.errorOrOK());
-    return r.wasErrorOrOK();
-}
-
 CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name)
 {
     cmd("uc2");
@@ -5566,55 +5550,6 @@ bool CommandSendSignupLink2::procresult(Result r)
 {
     client->app->sendsignuplink_result(r.errorOrOK());
     return r.wasErrorOrOK();
-}
-
-CommandQuerySignupLink::CommandQuerySignupLink(MegaClient* client, const byte* code, unsigned len)
-{
-    confirmcode.assign((char*)code, len);
-
-    cmd("ud");
-    arg("c", code, len);
-
-    tag = client->reqtag;
-}
-
-bool CommandQuerySignupLink::procresult(Result r)
-{
-    string name;
-    string email;
-    handle uh;
-    const char* kc;
-    const char* pwcheck;
-    string namebuf, emailbuf;
-    byte pwcheckbuf[SymmCipher::KEYLENGTH];
-    byte kcbuf[SymmCipher::KEYLENGTH];
-
-    if (r.wasErrorOrOK())
-    {
-        client->app->querysignuplink_result(r.errorOrOK());
-        return true;
-    }
-
-    assert(r.hasJsonArray());
-    if (client->json.storebinary(&name) && client->json.storebinary(&email)
-        && (uh = client->json.gethandle(MegaClient::USERHANDLE))
-        && (kc = client->json.getvalue()) && (pwcheck = client->json.getvalue()))
-    {
-        if (!ISUNDEF(uh)
-            && (Base64::atob(pwcheck, pwcheckbuf, sizeof pwcheckbuf) == sizeof pwcheckbuf)
-            && (Base64::atob(kc, kcbuf, sizeof kcbuf) == sizeof kcbuf))
-        {
-            client->app->querysignuplink_result(uh, name.c_str(),
-                                                       email.c_str(),
-                                                       pwcheckbuf, kcbuf,
-                                                       (const byte*)confirmcode.data(),
-                                                       confirmcode.size());
-            return true;
-        }
-    }
-
-    client->app->querysignuplink_result(API_EINTERNAL);
-	return false;
 }
 
 CommandConfirmSignupLink2::CommandConfirmSignupLink2(MegaClient* client,
@@ -5659,41 +5594,6 @@ bool CommandConfirmSignupLink2::procresult(Result r)
         client->app->confirmsignuplink2_result(UNDEF, NULL, NULL, API_EINTERNAL);
         return false;
     }
-}
-
-CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
-                                                   const byte* code,
-                                                   unsigned len,
-                                                   uint64_t emailhash)
-{
-    cmd("up");
-    arg("c", code, len);
-    arg("uh", (byte*)&emailhash, sizeof emailhash);
-
-    notself(client);
-
-    tag = client->reqtag;
-}
-
-bool CommandConfirmSignupLink::procresult(Result r)
-{
-    assert(r.hasJsonItem() || r.wasStrictlyError());
-
-    if (r.hasJsonItem())
-    {
-        client->json.storeobject();
-        client->ephemeralSession = false;
-        client->ephemeralSessionPlusPlus = false;
-        client->app->confirmsignuplink_result(API_OK);
-        return true;
-    }
-
-    client->json.storeobject();
-
-    client->ephemeralSession = false;
-    client->ephemeralSessionPlusPlus = false;
-    client->app->confirmsignuplink_result(r.errorOrOK());
-    return r.wasStrictlyError();
 }
 
 CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,

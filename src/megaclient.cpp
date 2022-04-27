@@ -11964,21 +11964,6 @@ void MegaClient::createephemeralPlusPlus()
     createephemeral();
 }
 
-void MegaClient::sendsignuplink(const char* email, const char* name, const byte* pwhash)
-{
-    SymmCipher pwcipher(pwhash);
-    byte c[2 * SymmCipher::KEYLENGTH];
-
-    memcpy(c, key.key, sizeof key.key);
-    rng.genblock(c + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH / 4);
-    memset(c + SymmCipher::KEYLENGTH + SymmCipher::KEYLENGTH / 4, 0, SymmCipher::KEYLENGTH / 2);
-    rng.genblock(c + 2 * SymmCipher::KEYLENGTH - SymmCipher::KEYLENGTH / 4, SymmCipher::KEYLENGTH / 4);
-
-    pwcipher.ecb_encrypt(c, c, sizeof c);
-
-    reqs.add(new CommandSendSignupLink(this, email, name, c));
-}
-
 string MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
 {
     byte clientrandomvalue[SymmCipher::KEYLENGTH];
@@ -12017,18 +12002,6 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
 void MegaClient::resendsignuplink2(const char *email, const char *name)
 {
     reqs.add(new CommandSendSignupLink2(this, email, name));
-}
-
-// if query is 0, actually confirm account; just decode/query signup link
-// details otherwise
-void MegaClient::querysignuplink(const byte* code, unsigned len)
-{
-    reqs.add(new CommandQuerySignupLink(this, code, len));
-}
-
-void MegaClient::confirmsignuplink(const byte* code, unsigned len, uint64_t emailhash)
-{
-    reqs.add(new CommandConfirmSignupLink(this, code, len, emailhash));
 }
 
 void MegaClient::confirmsignuplink2(const byte *code, unsigned len)

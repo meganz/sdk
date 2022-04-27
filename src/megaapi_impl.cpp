@@ -13606,15 +13606,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
                 Base64::btoa((byte *)derivedKey.data(), SymmCipher::KEYLENGTH, buf);
                 sid.append(buf);
                 request->setSessionKey(sid.c_str());
-            }
-            else
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
-
-                client->reqtag = client->restag;    // use result-tag to chain the request to this one
-                client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
-                client->reqtag = creqtag;
+                return;
             }
         }
     }
@@ -15769,85 +15761,6 @@ void MegaApiImpl::sendsignuplink_result(error e)
         // import the PDF silently... (not chained)
         client->getwelcomepdf();
     }
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::querysignuplink_result(error e)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_QUERY_SIGNUP_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT))) return;
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
-void MegaApiImpl::querysignuplink_result(handle uh, const char* email, const char* name, const byte* pwc, const byte*, const byte* c, size_t len)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_QUERY_SIGNUP_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT))) return;
-
-    request->setEmail(email);
-    request->setName(name);
-
-    error e = API_OK;
-    if (uh != client->me)
-    {
-        e = API_EACCESS;
-    }
-
-    if(request->getType() == MegaRequest::TYPE_QUERY_SIGNUP_LINK || e)
-    {
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-        return;
-    }
-
-    string signupemail = email;
-    string signupcode;
-    signupcode.assign((char*)c,len);
-
-    byte signuppwchallenge[SymmCipher::KEYLENGTH];
-    byte signupencryptedmasterkey[SymmCipher::KEYLENGTH];
-
-    memcpy(signuppwchallenge,pwc,sizeof signuppwchallenge);
-    memcpy(signupencryptedmasterkey,pwc,sizeof signupencryptedmasterkey);
-
-    byte pwkey[SymmCipher::KEYLENGTH];
-    if(!request->getPrivateKey())
-        client->pw_key(request->getPassword(),pwkey);
-    else
-        Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
-
-    // verify correctness of supplied signup password
-    SymmCipher pwcipher(pwkey);
-    pwcipher.ecb_decrypt(signuppwchallenge);
-
-    if (*(uint64_t*)(signuppwchallenge+4))
-    {
-        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EKEY));
-    }
-    else
-    {
-        requestMap.erase(request->getTag());
-        int nextTag = client->nextreqtag();
-        request->setTag(nextTag);
-        requestMap[nextTag] = request;
-
-        assert(client->loggedin() == EPHEMERALACCOUNT ||
-               client->loggedin() == EPHEMERALACCOUNTPLUSPLUS);
-
-        client->confirmsignuplink((const byte*)signupcode.data(), int(signupcode.size()), MegaClient::stringhash64(&signupemail,&pwcipher));
-    }
-}
-
-void MegaApiImpl::confirmsignuplink_result(error e)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -20515,10 +20428,19 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_SEND_SIGNUP_LINK:
         {
+            if (request->getPrivateKey())
+            {
+                // obsolete. Use registration flow v2: calling (re)sendSingupLink() instead of fastSendSignupLink()
+                e = API_EINTERNAL;
+                break;
+            }
             const char *email = request->getEmail();
-            const char *password = request->getPassword();
-            const char *base64pwkey = request->getPrivateKey();
-            const char *name = request->getName();
+            const char *name = request->getName();            
+            if (!email || !name)
+            {
+                e = API_EARGS;
+                break;
+            }
 
             if (client->loggedin() != EPHEMERALACCOUNT && client->loggedin() != EPHEMERALACCOUNTPLUSPLUS)
             {
@@ -20526,190 +20448,25 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (!email || !name || (client->accountversion == 1 && !base64pwkey && !password))
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            if (client->accountversion == 1)
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                if (password)
-                {
-                    client->pw_key(password, pwkey);
-                }
-                else if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != SymmCipher::KEYLENGTH)
-                {
-                    e = API_EARGS;
-                    break;
-                }
-                client->sendsignuplink(email, name, pwkey);
-            }
-            else if (client->accountversion == 2)
-            {
-                client->resendsignuplink2(email, name);
-            }
-            else
+            if (client->accountversion != 2)
             {
                 e = API_EINTERNAL;
                 break;
             }
+
+            client->resendsignuplink2(email, name);
             break;
         }
         case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
         {
-            const char *link = request->getLink();
-            if(!link)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            const char* ptr = link;
-            const char* tptr;
-
-            if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix())))
-            {
-                ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
-
-                string code = Base64::atob(string(ptr));
-                if (!code.empty())
-                {
-                    if (code.find("ConfirmCodeV2") != string::npos)
-                    {
-                        // “ConfirmCodeV2” (13B) || Email Confirmation Token (15B) || Email (>=5B) || \t || Fullname || Hash (8B)
-                        size_t posEmail = 13 + 15;
-                        size_t endEmail = code.find("\t", posEmail);
-                        if (endEmail != string::npos)
-                        {
-                            string email = code.substr(posEmail, endEmail - posEmail);
-                            request->setEmail(email.c_str());
-                            request->setName(code.substr(endEmail + 1, code.size() - endEmail - 9).c_str());
-
-                            sessiontype_t session = client->loggedin();
-                            if (session == FULLACCOUNT)
-                            {
-                                e = (client->ownuser()->email == email) ? API_EEXPIRED : API_EACCESS;
-                            }
-                            else    // not-logged-in / ephemeral account / partially confirmed
-                            {
-                                client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
-                            }
-                        }
-                        else
-                        {
-                            e = API_EARGS;
-                        }
-                    }
-                    else
-                    {
-                        client->querysignuplink((const byte*)code.data(), unsigned(code.size()));
-                    }
-                }
-                else
-                {
-                    e = API_EARGS;
-                }
-                break;
-            }
-            else if ((tptr = strstr(ptr, MegaClient::newsignupLinkPrefix())))
-            {
-                ptr = tptr + strlen(MegaClient::newsignupLinkPrefix());
-
-                unsigned len = unsigned((strlen(link)-(ptr-link))*3/4+4);
-                byte *c = new byte[len];
-                len = Base64::atob(ptr,c,len);
-
-                if (len > 8)
-                {
-                    // extract email and email_hash from link
-                    byte *email = c;
-                    byte *sha512bytes = c+len-8;    // last 11 chars
-
-                    // get the hash for the received email
-                    Hash sha512;
-                    sha512.add(email, len-8);
-                    string sha512str;
-                    sha512.get(&sha512str);
-
-                    // and finally check it
-                    if (memcmp(sha512bytes, sha512str.data(), 8) == 0)
-                    {
-                        email[len-8] = '\0';
-                        request->setEmail((const char *)email);
-                        delete[] c;
-
-                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-                        break;
-                    }
-                }
-
-                delete[] c;
-            }
-
-            e = API_EARGS;
+            // obsolete. Use registration flow v2
+            e = API_EINTERNAL;
             break;
         }
         case MegaRequest::TYPE_CONFIRM_ACCOUNT:
         {
-            const char *link = request->getLink();
-            const char *password = request->getPassword();
-            const char *pwkey = request->getPrivateKey();
-
-            if (!link)
-            {
-                e = API_EARGS;
-                break;
-            }
-
-            const char* ptr = link;
-            const char* tptr;
-
-            if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix()))) ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
-
-            string code = Base64::atob(string(ptr));
-            if (!code.empty())
-            {
-                if (code.find("ConfirmCodeV2") != string::npos)
-                {
-                    // “ConfirmCodeV2” (13B) || Email Confirmation Token (15B) || Email (>=5B) || \t || Fullname || Hash (8B)
-                    size_t posEmail = 13 + 15;
-                    size_t endEmail = code.find("\t", posEmail);
-                    if (endEmail != string::npos)
-                    {
-                        string email = code.substr(posEmail, endEmail - posEmail);
-                        request->setEmail(email.c_str());
-                        request->setName(code.substr(endEmail + 1, code.size() - endEmail - 9).c_str());
-
-                        sessiontype_t session = client->loggedin();
-                        if (session == FULLACCOUNT)
-                        {
-                            e = (client->ownuser()->email == email) ? API_EEXPIRED : API_EACCESS;
-                        }
-                        else    // not-logged-in / ephemeral account / partially confirmed
-                        {
-                            client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
-                        }
-                    }
-                    else
-                    {
-                        e = API_EARGS;
-                    }
-                }
-                else if (!password && !pwkey)
-                {
-                    e = API_EARGS;
-                }
-                else
-                {
-                    client->querysignuplink((const byte*)code.data(), unsigned(code.size()));
-                }
-            }
-            else
-            {
-                e = API_EARGS;
-            }
+            // obsolete. Use registration flow v2
+            e = API_EINTERNAL;
             break;
         }
         case MegaRequest::TYPE_GET_RECOVERY_LINK:
