@@ -12065,6 +12065,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
         assert(rootNodeFile);
         mNodeManager.calculateCounter(*rootNodeFile);
 
+        // If we are logged into folder link, inbox and rubbish nodes are undefined
         if (!loggedIntoFolder())
         {
             Node* rootNodeInbox = mNodeManager.getNodeByHandle(rootnodes.inbox);
