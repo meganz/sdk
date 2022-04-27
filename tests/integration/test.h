@@ -172,6 +172,7 @@ struct Model
     ModelNode* findnode(string path, ModelNode* startnode = nullptr);
     unique_ptr<ModelNode> removenode(const string& path);
     bool movenode(const string& sourcepath, const string& destpath);
+    bool movetosynctrash(unique_ptr<ModelNode>&& node, const string& syncrootpath);
     bool movetosynctrash(const string& path, const string& syncrootpath);
     void ensureLocalDebrisTmpLock(const string& syncrootpath);
     bool removesynctrash(const string& syncrootpath, const string& subpath = "");
@@ -210,7 +211,7 @@ struct StandardClient : public MegaApp
 
     handle basefolderhandle = UNDEF;
 
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP, SETATTR,
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, CATCHUP,
         COMPLETION };  // use COMPLETION when we use a completion function, rather than trying to match tags on callbacks
 
     struct ResultProc
@@ -265,7 +266,12 @@ struct StandardClient : public MegaApp
     bool waitForNodesUpdated(unsigned numSeconds);
 
     void syncupdate_stateconfig(const SyncConfig& config) override;
+
+    std::function<void(const SyncConfig&)> mOnSyncStateConfig;
+
     void syncupdate_scanning(bool b) override;
+    void file_added(File* file) override;
+    void file_complete(File* file) override;
     void syncupdate_local_lockretry(bool b) override;
 
 #ifdef DEBUG
@@ -289,12 +295,22 @@ struct StandardClient : public MegaApp
     void transfer_prepare(Transfer*) override { onCallback(); ++transfersPrepared; }
     void transfer_failed(Transfer*,  const Error&, dstime = 0) override { onCallback(); ++transfersFailed; }
     void transfer_update(Transfer*) override { onCallback(); ++transfersUpdated; }
-    void transfer_complete(Transfer*) override { onCallback(); ++transfersComplete; }
+
+    std::function<void(Transfer*)> onTransferCompleted;
+
+    void transfer_complete(Transfer* transfer) override
+    {
+        onCallback();
+
+        if (onTransferCompleted)
+            onTransferCompleted(transfer);
+
+        ++transfersComplete;
+    }
 
     void notify_retry(dstime t, retryreason_t r) override;
     void request_error(error e) override;
     void request_response_progress(m_off_t a, m_off_t b) override;
-
     void threadloop();
 
     static bool debugging;  // turn this on to prevent the main thread timing out when stepping in the MegaClient
@@ -406,7 +422,7 @@ struct StandardClient : public MegaApp
     bool uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
     bool uploadFile(const fs::path& path, Node* parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
     bool uploadFile(const fs::path& path, const string& parentPath, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
-    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo = NoVersioning);
+    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo);
     bool uploadFilesInTree(fs::path p, Node* n2, VersioningOption vo = NoVersioning);
     void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 
@@ -427,7 +443,10 @@ struct StandardClient : public MegaApp
     bool fetchnodes(bool noCache = false);
     NewNode makeSubfolder(const string& utf8Name);
     void catchup(PromiseBoolSP pb);
-    void deleteTestBaseFolder(bool mayneeddeleting, PromiseBoolSP pb);
+
+    unsigned deleteTestBaseFolder(bool mayNeedDeleting);
+    void deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, PromiseUnsignedSP result);
+
     void ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb);
     NewNode* buildSubdirs(list<NewNode>& nodes, const string& prefix, int n, int recurselevel);
     bool makeCloudSubdirs(const string& prefix, int depth, int fanout);
@@ -437,6 +456,7 @@ struct StandardClient : public MegaApp
     {
         NodeHandle h;
         fs::path localpath;
+        string remotepath;
     };
 
     SyncConfig syncConfigByBackupID(handle backupID) const;
@@ -446,9 +466,11 @@ struct StandardClient : public MegaApp
     Node* getcloudrootnode();
     Node* gettestbasenode();
     Node* getcloudrubbishnode();
+    Node* getsyncdebrisnode();
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
-    bool backupAdd_inthread(const string& drivePath,
+
+    void backupAdd_inthread(const string& drivePath,
         string sourcePath,
         const string& targetPath,
         std::function<void(error, SyncError, handle)> completion,
@@ -459,12 +481,12 @@ struct StandardClient : public MegaApp
         const string& targetPath,
         const string& logname);
 
-    bool setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
+    void setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
         std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);
     void importSyncConfigs(string configs, PromiseBoolSP result);
     bool importSyncConfigs(string configs);
     string exportSyncConfigs();
-    bool delSync_inthread(handle backupId, const bool keepCache);
+    bool delSync_inthread(handle backupId);
 
     struct CloudNameLess
     {
@@ -484,12 +506,13 @@ struct StandardClient : public MegaApp
         }
     }; // CloudNameLess
 
-    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported);
+    bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile);
 
     bool localNodesMustHaveNodes = true;
 
-    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported);
-    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported);
+    auto equal_range_utf8EscapingCompare(multimap<string, LocalNode*, CloudNameLess>& ns, const string& cmpValue, bool unescapeValue, bool unescapeMap, bool caseInsensitive) -> std::pair<multimap<string, LocalNode*>::iterator, multimap<string, LocalNode*>::iterator>;
+    bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile);
+    bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported, bool expectFail, bool skipIgnoreFile);
     Sync* syncByBackupId(handle backupId);
     void enableSyncByBackupId(handle id, PromiseBoolSP result);
     bool enableSyncByBackupId(handle id);
@@ -506,18 +529,19 @@ struct StandardClient : public MegaApp
         CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
     };
 
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot);
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot);
-    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris = false);
-    bool confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot);
-    bool confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot);
-    bool confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris = false);
-    bool confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris);
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, bool ignoreDebris, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, bool ignoreDebris, bool expectFail, bool skipIgnoreFile);
+    bool confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris, bool expectFail, bool skipIgnoreFile);
     void prelogin_result(int, string*, string* salt, error e) override;
     void login_result(error e) override;
     void fetchnodes_result(const Error& e) override;
     bool setattr(Node* node, attr_map&& updates);
     void setattr(Node* node, attr_map&& updates, PromiseBoolSP result);
+    bool rename(const string& path, const string& newName);
     void unlink_result(handle h, error e) override;
 
     handle lastPutnodesResultFirstHandle = UNDEF;
@@ -526,8 +550,39 @@ struct StandardClient : public MegaApp
     void catchup_result() override;
     void disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result);
     bool disableSync(handle id, SyncError error, bool enabled);
-    void deleteremote(string path, PromiseBoolSP pb);
-    bool deleteremote(string path);
+
+    template<typename ResultType, typename Callable>
+    ResultType withWait(Callable&& callable, ResultType&& defaultValue = ResultType())
+    {
+        using std::future_status;
+        using std::shared_ptr;
+
+        using PromiseType = promise<ResultType>;
+        using PointerType = shared_ptr<PromiseType>;
+
+        auto promise = PointerType(new PromiseType());
+        auto future = promise->get_future();
+
+        callable(std::move(promise));
+
+        auto status = future.wait_for(std::chrono::seconds(20));
+
+        if (status == future_status::ready)
+        {
+            return future.get();
+        }
+
+        LOG_warn << "Timed out in withWait";
+
+        return std::move(defaultValue);
+    }
+    void deleteremote(string path, bool fromroot, PromiseBoolSP pb);
+    bool deleteremote(string path, bool fromroot = false);
+    bool deleteremote(Node* node);
+    void deleteremote(Node* node, PromiseBoolSP result);
+    bool deleteremotedebris();
+    void deleteremotedebris(PromiseBoolSP result);
+    bool deleteremotenode(Node* node);
     void deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb);
     bool movenode(string path, string newParentPath);
     void movenode(string path, string newparentpath, PromiseBoolSP pb);
@@ -536,7 +591,8 @@ struct StandardClient : public MegaApp
     void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
-    bool login_reset(const string& user, const string& pw, bool noCache = false);
+    bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
+    bool login_reset_makeremotenodes(const string& prefix, int depth = 0, int fanout = 0, bool noCache = false);
     bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false);
     void ensureSyncUserAttributes(PromiseBoolSP result);
     bool ensureSyncUserAttributes();
@@ -545,42 +601,22 @@ struct StandardClient : public MegaApp
     bool login(const string& user, const string& pw);
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false);
     bool login_fetchnodes(const string& session);
-    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, const bool isBackup = false);
-    bool delSync_mainthread(handle backupId, bool keepCache = false);
-    bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, const bool ignoreDebris = false, const int confirm = CONFIRM_ALL);
+    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, bool isBackup = false, bool uploadIgnoreFirst = true);
+    bool delSync_mainthread(handle backupId);
+    bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false, bool skipIgnoreFile = true);
     bool match(handle id, const Model::ModelNode* source);
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);
-
-    template<typename Predicate>
-    bool waitFor(Predicate predicate, const std::chrono::seconds &timeout)
-    {
-        auto total = std::chrono::milliseconds(0);
-        auto sleepIncrement = std::chrono::milliseconds(500);
-
-        out() << "Waiting for predicate to match...";
-
-        do
-        {
-            if (predicate(*this))
-            {
-                out() << "Predicate has matched!";
-
-                return true;
-            }
-
-            std::this_thread::sleep_for(sleepIncrement);
-            total += sleepIncrement;
-        }
-        while (total < timeout);
-
-        out() << "Timed out waiting for predicate to match.";
-
-        return false;
-    }
-
+    bool waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool backupOpenDrive(const fs::path& drivePath);
+    void triggerPeriodicScanEarly(handle backupID);
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
+
+    function<void(File&)> mOnFileAdded;
+    function<void(File&)> mOnFileComplete;
+    function<void(const SyncConfig&)> mOnFilterError;
+    function<void(bool)> mOnStall;
+    function<void(bool)> mOnConflictsDetected;
 };
 
 

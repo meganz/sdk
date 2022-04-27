@@ -78,12 +78,6 @@ AC_TYPE_UINT64_T
 AC_TYPE_PID_T
 AC_TYPE_OFF_T
 
-AH_VERBATIM([__STDC_FORMAT_MACROS],
-            [/* C99 says: define this to get the PRI... macros from stdint.h */
-#ifndef __STDC_FORMAT_MACROS
-# define __STDC_FORMAT_MACROS 1
-#endif])
-
 AC_CHECK_TYPES([ssize_t])
 
 AC_CANONICAL_HOST
@@ -115,9 +109,22 @@ AC_HEADER_STDC
 AC_HEADER_STDBOOL
 AC_HEADER_DIRENT
 
-AC_DEFINE(__STDC_CONSTANT_MACROS, [], [Force definition of constant macros for C++])
-AC_DEFINE(__STDC_FORMAT_MACROS, [], [Force definition of format macros for C++])
-AC_DEFINE(__STDC_LIMIT_MACROS, [], [Force definition of limit macros for C++])
+
+AH_VERBATIM([__STDC_CONSTANT_MACROS], [/*Force definition of constant macros for C++*/
+#ifndef __STDC_CONSTANT_MACROS
+#define __STDC_CONSTANT_MACROS
+#endif])
+
+AH_VERBATIM([__STDC_FORMAT_MACROS], [/*Force definition of format macros for C++*/
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif])
+
+AH_VERBATIM([__STDC_LIMIT_MACROS], [/*Force definition of limit macros for C++*/
+#ifndef __STDC_LIMIT_MACROS
+#define __STDC_LIMIT_MACROS
+#endif])
+
 
 # Add 64-bits file support on some hosts
 AC_SYS_LARGEFILE

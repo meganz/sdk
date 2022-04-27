@@ -2127,7 +2127,7 @@ dstime Sync::procscanq(int q)
 
         if (notification.timestamp > dsmin)
         {
-            LOG_verbose << "Scanning postponed. Modification too recent";
+            LOG_verbose << syncname << "Scanning postponed. Modification too recent: " << notification.timestamp << " (ds) vs now " << Waiter::ds << " at " << notification.path;
             dirnotify->notifyq[q].unpopFront(notification);
             return notification.timestamp - dsmin;
         }

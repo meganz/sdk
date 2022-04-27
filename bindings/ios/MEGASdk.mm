@@ -1980,6 +1980,18 @@ using namespace mega;
     }
 }
 
+- (void)getCameraUploadsFolderSecondaryWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getCameraUploadsFolderSecondary([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)getCameraUploadsFolderSecondary {
+    if (self.megaApi) {
+        self.megaApi->getCameraUploadsFolderSecondary();
+    }
+}
+
 - (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getMyBackupsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
