@@ -1809,7 +1809,33 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             assert(parentRow.syncNode);
             ProgressingMonitor monitor(syncs);
 
-            // Only continue if the synced FSID matches.
+            // We've found a node associated with the local file's FSID.
+            //
+            // Note however, that the lookup function above doesn't
+            // guarantee that the node we've retrieved was previously synced
+            // as this file, just that it has been associated with it.
+            //
+            // So, we perform a special check here to ensure that the node
+            // that's matched was synced against a prior version of this
+            // file.
+            //
+            // The reason why we're performing this strange lookup and check
+            // is that the user may have moved a file that was in the
+            // process of uploading up the directory hierarchy.
+            //
+            // When the engine discovers the potential move target, it'd try
+            // to match it against a previously synced node.  Unfortunately,
+            // this'd fail because the source would only be considered
+            // synced if the upload had completed.
+            //
+            // The result of this is that the move-target would be
+            // considered a new file and could be uploaded before we
+            // properly processed the move-source which would cause a stall.
+            //
+            // With this check in place, we'll locate the move-target and
+            // correctly recognize the move-source as being part of a
+            // move-in-progress, even though the move-source was in the
+            // process of being uploaded.
             if (sourceSyncNode->fsid_lastSynced != row.fsNode->fsid)
                 return false;
 
