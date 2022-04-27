@@ -3780,6 +3780,19 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
     return result;
 }
 
+bool Syncs::isAnySyncScanning(bool includePaused)
+{
+    assert(!onSyncThread());
+
+    std::promise<bool> result;
+
+    queueSync([&result, includePaused, this]() {
+        result.set_value(isAnySyncScanning_inThread(includePaused));
+    });
+
+    return result.get_future().get();
+}
+
 void Syncs::syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion)
 {
     assert(onSyncThread());
@@ -9931,7 +9944,7 @@ void Syncs::syncLoop()
         {
             // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
             auto scanningCompletePreviously = mSyncFlags->scanningWasComplete && !mSyncFlags->isInitialPass;
-            mSyncFlags->scanningWasComplete = !isAnySyncScanning(false);   // paused syncs do not participate in move detection
+            mSyncFlags->scanningWasComplete = !isAnySyncScanning_inThread(false);   // paused syncs do not participate in move detection
             mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass && !mSyncFlags->isInitialPass;
             mSyncFlags->reachableNodesAllScannedThisPass = true;
             mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves(false); // paused syncs do not participate in move detection
@@ -10103,7 +10116,7 @@ void Syncs::syncLoop()
 
         if (!earlyExit)
         {
-            bool anySyncScanning = isAnySyncScanning(false);
+            bool anySyncScanning = isAnySyncScanning_inThread(false);
             if (anySyncScanning != syncscanstate)
             {
                 assert(onSyncThread());
@@ -10237,7 +10250,7 @@ bool Syncs::isAnySyncSyncing(bool includePausedSyncs)
     return false;
 }
 
-bool Syncs::isAnySyncScanning(bool includePausedSyncs)
+bool Syncs::isAnySyncScanning_inThread(bool includePausedSyncs)
 {
     assert(onSyncThread());
 

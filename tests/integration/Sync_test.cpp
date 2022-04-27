@@ -3713,6 +3713,13 @@ SyncWaitPredicate SyncRemoteNodePresent(const string& path)
     };
 }
 
+SyncWaitPredicate SyncScanState(bool expected, bool includePaused = false)
+{
+    return [=](StandardClient& client) {
+        return client.client.syncs.isAnySyncScanning(includePaused) == expected;
+    };
+}
+
 struct SyncWaitResult
 {
     bool syncStalled = false;
@@ -15562,12 +15569,25 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnknown)
     // Make sure initial sync succeeded.
     ASSERT_TRUE(c.confirmModel_mainthread(local.root.get(), id));
 
+    // Pause the sync so below changes appear atomically.
+    ASSERT_TRUE(c.setSyncPausedByBackupId(id, true));
+
+    // Make sure we receive action packets.
+    c.received_node_actionpackets = false;
+
     // Rename fx to fy.
     ASSERT_TRUE(c.rename("s/fx", "fy"));
+    ASSERT_TRUE(c.waitForNodesUpdated(16u));
 
     // Add foreign fy.
     local.addfile("fy");
     local.generate(c.fsBasePath / "s");
+
+    // Wait for a scan to be queued on the paused sync.
+    ASSERT_TRUE(c.waitFor(SyncScanState(true, true), TIMEOUT));
+
+    // Unpause the sync so that the engine processes our changes.
+    ASSERT_TRUE(c.setSyncPausedByBackupId(id, false));
 
     // Wait for the engine to process the changes.
     waitonsyncs(TIMEOUT, &c);
@@ -15621,6 +15641,9 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
     // Make sure the sync succeeded.
     ASSERT_TRUE(c.confirmModel_mainthread(local.root.get(), id));
 
+    // So that the engine perceives below changes as atomic.
+    ASSERT_TRUE(c.setSyncPausedByBackupId(id, true));
+
     // Remotely rename fx -> fy.
     {
         // Get our hands on the original fy.
@@ -15631,15 +15654,25 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
         ASSERT_NE(fy, nullptr);
 
         // Rename fx -> fy.
+        c.received_node_actionpackets = false;
         ASSERT_TRUE(c.rename("s/fx", "fy"));
+        ASSERT_TRUE(c.waitForNodesUpdated(16));
 
         // Remove original fy.
+        c.received_node_actionpackets = false;
         ASSERT_TRUE(c.deleteremote(fy));
+        ASSERT_TRUE(c.waitForNodesUpdated(16));
     }
 
     // Locally move external fy into place.
     fs::rename(c.fsBasePath / "fy",
                c.fsBasePath / "s" / "fy");
+
+    // Wait for a scan to be queued on the paused sync.
+    ASSERT_TRUE(c.waitFor(SyncScanState(true, true), TIMEOUT));
+
+    // Unpause the sync so the engine processes our changes.
+    ASSERT_TRUE(c.setSyncPausedByBackupId(id, false));
 
     // Wait for engine to process changes.
     waitonsyncs(TIMEOUT, &c);

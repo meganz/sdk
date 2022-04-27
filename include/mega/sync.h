@@ -1005,6 +1005,9 @@ struct Syncs
     // That is, they are added directly to the JSON DB on disk.
     error syncConfigStoreAdd(const SyncConfig& config);
 
+    // Query whether any syncs are scanning.
+    bool isAnySyncScanning(bool includePaused);
+
 private:  // anything to do with loading/saving/storing configs etc is done on the sync thread
 
     // Returns a reference to this user's internal configuration database.
@@ -1134,7 +1137,7 @@ private:
 
     bool mightAnySyncsHaveMoves(bool includePausedSyncs);
     bool isAnySyncSyncing(bool includePausedSyncs);
-    bool isAnySyncScanning(bool includePausedSyncs);
+    bool isAnySyncScanning_inThread(bool includePausedSyncs);
 
     bool conflictsFlagged() const;
 
