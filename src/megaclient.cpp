@@ -160,7 +160,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 }
 
 // apply queued new shares
-void MegaClient::mergenewshares(bool notify)
+void MegaClient::mergenewshares(bool notify, bool skipWriteInDb)
 {
     newshare_list::iterator it;
 
@@ -168,7 +168,7 @@ void MegaClient::mergenewshares(bool notify)
     {
         NewShare* s = *it;
 
-        mergenewshare(s, notify);
+        mergenewshare(s, notify, skipWriteInDb);
 
         delete s;
         newshares.erase(it++);
@@ -177,7 +177,7 @@ void MegaClient::mergenewshares(bool notify)
     mNewKeyRepository.clear();
 }
 
-void MegaClient::mergenewshare(NewShare *s, bool notify)
+void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 {
     bool skreceived = false;
     Node* n = nodebyhandle(s->h);
@@ -541,7 +541,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
 #endif
     }
 
-    if (!notify)
+    if (!notify && !skipWriteInDb)
     {
         mNodeManager.updateNode(n);
     }
@@ -11973,6 +11973,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     bool isDbUpgraded = false;      // true when legacy DB is migrated to NOD's DB schema
 
+    std::map<NodeHandle, std::vector<Node*>> delayedParents;
     while (hasNext)
     {
         switch (id & 15)
@@ -11991,9 +11992,18 @@ bool MegaClient::fetchsc(DbTable* sctable)
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
 
-                   // Add nodes from old DB schema to the new table 'nodes' in the
-                   // new DB schema for nodes on demand
-                   mNodeManager.addNode(n, false);
+                   bool rootNode = n->type == ROOTNODE || n->type == RUBBISHNODE || n->type == INCOMINGNODE;
+                   if (rootNode)
+                   {
+                       mNodeManager.setrootnode(n);
+                   }
+                   else if (n->parent == nullptr)
+                   {
+                       // nodes in 'statecache' are not ordered by parent-child
+                       // -> we might load nodes whose parents are not loaded yet
+                       delayedParents[n->parentHandle()].push_back(n);
+                   }
+
                    sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else
@@ -12050,9 +12060,19 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
+        // call setparent() for the nodes whose parent was not available upon unserialization
+        for (auto it : delayedParents)
+        {
+            Node *parent = mNodeManager.getNodeByHandle(it.first);
+            for (Node* child : it.second)
+            {
+                child->setparent(parent, false);
+            }
+        }
+
         // now that Users and PCRs are loaded, need to mergenewshare()
         // Node counters for inshares are calculated at this method
-        mergenewshares(0);
+        mergenewshares(0, true);
 
         // finally write nodes in DB
         mNodeManager.dumpNodes();
@@ -17520,6 +17540,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     }
 
     n = new Node(mClient, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
+    assert(mNodes.find(NodeHandle().set6byte(h)) == mNodes.end());
     mNodes[n->nodeHandle()].reset(n);
 
     // setparent() skiping update of node counters, since they are already calculated
@@ -17594,8 +17615,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
 
         n->attrstring = make_unique<std::string>(ptr, ll);
         ptr += ll;
-        n->applykey();
-        n->setattr();
     }
 
     // It's needed to re-normalize node names because
@@ -17640,15 +17659,11 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
 
     if (ptr == end)
     {
+        // recreate node members related to shares (no need to write to DB,
+        // since we just loaded the node from DB and has no changes)
         for (auto& share : ownNewshares)
         {
-            mClient.mergenewshare(share.get(), false);
-        }
-
-        // If node was encrypted in DB and has been decrypted during unserialize
-        if (!decrypted && !n->attrstring)
-        {
-            updateNode(n);
+            mClient.mergenewshare(share.get(), false, true);
         }
 
         return n;
@@ -17883,6 +17898,7 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
 
 void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 {
+    assert(mNodes.find(node->nodeHandle()) == mNodes.end());
     mNodes[node->nodeHandle()].reset(node);   // takes ownership
 
     // In case of rootnode, no need to add to mNodesWithMissingParent

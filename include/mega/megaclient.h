@@ -368,6 +368,9 @@ public:
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;
 
+    // Set values to mClient.rootnodes for ROOTNODE, INBOX and RUBBISH
+    bool setrootnode(Node* node);
+
     // Add fingerprint to mFingerprint map, in case !fetchingNodes or
     // keep all nodes in memory, a reference to node will be stored too
     FingerprintMapPosition insertFingerprint(Node* node);
@@ -431,7 +434,6 @@ private:
 
     Node* getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
-    bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
 
     // Increase node counters with a node type and values
@@ -1559,8 +1561,8 @@ public:
     drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
 
     // merge newly received share into nodes
-    void mergenewshares(bool);
-    void mergenewshare(NewShare *s, bool notify);    // merge only the given share
+    void mergenewshares(bool notify, bool skipWriteInDb = false);
+    void mergenewshare(NewShare *s, bool notify, bool skipWriteInDb);    // merge only the given share
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
