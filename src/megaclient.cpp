@@ -17615,8 +17615,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
 
         n->attrstring = make_unique<std::string>(ptr, ll);
         ptr += ll;
-        n->applykey();
-        n->setattr();
     }
 
     // It's needed to re-normalize node names because
@@ -17666,12 +17664,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
         for (auto& share : ownNewshares)
         {
             mClient.mergenewshare(share.get(), false, true);
-        }
-
-        // If node was encrypted in DB and has been decrypted during unserialize
-        if (!decrypted && !n->attrstring)
-        {
-            updateNode(n);
         }
 
         return n;
