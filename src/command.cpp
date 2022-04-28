@@ -122,7 +122,6 @@ bool Command::cacheresolvedurls(const std::vector<string>& urls, std::vector<str
     bool result = client->httpio->cacheresolvedurls(urls, std::move(ips));
     if (result == false)
     {
-        assert(false);
         client->sendevent(99456, "Unpaired IPs received for URLs in this command");
     }
     return result;
