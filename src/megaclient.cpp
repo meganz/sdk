@@ -160,7 +160,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
 }
 
 // apply queued new shares
-void MegaClient::mergenewshares(bool notify)
+void MegaClient::mergenewshares(bool notify, bool skipWriteInDb)
 {
     newshare_list::iterator it;
 
@@ -168,7 +168,7 @@ void MegaClient::mergenewshares(bool notify)
     {
         NewShare* s = *it;
 
-        mergenewshare(s, notify);
+        mergenewshare(s, notify, skipWriteInDb);
 
         delete s;
         newshares.erase(it++);
@@ -177,7 +177,7 @@ void MegaClient::mergenewshares(bool notify)
     mNewKeyRepository.clear();
 }
 
-void MegaClient::mergenewshare(NewShare *s, bool notify)
+void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 {
     bool skreceived = false;
     Node* n = nodebyhandle(s->h);
@@ -541,7 +541,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
 #endif
     }
 
-    if (!notify)
+    if (!notify && !skipWriteInDb)
     {
         mNodeManager.updateNode(n);
     }
@@ -12070,12 +12070,12 @@ bool MegaClient::fetchsc(DbTable* sctable)
             }
         }
 
-        // finally write nodes in DB
-        mNodeManager.dumpNodes();
-
         // now that Users and PCRs are loaded, need to mergenewshare()
         // Node counters for inshares are calculated at this method
-        mergenewshares(0);
+        mergenewshares(0, true);
+
+        // finally write nodes in DB
+        mNodeManager.dumpNodes();
 
         // Calculate counters for rootnodes
         Node* rootNodeFile = mNodeManager.getNodeByHandle(rootnodes.files);
@@ -17661,9 +17661,11 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
 
     if (ptr == end)
     {
+        // recreate node members related to shares (no need to write to DB,
+        // since we just loaded the node from DB and has no changes)
         for (auto& share : ownNewshares)
         {
-            mClient.mergenewshare(share.get(), false);
+            mClient.mergenewshare(share.get(), false, true);
         }
 
         // If node was encrypted in DB and has been decrypted during unserialize

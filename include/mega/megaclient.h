@@ -1561,8 +1561,8 @@ public:
     drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
 
     // merge newly received share into nodes
-    void mergenewshares(bool);
-    void mergenewshare(NewShare *s, bool notify);    // merge only the given share
+    void mergenewshares(bool notify, bool skipWriteInDb = false);
+    void mergenewshare(NewShare *s, bool notify, bool skipWriteInDb);    // merge only the given share
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
