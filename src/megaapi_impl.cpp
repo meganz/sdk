@@ -20552,8 +20552,59 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_CONFIRM_ACCOUNT:
         {
-            // obsolete. Use registration flow v2
-            e = API_EINTERNAL;
+
+            const char* link = request->getLink();
+            const char* password = request->getPassword();
+
+            if (!link || !password)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (request->getPrivateKey())
+            {
+                // obsolete. Use registration flow v2
+                e = API_EINTERNAL;
+                break;
+            }
+
+            const char* ptr = link;
+            const char* tptr;
+
+            if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix()))) ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
+
+            string code = Base64::atob(string(ptr));
+            if (code.find("ConfirmCodeV2") != string::npos)
+            {
+                // “ConfirmCodeV2” (13B) || Email Confirmation Token (15B) || Email (>=5B) || \t || Fullname || Hash (8B)
+                size_t posEmail = 13 + 15;
+                size_t endEmail = code.find("\t", posEmail);
+                if (endEmail != string::npos)
+                {
+                    string email = code.substr(posEmail, endEmail - posEmail);
+                    request->setEmail(email.c_str());
+                    request->setName(code.substr(endEmail + 1, code.size() - endEmail - 9).c_str());
+
+                    sessiontype_t session = client->loggedin();
+                    if (session == FULLACCOUNT)
+                    {
+                        e = (client->ownuser()->email == email) ? API_EEXPIRED : API_EACCESS;
+                    }
+                    else    // not-logged-in / ephemeral account / partially confirmed
+                    {
+                        client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
+                    }
+                }
+                else
+                {
+                    e = API_EARGS;
+                }
+            }
+            else
+            {
+                e = API_EARGS;
+            }
             break;
         }
         case MegaRequest::TYPE_GET_RECOVERY_LINK:
