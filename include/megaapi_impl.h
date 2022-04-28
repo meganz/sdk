@@ -2179,6 +2179,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
+        void loggedInStateChanged(sessiontype_t, handle me) override;
         bool isEphemeralPlusPlus();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
@@ -2211,9 +2212,6 @@ class MegaApiImpl : public MegaApp
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
 #endif
         void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
-
-        bool platformSetRLimitNumFile(int newNumFileLimit) const;
-        int platformGetRLimitNumFile() const;
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
@@ -2849,6 +2847,14 @@ protected:
         GfxProc *gfxAccess;
         string basePath;
         bool nocache;
+
+        mutex mLastRecievedLoggedMeMutex;
+        sessiontype_t mLastReceivedLoggedInState = NOTLOGGEDIN;
+        handle mLastReceivedLoggedInMeHandle = UNDEF;
+
+        unique_ptr<MegaNode> mLastKnownRootNode;
+        unique_ptr<MegaNode> mLastKnownInboxNode;
+        unique_ptr<MegaNode> mLastKnownRubbishNode;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;

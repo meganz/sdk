@@ -950,80 +950,6 @@ std::string MegaClient::getDeviceidHash()
     return deviceIdHash;
 }
 
-handle MegaClient::generateDriveId()
-{
-    handle driveId;
-    rng.genblock((byte *)&driveId, sizeof(driveId));
-    driveId |= m_time(nullptr);
-    return driveId;
-}
-
-error MegaClient::readDriveId(const char *pathToDrive, handle &driveId) const
-{
-    driveId = UNDEF;
-
-    if (pathToDrive && strlen(pathToDrive))
-    {
-
-        LocalPath pd = LocalPath::fromAbsolutePath(pathToDrive);
-        LocalPath dotDir = LocalPath::fromRelativePath(".megabackup");
-        pd.appendWithSeparator(dotDir, false);
-        LocalPath idFile = LocalPath::fromRelativePath("drive-id");
-        pd.appendWithSeparator(idFile, false);
-
-        auto fa = fsaccess->newfileaccess(false);
-        if (!fa->fopen(pd, true, false))
-        {
-            // This case is valid when only checking for file existence
-            return API_ENOENT;
-        }
-
-        if (!fa->frawread((byte*)&driveId, sizeof(driveId), 0))
-        {
-            LOG_err << "Unable to read drive-id from file: " << pd.toPath();
-            return API_EREAD;
-        }
-    }
-    else return API_EREAD;
-
-    return API_OK;
-}
-
-error MegaClient::writeDriveId(const char *pathToDrive, handle driveId)
-{
-    LocalPath pd = LocalPath::fromAbsolutePath(pathToDrive);
-    LocalPath dotDir = LocalPath::fromRelativePath(".megabackup");
-    pd.appendWithSeparator(dotDir, false);
-
-    // Try and create the backup configuration directory
-    if (!(fsaccess->mkdirlocal(pd, false, false) || fsaccess->target_exists))
-    {
-        LOG_err << "Unable to create config DB directory: " << pd;
-
-        // Couldn't create the directory and it doesn't exist.
-        return API_EWRITE;
-    }
-
-    // Open the file for writing
-    LocalPath idFile = LocalPath::fromRelativePath("drive-id");
-    pd.appendWithSeparator(idFile, false);
-    auto fa = fsaccess->newfileaccess(false);
-    if (!fa->fopen(pd, false, true))
-    {
-        LOG_err << "Unable to open file to write drive-id: " << pd;
-        return API_EWRITE;
-    }
-
-    // Write the drive-id to file
-    if (!fa->fwrite((byte*)&driveId, sizeof(driveId), 0))
-    {
-        LOG_err << "Unable to write drive-id to file: " << pd;
-        return API_EWRITE;
-    }
-
-    return API_OK;
-}
-
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -1269,7 +1195,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     tctable = NULL;
     statusTable = nullptr;
     me = UNDEF;
-    followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
@@ -2339,7 +2264,7 @@ void MegaClient::exec()
             case REQ_INFLIGHT:
                 if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
-                    LOG_debug << "sc timeout expired";
+                    LOG_debug << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
                     // In almost all cases the server won't take more than SCREQUESTTIMEOUT seconds.  But if it does, break the cycle of endless requests for the same thing
                     pendingscTimedOut = true;
                     pendingsc.reset();
@@ -2560,10 +2485,10 @@ void MegaClient::exec()
         syncs.forEachRunningSync([&](Sync* sync){
             if (sync->state() != SYNC_FAILED && sync->fsfp)
             {
-                fsfp_t current = sync->dirnotify->fsfingerprint();
+                fsfp_t current = fsaccess->fsFingerprint(sync->getConfig().mLocalPath);
                 if (sync->fsfp != current)
                 {
-                    LOG_err << "Local fingerprint mismatch. Previous: " << sync->fsfp
+                    LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp
                             << "  Current: " << current;
                     sync->changestate(SYNC_FAILED, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true);
                 }
@@ -3237,6 +3162,8 @@ void MegaClient::exec()
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
+
+        debugLogHeapUsage();
     }
 #endif
 
@@ -3247,6 +3174,8 @@ void MegaClient::exec()
         app->drive_presence_changed(di.second, LocalPath::fromPlatformEncodedAbsolute(move(di.first)));
     }
 #endif
+
+    reportLoggedInChanges();
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -4315,6 +4244,7 @@ void MegaClient::logout(bool keepSyncConfigsFile)
 
         restag = reqtag;
         app->logout_result(API_OK);
+        reportLoggedInChanges();
         return;
     }
 
@@ -4476,6 +4406,9 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mAuthRings.clear();
     mAuthRingsTemp.clear();
     mFetchingAuthrings = false;
+
+    reportLoggedInChanges();
+    mLastLoggedInReportedState = NOTLOGGEDIN;
 
     init();
 
@@ -9703,6 +9636,7 @@ void MegaClient::login(string session)
                 checkForResumeableSCDatabase();
                 openStatusTable(true);
                 app->login_result(API_OK);
+                reportLoggedInChanges();
             }
         }
     }
@@ -11881,6 +11815,18 @@ sessiontype_t MegaClient::loggedin()
     return FULLACCOUNT;
 }
 
+void MegaClient::reportLoggedInChanges()
+{
+    auto currState = loggedin();
+    if (mLastLoggedInReportedState != currState ||
+        mLastLoggedInMeHandle != me)
+    {
+        mLastLoggedInReportedState = currState;
+        mLastLoggedInMeHandle = me;
+        app->loggedInStateChanged(currState, me);
+    }
+}
+
 void MegaClient::whyamiblocked()
 {
     // make sure the smsve flag is up to date when we get the response
@@ -12358,36 +12304,46 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     uint32_t id;
     string data;
     Transfer* t;
+    size_t cachedTransfersLoaded = 0;
+    size_t cachedFilesLoaded = 0;
 
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
-    while (tctable->next(&id, &data, &tckey))
     {
-        switch (id & 15)
+        DBTableTransactionCommitter committer(tctable);
+        while (tctable->next(&id, &data, &tckey))
         {
-            case CACHEDTRANSFER:
-                if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
-                {
-                    t->dbid = id;
-                    if (t->priority > transferlist.currentpriority)
+            switch (id & 15)
+            {
+                case CACHEDTRANSFER:
+                    if ((t = Transfer::unserialize(this, &data, cachedtransfers)))
                     {
-                        transferlist.currentpriority = t->priority;
+                        t->dbid = id;
+                        if (t->priority > transferlist.currentpriority)
+                        {
+                            transferlist.currentpriority = t->priority;
+                        }
+                        cachedTransfersLoaded += 1;
                     }
-                    LOG_debug << "Cached transfer loaded";
-                }
-                else
-                {
-                    tctable->del(id);
-                    LOG_err << "Failed - transfer record read error";
-                }
-                break;
-            case CACHEDFILE:
-                cachedfiles.push_back(data);
-                cachedfilesdbids.push_back(id);
-                LOG_debug << "Cached file loaded";
-                break;
+                    else
+                    {
+                        tctable->del(id);
+                        LOG_err << "Failed - transfer record read error, or duplicate";
+                    }
+                    break;
+                case CACHEDFILE:
+                    cachedfiles.push_back(data);
+                    cachedfilesdbids.push_back(id);
+                    cachedFilesLoaded += 1;
+                    break;
+            }
         }
     }
+    LOG_debug << "Cached transfers loaded: " << cachedTransfersLoaded;
+    LOG_debug << "Cached files loaded: " << cachedFilesLoaded;
+
+    LOG_debug << "Cached transfer PUT count: " << cachedtransfers[PUT].size();
+    LOG_debug << "Cached transfer GET count: " << cachedtransfers[GET].size();
 
     // if we are logged in but the filesystem is not current yet
     // postpone the resumption until the filesystem is updated
@@ -12475,6 +12431,7 @@ void MegaClient::fetchnodes(bool nocache)
 
     if (sctable && cachedscsn == UNDEF)
     {
+        LOG_debug << "Cachedscsn is UNDEF so we will not load the account database (and we are truncating it, for clean operation)";
         sctable->truncate();
     }
 
@@ -12483,6 +12440,8 @@ void MegaClient::fetchnodes(bool nocache)
             !nodes.size() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable.get()))
     {
+        debugLogHeapUsage();
+
         // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
         // ensuring no new request happens in between
         auto fetchnodesTag = reqtag;
@@ -13601,7 +13560,6 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
 {
-#ifdef ENABLE_SYNC
     // cannot sync files, rubbish bins or inboxes
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
@@ -13709,9 +13667,6 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
         *isinshare = inshare;
     }
     return API_OK;
-#else
-    return API_EINCOMPLETE;
-#endif
 }
 
 error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId, SyncError *syncError)
@@ -13760,8 +13715,6 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 // (FIXME: perform the same check for local paths!)
 error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork)
 {
-#ifdef ENABLE_SYNC
-
     // Checking for conditions where we would not even add the sync config
     // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
 
@@ -13787,6 +13740,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
     if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
+        LOG_debug << "Node is not syncable for sync add";
         syncConfig.mEnabled = false;
         return e;
     }
@@ -13805,6 +13759,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         // Source must be on the drive.
         if (!drivePath.isContainingPathOf(sourcePath))
         {
+            LOG_debug << "Drive path inconsistent for sync add";
             syncConfig.mEnabled = false;
             syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
 
@@ -13872,28 +13827,27 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     // the order is important here: a user needs to resolve blocked in order to resolve storage
     if (overStorage)
     {
+        LOG_debug << "Overstorage for sync add";
         syncConfig.mError = STORAGE_OVERQUOTA;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
     else if (businessExpired)
     {
+        LOG_debug << "Business expired for sync add";
         syncConfig.mError = BUSINESS_EXPIRED;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
     else if (blocked)
     {
+        LOG_debug << "Account blocked for sync add";
         syncConfig.mError = ACCOUNT_BLOCKED;
         syncConfig.mEnabled = false;
         return API_EFAILED;
     }
 
     return API_OK;
-#else
-    syncConfig.mEnabled = false;
-    return API_EINCOMPLETE;
-#endif
 }
 
 void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
@@ -14096,16 +14050,11 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
             }
         }
 
+        driveId = store->driveID(drivePath);
+        assert(driveId != UNDEF);
+
         config.mExternalDrivePath = std::move(drivePath);
         config.mLocalPath = std::move(sourcePath);
-
-        const string& p = config.mExternalDrivePath.toPath();
-        e = readDriveId(p.c_str(), driveId);
-        if (e != API_OK)
-        {
-            completion(e, config.mError, UNDEF);
-            return e;
-        }
     }
 
     // Add the sync.
@@ -16221,7 +16170,7 @@ namespace action_bucket_compare
     const static string webclient_is_image_thumb = ".psd.svg.tif.tiff.webp.";  // leaving out .pdf
     const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
     const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
-    const static string webclient_mime_audio_extensions = ".3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
+    const static string webclient_mime_audio_extensions = ".ac3.ec3.3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
     const static string webclient_mime_document_extensions = ".ans.ascii.doc.docx.dotx.json.log.ods.odt.pages.pdf.ppc.pps.ppt.pptx.rtf.stc.std.stw.sti.sxc.sxd.sxi.sxm.sxw.txt.wpd.wps.xls.xlsx.xlt.xltm.";
 
     bool nodeIsVideo(const Node *n, const string& ext, const MegaClient& mc)

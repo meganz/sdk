@@ -386,7 +386,7 @@ public:
         std::unique_ptr<char[]> result(new char[size]);
         for (size_t i = 0; i < size; ++i)
         {
-            result[i] = (data[i >> 2] >> (24 - (i & 3) * 8)) & 255;
+            result[i] = static_cast<char>((data[i >> 2] >> (24 - (i & 3) * 8)) & 255);
         }
         return std::string (result.get(), size);
     }
@@ -423,6 +423,9 @@ public:
     {
         return utf8proc_toupper(c);
     }
+
+    static string toUpperUtf8(const string& text);
+    static string toLowerUtf8(const string& text);
 
     // Platform-independent case-insensitive comparison.
     static int icasecmp(const std::string& lhs,
@@ -903,6 +906,29 @@ bool islchex_low(const int c);
 
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
+
+bool wildcardMatch(const string& text, const string& pattern);
+bool wildcardMatch(const char* text, const char* pattern);
+
+struct MEGA_API FileSystemAccess;
+
+// generate a new drive id
+handle generateDriveId(PrnGen& rng);
+
+// return API_OK if success and set driveID handle to the drive id read from the drive,
+// otherwise return error code and set driveId to UNDEF
+error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId);
+error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, handle& driveId);
+
+// return API_OK if success, otherwise error code
+error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId);
+
+int platformGetRLimitNumFile();
+
+bool platformSetRLimitNumFile(int newNumFileLimit = -1);
+
+void debugLogHeapUsage();
+
 
 } // namespace
 

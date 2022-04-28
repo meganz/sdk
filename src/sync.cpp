@@ -847,10 +847,10 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     }
     else
     {
-        fsfp = dirnotify->fsfingerprint();
+        fsfp = client->fsaccess->fsFingerprint(mLocalPath);
     }
 
-    fsstableids = dirnotify->fsstableids();
+    fsstableids = client->fsaccess->fsStableIDs(mLocalPath);
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
 
@@ -1341,7 +1341,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
         // scan the dir, mark all items with a unique identifier
         if ((success = da->dopen(localpath, fa, false)))
         {
-            while (da->dnext(*localpath, localname, client->followsymlinks))
+            while (da->dnext(*localpath, localname, false))
             {
                 name = localname.toName(*client->fsaccess);
 
@@ -1581,8 +1581,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                 // was the file overwritten by moving an existing file over it?
                                 if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
                                         && (l->sync == it->second->sync
-                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
-                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
+                                            || ((fp1 = client->fsaccess->fsFingerprint(l->sync->getConfig().mLocalPath))
+                                                && (fp2 = client->fsaccess->fsFingerprint(it->second->sync->getConfig().mLocalPath))
                                                 && (fp1 == fp2)
                                             #ifdef _WIN32
                                                 // only consider fsid matches between different syncs for local drives with the
@@ -1713,8 +1713,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     && it->second->type == fa->type
                     && (!parent
                         || (it->second->sync == parent->sync)
-                        || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
-                            && (fp2 = parent->sync->dirnotify->fsfingerprint())
+                        || ((fp1 = client->fsaccess->fsFingerprint(it->second->sync->getConfig().mLocalPath))
+                            && (fp2 = client->fsaccess->fsFingerprint(parent->sync->getConfig().mLocalPath))
                             && (fp1 == fp2)
                         #ifdef _WIN32
                             // allow moves between different syncs only for local drives with the
@@ -2126,7 +2126,7 @@ dstime Sync::procscanq(int q)
 
         if (notification.timestamp > dsmin)
         {
-            LOG_verbose << "Scanning postponed. Modification too recent";
+            LOG_verbose << syncname << "Scanning postponed. Modification too recent: " << notification.timestamp << " (ds) vs now " << Waiter::ds << " at " << notification.path;
             dirnotify->notifyq[q].unpopFront(notification);
             return notification.timestamp - dsmin;
         }
@@ -3914,6 +3914,18 @@ void SyncConfigStore::markDriveDirty(const LocalPath& drivePath)
     mKnownDrives[drivePath].dirty = true;
 }
 
+handle SyncConfigStore::driveID(const LocalPath& drivePath) const
+{
+    auto i = mKnownDrives.find(drivePath);
+
+    if (i != mKnownDrives.end())
+        return i->second.driveID;
+
+    assert(!"Drive should be known!");
+
+    return UNDEF;
+}
+
 bool SyncConfigStore::equal(const LocalPath& lhs, const LocalPath& rhs) const
 {
     return platformCompareUtf(lhs, false, rhs, false) == 0;
@@ -3967,8 +3979,22 @@ bool SyncConfigStore::removeDrive(const LocalPath& drivePath)
 error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& configs, bool isExternal)
 {
     DriveInfo driveInfo;
+
     driveInfo.dbPath = dbPath(drivePath);
     driveInfo.drivePath = drivePath;
+
+    if (isExternal)
+    {
+        driveInfo.driveID = mIOContext.driveID(drivePath);
+
+        if (driveInfo.driveID == UNDEF)
+        {
+            LOG_err << "Failed to retrieve drive ID for: "
+                    << drivePath.toPath();
+
+            return API_EREAD;
+        }
+    }
 
     vector<unsigned int> confSlots;
 
@@ -4234,6 +4260,15 @@ bool SyncConfigIOContext::deserialize(SyncConfigVector& configs,
             break;
         }
     }
+}
+
+handle SyncConfigIOContext::driveID(const LocalPath& drivePath) const
+{
+    handle result = UNDEF;
+
+    readDriveId(mFsAccess, drivePath, result);
+
+    return result;
 }
 
 FileSystemAccess& SyncConfigIOContext::fsAccess() const
