@@ -88,6 +88,10 @@ GfxProviderFreeImage::GfxProviderFreeImage()
     }
 #endif
 
+#ifdef HAVE_PDFIUM
+    pdfiumInitialized = false;
+#endif
+
 #ifdef HAVE_FFMPEG
 //    av_log_set_level(AV_LOG_VERBOSE);
 #endif
@@ -108,7 +112,10 @@ GfxProviderFreeImage::~GfxProviderFreeImage()
 
 #ifdef HAVE_PDFIUM
     gfxMutex.lock();
-    PdfiumReader::destroy();
+    if (pdfiumInitialized)
+    {
+        PdfiumReader::destroy();
+    }
     gfxMutex.unlock();
 #endif
 }
@@ -499,8 +506,13 @@ bool GfxProviderFreeImage::isPdfFile(const string &ext)
 
 bool GfxProviderFreeImage::readbitmapPdf(FileSystemAccess* fa, const LocalPath& imagePath, int size)
 {
-
     std::lock_guard<std::mutex> g(gfxMutex);
+    if (!pdfiumInitialized)
+    {
+        pdfiumInitialized = true;
+        PdfiumReader::init();
+    }
+
     int orientation;
 #ifdef _WIN32
     wstring tmpPath;

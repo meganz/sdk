@@ -37,6 +37,9 @@ class MEGA_API GfxProviderFreeImage : public IGfxProvider
     static std::mutex libFreeImageInitializedMutex;
     static unsigned libFreeImageInitialized;
 #endif
+#ifdef HAVE_PDFIUM
+    bool pdfiumInitialized;
+#endif
     FIBITMAP* dib;
 
 public:

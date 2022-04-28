@@ -37,11 +37,10 @@ class PdfiumReader
 private:
     static unsigned initialized;
 
+public:
     // Initializes the library and increases the internal counter of initializations. See destroy().
     // PdfiumReader member method calling init() is responsible for locking pdfMutex
     static void init();
-
-public:
 
 #ifdef _WIN32
     // BGRA format, 4 bytes per pixel (32bits), byte order: blue, green, red, alpha.
