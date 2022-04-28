@@ -32,6 +32,7 @@ unsigned PdfiumReader::initialized = 0;
 
 void PdfiumReader::init()
 {
+    std::lock_guard<std::mutex> g(pdfMutex);
     if (!initialized++)
     {
         FPDF_LIBRARY_CONFIG config;
@@ -62,10 +63,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
 {
 
     std::lock_guard<std::mutex> g(pdfMutex);
-    if (!initialized)
-    {
-        init();
-    }
+    assert (initialized);
 
     FPDF_DOCUMENT pdf_doc = FPDF_LoadDocument(path.toPath().c_str(), nullptr);
 #ifdef _WIN32
