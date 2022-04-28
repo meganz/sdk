@@ -402,9 +402,9 @@ struct MEGA_API LocalNode : public File
     handle dirnotifytag = mega::UNDEF;
 #endif
 
-    void prepare() override;
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void prepare(FileSystemAccess&) override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
 
     void setnode(Node*);
 
