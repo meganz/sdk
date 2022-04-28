@@ -17537,6 +17537,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     }
 
     n = new Node(mClient, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
+    assert(mNodes.find(NodeHandle().set6byte(h)) == mNodes.end());
     mNodes[n->nodeHandle()].reset(n);
 
     // setparent() skiping update of node counters, since they are already calculated
@@ -17900,6 +17901,7 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
 
 void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 {
+    assert(mNodes.find(node->nodeHandle()) == mNodes.end());
     mNodes[node->nodeHandle()].reset(node);   // takes ownership
 
     // In case of rootnode, no need to add to mNodesWithMissingParent
