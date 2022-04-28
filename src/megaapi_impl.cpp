@@ -20459,8 +20459,86 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
         {
-            // obsolete. Use registration flow v2
-            e = API_EINTERNAL;
+            const char *link = request->getLink();
+            if(!link)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            const char* ptr = link;
+            const char* tptr;
+
+            // is it a link to confirm the account? ie. https://mega.nz/#confirm<code_in_B64>
+            if ((tptr = strstr(ptr, MegaClient::confirmLinkPrefix())))
+            {
+                ptr = tptr + strlen(MegaClient::confirmLinkPrefix());
+
+                string code = Base64::atob(string(ptr));
+                if (!code.empty())
+                {
+                    if (code.find("ConfirmCodeV2") != string::npos)
+                    {
+                        // “ConfirmCodeV2” (13B) || Email Confirmation Token (15B) || Email (>=5B) || \t || Fullname || Hash (8B)
+                        size_t posEmail = 13 + 15;
+                        size_t endEmail = code.find("\t", posEmail);
+                        if (endEmail != string::npos)
+                        {
+                            string email = code.substr(posEmail, endEmail - posEmail);
+                            request->setEmail(email.c_str());
+                            request->setName(code.substr(endEmail + 1, code.size() - endEmail - 9).c_str());
+
+                            sessiontype_t session = client->loggedin();
+                            if (session == FULLACCOUNT)
+                            {
+                                e = (client->ownuser()->email == email) ? API_EEXPIRED : API_EACCESS;
+                            }
+                            else    // not-logged-in / ephemeral account / partially confirmed
+                            {
+                                client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            // is it a new singup link? ie. https://mega.nz/#newsignup<code_in_B64>
+            else if ((tptr = strstr(ptr, MegaClient::newsignupLinkPrefix())))
+            {
+                ptr = tptr + strlen(MegaClient::newsignupLinkPrefix());
+
+                unsigned len = unsigned((strlen(link)-(ptr-link))*3/4+4);
+                byte *c = new byte[len];
+                len = Base64::atob(ptr,c,len);
+
+                if (len > 8)
+                {
+                    // extract email and email_hash from link
+                    byte *email = c;
+                    byte *sha512bytes = c+len-8;    // last 11 chars
+
+                    // get the hash for the received email
+                    Hash sha512;
+                    sha512.add(email, len-8);
+                    string sha512str;
+                    sha512.get(&sha512str);
+
+                    // and finally check it
+                    if (memcmp(sha512bytes, sha512str.data(), 8) == 0)
+                    {
+                        email[len-8] = '\0';
+                        request->setEmail((const char *)email);
+                        delete[] c;
+
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                        break;
+                    }
+                }
+
+                delete[] c;
+            }
+
+            e = API_EARGS;
             break;
         }
         case MegaRequest::TYPE_CONFIRM_ACCOUNT:

@@ -9064,7 +9064,27 @@ class MegaApi
         void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
 
         /**
-         * @obsolete This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
+         * @brief Get information about a confirmation link or a new signup link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_SIGNUP_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink - Returns the confirmation link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Return the email associated with the link
+         * - MegaRequest::getName - Returns the name associated with the link (available only for confirmation links)
+         * - MegaRequest::getFlag - Returns true if the account was automatically confirmed, otherwise false
+         *
+         * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
+         * in onRequestFinish.
+         * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+         * will get the error code MegaError::API_EEXPIRED in onRequestFinish.
+         * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
+         * to confirm, and the MegaRequest::getName will return the name.
+         *
+         * @param link Confirmation link (confirm) or new signup link (newsignup)
+         * @param listener MegaRequestListener to track this request
          */
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
 
