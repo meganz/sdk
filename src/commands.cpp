@@ -34,7 +34,7 @@
 
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size, std::unique_ptr<string> cdata, bool getIP, HttpReqCommandPutFA::Cb &&completion)
-    : mCompletion(completion), data(move(cdata))
+    : mCompletion(std::move(completion)), data(std::move(cdata))
 {
     cmd("ufa");
     arg("s", size);
@@ -67,8 +67,19 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, b
 
     if (!mCompletion)
     {
-        mCompletion=[this](Error e, const std::string &/*url*/, const vector<std::string> &/*ips*/){
-            client->app->putfa_result(th.nodeHandle().as8byte(), type, e);
+        mCompletion = [this](Error e, const std::string & /*url*/, const vector<std::string> & /*ips*/)
+        {
+            if (e == API_OK)
+            {
+                LOG_debug << "Sending file attribute data";
+                progressreported = 0;
+                HttpReq::type = REQ_BINARY;
+                post(client, data->data(), static_cast<unsigned>(data->size()));
+            }
+            else
+            {
+                client->app->putfa_result(th.nodeHandle().as8byte(), type, e);
+            }
         };
     }
 }
@@ -119,21 +130,11 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 case 'p':
                     p = client->json.getvalue();
                     break;
-            case MAKENAMEID2('i', 'p'):
-                if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
-                {
-                    for (;;)
-                    {
-                        std::string ti;
-                        if (!client->json.storeobject(&ti))
-                        {
-                            break;
-                        }
-                        ips.push_back(ti);
-                    }
-                    client->json.leavearray();
-                }
-                break;
+
+                case MAKENAMEID2('i', 'p'):
+                    loadIpsFromJson(ips);
+                    break;
+
                 case EOO:
                     if (!p)
                     {
@@ -142,26 +143,25 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     else
                     {
                         JSON::copystring(&posturl, p);
-                        if (mCompletion)
+
+                        // cache resolved URLs if received
+                        std::vector<string> urls(1, posturl);
+                        if(!cacheresolvedurls(urls, std::move(ips)))
                         {
-                            mCompletion(API_OK, posturl, ips);
+                            LOG_err << "Unpaired IPs received for URLs in `ufa` command. URLs: " << urls.size() << " IPs: " << ips.size();
                         }
-                        else
-                        {
-                            LOG_debug << "Sending file attribute data";
-                            progressreported = 0;
-                            HttpReq::type = REQ_BINARY;
-                            post(client, data->data(), unsigned(data->size()));
-                        }
+
+                        mCompletion(API_OK, posturl, ips);
+
+                        return true;
                     }
-                    return true;
+                    break;
 
                 default:
                     if (!client->json.storeobject())
                     {
                         status = REQ_SUCCESS;
                         mCompletion(API_EINTERNAL, {}, {});
-                        client->app->putfa_result(th.nodeHandle().as8byte(), type, API_EINTERNAL);
                         return false;
                     }
             }
@@ -341,7 +341,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
         arg("ssl", 2);
     }
 
-    arg("v", 2);
+    arg("v", 3);
     arg("s", tslot->fa->size);
     arg("ms", ms);
 
@@ -420,6 +420,7 @@ bool CommandPutFile::procresult(Result r)
     }
 
     std::vector<std::string> tempurls;
+    std::vector<std::string> tempips;
     for (;;)
     {
         switch (client->json.getnameid())
@@ -429,11 +430,19 @@ bool CommandPutFile::procresult(Result r)
                 client->json.storeobject(canceled ? NULL : &tempurls.back());
                 break;
 
+            case MAKENAMEID2('i', 'p'):
+                loadIpsFromJson(tempips);
+                break;
             case EOO:
                 if (canceled) return true;
 
                 if (tempurls.size() == 1)
                 {
+                    if(!cacheresolvedurls(tempurls, std::move(tempips)))
+                    {
+                        LOG_err << "Unpaired IPs received for URLs in `u` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
+                    }
+
                     tslot->transfer->tempurls = tempurls;
                     tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
@@ -504,19 +513,7 @@ bool CommandGetPutUrl::procresult(Result r)
                 client->json.storeobject(canceled ? nullptr : &url);
                 break;
             case MAKENAMEID2('i', 'p'):
-                if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
-                {
-                    for (;;)
-                    {
-                        std::string ti;
-                        if (!client->json.storeobject(&ti))
-                        {
-                            break;
-                        }
-                        ips.push_back(ti);
-                    }
-                    client->json.leavearray();
-                }
+                loadIpsFromJson(ips);
                 break;
             case EOO:
                 if (canceled) return true;
@@ -770,8 +767,8 @@ bool CommandGetFile::procresult(Result r)
     string fileattrstring;
     string filenamestring;
     string filefingerprint;
-    std::vector<string> tempurls;
-    std::vector<string> tempips;
+    std::vector<std::string> tempurls;
+    std::vector<std::string> tempips;
 
     for (;;)
     {
@@ -802,21 +799,9 @@ bool CommandGetFile::procresult(Result r)
                 e.setErrorCode(API_OK);
                 break;
 
-        case MAKENAMEID2('i', 'p'):
-            if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
-            {
-                for (;;)
-                {
-                    std::string ti;
-                    if (!client->json.storeobject(&ti))
-                    {
-                        break;
-                    }
-                    tempips.push_back(ti);
-                }
-                client->json.leavearray();
-            }
-            break;
+            case MAKENAMEID2('i', 'p'):
+                loadIpsFromJson(tempips);
+                break;
 
             case 's':
                 s = client->json.getint();
@@ -852,15 +837,8 @@ bool CommandGetFile::procresult(Result r)
                 // thus we can use them before going out of scope
                 std::shared_ptr<void> deferThis(nullptr, [this, &tempurls, &tempips](...)
                 {
-                    // cache resolved URLs if received
-                    if (tempurls.size() * 2 == tempips.size())
+                    if(!cacheresolvedurls(tempurls, std::move(tempips)))
                     {
-                        client->httpio->cacheresolvedurls(tempurls, move(tempips));
-                    }
-                    else
-                    {
-                        assert(false);
-                        client->sendevent(99456, "Unpaired IPs received for URLs in `g` command");
                         LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
                     }
                 });

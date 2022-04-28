@@ -44,6 +44,8 @@ protected:
     JSONWriter jsonWriter;
     bool mRead = false;// if json has already been read
 
+    bool loadIpsFromJson(std::vector<string>& ips);
+
 public:
     MegaClient* client; // non-owning
 
@@ -148,6 +150,7 @@ public:
     virtual ~Command();
 
     bool checkError(Error &errorDetails, JSON &json);
+    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
@@ -169,7 +172,7 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     virtual m_off_t transferred(MegaClient*) override;
 
     HttpReqCommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, size_t size,
-                        std::unique_ptr<string> faData, bool getIP = false, Cb &&completion = nullptr);
+                        std::unique_ptr<string> faData, bool getIP = true, Cb &&completion = nullptr);
 
 private:
     std::unique_ptr<string> data;

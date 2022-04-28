@@ -22720,7 +22720,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 assert(e != API_OK || !url.empty());
                 if (e == API_OK && !url.empty())
-            {
+                {
                     request->setName(url.c_str());
                     if (!ips.empty())
                     {
