@@ -22640,7 +22640,9 @@ void MegaApiImpl::sendPendingRequests()
         {
             bool getIp = true;
             auto nodeHandle = request->getNodeHandle();
-            auto faType = request->getParamType();
+            int intFaType = request->getParamType();
+            assert(intFaType >= 0 && (intFaType < (1 << (sizeof(fatype)*8)))); // Value of intFaType <= (2^(fatype_numbits) - 1)
+            fatype faType = static_cast<fatype>(intFaType); // if the assert above is true, int should fit fine into a fatype (uint16_t)
             auto forceSSL = request->getFlag();
             auto fullSize = request->getNumber();
 
