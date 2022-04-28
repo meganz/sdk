@@ -3779,7 +3779,7 @@ void MegaClient::dispatchTransfers()
                 for (file_list::iterator it = nexttransfer->files.begin();
                     nexttransfer->localfilename.empty() && it != nexttransfer->files.end(); it++)
                 {
-                    (*it)->prepare();
+                    (*it)->prepare(*fsaccess);
                 }
                 assert(nexttransfer->localfilename.isAbsolute());
 
@@ -7722,7 +7722,7 @@ void MegaClient::handleauth(handle h, byte* auth)
 }
 
 // make attribute string; add magic number prefix
-void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l)
 {
     if (l < 0)
     {
@@ -7743,7 +7743,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
     delete[] buf;
 }
 
-void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrstring, const char* json, int l)
 {
     makeattr(key, attrstring.get(), json, l);
 }
@@ -13545,7 +13545,7 @@ void MegaClient::updateputs()
     {
         if ((*it)->transfer->type == PUT && (*it)->transfer->files.size())
         {
-            (*it)->transfer->files.front()->prepare();
+            (*it)->transfer->files.front()->prepare(*fsaccess);
         }
     }
 }
@@ -15976,7 +15976,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
             if (transfer->type == PUT && !transfer->localfilename.empty())
             {
                 LOG_debug << "Updating transfer path";
-                transfer->files.front()->prepare();
+                transfer->files.front()->prepare(*fsaccess);
             }
         }
     }

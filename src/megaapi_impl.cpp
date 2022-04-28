@@ -5063,7 +5063,7 @@ MegaFileGet *MegaFileGet::unserialize(string *d)
     return megaFile;
 }
 
-void MegaFileGet::prepare()
+void MegaFileGet::prepare(FileSystemAccess&)
 {
     if (transfer->localfilename.empty())
     {
@@ -5093,12 +5093,12 @@ void MegaFileGet::progress()
 #endif
 }
 
-void MegaFileGet::completed(Transfer*, LocalNode*)
+void MegaFileGet::completed(Transfer*, putsource_t source)
 {
     delete this;
 }
 
-void MegaFileGet::terminated()
+void MegaFileGet::terminated(error e)
 {
     delete this;
 }
@@ -5184,16 +5184,16 @@ MegaFilePut *MegaFilePut::unserialize(string *d)
     return megaFile;
 }
 
-void MegaFilePut::completed(Transfer* t, LocalNode*)
+void MegaFilePut::completed(Transfer* t, putsource_t source)
 {
     if(customMtime >= 0)
         t->mtime = customMtime;
 
-    File::completed(t,NULL);
+    File::completed(t, source);
     delete this;
 }
 
-void MegaFilePut::terminated()
+void MegaFilePut::terminated(error e)
 {
     delete this;
 }
