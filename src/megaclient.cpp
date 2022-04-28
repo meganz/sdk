@@ -299,7 +299,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     {
                         n->inshare->user->sharing.erase(n->nodehandle);
                         notifyuser(n->inshare->user);
-                        n->inshare = NULL;
+                        delete n->inshare;
+                        n->inshare = nullptr;
                     }
                 }
             }
