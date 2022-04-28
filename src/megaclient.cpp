@@ -11973,7 +11973,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     bool isDbUpgraded = false;      // true when legacy DB is migrated to NOD's DB schema
 
-    std::map<NodeHandle, std::vector<Node*>> delayParents;
+    std::map<NodeHandle, std::vector<Node*>> delayedParents;
     while (hasNext)
     {
         switch (id & 15)
@@ -11999,16 +11999,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
                    }
                    else if (n->parent == nullptr)
                    {
-                       delayParents[n->parentHandle()].push_back(n);
-                   }
-
-                   auto itNode = delayParents.find(n->nodeHandle());
-                   if (itNode != delayParents.end())
-                   {
-                       for (Node* child : itNode->second)
-                       {
-                           child->setparent(n, false);
-                       }
+                       // nodes in 'statecache' are not ordered by parent-child
+                       // -> we might load nodes whose parents are not loaded yet
+                       delayedParents[n->parentHandle()].push_back(n);
                    }
 
                    sctable->del(id);                // delete record from old DB table 'statecache'
@@ -12067,6 +12060,16 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
+        // call setparent() for the nodes whose parent was not available upon unserialization
+        for (auto it : delayedParents)
+        {
+            Node *parent = mNodeManager.getNodeByHandle(it.first);
+            for (Node* child : it.second)
+            {
+                child->setparent(parent, false);
+            }
+        }
+
         // finally write nodes in DB
         mNodeManager.dumpNodes();
 
