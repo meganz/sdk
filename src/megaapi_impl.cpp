@@ -6277,6 +6277,15 @@ void MegaApiImpl::sendSignupLink(const char *email, const char *name, const char
     waiter->notify();
 }
 
+void MegaApiImpl::resendSignupLink(const char *email, const char *name, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
+    request->setEmail(email);
+    request->setName(name);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);

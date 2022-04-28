@@ -2164,6 +2164,7 @@ class MegaApiImpl : public MegaApp
         void resumeCreateAccountEphemeralPlusPlus(const char* sid, MegaRequestListener *listener = NULL);
         void cancelCreateAccount(MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
+        void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
         void fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
