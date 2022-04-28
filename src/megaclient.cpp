@@ -11973,6 +11973,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     bool isDbUpgraded = false;      // true when legacy DB is migrated to NOD's DB schema
 
+    std::map<NodeHandle, std::vector<Node*>> delayParents;
     while (hasNext)
     {
         switch (id & 15)
@@ -11991,9 +11992,25 @@ bool MegaClient::fetchsc(DbTable* sctable)
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
 
-                   // Add nodes from old DB schema to the new table 'nodes' in the
-                   // new DB schema for nodes on demand
-                   mNodeManager.addNode(n, false);
+                   bool rootNode = n->type == ROOTNODE || n->type == RUBBISHNODE || n->type == INCOMINGNODE;
+                   if (rootNode)
+                   {
+                       mNodeManager.setrootnode(n);
+                   }
+                   else if (n->parent == nullptr)
+                   {
+                       delayParents[n->parentHandle()].push_back(n);
+                   }
+
+                   auto itNode = delayParents.find(n->nodeHandle());
+                   if (itNode != delayParents.end())
+                   {
+                       for (Node* child : itNode->second)
+                       {
+                           child->setparent(n, false);
+                       }
+                   }
+
                    sctable->del(id);                // delete record from old DB table 'statecache'
                 }
                 else

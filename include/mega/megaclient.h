@@ -368,6 +368,9 @@ public:
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;
 
+    // Set values to mClient.rootnodes for ROOTNODE, INBOX and RUBBISH
+    bool setrootnode(Node* node);
+
     // Add fingerprint to mFingerprint map, in case !fetchingNodes or
     // keep all nodes in memory, a reference to node will be stored too
     FingerprintMapPosition insertFingerprint(Node* node);
@@ -431,7 +434,6 @@ private:
 
     Node* getNodeInRAM(NodeHandle handle);
     void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
-    bool setrootnode(Node* node);
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
 
     // Increase node counters with a node type and values
