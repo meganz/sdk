@@ -12067,12 +12067,12 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
+        // finally write nodes in DB
+        mNodeManager.dumpNodes();
+
         // now that Users and PCRs are loaded, need to mergenewshare()
         // Node counters for inshares are calculated at this method
         mergenewshares(0);
-
-        // finally write nodes in DB
-        mNodeManager.dumpNodes();
 
         // Calculate counters for rootnodes
         Node* rootNodeFile = mNodeManager.getNodeByHandle(rootnodes.files);
