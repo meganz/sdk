@@ -5029,9 +5029,9 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     // SCENARIO 2: Upload image file and check thumbnail and preview
 
     ASSERT_TRUE(fileexists(IMAGEFILE)) <<  "File " +IMAGEFILE+ " is needed in folder " << cwd();
-    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
     string fileImg = IMAGEFILE;
-    ASSERT_EQ(API_OK, doStartUpload(0, fileImg.c_str(), rootnode.get()));
+    ASSERT_EQ(API_OK, doStartUpload(0, nullptr, fileImg.c_str(), rootnode.get()));
 
     std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_NE(n1, nullptr);
