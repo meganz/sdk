@@ -3776,6 +3776,11 @@ bool CommandPubKeyRequest::procresult(Result r)
         }
     }
 
+    if (!u) // user has cancelled the account, or HIDDEN user was removed
+    {
+        return true;
+    }
+
     // satisfy all pending PubKeyAction requests for this user
     while (u->pkrs.size())
     {
