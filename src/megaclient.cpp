@@ -10045,16 +10045,7 @@ void MegaClient::discarduser(handle uh, bool discardnotified)
         return;
     }
 
-    while (u->pkrs.size())  // protect any pending pubKey request
-    {
-        auto& pka = u->pkrs.front();
-        if(pka->cmd)
-        {
-            pka->cmd->invalidateUser();
-        }
-        pka->proc(this, u);
-        u->pkrs.pop_front();
-    }
+    u->removepkrs(this);
 
     if (discardnotified)
     {
@@ -10074,16 +10065,7 @@ void MegaClient::discarduser(const char *email)
         return;
     }
 
-    while (u->pkrs.size())  // protect any pending pubKey request
-    {
-        auto& pka = u->pkrs.front();
-        if(pka->cmd)
-        {
-            pka->cmd->invalidateUser();
-        }
-        pka->proc(this, u);
-        u->pkrs.pop_front();
-    }
+    u->removepkrs(this);
 
     discardnotifieduser(u);
 
@@ -13329,6 +13311,8 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
         User *u = &(it->second);
         if ((!keepOwnUser || u->userhandle != me) || u->userhandle == UNDEF)
         {
+            u->removepkrs(this); // especially for HIDDEN users
+            discardnotifieduser(u);
             umindex.erase(u->email);
             uhindex.erase(u->userhandle);
             users.erase(it++);
