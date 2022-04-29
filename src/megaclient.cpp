@@ -1273,7 +1273,10 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
+    
     fsaccess = move(f);
+    fsaccess->initFilesystemNotificationSystem();
+
     dbaccess = d;
 
     if ((gfx = g))
@@ -2511,7 +2514,7 @@ void MegaClient::exec()
                     {
                         LOG_debug << "Initial delayed scan: " << syncConfig.getLocalPath();
 
-                        if (sync->scan(&localPath, fa.get()))
+                        if (sync->scan(&localPath, fa.get(), false))
                         {
                             syncsup = false;
                             sync->initializing = false;
@@ -2633,7 +2636,11 @@ void MegaClient::exec()
                             if (notification.timestamp <= dsmin)
                             {
                                 LOG_debug << "Processing extra fs notification: " << notification.path;
-                                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode, std::move(notification.path));
+                                sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                        notification.localnode,
+                                                        std::move(notification.path),
+                                                        false,
+                                                        false);
                             }
                             else
                             {
@@ -2957,7 +2964,7 @@ void MegaClient::exec()
 
                                                 sync->localroot->setSubtreeNeedsRescan(true);
 
-                                                sync->scan(&sync->localroot->localname, NULL);
+                                                sync->scan(&sync->localroot->localname, NULL, false);
                                                 sync->dirnotify->mErrorCount = 0;
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
@@ -8687,7 +8694,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                                 n->localnode->setSubtreeNeedsRescan(false);
 
                                 // queue this one to be scanned, recursion is by notify of subdirs
-                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, n->localnode, LocalPath(), true);
+                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                                      n->localnode,
+                                                                      LocalPath(),
+                                                                      true,
+                                                                      false);
                             }
                         }
                     }
@@ -14626,7 +14637,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     if (fsaccess->mkdirlocal(localpath, false, true))
                     {
                         // create local path, add to LocalNodes and recurse
-                        LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
+                        LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr, false);
 
                         if (ll && ll != (LocalNode*)~0)
                         {

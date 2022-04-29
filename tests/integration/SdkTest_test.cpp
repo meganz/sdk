@@ -171,11 +171,7 @@ bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
 
 MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-#if defined(ENABLE_SYNC) && defined(__APPLE__)
-    return new MegaApi(appKey, basePath, userAgent, gFseventsFd, workerThreadCount);
-#else
     return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
-#endif
 }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
@@ -7056,7 +7052,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     for (int index = 0 ; index < howMany; index++ )
     {
         exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index + 10 /*so as not to clash with megaApi[0]*/).c_str(),
-                                                    USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+                                                    USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         // reduce log level to something beareable
         exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
     }
@@ -7191,7 +7187,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     for (unsigned index = 0 ; index < howMany; index++ )
     {
         exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(static_cast<int>(index) + 10 /*so as not to clash with megaApi[0]*/).c_str(),
-                                                    USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+                                                    USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         // reduce log level to something beareable
         exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
     }

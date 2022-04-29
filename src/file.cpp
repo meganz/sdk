@@ -585,7 +585,7 @@ void SyncFileGet::completed(Transfer*, putsource_t source)
 {
     sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
 
-    LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
+    LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr, false);
     if (ll && ll != (LocalNode*)~0 && n
             && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
     {

@@ -4765,11 +4765,7 @@ void exec_open(autocomplete::ACState& s)
             gfx->startProcessingThread();
 #endif
 
-#ifdef __APPLE__
-            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
-#else
             auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-#endif
 
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
@@ -8729,23 +8725,6 @@ int main(int argc, char* argv[])
     // The program megacli_fsloader in CMakeLists is the one that gets the special descriptor and starts megacli (mac only).
     std::vector<char*> myargv1(argv, argv + argc);
 
-    for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
-    {
-#ifdef __APPLE__
-        if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
-        {
-            int fseventsFd = std::stoi(std::string(*it).substr(13));
-            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
-                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
-                return 1;
-            }
-
-            gFilesystemEventsFd = fseventsFd;
-            std::cout << "Using filesystem events notification handle passed from loader: " << gFilesystemEventsFd << std::endl;
-        }
-#endif
-    }
-
     SimpleLogger::setLogLevel(logMax);
     //SimpleLogger::setOutputClass(&gLogger);
     auto gLoggerAddr = &gLogger;
@@ -8773,13 +8752,11 @@ int main(int argc, char* argv[])
 #endif
 
     // Needed so we can get the cwd.
-#ifdef __APPLE__
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 
+#ifdef __APPLE__
     // Try and raise the file descriptor limit as high as we can.
     platformSetRLimitNumFile();
-#else
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 #endif
 
     // Where are we?
