@@ -111,66 +111,6 @@ void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
     }
 }
 
-void HeartBeatSyncInfo::invalidateTransferCounts()
-{
-    mTransferCounts.reset();
-}
-
-size_t HeartBeatSyncInfo::pendingDownloads() const
-{
-    if (mTransferCounts)
-        return mTransferCounts->mDownloads.mPending;
-
-    return 0;
-}
-
-size_t HeartBeatSyncInfo::pendingUploads() const
-{
-    if (mTransferCounts)
-        return mTransferCounts->mUploads.mPending;
-
-    return 0;
-}
-
-int8_t HeartBeatSyncInfo::progress() const
-{
-    if (!mTransferCounts)
-        return -1;
-
-    auto progress = std::lround(mTransferCounts->progress() * 100.0);
-
-    return static_cast<int8_t>(progress);
-}
-
-void HeartBeatSyncInfo::updateTransferCounts(UnifiedSync& us)
-{
-    // Transfer counts are only meaningful for active syncs.
-    if (!us.mSync)
-        return;
-
-    // Get a snapshot of the sync's current transfer counts.
-    auto counts = us.mSync->transferCounts();
-
-    if (!mTransferCounts)
-    {
-        // Already reported completion?
-        if (counts.completed())
-            return;
-
-        mTransferCounts.reset(new SyncTransferCounts());
-    }
-
-    // Counts unchanged?
-    if (*mTransferCounts == counts)
-        return;
-
-    // Update transfer counts and last action time.
-    *mTransferCounts = counts;
-
-    // Will indirectly set mModified.
-    updateLastActionTime();
-}
-
 BackupInfoSync::BackupInfoSync(const SyncConfig& config, const string& device, handle drive, CommandBackupPut::SPState calculatedState)
 {
     backupId = config.mBackupId;
@@ -374,27 +314,39 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 
     std::shared_ptr<HeartBeatSyncInfo> hbs = us.mNextHeartbeat;
 
-    // Either of these may set mModified.
-    hbs->updateTransferCounts(us);
+    if (us.mSync)
+    {
+        auto counts = us.mSync->threadSafeState->transferCounts();
+
+        if (hbs->mSnapshotTransferCounts != counts)
+        {
+            hbs->mSnapshotTransferCounts = counts;
+            hbs->updateLastActionTime();
+        }
+    }
+
     hbs->updateSPHBStatus(us);
 
     auto elapsedSec = m_time(nullptr) - hbs->lastBeat();
 
     if ( !hbs->mSending &&
-        (elapsedSec >= MAX_HEARBEAT_SECS_DELAY ||
+         (elapsedSec >= MAX_HEARBEAT_SECS_DELAY ||
          (elapsedSec*10 >= FREQUENCY_HEARTBEAT_DS && hbs->mModified)))
     {
 
         hbs->setLastBeat(m_time(nullptr));
 
-        auto progress = hbs->progress();
+        auto reportCounts = hbs->mSnapshotTransferCounts;
+        reportCounts -= hbs->mResolvedTransferCounts;
+
+        auto progress = uint8_t(100.0 * reportCounts.progress());
 
         hbs->mSending = true;
 
         auto backupId = us.mConfig.mBackupId;
         auto status = hbs->sphbStatus();
-        auto pendingUps = static_cast<uint32_t>(hbs->pendingUploads());
-        auto pendingDowns = static_cast<uint32_t>(hbs->pendingDownloads());
+        auto pendingUps = static_cast<uint32_t>(reportCounts.mUploads.mPending);
+        auto pendingDowns = static_cast<uint32_t>(reportCounts.mUploads.mPending);
         auto lastAction = hbs->lastAction();
         auto lastItemUpdated = hbs->lastItemUpdated();
 
@@ -409,15 +361,11 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
                         }));
             });
 
-
-#ifdef ENABLE_SYNC
-        if (hbs->sphbStatus() == CommandBackupPutHeartBeat::UPTODATE && progress >= 100)
+        if (progress >= 100)
         {
-            // we invalidate progress, so as not to keep on reporting 100% progress after reached up to date
-            // note: new transfer updates will modify the progress and make it valid again
-            hbs->invalidateTransferCounts();
+            // once we reach 100%, start counting again from 0 for any later sync activity.
+            hbs->mResolvedTransferCounts = hbs->mSnapshotTransferCounts;
         }
-#endif
     }
 }
 

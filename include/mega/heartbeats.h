@@ -73,21 +73,14 @@ protected:
 class HeartBeatSyncInfo : public HeartBeatBackupInfo
 {
 public:
-    void invalidateTransferCounts();
-
-    size_t pendingDownloads() const;
-    size_t pendingUploads() const;
-
-    int8_t progress() const;
-
     void updateSPHBStatus(UnifiedSync& us);
-    void updateTransferCounts(UnifiedSync& us);
 
     using SPHBStatus = CommandBackupPutHeartBeat::SPHBStatus;
     SPHBStatus sphbStatus() { return mSPHBStatus; }
 
+    SyncTransferCounts mSnapshotTransferCounts;
+    SyncTransferCounts mResolvedTransferCounts;
 private:
-    unique_ptr<SyncTransferCounts> mTransferCounts;
     SPHBStatus mSPHBStatus = CommandBackupPutHeartBeat::STATE_NOT_INITIALIZED;
 };
 

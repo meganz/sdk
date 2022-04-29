@@ -933,7 +933,29 @@ bool platformSetRLimitNumFile(int newNumFileLimit = -1);
 
 void debugLogHeapUsage();
 
+struct SyncTransferCount
+{
+    bool operator==(const SyncTransferCount& rhs) const;
+    bool operator!=(const SyncTransferCount& rhs) const;
+    void operator-=(const SyncTransferCount& rhs);
 
-} // namespace
+    size_t mCompleted = 0;
+    size_t mCompletedBytes = 0;
+    size_t mPending = 0;
+    size_t mPendingBytes = 0;
+};
+
+struct SyncTransferCounts
+{
+    bool operator==(const SyncTransferCounts& rhs) const;
+    bool operator!=(const SyncTransferCounts& rhs) const;
+    void operator-=(const SyncTransferCounts& rhs);
+    double progress() const;
+
+    SyncTransferCount mDownloads;
+    SyncTransferCount mUploads;
+};
+
+} // namespace mega
 
 #endif

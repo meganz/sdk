@@ -3100,5 +3100,56 @@ void debugLogHeapUsage()
 #endif
 }
 
-} // namespace
+void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
+{
+    mCompleted -= rhs.mCompleted;
+    mCompletedBytes -= rhs.mCompletedBytes;
+    mPending -= rhs.mPending;
+    mPendingBytes -= rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator==(const SyncTransferCount& rhs) const
+{
+    return mCompleted == rhs.mCompleted
+        && mCompletedBytes == rhs.mCompletedBytes
+        && mPending == rhs.mPending
+        && mPendingBytes == rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator!=(const SyncTransferCount& rhs) const
+{
+    return !(*this == rhs);
+}
+
+void SyncTransferCounts::operator-=(const SyncTransferCounts& rhs)
+{
+    mDownloads -= rhs.mDownloads;
+    mUploads -= rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator==(const SyncTransferCounts& rhs) const
+{
+    return mDownloads == rhs.mDownloads && mUploads == rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
+{
+    return !(*this == rhs);
+}
+
+double SyncTransferCounts::progress() const
+{
+    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
+
+    if (!pending)
+        return 1.0;
+
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes;
+    auto progress = static_cast<double>(completed) / static_cast<double>(pending);
+
+    return std::min(1.0, progress);
+}
+
+
+} // namespace mega
 
