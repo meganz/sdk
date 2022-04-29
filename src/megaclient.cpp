@@ -1275,7 +1275,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     httpio = h;
     
     fsaccess = move(f);
+#ifdef ENABLE_SYNC
     fsaccess->initFilesystemNotificationSystem();
+#endif // ENABLE_SYNC
 
     dbaccess = d;
 
