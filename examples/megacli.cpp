@@ -310,28 +310,28 @@ void AppFileGet::start()
 }
 
 // transfer completion
-void AppFileGet::completed(Transfer*, LocalNode*)
+void AppFileGet::completed(Transfer*, putsource_t source)
 {
     // (at this time, the file has already been placed in the final location)
     delete this;
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFileGet::terminated()
+void AppFileGet::terminated(error e)
 {
     delete this;
 }
 
-void AppFilePut::completed(Transfer* t, LocalNode*)
+void AppFilePut::completed(Transfer* t, putsource_t source)
 {
     // perform standard completion (place node in user filesystem etc.)
-    File::completed(t, NULL);
+    File::completed(t, source);
 
     delete this;
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFilePut::terminated()
+void AppFilePut::terminated(error e)
 {
     delete this;
 }
@@ -432,11 +432,8 @@ void DemoApp::transfer_prepare(Transfer* t)
         // only set localfilename if the engine has not already done so
         if (t->localfilename.empty())
         {
-            LocalPath relative;
-            client->fsaccess->tmpnamelocal(relative);
-
             t->localfilename = LocalPath::fromAbsolutePath(".");
-            t->localfilename.appendWithSeparator(relative, true);
+            t->localfilename.appendWithSeparator(LocalPath::tmpNameLocal(), false);
         }
     }
 }

@@ -95,8 +95,6 @@ public:
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
     bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning) override;
 
-    void tmpnamelocal(LocalPath&) const override;
-
     bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
@@ -128,6 +126,15 @@ public:
 
     static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
+
+#ifdef ENABLE_SYNC
+
+    fsfp_t fsFingerprint(const LocalPath& path) const override;
+
+    bool fsStableIDs(const LocalPath& path) const override;
+#endif // ENABLE_SYNC
+
+    bool hardLink(const LocalPath& source, const LocalPath& target) override;
 };
 
 #ifdef HAVE_AIO_RT
@@ -155,7 +162,7 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
+    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false) override;
 
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
@@ -197,9 +204,6 @@ public:
 
     void addnotify(LocalNode*, const LocalPath&) override;
     void delnotify(LocalNode*) override;
-
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
 
     PosixDirNotify(const LocalPath&, const LocalPath&, Sync* s);
 };
