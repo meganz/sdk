@@ -119,12 +119,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 bool Command::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
 {
     // cache resolved URLs if received
-    bool result = client->httpio->cacheresolvedurls(urls, std::move(ips));
-    if (result == false)
-    {
-        client->sendevent(99456, "Unpaired IPs received for URLs in this command");
-    }
-    return result;
+    return client->httpio->cacheresolvedurls(urls, std::move(ips));
 }
 
 // Store ips from response in the vector passed
