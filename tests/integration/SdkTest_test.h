@@ -51,9 +51,9 @@ static const string EMPTYFILE   = "empty-file.txt";
 static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
 static const string IMAGEFILE   = "logo.png";
-static const string IMAGEFILE_X = "logo.2.png";
-static const string THUMBNAIL   = "thumbnail0.png";
-static const string PREVIEW     = "preview0.png";
+static const string IMAGEFILE_C = "logo.encrypted.png";
+static const string THUMBNAIL   = "logo_thumbnail.png";
+static const string PREVIEW     = "logo_preview.png";
 
 
 struct TransferTracker : public ::mega::MegaTransferListener
