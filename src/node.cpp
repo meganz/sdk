@@ -1453,7 +1453,7 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
     return it->second;
 }
 
-void LocalNode::prepare()
+void LocalNode::prepare(FileSystemAccess&)
 {
     getlocalpath(transfer->localfilename);
     assert(transfer->localfilename.isAbsolute());
@@ -1468,16 +1468,16 @@ void LocalNode::prepare()
     treestate(TREESTATE_SYNCING);
 }
 
-void LocalNode::terminated()
+void LocalNode::terminated(error e)
 {
     sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
 
-    File::terminated();
+    File::terminated(e);
 }
 
 // complete a sync upload: complete to //bin if a newer node exists (which
 // would have been caused by a race condition)
-void LocalNode::completed(Transfer* t, LocalNode*)
+void LocalNode::completed(Transfer* t, putsource_t source)
 {
     sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
 
@@ -1494,7 +1494,9 @@ void LocalNode::completed(Transfer* t, LocalNode*)
         h = parent->node->nodeHandle();
     }
 
-    File::completed(t, this);
+    // we are overriding completed() for sync upload, we don't use the File::completed version at all.
+    assert(t->type == PUT);
+    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this);
 }
 
 // serialize/unserialize the following LocalNode properties:

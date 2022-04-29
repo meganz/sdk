@@ -231,6 +231,7 @@ int main (int argc, char *argv[])
 
     std::vector<char*> myargv1(argv, argv + argc);
     std::vector<char*> myargv2;
+    bool startOneSecLogger = false;
 
     for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
     {
@@ -263,6 +264,11 @@ int main (int argc, char *argv[])
         else if (std::string(*it) == "--RESUMESESSIONS")
         {
             gResumeSessions = true;
+            argc -= 1;
+        }
+        else if (std::string(*it) == "--ONESECLOGGER")
+        {
+            startOneSecLogger = true;
             argc -= 1;
         }
 #ifdef __APPLE__
@@ -313,7 +319,28 @@ int main (int argc, char *argv[])
         listeners.Append(new GTestLogger());
     }
 
-    return RUN_ALL_TESTS();
+    bool exitFlag = false;
+    std::thread one_sec_logger;
+    if (startOneSecLogger)
+    {
+        one_sec_logger = std::thread([&](){
+            int count = 0;
+            while (!exitFlag)
+            {
+                LOG_debug << "onesec count: " << ++count;
+                WaitMillisec(1000);
+            }
+        });
+    }
+
+    auto ret = RUN_ALL_TESTS();
+
+    exitFlag = true;
+    if (startOneSecLogger) one_sec_logger.join();
+
+    SimpleLogger::setOutputClass(nullptr);
+
+    return ret;
 }
 
 

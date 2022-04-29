@@ -847,10 +847,10 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     }
     else
     {
-        fsfp = dirnotify->fsfingerprint();
+        fsfp = client->fsaccess->fsFingerprint(mLocalPath);
     }
 
-    fsstableids = dirnotify->fsstableids();
+    fsstableids = client->fsaccess->fsStableIDs(mLocalPath);
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
 
@@ -1581,8 +1581,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                 // was the file overwritten by moving an existing file over it?
                                 if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
                                         && (l->sync == it->second->sync
-                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
-                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
+                                            || ((fp1 = client->fsaccess->fsFingerprint(l->sync->getConfig().mLocalPath))
+                                                && (fp2 = client->fsaccess->fsFingerprint(it->second->sync->getConfig().mLocalPath))
                                                 && (fp1 == fp2)
                                             #ifdef _WIN32
                                                 // only consider fsid matches between different syncs for local drives with the
@@ -1713,8 +1713,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     && it->second->type == fa->type
                     && (!parent
                         || (it->second->sync == parent->sync)
-                        || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
-                            && (fp2 = parent->sync->dirnotify->fsfingerprint())
+                        || ((fp1 = client->fsaccess->fsFingerprint(it->second->sync->getConfig().mLocalPath))
+                            && (fp2 = client->fsaccess->fsFingerprint(parent->sync->getConfig().mLocalPath))
                             && (fp1 == fp2)
                         #ifdef _WIN32
                             // allow moves between different syncs only for local drives with the
@@ -2126,7 +2126,7 @@ dstime Sync::procscanq(int q)
 
         if (notification.timestamp > dsmin)
         {
-            LOG_verbose << "Scanning postponed. Modification too recent";
+            LOG_verbose << syncname << "Scanning postponed. Modification too recent: " << notification.timestamp << " (ds) vs now " << Waiter::ds << " at " << notification.path;
             dirnotify->notifyq[q].unpopFront(notification);
             return notification.timestamp - dsmin;
         }
