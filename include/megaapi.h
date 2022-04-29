@@ -4293,6 +4293,11 @@ class MegaTransfer
          *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
          * Any other returned value, must be ignored.
          *
+         * The value returned by this method, can only be considered as valid, when we receive MegaTransferListener::onTransferUpdate
+         * or MegaListener::onTransferUpdate, and the returned value is in between the range specified above.
+         *
+         * Note: any specific stage can only be notified once at most.
+         *
          * @return The current stage for a folder upload/download operation
          */
         virtual unsigned getStage() const;
