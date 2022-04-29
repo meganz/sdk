@@ -1729,7 +1729,7 @@ void LocalNode::prepare(FileSystemAccess&)
 
 void LocalNode::terminated(error e)
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
+    sync->threadSafeState->transferComplete(PUT, size);
 
     File::terminated(e);
 }
@@ -1738,7 +1738,7 @@ void LocalNode::terminated(error e)
 // would have been caused by a race condition)
 void LocalNode::completed(Transfer* t, putsource_t source)
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
+    sync->threadSafeState->transferFailed(PUT, size);
 
     // complete to rubbish for later retrieval if the parent node does not
     // exist or is newer

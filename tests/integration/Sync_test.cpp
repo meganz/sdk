@@ -1834,7 +1834,7 @@ bool StandardClient::delSync_inthread(handle backupId)
     client.syncs.removeSelectedSyncs(
         [&](SyncConfig& c, Sync*)
         {
-            const bool matched = c.getRemoteNode() == handle;
+            const bool matched = c.mRemoteNode == handle;
 
             removed |= matched;
 

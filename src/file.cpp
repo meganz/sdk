@@ -461,7 +461,7 @@ SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
     syncxfer = true;
     n->syncget = this;
 
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
+    sync->threadSafeState->transferBegin(GET, size);
 }
 
 SyncFileGet::~SyncFileGet()
@@ -583,7 +583,7 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, putsource_t source)
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
+    sync->threadSafeState->transferComplete(GET, size);
 
     LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
@@ -600,7 +600,7 @@ void SyncFileGet::completed(Transfer*, putsource_t source)
 
 void SyncFileGet::terminated(error e)
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
+    sync->threadSafeState->transferFailed(GET, size);
 
     delete this;
 }

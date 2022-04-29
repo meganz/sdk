@@ -1333,7 +1333,7 @@ MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
 
     unique_ptr<MegaSync> ret;
     client->syncs.forEachUnifiedSync([&](UnifiedSync& s){
-        if (s.mConfig.getBackupId() == backupId)
+        if (s.mConfig.mBackupId == backupId)
         {
             ret.reset(new MegaSyncPrivate(s.mConfig, s.mSync && s.mSync->state() >= 0, client));
         }
@@ -1354,7 +1354,7 @@ MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
 
     unique_ptr<MegaSync> ret;
     client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
-        if (us.mConfig.getRemoteNode() == nodeHandle)
+        if (us.mConfig.mRemoteNode == nodeHandle)
         {
             ret.reset(new MegaSyncPrivate(us.mConfig, us.mSync && us.mSync->state() >= 0, client));
         }
@@ -21402,7 +21402,7 @@ void MegaApiImpl::sendPendingRequests()
 
             e = client->syncs.enableSyncByBackupId(backupId, true, us);
 
-            request->setNumDetails(us ? us->mConfig.getError() : UNKNOWN_ERROR);
+            request->setNumDetails(us ? us->mConfig.mError : UNKNOWN_ERROR);
 
             if (!e) //sync added (enabled) fine
             {
@@ -21518,7 +21518,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (temporaryDisabled)
             {
-                syncConfig.setError(syncError);
+                syncConfig.mError = syncError;
             }
 
             client->ensureSyncUserAttributes([this, request, syncConfig](Error e){
@@ -21611,8 +21611,8 @@ void MegaApiImpl::sendPendingRequests()
             bool found = false;
             client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync){
 
-                bool matched = (backupId != UNDEF && c.getBackupId() == backupId) ||
-                    (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
+                bool matched = (backupId != UNDEF && c.mBackupId == backupId) ||
+                    (!ISUNDEF(nodehandle) && c.mRemoteNode == nodehandle);
 
                 if (matched && sync)
                 {
@@ -21651,8 +21651,8 @@ void MegaApiImpl::sendPendingRequests()
 
             client->syncs.disableSelectedSyncs([=](SyncConfig& c, Sync* s)
                 {
-                    return (c.getBackupId() == backupId) ||
-                        (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
+                    return (c.mBackupId == backupId) ||
+                        (!ISUNDEF(nodehandle) && c.mRemoteNode == nodehandle);
                 },
                 false, NO_SYNC_ERROR, false,
                     [this, request](size_t nDisabled){
@@ -24314,7 +24314,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, bool active, MegaClie
     , mActive(active)
     , mEnabled(config.getEnabled())
 {
-    this->megaHandle = config.getRemoteNode().as8byte();
+    this->megaHandle = config.mRemoteNode.as8byte();
     this->localFolder = NULL;
     setLocalFolder(config.getLocalPath().toPath().c_str());
     this->mName= NULL;
@@ -24343,7 +24343,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     , mActive(sync->mActive)
     , mEnabled(sync->mEnabled)
 {
-    this->setBackupId(sync->getBackupId());
+    this->setBackupId(sync->mBackupId);
     this->localFolder = NULL;
     this->mName = NULL;
     this->setLocalFolder(sync->getLocalFolder());
