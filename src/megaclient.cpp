@@ -2509,10 +2509,10 @@ void MegaClient::exec()
         syncs.forEachRunningSync([&](Sync* sync){
             if (sync->state() != SYNC_FAILED && sync->fsfp)
             {
-                fsfp_t current = sync->dirnotify->fsfingerprint();
+                fsfp_t current = fsaccess->fsFingerprint(sync->getConfig().mLocalPath);
                 if (sync->fsfp != current)
                 {
-                    LOG_err << "Local fingerprint mismatch. Previous: " << sync->fsfp
+                    LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp
                             << "  Current: " << current;
                     sync->changestate(SYNC_FAILED, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true);
                 }
@@ -16200,7 +16200,7 @@ namespace action_bucket_compare
     const static string webclient_is_image_thumb = ".psd.svg.tif.tiff.webp.";  // leaving out .pdf
     const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
     const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
-    const static string webclient_mime_audio_extensions = ".3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
+    const static string webclient_mime_audio_extensions = ".ac3.ec3.3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
     const static string webclient_mime_document_extensions = ".ans.ascii.doc.docx.dotx.json.log.ods.odt.pages.pdf.ppc.pps.ppt.pptx.rtf.stc.std.stw.sti.sxc.sxd.sxi.sxm.sxw.txt.wpd.wps.xls.xlsx.xlt.xltm.";
 
     bool nodeIsVideo(const Node *n, const string& ext, const MegaClient& mc)

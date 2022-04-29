@@ -432,11 +432,8 @@ void DemoApp::transfer_prepare(Transfer* t)
         // only set localfilename if the engine has not already done so
         if (t->localfilename.empty())
         {
-            LocalPath relative;
-            client->fsaccess->tmpnamelocal(relative);
-
             t->localfilename = LocalPath::fromAbsolutePath(".");
-            t->localfilename.appendWithSeparator(relative, true);
+            t->localfilename.appendWithSeparator(LocalPath::tmpNameLocal(), false);
         }
     }
 }
