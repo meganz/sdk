@@ -15515,6 +15515,9 @@ TEST_F(SyncTest, ExistingCloudMoveTargetMovedToDebrisWhenSynced)
     // Make sure initial sync succeeded.
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
+    // Pause the sync so the changes below are seen as being atomic.
+    ASSERT_TRUE(c.setSyncPausedByBackupId(id, true));
+
     // Rename fx -> fy.
     {
         // Get our hands on the original fy.
@@ -15528,11 +15531,18 @@ TEST_F(SyncTest, ExistingCloudMoveTargetMovedToDebrisWhenSynced)
         model.movetosynctrash("fy", "");
         model.findnode("fx")->name = "fy";
 
+        c.received_node_actionpackets = false;
         ASSERT_TRUE(c.rename("s/fx", "fy"));
+        ASSERT_TRUE(c.waitForNodesUpdated(16));
 
         // Remove original fy.
+        c.received_node_actionpackets = false;
         ASSERT_TRUE(c.deleteremote(fy));
+        ASSERT_TRUE(c.waitForNodesUpdated(16));
     }
+
+    // Unpause the sync.
+    ASSERT_TRUE(c.setSyncPausedByBackupId(id, false));
 
     // Wait for engine to process changes.
     waitonsyncs(TIMEOUT, &c);
