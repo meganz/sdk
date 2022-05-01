@@ -803,6 +803,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
            LocalPath* clocaldebris, Node* remotenode, bool cinshare)
 : localroot(new LocalNode)
 , mUnifiedSync(us)
+, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &mUnifiedSync.mClient))
 {
     isnetwork = false;
     client = &mUnifiedSync.mClient;
