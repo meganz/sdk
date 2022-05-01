@@ -1319,7 +1319,7 @@ bool Sync::assignfsids()
 
 // scan localpath, add or update child nodes, call recursively for folder nodes
 // localpath must be prefixed with Sync
-bool Sync::scan(LocalPath* localpath, FileAccess* fa, bool recursive)
+bool Sync::scan(LocalPath* localpath, FileAccess* fa)
 {
     if (fa)
     {
@@ -1358,13 +1358,13 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa, bool recursive)
                         if (initializing)
                         {
                             // preload all cached LocalNodes
-                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da.get(), recursive);
+                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da.get());
                         }
 
                         if (!l || l == (LocalNode*)~0)
                         {
                             // new record: place in notification queue
-                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath), false, recursive);
+                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath), false, false);
                         }
                     }
                 }
@@ -1387,7 +1387,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa, bool recursive)
 // path references a existing FILENODE: returns node
 // otherwise, returns NULL
 // empty input_localpath means to process l rather than a named subitem of l (for scan propagation purposes with folderNeedsRescan flag)
-LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* const localname, dstime *backoffds, bool wejustcreatedthisfolder, DirAccess* iteratingDir, bool recursive)
+LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* const localname, dstime *backoffds, bool wejustcreatedthisfolder, DirAccess* iteratingDir)
 {
     LocalNode* ll = l;
     bool newnode = false, changed = false;
@@ -1516,7 +1516,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                     if (l->type == FOLDERNODE)
                     {
-                        scan(localpathNew, fa.get(), recursive);
+                        scan(localpathNew, fa.get());
                     }
                     else
                     {
@@ -1884,7 +1884,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         if (fullscan)
                         {
                             // immediately scan folder to detect deviations from cached state
-                            scan(localpathNew, fa.get(), recursive);
+                            scan(localpathNew, fa.get());
 
                             // consider this folder scanned.
                             it->second->needsRescan = false;
@@ -1892,7 +1892,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         else
                         {
                             // queue this one to be scanned, recursion is by notify of subdirs
-                            dirnotify->notify(DirNotify::DIREVENTS, it->second, LocalPath(), true, recursive);
+                            dirnotify->notify(DirNotify::DIREVENTS, it->second, LocalPath(), true, false);
                         }
                     }
                 }
@@ -1923,9 +1923,9 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // detect file changes or recurse into new subfolders
             if (l->type == FOLDERNODE)
             {
-                if (newnode || l->needsRescan || recursive)
+                if (newnode || l->needsRescan)
                 {
-                    scan(localpathNew, fa.get(), recursive);
+                    scan(localpathNew, fa.get());
                     l->needsRescan = false;
 
                     if (newnode)
@@ -2015,7 +2015,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // fopen() signals that the failure is potentially transient - do
             // nothing and request a recheck
             LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
-            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*input_localpath), false, recursive);
+            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*input_localpath), false, false);
             client->syncfslockretry = true;
             client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
             client->blockedfile = *localpathNew;
@@ -2140,7 +2140,38 @@ dstime Sync::procscanq(int q)
             dstime backoffds = 0;
             LOG_verbose << "Checkpath: " << notification.path;
 
-            l = checkpath(l, &notification.path, NULL, &backoffds, false, nullptr, notification.recursive);
+            // Are we dealing with a recursive notification?
+            if (notification.recursive)
+            {
+                auto remainder = LocalPath();
+
+                // For purposes of debugging.
+                {
+                    auto path = notification.localnode->getLocalPath();
+
+                    path.appendWithSeparator(notification.path, false);
+
+                    LOG_debug << "Recursive notification queued for: "
+                              << path;
+                }
+
+                // Then make sure we scan everyone below the notified node.
+                auto node = localnodebypath(notification.localnode,
+                                            notification.path,
+                                            nullptr,
+                                            &remainder);
+
+                // Only mark the precise subtree.
+                if (node && remainder.empty())
+                {
+                    LOG_debug << "Recursive scan queued for nodes below: "
+                              << node->getLocalPath();
+
+                    node->setSubtreeNeedsRescan(true);
+                }
+            }
+
+            l = checkpath(l, &notification.path, NULL, &backoffds, false, nullptr);
             if (backoffds)
             {
                 LOG_verbose << "Scanning deferred during " << backoffds << " ds";
@@ -2428,7 +2459,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
 
     LOG_debug << "Initial scan sync: " << mConfig.getLocalPath();
 
-    if (mSync->scan(&rootpath, openedLocalFolder.get(), false))
+    if (mSync->scan(&rootpath, openedLocalFolder.get()))
     {
         client->syncsup = false;
         mSync->initializing = false;

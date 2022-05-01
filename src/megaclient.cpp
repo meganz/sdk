@@ -2516,7 +2516,7 @@ void MegaClient::exec()
                     {
                         LOG_debug << "Initial delayed scan: " << syncConfig.getLocalPath();
 
-                        if (sync->scan(&localPath, fa.get(), false))
+                        if (sync->scan(&localPath, fa.get()))
                         {
                             syncsup = false;
                             sync->initializing = false;
@@ -2966,7 +2966,7 @@ void MegaClient::exec()
 
                                                 sync->localroot->setSubtreeNeedsRescan(true);
 
-                                                sync->scan(&sync->localroot->localname, NULL, false);
+                                                sync->scan(&sync->localroot->localname, NULL);
                                                 sync->dirnotify->mErrorCount = 0;
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
@@ -14639,7 +14639,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     if (fsaccess->mkdirlocal(localpath, false, true))
                     {
                         // create local path, add to LocalNodes and recurse
-                        LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr, false);
+                        LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
 
                         if (ll && ll != (LocalNode*)~0)
                         {

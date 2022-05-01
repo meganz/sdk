@@ -276,7 +276,7 @@ public:
     void deletemissing(LocalNode*);
 
     // scan specific path
-    LocalNode* checkpath(LocalNode*, LocalPath*, string* const, dstime*, bool wejustcreatedthisfolder, DirAccess* iteratingDir, bool recursive);
+    LocalNode* checkpath(LocalNode*, LocalPath*, string* const, dstime*, bool wejustcreatedthisfolder, DirAccess* iteratingDir);
 
     m_off_t localbytes = 0;
     unsigned localnodes[2]{};
@@ -290,7 +290,7 @@ public:
 
     // scan items in specified path and add as children of the specified
     // LocalNode
-    bool scan(LocalPath*, FileAccess*, bool recursive);
+    bool scan(LocalPath*, FileAccess*);
 
     // rescan sequence number (incremented when a full rescan or a new
     // notification batch starts)
