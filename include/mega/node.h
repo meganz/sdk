@@ -139,8 +139,12 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     void completed(Transfer*, putsource_t) override;
 
     bool putnodesStarted = false;
+
+    // Valid when wasPutnodesCompleted is true.
+    handle putnodesResultHandle;
+    bool putnodesFailed = false;
+
     std::atomic<bool> wasPutnodesCompleted{false};
-    //std::atomic<NodeHandle> putnodesResultHandle;
     //std::atomic<bool> renameInProgress{false};
 
     handle sourceFsid;

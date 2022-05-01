@@ -4903,7 +4903,7 @@ void MegaClient::sc_updatenode()
                     Node* n;
                     bool notify = false;
 
-                    if ((n = nodebyhandle(h)))
+                    if ((n = nodebyhandle(h, true)))
                     {
                         if (u && n->owner != u)
                         {

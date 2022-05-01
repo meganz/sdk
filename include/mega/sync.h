@@ -530,6 +530,7 @@ public:
 
     string logTriplet(syncRow& row, SyncPath& fullPath);
 
+    bool resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath);
     bool resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_rowMatched(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
@@ -1004,6 +1005,9 @@ struct Syncs
     // That is, they are added directly to the JSON DB on disk.
     error syncConfigStoreAdd(const SyncConfig& config);
 
+    // Query whether any syncs are scanning.
+    bool isAnySyncScanning(bool includePaused);
+
 private:  // anything to do with loading/saving/storing configs etc is done on the sync thread
 
     // Returns a reference to this user's internal configuration database.
@@ -1034,6 +1038,7 @@ public:
     fsid_localnode_map localnodeByScannedFsid;
     LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
     LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
+    LocalNode* findLocalNodeByFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck);
 
     void setSyncedFsidReused(mega::handle fsid);
     void setScannedFsidReused(mega::handle fsid);
@@ -1133,7 +1138,7 @@ private:
 
     bool mightAnySyncsHaveMoves(bool includePausedSyncs);
     bool isAnySyncSyncing(bool includePausedSyncs);
-    bool isAnySyncScanning(bool includePausedSyncs);
+    bool isAnySyncScanning_inThread(bool includePausedSyncs);
 
     bool conflictsFlagged() const;
 
@@ -1160,7 +1165,14 @@ private:
 
     bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
-    enum WhichCloudVersion { EXACT_VERSION, LATEST_VERSION, FOLDER_ONLY };
+    enum WhichCloudVersion
+    {
+        EXACT_VERSION,
+        LATEST_VERSION,
+        LATEST_VERSION_ONLY,
+        FOLDER_ONLY
+    };
+
     bool lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool* isInTrash,
             bool* nodeIsInActiveSync, bool* nodeIsDefinitelyExcluded, unsigned* depth, WhichCloudVersion);
 

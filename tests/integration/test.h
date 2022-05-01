@@ -295,7 +295,18 @@ struct StandardClient : public ::mega::MegaApp
 
     std::atomic<unsigned> transfersAdded{0}, transfersRemoved{0}, transfersPrepared{0}, transfersFailed{0}, transfersUpdated{0}, transfersComplete{0};
 
-    void transfer_added(Transfer*) override { onCallback(); ++transfersAdded; }
+    void transfer_added(Transfer* transfer) override
+    {
+        onCallback();
+        
+        ++transfersAdded;
+
+        if (mOnTransferAdded)
+            mOnTransferAdded(*transfer);
+    }
+
+    std::function<void(Transfer&)> mOnTransferAdded;
+
     void transfer_removed(Transfer*) override { onCallback(); ++transfersRemoved; }
     void transfer_prepare(Transfer*) override { onCallback(); ++transfersPrepared; }
     void transfer_failed(Transfer*,  const Error&, dstime = 0) override { onCallback(); ++transfersFailed; }
@@ -621,6 +632,28 @@ struct StandardClient : public ::mega::MegaApp
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
+
+    FileFingerprint fingerprint(const fs::path& fsPath);
+
+    vector<FileFingerprint> fingerprints(const string& path);
+
+#ifndef NDEBUG
+    virtual void move_begin(const LocalPath& source, const LocalPath& target) override
+    {
+        if (mOnMoveBegin)
+            mOnMoveBegin(source, target);
+    }
+
+    function<void(const LocalPath&, const LocalPath&)> mOnMoveBegin;
+
+    void putnodes_begin(const LocalPath& path) override
+    {
+        if (mOnPutnodesBegin)
+            mOnPutnodesBegin(path);
+    }
+
+    std::function<void(const LocalPath&)> mOnPutnodesBegin;
+#endif // ! NDEBUG
 
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;
