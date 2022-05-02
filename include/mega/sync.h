@@ -392,7 +392,6 @@ public:
     void removeExpectedUpload(NodeHandle parentHandle, const string& name);
     shared_ptr<SyncUpload_inClient> isNodeAnExpectedUpload(NodeHandle parentHandle, const string& name);
 
-    // Easier to understand interface to the above.
     void transferBegin(direction_t direction, m_off_t numBytes);
     void transferComplete(direction_t direction, m_off_t numBytes);
     void transferFailed(direction_t direction, m_off_t numBytes);
@@ -405,11 +404,9 @@ public:
     LocalPath syncTmpFolder() const;
     void setSyncTmpFolder(const LocalPath&);
 
-
     SyncThreadsafeState(handle backupId, MegaClient* client) : mClient(client), mBackupId(backupId)  {}
     handle backupId() const { return mBackupId; }
     MegaClient* client() const { return mClient; }
-
 };
 
 

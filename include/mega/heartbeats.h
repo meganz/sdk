@@ -32,7 +32,6 @@ namespace mega
 #ifdef ENABLE_SYNC
 struct UnifiedSync;
 struct Syncs;
-struct SyncTransferCounts;
 
 /**
  * @brief The HeartBeatBackupInfo class

@@ -2826,49 +2826,49 @@ bool wildcardMatch(const string& text, const string& pattern)
     return wildcardMatch(text.c_str(), pattern.c_str());
 }
 
-bool wildcardMatch(const char *text, const char *pattern)
+bool wildcardMatch(const char *pszString, const char *pszMatch)
 //  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
 {
     const char *cp = nullptr;
     const char *mp = nullptr;
 
-    while ((*text) && (*pattern != '*'))
+    while ((*pszString) && (*pszMatch != '*'))
     {
-        if ((*pattern != *text) && (*pattern != '?'))
+        if ((*pszMatch != *pszString) && (*pszMatch != '?'))
         {
             return false;
         }
-        pattern++;
-        text++;
+        pszMatch++;
+        pszString++;
     }
 
-    while (*text)
+    while (*pszString)
     {
-        if (*pattern == '*')
+        if (*pszMatch == '*')
         {
-            if (!*++pattern)
+            if (!*++pszMatch)
             {
                 return true;
             }
-            mp = pattern;
-            cp = text + 1;
+            mp = pszMatch;
+            cp = pszString + 1;
         }
-        else if ((*pattern == *text) || (*pattern == '?'))
+        else if ((*pszMatch == *pszString) || (*pszMatch == '?'))
         {
-            pattern++;
-            text++;
+            pszMatch++;
+            pszString++;
         }
         else
         {
-            pattern = mp;
-            text = cp++;
+            pszMatch = mp;
+            pszString = cp++;
         }
     }
-    while (*pattern == '*')
+    while (*pszMatch == '*')
     {
-        pattern++;
+        pszMatch++;
     }
-    return !*pattern;
+    return !*pszMatch;
 }
 
 string syncWaitReasonString(SyncWaitReason r)

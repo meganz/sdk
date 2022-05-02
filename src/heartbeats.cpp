@@ -255,7 +255,6 @@ BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
     }
 }
 
-////////////// MegaBackupMonitor ////////////////
 BackupMonitor::BackupMonitor(Syncs& s)
     : syncs(s)
 {

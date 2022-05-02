@@ -386,7 +386,7 @@ public:
         std::unique_ptr<char[]> result(new char[size]);
         for (size_t i = 0; i < size; ++i)
         {
-            result[i] = (data[i >> 2] >> (24 - (i & 3) * 8)) & 255;
+            result[i] = static_cast<char>((data[i >> 2] >> (24 - (i & 3) * 8)) & 255);
         }
         return std::string (result.get(), size);
     }
