@@ -453,17 +453,17 @@ void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
 
 void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
 {
-    handle backupId = config.getBackupId();
+    handle backupId = config.mBackupId;
     if (attempted)
     {
         conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath()  << " enabled: "
-             << config.getEnabled()  << " syncError: " << config.getError()
+             << config.getEnabled()  << " syncError: " << config.mError
              << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
     else
     {
         conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
-            << config.getEnabled() << " syncError: " << config.getError()
+            << config.getEnabled() << " syncError: " << config.mError
             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
 }
@@ -9303,7 +9303,7 @@ void exec_synclist(autocomplete::ACState& s)
             << toHandle(config.mBackupId)
             << "\n";
 
-        auto cloudnode = client->nodeByHandle(config.getRemoteNode());
+        auto cloudnode = client->nodeByHandle(config.mRemoteNode);
         string cloudpath = cloudnode ? cloudnode->displaypath() : "<null>";
 
         // Display source/target mapping.
@@ -9438,7 +9438,7 @@ void exec_syncxable(autocomplete::ACState& s)
         client->syncs.disableSelectedSyncs(
             [backupId](SyncConfig& config, Sync*)
             {
-                return config.getBackupId() == backupId;
+                return config.mBackupId == backupId;
             },
             true, // disable is fail
             static_cast<SyncError>(error),
@@ -9452,7 +9452,7 @@ void exec_syncxable(autocomplete::ACState& s)
         client->syncs.disableSelectedSyncs(
           [backupId](SyncConfig& config, Sync*)
           {
-              return config.getBackupId() == backupId;
+              return config.mBackupId == backupId;
           },
           false,
           static_cast<SyncError>(error),
