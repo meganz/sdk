@@ -352,32 +352,6 @@ public:
     ~ScopedSyncPathRestore();
 };
 
-struct SyncTransferCount
-{
-    bool operator==(const SyncTransferCount& rhs) const;
-
-    bool operator!=(const SyncTransferCount& rhs) const;
-
-    size_t mCompleted = 0;
-    size_t mCompletedBytes = 0;
-    size_t mPending = 0;
-    size_t mPendingBytes = 0;
-}; // SyncTransferCount
-
-struct SyncTransferCounts
-{
-    bool operator==(const SyncTransferCounts& rhs) const;
-
-    bool operator!=(const SyncTransferCounts& rhs) const;
-
-    bool completed() const;
-
-    double progress() const;
-
-    SyncTransferCount mDownloads;
-    SyncTransferCount mUploads;
-}; // SyncTransferCounts
-
 struct SyncStatusInfo
 {
     handle mBackupID = UNDEF;
@@ -418,7 +392,6 @@ public:
     void removeExpectedUpload(NodeHandle parentHandle, const string& name);
     shared_ptr<SyncUpload_inClient> isNodeAnExpectedUpload(NodeHandle parentHandle, const string& name);
 
-    // Easier to understand interface to the above.
     void transferBegin(direction_t direction, m_off_t numBytes);
     void transferComplete(direction_t direction, m_off_t numBytes);
     void transferFailed(direction_t direction, m_off_t numBytes);
@@ -431,11 +404,9 @@ public:
     LocalPath syncTmpFolder() const;
     void setSyncTmpFolder(const LocalPath&);
 
-
     SyncThreadsafeState(handle backupId, MegaClient* client) : mClient(client), mBackupId(backupId)  {}
     handle backupId() const { return mBackupId; }
     MegaClient* client() const { return mClient; }
-
 };
 
 
@@ -625,9 +596,6 @@ public:
 
     // True if this sync should have a state cache database.
     bool shouldHaveDatabase() const;
-
-    // Retrieve a snapshot of this sync's current transfer counts.
-    SyncTransferCounts transferCounts() const;
 
     UnifiedSync& mUnifiedSync;
 

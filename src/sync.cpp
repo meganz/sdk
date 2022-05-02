@@ -375,54 +375,6 @@ ScopedSyncPathRestore::~ScopedSyncPathRestore()
     path.cloudPath.resize(length3);
 };
 
-bool SyncTransferCount::operator==(const SyncTransferCount& rhs) const
-{
-    return mCompleted == rhs.mCompleted
-           && mCompletedBytes == rhs.mCompletedBytes
-           && mPending == rhs.mPending
-           && mPendingBytes == rhs.mPendingBytes;
-}
-
-bool SyncTransferCount::operator!=(const SyncTransferCount& rhs) const
-{
-    return !(*this == rhs);
-}
-
-bool SyncTransferCounts::operator==(const SyncTransferCounts& rhs) const
-{
-    return mDownloads == rhs.mDownloads && mUploads == rhs.mUploads;
-}
-
-bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
-{
-    return !(*this == rhs);
-}
-
-bool SyncTransferCounts::completed() const
-{
-    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
-
-    if (!pending)
-        return true;
-
-    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes;
-
-    return completed >= pending;
-}
-
-double SyncTransferCounts::progress() const
-{
-    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
-
-    if (!pending)
-        return 1.0;
-
-    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes;
-    auto progress = static_cast<double>(completed) / static_cast<double>(pending);
-
-    return std::min(1.0, progress);
-}
-
 string SyncPath::localPath_utf8() const
 {
     return localPath.toPath();
@@ -1053,11 +1005,6 @@ void Sync::setBackupMonitoring()
 bool Sync::shouldHaveDatabase() const
 {
     return syncs.mClient.dbaccess && !mUnifiedSync.mConfig.isExternal();
-}
-
-SyncTransferCounts Sync::transferCounts() const
-{
-    return threadSafeState->transferCounts();
 }
 
 void Sync::setSyncPaused(bool pause)
@@ -3413,7 +3360,7 @@ void Syncs::getSyncStatusInfoInThread(handle backupID,
 
             info.mBackupID = config.mBackupId;
             info.mName = config.mName;
-            info.mTransferCounts = mSync.transferCounts();
+            info.mTransferCounts = mSync.threadSafeState->transferCounts();
 
             tally(info, *mSync.localroot);
 

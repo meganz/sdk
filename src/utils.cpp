@@ -2826,49 +2826,49 @@ bool wildcardMatch(const string& text, const string& pattern)
     return wildcardMatch(text.c_str(), pattern.c_str());
 }
 
-bool wildcardMatch(const char *text, const char *pattern)
+bool wildcardMatch(const char *pszString, const char *pszMatch)
 //  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
 {
     const char *cp = nullptr;
     const char *mp = nullptr;
 
-    while ((*text) && (*pattern != '*'))
+    while ((*pszString) && (*pszMatch != '*'))
     {
-        if ((*pattern != *text) && (*pattern != '?'))
+        if ((*pszMatch != *pszString) && (*pszMatch != '?'))
         {
             return false;
         }
-        pattern++;
-        text++;
+        pszMatch++;
+        pszString++;
     }
 
-    while (*text)
+    while (*pszString)
     {
-        if (*pattern == '*')
+        if (*pszMatch == '*')
         {
-            if (!*++pattern)
+            if (!*++pszMatch)
             {
                 return true;
             }
-            mp = pattern;
-            cp = text + 1;
+            mp = pszMatch;
+            cp = pszString + 1;
         }
-        else if ((*pattern == *text) || (*pattern == '?'))
+        else if ((*pszMatch == *pszString) || (*pszMatch == '?'))
         {
-            pattern++;
-            text++;
+            pszMatch++;
+            pszString++;
         }
         else
         {
-            pattern = mp;
-            text = cp++;
+            pszMatch = mp;
+            pszString = cp++;
         }
     }
-    while (*pattern == '*')
+    while (*pszMatch == '*')
     {
-        pattern++;
+        pszMatch++;
     }
-    return !*pattern;
+    return !*pszMatch;
 }
 
 string syncWaitReasonString(SyncWaitReason r)
@@ -3100,5 +3100,56 @@ void debugLogHeapUsage()
 #endif
 }
 
-} // namespace
+void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
+{
+    mCompleted -= rhs.mCompleted;
+    mCompletedBytes -= rhs.mCompletedBytes;
+    mPending -= rhs.mPending;
+    mPendingBytes -= rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator==(const SyncTransferCount& rhs) const
+{
+    return mCompleted == rhs.mCompleted
+        && mCompletedBytes == rhs.mCompletedBytes
+        && mPending == rhs.mPending
+        && mPendingBytes == rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator!=(const SyncTransferCount& rhs) const
+{
+    return !(*this == rhs);
+}
+
+void SyncTransferCounts::operator-=(const SyncTransferCounts& rhs)
+{
+    mDownloads -= rhs.mDownloads;
+    mUploads -= rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator==(const SyncTransferCounts& rhs) const
+{
+    return mDownloads == rhs.mDownloads && mUploads == rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
+{
+    return !(*this == rhs);
+}
+
+double SyncTransferCounts::progress() const
+{
+    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
+
+    if (!pending)
+        return 1.0;
+
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes;
+    auto progress = static_cast<double>(completed) / static_cast<double>(pending);
+
+    return std::min(1.0, progress);
+}
+
+
+} // namespace mega
 

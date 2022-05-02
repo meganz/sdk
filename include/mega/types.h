@@ -1084,7 +1084,7 @@ string syncWaitReasonString(SyncWaitReason);
 
 bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason);
 
-} // namespace
+} // namespace mega
 
 #define MEGA_DISABLE_COPY(class_name) \
     class_name(const class_name&) = delete; \
