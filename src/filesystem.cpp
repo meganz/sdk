@@ -686,6 +686,15 @@ handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow)
     return UNDEF;
 }
 
+#ifdef ENABLE_SYNC
+
+bool FileSystemAccess::initFilesystemNotificationSystem()
+{
+    return true;
+}
+
+#endif // ENABLE_SYNC
+
 bool FileSystemAccess::fileExistsAt(const LocalPath& path)
 {
     auto fa = newfileaccess(false);
@@ -739,21 +748,17 @@ bool DirNotify::empty()
 }
 
 // notify base LocalNode + relative path/filename
-void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
+void DirNotify::notify(notifyqueue queue, LocalNode* node, LocalPath&& path, bool immediate, bool recursive)
 {
     // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
+    auto timestamp = immediate ? 0 : Waiter::ds;
 
-    Notification n(immediate ? 0 : Waiter::ds, std::move(path), l);
-    notifyq[q].pushBack(std::move(n));
+    notifyq[queue].pushBack(Notification(timestamp, std::move(path), node, recursive));
 
 #ifdef ENABLE_SYNC
-    if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
-    {
-        sync->client->syncactivity = true;
-    }
-#endif
-
+    sync->client->syncactivity |= queue == DIREVENTS || queue == EXTRA;
+#endif // ENABLE_SYNC
 }
 
 DirNotify* FileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter*, LocalNode* syncroot)

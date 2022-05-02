@@ -5234,20 +5234,15 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    init(api, appKey, processor, basePath, userAgent, -1, workerThreadCount);
+    init(api, appKey, processor, basePath, userAgent, workerThreadCount);
 }
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    init(api, appKey, NULL, basePath, userAgent, -1, workerThreadCount);
+    init(api, appKey, NULL, basePath, userAgent, workerThreadCount);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount)
-{
-    init(api, appKey, NULL, basePath, userAgent, fseventsfd, workerThreadCount);
-}
-
-void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd, unsigned clientWorkerThreadCount)
+void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount)
 {
     this->api = api;
 
@@ -5299,12 +5294,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
 
-#ifndef __APPLE__
-    (void)fseventsfd;
     fsAccess = new MegaFileSystemAccess();
-#else
-    fsAccess = new MegaFileSystemAccess(fseventsfd);
-#endif
 
     dbAccess = nullptr;
     if (basePath)

@@ -1389,7 +1389,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                         if (!l || l == (LocalNode*)~0)
                         {
                             // new record: place in notification queue
-                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath));
+                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath), false, false);
                         }
                     }
                 }
@@ -1700,7 +1700,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                             if (isnetwork && l->type == FILENODE)
                             {
                                 LOG_debug << "Queueing extra fs notification for modified file";
-                                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
+                                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew), false, false);
                             }
                             return l;
                         }
@@ -1917,7 +1917,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         else
                         {
                             // queue this one to be scanned, recursion is by notify of subdirs
-                            dirnotify->notify(DirNotify::DIREVENTS, it->second, LocalPath(), true);
+                            dirnotify->notify(DirNotify::DIREVENTS, it->second, LocalPath(), true, false);
                         }
                     }
                 }
@@ -2026,7 +2026,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             if (isnetwork && l->type == FILENODE)
             {
                 LOG_debug << "Queueing extra fs notification for new file";
-                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
+                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew), false, false);
             }
 
             client->syncactivity = true;
@@ -2040,7 +2040,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // fopen() signals that the failure is potentially transient - do
             // nothing and request a recheck
             LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
-            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*input_localpath));
+            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*input_localpath), false, false);
             client->syncfslockretry = true;
             client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
             client->blockedfile = *localpathNew;
@@ -2117,7 +2117,7 @@ bool Sync::checkValidNotification(int q, Notification& notification)
 
         if (deleted
             || (ll && success && ll->node && ll->node->localnode == ll
-                && !ll->needsRescan
+                && !(notification.recursive | ll->needsRescan)
                 && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
                 && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
                 && ait->second == ll->name
@@ -2164,6 +2164,37 @@ dstime Sync::procscanq(int q)
         {
             dstime backoffds = 0;
             LOG_verbose << "Checkpath: " << notification.path;
+
+            // Are we dealing with a recursive notification?
+            if (notification.recursive)
+            {
+                auto remainder = LocalPath();
+
+                // For purposes of debugging.
+                {
+                    auto path = notification.localnode->getLocalPath();
+
+                    path.appendWithSeparator(notification.path, false);
+
+                    LOG_debug << "Recursive notification queued for: "
+                              << path;
+                }
+
+                // Then make sure we scan everyone below the notified node.
+                auto node = localnodebypath(notification.localnode,
+                                            notification.path,
+                                            nullptr,
+                                            &remainder);
+
+                // Only mark the precise subtree.
+                if (node && remainder.empty())
+                {
+                    LOG_debug << "Recursive scan queued for nodes below: "
+                              << node->getLocalPath();
+
+                    node->setSubtreeNeedsRescan(true);
+                }
+            }
 
             l = checkpath(l, &notification.path, NULL, &backoffds, false, nullptr);
             if (backoffds)

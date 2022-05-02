@@ -1268,7 +1268,12 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
+    
     fsaccess = move(f);
+#ifdef ENABLE_SYNC
+    fsaccess->initFilesystemNotificationSystem();
+#endif // ENABLE_SYNC
+
     dbaccess = d;
 
     if ((gfx = g))
@@ -2628,7 +2633,11 @@ void MegaClient::exec()
                             if (notification.timestamp <= dsmin)
                             {
                                 LOG_debug << "Processing extra fs notification: " << notification.path;
-                                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode, std::move(notification.path));
+                                sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                        notification.localnode,
+                                                        std::move(notification.path),
+                                                        false,
+                                                        false);
                             }
                             else
                             {
@@ -8678,7 +8687,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                                 n->localnode->setSubtreeNeedsRescan(false);
 
                                 // queue this one to be scanned, recursion is by notify of subdirs
-                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, n->localnode, LocalPath(), true);
+                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                                      n->localnode,
+                                                                      LocalPath(),
+                                                                      true,
+                                                                      false);
                             }
                         }
                     }
