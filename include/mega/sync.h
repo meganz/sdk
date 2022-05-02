@@ -162,7 +162,6 @@ struct UnifiedSync
 {
     // Reference to containing Syncs object
     Syncs& syncs;
-    MegaClient& mClient;
 
     // We always have a config
     SyncConfig mConfig;
@@ -239,6 +238,7 @@ public:
     const SyncConfig& getConfig() const;
 
     MegaClient* client = nullptr;
+    Syncs& syncs;
 
     // for logging
     string syncname;
@@ -441,9 +441,6 @@ private:
     // Metadata regarding a given drive.
     struct DriveInfo
     {
-        // Directory on the drive containing the database.
-        LocalPath dbPath;
-
         // Path to the drive itself.
         LocalPath drivePath;
 
@@ -572,13 +569,21 @@ private:
 
 struct Syncs
 {
+    // Retrieve a copy of configured sync settings (thread safe)
+    SyncConfigVector getConfigs(bool onlyActive) const;
+    bool configById(handle backupId, SyncConfig&) const;
+    SyncConfigVector configsForDrive(const LocalPath& drive) const;
+
+    // Add new sync setups
     UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
 
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
     unsigned numSyncs();    // includes non-running syncs, but configured
     Sync* firstRunningSync();
-    Sync* runningSyncByBackupId(handle backupId) const;
+
+    // only for use in tests; not really thread safe
+    Sync* runningSyncByBackupIdForTests(handle backupId) const;
 
     void transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused);
 
@@ -598,6 +603,7 @@ struct Syncs
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
     error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&);
+    void disableSyncByBackupId(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
@@ -619,9 +625,6 @@ struct Syncs
 
     void resetSyncConfigStore();
     void clear();
-
-    SyncConfigVector configsForDrive(const LocalPath& drive) const;
-    SyncConfigVector allConfigs() const;
 
     // updates in state & error
     void saveSyncConfig(const SyncConfig& config);

@@ -2204,7 +2204,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, fs::path p, int& des
 
 Sync* StandardClient::syncByBackupId(handle backupId)
 {
-    return client.syncs.runningSyncByBackupId(backupId);
+    return client.syncs.runningSyncByBackupIdForTests(backupId);
 }
 
 void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result)
@@ -8615,7 +8615,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     clientA1Resume.client.dumpsession(session);
     clientA1Resume.localLogout();
 
-    auto remainingResumeSyncs = clientA1Resume.client.syncs.allConfigs();
+    auto remainingResumeSyncs = clientA1Resume.client.syncs.getConfigs(false);
     ASSERT_EQ(0u, remainingResumeSyncs.size());
 
     if (paused)

@@ -801,12 +801,13 @@ SyncError SyncConfig::knownError() const
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const char* cdebris,
            LocalPath* clocaldebris, Node* remotenode, bool cinshare)
-: localroot(new LocalNode)
+: syncs(us.syncs)
+, localroot(new LocalNode)
 , mUnifiedSync(us)
-, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &mUnifiedSync.mClient))
+, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient))
 {
     isnetwork = false;
-    client = &mUnifiedSync.mClient;
+    client = &syncs.mClient;
     inshare = cinshare;
     tmpfa = NULL;
     initializing = true;
@@ -1259,7 +1260,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     if (makeActiveCallback)
     {
         // Per MegaApi documentation, this callback occurs after the changed-state callback
-        mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
+        syncs.mClient.app->syncupdate_active(config, nowActive);
     }
 }
 
@@ -2332,7 +2333,7 @@ m_off_t Sync::getInflightProgress()
 
 
 UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
-    : syncs(s), mClient(s.mClient), mConfig(c)
+    : syncs(s), mConfig(c)
 {
     mNextHeartbeat.reset(new HeartBeatSyncInfo());
 }
@@ -2352,7 +2353,7 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
     std::unique_ptr<FileAccess> openedLocalFolder;
     string remotenodename;
     bool inshare, isnetwork;
-    error e = mClient.checkSyncConfig(mConfig, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
+    error e = syncs.mClient.checkSyncConfig(mConfig, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
 
     if (e)
     {
@@ -2361,11 +2362,11 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
         return e;
     }
 
-    e = startSync(&mClient, DEBRISFOLDER, nullptr, mConfig.mRemoteNode, inshare, isnetwork, rootpath, openedLocalFolder);
-    mClient.syncactivity = true;
+    e = startSync(&syncs.mClient, DEBRISFOLDER, nullptr, mConfig.mRemoteNode, inshare, isnetwork, rootpath, openedLocalFolder);
+    syncs.mClient.syncactivity = true;
     changedConfigState(notifyApp);
 
-    mClient.syncs.mHeartBeatMonitor->updateOrRegisterSync(*this);
+    syncs.mHeartBeatMonitor->updateOrRegisterSync(*this);
 
     return e;
 }
@@ -2399,11 +2400,11 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
     if (changed || forceCallback)
     {
-        mClient.app->syncupdate_remote_root_changed(mConfig);
+        syncs.mClient.app->syncupdate_remote_root_changed(mConfig);
     }
 
     //persist
-    mClient.syncs.saveSyncConfig(mConfig);
+    syncs.saveSyncConfig(mConfig);
 
     return changed;
 }
@@ -2479,12 +2480,12 @@ void UnifiedSync::changedConfigState(bool notifyApp)
     {
         LOG_debug << "Sync " << toHandle(mConfig.mBackupId) << " enabled/error changed to " << mConfig.mEnabled << "/" << mConfig.mError;
 
-        mClient.syncs.saveSyncConfig(mConfig);
+        syncs.saveSyncConfig(mConfig);
         if (notifyApp)
         {
-            mClient.app->syncupdate_stateconfig(mConfig);
+            syncs.mClient.app->syncupdate_stateconfig(mConfig);
         }
-        mClient.abortbackoff(false);
+        syncs.mClient.abortbackoff(false);
     }
 }
 
@@ -2507,15 +2508,19 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
     return v;
 }
 
-SyncConfigVector Syncs::allConfigs() const
+SyncConfigVector Syncs::getConfigs(bool onlyActive) const
 {
     SyncConfigVector v;
     for (auto& s : mSyncVec)
     {
-        v.push_back(s->mConfig);
+        if (s->mSync || !onlyActive)
+        {
+            v.push_back(s->mConfig);
+        }
     }
     return v;
 }
+
 
 error Syncs::backupCloseDrive(LocalPath drivePath)
 {
@@ -2758,7 +2763,7 @@ bool Syncs::syncConfigStoreFlush()
     // Try and flush changes to disk.
     LOG_debug << "Attempting to flush config store changes.";
 
-    auto failed = mSyncConfigStore->writeDirtyDrives(allConfigs());
+    auto failed = mSyncConfigStore->writeDirtyDrives(getConfigs(false));
 
     if (failed.empty()) return true;
 
@@ -3427,7 +3432,7 @@ auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
     return mSyncVec.back().get();
 }
 
-Sync* Syncs::runningSyncByBackupId(handle backupId) const
+Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
 {
     for (auto& s : mSyncVec)
     {
@@ -4003,9 +4008,9 @@ bool SyncConfigStore::removeDrive(const LocalPath& drivePath)
 
 error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& configs, bool isExternal)
 {
-    DriveInfo driveInfo;
+    assert(drivePath.empty() || drivePath.isAbsolute());
 
-    driveInfo.dbPath = dbPath(drivePath);
+    DriveInfo driveInfo;
     driveInfo.drivePath = drivePath;
 
     if (isExternal)
@@ -4023,7 +4028,7 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
 
     vector<unsigned int> confSlots;
 
-    auto result = mIOContext.getSlotsInOrder(driveInfo.dbPath, confSlots);
+    auto result = mIOContext.getSlotsInOrder(dbPath(driveInfo.drivePath), confSlots);
 
     if (result == API_OK)
     {
@@ -4050,10 +4055,12 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
 
 error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector& configs)
 {
+#ifdef DEBUG
     for (const auto& config : configs)
     {
         assert(equal(config.mExternalDrivePath, drivePath));
     }
+#endif
 
     // Drive should already be known.
     assert(mKnownDrives.count(drivePath));
@@ -4066,7 +4073,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 
     if (configs.empty())
     {
-        error e = mIOContext.remove(drive.dbPath);
+        error e = mIOContext.remove(dbPath(drive.drivePath));
         if (e)
         {
             LOG_warn << "Unable to remove sync configs at: "
@@ -4079,7 +4086,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         JSONWriter writer;
         mIOContext.serialize(configs, writer);
 
-        error e = mIOContext.write(drive.dbPath,
+        error e = mIOContext.write(dbPath(drive.drivePath),
             writer.getstring(),
             drive.slot);
 
@@ -4095,7 +4102,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         drive.slot = (drive.slot + 1) % NUM_CONFIG_SLOTS;
 
         // remove the existing slot (if any), since it is obsolete now
-        mIOContext.remove(drive.dbPath, drive.slot);
+        mIOContext.remove(dbPath(drive.drivePath), drive.slot);
 
         return API_OK;
     }
@@ -4105,17 +4112,17 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
                              unsigned int slot, bool isExternal)
 {
-    const auto& dbPath = driveInfo.dbPath;
+    auto dbp = dbPath(driveInfo.drivePath);
     string data;
 
-    if (mIOContext.read(dbPath, data, slot) != API_OK)
+    if (mIOContext.read(dbp, data, slot) != API_OK)
     {
         return API_EREAD;
     }
 
     JSON reader(data);
 
-    if (!mIOContext.deserialize(dbPath, configs, reader, slot, isExternal))
+    if (!mIOContext.deserialize(dbp, configs, reader, slot, isExternal))
     {
         return API_EREAD;
     }
@@ -4128,6 +4135,10 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
 
         if (!drivePath.empty())
         {
+            // As it came from an external drive, the path is relative
+            // but we didn't know that until now, for non-external it's absolute of course
+            config.mLocalPath = LocalPath::fromRelativePath(config.mLocalPath.toPath());
+
             config.mLocalPath.prependWithSeparator(drivePath);
         }
     }
@@ -4440,7 +4451,8 @@ error SyncConfigIOContext::remove(const LocalPath& dbPath,
 {
     LocalPath path = dbFilePath(dbPath, slot);
 
-    if (!mFsAccess.unlinklocal(path))
+    if (mFsAccess.fileExistsAt(path) &&  // don't add error messages to the log when it's not an error
+        !mFsAccess.unlinklocal(path))
     {
         LOG_warn << "Unable to remove config DB: "
                  << path;
@@ -4501,7 +4513,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
               << slot;
 
     // Try and create the backup configuration directory.
-    if (!(mFsAccess.mkdirlocal(path, false, true) || mFsAccess.target_exists))
+    if (!(mFsAccess.mkdirlocal(path, false, false) || mFsAccess.target_exists))
     {
         LOG_err << "Unable to create config DB directory: "
                 << dbPath;

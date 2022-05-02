@@ -343,8 +343,8 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
         auto lastAction = hbs->lastAction();
         auto lastItemUpdated = hbs->lastItemUpdated();
 
-        us.mClient.reqs.add(
-                    new CommandBackupPutHeartBeat(&us.mClient, backupId, status,
+        syncs.mClient.reqs.add(
+                    new CommandBackupPutHeartBeat(&syncs.mClient, backupId, status,
                         progress, pendingUps, pendingDowns,
                         lastAction, lastItemUpdated,
                         [hbs](Error){

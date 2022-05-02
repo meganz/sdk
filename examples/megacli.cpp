@@ -9285,7 +9285,7 @@ void exec_synclist(autocomplete::ACState& s)
         return;
     }
 
-    SyncConfigVector configs = client->syncs.allConfigs();
+    SyncConfigVector configs = client->syncs.getConfigs(false);
 
     if (configs.empty())
     {
