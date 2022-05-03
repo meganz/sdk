@@ -2775,30 +2775,38 @@ bool Syncs::syncConfigStoreFlush()
              << " drive(s).";
 
     // Disable syncs present on drives that we couldn't write.
-    //size_t nFailed = failed.size();
+    auto nDisabled = 0u;
 
+    for (auto& drivePath : failed)
+    {
+        // Determine which syncs are present on this drive.
+        auto configs = configsForDrive(drivePath);
 
-// todo: changing the config again here would cause another flush, and another failure, in an endless cycle?
-    //disableSelectedSyncs(
-    //    [&](SyncConfig& config, Sync*)
-    //    {
-    //        // But only if they're not already disabled.
-    //        if (!config.getEnabled()) return false;
+        // Disable those that aren't already disabled.
+        for (auto& config : configs)
+        {
+            // Already disabled? Nothing to do.
+            //
+            // dgw: This is what prevents an infinite flush cycle.
+            if (!config.mEnabled)
+                continue;
 
-    //        auto matched = failed.count(config.mExternalDrivePath);
+            // Disable the sync.
+            disableSyncByBackupId(config.mBackupId,
+                                  true,
+                                  SYNC_CONFIG_WRITE_FAILURE,
+                                  false,
+                                  nullptr);
 
-    //        return matched > 0;
-    //    },
-    //    false,
-    //    SYNC_CONFIG_WRITE_FAILURE,
-    //    false,
-    //    [=](size_t disabled){
-    //        LOG_warn << "Disabled "
-    //            << disabled
-    //            << " sync(s) on "
-    //            << nFailed
-    //            << " drive(s).";
-    //    });
+            ++nDisabled;
+        }
+    }
+
+    LOG_warn << "Disabled"
+             << nDisabled
+             << " sync(s) on "
+             << failed.size()
+             << " drive(s).";
 
     return false;
 }
