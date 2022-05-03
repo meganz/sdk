@@ -18730,8 +18730,59 @@ void MegaApiImpl::sendPendingRequests()
             continue;
         }
 
+        int requestType = request->getType();
+        switch (requestType)
+        {
+            // More cases? TYPE_MOVE_TRANSFER? etc
+            case MegaRequest::TYPE_MOVE:
+            case MegaRequest::TYPE_COPY:
+            case MegaRequest::TYPE_RENAME:
+            case MegaRequest::TYPE_SET_ATTR_NODE:
+            {
+                Node* current = client->nodebyhandle(request->getNodeHandle());
+                // Check node exists, but don't check if we have full access. We don't care, we want to remove the invalid attribute.
+                if (!current)
+                {
+                    break;
+                }
+                // Check and delete invalid fav attributes
+                std::vector<nameid> nameIds;
+                if (requestType != MegaRequest::TYPE_SET_ATTR_NODE || request->getParamType() != MegaApi::NODE_ATTR_FAV)
+                {
+                    nameIds.emplace_back(AttrMap::string2nameid("fav"));
+                }
+                if (requestType != MegaRequest::TYPE_SET_ATTR_NODE || request->getParamType() != MegaApi::NODE_ATTR_LABEL)
+                {
+                    nameIds.emplace_back(AttrMap::string2nameid("lbl"));
+                }
+                attr_map attrUpdates;
+                for (nameid& nameId : nameIds)
+                {
+                    auto itAttr = current->attrs.map.find(nameId);
+                    if (itAttr != current->attrs.map.end() && (itAttr->second.empty() || itAttr->second == "0"))
+                    {
+                        attrUpdates[nameId] = "";
+                    }
+                }
+                if (attrUpdates.size() > 0)
+                {
+                    // Update file versions if any
+                    if (current->type == FILENODE)
+                    {
+                        for (Node* n = current->children.empty() ? nullptr : current->children.back();
+                            n; n = n->children.empty() ? nullptr : n->children.back())
+                        {
+                            client->setattr(n, attr_map(attrUpdates), 0, nullptr, nullptr); // no callback for these
+                        }
+                    }
+                    // Update current node
+                    client->setattr(current, move(attrUpdates), 0, nullptr, nullptr); // No callback for this either
+                }
+            }
+        }
+
         error e = API_OK;
-        switch (request->getType())
+        switch (requestType)
         {
         case MegaRequest::TYPE_LOGIN:
         {
