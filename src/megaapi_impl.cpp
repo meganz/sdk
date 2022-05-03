@@ -366,7 +366,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             }
             else if (it->first == AttrMap::string2nameid("fav"))
             {
-                int fav = std::atoi(it->second.c_str());
+                int fav = it->second.empty() ? 0 : std::stoi(it->second);
                 if (fav != 1)
                 {
                     LOG_err << "Invalid value for node attr fav: " << fav;
@@ -378,7 +378,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             }
             else if (it->first == AttrMap::string2nameid("lbl"))
             {
-                int lbl = std::atoi(it->second.c_str());
+                int lbl = it->second.empty() ? (LBL_RED - 1) : std::stoi(it->second);
                 if (lbl < LBL_RED || lbl > LBL_GREY)
                 {
                     LOG_err << "Invalid value for node attr lbl: " << lbl;
@@ -33790,7 +33790,7 @@ bool FavouriteProcessor::processNode(Node *node)
     if (node == nullptr) return false;
 
     auto it = node->attrs.map.find(AttrMap::string2nameid("fav"));
-    if (it != node->attrs.map.end() && it->second == "1" && (mMaxCount == 0 || handles.size() < mMaxCount))
+    if (it != node->attrs.map.end() && !it->second.empty() && it->second != "0" && (mMaxCount == 0 || handles.size() < mMaxCount))
     {
         handles.push_back(node->nodehandle);
     }
