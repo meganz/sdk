@@ -1210,36 +1210,39 @@ void Sync::cachenodes()
 
 void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
 {
-    auto& config = getConfig();
+    mUnifiedSync.changeState(newstate, newSyncError, newEnableFlag, notifyApp);
+}
 
+void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
+{
     // Transitioning to a 'stopped' state...
     if (newstate < SYNC_INITIALSCAN)
     {
         // Should "user-disable" external backups...
-        newEnableFlag &= config.isInternal();
+        newEnableFlag &= mConfig.isInternal();
     }
 
-    if (!newEnableFlag && statecachetable)
+    if (!newEnableFlag && mSync && mSync->statecachetable)
     {
         // make sure db is up to date before we close it.
-        cachenodes();
+        mSync->cachenodes();
 
         // remove the LocalNode database files on sync disablement (historic behaviour; sync re-enable with LocalNode state from non-matching SCSN is not supported (yet))
-        statecachetable->remove();
-        statecachetable.reset();
+        mSync->statecachetable->remove();
+        mSync->statecachetable.reset();
     }
 
-    config.mError = newSyncError;
-    config.setEnabled(newEnableFlag);
+    mConfig.mError = newSyncError;
+    mConfig.setEnabled(newEnableFlag);
 
     bool makeActiveCallback = false;
     bool nowActive = false;
 
-    if (newstate != state())
+    if (newstate != mConfig.mRunningState)
     {
-        auto oldstate = state();
-        state() = newstate;
-        fullscan = false;
+        auto oldstate = mConfig.mRunningState;
+        mConfig.mRunningState = newstate;
+        if (mSync) mSync->fullscan = false;
 
         if (notifyApp)
         {
@@ -1254,13 +1257,13 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
 
     if (newstate != SYNC_CANCELED)
     {
-        mUnifiedSync.changedConfigState(notifyApp);
+        changedConfigState(notifyApp);
     }
 
     if (makeActiveCallback)
     {
         // Per MegaApi documentation, this callback occurs after the changed-state callback
-        syncs.mClient.app->syncupdate_active(config, nowActive);
+        syncs.mClient.app->syncupdate_active(mConfig, nowActive);
     }
 }
 
@@ -2772,28 +2775,30 @@ bool Syncs::syncConfigStoreFlush()
              << " drive(s).";
 
     // Disable syncs present on drives that we couldn't write.
-    size_t nFailed = failed.size();
+    //size_t nFailed = failed.size();
 
-    disableSelectedSyncs(
-        [&](SyncConfig& config, Sync*)
-        {
-            // But only if they're not already disabled.
-            if (!config.getEnabled()) return false;
 
-            auto matched = failed.count(config.mExternalDrivePath);
+// todo: changing the config again here would cause another flush, and another failure, in an endless cycle?
+    //disableSelectedSyncs(
+    //    [&](SyncConfig& config, Sync*)
+    //    {
+    //        // But only if they're not already disabled.
+    //        if (!config.getEnabled()) return false;
 
-            return matched > 0;
-        },
-        false,
-        SYNC_CONFIG_WRITE_FAILURE,
-        false,
-        [=](size_t disabled){
-            LOG_warn << "Disabled "
-                << disabled
-                << " sync(s) on "
-                << nFailed
-                << " drive(s).";
-        });
+    //        auto matched = failed.count(config.mExternalDrivePath);
+
+    //        return matched > 0;
+    //    },
+    //    false,
+    //    SYNC_CONFIG_WRITE_FAILURE,
+    //    false,
+    //    [=](size_t disabled){
+    //        LOG_warn << "Disabled "
+    //            << disabled
+    //            << " sync(s) on "
+    //            << nFailed
+    //            << " drive(s).";
+    //    });
 
     return false;
 }
@@ -3408,20 +3413,6 @@ void Syncs::resetSyncConfigStore()
     static_cast<void>(syncConfigStore());
 }
 
-vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
-{
-    vector<NodeHandle> v;
-    for (auto& s : mSyncVec)
-    {
-        if (mustBeActive && (!s->mSync || !s->mSync->active()))
-        {
-            continue;
-        }
-        v.emplace_back(s->mConfig.mRemoteNode);
-    }
-    return v;
-}
-
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
 {
     isEmpty = false;
@@ -3627,49 +3618,53 @@ void Syncs::renameSync(handle backupId, const string& newname, std::function<voi
     completion(API_EEXIST);
 }
 
-void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
+void Syncs::disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> callerCompletion)
 {
-    disableSelectedSyncs([&](SyncConfig& config, Sync*)
+    SyncConfigVector v = getConfigs(false);
+
+    int nEnabled = 0;
+    for (auto& c : v)
+    {
+        if (c.getEnabled()) ++nEnabled;
+    }
+
+    auto countdown = nEnabled;
+    for (auto& c : v)
+    {
+        if (c.getEnabled())
         {
-            return config.getEnabled();
-        },
-        false,
-        syncError,
-        newEnabledFlag,
-        [=](size_t nDisabled) {
-            LOG_info << "Disabled " << nDisabled << " syncs. error = " << syncError;
-            if (nDisabled) mClient.app->syncs_disabled(syncError);
-        });
+
+            std::function<void()> completion = nullptr;
+            if (!--countdown)
+            {
+                completion = [=](){
+                    LOG_info << "Disabled syncs. error = " << syncError;
+                    mClient.app->syncs_disabled(syncError);
+                };
+            }
+
+            disableSyncByBackupId(c.mBackupId, disableIsFail, syncError, newEnabledFlag, completion);
+        }
+    }
+
+    if (callerCompletion) callerCompletion(nEnabled);
 }
 
-void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion)
+void Syncs::disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion)
 {
-    size_t nDisabled = 0;
     for (auto i = mSyncVec.size(); i--; )
     {
         auto& us = *mSyncVec[i];
         auto& config = us.mConfig;
-        auto* sync = us.mSync.get();
 
-        if (selector(config, sync))
+        if (config.mBackupId == backupId)
         {
-            if (sync)
-            {
-                sync->changestate(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
-                mClient.syncactivity = true;
-            }
-            else
-            {
-                config.mError = syncError;
-                config.setEnabled(config.isInternal() && newEnabledFlag);
-                us.changedConfigState(true);
-            }
-            nDisabled += 1;
+            us.changeState(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
-            mHeartBeatMonitor->updateOrRegisterSync(*mSyncVec[i]);
+            mHeartBeatMonitor->updateOrRegisterSync(us);
         }
     }
-    if (completion) completion(nDisabled);
+    if (completion) completion();
 }
 
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)

@@ -9435,31 +9435,23 @@ void exec_syncxable(autocomplete::ACState& s)
     // Disable or fail?
     if (command == "fail")
     {
-        client->syncs.disableSelectedSyncs(
-            [backupId](SyncConfig& config, Sync*)
-            {
-                return config.mBackupId == backupId;
-            },
+        client->syncs.disableSyncByBackupId(
+            backupId,
             true, // disable is fail
             static_cast<SyncError>(error),
-            false,
-            [](size_t nFailed){
-            cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
-        });
+            false, nullptr);
+
+        cout << "Failing of syncs complete." << endl;
     }
     else    // command == "disable"
     {
-        client->syncs.disableSelectedSyncs(
-          [backupId](SyncConfig& config, Sync*)
-          {
-              return config.mBackupId == backupId;
-          },
+        client->syncs.disableSyncByBackupId(
+          backupId,
           false,
           static_cast<SyncError>(error),
-          false,
-          [](size_t nDisabled){
-            cout << "disablement complete. Count disabled: " << nDisabled << endl;
-          });
+          false, nullptr);
+
+        cout << "disablement complete." << endl;
     }
 }
 

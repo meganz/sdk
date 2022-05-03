@@ -179,6 +179,7 @@ struct UnifiedSync
     UnifiedSync(Syncs&, const SyncConfig&);
 
     // Try to create and start the Sync
+    void changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp);
     error enableSync(bool resetFingerprint, bool notifyApp);
 
     // Update remote location
@@ -596,20 +597,15 @@ struct Syncs
     void forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f);
     void forEachSyncConfig(std::function<void(const SyncConfig&)>);
 
-    vector<NodeHandle> getSyncRootHandles(bool mustBeActive);
-
     void purgeRunningSyncs();
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
     error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&);
-    void disableSyncByBackupId(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
+    void disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
-    void disableSyncs(SyncError syncError, bool newEnabledFlag);
-
-    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted.  Compatible with syncs on a separate thread in future
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
+    void disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);

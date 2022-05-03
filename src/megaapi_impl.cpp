@@ -21649,16 +21649,21 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->syncs.disableSelectedSyncs([=](SyncConfig& c, Sync* s)
+            size_t nDisabled = 0;
+            auto configs = client->syncs.getConfigs(false);
+            for (auto& sc : configs)
+            {
+                if (sc.mBackupId == backupId ||
+                    !ISUNDEF(nodehandle) && sc.mRemoteNode == nodehandle)
                 {
-                    return (c.mBackupId == backupId) ||
-                        (!ISUNDEF(nodehandle) && c.mRemoteNode == nodehandle);
-                },
-                false, NO_SYNC_ERROR, false,
-                    [this, request](size_t nDisabled){
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(nDisabled ? API_OK : API_ENOENT));
-                });
+                    client->syncs.disableSyncByBackupId(
+                        sc.mBackupId,
+                        false, NO_SYNC_ERROR, false, nullptr);
+                    ++nDisabled;
+                }
+            }
 
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(nDisabled ? API_OK : API_ENOENT));
             break;
         }
 #endif  // ENABLE_SYNC

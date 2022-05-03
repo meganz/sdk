@@ -2447,16 +2447,12 @@ void StandardClient::catchup_result()
 
 void StandardClient::disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result)
 {
-    client.syncs.disableSelectedSyncs(
-        [id](SyncConfig& config, Sync*)
-        {
-            return config.mBackupId == id;
-        },
+    client.syncs.disableSyncByBackupId(id,
         false,
         error,
         enabled,
-        [result](size_t nDisabled){
-            result->set_value(!!nDisabled);
+        [result](){
+            result->set_value(true);
         });
 }
 
@@ -9103,7 +9099,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
             ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
 
             // Disable the sync.
-            cb.client.syncs.disableSyncs(NO_SYNC_ERROR, true);
+            cb.client.syncs.disableSyncs(false, NO_SYNC_ERROR, true, nullptr);
 
             // Callback's done its job.
             cb.mOnFileAdded = nullptr;
