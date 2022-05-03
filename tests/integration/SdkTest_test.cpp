@@ -5006,7 +5006,7 @@ std::string exec(const char* cmd) {
 
 TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
-    LOG_info << "___TEST SdkHttpReqCommandPutFATest";
+    LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // SCENARIO 1: Request FA upload URLs (thumbnail and preview)
