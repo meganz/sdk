@@ -21654,7 +21654,7 @@ void MegaApiImpl::sendPendingRequests()
             for (auto& sc : configs)
             {
                 if (sc.mBackupId == backupId ||
-                    !ISUNDEF(nodehandle) && sc.mRemoteNode == nodehandle)
+                   (!ISUNDEF(nodehandle) && sc.mRemoteNode == nodehandle))
                 {
                     client->syncs.disableSyncByBackupId(
                         sc.mBackupId,
