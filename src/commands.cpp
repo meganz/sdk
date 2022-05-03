@@ -767,8 +767,8 @@ bool CommandGetFile::procresult(Result r)
     string fileattrstring;
     string filenamestring;
     string filefingerprint;
-    std::vector<std::string> tempurls;
-    std::vector<std::string> tempips;
+    vector<string> tempurls;
+    vector<string> tempips;
 
     for (;;)
     {

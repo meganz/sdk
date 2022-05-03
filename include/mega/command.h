@@ -45,6 +45,7 @@ protected:
     bool mRead = false;// if json has already been read
 
     bool loadIpsFromJson(std::vector<string>& ips);
+    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips);
 
 public:
     MegaClient* client; // non-owning
@@ -150,7 +151,6 @@ public:
     virtual ~Command();
 
     bool checkError(Error &errorDetails, JSON &json);
-    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
 };

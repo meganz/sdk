@@ -22639,12 +22639,12 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_FA_UPLOAD_URL:
         {
             bool getIp = true;
-            auto nodeHandle = request->getNodeHandle();
+            uint64_t nodeHandle = request->getNodeHandle();
             int intFaType = request->getParamType();
             assert(intFaType >= 0 && (intFaType < (1 << (sizeof(fatype)*8)))); // Value of intFaType <= (2^(fatype_numbits) - 1)
             fatype faType = static_cast<fatype>(intFaType); // if the assert above is true, int should fit fine into a fatype (uint16_t)
-            auto forceSSL = request->getFlag();
-            auto fullSize = request->getNumber();
+            bool forceSSL = request->getFlag();
+            long long fullSize = request->getNumber();
 
             NodeOrUploadHandle nuh(NodeHandle().set6byte(nodeHandle));
 
