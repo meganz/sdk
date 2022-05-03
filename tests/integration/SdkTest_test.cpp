@@ -5006,7 +5006,7 @@ std::string exec(const char* cmd) {
 
 TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
-    LOG_info << "___TEST SdkHttpReqCommandPutFATest";
+    LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // SCENARIO 1: Request FA upload URLs (thumbnail and preview)
@@ -5016,12 +5016,12 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     // Request a thumbnail upload URL
     std::string thumbnailURL;
     ASSERT_EQ(API_OK, doGetThumbnailUploadURL(0, thumbnailURL, mApi[0].h, fileSize_thumbnail, true)) << "Cannot request thumbnail upload URL";
-    ASSERT_NE("", thumbnailURL.data()) << "Got empty thumbnail upload URL";
+    ASSERT_FALSE(thumbnailURL.empty()) << "Got empty thumbnail upload URL";
 
     // Request a preview upload URL
     std::string previewURL;
     ASSERT_EQ(API_OK, doGetPreviewUploadURL(0, previewURL, mApi[0].h, fileSize_preview, true)) << "Cannot request preview upload URL";
-    ASSERT_NE("", previewURL.data()) << "Got empty preview upload URL";
+    ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
 
 
     // SCENARIO 2: Upload image file and check thumbnail and preview
@@ -5058,7 +5058,7 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
     // Get the generated media upload URL
     std::unique_ptr<char[]> url(req->getUploadURL());
     ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
-    ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
+    ASSERT_NE(0, *url) << "Got empty media upload URL";
 
     // Encrypt image file contents and get URL suffix
     req->encryptFile(IMAGEFILE.c_str(), 0, &fileSize, IMAGEFILE_C.c_str(), true);

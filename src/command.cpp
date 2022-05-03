@@ -134,7 +134,7 @@ bool Command::loadIpsFromJson(std::vector<string>& ips)
             {
                 break;
             }
-            ips.push_back(ti);
+            ips.emplace_back(std::move(ti));
         }
         client->json.leavearray();
         return true;
