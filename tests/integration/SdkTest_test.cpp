@@ -5024,8 +5024,8 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // SCENARIO 1: Request FA upload URLs (thumbnail and preview)
-    int64_t fileSize_thumbnail = 2376;
-    int64_t fileSize_preview = 2295;
+    int64_t fileSize_thumbnail = 2295;
+    int64_t fileSize_preview = 2376;
 
     // Request a thumbnail upload URL
     std::string thumbnailURL;
