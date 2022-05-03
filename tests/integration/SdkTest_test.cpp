@@ -5058,7 +5058,7 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
     // Get the generated media upload URL
     std::unique_ptr<char[]> url(req->getUploadURL());
     ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
-    ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
+    ASSERT_NE(0, *url) << "Got empty media upload URL";
 
     // Encrypt image file contents and get URL suffix
     req->encryptFile(IMAGEFILE.c_str(), 0, &fileSize, IMAGEFILE_C.c_str(), true);
