@@ -5021,7 +5021,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     // Request a preview upload URL
     std::string previewURL;
     ASSERT_EQ(API_OK, doGetPreviewUploadURL(0, previewURL, mApi[0].h, fileSize_preview, true)) << "Cannot request preview upload URL";
-    ASSERT_NE("", previewURL.data()) << "Got empty preview upload URL";
+    ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
 
 
     // SCENARIO 2: Upload image file and check thumbnail and preview
