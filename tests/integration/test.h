@@ -298,7 +298,7 @@ struct StandardClient : public ::mega::MegaApp
     void transfer_added(Transfer* transfer) override
     {
         onCallback();
-        
+
         ++transfersAdded;
 
         if (mOnTransferAdded)
@@ -533,7 +533,6 @@ struct StandardClient : public ::mega::MegaApp
     bool setSyncPausedByBackupId(handle id, bool pause);
     void enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname);
     bool enableSyncByBackupId(handle id, const string& logname);
-    void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result);
     handle backupIdForSyncPath(fs::path path);
 
     enum Confirm

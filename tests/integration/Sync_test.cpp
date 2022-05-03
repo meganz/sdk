@@ -2689,32 +2689,16 @@ bool StandardClient::enableSyncByBackupId(handle id, const string& logname)
     return result.get();
 }
 
-void StandardClient::backupIdForSyncPath(const fs::path& path, PromiseHandleSP result)
-{
-    auto localPath = LocalPath::fromAbsolutePath(path.u8string());
-    auto id = UNDEF;
-
-    client.syncs.forEachUnifiedSync(
-        [&](UnifiedSync& us)
-        {
-            if (us.mConfig.mLocalPath != localPath) return;
-            if (id != UNDEF) return;
-
-            id = us.mConfig.mBackupId;
-        });
-
-    result->set_value(id);
-}
-
 handle StandardClient::backupIdForSyncPath(fs::path path)
 {
-    auto result =
-        thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
-                        {
-                            client.backupIdForSyncPath(path, result);
-                        });
+    auto localPath = LocalPath::fromAbsolutePath(path.u8string());
 
-    return result.get();
+    auto configs = client.syncs.getConfigs(false);
+    for (auto& sc : configs)
+    {
+        if (sc.mLocalPath == localPath) return sc.mBackupId;
+    }
+    return UNDEF;
 }
 
 bool StandardClient::confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail, bool skipIgnoreFile)
@@ -3144,27 +3128,7 @@ void StandardClient::waitonsyncs(chrono::seconds d)
     auto start = chrono::steady_clock::now();
     for (;;)
     {
-        bool any_add_del = false;;
-
-        thread_do<bool>([&any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
-        {
-            mc.client.syncs.forEachRunningSync(false,
-                [&](Sync* s)
-                {
-                    if ((s->localroot->scanRequired()
-                            || s->localroot->mightHaveMoves()
-                            || s->localroot->syncRequired()))
-                    {
-                        any_add_del = true;
-                    }
-                });
-
-            if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
-            {
-                any_add_del = true;
-            }
-            pb->set_value(true);
-        }).get();
+        bool any_add_del = client.syncs.syncBusyState;
 
         if (any_add_del || debugging)
         {
@@ -3760,19 +3724,10 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
                     if (!result[i].syncStalled)
                     {
-                        mc.client.syncs.forEachRunningSync(false,
-                          [&](Sync* s)
-                          {
-                              any_running_at_all = true;
-
-                              if ((s->localroot->scanRequired()
-                                      || s->localroot->mightHaveMoves()
-                                      || s->localroot->syncRequired()))
-                              {
-                                  any_activity = true;
-                              }
-
-                          });
+                        if (mc.client.syncs.syncBusyState)
+                        {
+                            any_running_at_all = true;
+                        }
 
                         if (!(mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
                         {
@@ -9818,7 +9773,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     clientA1Resume.client.dumpsession(session);
     clientA1Resume.localLogout();
 
-    auto remainingResumeSyncs = clientA1Resume.client.syncs.allConfigs();
+    auto remainingResumeSyncs = clientA1Resume.client.syncs.getConfigs(false);
     ASSERT_EQ(0u, remainingResumeSyncs.size());
 
     if (paused)
@@ -15789,7 +15744,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         fingerprints.emplace_back(client->fingerprint(path));
         ASSERT_TRUE(fingerprints.back().isvalid);
     }
-    
+
     // Wait for the engine to add the download.
     ASSERT_NE(waiter.get_future().wait_for(TIMEOUT),
               future_status::timeout);

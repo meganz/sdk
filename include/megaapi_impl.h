@@ -2510,7 +2510,6 @@ class MegaApiImpl : public MegaApp
         void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
         bool moveToLocalDebris(const char *path);
         long long getNumLocalNodes();
-        bool isInsideSync(MegaNode *node);
         int isNodeSyncable(MegaNode *megaNode);
         bool isScanning();
         bool isSyncing();
