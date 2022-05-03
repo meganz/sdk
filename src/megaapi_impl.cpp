@@ -33790,7 +33790,7 @@ bool FavouriteProcessor::processNode(Node *node)
     if (node == nullptr) return false;
 
     auto it = node->attrs.map.find(AttrMap::string2nameid("fav"));
-    if (it != node->attrs.map.end() && (mMaxCount == 0 || handles.size() < mMaxCount))
+    if (it != node->attrs.map.end() && it->second == "1" && (mMaxCount == 0 || handles.size() < mMaxCount))
     {
         handles.push_back(node->nodehandle);
     }
