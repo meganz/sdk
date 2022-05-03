@@ -5016,7 +5016,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     // Request a thumbnail upload URL
     std::string thumbnailURL;
     ASSERT_EQ(API_OK, doGetThumbnailUploadURL(0, thumbnailURL, mApi[0].h, fileSize_thumbnail, true)) << "Cannot request thumbnail upload URL";
-    ASSERT_NE("", thumbnailURL.data()) << "Got empty thumbnail upload URL";
+    ASSERT_FALSE(thumbnailURL.empty()) << "Got empty thumbnail upload URL";
 
     // Request a preview upload URL
     std::string previewURL;
