@@ -32,6 +32,20 @@
 
 using namespace std;
 
+
+static const string APP_KEY     = "8QxzVRxD";
+static const string PUBLICFILE  = "file.txt";
+static const string UPFILE      = "file1.txt";
+static const string DOWNFILE    = "file2.txt";
+static const string EMPTYFILE   = "empty-file.txt";
+static const string AVATARSRC   = "logo.png";
+static const string AVATARDST   = "deleteme.png";
+static const string IMAGEFILE   = "logo.png";
+static const string IMAGEFILE_C = "logo.encrypted.png";
+static const string THUMBNAIL   = "logo_thumbnail.png";
+static const string PREVIEW     = "logo_preview.png";
+
+
 MegaFileSystemAccess fileSystemAccess;
 
 template<typename T>
@@ -5058,10 +5072,9 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
     // Get the generated media upload URL
     std::unique_ptr<char[]> url(req->getUploadURL());
     ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
-    ASSERT_NE(0, *url) << "Got empty media upload URL";
+    ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
 
     // Encrypt image file contents and get URL suffix
-    req->encryptFile(IMAGEFILE.c_str(), 0, &fileSize, IMAGEFILE_C.c_str(), true);
     std::unique_ptr<char[]> suffix(req->encryptFile(IMAGEFILE.c_str(), 0, &fileSize, IMAGEFILE_C.c_str(), false));
     ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
 
@@ -5121,7 +5134,6 @@ TEST_F(SdkTest, SdkMediaUploadTest)
     string filename2 = DOWNFILE;
 
     // encrypt file contents and get URL suffix
-    req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), true);
     std::unique_ptr<char[]> suffix(req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), false));
     ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
 

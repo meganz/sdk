@@ -34,8 +34,6 @@
 using namespace mega;
 using ::testing::Test;
 
-static const string APP_KEY     = "8QxzVRxD";
-
 // IMPORTANT: the main account must be empty (Cloud & Rubbish) before starting the test and it will be purged at exit.
 // Both main and auxiliar accounts shouldn't be contacts yet and shouldn't have any pending contact requests.
 // Set your login credentials as environment variables: $MEGA_EMAIL and $MEGA_PWD (and $MEGA_EMAIL_AUX / $MEGA_PWD_AUX for shares * contacts)
@@ -43,17 +41,6 @@ static const string APP_KEY     = "8QxzVRxD";
 static const unsigned int pollingT      = 500000;   // (microseconds) to check if response from server is received
 static const unsigned int maxTimeout    = 600;      // Maximum time (seconds) to wait for response from server
 static const unsigned int defaultTimeout = 60;      // Normal time for most operations (seconds) to wait for response from server
-
-static const string PUBLICFILE  = "file.txt";
-static const string UPFILE      = "file1.txt";
-static const string DOWNFILE    = "file2.txt";
-static const string EMPTYFILE   = "empty-file.txt";
-static const string AVATARSRC   = "logo.png";
-static const string AVATARDST   = "deleteme.png";
-static const string IMAGEFILE   = "logo.png";
-static const string IMAGEFILE_C = "logo.encrypted.png";
-static const string THUMBNAIL   = "logo_thumbnail.png";
-static const string PREVIEW     = "logo_preview.png";
 
 
 struct TransferTracker : public ::mega::MegaTransferListener
