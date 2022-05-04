@@ -455,35 +455,27 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
         {
             // check if the low(ered) access level is affecting any syncs
             // a) have we just cut off full access to a subtree of a sync?
-            auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
-            for (NodeHandle rootHandle : activeSyncRootHandles)
+            auto activeConfigs = syncs.getConfigs(true);
+            for (auto& sc : activeConfigs)
             {
-                if (n->isbelow(rootHandle))
+                if (n->isbelow(sc.mRemoteNode))
                 {
-                    SyncConfig sc;
-                    if (syncs.configByRootNode(rootHandle, sc))  // todo: could have gotten all configs above
-                    {
-                        LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                        syncs.disableSyncByBackupId(sc.mBackupId, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
-                    }
+                    LOG_warn << "Existing inbound share sync or part thereof lost full access";
+                    syncs.disableSyncByBackupId(sc.mBackupId, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
                 }
             }
 
             // b) have we just lost full access to the subtree a sync is in?
             Node* root = nullptr;
-            for (NodeHandle rootHandle : activeSyncRootHandles)
+            for (auto& sc : activeConfigs)
             {
-                if (n->isbelow(rootHandle) &&
-                    (nullptr != (root = nodeByHandle(rootHandle))) &&
+                if (n->isbelow(sc.mRemoteNode) &&
+                    (nullptr != (root = nodeByHandle(sc.mRemoteNode))) &&
                     !checkaccess(root, FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
 
-                    SyncConfig sc;
-                    if (syncs.configByRootNode(rootHandle, sc))
-                    {
-                        syncs.disableSyncByBackupId(sc.mBackupId, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
-                    }
+                    syncs.disableSyncByBackupId(sc.mBackupId, SHARE_NON_FULL_ACCESS, false, true, nullptr);   // passing true for SYNC_FAILED
                 }
             };
         }
@@ -12844,10 +12836,11 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     }
 
     // any active syncs below?
-    auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
-    for (NodeHandle rootHandle : activeSyncRootHandles)
+
+    auto activeConfigs = syncs.getConfigs(true);
+    for (auto& sc : activeConfigs)
     {
-        if (Node* syncRoot = nodeByHandle(rootHandle))
+        if (Node* syncRoot = nodeByHandle(sc.mRemoteNode))
         {
             // We cannot use this function re-test an existing sync
             // This is just for testing whether we can create a new one with `remotenode`
@@ -12949,7 +12942,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
     fsaccess->expanselocalpath(newLocallyEncodedPath, newLocallyEncodedAbsolutePath);
 
     error e = API_OK;
-    for (auto& config : syncs.allConfigs())
+    for (auto& config : syncs.getConfigs(false))
     {
         // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
         if (config.mBackupId != excludeBackupId)

@@ -1220,7 +1220,7 @@ MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
     NodeHandle nodeHandle = NodeHandle().set6byte(node->getHandle());
 
     // syncs has its own thread safety
-    for (auto& config : client->syncs.allConfigs())
+    for (auto& config : client->syncs.getConfigs(false))
     {
         if (config.mRemoteNode == nodeHandle)
         {
@@ -1238,7 +1238,7 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
     }
 
     // syncs has its own thread safety
-    for (auto& config : client->syncs.allConfigs())
+    for (auto& config : client->syncs.getConfigs(false))
     {
         if (config.getLocalPath().toPath() == localPath)
         {
@@ -8619,7 +8619,7 @@ int MegaApiImpl::syncPathState(string* platformEncoded)
     LocalPath localpath = LocalPath::fromPlatformEncodedAbsolute(*platformEncoded);
     handle containingSyncId = UNDEF;
 
-    for (auto& config : client->syncs.allConfigs())
+    for (auto& config : client->syncs.getConfigs(true))
     {
         if (config.mLocalPath.isContainingPathOf(localpath))
         {
@@ -8861,7 +8861,7 @@ MegaSyncList *MegaApiImpl::getSyncs()
     vector<MegaSyncPrivate*> vMegaSyncs;
 
     // syncs has its own thread safety
-    for (auto& config : client->syncs.allConfigs())
+    for (auto& config : client->syncs.getConfigs(false))
     {
         vMegaSyncs.push_back(new MegaSyncPrivate(config, client));
     }
@@ -8913,30 +8913,6 @@ void MegaApiImpl::setLegacyExclusionUpperSizeLimit(unsigned long long limit)
 long long MegaApiImpl::getNumLocalNodes()
 {
     return client->syncs.totalLocalNodes;
-}
-
-bool MegaApiImpl::isInsideSync(MegaNode *node)
-{
-    if (!node)
-    {
-        return false;
-    }
-
-    auto activeSyncRootHandles = client->syncs.getSyncRootHandles(true);
-
-    SdkMutexGuard g(sdkMutex);
-
-    if (Node *n = client->nodebyhandle(node->getHandle()))
-    {
-        for (NodeHandle rootHandle : activeSyncRootHandles)
-        {
-            if (n->isbelow(rootHandle))
-            {
-                return true;
-            }
-        }
-    }
-    return false;
 }
 
 #endif
@@ -19784,12 +19760,7 @@ void MegaApiImpl::sendPendingRequests()
                     MegaNode* node = getNodeByHandle(nodeHandle);
 
                     // a valid folder cannot be outside current account or in Rubbish
-                    if (!client->isPrivateNode(NodeHandle().set6byte(nodeHandle)) || isInRootnode(node, 2)
-#ifdef ENABLE_SYNC
-                        // or in a synced folder
-                        || isInsideSync(node)
-#endif
-                        )
+                    if (!client->isPrivateNode(NodeHandle().set6byte(nodeHandle)) || isInRootnode(node, 2))
                     {
                         e = API_EACCESS;
                         break;

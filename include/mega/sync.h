@@ -872,6 +872,12 @@ struct SyncFlags
 
 struct Syncs
 {
+    // Retrieve a copy of configured sync settings (thread safe)
+    SyncConfigVector getConfigs(bool onlyActive, bool excludePaused = false) const;
+    bool configById(handle backupId, SyncConfig&) const;
+    SyncConfigVector configsForDrive(const LocalPath& drive) const;
+
+    // Add new sync setups
     void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
 
 
@@ -882,17 +888,6 @@ struct Syncs
 
     // returns a copy of the config, for thread safety
     bool syncConfigByBackupId(handle backupId, SyncConfig&) const;
-
-    // This function is deprecated; very few still using it, eventually we should remove it
-    void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
-
-    // This function is deprecated; very few still using it, eventually we should remove it
-    void forEachRunningSync(bool includePaused, std::function<void(Sync* s)>) const;
-
-    // Temporary; Only to be used from MegaApiImpl::syncPathState.
-    bool forEachRunningSync_shortcircuit(bool includePaused, std::function<bool(Sync* s)>);
-
-    vector<NodeHandle> getSyncRootHandles(bool mustBeActive);
 
     void purgeRunningSyncs();
     void loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore);
@@ -916,11 +911,6 @@ struct Syncs
     void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
     // get snapshots of the sync configs
-    SyncConfigVector configsForDrive(const LocalPath& drive) const;
-    SyncConfigVector allConfigs() const;
-    bool configById(handle backupId, SyncConfig&) const;
-    bool configByRootNode(NodeHandle syncroot, SyncConfig&) const;
-
 
     // synchronous for now as that's a constraint from the intermediate layer
     NodeHandle getSyncedNodeForLocalPath(const LocalPath&);

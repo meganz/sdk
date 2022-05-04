@@ -2689,32 +2689,16 @@ bool StandardClient::enableSyncByBackupId(handle id, const string& logname)
     return result.get();
 }
 
-void StandardClient::backupIdForSyncPath(const fs::path& path, PromiseHandleSP result)
-{
-    auto localPath = LocalPath::fromAbsolutePath(path.u8string());
-    auto id = UNDEF;
-
-    client.syncs.forEachUnifiedSync(
-        [&](UnifiedSync& us)
-        {
-            if (us.mConfig.mLocalPath != localPath) return;
-            if (id != UNDEF) return;
-
-            id = us.mConfig.mBackupId;
-        });
-
-    result->set_value(id);
-}
-
 handle StandardClient::backupIdForSyncPath(fs::path path)
 {
-    auto result =
-        thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
-                        {
-                            client.backupIdForSyncPath(path, result);
-                        });
+    auto localPath = LocalPath::fromAbsolutePath(path.u8string());
 
-    return result.get();
+    auto configs = client.syncs.getConfigs(false);
+    for (auto& sc : configs)
+    {
+        if (sc.mLocalPath == localPath) return sc.mBackupId;
+    }
+    return UNDEF;
 }
 
 bool StandardClient::confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot, bool expectFail, bool skipIgnoreFile)
@@ -3144,27 +3128,16 @@ void StandardClient::waitonsyncs(chrono::seconds d)
     auto start = chrono::steady_clock::now();
     for (;;)
     {
-        bool any_add_del = false;;
+        bool any_add_del = client.syncs.syncBusyState;
 
         thread_do<bool>([&any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
-        {
-            mc.client.syncs.forEachRunningSync(false,
-                [&](Sync* s)
-                {
-                    if ((s->localroot->scanRequired()
-                            || s->localroot->mightHaveMoves()
-                            || s->localroot->syncRequired()))
-                    {
-                        any_add_del = true;
-                    }
-                });
-
-            if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
             {
-                any_add_del = true;
-            }
-            pb->set_value(true);
-        }).get();
+                if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
+                {
+                    any_add_del = true;
+                }
+                pb->set_value(true);
+            }).get();
 
         if (any_add_del || debugging)
         {
@@ -3760,19 +3733,15 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
                     if (!result[i].syncStalled)
                     {
-                        mc.client.syncs.forEachRunningSync(false,
-                          [&](Sync* s)
-                          {
-                              any_running_at_all = true;
+                        if (mc.client.syncs.getConfigs(true).size())
+                        {
+                            any_running_at_all = true;
+                        }
 
-                              if ((s->localroot->scanRequired()
-                                      || s->localroot->mightHaveMoves()
-                                      || s->localroot->syncRequired()))
-                              {
-                                  any_activity = true;
-                              }
-
-                          });
+                        if (mc.client.syncs.syncBusyState)
+                        {
+                            any_activity = true;
+                        }
 
                         if (!(mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
                         {
@@ -3863,13 +3832,21 @@ bool createNameFile(const fs::path &p, const string &filename)
 
 bool createDataFileWithTimestamp(const fs::path &path,
                              const std::string &data,
+                             const fs::path& tmpCreationLocation,
                              const fs::file_time_type &timestamp)
 {
-    const bool result = createDataFile(path, data);
+    // Create the file at a neutral location first so we can set the timestamp without a sync noticing the wrong timestamp first
+    bool result = createDataFile(tmpCreationLocation / path.filename(), data);
 
     if (result)
     {
-        fs::last_write_time(path, timestamp);
+        fs::last_write_time(tmpCreationLocation / path.filename(), timestamp);
+
+        // Now that it has the proper mtime, move it to the correct location
+        error_code rename_error;
+        fs::rename(tmpCreationLocation / path.filename(), path, rename_error);
+        EXPECT_TRUE(!rename_error) << rename_error;
+        result = !rename_error;
     }
 
     return result;
@@ -3955,6 +3932,9 @@ class SyncFingerprintCollision
   : public ::testing::Test
 {
 public:
+
+    fs::path testRootFolder;
+
     SyncFingerprintCollision()
       : client0()
       , client1()
@@ -3962,10 +3942,10 @@ public:
       , model1()
       , arbitraryFileLength(16384)
     {
-        const fs::path root = makeNewTestRoot();
+        testRootFolder = makeNewTestRoot();
 
-        client0 = ::mega::make_unique<StandardClient>(root, "c0");
-        client1 = ::mega::make_unique<StandardClient>(root, "c1");
+        client0 = ::mega::make_unique<StandardClient>(testRootFolder, "c0");
+        client1 = ::mega::make_unique<StandardClient>(testRootFolder, "c1");
 
         client0->logcb = true;
         client1->logcb = true;
@@ -4068,6 +4048,7 @@ TEST_F(SyncFingerprintCollision, DISABLED_DifferentMacSameName)
                                  createDataFileWithTimestamp(
                                  path1,
                                  data1,
+                                 testRootFolder,
                                  fs::last_write_time(path0)));
 
                              client0->triggerPeriodicScanEarly(backupId0);
@@ -4087,12 +4068,16 @@ TEST_F(SyncFingerprintCollision, DISABLED_DifferentMacSameName)
 
 TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
 {
+    // both files same length (so this portion of the fingerprint is the same for the two cases)
     auto data0 = randomData(arbitraryFileLength);
     auto data1 = data0;
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_0" / "b";
 
-    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
+    // 0x20 is within the first region that makes up crc in the (sparse) fingerprint
+    // 0x41 is just outside it
+    // therefore, for this case: use 0x20 so the mac is different between the test files
+    data1[0x20] = static_cast<uint8_t>(~data1[0x20]);
 
     ASSERT_TRUE(createDataFile(path0, data0));
     client0->triggerPeriodicScanEarly(backupId0);
@@ -4105,6 +4090,8 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
                                  createDataFileWithTimestamp(
                                  path1,
                                  data1,
+                                 testRootFolder,
+                                 // exactly the same mtime (so this piece of the
                                  fs::last_write_time(path0)));
 
                              client0->triggerPeriodicScanEarly(backupId0);
@@ -4139,6 +4126,7 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
                                  createDataFileWithTimestamp(
                                  path1,
                                  data0,
+                                 testRootFolder,
                                  fs::last_write_time(path0)));
 
                             client0->triggerPeriodicScanEarly(backupId0);
@@ -9818,7 +9806,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     clientA1Resume.client.dumpsession(session);
     clientA1Resume.localLogout();
 
-    auto remainingResumeSyncs = clientA1Resume.client.syncs.allConfigs();
+    auto remainingResumeSyncs = clientA1Resume.client.syncs.getConfigs(false);
     ASSERT_EQ(0u, remainingResumeSyncs.size());
 
     if (paused)
@@ -15789,7 +15777,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         fingerprints.emplace_back(client->fingerprint(path));
         ASSERT_TRUE(fingerprints.back().isvalid);
     }
-    
+
     // Wait for the engine to add the download.
     ASSERT_NE(waiter.get_future().wait_for(TIMEOUT),
               future_status::timeout);

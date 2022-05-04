@@ -2021,7 +2021,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 // previously synced local move-source.
                 LOG_debug << "Move-source is part of an ongoing download: "
                           << logTriplet(row, fullPath);
-                          
+
                 sourceRequirement = Syncs::LATEST_VERSION;
             }
 
@@ -3451,7 +3451,7 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
     return v;
 }
 
-SyncConfigVector Syncs::allConfigs() const
+SyncConfigVector Syncs::getConfigs(bool onlyActive, bool excludePaused) const
 {
     assert(onSyncThread() || !onSyncThread());
 
@@ -3460,7 +3460,11 @@ SyncConfigVector Syncs::allConfigs() const
     SyncConfigVector v;
     for (auto& s : mSyncVec)
     {
-        v.push_back(s->mConfig);
+        if ((s->mSync && (!excludePaused || !s->mConfig.mTemporarilyPaused))
+            || !onlyActive)
+        {
+            v.push_back(s->mConfig);
+        }
     }
     return v;
 }
@@ -3474,23 +3478,6 @@ bool Syncs::configById(handle backupId, SyncConfig& configResult) const
     for (auto& s : mSyncVec)
     {
         if (s->mConfig.mBackupId == backupId)
-        {
-            configResult = s->mConfig;
-            return true;
-        }
-    }
-    return false;
-}
-
-bool Syncs::configByRootNode(NodeHandle syncroot, SyncConfig& configResult) const
-{
-    assert(!onSyncThread());
-
-    lock_guard<mutex> g(mSyncVecMutex);
-
-    for (auto& s : mSyncVec)
-    {
-        if (s->mConfig.mRemoteNode == syncroot)
         {
             configResult = s->mConfig;
             return true;
@@ -3857,7 +3844,7 @@ bool Syncs::syncConfigStoreFlush()
     // Try and flush changes to disk.
     LOG_debug << "Attempting to flush config store changes.";
 
-    auto failed = mSyncConfigStore->writeDirtyDrives(allConfigs());
+    auto failed = mSyncConfigStore->writeDirtyDrives(getConfigs(false));
 
     if (failed.empty()) return true;
 
@@ -4645,23 +4632,6 @@ void Syncs::clear_inThread()
     mSyncsResumed = false;
 }
 
-vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
-{
-    assert(!onSyncThread() || onSyncThread());  // still called via checkSyncConfig, currently
-
-    lock_guard<mutex> g(mSyncVecMutex);
-
-    vector<NodeHandle> v;
-    for (auto& s : mSyncVec)
-    {
-        if (!mustBeActive || s->mSync)
-        {
-            v.emplace_back(s->mConfig.mRemoteNode);
-        }
-    }
-    return v;
-}
-
 void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
@@ -4819,54 +4789,6 @@ void Syncs::transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused)
     });
 }
 
-void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
-{
-    // This function is deprecated; very few still using it, eventually we should remove it
-
-    assert(!onSyncThread());
-
-    for (auto& s : mSyncVec)
-    {
-        f(*s);
-    }
-}
-
-void Syncs::forEachRunningSync(bool includePaused, std::function<void(Sync* s)> f) const
-{
-    // This function is deprecated; very few still using it, eventually we should remove it
-
-    assert(!onSyncThread());
-
-    lock_guard<mutex> g(mSyncVecMutex);
-    for (auto& s : mSyncVec)
-    {
-        if (s->mSync && (includePaused || !s->mConfig.mTemporarilyPaused))
-        {
-            f(s->mSync.get());
-        }
-    }
-}
-
-bool Syncs::forEachRunningSync_shortcircuit(bool includePaused, std::function<bool(Sync* s)> f)
-{
-    // only used in MegaApiImpl::syncPathState.
-    // We'll move that functionality into Syncs once we can do so without too much difference from develop branch
-    assert(!onSyncThread());
-
-    lock_guard<mutex> g(mSyncVecMutex);
-    for (auto& s : mSyncVec)
-    {
-        if (s->mSync && (includePaused || !s->mConfig.mTemporarilyPaused))
-        {
-            if (!f(s->mSync.get()))
-            {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
 void Syncs::stopSyncsInErrorState()
 {
     assert(onSyncThread());
@@ -4959,7 +4881,7 @@ void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSync
     queueSync([this, syncError, newEnabledFlag, keepSyncDb]()
         {
             assert(onSyncThread());
-            SyncConfigVector v = allConfigs();
+            SyncConfigVector v = getConfigs(false);
 
             int nEnabled = 0;
             for (auto& c : v)
@@ -6541,7 +6463,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
             {
                 LOG_debug << "Waiting for putnodes to complete: "
                           << logTriplet(row, fullPath);
-                          
+
                 // Then come back later.
                 return false;
             }
