@@ -70,9 +70,6 @@ const int MegaClient::MAXQUEUEDFA = 30;
 const int MegaClient::MAXPUTFA = 10;
 
 #ifdef ENABLE_SYNC
-// hearbeat frequency
-static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
-
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
 #endif
@@ -342,6 +339,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                 {
                     n->inshare->user->sharing.erase(n->nodehandle);
                     notifyuser(n->inshare->user);
+                    delete n->inshare;
                     n->inshare = NULL;
                 }
             }
@@ -510,31 +508,27 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
         {
             // check if the low(ered) access level is affecting any syncs
             // a) have we just cut off full access to a subtree of a sync?
-            auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
-            for (NodeHandle rootHandle : activeSyncRootHandles)
+            auto activeConfigs = syncs.getConfigs(true);
+            for (auto& sc : activeConfigs)
             {
-                if (n->isbelow(rootHandle))
+                if (n->isbelow(sc.mRemoteNode))
                 {
                     LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                        return c.mRemoteNode == rootHandle;
-                        }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
-
+                    syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
                 }
             }
 
             // b) have we just lost full access to the subtree a sync is in?
             Node* root = nullptr;
-            for (NodeHandle rootHandle : activeSyncRootHandles)
+            for (auto& sc : activeConfigs)
             {
-                if (n->isbelow(rootHandle) &&
-                    (nullptr != (root = nodeByHandle(rootHandle))) &&
+                if (n->isbelow(sc.mRemoteNode) &&
+                    (nullptr != (root = nodeByHandle(sc.mRemoteNode))) &&
                     !checkaccess(root, FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
-                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                        return c.mRemoteNode == rootHandle;
-                        }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
+
+                    syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
                 }
             };
         }
@@ -1183,8 +1177,6 @@ void MegaClient::init()
     btpfa.reset();
     btbadhost.reset();
 
-    btheartbeat.reset();
-
     abortlockrequest();
     transferHttpCounter = 0;
     nextDispatchTransfersDs = 0;
@@ -1214,7 +1206,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
    , btcs(rng)
    , btbadhost(rng)
    , btworkinglock(rng)
-   , btheartbeat(rng)
    , btsc(rng)
    , btpfa(rng)
    , mNodeManager(*this)
@@ -1313,7 +1304,12 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
+    
     fsaccess = move(f);
+#ifdef ENABLE_SYNC
+    fsaccess->initFilesystemNotificationSystem();
+#endif // ENABLE_SYNC
+
     dbaccess = d;
 
     if ((gfx = g))
@@ -2223,7 +2219,7 @@ void MegaClient::exec()
                         // Fail all syncs.
                         // Setting flag for fail rather than disable
                         std::promise<bool> pb;
-                        syncs.disableSelectedSyncs([](SyncConfig&, Sync* s){ return !!s; },
+                        syncs.disableSyncs(
                             true,
                             TOO_MANY_ACTION_PACKETS,
                             false,
@@ -2577,9 +2573,7 @@ void MegaClient::exec()
 
                 if (syncErr != NO_SYNC_ERROR)
                 {
-                    syncs.disableSelectedSyncs(
-                        [&](SyncConfig&, Sync* s) { return s == sync; },
-                        true, syncErr, false, nullptr);
+                    syncs.disableSyncByBackupId(sync->getConfig().mBackupId, true, syncErr, false, nullptr);
                 }
             }
         });
@@ -2673,7 +2667,11 @@ void MegaClient::exec()
                             if (notification.timestamp <= dsmin)
                             {
                                 LOG_debug << "Processing extra fs notification: " << notification.path;
-                                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode, std::move(notification.path));
+                                sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                        notification.localnode,
+                                                        std::move(notification.path),
+                                                        false,
+                                                        false);
                             }
                             else
                             {
@@ -3151,11 +3149,7 @@ void MegaClient::exec()
         }
 
 #ifdef ENABLE_SYNC
-        if (btheartbeat.armed())
-        {
-            syncs.mHeartBeatMonitor->beat();
-            btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
-        }
+        syncs.mHeartBeatMonitor->beat();
 #endif
 
         for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
@@ -4493,7 +4487,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     {
         // Special case backward compatibility for MEGAsync
         // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-        syncs.disableSyncs(LOGGED_OUT, false);
+        syncs.disableSyncs(false, LOGGED_OUT, false, nullptr);
     }
     else
     {
@@ -5402,7 +5396,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
         if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
         {
-            syncs.disableSyncs(STORAGE_OVERQUOTA, false);
+            syncs.disableSyncs(false, STORAGE_OVERQUOTA, false, nullptr);
         }
 #endif
 
@@ -7114,7 +7108,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(BUSINESS_EXPIRED, false);
+            syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
         }
 #endif
     }
@@ -8568,7 +8562,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                                 n->localnode->setSubtreeNeedsRescan(false);
 
                                 // queue this one to be scanned, recursion is by notify of subdirs
-                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, n->localnode, LocalPath(), true);
+                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                                      n->localnode,
+                                                                      LocalPath(),
+                                                                      true,
+                                                                      false);
                             }
                         }
                     }
@@ -11736,7 +11734,7 @@ void MegaClient::block(bool fromServerClientResponse)
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
 #ifdef ENABLE_SYNC
-    syncs.disableSyncs(ACCOUNT_BLOCKED, false);
+    syncs.disableSyncs(false, ACCOUNT_BLOCKED, false, nullptr);
 #endif
 }
 
@@ -12477,7 +12475,7 @@ void MegaClient::fetchnodes(bool nocache)
         // or they may be new ones that were not previously applied.
         // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
         // TODO: the sync rework branch, when ready, will be able to cope with this situation.
-        syncs.disableSyncs(WHOLE_ACCOUNT_REFETCHED, false);
+        syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
 #endif
 
         if (!loggedinfolderlink())
@@ -13620,13 +13618,13 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
         // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
-        if (config.getBackupId() != excludeBackupId)
+        if (config.mBackupId != excludeBackupId)
         {
             LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
-            if (config.getEnabled() && !config.getError() &&
+            if (config.getEnabled() && !config.mError &&
                     ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
@@ -13655,14 +13653,14 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
-    Node* remotenode = nodeByHandle(syncConfig.getRemoteNode());
+    Node* remotenode = nodeByHandle(syncConfig.mRemoteNode);
     inshare = false;
     if (!remotenode)
     {
         LOG_warn << "Sync root does not exist in the cloud: "
                  << syncConfig.getLocalPath()
                  << ": "
-                 << LOG_NODEHANDLE(syncConfig.getRemoteNode());
+                 << LOG_NODEHANDLE(syncConfig.mRemoteNode);
 
         syncConfig.mError = REMOTE_NODE_NOT_FOUND;
         syncConfig.mEnabled = false;
@@ -13724,7 +13722,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             // so that the app does not need to carry that burden.
             // Although it might not be required given the following test does expands the configured
             // paths to use canonical paths when checking for path collisions:
-            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getBackupId(), &syncConfig.mError);
+            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.mBackupId, &syncConfig.mError);
             if (e)
             {
                 LOG_warn << "Local path not syncable: ";
@@ -14009,7 +14007,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
         {
 
             // if we got this far, the syncConfig is kept (in db and in memory)
-            config.setBackupId(backupId);
+            config.mBackupId = backupId;
 
             UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
@@ -14017,7 +14015,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
             syncactivity = true;
 
-            completion(e, unifiedSync->mConfig.getError(), backupId);
+            completion(e, unifiedSync->mConfig.mError, backupId);
         }
     }));
 
@@ -15283,7 +15281,7 @@ void MegaClient::syncupdate()
                 nextreqtag();
                 startxfer(PUT, l, committer, false, false, false, UseLocalVersioningFlag);
 
-                l->sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, l->size, 0);
+                l->sync->threadSafeState->transferBegin(PUT, l->size);
 
                 LOG_debug << "Sync - sending file " << l->getLocalPath();
             }
@@ -15655,15 +15653,15 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
 {
     if (Node* n = nodeByHandle(nodeHandle))
     {
-        auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
-        for (NodeHandle rootHandle : activeSyncRootHandles)
+        auto activeConfigs = syncs.getConfigs(true);
+        for (auto& sc : activeConfigs)
         {
-            if (n->isbelow(rootHandle))
+            if (n->isbelow(sc.mRemoteNode))
             {
                 LOG_warn << "Disabling sync containing node " << n->displaypath();
-                syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                    return c.mRemoteNode == rootHandle;
-                    }, false, syncError, newEnabledFlag, nullptr);
+                syncs.disableSyncByBackupId(
+                    sc.mBackupId,
+                    false, syncError, newEnabledFlag, nullptr);
             }
         }
     }
@@ -17746,9 +17744,9 @@ void NodeManager::notifyPurge()
 
                  if (syncErr != NO_SYNC_ERROR)
                  {
-                     mClient.syncs.disableSelectedSyncs(
-                                 [&](SyncConfig&, Sync* s) { return s == activeSync.get(); },
-                     true, syncErr, false, nullptr);
+                     mClient.syncs.disableSyncByBackupId(
+                                 activeSync->getConfig().mBackupId,
+                                 true, syncErr, false, nullptr);
                  }
              }
          });

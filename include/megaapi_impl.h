@@ -92,7 +92,11 @@ class MegaGfxProc : public GfxProcExternal {};
 #else
     #ifdef __APPLE__
     typedef CurlHttpIO MegaHttpIO;
-    typedef PosixFileSystemAccess MegaFileSystemAccess;
+        #ifdef TARGET_OS_IPHONE
+        typedef PosixFileSystemAccess MegaFileSystemAccess;
+        #else
+        typedef MacFileSystemAccess MegaFileSystemAccess;
+        #endif
     typedef PosixWaiter MegaWaiter;
     #else
     class MegaHttpIO : public CurlHttpIO {};
@@ -2720,7 +2724,7 @@ class MegaApiImpl : public MegaApp
         bool tryLockMutexFor(long long time);
 
 protected:
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, int fseventsfd /*= -1*/, unsigned clientWorkerThreadCount /*= 1*/);
+        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);
 

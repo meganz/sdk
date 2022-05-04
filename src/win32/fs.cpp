@@ -1247,7 +1247,7 @@ void WinDirNotify::process(DWORD dwBytes)
         LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
                 << " errors: " << errCount;
         readchanges();
-        notify(DIREVENTS, localrootnode, LocalPath());
+        notify(DIREVENTS, localrootnode, LocalPath(), false, false);
 #endif
     }
     else
@@ -1284,7 +1284,7 @@ void WinDirNotify::process(DWORD dwBytes)
                         && fni->FileName[ignore.localpath.size() - 1] == L'\\')))
             {
 #ifdef ENABLE_SYNC
-                notify(DIREVENTS, localrootnode, LocalPath::fromPlatformEncodedRelative(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
+                notify(DIREVENTS, localrootnode, LocalPath::fromPlatformEncodedRelative(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))), false, false);
 #endif
             }
 

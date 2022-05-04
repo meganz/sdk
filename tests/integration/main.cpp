@@ -454,10 +454,6 @@ fs::path makeNewTestRoot()
 
 std::unique_ptr<::mega::FileSystemAccess> makeFsAccess()
 {
-#ifdef __APPLE__
-    return ::mega::make_unique<FSACCESS_CLASS>(gFseventsFd);
-#else
     return ::mega::make_unique<FSACCESS_CLASS>();
-#endif
 }
 

@@ -7,7 +7,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the rules set forth in the Terms of Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -73,28 +73,11 @@ public:
     bool operator==(const SyncConfig &rhs) const;
     bool operator!=(const SyncConfig &rhs) const;
 
-    // Id for the sync, also used in sync heartbeats
-    handle getBackupId() const;
-    void setBackupId(const handle& backupId);
-
     // the local path of the sync root folder
     const LocalPath& getLocalPath() const;
 
-    // the remote path of the sync
-    NodeHandle getRemoteNode() const;
-    void setRemoteNode(NodeHandle remoteNode);
-
     // returns the type of the sync
     Type getType() const;
-
-    // This is where the remote root node was, last time we checked
-
-    // error code or warning (errors mean the sync was stopped)
-    SyncError getError() const;
-    void setError(SyncError value);
-
-    //SyncWarning getWarning() const;
-    //void setWarning(SyncWarning value);
 
     // If the sync is enabled, we will auto-start it
     bool getEnabled() const;
@@ -179,7 +162,6 @@ struct UnifiedSync
 {
     // Reference to containing Syncs object
     Syncs& syncs;
-    MegaClient& mClient;
 
     // We always have a config
     SyncConfig mConfig;
@@ -197,6 +179,7 @@ struct UnifiedSync
     UnifiedSync(Syncs&, const SyncConfig&);
 
     // Try to create and start the Sync
+    void changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp);
     error enableSync(bool resetFingerprint, bool notifyApp);
 
     // Update remote location
@@ -210,6 +193,43 @@ private:
     void changedConfigState(bool notifyApp);
 };
 
+class SyncThreadsafeState
+{
+    // This class contains things that are read/written from either the Syncs thread,
+    // or the MegaClient thread.  A mutex is used to keep the data consistent.
+    // Referred to by shared_ptr so transfers etc don't have awkward lifetime issues.
+    mutable mutex mMutex;
+
+    // Transfers update these from the client thread
+    void adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes);
+
+    // track uploads/downloads
+    SyncTransferCounts mTransferCounts;
+
+    // know where the sync's tmp folder is
+    LocalPath mSyncTmpFolder;
+
+    MegaClient* mClient = nullptr;
+    handle mBackupId = 0;
+
+public:
+    void transferBegin(direction_t direction, m_off_t numBytes);
+    void transferComplete(direction_t direction, m_off_t numBytes);
+    void transferFailed(direction_t direction, m_off_t numBytes);
+
+    // Return a snapshot of this sync's current transfer counts.
+    SyncTransferCounts transferCounts() const;
+
+    std::atomic<unsigned> neverScannedFolderCount{};
+
+    LocalPath syncTmpFolder() const;
+    void setSyncTmpFolder(const LocalPath&);
+
+    SyncThreadsafeState(handle backupId, MegaClient* client) : mClient(client), mBackupId(backupId)  {}
+    handle backupId() const { return mBackupId; }
+    MegaClient* client() const { return mClient; }
+};
+
 class MEGA_API Sync
 {
 public:
@@ -219,6 +239,7 @@ public:
     const SyncConfig& getConfig() const;
 
     MegaClient* client = nullptr;
+    Syncs& syncs;
 
     // for logging
     string syncname;
@@ -363,6 +384,8 @@ public:
 
     UnifiedSync& mUnifiedSync;
 
+    shared_ptr<SyncThreadsafeState> threadSafeState;
+
 protected :
     bool readstatecache();
 
@@ -419,9 +442,6 @@ private:
     // Metadata regarding a given drive.
     struct DriveInfo
     {
-        // Directory on the drive containing the database.
-        LocalPath dbPath;
-
         // Path to the drive itself.
         LocalPath drivePath;
 
@@ -550,13 +570,21 @@ private:
 
 struct Syncs
 {
+    // Retrieve a copy of configured sync settings (thread safe)
+    SyncConfigVector getConfigs(bool onlyActive) const;
+    bool configById(handle backupId, SyncConfig&) const;
+    SyncConfigVector configsForDrive(const LocalPath& drive) const;
+
+    // Add new sync setups
     UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
 
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
     unsigned numSyncs();    // includes non-running syncs, but configured
     Sync* firstRunningSync();
-    Sync* runningSyncByBackupId(handle backupId) const;
+
+    // only for use in tests; not really thread safe
+    Sync* runningSyncByBackupIdForTests(handle backupId) const;
 
     void transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused);
 
@@ -569,19 +597,15 @@ struct Syncs
     void forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f);
     void forEachSyncConfig(std::function<void(const SyncConfig&)>);
 
-    vector<NodeHandle> getSyncRootHandles(bool mustBeActive);
-
     void purgeRunningSyncs();
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
     error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&);
+    void disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
-    void disableSyncs(SyncError syncError, bool newEnabledFlag);
-
-    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted.  Compatible with syncs on a separate thread in future
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
+    void disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -597,9 +621,6 @@ struct Syncs
 
     void resetSyncConfigStore();
     void clear();
-
-    SyncConfigVector configsForDrive(const LocalPath& drive) const;
-    SyncConfigVector allConfigs() const;
 
     // updates in state & error
     void saveSyncConfig(const SyncConfig& config);

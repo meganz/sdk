@@ -19,8 +19,12 @@
  * program.
  */
 
+#ifndef MEGA_POSIX_FS_H
+#define MEGA_POSIX_FS_H
+
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS PosixFileSystemAccess
+#endif // ! FSACCESS_CLASS
 
 #ifdef  __APPLE__
 // Apple calls it sendfile, but it isn't
@@ -82,7 +86,6 @@ public:
     static char *appbasepath;
 #endif
 
-    bool notifyerr;
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
@@ -121,17 +124,18 @@ public:
     int getdefaultfolderpermissions();
     void setdefaultfolderpermissions(int);
 
-    PosixFileSystemAccess(int = -1);
+    PosixFileSystemAccess();
     ~PosixFileSystemAccess();
 
     static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
 
 #ifdef ENABLE_SYNC
-
     fsfp_t fsFingerprint(const LocalPath& path) const override;
 
     bool fsStableIDs(const LocalPath& path) const override;
+
+    bool initFilesystemNotificationSystem() override;
 #endif // ENABLE_SYNC
 
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
