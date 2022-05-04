@@ -1741,13 +1741,6 @@ MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent
     pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, workerThreadCount);
 }
 
-#ifdef ENABLE_SYNC
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount)
-{
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd, workerThreadCount);
-}
-#endif
-
 #ifdef HAVE_MEGAAPI_RPC
 MegaApi::MegaApi() {}
 #endif

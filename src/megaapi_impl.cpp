@@ -1333,7 +1333,7 @@ MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
 
     unique_ptr<MegaSync> ret;
     client->syncs.forEachUnifiedSync([&](UnifiedSync& s){
-        if (s.mConfig.getBackupId() == backupId)
+        if (s.mConfig.mBackupId == backupId)
         {
             ret.reset(new MegaSyncPrivate(s.mConfig, s.mSync && s.mSync->state() >= 0, client));
         }
@@ -1354,7 +1354,7 @@ MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
 
     unique_ptr<MegaSync> ret;
     client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
-        if (us.mConfig.getRemoteNode() == nodeHandle)
+        if (us.mConfig.mRemoteNode == nodeHandle)
         {
             ret.reset(new MegaSyncPrivate(us.mConfig, us.mSync && us.mSync->state() >= 0, client));
         }
@@ -5225,20 +5225,15 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    init(api, appKey, processor, basePath, userAgent, -1, workerThreadCount);
+    init(api, appKey, processor, basePath, userAgent, workerThreadCount);
 }
 
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    init(api, appKey, NULL, basePath, userAgent, -1, workerThreadCount);
+    init(api, appKey, NULL, basePath, userAgent, workerThreadCount);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount)
-{
-    init(api, appKey, NULL, basePath, userAgent, fseventsfd, workerThreadCount);
-}
-
-void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd, unsigned clientWorkerThreadCount)
+void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount)
 {
     this->api = api;
 
@@ -5290,12 +5285,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
 
-#ifndef __APPLE__
-    (void)fseventsfd;
     fsAccess = new MegaFileSystemAccess();
-#else
-    fsAccess = new MegaFileSystemAccess(fseventsfd);
-#endif
 
     dbAccess = nullptr;
     if (basePath)
@@ -21348,7 +21338,7 @@ void MegaApiImpl::sendPendingRequests()
 
             e = client->syncs.enableSyncByBackupId(backupId, true, us);
 
-            request->setNumDetails(us ? us->mConfig.getError() : UNKNOWN_ERROR);
+            request->setNumDetails(us ? us->mConfig.mError : UNKNOWN_ERROR);
 
             if (!e) //sync added (enabled) fine
             {
@@ -21464,7 +21454,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (temporaryDisabled)
             {
-                syncConfig.setError(syncError);
+                syncConfig.mError = syncError;
             }
 
             client->ensureSyncUserAttributes([this, request, syncConfig](Error e){
@@ -21557,8 +21547,8 @@ void MegaApiImpl::sendPendingRequests()
             bool found = false;
             client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync){
 
-                bool matched = (backupId != UNDEF && c.getBackupId() == backupId) ||
-                    (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
+                bool matched = (backupId != UNDEF && c.mBackupId == backupId) ||
+                    (!ISUNDEF(nodehandle) && c.mRemoteNode == nodehandle);
 
                 if (matched && sync)
                 {
@@ -21595,16 +21585,21 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->syncs.disableSelectedSyncs([=](SyncConfig& c, Sync* s)
+            size_t nDisabled = 0;
+            auto configs = client->syncs.getConfigs(false);
+            for (auto& sc : configs)
+            {
+                if (sc.mBackupId == backupId ||
+                   (!ISUNDEF(nodehandle) && sc.mRemoteNode == nodehandle))
                 {
-                    return (c.getBackupId() == backupId) ||
-                        (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
-                },
-                false, NO_SYNC_ERROR, false,
-                    [this, request](size_t nDisabled){
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(nDisabled ? API_OK : API_ENOENT));
-                });
+                    client->syncs.disableSyncByBackupId(
+                        sc.mBackupId,
+                        false, NO_SYNC_ERROR, false, nullptr);
+                    ++nDisabled;
+                }
+            }
 
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(nDisabled ? API_OK : API_ENOENT));
             break;
         }
 #endif  // ENABLE_SYNC
@@ -24170,7 +24165,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, bool active, MegaClie
     , mActive(active)
     , mEnabled(config.getEnabled())
 {
-    this->megaHandle = config.getRemoteNode().as8byte();
+    this->megaHandle = config.mRemoteNode.as8byte();
     this->localFolder = NULL;
     setLocalFolder(config.getLocalPath().toPath().c_str());
     this->mName= NULL;
@@ -24199,7 +24194,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     , mActive(sync->mActive)
     , mEnabled(sync->mEnabled)
 {
-    this->setBackupId(sync->getBackupId());
+    this->setBackupId(sync->mBackupId);
     this->localFolder = NULL;
     this->mName = NULL;
     this->setLocalFolder(sync->getLocalFolder());
