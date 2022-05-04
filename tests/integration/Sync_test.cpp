@@ -3130,6 +3130,15 @@ void StandardClient::waitonsyncs(chrono::seconds d)
     {
         bool any_add_del = client.syncs.syncBusyState;
 
+        thread_do<bool>([&any_add_del, this](StandardClient& mc, PromiseBoolSP pb)
+            {
+                if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
+                {
+                    any_add_del = true;
+                }
+                pb->set_value(true);
+            }).get();
+
         if (any_add_del || debugging)
         {
             start = chrono::steady_clock::now();
@@ -3724,9 +3733,14 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
                     if (!result[i].syncStalled)
                     {
-                        if (mc.client.syncs.syncBusyState)
+                        if (mc.client.syncs.getConfigs(true).size())
                         {
                             any_running_at_all = true;
+                        }
+
+                        if (mc.client.syncs.syncBusyState)
+                        {
+                            any_activity = true;
                         }
 
                         if (!(mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))

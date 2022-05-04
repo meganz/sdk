@@ -3451,7 +3451,7 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
     return v;
 }
 
-SyncConfigVector Syncs::getConfigs(bool onlyActive) const
+SyncConfigVector Syncs::getConfigs(bool onlyActive, bool excludePaused) const
 {
     assert(onSyncThread() || !onSyncThread());
 
@@ -3460,7 +3460,8 @@ SyncConfigVector Syncs::getConfigs(bool onlyActive) const
     SyncConfigVector v;
     for (auto& s : mSyncVec)
     {
-        if (s->mSync || !onlyActive)
+        if ((s->mSync && (!excludePaused || !s->mConfig.mTemporarilyPaused))
+            || !onlyActive)
         {
             v.push_back(s->mConfig);
         }
