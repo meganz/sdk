@@ -1003,7 +1003,6 @@ private:
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
 
-
     vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection

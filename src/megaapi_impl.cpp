@@ -5181,12 +5181,12 @@ void MegaFileGet::progress()
 #endif
 }
 
-void MegaFileGet::completed(Transfer*, putsource_t)
+void MegaFileGet::completed(Transfer*, putsource_t source)
 {
     delete this;
 }
 
-void MegaFileGet::terminated(error)
+void MegaFileGet::terminated(error e)
 {
     delete this;
 }
@@ -5277,11 +5277,11 @@ void MegaFilePut::completed(Transfer* t, putsource_t source)
     if(customMtime >= 0)
         t->mtime = customMtime;
 
-    File::completed(t, PUTNODES_APP);
+    File::completed(t, source);
     delete this;
 }
 
-void MegaFilePut::terminated(error)
+void MegaFilePut::terminated(error e)
 {
     delete this;
 }

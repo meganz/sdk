@@ -314,7 +314,7 @@ void AppFileGet::completed(Transfer*, putsource_t source)
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFileGet::terminated(error)
+void AppFileGet::terminated(error e)
 {
     delete this;
 }
@@ -322,13 +322,13 @@ void AppFileGet::terminated(error)
 void AppFilePut::completed(Transfer* t, putsource_t source)
 {
     // perform standard completion (place node in user filesystem etc.)
-    File::completed(t, PUTNODES_APP);
+    File::completed(t, source);
 
     delete this;
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFilePut::terminated(error)
+void AppFilePut::terminated(error e)
 {
     delete this;
 }
@@ -8857,23 +8857,22 @@ int main(int argc, char* argv[])
     mega::GfxProc* gfx = nullptr;
 #endif
 
-    // Determine the current working directory.
-    {
-        // Needed so we can get the cwd.
-        auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-
-        // Where are we?
-        if (!fsAccess->cwd(*startDir))
-        {
-            cerr << "Unable to determine current working directory." << endl;
-            return EXIT_FAILURE;
-        }
-    }
+    // Needed so we can get the cwd.
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 
 #ifdef __APPLE__
     // Try and raise the file descriptor limit as high as we can.
     platformSetRLimitNumFile();
-#endif // __APPLE__
+#endif
+
+    // Where are we?
+    if (!fsAccess->cwd(*startDir))
+    {
+        cerr << "Unable to determine current working directory." << endl;
+        return EXIT_FAILURE;
+    }
+
+    fsAccess.reset();
 
     auto httpIO = new HTTPIO_CLASS;
 
@@ -9676,7 +9675,7 @@ void exec_syncstatus(autocomplete::ACState& s)
              << toSuffixedString(info.mTotalSyncedBytes)
              << "\n"
              << "  Transfer progress: "
-             << info.mTransferCounts.progress() * 100.0
+             << info.mTransferCounts.progress(0) * 100.0
              << "%\n"
              << "  Transfer speed: "
              << toSuffixedString(speeds[info.mBackupID])

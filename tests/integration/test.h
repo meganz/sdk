@@ -406,7 +406,7 @@ struct StandardClient : public ::mega::MegaApp
             delete this;
         }
 
-        void terminated(error) override
+        void terminated(error e) override
         {
             result->set_value(false);
             delete this;
@@ -425,7 +425,7 @@ struct StandardClient : public ::mega::MegaApp
             delete this;
         }
 
-        void terminated(error) override
+        void terminated(error e) override
         {
             delete this;
         }

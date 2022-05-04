@@ -3137,14 +3137,14 @@ bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
     return !(*this == rhs);
 }
 
-double SyncTransferCounts::progress() const
+double SyncTransferCounts::progress(m_off_t inflightProgress) const
 {
     auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
 
     if (!pending)
         return 1.0;
 
-    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes;
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes + inflightProgress;
     auto progress = static_cast<double>(completed) / static_cast<double>(pending);
 
     return std::min(1.0, progress);

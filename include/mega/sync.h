@@ -409,9 +409,6 @@ public:
     MegaClient* client() const { return mClient; }
 };
 
-
-
-
 class MEGA_API Sync
 {
 public:
@@ -670,9 +667,6 @@ private:
     // Metadata regarding a given drive.
     struct DriveInfo
     {
-        // Directory on the drive containing the database.
-        //LocalPath dbPath;
-
         // Path to the drive itself.
         LocalPath drivePath;
 

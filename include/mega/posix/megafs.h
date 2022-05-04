@@ -22,6 +22,10 @@
 #ifndef MEGA_POSIX_FS_H
 #define MEGA_POSIX_FS_H
 
+#ifndef FSACCESS_CLASS
+#define FSACCESS_CLASS PosixFileSystemAccess
+#endif // ! FSACCESS_CLASS
+
 #ifdef  __APPLE__
 // Apple calls it sendfile, but it isn't
 #undef HAVE_SENDFILE
@@ -118,6 +122,8 @@ public:
     fsfp_t fsFingerprint(const LocalPath& path) const override;
 
     bool fsStableIDs(const LocalPath& path) const override;
+
+    bool initFilesystemNotificationSystem() override;
 #endif // ENABLE_SYNC
 
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
