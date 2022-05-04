@@ -1,3 +1,5 @@
+#include <future>
+
 #include "mega.h"
 
 namespace mega {
@@ -185,7 +187,7 @@ MacDirNotify::MacDirNotify(MacFileSystemAccess& owner,
 
     // Let the owner know we're active.
     ++mOwner.mNumNotifiers;
-    
+
     // Let the engine know everything's ok.
     setFailed(0, "");
 }
@@ -220,11 +222,28 @@ void MacDirNotify::callback(const FSEventStreamEventFlags* flags,
     while (numEvents--)
     {
         auto flag = *flags++;
+
+        //// Are we dealing with a symlink?
+        //if ((flag & kFSEventStreamEventFlagItemIsSymlink))
+        //{
+        //    LOG_debug << "Link skipped: "
+        //              << *paths;
+
+        //    continue;
+        //}
+
         auto path = *paths++ + mRootPathLength;
 
         // Skip leading seperator.
         if (*path == '/')
             ++path;
+
+        //// Translate path into something useful.
+        //auto localPath = LocalPath::fromPlatformEncodedRelative(path);
+
+        //// Is this notification coming from the debris directory?
+        //if (!localPath.empty() && ignore.isContainingPathOf(localPath))
+        //    continue;
 
         // Has the root path been invalidated?
         if ((flag & kFSEventStreamEventFlagRootChanged))

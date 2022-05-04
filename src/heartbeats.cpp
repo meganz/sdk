@@ -335,10 +335,17 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 
         hbs->setLastBeat(m_time(nullptr));
 
+        m_off_t inflightProgress = 0;
+        if (us.mSync)
+        {
+            // to be figured out for sync rework
+            //inflightProgress = us.mSync->getInflightProgress();
+        }
+
         auto reportCounts = hbs->mSnapshotTransferCounts;
         reportCounts -= hbs->mResolvedTransferCounts;
 
-        auto progress = uint8_t(100.0 * reportCounts.progress());
+        auto progress = uint8_t(100.0 * reportCounts.progress(inflightProgress));
 
         hbs->mSending = true;
 

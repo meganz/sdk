@@ -77,7 +77,7 @@ namespace {
 //    const std::vector<mega::byte> mContent;
 //    const bool mReadFails = false;
 //};
-
+//
 //class MockInputStreamAccess : public mega::InputStreamAccess
 //{
 //public:
