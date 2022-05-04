@@ -366,26 +366,40 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             }
             else if (it->first == AttrMap::string2nameid("fav"))
             {
-                int fav = it->second.empty() ? 0 : std::stoi(it->second);
-                if (fav != 1)
+                try
                 {
-                    LOG_err << "Invalid value for node attr fav: " << fav;
+                    int fav = it->second.empty() ? 0 : std::stoi(it->second);
+                    if (fav != 1)
+                    {
+                        LOG_err << "Invalid value for node attr fav: " << fav;
+                    }
+                    else
+                    {
+                        mFavourite = fav;
+                    }
                 }
-                else
+                catch (std::exception& ex)
                 {
-                    mFavourite = fav;
+                    LOG_err << "Conversion failure for node attr fav: " << ex.what();
                 }
             }
             else if (it->first == AttrMap::string2nameid("lbl"))
             {
-                int lbl = it->second.empty() ? (LBL_RED - 1) : std::stoi(it->second);
-                if (lbl < LBL_RED || lbl > LBL_GREY)
+                try
                 {
-                    LOG_err << "Invalid value for node attr lbl: " << lbl;
+                    int lbl = it->second.empty() ? LBL_UNKNOWN : std::stoi(it->second);
+                    if (lbl < LBL_RED || lbl > LBL_GREY)
+                    {
+                        LOG_err << "Invalid value for node attr lbl: " << lbl;
+                    }
+                    else
+                    {
+                        mLabel = static_cast<nodelabel_t>(lbl);
+                    }
                 }
-                else
+                catch (std::exception& ex)
                 {
-                    mLabel = static_cast<nodelabel_t>(lbl);
+                    LOG_err << "Conversion failure for node attr lbl: " << ex.what();
                 }
             }
             else if (it->first == AttrMap::string2nameid("dev-id") ||
