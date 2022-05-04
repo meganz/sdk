@@ -3818,13 +3818,21 @@ bool createNameFile(const fs::path &p, const string &filename)
 
 bool createDataFileWithTimestamp(const fs::path &path,
                              const std::string &data,
+                             const fs::path& tmpCreationLocation,
                              const fs::file_time_type &timestamp)
 {
-    const bool result = createDataFile(path, data);
+    // Create the file at a neutral location first so we can set the timestamp without a sync noticing the wrong timestamp first
+    bool result = createDataFile(tmpCreationLocation / path.filename(), data);
 
     if (result)
     {
-        fs::last_write_time(path, timestamp);
+        fs::last_write_time(tmpCreationLocation / path.filename(), timestamp);
+
+        // Now that it has the proper mtime, move it to the correct location
+        error_code rename_error;
+        fs::rename(tmpCreationLocation / path.filename(), path, rename_error);
+        EXPECT_TRUE(!rename_error) << rename_error;
+        result = !rename_error;
     }
 
     return result;
@@ -3910,6 +3918,9 @@ class SyncFingerprintCollision
   : public ::testing::Test
 {
 public:
+
+    fs::path testRootFolder;
+
     SyncFingerprintCollision()
       : client0()
       , client1()
@@ -3917,10 +3928,10 @@ public:
       , model1()
       , arbitraryFileLength(16384)
     {
-        const fs::path root = makeNewTestRoot();
+        testRootFolder = makeNewTestRoot();
 
-        client0 = ::mega::make_unique<StandardClient>(root, "c0");
-        client1 = ::mega::make_unique<StandardClient>(root, "c1");
+        client0 = ::mega::make_unique<StandardClient>(testRootFolder, "c0");
+        client1 = ::mega::make_unique<StandardClient>(testRootFolder, "c1");
 
         client0->logcb = true;
         client1->logcb = true;
@@ -4023,6 +4034,7 @@ TEST_F(SyncFingerprintCollision, DISABLED_DifferentMacSameName)
                                  createDataFileWithTimestamp(
                                  path1,
                                  data1,
+                                 testRootFolder,
                                  fs::last_write_time(path0)));
 
                              client0->triggerPeriodicScanEarly(backupId0);
@@ -4042,12 +4054,16 @@ TEST_F(SyncFingerprintCollision, DISABLED_DifferentMacSameName)
 
 TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
 {
+    // both files same length (so this portion of the fingerprint is the same for the two cases)
     auto data0 = randomData(arbitraryFileLength);
     auto data1 = data0;
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_0" / "b";
 
-    data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
+    // 0x20 is within the first region that makes up crc in the (sparse) fingerprint
+    // 0x41 is just outside it
+    // therefore, for this case: use 0x20 so the mac is different between the test files
+    data1[0x20] = static_cast<uint8_t>(~data1[0x20]);
 
     ASSERT_TRUE(createDataFile(path0, data0));
     client0->triggerPeriodicScanEarly(backupId0);
@@ -4060,6 +4076,8 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
                                  createDataFileWithTimestamp(
                                  path1,
                                  data1,
+                                 testRootFolder,
+                                 // exactly the same mtime (so this piece of the
                                  fs::last_write_time(path0)));
 
                              client0->triggerPeriodicScanEarly(backupId0);
@@ -4094,6 +4112,7 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
                                  createDataFileWithTimestamp(
                                  path1,
                                  data0,
+                                 testRootFolder,
                                  fs::last_write_time(path0)));
 
                             client0->triggerPeriodicScanEarly(backupId0);
