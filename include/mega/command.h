@@ -44,6 +44,9 @@ protected:
     JSONWriter jsonWriter;
     bool mRead = false;// if json has already been read
 
+    bool loadIpsFromJson(std::vector<string>& ips);
+    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips);
+
 public:
     MegaClient* client; // non-owning
 
@@ -156,6 +159,9 @@ public:
 // file attribute put
 struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 {
+    using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
+    Cb mCompletion;
+
     NodeOrUploadHandle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
     fatype type;
     m_off_t progressreported;
@@ -165,7 +171,8 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     // progress information
     virtual m_off_t transferred(MegaClient*) override;
 
-    HttpReqCommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, std::unique_ptr<string> faData);
+    HttpReqCommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, size_t size,
+                        std::unique_ptr<string> faData, bool getIP = true, Cb &&completion = nullptr);
 
 private:
     std::unique_ptr<string> data;

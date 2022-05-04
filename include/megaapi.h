@@ -3177,7 +3177,8 @@ class MegaRequest
             TYPE_START_CHAT_CALL                                            = 142,
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
-            TOTAL_OF_REQUEST_TYPES                                          = 145,
+            TYPE_GET_FA_UPLOAD_URL                                          = 145,
+            TOTAL_OF_REQUEST_TYPES                                          = 146,
         };
 
         virtual ~MegaRequest();
@@ -3304,6 +3305,8 @@ class MegaRequest
          * - MegaApi::getUrlChat - Returns the user-specific URL for the chat
          * - MegaApi::getChatPresenceURL - Returns the user-specific URL for the chat presence server
          * - MegaApi::getUploadURL - Returns the upload IPv4
+         * - MegaApi::getThumbnailUploadURL - Returns the upload IPv4
+         * - MegaApi::getPreviewUploadURL - Returns the upload IPv4
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv4 of the server in the URL(s)
          *
          * The SDK retains the ownership of the returned value. It will be valid until
@@ -3366,6 +3369,8 @@ class MegaRequest
          * - MegaApi::setScheduledCopy - Returns the device id hash of the backup source device
          * - MegaApi::updateBackup - Returns the device id hash of the backup source device
          * - MegaApi::getUploadURL - Returns the upload URL
+         * - MegaApi::getThumbnailUploadURL - Returns the upload URL
+         * - MegaApi::getPreviewUploadURL - Returns the upload URL
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3581,6 +3586,8 @@ class MegaRequest
          * - MegaApi::createAccount - Returns the lastname for the new account
          * - MegaApi::setScheduledCopy - Returns the cron like time string to define period
          * - MegaApi::getUploadURL - Returns the upload IPv6
+         * - MegaApi::getThumbnailUploadURL - Returns the upload IPv6
+         * - MegaApi::getPreviewUploadURL - Returns the upload IPv6
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv6 of the server in the URL(s)
          * - MegaApi::startChatCall - Returns the url sfu
          * - MegaApi::joinChatCall - Returns the url sfu
@@ -16804,7 +16811,7 @@ class MegaApi
         /**
          * @brief Create the node after completing the upload of the file by the app.
          *
-		 * Note: added for the use of MEGA Proxy and not otherwise supported
+         * Note: added for the use of MEGAproxy and not otherwise supported
 		 *
          * Call this function after completing the upload of all the file data
          * The node representing the file will be created in the cloud, with all the suitable
@@ -16840,7 +16847,7 @@ class MegaApi
         /**
          * @brief Request the URL suitable for uploading a file.
          *
-		 * Note: added for the use of MEGA Proxy and not otherwise supported
+         * Note: added for the use of MEGAproxy and not otherwise supported
 		 *
          * This function requests the base URL needed for uploading the file.
          * The URL will need the urlSuffix resulting from encryption.
@@ -16857,10 +16864,60 @@ class MegaApi
          * A new URL could specify a different upload server for example.
          *
          * @param fullFileSize The size of the file
-         * @param forceSSL Enforce using getting a https URL
+         * @param forceSSL Enforce getting a https URL
          * @param listener MegaRequestListener to track this request
          */
          void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+
+         /**
+          * @brief Request the URL suitable for uploading a thubmnail for a node.
+          *
+          * Note: added for the use of MEGAproxy
+          *
+          * This function requests the base URL needed for uploading the thumbnail.
+          *
+          * The associated request type with this request is MegaRequest::TYPE_GET_FA_UPLOAD_URL
+          * Valid data in the MegaRequest object received in onRequestFinish when the error code
+          * is MegaError::API_OK:
+          * - MegaRequest::getName - The URL to use
+          * - MegaRequest::getLink - The IPv4 of the upload server
+          * - MegaRequest::getText - The IPv6 of the upload server
+          *
+          * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
+          * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
+          * A new URL could specify a different upload server for example.
+          *
+          * @param nodehandle handle of the node
+          * @param fullFileSize The size of the thumbnail
+          * @param forceSSL Enforce getting a https URL
+          * @param listener MegaRequestListener to track this request
+          */
+         void getThumbnailUploadURL(MegaHandle nodehandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+
+         /**
+          * @brief Request the URL suitable for uploading a preview for a node.
+          *
+          * Note: added for the use of MEGAproxy
+          *
+          * This function requests the base URL needed for uploading the preview.
+          *
+          * The associated request type with this request is MegaRequest::TYPE_GET_FA_UPLOAD_URL
+          * Valid data in the MegaRequest object received in onRequestFinish when the error code
+          * is MegaError::API_OK:
+          * - MegaRequest::getName - The URL to use
+          * - MegaRequest::getLink - The IPv4 of the upload server
+          * - MegaRequest::getText - The IPv6 of the upload server
+          *
+          * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
+          * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
+          * A new URL could specify a different upload server for example.
+          *
+          * @param nodehandle handle of the node
+          * @param fullFileSize The size of the preview
+          * @param forceSSL Enforce getting a https URL
+          * @param listener MegaRequestListener to track this request
+          */
+         void getPreviewUploadURL(MegaHandle nodehandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
 
         /**
          * @brief Create the node after completing the background upload of the file.

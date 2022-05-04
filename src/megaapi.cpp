@@ -5437,6 +5437,16 @@ void MegaApi::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListe
     return pImpl->getUploadURL(fullFileSize, forceSSL, listener);
 }
 
+void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+{
+    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::THUMBNAIL, forceSSL, listener);
+}
+
+void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+{
+    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::PREVIEW, forceSSL, listener);
+}
+
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
     const char *string64UploadToken, MegaRequestListener *listener)
 {

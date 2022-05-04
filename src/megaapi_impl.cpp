@@ -4015,6 +4015,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
+        case TYPE_GET_FA_UPLOAD_URL: return "GET_FA_UPLOAD_URL";
     }
     return "UNKNOWN";
 }
@@ -9241,6 +9242,17 @@ void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestL
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, listener);
     req->setNumber(fullFileSize);
     req->setFlag(forceSSL);
+    requestQueue.push(req);
+    waiter->notify();
+}
+
+void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullFileSize, int faType, bool forceSSL, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_FA_UPLOAD_URL, listener);
+    req->setNodeHandle(nodehandle);
+    req->setNumber(fullFileSize);
+    req->setFlag(forceSSL);
+    req->setParamType(faType);
     requestQueue.push(req);
     waiter->notify();
 }
@@ -22495,6 +22507,38 @@ void MegaApiImpl::sendPendingRequests()
                 request->setPrivateKey(folderkeyB64.chars);
                 client->getpubliclinkinfo(h);
             }
+            break;
+        }
+        case MegaRequest::TYPE_GET_FA_UPLOAD_URL:
+        {
+            bool getIp = true;
+            uint64_t nodeHandle = request->getNodeHandle();
+            int intFaType = request->getParamType();
+            assert(intFaType >= 0 && (intFaType < (1 << (sizeof(fatype)*8)))); // Value of intFaType <= (2^(fatype_numbits) - 1)
+            fatype faType = static_cast<fatype>(intFaType); // if the assert above is true, int should fit fine into a fatype (uint16_t)
+            bool forceSSL = request->getFlag();
+            long long fullSize = request->getNumber();
+
+            NodeOrUploadHandle nuh(NodeHandle().set6byte(nodeHandle));
+
+            client->reqs.add(new HttpReqCommandPutFA(std::move(nuh), faType, forceSSL, -1, fullSize, nullptr, getIp,
+            [this, request](Error e, const std::string &url, const std::vector<std::string> &ips)
+            {
+                assert(e != API_OK || !url.empty());
+                if (e == API_OK && !url.empty())
+                {
+                    request->setName(url.c_str());
+                    if (!ips.empty())
+                    {
+                        request->setLink(ips.at(0).c_str());
+                    }
+                    if (ips.size() > 1)
+                    {
+                        request->setText(ips.at(1).c_str());
+                    }
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
             break;
         }
         case MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL:
