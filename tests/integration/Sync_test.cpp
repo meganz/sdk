@@ -2204,7 +2204,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, fs::path p, int& des
 
 Sync* StandardClient::syncByBackupId(handle backupId)
 {
-    return client.syncs.runningSyncByBackupId(backupId);
+    return client.syncs.runningSyncByBackupIdForTests(backupId);
 }
 
 void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result)
@@ -2447,16 +2447,12 @@ void StandardClient::catchup_result()
 
 void StandardClient::disableSync(handle id, SyncError error, bool enabled, PromiseBoolSP result)
 {
-    client.syncs.disableSelectedSyncs(
-        [id](SyncConfig& config, Sync*)
-        {
-            return config.mBackupId == id;
-        },
+    client.syncs.disableSyncByBackupId(id,
         false,
         error,
         enabled,
-        [result](size_t nDisabled){
-            result->set_value(!!nDisabled);
+        [result](){
+            result->set_value(true);
         });
 }
 
@@ -8615,7 +8611,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     clientA1Resume.client.dumpsession(session);
     clientA1Resume.localLogout();
 
-    auto remainingResumeSyncs = clientA1Resume.client.syncs.allConfigs();
+    auto remainingResumeSyncs = clientA1Resume.client.syncs.getConfigs(false);
     ASSERT_EQ(0u, remainingResumeSyncs.size());
 
     if (paused)
@@ -9103,7 +9099,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
             ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
 
             // Disable the sync.
-            cb.client.syncs.disableSyncs(NO_SYNC_ERROR, true);
+            cb.client.syncs.disableSyncs(false, NO_SYNC_ERROR, true, nullptr);
 
             // Callback's done its job.
             cb.mOnFileAdded = nullptr;

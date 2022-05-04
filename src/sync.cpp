@@ -801,12 +801,13 @@ SyncError SyncConfig::knownError() const
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const char* cdebris,
            LocalPath* clocaldebris, Node* remotenode, bool cinshare)
-: localroot(new LocalNode)
+: syncs(us.syncs)
+, localroot(new LocalNode)
 , mUnifiedSync(us)
-, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &mUnifiedSync.mClient))
+, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient))
 {
     isnetwork = false;
-    client = &mUnifiedSync.mClient;
+    client = &syncs.mClient;
     inshare = cinshare;
     tmpfa = NULL;
     initializing = true;
@@ -1209,36 +1210,39 @@ void Sync::cachenodes()
 
 void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
 {
-    auto& config = getConfig();
+    mUnifiedSync.changeState(newstate, newSyncError, newEnableFlag, notifyApp);
+}
 
+void UnifiedSync::changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
+{
     // Transitioning to a 'stopped' state...
     if (newstate < SYNC_INITIALSCAN)
     {
         // Should "user-disable" external backups...
-        newEnableFlag &= config.isInternal();
+        newEnableFlag &= mConfig.isInternal();
     }
 
-    if (!newEnableFlag && statecachetable)
+    if (!newEnableFlag && mSync && mSync->statecachetable)
     {
         // make sure db is up to date before we close it.
-        cachenodes();
+        mSync->cachenodes();
 
         // remove the LocalNode database files on sync disablement (historic behaviour; sync re-enable with LocalNode state from non-matching SCSN is not supported (yet))
-        statecachetable->remove();
-        statecachetable.reset();
+        mSync->statecachetable->remove();
+        mSync->statecachetable.reset();
     }
 
-    config.mError = newSyncError;
-    config.setEnabled(newEnableFlag);
+    mConfig.mError = newSyncError;
+    mConfig.setEnabled(newEnableFlag);
 
     bool makeActiveCallback = false;
     bool nowActive = false;
 
-    if (newstate != state())
+    if (newstate != mConfig.mRunningState)
     {
-        auto oldstate = state();
-        state() = newstate;
-        fullscan = false;
+        auto oldstate = mConfig.mRunningState;
+        mConfig.mRunningState = newstate;
+        if (mSync) mSync->fullscan = false;
 
         if (notifyApp)
         {
@@ -1253,13 +1257,13 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
 
     if (newstate != SYNC_CANCELED)
     {
-        mUnifiedSync.changedConfigState(notifyApp);
+        changedConfigState(notifyApp);
     }
 
     if (makeActiveCallback)
     {
         // Per MegaApi documentation, this callback occurs after the changed-state callback
-        mUnifiedSync.mClient.app->syncupdate_active(config, nowActive);
+        syncs.mClient.app->syncupdate_active(mConfig, nowActive);
     }
 }
 
@@ -2363,7 +2367,7 @@ m_off_t Sync::getInflightProgress()
 
 
 UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
-    : syncs(s), mClient(s.mClient), mConfig(c)
+    : syncs(s), mConfig(c)
 {
     mNextHeartbeat.reset(new HeartBeatSyncInfo());
 }
@@ -2383,7 +2387,7 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
     std::unique_ptr<FileAccess> openedLocalFolder;
     string remotenodename;
     bool inshare, isnetwork;
-    error e = mClient.checkSyncConfig(mConfig, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
+    error e = syncs.mClient.checkSyncConfig(mConfig, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
 
     if (e)
     {
@@ -2392,11 +2396,11 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
         return e;
     }
 
-    e = startSync(&mClient, DEBRISFOLDER, nullptr, mConfig.mRemoteNode, inshare, isnetwork, rootpath, openedLocalFolder);
-    mClient.syncactivity = true;
+    e = startSync(&syncs.mClient, DEBRISFOLDER, nullptr, mConfig.mRemoteNode, inshare, isnetwork, rootpath, openedLocalFolder);
+    syncs.mClient.syncactivity = true;
     changedConfigState(notifyApp);
 
-    mClient.syncs.mHeartBeatMonitor->updateOrRegisterSync(*this);
+    syncs.mHeartBeatMonitor->updateOrRegisterSync(*this);
 
     return e;
 }
@@ -2430,11 +2434,11 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
     if (changed || forceCallback)
     {
-        mClient.app->syncupdate_remote_root_changed(mConfig);
+        syncs.mClient.app->syncupdate_remote_root_changed(mConfig);
     }
 
     //persist
-    mClient.syncs.saveSyncConfig(mConfig);
+    syncs.saveSyncConfig(mConfig);
 
     return changed;
 }
@@ -2510,12 +2514,12 @@ void UnifiedSync::changedConfigState(bool notifyApp)
     {
         LOG_debug << "Sync " << toHandle(mConfig.mBackupId) << " enabled/error changed to " << mConfig.mEnabled << "/" << mConfig.mError;
 
-        mClient.syncs.saveSyncConfig(mConfig);
+        syncs.saveSyncConfig(mConfig);
         if (notifyApp)
         {
-            mClient.app->syncupdate_stateconfig(mConfig);
+            syncs.mClient.app->syncupdate_stateconfig(mConfig);
         }
-        mClient.abortbackoff(false);
+        syncs.mClient.abortbackoff(false);
     }
 }
 
@@ -2538,12 +2542,15 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
     return v;
 }
 
-SyncConfigVector Syncs::allConfigs() const
+SyncConfigVector Syncs::getConfigs(bool onlyActive) const
 {
     SyncConfigVector v;
     for (auto& s : mSyncVec)
     {
-        v.push_back(s->mConfig);
+        if (s->mSync || !onlyActive)
+        {
+            v.push_back(s->mConfig);
+        }
     }
     return v;
 }
@@ -2789,7 +2796,7 @@ bool Syncs::syncConfigStoreFlush()
     // Try and flush changes to disk.
     LOG_debug << "Attempting to flush config store changes.";
 
-    auto failed = mSyncConfigStore->writeDirtyDrives(allConfigs());
+    auto failed = mSyncConfigStore->writeDirtyDrives(getConfigs(false));
 
     if (failed.empty()) return true;
 
@@ -2798,28 +2805,38 @@ bool Syncs::syncConfigStoreFlush()
              << " drive(s).";
 
     // Disable syncs present on drives that we couldn't write.
-    size_t nFailed = failed.size();
+    auto nDisabled = 0u;
 
-    disableSelectedSyncs(
-        [&](SyncConfig& config, Sync*)
+    for (auto& drivePath : failed)
+    {
+        // Determine which syncs are present on this drive.
+        auto configs = configsForDrive(drivePath);
+
+        // Disable those that aren't already disabled.
+        for (auto& config : configs)
         {
-            // But only if they're not already disabled.
-            if (!config.getEnabled()) return false;
+            // Already disabled? Nothing to do.
+            //
+            // dgw: This is what prevents an infinite flush cycle.
+            if (!config.mEnabled)
+                continue;
 
-            auto matched = failed.count(config.mExternalDrivePath);
+            // Disable the sync.
+            disableSyncByBackupId(config.mBackupId,
+                                  true,
+                                  SYNC_CONFIG_WRITE_FAILURE,
+                                  false,
+                                  nullptr);
 
-            return matched > 0;
-        },
-        false,
-        SYNC_CONFIG_WRITE_FAILURE,
-        false,
-        [=](size_t disabled){
-            LOG_warn << "Disabled "
-                << disabled
-                << " sync(s) on "
-                << nFailed
-                << " drive(s).";
-        });
+            ++nDisabled;
+        }
+    }
+
+    LOG_warn << "Disabled"
+             << nDisabled
+             << " sync(s) on "
+             << failed.size()
+             << " drive(s).";
 
     return false;
 }
@@ -3434,20 +3451,6 @@ void Syncs::resetSyncConfigStore()
     static_cast<void>(syncConfigStore());
 }
 
-vector<NodeHandle> Syncs::getSyncRootHandles(bool mustBeActive)
-{
-    vector<NodeHandle> v;
-    for (auto& s : mSyncVec)
-    {
-        if (mustBeActive && (!s->mSync || !s->mSync->active()))
-        {
-            continue;
-        }
-        v.emplace_back(s->mConfig.mRemoteNode);
-    }
-    return v;
-}
-
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
 {
     isEmpty = false;
@@ -3458,7 +3461,7 @@ auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
     return mSyncVec.back().get();
 }
 
-Sync* Syncs::runningSyncByBackupId(handle backupId) const
+Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const
 {
     for (auto& s : mSyncVec)
     {
@@ -3653,49 +3656,53 @@ void Syncs::renameSync(handle backupId, const string& newname, std::function<voi
     completion(API_EEXIST);
 }
 
-void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
+void Syncs::disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> callerCompletion)
 {
-    disableSelectedSyncs([&](SyncConfig& config, Sync*)
+    SyncConfigVector v = getConfigs(false);
+
+    int nEnabled = 0;
+    for (auto& c : v)
+    {
+        if (c.getEnabled()) ++nEnabled;
+    }
+
+    auto countdown = nEnabled;
+    for (auto& c : v)
+    {
+        if (c.getEnabled())
         {
-            return config.getEnabled();
-        },
-        false,
-        syncError,
-        newEnabledFlag,
-        [=](size_t nDisabled) {
-            LOG_info << "Disabled " << nDisabled << " syncs. error = " << syncError;
-            if (nDisabled) mClient.app->syncs_disabled(syncError);
-        });
+
+            std::function<void()> completion = nullptr;
+            if (!--countdown)
+            {
+                completion = [=](){
+                    LOG_info << "Disabled syncs. error = " << syncError;
+                    mClient.app->syncs_disabled(syncError);
+                };
+            }
+
+            disableSyncByBackupId(c.mBackupId, disableIsFail, syncError, newEnabledFlag, completion);
+        }
+    }
+
+    if (callerCompletion) callerCompletion(nEnabled);
 }
 
-void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion)
+void Syncs::disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion)
 {
-    size_t nDisabled = 0;
     for (auto i = mSyncVec.size(); i--; )
     {
         auto& us = *mSyncVec[i];
         auto& config = us.mConfig;
-        auto* sync = us.mSync.get();
 
-        if (selector(config, sync))
+        if (config.mBackupId == backupId)
         {
-            if (sync)
-            {
-                sync->changestate(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
-                mClient.syncactivity = true;
-            }
-            else
-            {
-                config.mError = syncError;
-                config.setEnabled(config.isInternal() && newEnabledFlag);
-                us.changedConfigState(true);
-            }
-            nDisabled += 1;
+            us.changeState(disableIsFail ? SYNC_FAILED : SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
-            mHeartBeatMonitor->updateOrRegisterSync(*mSyncVec[i]);
+            mHeartBeatMonitor->updateOrRegisterSync(us);
         }
     }
-    if (completion) completion(nDisabled);
+    if (completion) completion();
 }
 
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
@@ -4034,9 +4041,9 @@ bool SyncConfigStore::removeDrive(const LocalPath& drivePath)
 
 error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& configs, bool isExternal)
 {
-    DriveInfo driveInfo;
+    assert(drivePath.empty() || drivePath.isAbsolute());
 
-    driveInfo.dbPath = dbPath(drivePath);
+    DriveInfo driveInfo;
     driveInfo.drivePath = drivePath;
 
     if (isExternal)
@@ -4054,7 +4061,7 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
 
     vector<unsigned int> confSlots;
 
-    auto result = mIOContext.getSlotsInOrder(driveInfo.dbPath, confSlots);
+    auto result = mIOContext.getSlotsInOrder(dbPath(driveInfo.drivePath), confSlots);
 
     if (result == API_OK)
     {
@@ -4081,10 +4088,12 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
 
 error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector& configs)
 {
+#ifdef DEBUG
     for (const auto& config : configs)
     {
         assert(equal(config.mExternalDrivePath, drivePath));
     }
+#endif
 
     // Drive should already be known.
     assert(mKnownDrives.count(drivePath));
@@ -4097,7 +4106,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 
     if (configs.empty())
     {
-        error e = mIOContext.remove(drive.dbPath);
+        error e = mIOContext.remove(dbPath(drive.drivePath));
         if (e)
         {
             LOG_warn << "Unable to remove sync configs at: "
@@ -4110,7 +4119,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         JSONWriter writer;
         mIOContext.serialize(configs, writer);
 
-        error e = mIOContext.write(drive.dbPath,
+        error e = mIOContext.write(dbPath(drive.drivePath),
             writer.getstring(),
             drive.slot);
 
@@ -4126,7 +4135,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         drive.slot = (drive.slot + 1) % NUM_CONFIG_SLOTS;
 
         // remove the existing slot (if any), since it is obsolete now
-        mIOContext.remove(drive.dbPath, drive.slot);
+        mIOContext.remove(dbPath(drive.drivePath), drive.slot);
 
         return API_OK;
     }
@@ -4136,17 +4145,17 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
                              unsigned int slot, bool isExternal)
 {
-    const auto& dbPath = driveInfo.dbPath;
+    auto dbp = dbPath(driveInfo.drivePath);
     string data;
 
-    if (mIOContext.read(dbPath, data, slot) != API_OK)
+    if (mIOContext.read(dbp, data, slot) != API_OK)
     {
         return API_EREAD;
     }
 
     JSON reader(data);
 
-    if (!mIOContext.deserialize(dbPath, configs, reader, slot, isExternal))
+    if (!mIOContext.deserialize(dbp, configs, reader, slot, isExternal))
     {
         return API_EREAD;
     }
@@ -4159,6 +4168,10 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
 
         if (!drivePath.empty())
         {
+            // As it came from an external drive, the path is relative
+            // but we didn't know that until now, for non-external it's absolute of course
+            config.mLocalPath = LocalPath::fromRelativePath(config.mLocalPath.toPath());
+
             config.mLocalPath.prependWithSeparator(drivePath);
         }
     }
@@ -4471,7 +4484,8 @@ error SyncConfigIOContext::remove(const LocalPath& dbPath,
 {
     LocalPath path = dbFilePath(dbPath, slot);
 
-    if (!mFsAccess.unlinklocal(path))
+    if (mFsAccess.fileExistsAt(path) &&  // don't add error messages to the log when it's not an error
+        !mFsAccess.unlinklocal(path))
     {
         LOG_warn << "Unable to remove config DB: "
                  << path;
@@ -4532,7 +4546,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
               << slot;
 
     // Try and create the backup configuration directory.
-    if (!(mFsAccess.mkdirlocal(path, false, true) || mFsAccess.target_exists))
+    if (!(mFsAccess.mkdirlocal(path, false, false) || mFsAccess.target_exists))
     {
         LOG_err << "Unable to create config DB directory: "
                 << dbPath;
