@@ -92,7 +92,11 @@ class MegaGfxProc : public GfxProcExternal {};
 #else
     #ifdef __APPLE__
     typedef CurlHttpIO MegaHttpIO;
-    typedef MacFileSystemAccess MegaFileSystemAccess;
+        #ifdef TARGET_OS_IPHONE
+        typedef PosixFileSystemAccess MegaFileSystemAccess;
+        #else
+        typedef MacFileSystemAccess MegaFileSystemAccess;
+        #endif
     typedef PosixWaiter MegaWaiter;
     #else
     class MegaHttpIO : public CurlHttpIO {};
