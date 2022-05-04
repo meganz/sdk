@@ -250,14 +250,6 @@ public:
     CommandWhyAmIblocked(MegaClient*);
 };
 
-class MEGA_API CommandSendSignupLink : public Command
-{
-public:
-    bool procresult(Result) override;
-
-    CommandSendSignupLink(MegaClient*, const char*, const char*, byte*);
-};
-
 class MEGA_API CommandSendSignupLink2 : public Command
 {
 public:
@@ -267,30 +259,12 @@ public:
     CommandSendSignupLink2(MegaClient*, const char*, const char*, byte *, byte*, byte*);
 };
 
-class MEGA_API CommandQuerySignupLink : public Command
-{
-    string confirmcode;
-
-public:
-    bool procresult(Result) override;
-
-    CommandQuerySignupLink(MegaClient*, const byte*, unsigned);
-};
-
 class MEGA_API CommandConfirmSignupLink2 : public Command
 {
 public:
     bool procresult(Result) override;
 
     CommandConfirmSignupLink2(MegaClient*, const byte*, unsigned);
-};
-
-class MEGA_API CommandConfirmSignupLink : public Command
-{
-public:
-    bool procresult(Result) override;
-
-    CommandConfirmSignupLink(MegaClient*, const byte*, unsigned, uint64_t);
 };
 
 class MEGA_API CommandSetKeyPair : public Command

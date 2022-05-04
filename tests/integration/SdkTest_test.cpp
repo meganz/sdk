@@ -1300,7 +1300,7 @@ string getUniqueAlias()
  *  - Extract cancel account link from the mailbox
  *  - Use the link to cancel the account
  */
-TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
+TEST_F(SdkTest, SdkTestCreateAccount)
 {
     LOG_info << "___TEST Create account___";
 
@@ -1790,11 +1790,8 @@ TEST_F(SdkTest, SdkTestExerciseOtherCommands)
     bool CommandResumeEphemeralSession::procresult(Result r)
     bool CommandCancelSignup::procresult(Result r)
     bool CommandWhyAmIblocked::procresult(Result r)
-    bool CommandSendSignupLink::procresult(Result r)
     bool CommandSendSignupLink2::procresult(Result r)
-    bool CommandQuerySignupLink::procresult(Result r)
     bool CommandConfirmSignupLink2::procresult(Result r)
-    bool CommandConfirmSignupLink::procresult(Result r)
     bool CommandSetKeyPair::procresult(Result r)
     bool CommandReportEvent::procresult(Result r)
     bool CommandSubmitPurchaseReceipt::procresult(Result r)

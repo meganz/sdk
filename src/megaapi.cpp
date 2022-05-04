@@ -2211,6 +2211,11 @@ void MegaApi::sendSignupLink(const char *email, const char *name, const char *pa
     pImpl->sendSignupLink(email, name, password, listener);
 }
 
+void MegaApi::resendSignupLink(const char *email, const char *name, MegaRequestListener *listener)
+{
+    pImpl->resendSignupLink(email, name, listener);
+}
+
 void MegaApi::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
 {
     pImpl->fastSendSignupLink(email, base64pwkey, name, listener);
