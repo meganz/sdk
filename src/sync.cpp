@@ -2524,7 +2524,6 @@ SyncConfigVector Syncs::getConfigs(bool onlyActive) const
     return v;
 }
 
-
 error Syncs::backupCloseDrive(LocalPath drivePath)
 {
     // Is the path valid?

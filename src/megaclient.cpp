@@ -4443,7 +4443,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     {
         // Special case backward compatibility for MEGAsync
         // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-        syncs.disableSyncs(true, LOGGED_OUT, false, nullptr);
+        syncs.disableSyncs(false, LOGGED_OUT, false, nullptr);
     }
     else
     {
@@ -5394,7 +5394,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
         if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
         {
-            syncs.disableSyncs(true, STORAGE_OVERQUOTA, false, nullptr);
+            syncs.disableSyncs(false, STORAGE_OVERQUOTA, false, nullptr);
         }
 #endif
 
@@ -7107,7 +7107,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(true, BUSINESS_EXPIRED, false, nullptr);
+            syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
         }
 #endif
     }
@@ -11834,7 +11834,7 @@ void MegaClient::block(bool fromServerClientResponse)
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
 #ifdef ENABLE_SYNC
-    syncs.disableSyncs(true, ACCOUNT_BLOCKED, false, nullptr);
+    syncs.disableSyncs(false, ACCOUNT_BLOCKED, false, nullptr);
 #endif
 }
 
@@ -12520,7 +12520,7 @@ void MegaClient::fetchnodes(bool nocache)
         // or they may be new ones that were not previously applied.
         // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
         // TODO: the sync rework branch, when ready, will be able to cope with this situation.
-        syncs.disableSyncs(true, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
+        syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
 #endif
 
         if (!loggedinfolderlink())
