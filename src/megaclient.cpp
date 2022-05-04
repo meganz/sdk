@@ -295,43 +295,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
             {
                 TreeProcDel td;
                 proctree(n, &td, true);
-
-                // if there are other shares below this deleted inshare (nested inshares)
-                if (n->inshare->user->sharing.size() > 1)
-                {
-                    // recalculate node counter(s) for any nested in-share below deleted one
-                    // Scan the tree downwards for nested in-shares. Note that deleted in-share(s)
-                    // are effectively removed at notify purge, so the child relationship is valid
-                    // If we find an in-share, stop scanning that branch, since any share below will
-                    // be considered a nested in-share (no node counter for it)
-                    std::stack<Node*> nodeStack;
-                    node_list children = getChildren(n);
-                    for (auto child : children)
-                    {
-                        nodeStack.push(child);
-                    }
-
-                    while (nodeStack.size())
-                    {
-                        Node* node = nodeStack.top();
-                        nodeStack.pop();
-                        if (node->inshare)
-                        {
-                            if (!node->changed.removed)
-                            {
-                                mNodeManager.calculateCounter(*node);
-                            }
-                        }
-                        else
-                        {
-                            node_list children = getChildren(node);
-                            for (auto child : children)
-                            {
-                                nodeStack.push(child);
-                            }
-                        }
-                    }
-                }
             }
             else
             {
@@ -17753,6 +17716,18 @@ void NodeManager::notifyPurge()
 #endif
 
         DBTableTransactionCommitter committer(mClient.tctable);
+
+        // Add counters for nested inshares if parent is going to be removed.
+        // If parent from nested inshare is removed, is due to upper inshare is removed
+        // and we have to calculate the node counter for nested inshare
+        node_vector inShares = getNodesWithInShares();
+        for (Node* node : inShares)
+        {
+            if (!node->changed.removed && node->parent && node->parent->changed.removed)
+            {
+                calculateCounter(*node);
+            }
+        }
 
         // check all notified nodes for removed status and purge
         for (auto n : mNodeNotify)
