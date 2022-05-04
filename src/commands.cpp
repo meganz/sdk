@@ -69,6 +69,12 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, b
     {
         mCompletion = [this](Error e, const std::string & /*url*/, const vector<std::string> & /*ips*/)
         {
+            if (!data || data->empty())
+            {
+                e = API_EARGS;
+                LOG_err << "Data object is " << (!data ? "nullptr" : "empty");
+            }
+
             if (e == API_OK)
             {
                 LOG_debug << "Sending file attribute data";
