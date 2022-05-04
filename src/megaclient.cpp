@@ -17700,7 +17700,7 @@ void NodeManager::notifyPurge()
         NodeHandle rubbishHandle = mClient.rootnodes.rubbish;
         // check for renamed/moved sync root folders
          mClient.syncs.forEachUnifiedSync([&](UnifiedSync& us){
-             Node* n =  mClient.nodeByHandle(us.mConfig.getRemoteNode());
+             Node* n =  mClient.nodeByHandle(us.mConfig.mRemoteNode);
              if (!n)
                  return;
 
@@ -17710,7 +17710,7 @@ void NodeManager::notifyPurge()
              const string& originalPath = us.mConfig.mOriginalPathOfRemoteRootNode; // previous full remote path
              bool pathChanged = n->changed.parent || movedToRubbish ||
                                 // the following were inspired by UnifiedSync::updateSyncRemoteLocation()
-                                us.mConfig.getRemoteNode() != n->nodehandle ||
+                                us.mConfig.mRemoteNode != n->nodehandle ||
                                 originalPath != currentPath;
 
              if (n->changed.attrs || pathChanged || n->changed.removed)
@@ -17737,7 +17737,7 @@ void NodeManager::notifyPurge()
                  {
                      syncErr = REMOTE_NODE_NOT_FOUND;
                  }
-                 else if (pathChanged)
+                 else if (pathChanged) // moved
                  {
                      syncErr = REMOTE_PATH_HAS_CHANGED;
                  }
