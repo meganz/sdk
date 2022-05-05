@@ -387,8 +387,8 @@ public:
     template<typename ... requestArgs> int doGetPreview(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getPreview(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doGetThumbnailUploadURL(unsigned apiIndex, std::string& url, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getThumbnailUploadURL(args..., &rt); rt.waitForResult(); url = rt.request->getName(); return rt.result; }
     template<typename ... requestArgs> int doGetPreviewUploadURL(unsigned apiIndex, std::string& url, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getPreviewUploadURL(args..., &rt); rt.waitForResult(); url = rt.request->getName(); return rt.result; }
-    template<typename ... requestArgs> int doPutThumbnail(unsigned apiIndex, MegaHandle* setThumbnailHandle, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putThumbnail(args..., &rt); rt.waitForResult(); if (setThumbnailHandle) *setThumbnailHandle = rt.getNodeHandle(); return rt.result; }
-    template<typename ... requestArgs> int doPutPreview(unsigned apiIndex, MegaHandle* setPreviewHandle, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putPreview(args..., &rt);  rt.waitForResult(); if (setPreviewHandle) *setPreviewHandle = rt.getNodeHandle(); return rt.result; }
+    template<typename ... requestArgs> int doPutThumbnail(unsigned apiIndex, MegaBackgroundMediaUpload* mbmu, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putThumbnail(mbmu, args..., &rt); rt.waitForResult(); mbmu->setThumbnail(rt.getNodeHandle()); return rt.result; }
+    template<typename ... requestArgs> int doPutPreview(unsigned apiIndex, MegaBackgroundMediaUpload* mbmu, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putPreview(mbmu, args..., &rt); rt.waitForResult(); mbmu->setPreview(rt.getNodeHandle()); return rt.result; }
 #ifdef ENABLE_SYNC
     template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, MegaHandle* newSyncRootNodeResult, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->syncFolder(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails(); mApi[apiIndex].lastSyncBackupId = rt.request->getParentHandle(); if (newSyncRootNodeResult) *newSyncRootNodeResult = rt.getNodeHandle(); return rt.result; }
     template<typename ... requestArgs> int synchronousRemoveSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSync(args..., &rt); return rt.waitForResult(); }
@@ -432,6 +432,8 @@ public:
     void getRegisteredContacts(const std::map<std::string, std::string>& contacts);
 
     void getCountryCallingCodes(int timeout = maxTimeout);
+
+    void synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail, const char* filePreview);
 
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);

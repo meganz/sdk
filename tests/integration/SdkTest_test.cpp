@@ -1205,6 +1205,94 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
     ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << err << ")";
 }
 
+#ifdef __linux__
+std::string exec(const char* cmd) {
+    // Open pipe for reading.
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+
+    // Make sure the pipe was actually created.
+    if (!pipe) throw std::runtime_error("popen() failed!");
+
+    std::string result;
+
+    // Read from the pipe until we hit EOF or encounter an error.
+    for (std::array<char, 128> buffer; ; )
+    {
+        // Read from the pipe.
+        auto nRead = fread(buffer.data(), 1, buffer.size(), pipe.get());
+
+        // Were we able to extract any data?
+        if (nRead > 0)
+        {
+            // If so, add it to our result buffer.
+            result.append(buffer.data(), nRead);
+        }
+
+        // Have we extracted as much as we can?
+        if (nRead < buffer.size()) break;
+    }
+
+    // Were we able to extract all of the data?
+    if (feof(pipe.get()))
+    {
+        // Then return the result.
+        return result;
+    }
+
+    // Otherwise, let the caller know we couldn't read the pipe.
+    throw std::runtime_error("couldn't read all data from the pipe!");
+}
+#endif
+
+void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail = nullptr, const char* filePreview = nullptr)
+{
+    // Create a "media upload" instance
+    std::unique_ptr<MegaBackgroundMediaUpload> req(MegaBackgroundMediaUpload::createInstance(megaApi[apiIndex].get()));
+
+    // Request a media upload URL
+    auto err = synchronousMediaUploadRequestURL(apiIndex, fileSize, req.get(), nullptr);
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
+
+    // Get the generated media upload URL
+    std::unique_ptr<char[]> url(req->getUploadURL());
+    ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
+    ASSERT_NE('\0', url[0]) << "Got empty media upload URL";
+
+    // encrypt file contents and get URL suffix
+    std::unique_ptr<char[]> suffix(req->encryptFile(filename, 0, &fileSize, fileEncrypted, false));
+    ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
+
+    std::unique_ptr<char[]> fingreprint(megaApi[apiIndex]->getFingerprint(fileEncrypted));
+    std::unique_ptr<char[]> fingreprintOrig(megaApi[apiIndex]->getFingerprint(filename));
+
+    // PUT thumbnail and preview if params exists
+    if (fileThumbnail)
+    {
+        ASSERT_EQ(API_OK, doPutThumbnail(apiIndex, req.get(), fileThumbnail)) << "ERROR putting thumbnail";
+    }
+    if (filePreview)
+    {
+        ASSERT_EQ(API_OK, doPutPreview(apiIndex, req.get(), filePreview)) << "ERROR putting preview";
+    }
+
+    std::unique_ptr<MegaNode> rootnode(megaApi[apiIndex]->getRootNode());
+
+#ifdef __linux__
+    string command = "curl -s --data-binary @";
+    command.append(fileEncrypted).append(" ").append(url.get());
+    if (suffix) command.append(suffix.get());
+    auto uploadToken = exec(command.c_str());
+    std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(uploadToken.c_str(), uploadToken.length()));
+
+    err = synchronousMediaUploadComplete(apiIndex, req.get(), fileOutput, rootnode.get(), fingreprint.get(), fingreprintOrig.get(), base64UploadToken.get(), nullptr);
+
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
+#else
+    ASSERT_ANY_THROW(true) << "Not linux, cannot complete test.";
+#endif
+
+}
+
 string runProgram(const string& command)
 {
     string output;
@@ -4973,67 +5061,12 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
 }
 
-
-#ifdef __linux__
-std::string exec(const char* cmd) {
-    // Open pipe for reading.
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-
-    // Make sure the pipe was actually created.
-    if (!pipe) throw std::runtime_error("popen() failed!");
-
-    std::string result;
-
-    // Read from the pipe until we hit EOF or encounter an error.
-    for (std::array<char, 128> buffer; ; )
-    {
-        // Read from the pipe.
-        auto nRead = fread(buffer.data(), 1, buffer.size(), pipe.get());
-
-        // Were we able to extract any data?
-        if (nRead > 0)
-        {
-            // If so, add it to our result buffer.
-            result.append(buffer.data(), nRead);
-        }
-
-        // Have we extracted as much as we can?
-        if (nRead < buffer.size()) break;
-    }
-
-    // Were we able to extract all of the data?
-    if (feof(pipe.get()))
-    {
-        // Then return the result.
-        return result;
-    }
-
-    // Otherwise, let the caller know we couldn't read the pipe.
-    throw std::runtime_error("couldn't read all data from the pipe!");
-}
-#endif
-
 TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
     LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // SCENARIO 1: Request FA upload URLs (thumbnail and preview)
-    int64_t fileSize_thumbnail = 2295;
-    int64_t fileSize_preview = 2376;
-
-    // Request a thumbnail upload URL
-    std::string thumbnailURL;
-    ASSERT_EQ(API_OK, doGetThumbnailUploadURL(0, thumbnailURL, mApi[0].h, fileSize_thumbnail, true)) << "Cannot request thumbnail upload URL";
-    ASSERT_FALSE(thumbnailURL.empty()) << "Got empty thumbnail upload URL";
-
-    // Request a preview upload URL
-    std::string previewURL;
-    ASSERT_EQ(API_OK, doGetPreviewUploadURL(0, previewURL, mApi[0].h, fileSize_preview, true)) << "Cannot request preview upload URL";
-    ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
-
-
-    // SCENARIO 2: Upload image file and check thumbnail and preview
+    // SCENARIO 1: Upload image file and check thumbnail and preview
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
     ASSERT_EQ(API_OK, doStartUpload(0, nullptr, IMAGEFILE.c_str(), rootnode.get()));
 
@@ -5048,6 +5081,20 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     // Get the preview of the uploaded image
     std::string previewPath = "logo_preview.png";
     ASSERT_EQ(API_OK, doGetPreview(0, n1.get(), previewPath.c_str()));
+
+    // SCENARIO 2: Request FA upload URLs (thumbnail and preview)
+    int64_t fileSize_thumbnail = 2295;
+    int64_t fileSize_preview = 2376;
+
+    // Request a thumbnail upload URL
+    std::string thumbnailURL;
+    ASSERT_EQ(API_OK, doGetThumbnailUploadURL(0, thumbnailURL, n1->getHandle(), fileSize_thumbnail, true)) << "Cannot request thumbnail upload URL";
+    ASSERT_FALSE(thumbnailURL.empty()) << "Got empty thumbnail upload URL";
+
+    // Request a preview upload URL
+    std::string previewURL;
+    ASSERT_EQ(API_OK, doGetPreviewUploadURL(0, previewURL, n1->getHandle(), fileSize_preview, true)) << "Cannot request preview upload URL";
+    ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
 }
 
 TEST_F(SdkTest, SdkMediaImageUploadTest)
@@ -5055,52 +5102,10 @@ TEST_F(SdkTest, SdkMediaImageUploadTest)
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // Create a "media upload" instance
-    int apiIndex = 0;
-    std::unique_ptr<MegaBackgroundMediaUpload> req(MegaBackgroundMediaUpload::createInstance(megaApi[apiIndex].get()));
-
-    // Request a media upload URL
+    unsigned int apiIndex = 0;
     int64_t fileSize = 1304;
-    auto err = synchronousMediaUploadRequestURL(apiIndex, fileSize, req.get(), nullptr);
-    ASSERT_EQ(MegaError::API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
-
-    // Get the generated media upload URL
-    std::unique_ptr<char[]> url(req->getUploadURL());
-    ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
-    ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
-
-    // Encrypt image file contents and get URL suffix
-    std::unique_ptr<char[]> suffix(req->encryptFile(IMAGEFILE.c_str(), 0, &fileSize, IMAGEFILE_C.c_str(), false));
-    ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
-
-    std::unique_ptr<char[]> fingreprint(megaApi[0]->getFingerprint(IMAGEFILE_C.c_str()));
-    std::unique_ptr<char[]> fingreprintOrig(megaApi[0]->getFingerprint(IMAGEFILE.c_str()));
-
-    // PUT thumbnail and preview
-    MegaHandle setThumbnailHandle;
-    MegaHandle setPreviewHandle;
-    ASSERT_EQ(API_OK, doPutThumbnail(0, &setThumbnailHandle, req.get(), THUMBNAIL.c_str())) << "ERROR putting thumbnail";
-    ASSERT_EQ(API_OK, doPutPreview(0, &setPreviewHandle, req.get(), PREVIEW.c_str())) << "ERROR putting preview";
-
-    // SET thumbnail and preview
-    req->setThumbnail(setThumbnailHandle);
-    req->setPreview(setPreviewHandle);
-
-    // Get rood node
-    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
-
-
-#ifdef __linux__
-    string command = "curl -s --data-binary @";
-    command.append(IMAGEFILE_C.c_str()).append(" ").append(url.get());
-    if (suffix) command.append(suffix.get());
-    auto uploadToken = exec(command.c_str());
-    std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(uploadToken.c_str(), uploadToken.length()));
-
-    err = synchronousMediaUploadComplete(apiIndex, req.get(), "newlogo.png", rootnode.get(), fingreprint.get(), fingreprintOrig.get(), base64UploadToken.get(), nullptr);
-
-    ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
-#endif
+    const char* outputImage = "newlogo.png";
+    synchronousMediaUpload(apiIndex, fileSize, IMAGEFILE.c_str(), IMAGEFILE_C.c_str(), outputImage, THUMBNAIL.c_str(), PREVIEW.c_str());
 
 }
 
@@ -5109,44 +5114,12 @@ TEST_F(SdkTest, SdkMediaUploadTest)
     LOG_info << "___TEST MediaUploadRequestURL___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // Create a "media upload" instance
-    int apiIndex = 0;
-    std::unique_ptr<MegaBackgroundMediaUpload> req(MegaBackgroundMediaUpload::createInstance(megaApi[apiIndex].get()));
-
-    // Request a media upload URL
+    unsigned int apiIndex = 0;
     int64_t fileSize = 10000;
-    auto err = synchronousMediaUploadRequestURL(apiIndex, fileSize, req.get(), nullptr);
-    ASSERT_EQ(MegaError::API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
-
-    // Get the generated media upload URL
-    std::unique_ptr<char[]> url(req->getUploadURL());
-    ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
-    ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
-
-    string filename1 = UPFILE;
-    ASSERT_TRUE(createFile(filename1, false)) << "Couldnt create " << filename1;
-
-    string filename2 = DOWNFILE;
-
-    // encrypt file contents and get URL suffix
-    std::unique_ptr<char[]> suffix(req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), false));
-    ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
-
-    std::unique_ptr<char[]> fingreprint(megaApi[0]->getFingerprint(DOWNFILE.c_str()));
-    std::unique_ptr<char[]> fingreprintOrig(megaApi[0]->getFingerprint(UPFILE.c_str()));
-    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
-
-#ifdef __linux__
-    string command = "curl -s --data-binary @";
-    command.append(DOWNFILE.c_str()).append(" ").append(url.get());
-    if (suffix) command.append(suffix.get());
-    auto uploadToken = exec(command.c_str());
-    std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(uploadToken.c_str(), uploadToken.length()));
-
-    err = synchronousMediaUploadComplete(apiIndex, req.get(), "newfile.txt", rootnode.get(), fingreprint.get(), fingreprintOrig.get(), base64UploadToken.get(), nullptr);
-
-    ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
-#endif
+    string filename = UPFILE;
+    ASSERT_TRUE(createFile(filename, false)) << "Couldnt create " << filename;
+    const char* outputFile = "newfile.txt";
+    synchronousMediaUpload(apiIndex, fileSize, filename.c_str(), DOWNFILE.c_str(), outputFile);
 
 }
 

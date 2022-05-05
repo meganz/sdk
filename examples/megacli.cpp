@@ -4746,7 +4746,7 @@ void exec_open(autocomplete::ACState& s)
         {
             using namespace mega;
 #ifdef GFX_CLASS
-            auto gfx = new GFX_CLASS;
+            auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
             gfx->startProcessingThread();
 #endif
 
@@ -8680,7 +8680,7 @@ int main(int argc, char* argv[])
     console = new CONSOLE_CLASS;
 
 #ifdef GFX_CLASS
-    auto gfx = new GFX_CLASS;
+    auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
     gfx->startProcessingThread();
 #else
     mega::GfxProc* gfx = nullptr;
