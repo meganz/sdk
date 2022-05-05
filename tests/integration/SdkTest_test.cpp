@@ -32,6 +32,20 @@
 
 using namespace std;
 
+
+static const string APP_KEY     = "8QxzVRxD";
+static const string PUBLICFILE  = "file.txt";
+static const string UPFILE      = "file1.txt";
+static const string DOWNFILE    = "file2.txt";
+static const string EMPTYFILE   = "empty-file.txt";
+static const string AVATARSRC   = "logo.png";
+static const string AVATARDST   = "deleteme.png";
+static const string IMAGEFILE   = "logo.png";
+static const string IMAGEFILE_C = "logo.encrypted.png";
+static const string THUMBNAIL   = "logo_thumbnail.png";
+static const string PREVIEW     = "logo_preview.png";
+
+
 MegaFileSystemAccess fileSystemAccess;
 
 template<typename T>
@@ -171,11 +185,7 @@ bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
 
 MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-#if defined(ENABLE_SYNC) && defined(__APPLE__)
-    return new MegaApi(appKey, basePath, userAgent, gFseventsFd, workerThreadCount);
-#else
     return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
-#endif
 }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
@@ -1304,7 +1314,7 @@ string getUniqueAlias()
  *  - Extract cancel account link from the mailbox
  *  - Use the link to cancel the account
  */
-TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
+TEST_F(SdkTest, SdkTestCreateAccount)
 {
     LOG_info << "___TEST Create account___";
 
@@ -1809,11 +1819,8 @@ TEST_F(SdkTest, SdkTestExerciseOtherCommands)
     bool CommandResumeEphemeralSession::procresult(Result r)
     bool CommandCancelSignup::procresult(Result r)
     bool CommandWhyAmIblocked::procresult(Result r)
-    bool CommandSendSignupLink::procresult(Result r)
     bool CommandSendSignupLink2::procresult(Result r)
-    bool CommandQuerySignupLink::procresult(Result r)
     bool CommandConfirmSignupLink2::procresult(Result r)
-    bool CommandConfirmSignupLink::procresult(Result r)
     bool CommandSetKeyPair::procresult(Result r)
     bool CommandReportEvent::procresult(Result r)
     bool CommandSubmitPurchaseReceipt::procresult(Result r)
@@ -5196,6 +5203,97 @@ std::string exec(const char* cmd) {
 }
 #endif
 
+TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
+{
+    LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // SCENARIO 1: Request FA upload URLs (thumbnail and preview)
+    int64_t fileSize_thumbnail = 2295;
+    int64_t fileSize_preview = 2376;
+
+    // Request a thumbnail upload URL
+    std::string thumbnailURL;
+    ASSERT_EQ(API_OK, doGetThumbnailUploadURL(0, thumbnailURL, mApi[0].h, fileSize_thumbnail, true)) << "Cannot request thumbnail upload URL";
+    ASSERT_FALSE(thumbnailURL.empty()) << "Got empty thumbnail upload URL";
+
+    // Request a preview upload URL
+    std::string previewURL;
+    ASSERT_EQ(API_OK, doGetPreviewUploadURL(0, previewURL, mApi[0].h, fileSize_preview, true)) << "Cannot request preview upload URL";
+    ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
+
+
+    // SCENARIO 2: Upload image file and check thumbnail and preview
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+    ASSERT_EQ(API_OK, doStartUpload(0, nullptr, IMAGEFILE.c_str(), rootnode.get()));
+
+    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_NE(n1, nullptr);
+    ASSERT_STREQ(IMAGEFILE.c_str(), n1->getName()) << "Uploaded file with wrong name (error: " << mApi[0].lastError << ")";
+
+    // Get the thumbnail of the uploaded image
+    std::string thumbnailPath = "logo_thumbnail.png";
+    ASSERT_EQ(API_OK, doGetThumbnail(0, n1.get(), thumbnailPath.c_str()));
+
+    // Get the preview of the uploaded image
+    std::string previewPath = "logo_preview.png";
+    ASSERT_EQ(API_OK, doGetPreview(0, n1.get(), previewPath.c_str()));
+}
+
+TEST_F(SdkTest, SdkMediaImageUploadTest)
+{
+    LOG_info << "___TEST MediaUploadRequestURL___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Create a "media upload" instance
+    int apiIndex = 0;
+    std::unique_ptr<MegaBackgroundMediaUpload> req(MegaBackgroundMediaUpload::createInstance(megaApi[apiIndex].get()));
+
+    // Request a media upload URL
+    int64_t fileSize = 1304;
+    auto err = synchronousMediaUploadRequestURL(apiIndex, fileSize, req.get(), nullptr);
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
+
+    // Get the generated media upload URL
+    std::unique_ptr<char[]> url(req->getUploadURL());
+    ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
+    ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
+
+    // Encrypt image file contents and get URL suffix
+    std::unique_ptr<char[]> suffix(req->encryptFile(IMAGEFILE.c_str(), 0, &fileSize, IMAGEFILE_C.c_str(), false));
+    ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
+
+    std::unique_ptr<char[]> fingreprint(megaApi[0]->getFingerprint(IMAGEFILE_C.c_str()));
+    std::unique_ptr<char[]> fingreprintOrig(megaApi[0]->getFingerprint(IMAGEFILE.c_str()));
+
+    // PUT thumbnail and preview
+    MegaHandle setThumbnailHandle;
+    MegaHandle setPreviewHandle;
+    ASSERT_EQ(API_OK, doPutThumbnail(0, &setThumbnailHandle, req.get(), THUMBNAIL.c_str())) << "ERROR putting thumbnail";
+    ASSERT_EQ(API_OK, doPutPreview(0, &setPreviewHandle, req.get(), PREVIEW.c_str())) << "ERROR putting preview";
+
+    // SET thumbnail and preview
+    req->setThumbnail(setThumbnailHandle);
+    req->setPreview(setPreviewHandle);
+
+    // Get rood node
+    std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
+
+
+#ifdef __linux__
+    string command = "curl -s --data-binary @";
+    command.append(IMAGEFILE_C.c_str()).append(" ").append(url.get());
+    if (suffix) command.append(suffix.get());
+    auto uploadToken = exec(command.c_str());
+    std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(uploadToken.c_str(), uploadToken.length()));
+
+    err = synchronousMediaUploadComplete(apiIndex, req.get(), "newlogo.png", rootnode.get(), fingreprint.get(), fingreprintOrig.get(), base64UploadToken.get(), nullptr);
+
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
+#endif
+
+}
+
 TEST_F(SdkTest, SdkMediaUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
@@ -5221,7 +5319,6 @@ TEST_F(SdkTest, SdkMediaUploadTest)
     string filename2 = DOWNFILE;
 
     // encrypt file contents and get URL suffix
-    req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), true);
     std::unique_ptr<char[]> suffix(req->encryptFile(filename1.c_str(), 0, &fileSize, filename2.c_str(), false));
     ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
 
@@ -7323,7 +7420,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     for (int index = 0 ; index < howMany; index++ )
     {
         exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index + 10 /*so as not to clash with megaApi[0]*/).c_str(),
-                                                    USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+                                                    USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         // reduce log level to something beareable
         exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
     }
@@ -7465,7 +7562,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     for (unsigned index = 0 ; index < howMany; index++ )
     {
         exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(static_cast<int>(index) + 10 /*so as not to clash with megaApi[0]*/).c_str(),
-                                                    USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+                                                    USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         // reduce log level to something beareable
         exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
     }

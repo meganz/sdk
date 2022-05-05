@@ -69,9 +69,6 @@ const int MegaClient::MAXQUEUEDFA = 30;
 const int MegaClient::MAXPUTFA = 10;
 
 #ifdef ENABLE_SYNC
-// hearbeat frequency
-static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
-
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
 #endif
@@ -299,7 +296,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     {
                         n->inshare->user->sharing.erase(n->nodehandle);
                         notifyuser(n->inshare->user);
-                        n->inshare = NULL;
+                        delete n->inshare;
+                        n->inshare = nullptr;
                     }
                 }
             }
@@ -458,31 +456,27 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
         {
             // check if the low(ered) access level is affecting any syncs
             // a) have we just cut off full access to a subtree of a sync?
-            auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
-            for (NodeHandle rootHandle : activeSyncRootHandles)
+            auto activeConfigs = syncs.getConfigs(true);
+            for (auto& sc : activeConfigs)
             {
-                if (n->isbelow(rootHandle))
+                if (n->isbelow(sc.mRemoteNode))
                 {
                     LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                        return c.mRemoteNode == rootHandle;
-                        }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
-
+                    syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
                 }
             }
 
             // b) have we just lost full access to the subtree a sync is in?
             Node* root = nullptr;
-            for (NodeHandle rootHandle : activeSyncRootHandles)
+            for (auto& sc : activeConfigs)
             {
-                if (n->isbelow(rootHandle) &&
-                    (nullptr != (root = nodeByHandle(rootHandle))) &&
+                if (n->isbelow(sc.mRemoteNode) &&
+                    (nullptr != (root = nodeByHandle(sc.mRemoteNode))) &&
                     !checkaccess(root, FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
-                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                        return c.mRemoteNode == rootHandle;
-                        }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
+
+                    syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
                 }
             };
         }
@@ -1165,8 +1159,6 @@ void MegaClient::init()
     btpfa.reset();
     btbadhost.reset();
 
-    btheartbeat.reset();
-
     abortlockrequest();
     transferHttpCounter = 0;
     nextDispatchTransfersDs = 0;
@@ -1198,7 +1190,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
    , btcs(rng)
    , btbadhost(rng)
    , btworkinglock(rng)
-   , btheartbeat(rng)
    , btsc(rng)
    , btpfa(rng)
 #ifdef ENABLE_SYNC
@@ -1231,7 +1222,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
-    nsr_enabled = false;
     aplvp_enabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
@@ -1295,7 +1285,12 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
+    
     fsaccess = move(f);
+#ifdef ENABLE_SYNC
+    fsaccess->initFilesystemNotificationSystem();
+#endif // ENABLE_SYNC
+
     dbaccess = d;
 
     if ((gfx = g))
@@ -2207,7 +2202,7 @@ void MegaClient::exec()
                         // Fail all syncs.
                         // Setting flag for fail rather than disable
                         std::promise<bool> pb;
-                        syncs.disableSelectedSyncs([](SyncConfig&, Sync* s){ return !!s; },
+                        syncs.disableSyncs(
                             true,
                             TOO_MANY_ACTION_PACKETS,
                             false,
@@ -2561,9 +2556,7 @@ void MegaClient::exec()
 
                 if (syncErr != NO_SYNC_ERROR)
                 {
-                    syncs.disableSelectedSyncs(
-                        [&](SyncConfig&, Sync* s) { return s == sync; },
-                        true, syncErr, false, nullptr);
+                    syncs.disableSyncByBackupId(sync->getConfig().mBackupId, true, syncErr, false, nullptr);
                 }
             }
         });
@@ -2657,7 +2650,11 @@ void MegaClient::exec()
                             if (notification.timestamp <= dsmin)
                             {
                                 LOG_debug << "Processing extra fs notification: " << notification.path;
-                                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode, std::move(notification.path));
+                                sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                        notification.localnode,
+                                                        std::move(notification.path),
+                                                        false,
+                                                        false);
                             }
                             else
                             {
@@ -3135,11 +3132,7 @@ void MegaClient::exec()
         }
 
 #ifdef ENABLE_SYNC
-        if (btheartbeat.armed())
-        {
-            syncs.mHeartBeatMonitor->beat();
-            btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
-        }
+        syncs.mHeartBeatMonitor->beat();
 #endif
 
         for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
@@ -3804,7 +3797,7 @@ void MegaClient::dispatchTransfers()
                 for (file_list::iterator it = nexttransfer->files.begin();
                     nexttransfer->localfilename.empty() && it != nexttransfer->files.end(); it++)
                 {
-                    (*it)->prepare();
+                    (*it)->prepare(*fsaccess);
                 }
                 assert(nexttransfer->localfilename.isAbsolute());
 
@@ -4313,7 +4306,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     accountsince = 0;
     gmfa_enabled = false;
     ssrs_enabled = false;
-    nsr_enabled = false;
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
@@ -4483,7 +4475,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     {
         // Special case backward compatibility for MEGAsync
         // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-        syncs.disableSyncs(LOGGED_OUT, false);
+        syncs.disableSyncs(false, LOGGED_OUT, false, nullptr);
     }
     else
     {
@@ -5390,7 +5382,7 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, std::move(data)));
+    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, data->size(), std::move(data)));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
@@ -5434,7 +5426,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
         if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
         {
-            syncs.disableSyncs(STORAGE_OVERQUOTA, false);
+            syncs.disableSyncs(false, STORAGE_OVERQUOTA, false, nullptr);
         }
 #endif
 
@@ -7147,7 +7139,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(BUSINESS_EXPIRED, false);
+            syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
         }
 #endif
     }
@@ -7279,7 +7271,7 @@ void MegaClient::notifypurge(void)
         // check for renamed/moved sync root folders
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
-            Node* n = nodeByHandle(us.mConfig.getRemoteNode());
+            Node* n = nodeByHandle(us.mConfig.mRemoteNode);
             if (!n)
                 return;
 
@@ -7289,7 +7281,7 @@ void MegaClient::notifypurge(void)
             const string& originalPath = us.mConfig.mOriginalPathOfRemoteRootNode; // previous full remote path
             bool pathChanged = n->changed.parent || movedToRubbish ||
                                // the following were inspired by UnifiedSync::updateSyncRemoteLocation()
-                               us.mConfig.getRemoteNode() != n->nodehandle ||
+                               us.mConfig.mRemoteNode != n->nodehandle ||
                                originalPath != currentPath;
 
             if (n->changed.attrs || pathChanged || n->changed.removed)
@@ -7323,8 +7315,8 @@ void MegaClient::notifypurge(void)
 
                 if (syncErr != NO_SYNC_ERROR)
                 {
-                    syncs.disableSelectedSyncs(
-                        [&](SyncConfig&, Sync* s) { return s == activeSync.get(); },
+                    syncs.disableSyncByBackupId(
+                        activeSync->getConfig().mBackupId,
                         true, syncErr, false, nullptr);
                 }
             }
@@ -7794,6 +7786,18 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
         return API_EKEY;
     }
 
+    // Check and delete invalid fav attributes
+    {
+        std::vector<nameid> nameIds = { AttrMap::string2nameid("fav"), AttrMap::string2nameid("lbl") };
+        for (nameid& nameId : nameIds)
+        {
+            auto itAttr= n->attrs.map.find(nameId);
+            if (itAttr != n->attrs.map.end() && (itAttr->second.empty() || itAttr->second == "0"))
+            {
+                updates[nameId] = "";
+            }
+        }
+    }
     n->changed.name = n->attrs.hasUpdate('n', updates);
     n->changed.favourite = n->attrs.hasUpdate(AttrMap::string2nameid("fav"), updates);
 
@@ -8717,7 +8721,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                                 n->localnode->setSubtreeNeedsRescan(false);
 
                                 // queue this one to be scanned, recursion is by notify of subdirs
-                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, n->localnode, LocalPath(), true);
+                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                                      n->localnode,
+                                                                      LocalPath(),
+                                                                      true,
+                                                                      false);
                             }
                         }
                     }
@@ -9108,9 +9116,6 @@ error MegaClient::readmiscflags(JSON *json)
             break;
         case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler (only available when logged in)
             ssrs_enabled = bool(json->getint());
-            break;
-        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-            nsr_enabled = bool(json->getint());
             break;
         case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled (only available when logged in)
             aplvp_enabled = bool(json->getint());
@@ -11879,7 +11884,7 @@ void MegaClient::block(bool fromServerClientResponse)
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
 #ifdef ENABLE_SYNC
-    syncs.disableSyncs(ACCOUNT_BLOCKED, false);
+    syncs.disableSyncs(false, ACCOUNT_BLOCKED, false, nullptr);
 #endif
 }
 
@@ -11999,21 +12004,6 @@ void MegaClient::createephemeralPlusPlus()
     createephemeral();
 }
 
-void MegaClient::sendsignuplink(const char* email, const char* name, const byte* pwhash)
-{
-    SymmCipher pwcipher(pwhash);
-    byte c[2 * SymmCipher::KEYLENGTH];
-
-    memcpy(c, key.key, sizeof key.key);
-    rng.genblock(c + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH / 4);
-    memset(c + SymmCipher::KEYLENGTH + SymmCipher::KEYLENGTH / 4, 0, SymmCipher::KEYLENGTH / 2);
-    rng.genblock(c + 2 * SymmCipher::KEYLENGTH - SymmCipher::KEYLENGTH / 4, SymmCipher::KEYLENGTH / 4);
-
-    pwcipher.ecb_encrypt(c, c, sizeof c);
-
-    reqs.add(new CommandSendSignupLink(this, email, name, c));
-}
-
 string MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
 {
     byte clientrandomvalue[SymmCipher::KEYLENGTH];
@@ -12052,18 +12042,6 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
 void MegaClient::resendsignuplink2(const char *email, const char *name)
 {
     reqs.add(new CommandSendSignupLink2(this, email, name));
-}
-
-// if query is 0, actually confirm account; just decode/query signup link
-// details otherwise
-void MegaClient::querysignuplink(const byte* code, unsigned len)
-{
-    reqs.add(new CommandQuerySignupLink(this, code, len));
-}
-
-void MegaClient::confirmsignuplink(const byte* code, unsigned len, uint64_t emailhash)
-{
-    reqs.add(new CommandConfirmSignupLink(this, code, len, emailhash));
 }
 
 void MegaClient::confirmsignuplink2(const byte *code, unsigned len)
@@ -12565,7 +12543,7 @@ void MegaClient::fetchnodes(bool nocache)
         // or they may be new ones that were not previously applied.
         // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
         // TODO: the sync rework branch, when ready, will be able to cope with this situation.
-        syncs.disableSyncs(WHOLE_ACCOUNT_REFETCHED, false);
+        syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
 #endif
 
         if (!loggedinfolderlink())
@@ -13575,7 +13553,7 @@ void MegaClient::updateputs()
     {
         if ((*it)->transfer->type == PUT && (*it)->transfer->files.size())
         {
-            (*it)->transfer->files.front()->prepare();
+            (*it)->transfer->files.front()->prepare(*fsaccess);
         }
     }
 }
@@ -13717,13 +13695,13 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
         // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
-        if (config.getBackupId() != excludeBackupId)
+        if (config.mBackupId != excludeBackupId)
         {
             LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
-            if (config.getEnabled() && !config.getError() &&
+            if (config.getEnabled() && !config.mError &&
                     ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
@@ -13752,14 +13730,14 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
-    Node* remotenode = nodeByHandle(syncConfig.getRemoteNode());
+    Node* remotenode = nodeByHandle(syncConfig.mRemoteNode);
     inshare = false;
     if (!remotenode)
     {
         LOG_warn << "Sync root does not exist in the cloud: "
                  << syncConfig.getLocalPath()
                  << ": "
-                 << LOG_NODEHANDLE(syncConfig.getRemoteNode());
+                 << LOG_NODEHANDLE(syncConfig.mRemoteNode);
 
         syncConfig.mError = REMOTE_NODE_NOT_FOUND;
         syncConfig.mEnabled = false;
@@ -13821,7 +13799,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             // so that the app does not need to carry that burden.
             // Although it might not be required given the following test does expands the configured
             // paths to use canonical paths when checking for path collisions:
-            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getBackupId(), &syncConfig.mError);
+            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.mBackupId, &syncConfig.mError);
             if (e)
             {
                 LOG_warn << "Local path not syncable: ";
@@ -14106,7 +14084,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
         {
 
             // if we got this far, the syncConfig is kept (in db and in memory)
-            config.setBackupId(backupId);
+            config.mBackupId = backupId;
 
             UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
@@ -14114,7 +14092,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
             syncactivity = true;
 
-            completion(e, unifiedSync->mConfig.getError(), backupId);
+            completion(e, unifiedSync->mConfig.mError, backupId);
         }
     }));
 
@@ -15376,7 +15354,7 @@ void MegaClient::syncupdate()
                 nextreqtag();
                 startxfer(PUT, l, committer, false, false, false, UseLocalVersioningFlag);
 
-                l->sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, l->size, 0);
+                l->sync->threadSafeState->transferBegin(PUT, l->size);
 
                 LOG_debug << "Sync - sending file " << l->getLocalPath();
             }
@@ -15748,15 +15726,15 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
 {
     if (Node* n = nodeByHandle(nodeHandle))
     {
-        auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
-        for (NodeHandle rootHandle : activeSyncRootHandles)
+        auto activeConfigs = syncs.getConfigs(true);
+        for (auto& sc : activeConfigs)
         {
-            if (n->isbelow(rootHandle))
+            if (n->isbelow(sc.mRemoteNode))
             {
                 LOG_warn << "Disabling sync containing node " << n->displaypath();
-                syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                    return c.mRemoteNode == rootHandle;
-                    }, false, syncError, newEnabledFlag, nullptr);
+                syncs.disableSyncByBackupId(
+                    sc.mBackupId,
+                    false, syncError, newEnabledFlag, nullptr);
             }
         }
     }
@@ -16006,7 +15984,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
             if (transfer->type == PUT && !transfer->localfilename.empty())
             {
                 LOG_debug << "Updating transfer path";
-                transfer->files.front()->prepare();
+                transfer->files.front()->prepare(*fsaccess);
             }
         }
     }

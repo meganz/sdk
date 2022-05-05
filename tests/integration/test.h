@@ -190,7 +190,7 @@ struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
 #ifdef GFX_CLASS
-    GFX_CLASS gfx;
+    GfxProc gfx;
 #endif
 
     string client_dbaccess_path;
@@ -383,14 +383,14 @@ struct StandardClient : public MegaApp
 
     // Necessary to make sure we release the file once we're done with it.
     struct FileGet : public File {
-        void completed(Transfer* t, LocalNode* n) override
+        void completed(Transfer* t, putsource_t source) override
         {
-            File::completed(t, n);
+            File::completed(t, source);
             result->set_value(true);
             delete this;
         }
 
-        void terminated() override
+        void terminated(error e) override
         {
             result->set_value(false);
             delete this;
@@ -403,13 +403,13 @@ struct StandardClient : public MegaApp
     bool downloadFile(const Node& node, const fs::path& destination);
 
     struct FilePut : public File {
-        void completed(Transfer* t, LocalNode* n) override
+        void completed(Transfer* t, putsource_t source) override
         {
-            File::completed(t, n);
+            File::completed(t, source);
             delete this;
         }
 
-        void terminated() override
+        void terminated(error e) override
         {
             delete this;
         }

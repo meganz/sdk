@@ -674,13 +674,13 @@ bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess
     return false;
 }
 
-PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
+PosixFileSystemAccess::PosixFileSystemAccess()
 {
     assert(sizeof(off_t) == 8);
 
 #ifdef ENABLE_SYNC
     notifyerr = false;
-    notifyfailed = true;
+    notifyfailed = false;
 #endif
     notifyfd = -1;
 
@@ -703,85 +703,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #ifdef USE_INOTIFY
     lastcookie = 0;
     lastlocalnode = NULL;
-    if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
-    {
-#ifdef ENABLE_SYNC
-        notifyfailed = false;
-#endif
-    }
-#endif
-
-#ifdef __MACH__
-#if __LP64__
-    typedef struct fsevent_clone_args {
-       int8_t *event_list;
-       int32_t num_events;
-       int32_t event_queue_depth;
-       int32_t *fd;
-    } fsevent_clone_args;
-#else
-    typedef struct fsevent_clone_args {
-       int8_t *event_list;
-       int32_t pad1;
-       int32_t num_events;
-       int32_t event_queue_depth;
-       int32_t *fd;
-       int32_t pad2;
-    } fsevent_clone_args;
-#endif
-
-#define FSE_IGNORE 0
-#define FSE_REPORT 1
-#define FSEVENTS_CLONE _IOW('s', 1, fsevent_clone_args)
-#define FSEVENTS_WANT_EXTENDED_INFO _IO('s', 102)
-
-    int fd;
-    fsevent_clone_args fca;
-    int8_t event_list[] = { // action to take for each event
-                              FSE_REPORT,  // FSE_CREATE_FILE,
-                              FSE_REPORT,  // FSE_DELETE,
-                              FSE_REPORT,  // FSE_STAT_CHANGED,
-                              FSE_REPORT,  // FSE_RENAME,
-                              FSE_REPORT,  // FSE_CONTENT_MODIFIED,
-                              FSE_REPORT,  // FSE_EXCHANGE,
-                              FSE_IGNORE,  // FSE_FINDER_INFO_CHANGED,
-                              FSE_REPORT,  // FSE_CREATE_DIR,
-                              FSE_REPORT,  // FSE_CHOWN,
-                              FSE_IGNORE,  // FSE_XATTR_MODIFIED,
-                              FSE_IGNORE,  // FSE_XATTR_REMOVED,
-                          };
-
-    // for this to succeed, geteuid() must be 0, or an existing /dev/fsevents fd must have
-    // been passed to the constructor
-    if ((fd = fseventsfd) >= 0 || (fd = open("/dev/fsevents", O_RDONLY)) >= 0)
-    {
-        fca.event_list = (int8_t*)event_list;
-        fca.num_events = sizeof event_list/sizeof(int8_t);
-        fca.event_queue_depth = 4096;
-        fca.fd = &notifyfd;
-
-        if (ioctl(fd, FSEVENTS_CLONE, (char*)&fca) >= 0)
-        {
-            if (fseventsfd < 0) close(fd);
-
-            if (ioctl(notifyfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
-            {
-#ifdef ENABLE_SYNC
-                notifyfailed = false;
-#endif
-            }
-            else
-            {
-                close(notifyfd);
-            }
-        }
-        else
-        {
-            if (fseventsfd < 0) close(fd);
-        }
-    }
-#else
-    (void)fseventsfd;  // suppress warning
 #endif
 }
 
@@ -891,7 +812,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                     LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
                                     lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                            lastlocalnode,
-                                                                           LocalPath::fromPlatformEncodedRelative(lastname));
+                                                                           LocalPath::fromPlatformEncodedRelative(lastname),
+                                                                           false,
+                                                                           false);
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -920,7 +843,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                     LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
                                     it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                         it->second,
-                                                                        LocalPath::fromPlatformEncodedRelative(std::string(in->name, insize)));
+                                                                        LocalPath::fromPlatformEncodedRelative(std::string(in->name, insize)),
+                                                                        false,
+                                                                        false);
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -944,183 +869,14 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
                 lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                        lastlocalnode,
-                                                       LocalPath::fromPlatformEncodedRelative(lastname));
+                                                       LocalPath::fromPlatformEncodedRelative(lastname),
+                                                       false,
+                                                       false);
 
                 r |= Waiter::NEEDEXEC;
             }
 
             lastcookie = 0;
-        }
-    }
-#endif
-
-#ifdef __MACH__
-#define FSE_MAX_ARGS 12
-#define FSE_MAX_EVENTS 11
-#define FSE_ARG_DONE 0xb33f
-#define FSE_EVENTS_DROPPED 999
-#define FSE_TYPE_MASK 0xfff
-#define FSE_ARG_STRING 2
-#define FSE_RENAME 3
-#define FSE_GET_FLAGS(type) (((type) >> 12) & 15)
-
-    struct kfs_event_arg {
-        u_int16_t type;         // argument type
-        u_int16_t len;          // size of argument data that follows this field
-        union {
-            struct vnode *vp;
-            char *str;
-            void *ptr;
-            int32_t int32;
-            dev_t dev;
-            ino_t ino;
-            int32_t mode;
-            uid_t uid;
-            gid_t gid;
-            uint64_t timestamp;
-        } data;
-    };
-
-    struct kfs_event {
-        int32_t type; // event type
-        pid_t pid;  // pid of the process that performed the operation
-        kfs_event_arg args[FSE_MAX_ARGS]; // event arguments
-    };
-
-    // MacOS /dev/fsevents delivers all filesystem events as a unified stream,
-    // which we filter
-    int pos, avail;
-    int off;
-    int i, n;
-    kfs_event* kfse;
-    kfs_event_arg* kea;
-    char buffer[131072];
-    char* paths[2];
-    char* path;
-    Sync* pathsync[2];
-    mega_fd_set_t rfds;
-    timeval tv = { 0, 0 };
-    struct stat statbuf;
-    static char rsrc[] = "/..namedfork/rsrc";
-    static size_t rsrcsize = sizeof(rsrc) - 1;
-
-    for (;;)
-    {
-        MEGA_FD_ZERO(&rfds);
-        MEGA_FD_SET(notifyfd, &rfds);
-
-        // ensure nonblocking behaviour
-        if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;
-
-        if ((avail = read(notifyfd, buffer, int(sizeof buffer))) < 0)
-        {
-            notifyerr = true;
-            break;
-        }
-
-        for (pos = 0; pos < avail; )
-        {
-            kfse = (kfs_event*)(buffer + pos);
-
-            pos += sizeof(int32_t) + sizeof(pid_t);
-
-            if (kfse->type == FSE_EVENTS_DROPPED)
-            {
-                // force a full rescan
-                notifyerr = true;
-                pos += sizeof(u_int16_t);
-                continue;
-            }
-
-            n = 0;
-
-            for (kea = kfse->args; pos < avail; kea = (kfs_event_arg*)((char*)kea + off))
-            {
-                // no more arguments
-                if (kea->type == FSE_ARG_DONE)
-                {
-                    pos += sizeof(u_int16_t);
-                    break;
-                }
-
-                off = sizeof(kea->type) + sizeof(kea->len) + kea->len;
-                pos += off;
-
-                if (kea->type == FSE_ARG_STRING && n < 2)
-                {
-                    paths[n++] = ((char*)&(kea->data.str))-4;
-                }
-            }
-
-            // always skip paths that are outside synced fs trees or in a sync-local rubbish folder
-            for (i = n; i--; )
-            {
-                path = paths[i];
-                size_t psize = strlen(path);
-
-                bool foundOne = false;
-                client->syncs.forEachRunningSync([&](Sync* sync) {
-
-                    if (!foundOne)
-                    {
-                        std::string* ignore = &(sync)->dirnotify->ignore.localpath;
-                        std::string* localname = &(sync)->localroot->localname.localpath;
-
-                        size_t rsize = sync->mFsEventsPath.size() ? sync->mFsEventsPath.size() : localname->size();
-                        size_t isize = ignore->size();
-
-                        if (psize >= rsize
-                          && !memcmp(sync->mFsEventsPath.size() ? sync->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
-                          && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
-                          && (psize <= (rsize + isize)                          // not ignored
-                              || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
-                              || memcmp(path + rsize + 1, ignore->c_str(), isize))
-                          && (psize < rsrcsize                                  // it isn't a resource fork
-                              || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
-                            {
-                                if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
-                                {
-                                    LOG_debug << "Link skipped:  " << path;
-                                    paths[i] = NULL;
-                                    foundOne = true;
-                                }
-
-                                if (!foundOne)
-                                {
-                                    paths[i] += rsize + 1;
-                                    pathsync[i] = sync;
-                                    foundOne = true;
-                                }
-                            }
-                    }
-                });
-
-                if (!foundOne)
-                {
-                    paths[i] = NULL;
-                }
-            }
-
-            // for rename/move operations, skip source if both paths are synced
-            // (to handle rapid a -> b, b -> c without overwriting b).
-            if (n == 2 && paths[0] && paths[1] && (kfse->type & FSE_TYPE_MASK) == FSE_RENAME)
-            {
-                paths[0] = NULL;
-            }
-
-            for (i = n; i--; )
-            {
-                if (paths[i])
-                {
-                    LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->name << "   Path: " << paths[i];
-                    pathsync[i]->dirnotify->notify(DirNotify::DIREVENTS,
-                                                   pathsync[i]->localroot.get(),
-                                                   LocalPath::fromPlatformEncodedRelative(paths[i]),
-                                                   strlen(paths[i]));
-
-                    r |= Waiter::NEEDEXEC;
-                }
-            }
         }
     }
 #endif
@@ -1873,6 +1629,16 @@ bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
     return type != FS_EXFAT
            && type != FS_FAT32
            && type != FS_FUSE;
+}
+
+bool PosixFileSystemAccess::initFilesystemNotificationSystem()
+{
+#ifdef USE_INOTIFY
+    notifyfd = inotify_init1(IN_NONBLOCK);
+    notifyfailed = notifyfd < 0;
+#endif // USE_INOTIFY
+
+    return notifyfd >= 0;
 }
 
 #endif // ENABLE_SYNC

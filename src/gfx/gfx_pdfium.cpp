@@ -33,7 +33,7 @@ unsigned PdfiumReader::initialized = 0;
 void PdfiumReader::init()
 {
     std::lock_guard<std::mutex> g(pdfMutex);
-    if (!initialized)
+    if (!initialized++)
     {
         FPDF_LIBRARY_CONFIG config;
         config.version = 2;
@@ -41,7 +41,6 @@ void PdfiumReader::init()
         config.m_pIsolate = nullptr;
         config.m_v8EmbedderSlot = 0;
         FPDF_InitLibraryWithConfig(&config);
-        initialized++;
         LOG_debug << "PDFium library initialized.";
     }
 }
@@ -49,13 +48,10 @@ void PdfiumReader::init()
 void PdfiumReader::destroy()
 {
     std::lock_guard<std::mutex> g(pdfMutex);
-    if (initialized)
+    if (!--initialized)
     {
-        if (!--initialized)
-        {
-            FPDF_DestroyLibrary();
-            LOG_debug << "PDFium library destroyed.";
-        }
+        FPDF_DestroyLibrary();
+        LOG_debug << "PDFium library destroyed.";
     }
 }
 
@@ -67,10 +63,7 @@ std::unique_ptr<char[]> PdfiumReader::readBitmapFromPdf(int &w, int &h, int &ori
 {
 
     std::lock_guard<std::mutex> g(pdfMutex);
-    if (!initialized)
-    {
-        init();
-    }
+    assert (initialized);
 
     FPDF_DOCUMENT pdf_doc = FPDF_LoadDocument(path.toPath().c_str(), nullptr);
 #ifdef _WIN32

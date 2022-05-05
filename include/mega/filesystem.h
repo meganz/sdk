@@ -96,12 +96,13 @@ class MEGA_API LocalPath
     friend class PosixFileSystemAccess;
     friend struct WinDirAccess;
     friend struct WinDirNotify;
+    friend class MacDirNotify;
     friend class PosixDirNotify;
     friend class WinFileAccess;
     friend class PosixFileAccess;
     friend void RemoveHiddenFileAttribute(LocalPath& path);
     friend void AddHiddenFileAttribute(LocalPath& path);
-    friend class GfxProcFreeImage;
+    friend class GfxProviderFreeImage;
     friend struct FileSystemAccess;
     friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
 #ifdef USE_ROTATIVEPERFORMANCELOGGER
@@ -427,11 +428,17 @@ struct Notification
     dstime timestamp;
     LocalPath path;
     LocalNode* localnode = nullptr;
+    bool recursive = false;
 
     Notification() {}
-    Notification(dstime ts, const LocalPath& p, LocalNode* ln)
-        : timestamp(ts), path(p), localnode(ln)
-        {}
+
+    Notification(dstime ts, const LocalPath& p, LocalNode* ln, bool recursive)
+      : timestamp(ts)
+      , path(p)
+      , localnode(ln)
+      , recursive(recursive)
+    {
+    }
 };
 
 struct NotificationDeque : ThreadSafeDeque<Notification>
@@ -485,7 +492,11 @@ public:
     virtual void addnotify(LocalNode*, const LocalPath&) { }
     virtual void delnotify(LocalNode*) { }
 
-    void notify(notifyqueue, LocalNode *, LocalPath&&, bool = false);
+    void notify(notifyqueue queue,
+                LocalNode* node,
+                LocalPath&& path,
+                bool immediate,
+                bool recursive);
 
     // ignore this (debris folder)
     LocalPath ignore;
@@ -628,6 +639,8 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // True if the filesystem indicated by the specified path has stable FSIDs.
     virtual bool fsStableIDs(const LocalPath& path) const = 0;
+
+    virtual bool initFilesystemNotificationSystem();
 #endif // ENABLE_SYNC
 
     // Retrieve the FSID of the item at the specified path.
