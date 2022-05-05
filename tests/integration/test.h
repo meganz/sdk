@@ -188,8 +188,7 @@ struct Model
     unique_ptr<ModelNode> root;
 };
 
-
-struct StandardClient : public ::mega::MegaApp
+struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
 #ifdef GFX_CLASS

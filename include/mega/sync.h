@@ -177,7 +177,6 @@ public:
     unsigned mScanIntervalSec = 0;
 
     // enum to string conversion
-    //static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
     static bool synctypefromname(const string& name, Type& type);
 
@@ -458,16 +457,8 @@ public:
     // Caches all synchronized LocalNode
     void cachenodes();
 
-    //// Retrieve the name of this sync's state cache.
-    ////
-    //// Returns an empty string if this sync has no state cache.
-    //const string& statecachename() const;
-
     // change state, signal to application
     void changestate(SyncError newSyncError, bool newEnableFlag, bool notifyApp, bool keepSyncDb);
-
-    //// skip duplicates and self-caused
-    //bool checkValidNotification(int q, Notification& notification);
 
     // process all outstanding filesystem notifications (mark sections of the sync tree to visit)
     dstime procscanq();
@@ -577,7 +568,7 @@ public:
 
     // We don't officially support the synchronization of trees greater than this depth.
     // Note that the depth is from the cloud root, not from the sync root.
-    static const unsigned MAX_DEPTH;
+    static const unsigned MAX_CLOUD_DEPTH;
 
     // Whether this is a backup sync.
     bool isBackup() const;
@@ -1262,6 +1253,9 @@ private:
     // Syncs should have a separate fsaccess for thread safety
     unique_ptr<FileSystemAccess> fsaccess;
 
+    // pseudo-random number generator
+    PrnGen rng;
+
     // Track some state during and between recursiveSync runs
     unique_ptr<SyncFlags> mSyncFlags;
 
@@ -1277,9 +1271,6 @@ private:
 
     // used to asynchronously perform scans.
     unique_ptr<ScanService> mScanService;
-
-    // pseudo-random number generator
-    PrnGen rng;
 
     // Separate key to avoid threading issues
     SymmCipher syncKey;

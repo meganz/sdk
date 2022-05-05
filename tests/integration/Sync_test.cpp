@@ -15184,7 +15184,7 @@ TEST_F(SyncTest, MaximumTreeDepthBehavior)
     string remoteRootPath = "00";
 
     {
-        vector<NewNode> nodes(Sync::MAX_DEPTH - root->depth() - 2);
+        vector<NewNode> nodes(Sync::MAX_CLOUD_DEPTH - root->depth() - 2);
 
         client->client.putnodes_prepareOneFolder(&nodes[0], "00");
 

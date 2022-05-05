@@ -313,7 +313,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     CommandChain mPendingChanges;
 
     // owner
-    handle owner = ::mega::UNDEF;
+    handle owner = mega::UNDEF;
 
     // actual time this node was created (cannot be set by user)
     m_time_t ctime = 0;
