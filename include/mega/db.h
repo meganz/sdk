@@ -220,6 +220,7 @@ struct MEGA_API DbAccess
 {
     static const int LEGACY_DB_VERSION;
     static const int DB_VERSION;
+    static const int LAST_DB_VERSION_WITHOUT_NOD;
 
     DbAccess();
 

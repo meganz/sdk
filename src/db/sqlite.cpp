@@ -141,8 +141,15 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
         if (fileAccess->fopen(legacyPath))
         {
             LOG_debug << "Found legacy database at: " << legacyPath;
-
-            if (currentDbVersion == LEGACY_DB_VERSION)
+            if (LEGACY_DB_VERSION == LAST_DB_VERSION_WITHOUT_NOD)
+            {
+                LOG_debug << "Rename database file to update version to NOD";
+                if (!fsAccess.renamelocal(legacyPath, dbPath))
+                {
+                    fsAccess.unlinklocal(legacyPath);
+                }
+            }
+            else if (currentDbVersion == LEGACY_DB_VERSION)
             {
                 LOG_debug << "Using a legacy database.";
                 dbPath = std::move(legacyPath);
