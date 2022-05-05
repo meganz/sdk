@@ -1011,8 +1011,6 @@ public:
     int getType() const override;
     void setType(SyncType type);
 
-    //void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
-
     int getRunState() const override;
 
     MegaSync::SyncRunningState mRunState = SyncRunningState::RUNSTATE_DISABLED;
@@ -1031,10 +1029,6 @@ protected:
     int mWarning = NO_SYNC_WARNING;
 
     handle mBackupId = UNDEF;
-
-    //bool mActive = false;
-    //bool mEnabled = false;
-
 };
 
 

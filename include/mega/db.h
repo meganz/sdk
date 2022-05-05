@@ -170,10 +170,6 @@ struct MEGA_API DbAccess
 
     virtual bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) = 0;
 
-    virtual LocalPath databasePath(const FileSystemAccess& fsAccess,
-        const string& name,
-        const int version) const = 0;
-
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;

@@ -63,7 +63,7 @@ public:
 
     LocalPath databasePath(const FileSystemAccess& fsAccess,
                            const string& name,
-                           const int version) const override;
+                           const int version) const;
 
     bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) override;
 

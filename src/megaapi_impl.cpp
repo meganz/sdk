@@ -4338,7 +4338,6 @@ bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
 }
 
 
-
 MegaStringListMap* MegaStringListMapPrivate::copy() const
 {
     auto map = new MegaStringListMapPrivate;
