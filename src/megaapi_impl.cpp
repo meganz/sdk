@@ -5635,14 +5635,6 @@ char *MegaApiImpl::getMyRSAPrivateKey()
     return MegaApi::strdup(client->mPrivKey.c_str());
 }
 
-void MegaApiImpl::setLogExtraForModules(bool networking, bool syncs)
-{
-    g_netLoggingOn = networking;
-#ifdef ENABLE_SYNC
-    client->syncs.mDetailedSyncLogging = syncs;
-#endif
-}
-
 void MegaApiImpl::setLogLevel(int logLevel)
 {
     SimpleLogger::setLogLevel(LogLevel(logLevel));
