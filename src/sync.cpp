@@ -920,7 +920,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
             us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
 
             // Note, we opened dbaccess in thread-safe mode
-            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED));
+            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname));
 
             // Did the call above create the database?
             us.mConfig.mDatabaseExists |= !!statecachetable;
@@ -1067,7 +1067,6 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             statecacheadd(l);
             if (insertq.size() > 50000)
             {
-                DBTableTransactionCommitter committer(statecachetable);
                 cachenodes();  // periodically output updated nodes with shortname updates, so people who restart megasync still make progress towards a fast startup
             }
         }
