@@ -1059,7 +1059,7 @@ class MegaSyncListPrivate : public MegaSyncList
         int s;
 };
 
-#endif
+#endif // ENABLE_SYNC
 
 
 class MegaPricingPrivate;

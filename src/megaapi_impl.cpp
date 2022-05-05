@@ -5635,6 +5635,14 @@ char *MegaApiImpl::getMyRSAPrivateKey()
     return MegaApi::strdup(client->mPrivKey.c_str());
 }
 
+void MegaApiImpl::setLogExtraForModules(bool networking, bool syncs)
+{
+    g_netLoggingOn = networking;
+#ifdef ENABLE_SYNC
+    client->syncs.mDetailedSyncLogging = syncs;
+#endif
+}
+
 void MegaApiImpl::setLogLevel(int logLevel)
 {
     SimpleLogger::setLogLevel(LogLevel(logLevel));
@@ -21294,7 +21302,7 @@ void MegaApiImpl::sendPendingRequests()
             auto backupId = request->getParentHandle();
             UnifiedSync* us = nullptr;
 
-            e = client->syncs.enableSyncByBackupId(backupId, true, us);
+            e = client->syncs.enableSyncByBackupId(backupId, true, us, "");
 
             request->setNumDetails(us ? us->mConfig.mError : UNKNOWN_ERROR);
 

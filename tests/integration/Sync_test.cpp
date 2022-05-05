@@ -2207,18 +2207,18 @@ Sync* StandardClient::syncByBackupId(handle backupId)
     return client.syncs.runningSyncByBackupIdForTests(backupId);
 }
 
-void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result)
+void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
 {
     UnifiedSync* sync;
-    result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync));
+    result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync, logname));
 }
 
-bool StandardClient::enableSyncByBackupId(handle id)
+bool StandardClient::enableSyncByBackupId(handle id, const string& logname)
 {
     auto result =
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                         {
-                            client.enableSyncByBackupId(id, result);
+                            client.enableSyncByBackupId(id, result, logname);
                         });
 
     return result.get();
@@ -6403,9 +6403,9 @@ TEST_F(SyncTest, BasicSyncExportImport)
     ASSERT_FALSE(cx->confirmModel_mainthread(model2.root.get(), id2, false, StandardClient::Confirm::CONFIRM_ALL, true));
 
     // Enable the imported syncs.
-    ASSERT_TRUE(cx->enableSyncByBackupId(id0));
-    ASSERT_TRUE(cx->enableSyncByBackupId(id1));
-    ASSERT_TRUE(cx->enableSyncByBackupId(id2));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id0, "sync0 "));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id1, "sync1 "));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id2, "sync2 "));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, cx.get());
@@ -8947,7 +8947,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
     ASSERT_TRUE(cb.backupOpenDrive(cb.fsBasePath));
 
     // Re-enable the sync.
-    ASSERT_TRUE(cb.enableSyncByBackupId(id));
+    ASSERT_TRUE(cb.enableSyncByBackupId(id, "cb"));
 
     // Wait for the mirror to complete.
     waitonsyncs(TIMEOUT, &cb);
@@ -9028,7 +9028,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
     }
 
     // Re-enable the sync.
-    ASSERT_TRUE(cb.enableSyncByBackupId(id));
+    ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
     // Wait for the mirror to complete.
     waitonsyncs(TIMEOUT, &cb);
@@ -9157,7 +9157,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         };
 
         // Resume the backup.
-        ASSERT_TRUE(cb.enableSyncByBackupId(id));
+        ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
         // Wait for the sync to try and upload a file.
         waiter.get_future().get();
@@ -9289,7 +9289,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
         }
 
         // Enable the backup.
-        ASSERT_TRUE(cb.enableSyncByBackupId(id));
+        ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
         // Give the sync some time to think.
         waitonsyncs(TIMEOUT, &cb);
@@ -9308,7 +9308,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
         // Manually enable the sync.
         // It should come up in mirror mode.
-        ASSERT_TRUE(cb.enableSyncByBackupId(id));
+        ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
         // Let it bring the cloud in line.
         waitonsyncs(TIMEOUT, &cb);
@@ -9367,7 +9367,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     }
 
     // Re-enable the sync.
-    ASSERT_TRUE(cb.enableSyncByBackupId(id));
+    ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
     // Wait for the sync to complete mirroring.
     waitonsyncs(TIMEOUT, &cb);

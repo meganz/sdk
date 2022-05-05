@@ -9320,7 +9320,7 @@ void exec_syncxable(autocomplete::ACState& s)
         // sync enable id
         UnifiedSync* unifiedSync;
         error result =
-          client->syncs.enableSyncByBackupId(backupId, false, unifiedSync);
+          client->syncs.enableSyncByBackupId(backupId, false, unifiedSync, "");
 
         if (result)
         {

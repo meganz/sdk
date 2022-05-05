@@ -514,8 +514,8 @@ struct StandardClient : public MegaApp
     bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile);
     bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported, bool expectFail, bool skipIgnoreFile);
     Sync* syncByBackupId(handle backupId);
-    void enableSyncByBackupId(handle id, PromiseBoolSP result);
-    bool enableSyncByBackupId(handle id);
+    void enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname);
+    bool enableSyncByBackupId(handle id, const string& logname);
     void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result);
 
     handle backupIdForSyncPath(fs::path path);
