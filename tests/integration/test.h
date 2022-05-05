@@ -190,7 +190,7 @@ struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
 #ifdef GFX_CLASS
-    GFX_CLASS gfx;
+    GfxProc gfx;
 #endif
 
     string client_dbaccess_path;

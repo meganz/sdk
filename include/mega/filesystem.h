@@ -102,7 +102,7 @@ class MEGA_API LocalPath
     friend class PosixFileAccess;
     friend void RemoveHiddenFileAttribute(LocalPath& path);
     friend void AddHiddenFileAttribute(LocalPath& path);
-    friend class GfxProcFreeImage;
+    friend class GfxProviderFreeImage;
     friend struct FileSystemAccess;
     friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
 #ifdef USE_ROTATIVEPERFORMANCELOGGER
