@@ -275,9 +275,6 @@ public:
     // Server-Side Rubbish-bin Scheduler enabled (autopurging)
     bool ssrs_enabled;
 
-    // New Secure Registration method enabled
-    bool nsr_enabled;
-
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
 
@@ -336,13 +333,9 @@ public:
     void cancelsignup();
 
     // full account confirmation/creation support
-    void sendsignuplink(const char*, const char*, const byte*);
-
     string sendsignuplink2(const char*, const char *, const char*);
     void resendsignuplink2(const char*, const char *);
 
-    void querysignuplink(const byte*, unsigned);
-    void confirmsignuplink(const byte*, unsigned, uint64_t);
     void confirmsignuplink2(const byte*, unsigned);
     void setkeypair();
 
