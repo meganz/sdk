@@ -92,7 +92,7 @@ using MegaGfxProvider = GfxProviderExternal;
 #else
     #ifdef __APPLE__
     typedef CurlHttpIO MegaHttpIO;
-        #ifdef TARGET_OS_IPHONE
+        #if TARGET_OS_IPHONE
         typedef PosixFileSystemAccess MegaFileSystemAccess;
         #else
         typedef MacFileSystemAccess MegaFileSystemAccess;
