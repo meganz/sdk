@@ -46,7 +46,7 @@
 #include <fcntl.h>
 #endif
 
-#ifdef TARGET_OS_IPHONE
+#if TARGET_OS_IPHONE
 #include "mega/gfx/GfxProcCG.h"
 #endif
 
@@ -92,7 +92,7 @@ class MegaGfxProc : public GfxProcExternal {};
 #else
     #ifdef __APPLE__
     typedef CurlHttpIO MegaHttpIO;
-        #ifdef TARGET_OS_IPHONE
+        #if TARGET_OS_IPHONE
         typedef PosixFileSystemAccess MegaFileSystemAccess;
         #else
         typedef MacFileSystemAccess MegaFileSystemAccess;
