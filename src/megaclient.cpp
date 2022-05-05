@@ -18233,7 +18233,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
 {
     if (!mTable)
     {
-        assert(false);
+        assert(!mClient.loggedin());
         return nullptr;
     }
 
