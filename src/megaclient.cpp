@@ -1253,8 +1253,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     init();
 
-    f->client = this;
-    f->waiter = w;
+    fsaccess->client = this;
+    fsaccess->waiter = w;
     transferlist.client = this;
 
     if ((app = a))
@@ -1264,8 +1264,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
-
-    fsaccess = move(f);
 
     dbaccess = d;
 
