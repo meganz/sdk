@@ -36,7 +36,7 @@ bool GfxProc::isgfx(const LocalPath& localfilename)
 {
     const char* supported;
 
-    if (!(supported = supportedformats()))
+    if (!(supported = mGfxProvider->supportedformats()))
     {
         return true;
     }
@@ -60,7 +60,7 @@ bool GfxProc::isvideo(const LocalPath& localfilename)
 {
     const char* supported;
 
-    if (!(supported = supportedvideoformats()))
+    if (!(supported = mGfxProvider->supportedvideoformats()))
     {
         return false;
     }
@@ -78,16 +78,6 @@ bool GfxProc::isvideo(const LocalPath& localfilename)
     }
 
     return false;
-}
-
-const char* GfxProc::supportedformats()
-{
-    return NULL;
-}
-
-const char* GfxProc::supportedvideoformats()
-{
-    return NULL;
 }
 
 void *GfxProc::threadEntryPoint(void *param)
@@ -116,7 +106,7 @@ void GfxProc::loop()
             LOG_debug << "Processing media file: " << job->h;
 
             // (this assumes that the width of the largest dimension is max)
-            if (readbitmap(NULL, job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+            if (mGfxProvider->readbitmap(client->fsaccess.get(), job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
             {
                 for (unsigned i = 0; i < job->imagetypes.size(); i++)
                 {
@@ -125,21 +115,21 @@ void GfxProc::loop()
                     int w = dimensions[job->imagetypes[i]][0];
                     int h = dimensions[job->imagetypes[i]][1];
 
-                    if (this->w < w && this->h < h)
+                    if (mGfxProvider->width() < w && mGfxProvider->height() < h)
                     {
                         LOG_debug << "Skipping upsizing of preview or thumbnail";
-                        w = this->w;
-                        h = this->h;
+                        w = mGfxProvider->width();
+                        h = mGfxProvider->height();
                     }
 
-                    if (!resizebitmap(w, h, jpeg))
+                    if (!mGfxProvider->resizebitmap(w, h, jpeg))
                     {
                         delete jpeg;
                         jpeg = NULL;
                     }
                     job->images.push_back(jpeg);
                 }
-                freebitmap();
+                mGfxProvider->freebitmap();
             }
             else
             {
@@ -246,7 +236,11 @@ int GfxProc::checkevents(Waiter *)
     return needexec ? Waiter::NEEDEXEC : 0;
 }
 
-void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
+IGfxProvider::~IGfxProvider()
+{
+}
+
+void IGfxProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 {
     if (rh)
     {
@@ -331,7 +325,7 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, Loca
     }
 
     mutex.lock();
-    if (!readbitmap(NULL, localfilepath, width > height ? width : height))
+    if (!mGfxProvider->readbitmap(client->fsaccess.get(), localfilepath, width > height ? width : height))
     {
         mutex.unlock();
         return false;
@@ -339,16 +333,16 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, Loca
 
     int w = width;
     int h = height;
-    if (this->w < w && this->h < h)
+    if (mGfxProvider->width() < w && mGfxProvider->height() < h)
     {
         LOG_debug << "Skipping upsizing of local preview";
-        w = this->w;
-        h = this->h;
+        w = mGfxProvider->width();
+        h = mGfxProvider->height();
     }
 
     string jpeg;
-    bool success = resizebitmap(w, h, &jpeg);
-    freebitmap();
+    bool success = mGfxProvider->resizebitmap(w, h, &jpeg);
+    mGfxProvider->freebitmap();
     mutex.unlock();
 
     if (!success)
@@ -371,7 +365,8 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, Loca
     return true;
 }
 
-GfxProc::GfxProc()
+GfxProc::GfxProc(std::unique_ptr<IGfxProvider> middleware)
+    : mGfxProvider(std::move(middleware))
 {
     client = NULL;
     finished = false;

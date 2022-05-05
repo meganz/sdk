@@ -1069,7 +1069,11 @@ string StandardClient::ensureDir(const fs::path& p)
 }
 
 StandardClient::StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder)
-    : client_dbaccess_path(ensureDir(basepath / name))
+    :
+#ifdef GFX_CLASS
+      gfx(::mega::make_unique<GFX_CLASS>()),
+#endif
+      client_dbaccess_path(ensureDir(basepath / name))
     , httpio(new HTTPIO_CLASS)
     , client(this,
                 &waiter,

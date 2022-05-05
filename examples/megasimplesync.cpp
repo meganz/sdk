@@ -550,7 +550,7 @@ int main(int argc, char *argv[])
                             nullptr,
                         #endif
                         #ifdef GFX_CLASS
-                            new GFX_CLASS,
+                            new GfxProc(::mega::make_unique<GFX_CLASS>()),
                         #else
                             nullptr,
                         #endif
