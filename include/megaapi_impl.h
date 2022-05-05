@@ -74,11 +74,11 @@ class MegaSemaphore : public CppSemaphore {};
 #endif
 
 #if USE_FREEIMAGE
-class MegaGfxProc : public GfxProcFreeImage {};
+using MegaGfxProvider = GfxProviderFreeImage;
 #elif TARGET_OS_IPHONE
-class MegaGfxProc : public GfxProcCG {};
+using MegaGfxProvider = GfxProviderCG;
 #else
-class MegaGfxProc : public GfxProcExternal {};
+using MegaGfxProvider = GfxProviderExternal;
 #endif
 
 #ifdef WIN32
@@ -2092,6 +2092,7 @@ class MegaApiImpl : public MegaApp
         void resumeCreateAccountEphemeralPlusPlus(const char* sid, MegaRequestListener *listener = NULL);
         void cancelCreateAccount(MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
+        void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
         void fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
@@ -2531,6 +2532,8 @@ class MegaApiImpl : public MegaApp
         void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
                                                const char *string64UploadToken, const char *string64FileKey, MegaRequestListener *listener);
 
+        void getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullFileSize, int faType, bool forceSSL, MegaRequestListener *listener);
+
 
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
@@ -2912,9 +2915,6 @@ protected:
 
         // account creation
         void sendsignuplink_result(error) override;
-        void querysignuplink_result(error) override;
-        void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
-        void confirmsignuplink_result(error) override;
         void confirmsignuplink2_result(handle, const char*, const char*, error) override;
         void setkeypair_result(error) override;
 

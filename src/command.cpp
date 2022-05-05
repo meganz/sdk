@@ -115,6 +115,33 @@ bool Command::checkError(Error& errorDetails, JSON& json)
     return errorDetected;
 }
 
+// cache urls and ips given in response to avoid further waiting for dns resolution
+bool Command::cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips)
+{
+    // cache resolved URLs if received
+    return client->httpio->cacheresolvedurls(urls, std::move(ips));
+}
+
+// Store ips from response in the vector passed
+bool Command::loadIpsFromJson(std::vector<string>& ips)
+{
+    if (client->json.enterarray()) // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+    {
+        for (;;)
+        {
+            std::string ti;
+            if (!client->json.storeobject(&ti))
+            {
+                break;
+            }
+            ips.emplace_back(std::move(ti));
+        }
+        client->json.leavearray();
+        return true;
+    }
+    return false;
+}
+
 // add opcode
 void Command::cmd(const char* cmd)
 {
