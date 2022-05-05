@@ -4981,9 +4981,10 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 
     // SCENARIO 1: Upload image file and check thumbnail and preview
     std::unique_ptr<MegaNode> rootnode(megaApi[0]->getRootNode());
-    ASSERT_EQ(API_OK, doStartUpload(0, nullptr, IMAGEFILE.c_str(), rootnode.get()));
+    MegaHandle uploadResultHandle = UNDEF;
+    ASSERT_EQ(API_OK, doStartUpload(0, &uploadResultHandle, IMAGEFILE.c_str(), rootnode.get()));
 
-    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(mApi[0].h));
+    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(uploadResultHandle));
     ASSERT_NE(n1, nullptr);
     ASSERT_STREQ(IMAGEFILE.c_str(), n1->getName()) << "Uploaded file with wrong name (error: " << mApi[0].lastError << ")";
 
