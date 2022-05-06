@@ -159,6 +159,8 @@ public:
 // file attribute put
 struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 {
+    // For this command, the completion is exectued after the API response.
+    // If you supply a completion, that will short-circuit the upload process
     using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
     Cb mCompletion;
 
@@ -171,7 +173,8 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     // progress information
     virtual m_off_t transferred(MegaClient*) override;
 
-    HttpReqCommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, size_t size,
+    // either supply only size (to just get the URL) or supply only the data for auto-upload (but not both)
+    HttpReqCommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, size_t size_only,
                         std::unique_ptr<string> faData, bool getIP = true, Cb &&completion = nullptr);
 
 private:

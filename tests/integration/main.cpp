@@ -17,8 +17,12 @@ bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
-int gFseventsFd = -1;
+
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
+
+string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
+string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
+
 
 void WaitMillisec(unsigned n)
 {

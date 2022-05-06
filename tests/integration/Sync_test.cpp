@@ -723,7 +723,7 @@ string StandardClient::ensureDir(const fs::path& p)
     return result;
 }
 
-StandardClient::StandardClient(const fs::path& basepath, const string& name)
+StandardClient::StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder)
     :
 #ifdef GFX_CLASS
       gfx(::mega::make_unique<GFX_CLASS>()),
@@ -747,8 +747,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name)
                 "N9tSBJDC",
                 USER_AGENT.c_str(),
                 THREADS_PER_MEGACLIENT)
-    , clientname(name)
-    , fsBasePath(basepath / fs::u8path(name))
+    , clientname(name + " ")
     , resultproc(*this)
     , clientthread([this]() { threadloop(); })
 {
@@ -756,6 +755,15 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name)
 #ifdef GFX_CLASS
     gfx.startProcessingThread();
 #endif
+
+    if (workingFolder.empty())
+    {
+        fsBasePath = basepath / fs::u8path(name);
+    }
+    else
+    {
+        fsBasePath = ensureDir(workingFolder / fs::u8path(name));
+    }
 }
 
 StandardClient::~StandardClient()
@@ -2151,6 +2159,24 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, fs::path p, int& des
     {
         ms.erase("tmp");
         ps.erase("tmp");
+    }
+    else if (depth == 0)
+    {
+        // with ignore files, most tests now involve a download somewhere which means debris/tmp is created.
+        // it only matters if the content of these differs, absence or empty is effectively the same
+        if (ms.find(DEBRISFOLDER) == ms.end())
+        {
+            auto d = mn->addkid();
+            d->name = DEBRISFOLDER;
+            d->type = Model::ModelNode::folder;
+            ms.emplace(DEBRISFOLDER, d);
+        }
+        if (ps.find(DEBRISFOLDER) == ps.end())
+        {
+            auto pdeb = p / fs::path(DEBRISFOLDER);
+            fs::create_directory(pdeb);
+            ps.emplace(DEBRISFOLDER, pdeb);
+        }
     }
 
     int matched = 0;

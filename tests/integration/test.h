@@ -21,6 +21,9 @@ using namespace ::mega;
 using namespace ::std;
 
 
+extern string_vector envVarAccount;
+extern string_vector envVarPass;
+
 std::string logTime();
 void WaitMillisec(unsigned n);
 
@@ -239,7 +242,7 @@ struct StandardClient : public MegaApp
 
     string ensureDir(const fs::path& p);
 
-    StandardClient(const fs::path& basepath, const string& name);
+    StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder = fs::path());
     ~StandardClient();
     void localLogout();
 
