@@ -3632,7 +3632,11 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f/f_2"), backupId12));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_0"), backupId21));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_2"), backupId22));
-    ASSERT_TRUE(clientA3.confirmModel_mainthread(model.findnode("f"), backupId31));
+
+    // the other model gets .debris folders added at other levels for easy comparisons
+    Model cleanModel;
+    cleanModel.root->addkid(cleanModel.buildModelSubdirs("f", 3, 3, 0));
+    ASSERT_TRUE(clientA3.confirmModel_mainthread(cleanModel.findnode("f"), backupId31));
 
     LOG_debug << "----- making sync change to test, now -----";
     clientA1.received_node_actionpackets = false;
@@ -3664,7 +3668,9 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f/f_2"), backupId12));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_0"), backupId21));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_2"), backupId22));
-    ASSERT_TRUE(clientA3.confirmModel_mainthread(model.findnode("f"), backupId31));
+
+    ASSERT_TRUE(cleanModel.movenode("f/f_0/f_0_1", "f/f_2/f_2_1/f_2_1_0"));
+    ASSERT_TRUE(clientA3.confirmModel_mainthread(cleanModel.findnode("f"), backupId31));
 }
 
 TEST_F(SyncTest, BasicSync_RenameLocalFile)
