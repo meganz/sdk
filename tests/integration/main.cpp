@@ -275,19 +275,6 @@ int main (int argc, char *argv[])
             startOneSecLogger = true;
             argc -= 1;
         }
-#ifdef __APPLE__
-        else if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
-        {
-            int fseventsFd = std::stoi(std::string(*it).substr(13));
-            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
-                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
-                return 1;
-            }
-
-            gFseventsFd = fseventsFd;
-            argc -= 1;
-        }
-#endif
         else
         {
             myargv2.push_back(*it);

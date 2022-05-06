@@ -6817,7 +6817,7 @@ TEST_F(SdkTest, SyncPaths)
         return (remoteNode.get() != nullptr);
     },50*1000);
     ASSERT_NE(remoteNode.get(), nullptr);
-    ASSERT_EQ(API_OK,synchronousStartDownload(0,remoteNode.get(),fileDownloadPath.u8string().c_str()));
+    ASSERT_EQ(API_OK, doStartDownload(0,remoteNode.get(),fileDownloadPath.u8string().c_str()));
     ASSERT_TRUE(fileexists(fileDownloadPath.u8string()));
     deleteFile(fileDownloadPath.u8string());
 
