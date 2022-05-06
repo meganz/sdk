@@ -1170,8 +1170,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
    , btworkinglock(rng)
    , btsc(rng)
    , btpfa(rng)
+   , fsaccess(move(f))
 #ifdef ENABLE_SYNC
-    , syncs(*this)
+    , syncs(*this, fsaccess)
     , syncfslockretrybt(rng)
     , syncdownbt(rng)
     , syncnaglebt(rng)
@@ -1252,8 +1253,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     init();
 
-    f->client = this;
-    f->waiter = w;
+    fsaccess->client = this;
+    fsaccess->waiter = w;
     transferlist.client = this;
 
     if ((app = a))
@@ -1263,11 +1264,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
-    
-    fsaccess = move(f);
-#ifdef ENABLE_SYNC
-    fsaccess->initFilesystemNotificationSystem();
-#endif // ENABLE_SYNC
 
     dbaccess = d;
 
@@ -14058,7 +14054,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
             UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
-            e = unifiedSync->enableSync(false, notifyApp);
+            e = unifiedSync->enableSync(false, notifyApp, logname);
 
             syncactivity = true;
 

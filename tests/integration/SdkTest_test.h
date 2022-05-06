@@ -405,7 +405,7 @@ public:
     template<typename ... requestArgs> int synchronousReplyContactRequest(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->replyContactRequest(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousRemove(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->remove(args..., &rt); return rt.waitForResult(); }
 
-    void createFile(string filename, bool largeFile = true);
+    bool createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);
     void deleteFile(string filename);
 

@@ -21294,7 +21294,7 @@ void MegaApiImpl::sendPendingRequests()
             auto backupId = request->getParentHandle();
             UnifiedSync* us = nullptr;
 
-            e = client->syncs.enableSyncByBackupId(backupId, true, us);
+            e = client->syncs.enableSyncByBackupId(backupId, true, us, "");
 
             request->setNumDetails(us ? us->mConfig.mError : UNKNOWN_ERROR);
 
