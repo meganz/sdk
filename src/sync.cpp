@@ -490,7 +490,62 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     return success;
 }
 
+LocalPath SyncThreadsafeState::syncTmpFolder() const
+{
+    lock_guard<mutex> g(mMutex);
+    return mSyncTmpFolder;
+}
 
+void SyncThreadsafeState::setSyncTmpFolder(const LocalPath& tmpFolder)
+{
+    lock_guard<mutex> g(mMutex);
+    mSyncTmpFolder = tmpFolder;
+}
+
+void SyncThreadsafeState::adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes)
+{
+    lock_guard<mutex> g(mMutex);
+    auto& tc = upload ? mTransferCounts.mUploads : mTransferCounts.mDownloads;
+
+    assert(adjustQueued >= 0 || tc.mPending);
+    assert(adjustCompleted >= 0 || tc.mCompleted);
+
+    assert(adjustQueuedBytes >= 0 || tc.mPendingBytes);
+    assert(adjustCompletedBytes >= 0 || tc.mCompletedBytes);
+
+    tc.mPending += adjustQueued;
+    tc.mCompleted += adjustCompleted;
+    tc.mPendingBytes += adjustQueuedBytes;
+    tc.mCompletedBytes += adjustCompletedBytes;
+
+    if (!tc.mPending && tc.mCompletedBytes == tc.mPendingBytes)
+    {
+        tc.mCompletedBytes = 0;
+        tc.mPendingBytes = 0;
+    }
+}
+
+void SyncThreadsafeState::transferBegin(direction_t direction, m_off_t numBytes)
+{
+    adjustTransferCounts(direction == PUT, 1, 0, numBytes, 0);
+}
+
+void SyncThreadsafeState::transferComplete(direction_t direction, m_off_t numBytes)
+{
+    adjustTransferCounts(direction == PUT, -1, 1, 0, numBytes);
+}
+
+void SyncThreadsafeState::transferFailed(direction_t direction, m_off_t numBytes)
+{
+    adjustTransferCounts(direction == PUT, -1, 1, -numBytes, 0);
+}
+
+SyncTransferCounts SyncThreadsafeState::transferCounts() const
+{
+    lock_guard<mutex> guard(mMutex);
+
+    return mTransferCounts;
+}
 
 SyncConfig::SyncConfig(LocalPath localPath,
                        std::string name,
@@ -553,40 +608,9 @@ const LocalPath& SyncConfig::getLocalPath() const
     return mLocalPath;
 }
 
-NodeHandle SyncConfig::getRemoteNode() const
-{
-    return mRemoteNode;
-}
-
-void SyncConfig::setRemoteNode(NodeHandle remoteNode)
-{
-    mRemoteNode = remoteNode;
-}
-
 SyncConfig::Type SyncConfig::getType() const
 {
     return mSyncType;
-}
-
-
-SyncError SyncConfig::getError() const
-{
-    return mError;
-}
-
-void SyncConfig::setError(SyncError value)
-{
-    mError = value;
-}
-
-handle SyncConfig::getBackupId() const
-{
-    return mBackupId;
-}
-
-void SyncConfig::setBackupId(const handle &backupId)
-{
-    mBackupId = backupId;
 }
 
 bool SyncConfig::isBackup() const
@@ -779,6 +803,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
            LocalPath* clocaldebris, Node* remotenode, bool cinshare)
 : localroot(new LocalNode)
 , mUnifiedSync(us)
+, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &mUnifiedSync.mClient))
 {
     isnetwork = false;
     client = &mUnifiedSync.mClient;
@@ -847,10 +872,10 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     }
     else
     {
-        fsfp = dirnotify->fsfingerprint();
+        fsfp = client->fsaccess->fsFingerprint(mLocalPath);
     }
 
-    fsstableids = dirnotify->fsstableids();
+    fsstableids = client->fsaccess->fsStableIDs(mLocalPath);
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
 
@@ -1203,7 +1228,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
         statecachetable.reset();
     }
 
-    config.setError(newSyncError);
+    config.mError = newSyncError;
     config.setEnabled(newEnableFlag);
 
     bool makeActiveCallback = false;
@@ -1364,7 +1389,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                         if (!l || l == (LocalNode*)~0)
                         {
                             // new record: place in notification queue
-                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath));
+                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath), false, false);
                         }
                     }
                 }
@@ -1581,8 +1606,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                 // was the file overwritten by moving an existing file over it?
                                 if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
                                         && (l->sync == it->second->sync
-                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
-                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
+                                            || ((fp1 = client->fsaccess->fsFingerprint(l->sync->getConfig().mLocalPath))
+                                                && (fp2 = client->fsaccess->fsFingerprint(it->second->sync->getConfig().mLocalPath))
                                                 && (fp1 == fp2)
                                             #ifdef _WIN32
                                                 // only consider fsid matches between different syncs for local drives with the
@@ -1675,7 +1700,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                             if (isnetwork && l->type == FILENODE)
                             {
                                 LOG_debug << "Queueing extra fs notification for modified file";
-                                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
+                                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew), false, false);
                             }
                             return l;
                         }
@@ -1713,8 +1738,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     && it->second->type == fa->type
                     && (!parent
                         || (it->second->sync == parent->sync)
-                        || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
-                            && (fp2 = parent->sync->dirnotify->fsfingerprint())
+                        || ((fp1 = client->fsaccess->fsFingerprint(it->second->sync->getConfig().mLocalPath))
+                            && (fp2 = client->fsaccess->fsFingerprint(parent->sync->getConfig().mLocalPath))
                             && (fp1 == fp2)
                         #ifdef _WIN32
                             // allow moves between different syncs only for local drives with the
@@ -1892,7 +1917,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         else
                         {
                             // queue this one to be scanned, recursion is by notify of subdirs
-                            dirnotify->notify(DirNotify::DIREVENTS, it->second, LocalPath(), true);
+                            dirnotify->notify(DirNotify::DIREVENTS, it->second, LocalPath(), true, false);
                         }
                     }
                 }
@@ -2001,7 +2026,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             if (isnetwork && l->type == FILENODE)
             {
                 LOG_debug << "Queueing extra fs notification for new file";
-                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
+                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew), false, false);
             }
 
             client->syncactivity = true;
@@ -2015,7 +2040,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // fopen() signals that the failure is potentially transient - do
             // nothing and request a recheck
             LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
-            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*input_localpath));
+            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*input_localpath), false, false);
             client->syncfslockretry = true;
             client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
             client->blockedfile = *localpathNew;
@@ -2092,7 +2117,7 @@ bool Sync::checkValidNotification(int q, Notification& notification)
 
         if (deleted
             || (ll && success && ll->node && ll->node->localnode == ll
-                && !ll->needsRescan
+                && !(notification.recursive | ll->needsRescan)
                 && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
                 && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
                 && ait->second == ll->name
@@ -2126,7 +2151,7 @@ dstime Sync::procscanq(int q)
 
         if (notification.timestamp > dsmin)
         {
-            LOG_verbose << "Scanning postponed. Modification too recent";
+            LOG_verbose << syncname << "Scanning postponed. Modification too recent: " << notification.timestamp << " (ds) vs now " << Waiter::ds << " at " << notification.path;
             dirnotify->notifyq[q].unpopFront(notification);
             return notification.timestamp - dsmin;
         }
@@ -2139,6 +2164,37 @@ dstime Sync::procscanq(int q)
         {
             dstime backoffds = 0;
             LOG_verbose << "Checkpath: " << notification.path;
+
+            // Are we dealing with a recursive notification?
+            if (notification.recursive)
+            {
+                auto remainder = LocalPath();
+
+                // For purposes of debugging.
+                {
+                    auto path = notification.localnode->getLocalPath();
+
+                    path.appendWithSeparator(notification.path, false);
+
+                    LOG_debug << "Recursive notification queued for: "
+                              << path;
+                }
+
+                // Then make sure we scan everyone below the notified node.
+                auto node = localnodebypath(notification.localnode,
+                                            notification.path,
+                                            nullptr,
+                                            &remainder);
+
+                // Only mark the precise subtree.
+                if (node && remainder.empty())
+                {
+                    LOG_debug << "Recursive scan queued for nodes below: "
+                              << node->getLocalPath();
+
+                    node->setSubtreeNeedsRescan(true);
+                }
+            }
 
             l = checkpath(l, &notification.path, NULL, &backoffds, false, nullptr);
             if (backoffds)
@@ -2357,17 +2413,17 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
             changed = true;
         }
 
-        if (mConfig.getRemoteNode() != n->nodehandle)
+        if (mConfig.mRemoteNode != n->nodehandle)
         {
-            mConfig.setRemoteNode(NodeHandle().set6byte(n->nodehandle));
+            mConfig.mRemoteNode = NodeHandle().set6byte(n->nodehandle);
             changed = true;
         }
     }
     else //unset remote node: failed!
     {
-        if (!mConfig.getRemoteNode().isUndef())
+        if (!mConfig.mRemoteNode.isUndef())
         {
-            mConfig.setRemoteNode(NodeHandle());
+            mConfig.mRemoteNode = NodeHandle();
             changed = true;
         }
     }
@@ -3406,7 +3462,7 @@ Sync* Syncs::runningSyncByBackupId(handle backupId) const
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mSync && s->mConfig.getBackupId() == backupId)
+        if (s->mSync && s->mConfig.mBackupId == backupId)
         {
             return s->mSync.get();
         }
@@ -3421,7 +3477,7 @@ bool Syncs::syncConfigByBackupId(handle backupId, SyncConfig& c) const
     lock_guard<mutex> g(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
-        if (s->mConfig.getBackupId() == backupId)
+        if (s->mConfig.mBackupId == backupId)
         {
             c = s->mConfig;
 
@@ -3630,7 +3686,7 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
             }
             else
             {
-                config.setError(syncError);
+                config.mError = syncError;
                 config.setEnabled(config.isInternal() && newEnabledFlag);
                 us.changedConfigState(true);
             }
@@ -3704,11 +3760,11 @@ void Syncs::removeSyncByIndex(size_t index)
         mClient.app->sync_removed(config);
 
         // get the node for the backup to be removed
-        auto nh = config.getRemoteNode();
+        auto nh = config.mRemoteNode;
         if (nh.isUndef()) // can happen when the remote folder has been removed
         {
             // unregister this sync/backup from API (backup center)
-            mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+            mClient.reqs.add(new CommandBackupRemove(&mClient, config.mBackupId));
         }
 
         else
@@ -3731,7 +3787,7 @@ void Syncs::removeSyncByIndex(size_t index)
             if (idIt == am.end())
             {
                 // just unregister this sync/backup if no DeviceId node attribute was found
-                mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+                mClient.reqs.add(new CommandBackupRemove(&mClient, config.mBackupId));
             }
             else
             {
@@ -3746,7 +3802,7 @@ void Syncs::removeSyncByIndex(size_t index)
                     }
                     else
                     {
-                        mClient.reqs.add(new CommandBackupRemove(&mClient, config.getBackupId()));
+                        mClient.reqs.add(new CommandBackupRemove(&mClient, config.mBackupId));
                     }
                 };
 
@@ -3792,7 +3848,7 @@ error Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, Unifie
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mConfig.getBackupId() == backupId)
+        if (s->mConfig.mBackupId == backupId)
         {
             syncPtrRef = s.get();
             if (!s->mSync)
@@ -3839,7 +3895,7 @@ void Syncs::resumeResumableSyncsOnStartup()
         {
             if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
             {
-                auto node = mClient.nodeByHandle(unifiedSync->mConfig.getRemoteNode());
+                auto node = mClient.nodeByHandle(unifiedSync->mConfig.mRemoteNode);
                 unifiedSync->updateSyncRemoteLocation(node, false); //updates cache & notice app of this change
                 if (node)
                 {
@@ -3848,7 +3904,7 @@ void Syncs::resumeResumableSyncsOnStartup()
                 }
             }
 
-            bool hadAnError = unifiedSync->mConfig.getError() != NO_SYNC_ERROR;
+            bool hadAnError = unifiedSync->mConfig.mError != NO_SYNC_ERROR;
 
             if (unifiedSync->mConfig.getEnabled())
             {
@@ -3863,16 +3919,16 @@ void Syncs::resumeResumableSyncsOnStartup()
 #ifdef __APPLE__
                 unifiedSync->mConfig.mFilesystemFingerprint = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
-                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
                 unifiedSync->enableSync(false, false);
-                LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
                 mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
             }
             else
             {
-                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
                 mClient.app->sync_auto_resume_result(unifiedSync->mConfig, false, hadAnError);
             }
         }
@@ -4720,7 +4776,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     }
 
     writer.beginobject();
-    writer.arg("id", config.getBackupId(), sizeof(handle));
+    writer.arg("id", config.mBackupId, sizeof(handle));
     writer.arg_B64("sp", sourcePath);
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOriginalPathOfRemoteRootNode);

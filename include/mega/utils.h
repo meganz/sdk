@@ -386,7 +386,7 @@ public:
         std::unique_ptr<char[]> result(new char[size]);
         for (size_t i = 0; i < size; ++i)
         {
-            result[i] = (data[i >> 2] >> (24 - (i & 3) * 8)) & 255;
+            result[i] = static_cast<char>((data[i >> 2] >> (24 - (i & 3) * 8)) & 255);
         }
         return std::string (result.get(), size);
     }
@@ -929,7 +929,29 @@ bool platformSetRLimitNumFile(int newNumFileLimit = -1);
 
 void debugLogHeapUsage();
 
+struct SyncTransferCount
+{
+    bool operator==(const SyncTransferCount& rhs) const;
+    bool operator!=(const SyncTransferCount& rhs) const;
+    void operator-=(const SyncTransferCount& rhs);
 
-} // namespace
+    size_t mCompleted = 0;
+    size_t mCompletedBytes = 0;
+    size_t mPending = 0;
+    size_t mPendingBytes = 0;
+};
+
+struct SyncTransferCounts
+{
+    bool operator==(const SyncTransferCounts& rhs) const;
+    bool operator!=(const SyncTransferCounts& rhs) const;
+    void operator-=(const SyncTransferCounts& rhs);
+    double progress(m_off_t inflightProgress) const;
+
+    SyncTransferCount mDownloads;
+    SyncTransferCount mUploads;
+};
+
+} // namespace mega
 
 #endif

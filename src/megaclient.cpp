@@ -69,9 +69,6 @@ const int MegaClient::MAXQUEUEDFA = 30;
 const int MegaClient::MAXPUTFA = 10;
 
 #ifdef ENABLE_SYNC
-// hearbeat frequency
-static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
-
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
 #endif
@@ -299,7 +296,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                     {
                         n->inshare->user->sharing.erase(n->nodehandle);
                         notifyuser(n->inshare->user);
-                        n->inshare = NULL;
+                        delete n->inshare;
+                        n->inshare = nullptr;
                     }
                 }
             }
@@ -1143,8 +1141,6 @@ void MegaClient::init()
     btpfa.reset();
     btbadhost.reset();
 
-    btheartbeat.reset();
-
     abortlockrequest();
     transferHttpCounter = 0;
     nextDispatchTransfersDs = 0;
@@ -1176,7 +1172,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
    , btcs(rng)
    , btbadhost(rng)
    , btworkinglock(rng)
-   , btheartbeat(rng)
    , btsc(rng)
    , btpfa(rng)
 #ifdef ENABLE_SYNC
@@ -1273,7 +1268,12 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
+    
     fsaccess = move(f);
+#ifdef ENABLE_SYNC
+    fsaccess->initFilesystemNotificationSystem();
+#endif // ENABLE_SYNC
+
     dbaccess = d;
 
     if ((gfx = g))
@@ -2264,7 +2264,7 @@ void MegaClient::exec()
             case REQ_INFLIGHT:
                 if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
-                    LOG_debug << "sc timeout expired";
+                    LOG_debug << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
                     // In almost all cases the server won't take more than SCREQUESTTIMEOUT seconds.  But if it does, break the cycle of endless requests for the same thing
                     pendingscTimedOut = true;
                     pendingsc.reset();
@@ -2485,10 +2485,10 @@ void MegaClient::exec()
         syncs.forEachRunningSync([&](Sync* sync){
             if (sync->state() != SYNC_FAILED && sync->fsfp)
             {
-                fsfp_t current = sync->dirnotify->fsfingerprint();
+                fsfp_t current = fsaccess->fsFingerprint(sync->getConfig().mLocalPath);
                 if (sync->fsfp != current)
                 {
-                    LOG_err << "Local fingerprint mismatch. Previous: " << sync->fsfp
+                    LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp
                             << "  Current: " << current;
                     sync->changestate(SYNC_FAILED, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true);
                 }
@@ -2633,7 +2633,11 @@ void MegaClient::exec()
                             if (notification.timestamp <= dsmin)
                             {
                                 LOG_debug << "Processing extra fs notification: " << notification.path;
-                                sync->dirnotify->notify(DirNotify::DIREVENTS, notification.localnode, std::move(notification.path));
+                                sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                        notification.localnode,
+                                                        std::move(notification.path),
+                                                        false,
+                                                        false);
                             }
                             else
                             {
@@ -3111,11 +3115,7 @@ void MegaClient::exec()
         }
 
 #ifdef ENABLE_SYNC
-        if (btheartbeat.armed())
-        {
-            syncs.mHeartBeatMonitor->beat();
-            btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
-        }
+        syncs.mHeartBeatMonitor->beat();
 #endif
 
         for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
@@ -3779,7 +3779,7 @@ void MegaClient::dispatchTransfers()
                 for (file_list::iterator it = nexttransfer->files.begin();
                     nexttransfer->localfilename.empty() && it != nexttransfer->files.end(); it++)
                 {
-                    (*it)->prepare();
+                    (*it)->prepare(*fsaccess);
                 }
                 assert(nexttransfer->localfilename.isAbsolute());
 
@@ -7254,7 +7254,7 @@ void MegaClient::notifypurge(void)
         // check for renamed/moved sync root folders
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
-            Node* n = nodeByHandle(us.mConfig.getRemoteNode());
+            Node* n = nodeByHandle(us.mConfig.mRemoteNode);
             if (!n)
                 return;
 
@@ -7264,7 +7264,7 @@ void MegaClient::notifypurge(void)
             const string& originalPath = us.mConfig.mOriginalPathOfRemoteRootNode; // previous full remote path
             bool pathChanged = n->changed.parent || movedToRubbish ||
                                // the following were inspired by UnifiedSync::updateSyncRemoteLocation()
-                               us.mConfig.getRemoteNode() != n->nodehandle ||
+                               us.mConfig.mRemoteNode != n->nodehandle ||
                                originalPath != currentPath;
 
             if (n->changed.attrs || pathChanged || n->changed.removed)
@@ -7722,7 +7722,7 @@ void MegaClient::handleauth(handle h, byte* auth)
 }
 
 // make attribute string; add magic number prefix
-void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l)
 {
     if (l < 0)
     {
@@ -7743,7 +7743,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
     delete[] buf;
 }
 
-void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrstring, const char* json, int l)
 {
     makeattr(key, attrstring.get(), json, l);
 }
@@ -8687,7 +8687,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                                 n->localnode->setSubtreeNeedsRescan(false);
 
                                 // queue this one to be scanned, recursion is by notify of subdirs
-                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, n->localnode, LocalPath(), true);
+                                n->localnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                                      n->localnode,
+                                                                      LocalPath(),
+                                                                      true,
+                                                                      false);
                             }
                         }
                     }
@@ -13545,7 +13549,7 @@ void MegaClient::updateputs()
     {
         if ((*it)->transfer->type == PUT && (*it)->transfer->files.size())
         {
-            (*it)->transfer->files.front()->prepare();
+            (*it)->transfer->files.front()->prepare(*fsaccess);
         }
     }
 }
@@ -13687,13 +13691,13 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
         // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
-        if (config.getBackupId() != excludeBackupId)
+        if (config.mBackupId != excludeBackupId)
         {
             LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
-            if (config.getEnabled() && !config.getError() &&
+            if (config.getEnabled() && !config.mError &&
                     ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
@@ -13722,14 +13726,14 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     syncConfig.mError = NO_SYNC_ERROR;
     syncConfig.mWarning = NO_SYNC_WARNING;
 
-    Node* remotenode = nodeByHandle(syncConfig.getRemoteNode());
+    Node* remotenode = nodeByHandle(syncConfig.mRemoteNode);
     inshare = false;
     if (!remotenode)
     {
         LOG_warn << "Sync root does not exist in the cloud: "
                  << syncConfig.getLocalPath()
                  << ": "
-                 << LOG_NODEHANDLE(syncConfig.getRemoteNode());
+                 << LOG_NODEHANDLE(syncConfig.mRemoteNode);
 
         syncConfig.mError = REMOTE_NODE_NOT_FOUND;
         syncConfig.mEnabled = false;
@@ -13791,7 +13795,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             // so that the app does not need to carry that burden.
             // Although it might not be required given the following test does expands the configured
             // paths to use canonical paths when checking for path collisions:
-            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getBackupId(), &syncConfig.mError);
+            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.mBackupId, &syncConfig.mError);
             if (e)
             {
                 LOG_warn << "Local path not syncable: ";
@@ -14076,7 +14080,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
         {
 
             // if we got this far, the syncConfig is kept (in db and in memory)
-            config.setBackupId(backupId);
+            config.mBackupId = backupId;
 
             UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
@@ -14084,7 +14088,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
             syncactivity = true;
 
-            completion(e, unifiedSync->mConfig.getError(), backupId);
+            completion(e, unifiedSync->mConfig.mError, backupId);
         }
     }));
 
@@ -15346,7 +15350,7 @@ void MegaClient::syncupdate()
                 nextreqtag();
                 startxfer(PUT, l, committer, false, false, false, UseLocalVersioningFlag);
 
-                l->sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, l->size, 0);
+                l->sync->threadSafeState->transferBegin(PUT, l->size);
 
                 LOG_debug << "Sync - sending file " << l->getLocalPath();
             }
@@ -15976,7 +15980,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
             if (transfer->type == PUT && !transfer->localfilename.empty())
             {
                 LOG_debug << "Updating transfer path";
-                transfer->files.front()->prepare();
+                transfer->files.front()->prepare(*fsaccess);
             }
         }
     }
@@ -16170,7 +16174,7 @@ namespace action_bucket_compare
     const static string webclient_is_image_thumb = ".psd.svg.tif.tiff.webp.";  // leaving out .pdf
     const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
     const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
-    const static string webclient_mime_audio_extensions = ".3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
+    const static string webclient_mime_audio_extensions = ".ac3.ec3.3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
     const static string webclient_mime_document_extensions = ".ans.ascii.doc.docx.dotx.json.log.ods.odt.pages.pdf.ppc.pps.ppt.pptx.rtf.stc.std.stw.sti.sxc.sxd.sxi.sxm.sxw.txt.wpd.wps.xls.xlsx.xlt.xltm.";
 
     bool nodeIsVideo(const Node *n, const string& ext, const MegaClient& mc)

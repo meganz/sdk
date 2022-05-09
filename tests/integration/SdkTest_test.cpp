@@ -171,11 +171,7 @@ bool WaitFor(Predicate&& predicate, unsigned timeoutMs)
 
 MegaApi* newMegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-#if defined(ENABLE_SYNC) && defined(__APPLE__)
-    return new MegaApi(appKey, basePath, userAgent, gFseventsFd, workerThreadCount);
-#else
     return new MegaApi(appKey, basePath, userAgent, workerThreadCount);
-#endif
 }
 
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
@@ -7056,7 +7052,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     for (int index = 0 ; index < howMany; index++ )
     {
         exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index + 10 /*so as not to clash with megaApi[0]*/).c_str(),
-                                                    USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+                                                    USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         // reduce log level to something beareable
         exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
     }
@@ -7191,7 +7187,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
     for (unsigned index = 0 ; index < howMany; index++ )
     {
         exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(static_cast<int>(index) + 10 /*so as not to clash with megaApi[0]*/).c_str(),
-                                                    USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+                                                    USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         // reduce log level to something beareable
         exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
     }
@@ -7345,7 +7341,7 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     megaApi[1]->startUpload(fp.u8string().c_str(), n1);
 
     // --- Pause transfer, revoke out-share permissions for secondary account and resume transfer ---
-    megaApi[0]->pauseTransfers(true);
+    megaApi[1]->pauseTransfers(true);
     ASSERT_TRUE(!mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD]);
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
     ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.data(), MegaShare::ACCESS_UNKNOWN));
@@ -7353,7 +7349,7 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
             << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
             << "Node update not received after " << maxTimeout << " seconds";
-    megaApi[0]->pauseTransfers(false);
+    megaApi[1]->pauseTransfers(false);
     // --- Wait for transfer completion
     ASSERT_TRUE(waitForResponse(&mApi[1].transferFlags[MegaTransfer::TYPE_UPLOAD], 600))
         << "Upload transfer failed after " << 600 << " seconds";

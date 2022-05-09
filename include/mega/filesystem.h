@@ -43,7 +43,11 @@ enum FileSystemType
     FS_FUSE = 6,
     FS_SDCARDFS = 7,
     FS_F2FS = 8,
-    FS_XFS = 9
+    FS_XFS = 9,
+    FS_CIFS = 10,
+    FS_NFS = 11,
+    FS_SMB = 12,
+    FS_SMB2 = 13
 };
 
 typedef void (*asyncfscallback)(void *);
@@ -92,6 +96,7 @@ class MEGA_API LocalPath
     friend class PosixFileSystemAccess;
     friend struct WinDirAccess;
     friend struct WinDirNotify;
+    friend class MacDirNotify;
     friend class PosixDirNotify;
     friend class WinFileAccess;
     friend class PosixFileAccess;
@@ -214,7 +219,7 @@ public:
 #endif
 
     // Generates a name for a temporary file
-    static LocalPath tmpNameLocal(const FileSystemAccess& fsaccess);
+    static LocalPath tmpNameLocal();
 
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
@@ -325,7 +330,7 @@ struct MEGA_API FileAccess
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
     // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
-    virtual bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) = 0;
+    virtual bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false) = 0;
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
@@ -423,11 +428,17 @@ struct Notification
     dstime timestamp;
     LocalPath path;
     LocalNode* localnode = nullptr;
+    bool recursive = false;
 
     Notification() {}
-    Notification(dstime ts, const LocalPath& p, LocalNode* ln)
-        : timestamp(ts), path(p), localnode(ln)
-        {}
+
+    Notification(dstime ts, const LocalPath& p, LocalNode* ln, bool recursive)
+      : timestamp(ts)
+      , path(p)
+      , localnode(ln)
+      , recursive(recursive)
+    {
+    }
 };
 
 struct NotificationDeque : ThreadSafeDeque<Notification>
@@ -481,14 +492,11 @@ public:
     virtual void addnotify(LocalNode*, const LocalPath&) { }
     virtual void delnotify(LocalNode*) { }
 
-    void notify(notifyqueue, LocalNode *, LocalPath&&, bool = false);
-
-    // filesystem fingerprint
-    virtual fsfp_t fsfingerprint() const;
-
-    // Returns true if the filesystem's IDs are stable (e.g. never change between mounts).
-    // This should return false for any FAT filesystem.
-    virtual bool fsstableids() const;
+    void notify(notifyqueue queue,
+                LocalNode* node,
+                LocalPath&& path,
+                bool immediate,
+                bool recursive);
 
     // ignore this (debris folder)
     LocalPath ignore;
@@ -539,9 +547,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool getlocalfstype(const LocalPath& path, FileSystemType& type) const = 0;
     FileSystemType getlocalfstype(const LocalPath& path) const;
     void unescapefsincompatible(string*) const;
-
-    // generate local temporary file name
-    virtual void tmpnamelocal(LocalPath&) const = 0;
 
     // obtain local secondary name
     virtual bool getsname(const LocalPath&, LocalPath&) const = 0;
@@ -627,6 +632,24 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // Get the current working directory.
     static bool cwd_static(LocalPath& path);
     virtual bool cwd(LocalPath& path) const = 0;
+
+#ifdef ENABLE_SYNC
+    // Retrieve the fingerprint of the filesystem containing the specified path.
+    virtual fsfp_t fsFingerprint(const LocalPath& path) const = 0;
+
+    // True if the filesystem indicated by the specified path has stable FSIDs.
+    virtual bool fsStableIDs(const LocalPath& path) const = 0;
+
+    virtual bool initFilesystemNotificationSystem();
+#endif // ENABLE_SYNC
+
+    // Retrieve the FSID of the item at the specified path.
+    // UNDEF is returned if we cannot determine the item's FSID.
+    handle fsidOf(const LocalPath& path, bool follow);
+
+    // Create a hard link from source to target.
+    // Returns false if the link could not be created.
+    virtual bool hardLink(const LocalPath& source, const LocalPath& target) = 0;
 };
 
 enum FilenameAnomalyType
@@ -684,6 +707,10 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
 #ifdef ENABLE_SYNC
 FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
 #endif
+
+
+// True if type denotes a network filesystem.
+bool isNetworkFilesystem(FileSystemType type);
 
 } // namespace
 

@@ -92,7 +92,11 @@ class MegaGfxProc : public GfxProcExternal {};
 #else
     #ifdef __APPLE__
     typedef CurlHttpIO MegaHttpIO;
-    typedef PosixFileSystemAccess MegaFileSystemAccess;
+        #ifdef TARGET_OS_IPHONE
+        typedef PosixFileSystemAccess MegaFileSystemAccess;
+        #else
+        typedef MacFileSystemAccess MegaFileSystemAccess;
+        #endif
     typedef PosixWaiter MegaWaiter;
     #else
     class MegaHttpIO : public CurlHttpIO {};
@@ -1899,11 +1903,11 @@ protected:
 
 struct MegaFileGet : public MegaFile
 {
-    void prepare() override;
+    void prepare(FileSystemAccess&) override;
     void updatelocalname() override;
     void progress() override;
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
     MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType);
     MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath);
     ~MegaFileGet() {}
@@ -1917,8 +1921,8 @@ private:
 
 struct MegaFilePut : public MegaFile
 {
-    void completed(Transfer* t, LocalNode*) override;
-    void terminated() override;
+    void completed(Transfer* t, putsource_t source) override;
+    void terminated(error e) override;
     MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}
 
@@ -2796,7 +2800,7 @@ class MegaApiImpl : public MegaApp
         bool tryLockMutexFor(long long time);
 
 protected:
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, int fseventsfd /*= -1*/, unsigned clientWorkerThreadCount /*= 1*/);
+        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);
 

@@ -481,10 +481,10 @@ public:
     error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c);
 
     // prefix and encrypt attribute json
-    void makeattr(SymmCipher*, string*, const char*, int = -1) const;
+    static void makeattr(SymmCipher*, string*, const char*, int = -1);
 
     // convenience version of the above (frequently we are passing a NodeBase's attrstring)
-    void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1) const;
+    static void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1);
 
     // check node access level
     int checkaccess(Node*, accesslevel_t);
@@ -1010,9 +1010,6 @@ private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
-
-    // backoff for heartbeats
-    BackoffTimer btheartbeat;
 
     vector<TimerWithBackoff *> bttimers;
 
@@ -1649,7 +1646,7 @@ public:
     Node* childnodebyname(Node*, const char*, bool = false);
     Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
     Node* childnodebyattribute(Node*, nameid, const char*);
-    void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
+    static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection

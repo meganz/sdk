@@ -5342,6 +5342,40 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 - (void)getCameraUploadsFolder;
 
 /**
+ * @brief Gets Camera Uploads secondary target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ * - [MEGARequest flag] - Returns YES
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
+ *
+ * If the secondary folder is not set, the request will fail with the error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getCameraUploadsFolderSecondaryWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets Camera Uploads target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ * - [MEGARequest flag] - Returns YES
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
+ *
+ * If the secondary folder is not set, the request will fail with the error code MEGAErrorTypeApiENoent.
+ */
+- (void)getCameraUploadsFolderSecondary;
+
+/**
  * @brief Gets My Backups target folder.
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser

@@ -310,28 +310,28 @@ void AppFileGet::start()
 }
 
 // transfer completion
-void AppFileGet::completed(Transfer*, LocalNode*)
+void AppFileGet::completed(Transfer*, putsource_t source)
 {
     // (at this time, the file has already been placed in the final location)
     delete this;
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFileGet::terminated()
+void AppFileGet::terminated(error e)
 {
     delete this;
 }
 
-void AppFilePut::completed(Transfer* t, LocalNode*)
+void AppFilePut::completed(Transfer* t, putsource_t source)
 {
     // perform standard completion (place node in user filesystem etc.)
-    File::completed(t, NULL);
+    File::completed(t, source);
 
     delete this;
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFilePut::terminated()
+void AppFilePut::terminated(error e)
 {
     delete this;
 }
@@ -432,11 +432,8 @@ void DemoApp::transfer_prepare(Transfer* t)
         // only set localfilename if the engine has not already done so
         if (t->localfilename.empty())
         {
-            LocalPath relative;
-            client->fsaccess->tmpnamelocal(relative);
-
             t->localfilename = LocalPath::fromAbsolutePath(".");
-            t->localfilename.appendWithSeparator(relative, true);
+            t->localfilename.appendWithSeparator(LocalPath::tmpNameLocal(), false);
         }
     }
 }
@@ -456,17 +453,17 @@ void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
 
 void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
 {
-    handle backupId = config.getBackupId();
+    handle backupId = config.mBackupId;
     if (attempted)
     {
         conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath()  << " enabled: "
-             << config.getEnabled()  << " syncError: " << config.getError()
+             << config.getEnabled()  << " syncError: " << config.mError
              << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
     else
     {
         conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
-            << config.getEnabled() << " syncError: " << config.getError()
+            << config.getEnabled() << " syncError: " << config.mError
             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
 }
@@ -4768,11 +4765,7 @@ void exec_open(autocomplete::ACState& s)
             gfx->startProcessingThread();
 #endif
 
-#ifdef __APPLE__
-            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
-#else
             auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-#endif
 
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
@@ -8732,23 +8725,6 @@ int main(int argc, char* argv[])
     // The program megacli_fsloader in CMakeLists is the one that gets the special descriptor and starts megacli (mac only).
     std::vector<char*> myargv1(argv, argv + argc);
 
-    for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
-    {
-#ifdef __APPLE__
-        if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
-        {
-            int fseventsFd = std::stoi(std::string(*it).substr(13));
-            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
-                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
-                return 1;
-            }
-
-            gFilesystemEventsFd = fseventsFd;
-            std::cout << "Using filesystem events notification handle passed from loader: " << gFilesystemEventsFd << std::endl;
-        }
-#endif
-    }
-
     SimpleLogger::setLogLevel(logMax);
     //SimpleLogger::setOutputClass(&gLogger);
     auto gLoggerAddr = &gLogger;
@@ -8776,13 +8752,11 @@ int main(int argc, char* argv[])
 #endif
 
     // Needed so we can get the cwd.
-#ifdef __APPLE__
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 
+#ifdef __APPLE__
     // Try and raise the file descriptor limit as high as we can.
     platformSetRLimitNumFile();
-#else
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 #endif
 
     // Where are we?
@@ -9306,7 +9280,7 @@ void exec_synclist(autocomplete::ACState& s)
             << toHandle(config.mBackupId)
             << "\n";
 
-        auto cloudnode = client->nodeByHandle(config.getRemoteNode());
+        auto cloudnode = client->nodeByHandle(config.mRemoteNode);
         string cloudpath = cloudnode ? cloudnode->displaypath() : "<null>";
 
         // Display source/target mapping.
@@ -9441,7 +9415,7 @@ void exec_syncxable(autocomplete::ACState& s)
         client->syncs.disableSelectedSyncs(
             [backupId](SyncConfig& config, Sync*)
             {
-                return config.getBackupId() == backupId;
+                return config.mBackupId == backupId;
             },
             true, // disable is fail
             static_cast<SyncError>(error),
@@ -9455,7 +9429,7 @@ void exec_syncxable(autocomplete::ACState& s)
         client->syncs.disableSelectedSyncs(
           [backupId](SyncConfig& config, Sync*)
           {
-              return config.getBackupId() == backupId;
+              return config.mBackupId == backupId;
           },
           false,
           static_cast<SyncError>(error),
