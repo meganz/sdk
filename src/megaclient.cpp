@@ -17222,17 +17222,11 @@ void NodeManager::loadTreeRecursively(const Node* node)
 
 Node *NodeManager::getNodeFromBlob(const std::string *nodeSerialized, bool decrypted)
 {
-    if (mErrorLoadingNodes)
-    {
-        return nullptr;
-    }
-
     Node* node = unserializeNode(nodeSerialized, decrypted);
     if (!node)
     {
         LOG_err << "Error unserializing a node. Reloading account";
         mClient.reloadAccount(false);
-        mErrorLoadingNodes = true;
     }
 
     return node;
