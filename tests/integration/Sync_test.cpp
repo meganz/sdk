@@ -1273,7 +1273,7 @@ bool StandardClient::uploadFolderTree(fs::path p, Node* n2)
     return future.get();
 }
 
-void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo)
+void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo)
 {
     unique_ptr<File> file(new FilePut());
 
@@ -1284,7 +1284,7 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, Node* 
     client.startxfer(PUT, file.release(), committer, false, false, false, vo);
 }
 
-void StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb, VersioningOption vo)
+void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, PromiseBoolSP pb, VersioningOption vo)
 {
     resultproc.prepresult(PUTNODES,
                             ++next_request_tag,
@@ -1300,7 +1300,7 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, Node* 
                             });
 }
 
-bool StandardClient::uploadFile(const fs::path& path, const string& name, Node* parent, int timeoutSeconds, VersioningOption vo)
+bool StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, int timeoutSeconds, VersioningOption vo)
 {
     auto result =
         thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
@@ -1321,7 +1321,7 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, string
     auto result =
         thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
             {
-                Node* parent = client.client.nodeByPath(parentPath.c_str(), nullptr);
+                const Node* parent = client.client.nodeByPath(parentPath.c_str(), nullptr);
                 if (!parent)
                 {
                     LOG_warn << "nodeByPath found no node for parentPath " << parentPath << ", cannot call uploadFile";
@@ -1338,7 +1338,7 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, string
     return result.get();
 }
 
-bool StandardClient::uploadFile(const fs::path& path, Node* parent, int timeoutSeconds, VersioningOption vo)
+bool StandardClient::uploadFile(const fs::path& path, const Node* parent, int timeoutSeconds, VersioningOption vo)
 {
     return uploadFile(path, path.filename().u8string(), parent, timeoutSeconds, vo);
 }
@@ -1348,7 +1348,7 @@ bool StandardClient::uploadFile(const fs::path& path, const string& parentPath, 
     return uploadFile(path, path.filename().u8string(), parentPath, timeoutSeconds, vo);
 }
 
-void StandardClient::uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo)
+void StandardClient::uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo)
 {
     if (fs::is_regular_file(p))
     {
@@ -1367,7 +1367,7 @@ void StandardClient::uploadFilesInTree_recurse(Node* target, const fs::path& p, 
     }
 }
 
-bool StandardClient::uploadFilesInTree(fs::path p, Node* n2, VersioningOption vo)
+bool StandardClient::uploadFilesInTree(fs::path p, const Node* n2, VersioningOption vo)
 {
     auto promise = makeSharedPromise<bool>();
     auto future = promise->get_future();
@@ -1378,7 +1378,7 @@ bool StandardClient::uploadFilesInTree(fs::path p, Node* n2, VersioningOption vo
     return future.get();
 }
 
-void StandardClient::uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo)
+void StandardClient::uploadFilesInTree(fs::path p, const Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo)
 {
     resultproc.prepresult(PUTNODES, ++next_request_tag,
         [&](){
