@@ -2856,7 +2856,7 @@ bool CommandPurchaseCheckout::procresult(Result r)
     }
 }
 
-CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show)
+CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show, Completion completion)
 {
     this->email = m ? m : "";
     this->v = show;
@@ -2866,6 +2866,9 @@ CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, vi
     arg("l", (int)show);
 
     tag = client->reqtag;
+
+    // Assume we've been given a completion function.
+    mCompletion = std::move(completion);
 }
 
 bool CommandRemoveContact::procresult(Result r)
@@ -2881,12 +2884,20 @@ bool CommandRemoveContact::procresult(Result r)
             u->show = v;
         }
 
-        client->app->removecontact_result(API_OK);
+        doComplete(API_OK);
         return true;
     }
 
-    client->app->removecontact_result(r.errorOrOK());
+    doComplete(r.errorOrOK());
     return r.wasErrorOrOK();
+}
+
+void CommandRemoveContact::doComplete(error result)
+{
+    if (!mCompletion)
+        return client->app->removecontact_result(result);
+
+    mCompletion(result);
 }
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)

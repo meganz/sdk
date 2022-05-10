@@ -578,7 +578,7 @@ public:
 #endif
 
     // delete or block an existing contact
-    error removecontact(const char*, visibility_t = HIDDEN);
+    error removecontact(const char*, visibility_t = HIDDEN, CommandRemoveContact::Completion completion = nullptr);
 
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,

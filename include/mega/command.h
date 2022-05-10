@@ -296,9 +296,16 @@ class MEGA_API CommandRemoveContact : public Command
     visibility_t v;
 
 public:
+    using Completion = std::function<void(error)>;
+
     bool procresult(Result) override;
 
-    CommandRemoveContact(MegaClient*, const char*, visibility_t);
+    CommandRemoveContact(MegaClient*, const char*, visibility_t, Completion completion = nullptr);
+
+private:
+    void doComplete(error result);
+
+    Completion mCompletion;
 };
 
 // set user attributes with version

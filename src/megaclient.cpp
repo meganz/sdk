@@ -10450,14 +10450,14 @@ void MegaClient::getpaymentmethods()
 }
 
 // delete or block an existing contact
-error MegaClient::removecontact(const char* email, visibility_t show)
+error MegaClient::removecontact(const char* email, visibility_t show, CommandRemoveContact::Completion completion)
 {
     if (!strchr(email, '@') || (show != HIDDEN && show != BLOCKED))
     {
         return API_EARGS;
     }
 
-    reqs.add(new CommandRemoveContact(this, email, show));
+    reqs.add(new CommandRemoveContact(this, email, show, std::move(completion)));
 
     return API_OK;
 }
