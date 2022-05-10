@@ -673,7 +673,8 @@ bool SqliteAccountState::put(Node *node)
         // node->attrstring has value => node is encrypted
         sqlite3_bind_int(stmt, 9, !node->attrstring);
         nameid favId = AttrMap::string2nameid("fav");
-        bool fav = (node->attrs.map.find(favId) != node->attrs.map.end());
+        auto favIt = node->attrs.map.find(favId);
+        bool fav = (favIt != node->attrs.map.end() && favIt->second == "1"); // test 'fav' attr value (only "1" is valid)
         sqlite3_bind_int(stmt, 10, fav);
         sqlite3_bind_int64(stmt, 11, node->ctime);
         sqlite3_bind_blob(stmt, 12, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
