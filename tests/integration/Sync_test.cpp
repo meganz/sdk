@@ -797,6 +797,17 @@ void StandardClient::localLogout()
     result.get();
 }
 
+void StandardClient::logout(bool keepSyncsConfigFile)
+{
+    auto result = thread_do<bool>([=](MegaClient& client, PromiseBoolSP result) {
+        client.logout(keepSyncsConfigFile);
+        result->set_value(true);
+    });
+
+    // Wait for the logout to complete before escaping.
+    result.get();
+}
+
 string StandardClient::lp(LocalNode* ln) { return ln->getLocalPath().toName(*client.fsaccess); }
 
 void StandardClient::onCallback() { lastcb = chrono::steady_clock::now(); };
