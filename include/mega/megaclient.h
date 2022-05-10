@@ -441,6 +441,8 @@ private:
     // Load nodes recursively and update nodeCounters
     void loadTreeRecursively(const Node *node);
 
+    Node* getNodeFromBlob(const string*nodeSerialized, bool decrypted = true);
+
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
 
@@ -936,6 +938,8 @@ public:
 
     // free all state information
     void locallogout(bool removecaches, bool keepSyncsConfigFile);
+
+    void reloadAccount(bool nocache);
 
     // SDK version
     const char* version();

@@ -9631,6 +9631,75 @@ void MegaClient::killallsessions()
     reqs.add(new CommandKillSessions(this));
 }
 
+void MegaClient::reloadAccount(bool nocache)
+{
+    // It's required here??
+    app->reload("Node inconsistency");
+
+    fnstats.mode = FetchNodesStats::MODE_API;
+    fnstats.cache = nocache ? FetchNodesStats::API_NO_CACHE : FetchNodesStats::API_CACHE;
+    fetchingnodes = true;
+    pendingsccommit = false;
+
+    // prevent the processing of previous sc requests
+    pendingsc.reset();
+    pendingscUserAlerts.reset();
+    jsonsc.pos = NULL;
+    scnotifyurl.clear();
+    insca = false;
+    insca_notlast = false;
+    btsc.reset();
+
+    // don't allow to start new sc requests yet
+    scsn.clear();
+
+#ifdef ENABLE_SYNC
+    // If there are syncs present at this time, this is a reload-account request.
+    // We will start by fetching a cached tree which likely won't match our current
+    // state/scsn.  And then we will apply actionpackets until we are up to date.
+    // Those actionpackets may be repeats of actionpackets already applied to the sync
+    // or they may be new ones that were not previously applied.
+    // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
+    // TODO: the sync rework branch, when ready, will be able to cope with this situation.
+    syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
+#endif
+
+    if (!loggedinfolderlink())
+    {
+        // Copy the current tag so we can capture it in the lambda below.
+        const auto fetchtag = reqtag;
+
+        getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error e){
+
+            if (e != API_OK)
+            {
+                LOG_err << "Pre-failing fetching nodes: unable not get user data";
+                restag = fetchtag;
+                app->fetchnodes_result(API_EINTERNAL);
+                return;
+            }
+
+            // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
+            // So only submit the request after `ug` completes, otherwise everything is interleaved
+            reqs.add(new CommandFetchNodes(this, fetchtag, nocache));
+        });
+
+        if (loggedin() == FULLACCOUNT
+                || loggedin() == EPHEMERALACCOUNTPLUSPLUS)  // need to create early the chat and sign keys
+        {
+            fetchkeys();
+            loadAuthrings();
+        }
+
+        fetchtimezone();
+    }
+    else
+    {
+        reqs.add(new CommandFetchNodes(this, reqtag, nocache));
+    }
+
+}
+
 void MegaClient::opensctable()
 {
     // called from both login() and fetchnodes()
@@ -11950,6 +12019,10 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 LOG_info << "Loading nodes from old cache";
                 if ((n = mNodeManager.unserializeNode(&data, true, true)))
                 {
+                    if (!n)
+                    {
+                        return false;
+                    }
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
 
@@ -12413,67 +12486,7 @@ void MegaClient::fetchnodes(bool nocache)
     }
     else if (!fetchingnodes)
     {
-        fnstats.mode = FetchNodesStats::MODE_API;
-        fnstats.cache = nocache ? FetchNodesStats::API_NO_CACHE : FetchNodesStats::API_CACHE;
-        fetchingnodes = true;
-        pendingsccommit = false;
-
-        // prevent the processing of previous sc requests
-        pendingsc.reset();
-        pendingscUserAlerts.reset();
-        jsonsc.pos = NULL;
-        scnotifyurl.clear();
-        insca = false;
-        insca_notlast = false;
-        btsc.reset();
-
-        // don't allow to start new sc requests yet
-        scsn.clear();
-
-#ifdef ENABLE_SYNC
-        // If there are syncs present at this time, this is a reload-account request.
-        // We will start by fetching a cached tree which likely won't match our current
-        // state/scsn.  And then we will apply actionpackets until we are up to date.
-        // Those actionpackets may be repeats of actionpackets already applied to the sync
-        // or they may be new ones that were not previously applied.
-        // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
-        // TODO: the sync rework branch, when ready, will be able to cope with this situation.
-        syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
-#endif
-
-        if (!loggedinfolderlink())
-        {
-            // Copy the current tag so we can capture it in the lambda below.
-            const auto fetchtag = reqtag;
-
-            getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error e){
-
-                if (e != API_OK)
-                {
-                    LOG_err << "Pre-failing fetching nodes: unable not get user data";
-                    restag = fetchtag;
-                    app->fetchnodes_result(API_EINTERNAL);
-                    return;
-                }
-
-                // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
-                // So only submit the request after `ug` completes, otherwise everything is interleaved
-                reqs.add(new CommandFetchNodes(this, fetchtag, nocache));
-            });
-
-            if (loggedin() == FULLACCOUNT
-                    || loggedin() == EPHEMERALACCOUNTPLUSPLUS)  // need to create early the chat and sign keys
-            {
-                fetchkeys();
-                loadAuthrings();
-            }
-
-            fetchtimezone();
-        }
-        else
-        {
-            reqs.add(new CommandFetchNodes(this, reqtag, nocache));
-        }
+        reloadAccount(nocache);
     }
 }
 
@@ -16904,7 +16917,12 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         if (!n)
         {
             const NodeSerialized& ns = nHandleSerialized.second;
-            n = unserializeNode(&ns.mNode, ns.mDecrypted);
+            n = getNodeFromBlob(&ns.mNode, ns.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
         }
 
         nodes.push_back(n);
@@ -16968,7 +16986,12 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         Node* n = getNodeInRAM(nodeMapIt.first);
         if (!n)
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = getNodeFromBlob(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
         }
 
         nodes.push_back(n);
@@ -17019,7 +17042,12 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
         }
 
         if (n && (!parent || (parent && isAncestor(n->nodeHandle(), parent->nodeHandle()))))
@@ -17070,7 +17098,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     Node* n = getNodeInRAM(nodeSerialized.first);
     if (!n) // not loaded yet
     {
-        n = unserializeNode(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
+        n = getNodeFromBlob(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
     }
 
     return n;
@@ -17093,7 +17121,12 @@ node_vector NodeManager::getRootNodes()
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
         }
         nodes.push_back(n);
 
@@ -17139,7 +17172,12 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
         }
 
         nodes.push_back(n);
@@ -17180,6 +17218,24 @@ void NodeManager::loadTreeRecursively(const Node* node)
         const Node* ancestor = child->firstancestor();
         increaseCounter(child, ancestor->nodeHandle());
     }
+}
+
+Node *NodeManager::getNodeFromBlob(const std::string *nodeSerialized, bool decrypted)
+{
+    if (mErrorLoadingNodes)
+    {
+        return nullptr;
+    }
+
+    Node* node = unserializeNode(nodeSerialized, decrypted);
+    if (!node)
+    {
+        LOG_err << "Error unserializing a node. Reloading account";
+        mClient.reloadAccount(false);
+        mErrorLoadingNodes = true;
+    }
+
+    return node;
 }
 
 NodeCounter NodeManager::getNodeCounter(const Node &node)
@@ -18241,7 +18297,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     NodeSerialized nodeSerialized;
     if (mTable->getNode(handle, nodeSerialized))
     {
-        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
+        node = getNodeFromBlob(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
     }
 
     return node;
