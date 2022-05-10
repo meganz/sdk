@@ -1885,33 +1885,169 @@ handle StandardClient::backupAdd_mainthread(const string& drivePath,
     return result.get();
 }
 
-void StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
-    std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
+handle StandardClient::setupSync_mainthread(const string& localPath,
+                                            const Node& remoteNode,
+                                            const bool isBackup,
+                                            const bool uploadIgnoreFile)
 {
-    if (Node* n = client.nodebyhandle(basefolderhandle))
-    {
-        if (Node* m = drillchildnodebyname(n, subfoldername))
-        {
-            out() << clientname << "Setting up sync from " << m->displaypath() << " to " << localpath;
-            auto syncConfig =
-                SyncConfig(LocalPath::fromAbsolutePath(localpath.u8string()),
-                            localpath.u8string(),
-                            NodeHandle().set6byte(m->nodehandle),
-                            m->displaypath(),
-                            0,
-                            LocalPath(),
-                            //string_vector(),
-                            true,
-                            isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
-            EXPECT_TRUE(!syncConfig.mOriginalPathOfRemoteRootNode.empty() &&
-                        syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
-                << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
+    if (remoteNode.client != &client)
+        return setupSync_mainthread(localPath,
+                                    remoteNode.nodehandle,
+                                    isBackup,
+                                    uploadIgnoreFile);
 
-            client.addsync(syncConfig, true, addSyncCompletion, logname);
-            return;
+    auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
+        client.setupSync_inThread(localPath,
+                                  remoteNode,
+                                  isBackup,
+                                  uploadIgnoreFile,
+                                  std::move(result));
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return UNDEF;
+
+    return result.get();
+}
+
+void StandardClient::setupSync_inThread(const string& localPath,
+                                        const Node& remoteNode,
+                                        const bool isBackup,
+                                        const bool uploadIgnoreFile,
+                                        PromiseHandleSP result)
+{
+    // Check if node is (or is contained by) an in-share.
+    auto isShare = [](const Node* node) {
+        for ( ; node; node = node->parent) {
+            if (node->type != FOLDERNODE)
+                continue;
+
+            if (node->inshare)
+                return true;
         }
+
+        return false;
+    };
+
+    // Sanity.
+    assert(remoteNode.client == &client);
+
+    auto ec = std::error_code();
+    auto rootPath = fsBasePath / fs::u8path(localPath);
+
+    // Try and create the local sync root.
+    fs::create_directory(rootPath, ec);
+
+    if (ec)
+        return result->set_value(UNDEF);
+
+    // For purposes of capturing.
+    auto remoteHandle = remoteNode.nodeHandle();
+    auto remoteIsShare = isShare(&remoteNode);
+    auto remotePath = string(remoteNode.displaypath());
+
+    // Called when it's time to actually add the sync.
+    auto completion = [=](error e) {
+        // Convenience.
+        constexpr auto BACKUP = SyncConfig::TYPE_BACKUP;
+        constexpr auto TWOWAY = SyncConfig::TYPE_TWOWAY;
+
+        // Generate config for the new sync.
+        auto config =
+          SyncConfig(LocalPath::fromAbsolutePath(rootPath.u8string()),
+                     rootPath.u8string(),
+                     remoteHandle,
+                     remotePath,
+                     0,
+                     LocalPath(),
+                     true,
+                     isBackup ? BACKUP : TWOWAY);
+
+        // Sanity check.
+        EXPECT_TRUE(remoteIsShare || remotePath.substr(0, 1) == "/")
+            << "config.mOriginalPathOfRemoteRootNode: "
+            << remotePath;
+
+        //if (gScanOnly)
+        //{
+        //    config.mChangeDetectionMethod = CDM_PERIODIC_SCANNING;
+        //    config.mScanIntervalSec = SCAN_INTERVAL_SEC;
+        //}
+
+        auto completion = [result](error, SyncError, handle id) {
+            result->set_value(id);
+        };
+
+        client.addsync(config, true, std::move(completion), localPath + " ");
+    };
+
+    // Do we need to upload an ignore file?
+    if (uploadIgnoreFile)
+    {
+        auto ignorePath = fsBasePath / ".megaignore";
+
+        // Create the ignore file.
+        if (!createDataFile(ignorePath, "#"))
+            return result->set_value(UNDEF);
+
+        // Upload the ignore file.
+        uploadFile(ignorePath, remoteNode, std::move(completion));
+
+        // Completion function will continue the work.
+        return;
     }
-    assert(false);
+
+    // Make sure the client's received all its action packets.
+    catchup(std::move(completion));
+}
+
+handle StandardClient::setupSync_mainthread(const string& localPath,
+                                            const string& remotePath,
+                                            const bool isBackup,
+                                            const bool uploadIgnoreFile)
+{
+    auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
+        auto* root = client.gettestbasenode();
+        auto* node = client.drillchildnodebyname(root, remotePath);
+
+        if (!node)
+            return result->set_value(UNDEF);
+
+        client.setupSync_inThread(localPath,
+                                  *node,
+                                  isBackup,
+                                  uploadIgnoreFile,
+                                  std::move(result));
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return UNDEF;
+
+    return result.get();
+}
+
+handle StandardClient::setupSync_mainthread(const string& localPath,
+                                            const handle remoteHandle,
+                                            const bool isBackup,
+                                            const bool uploadIgnoreFile)
+{
+    auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
+        auto* node = client.client.nodebyhandle(remoteHandle);
+
+        if (!node)
+            return result->set_value(UNDEF);
+
+        client.setupSync_inThread(localPath,
+                                  *node,
+                                  isBackup,
+                                  uploadIgnoreFile,
+                                  std::move(result));
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return UNDEF;
+
+    return result.get();
 }
 
 void StandardClient::importSyncConfigs(string configs, PromiseBoolSP result)
@@ -2966,36 +3102,6 @@ bool StandardClient::login_fetchnodes(const string& session)
     p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); });
     if (!waitonresults(&p2)) return false;
     return true;
-}
-
-//bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, handle syncid)
-//{
-//    //SyncConfig config{(fsBasePath / fs::u8path(localsyncrootfolder)).u8string(), drillchildnodebyname(gettestbasenode(), remotesyncrootfolder)->nodehandle, 0};
-//    return setupSync_mainthread(localsyncrootfolder, remotesyncrootfolder, syncid);
-//}
-
-handle StandardClient::setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, bool isBackup, bool uploadIgnoreFirst)
-{
-    fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
-    fs::create_directory(syncdir);
-
-    if (uploadIgnoreFirst)
-    {
-    }
-    else
-    {
-        CatchupClients(this);
-    }
-
-    auto fb = thread_do<handle>([=](StandardClient& mc, PromiseHandleSP pb)
-        {
-            mc.setupSync_inthread(remotesyncrootfolder, syncdir, isBackup,
-                [pb](error e, SyncError, handle backupId)
-                {
-                    pb->set_value(backupId);
-                }, localsyncrootfolder + " ");
-        });
-    return fb.get();
 }
 
 bool StandardClient::delSync_mainthread(handle backupId)

@@ -498,8 +498,27 @@ struct StandardClient : public MegaApp
         const string& targetPath,
         const string& logname);
 
-    void setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
-        std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);
+    handle setupSync_mainthread(const string& localPath,
+                                const Node& remoteNode,
+                                const bool isBackup = false,
+                                const bool uploadIgnoreFile = true);
+
+    void setupSync_inThread(const string& localPath,
+                            const Node& remoteNode,
+                            const bool isBackup,
+                            const bool uploadIgnoreFile,
+                            PromiseHandleSP result);
+
+    handle setupSync_mainthread(const string& localPath,
+                                const string& remotePath,
+                                const bool isBackup = false,
+                                const bool uploadIgnoreFile = true);
+
+    handle setupSync_mainthread(const string& localPath,
+                                const handle remoteHandle,
+                                const bool isBackup = false,
+                                const bool uploadIgnoreFile = true);
+
     void importSyncConfigs(string configs, PromiseBoolSP result);
     bool importSyncConfigs(string configs);
     string exportSyncConfigs();
@@ -618,7 +637,6 @@ struct StandardClient : public MegaApp
     bool login(const string& user, const string& pw);
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false);
     bool login_fetchnodes(const string& session);
-    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, bool isBackup = false, bool uploadIgnoreFirst = true);
     bool delSync_mainthread(handle backupId);
     bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false, bool skipIgnoreFile = true);
     bool match(handle id, const Model::ModelNode* source);
