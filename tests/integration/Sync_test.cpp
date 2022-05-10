@@ -3149,6 +3149,28 @@ void StandardClient::match(handle id, const Model::ModelNode* source, PromiseBoo
     result->set_value(destination && match(*destination, *source));
 }
 
+bool StandardClient::match(NodeHandle handle, const Model::ModelNode* source)
+{
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        client.match(handle, source, std::move(result));
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
+void StandardClient::match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result)
+{
+    if (!source)
+        return result->set_value(false);
+
+    auto node = client.nodeByHandle(handle);
+
+    result->set_value(node && match(*node, *source));
+}
+
 bool StandardClient::waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout)
 {
     auto total = std::chrono::milliseconds(0);

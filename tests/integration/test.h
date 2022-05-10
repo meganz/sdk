@@ -642,6 +642,8 @@ struct StandardClient : public MegaApp
     bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false, bool skipIgnoreFile = true);
     bool match(handle id, const Model::ModelNode* source);
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);
+    bool match(NodeHandle handle, const Model::ModelNode* source);
+    void match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result);
     bool waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool backupOpenDrive(const fs::path& drivePath);
