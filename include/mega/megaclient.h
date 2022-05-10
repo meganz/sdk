@@ -1636,6 +1636,7 @@ public:
     void warn(const char*);
     bool warnlevel();
 
+    const Node* childnodebyname(const Node*, const char*, bool = false) const;
     Node* childnodebyname(Node*, const char*, bool = false);
     Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
     Node* childnodebyattribute(Node*, nameid, const char*);

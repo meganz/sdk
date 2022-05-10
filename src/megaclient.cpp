@@ -980,10 +980,10 @@ void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
-Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
+const Node* MegaClient::childnodebyname(const Node* p, const char* name, bool skipfolders) const
 {
     string nname = name;
-    Node *found = NULL;
+    const Node *found = NULL;
 
     if (!p || p->type == FILENODE)
     {
@@ -992,7 +992,7 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
 
     LocalPath::utf8_normalize(&nname);
 
-    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+    for (node_list::const_iterator it = p->children.begin(); it != p->children.end(); it++)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
@@ -1010,6 +1010,12 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
     }
 
     return found;
+}
+
+Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
+{
+    // Casting simply to reuse the above code.
+    return const_cast<Node*>(childnodebyname(static_cast<const Node*>(p), name, skipfolders));
 }
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
