@@ -457,6 +457,8 @@ struct StandardClient : public MegaApp
     void fetchnodes(bool noCache, PromiseBoolSP pb);
     bool fetchnodes(bool noCache = false);
     NewNode makeSubfolder(const string& utf8Name);
+
+    void catchup(std::function<void(error)> completion);
     void catchup(PromiseBoolSP pb);
 
     unsigned deleteTestBaseFolder(bool mayNeedDeleting);

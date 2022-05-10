@@ -1531,20 +1531,28 @@ NewNode StandardClient::makeSubfolder(const string& utf8Name)
     return newnode;
 }
 
+void StandardClient::catchup(std::function<void(error)> completion)
+{
+    auto init = std::bind(&MegaClient::catchup, &client);
+
+    auto fini = [completion](error e) {
+        if (e)
+            out() << "catchup reports: " << e;
+
+        completion(e);
+
+        return true;
+    };
+
+    resultproc.prepresult(CATCHUP,
+                          ++next_request_tag,
+                          std::move(init),
+                          std::move(fini));
+}
+
 void StandardClient::catchup(PromiseBoolSP pb)
 {
-    resultproc.prepresult(CATCHUP, ++next_request_tag,
-        [&](){
-            client.catchup();
-        },
-        [pb](error e) {
-            if (e)
-            {
-                out() << "catchup reports: " << e;
-            }
-            pb->set_value(!e);
-            return true;
-        });
+    catchup([pb](error e) { pb->set_value(!e); });
 }
 
 unsigned StandardClient::deleteTestBaseFolder(bool mayNeedDeleting)
