@@ -33,11 +33,13 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size, std::unique_ptr<string> cdata, bool getIP, HttpReqCommandPutFA::Cb &&completion)
+HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size_only, std::unique_ptr<string> cdata, bool getIP, HttpReqCommandPutFA::Cb &&completion)
     : mCompletion(std::move(completion)), data(std::move(cdata))
 {
+    assert(!!size_only ^ !!data);   // get URL or upload data, not both
+    assert(!!mCompletion ^ !!data);  // completion and upload are incompatible
     cmd("ufa");
-    arg("s", size);
+    arg("s", data ? data->size() : size_only);
 
     if (cth.isNodeHandle())
     {
@@ -4907,7 +4909,7 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
                 break;
-                
+
             case MAKENAMEID6('s', 'g', 'w', 'i', 'd', 's'):
                 if (client->json.enterarray())
                 {

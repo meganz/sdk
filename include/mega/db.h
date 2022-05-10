@@ -226,6 +226,8 @@ struct MEGA_API DbAccess
 
     virtual ~DbAccess() { }
 
+    virtual bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) = 0;
+
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 
     // use this method to get a `DbTable` that also implements `DbTableNodes` interface

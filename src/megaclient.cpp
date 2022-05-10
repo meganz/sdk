@@ -1171,9 +1171,10 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
    , btworkinglock(rng)
    , btsc(rng)
    , btpfa(rng)
+   , fsaccess(move(f))
    , mNodeManager(*this)
 #ifdef ENABLE_SYNC
-    , syncs(*this)
+    , syncs(*this, fsaccess)
     , syncfslockretrybt(rng)
     , syncdownbt(rng)
     , syncnaglebt(rng)
@@ -1255,8 +1256,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     init();
 
-    f->client = this;
-    f->waiter = w;
+    fsaccess->client = this;
+    fsaccess->waiter = w;
     transferlist.client = this;
 
     if ((app = a))
@@ -1266,11 +1267,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
-    
-    fsaccess = move(f);
-#ifdef ENABLE_SYNC
-    fsaccess->initFilesystemNotificationSystem();
-#endif // ENABLE_SYNC
 
     dbaccess = d;
 
@@ -5313,7 +5309,7 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, data->size(), std::move(data)));
+    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, 0, std::move(data)));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
@@ -13954,7 +13950,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
             UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
-            e = unifiedSync->enableSync(false, notifyApp);
+            e = unifiedSync->enableSync(false, notifyApp, logname);
 
             syncactivity = true;
 

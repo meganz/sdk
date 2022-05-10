@@ -723,7 +723,7 @@ string StandardClient::ensureDir(const fs::path& p)
     return result;
 }
 
-StandardClient::StandardClient(const fs::path& basepath, const string& name)
+StandardClient::StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder)
     :
 #ifdef GFX_CLASS
       gfx(::mega::make_unique<GFX_CLASS>()),
@@ -747,8 +747,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name)
                 "N9tSBJDC",
                 USER_AGENT.c_str(),
                 THREADS_PER_MEGACLIENT)
-    , clientname(name)
-    , fsBasePath(basepath / fs::u8path(name))
+    , clientname(name + " ")
     , resultproc(*this)
     , clientthread([this]() { threadloop(); })
 {
@@ -756,6 +755,15 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name)
 #ifdef GFX_CLASS
     gfx.startProcessingThread();
 #endif
+
+    if (workingFolder.empty())
+    {
+        fsBasePath = basepath / fs::u8path(name);
+    }
+    else
+    {
+        fsBasePath = ensureDir(workingFolder / fs::u8path(name));
+    }
 }
 
 StandardClient::~StandardClient()
@@ -2152,6 +2160,24 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, fs::path p, int& des
         ms.erase("tmp");
         ps.erase("tmp");
     }
+    else if (depth == 0)
+    {
+        // with ignore files, most tests now involve a download somewhere which means debris/tmp is created.
+        // it only matters if the content of these differs, absence or empty is effectively the same
+        if (ms.find(DEBRISFOLDER) == ms.end())
+        {
+            auto d = mn->addkid();
+            d->name = DEBRISFOLDER;
+            d->type = Model::ModelNode::folder;
+            ms.emplace(DEBRISFOLDER, d);
+        }
+        if (ps.find(DEBRISFOLDER) == ps.end())
+        {
+            auto pdeb = p / fs::path(DEBRISFOLDER);
+            fs::create_directory(pdeb);
+            ps.emplace(DEBRISFOLDER, pdeb);
+        }
+    }
 
     int matched = 0;
     vector<string> matchedlist;
@@ -2211,18 +2237,18 @@ Sync* StandardClient::syncByBackupId(handle backupId)
     return client.syncs.runningSyncByBackupIdForTests(backupId);
 }
 
-void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result)
+void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
 {
     UnifiedSync* sync;
-    result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync));
+    result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync, logname));
 }
 
-bool StandardClient::enableSyncByBackupId(handle id)
+bool StandardClient::enableSyncByBackupId(handle id, const string& logname)
 {
     auto result =
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                         {
-                            client.enableSyncByBackupId(id, result);
+                            client.enableSyncByBackupId(id, result, logname);
                         });
 
     return result.get();
@@ -3606,7 +3632,11 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f/f_2"), backupId12));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_0"), backupId21));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_2"), backupId22));
-    ASSERT_TRUE(clientA3.confirmModel_mainthread(model.findnode("f"), backupId31));
+
+    // the other model gets .debris folders added at other levels for easy comparisons
+    Model cleanModel;
+    cleanModel.root->addkid(cleanModel.buildModelSubdirs("f", 3, 3, 0));
+    ASSERT_TRUE(clientA3.confirmModel_mainthread(cleanModel.findnode("f"), backupId31));
 
     LOG_debug << "----- making sync change to test, now -----";
     clientA1.received_node_actionpackets = false;
@@ -3638,7 +3668,9 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f/f_2"), backupId12));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_0"), backupId21));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_2"), backupId22));
-    ASSERT_TRUE(clientA3.confirmModel_mainthread(model.findnode("f"), backupId31));
+
+    ASSERT_TRUE(cleanModel.movenode("f/f_0/f_0_1", "f/f_2/f_2_1/f_2_1_0"));
+    ASSERT_TRUE(clientA3.confirmModel_mainthread(cleanModel.findnode("f"), backupId31));
 }
 
 TEST_F(SyncTest, BasicSync_RenameLocalFile)
@@ -6407,9 +6439,9 @@ TEST_F(SyncTest, BasicSyncExportImport)
     ASSERT_FALSE(cx->confirmModel_mainthread(model2.root.get(), id2, false, StandardClient::Confirm::CONFIRM_ALL, true));
 
     // Enable the imported syncs.
-    ASSERT_TRUE(cx->enableSyncByBackupId(id0));
-    ASSERT_TRUE(cx->enableSyncByBackupId(id1));
-    ASSERT_TRUE(cx->enableSyncByBackupId(id2));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id0, "sync0 "));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id1, "sync1 "));
+    ASSERT_TRUE(cx->enableSyncByBackupId(id2, "sync2 "));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, cx.get());
@@ -8951,7 +8983,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
     ASSERT_TRUE(cb.backupOpenDrive(cb.fsBasePath));
 
     // Re-enable the sync.
-    ASSERT_TRUE(cb.enableSyncByBackupId(id));
+    ASSERT_TRUE(cb.enableSyncByBackupId(id, "cb"));
 
     // Wait for the mirror to complete.
     waitonsyncs(TIMEOUT, &cb);
@@ -9032,7 +9064,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
     }
 
     // Re-enable the sync.
-    ASSERT_TRUE(cb.enableSyncByBackupId(id));
+    ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
     // Wait for the mirror to complete.
     waitonsyncs(TIMEOUT, &cb);
@@ -9161,7 +9193,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         };
 
         // Resume the backup.
-        ASSERT_TRUE(cb.enableSyncByBackupId(id));
+        ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
         // Wait for the sync to try and upload a file.
         waiter.get_future().get();
@@ -9293,7 +9325,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
         }
 
         // Enable the backup.
-        ASSERT_TRUE(cb.enableSyncByBackupId(id));
+        ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
         // Give the sync some time to think.
         waitonsyncs(TIMEOUT, &cb);
@@ -9312,7 +9344,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 
         // Manually enable the sync.
         // It should come up in mirror mode.
-        ASSERT_TRUE(cb.enableSyncByBackupId(id));
+        ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
         // Let it bring the cloud in line.
         waitonsyncs(TIMEOUT, &cb);
@@ -9371,7 +9403,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     }
 
     // Re-enable the sync.
-    ASSERT_TRUE(cb.enableSyncByBackupId(id));
+    ASSERT_TRUE(cb.enableSyncByBackupId(id, ""));
 
     // Wait for the sync to complete mirroring.
     waitonsyncs(TIMEOUT, &cb);
