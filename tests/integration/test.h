@@ -663,6 +663,9 @@ struct StandardClient : public MegaApp
     void rmcontact(const string& email, PromiseBoolSP result);
     bool rmcontact(const string& email);
 
+    void share(Node& node, const string& email, accesslevel_t permissions, PromiseBoolSP result);
+    bool share(Node& node, const string& email, accesslevel_t permissions);
+
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;
     function<void(const SyncConfig&)> mOnFilterError;

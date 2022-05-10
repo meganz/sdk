@@ -3403,6 +3403,33 @@ bool StandardClient::rmcontact(const string& email)
     return result.get();
 }
 
+void StandardClient::share(Node& node, const string& email, accesslevel_t permissions, PromiseBoolSP result)
+{
+    auto completion = [=](Error e, bool) {
+        result->set_value(!e);
+    };
+
+    client.setshare(&node,
+                    email.c_str(),
+                    permissions,
+                    false,
+                    nullptr,
+                    ++next_request_tag,
+                    std::move(completion));
+}
+
+bool StandardClient::share(Node& node, const string& email, accesslevel_t permissions)
+{
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        client.share(node, email, permissions, std::move(result));
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
 void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
 {
     auto totalTimeoutStart = chrono::steady_clock::now();
