@@ -430,6 +430,17 @@ struct StandardClient : public MegaApp
     bool uploadFilesInTree(fs::path p, const Node* n2, VersioningOption vo = NoVersioning);
     void uploadFilesInTree(fs::path p, const Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 
+    void uploadFile(const fs::path& sourcePath,
+                    const string& targetName,
+                    const Node& parent,
+                    std::function<void(error)> completion,
+                    const VersioningOption versioningPolicy = NoVersioning);
+
+    void uploadFile(const fs::path& sourcePath,
+                    const Node& parent,
+                    std::function<void(error)> completion,
+                    const VersioningOption versioningPolicy = NoVersioning);
+
     class TreeProcPrintTree : public TreeProc
     {
     public:

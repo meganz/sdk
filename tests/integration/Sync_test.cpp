@@ -1393,6 +1393,92 @@ void StandardClient::uploadFilesInTree(fs::path p, const Node* n2, std::atomic<i
         });
 }
 
+void StandardClient::uploadFile(const fs::path& sourcePath,
+                                const string& targetName,
+                                const Node& parent,
+                                std::function<void(error)> completion,
+                                const VersioningOption versioningPolicy)
+{
+    struct Put : public File {
+        void completed(Transfer* transfer, putsource_t source)
+        {
+            // Sanity.
+            assert(source == PUTNODES_APP);
+
+            // For purposes of capturing.
+            std::function<void(error)> completion = std::move(mCompletion);
+
+            // So we can hook the result of putnodes.
+            auto trampoline = [completion](const Error& result,
+                                           targettype_t,
+                                           vector<NewNode>&,
+                                           bool) {
+                completion(result);
+            };
+
+            // Kick off the putnodes request.
+            sendPutnodes(transfer->client,
+                         transfer->uploadhandle,
+                         *transfer->ultoken,
+                         transfer->filekey,
+                         source,
+                         NodeHandle(),
+                         std::move(trampoline),
+                         nullptr);
+
+            // Destroy ourselves.
+            delete this;
+        }
+
+        void terminated(error result)
+        {
+            // Let the completion function know we've failed.
+            mCompletion(result);
+
+            // Destroy ourselves.
+            delete this;
+        }
+
+        // Who to call when the upload completes.
+        std::function<void(error)> mCompletion;
+    }; // Put
+
+    // Create a file to represent and track our upload.
+    auto file = ::mega::make_unique<Put>();
+
+    // Populate necessary fields.
+    file->h = parent.nodeHandle();
+    file->mCompletion = std::move(completion);
+    file->name = targetName;
+    file->localname = LocalPath::fromAbsolutePath(sourcePath.u8string());
+
+    // Make sure we have exclusive access to the client.
+    lock_guard<recursive_mutex> guard(clientMutex);
+
+    // Kick off the upload. Client takes ownership of file.
+    DBTableTransactionCommitter committer(client.tctable);
+
+    client.startxfer(PUT,
+                     file.release(),
+                     committer,
+                     false,
+                     false,
+                     false,
+                     versioningPolicy);
+}
+
+void StandardClient::uploadFile(const fs::path& sourcePath,
+                                const Node& parent,
+                                std::function<void(error)> completion,
+                                const VersioningOption versioningPolicy)
+{
+    uploadFile(sourcePath,
+               sourcePath.filename().u8string(),
+               parent,
+               std::move(completion),
+               versioningPolicy);
+}
+
 void StandardClient::fetchnodes(bool noCache, PromiseBoolSP pb)
 {
     resultproc.prepresult(FETCHNODES, ++next_request_tag,
