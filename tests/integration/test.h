@@ -650,6 +650,14 @@ struct StandardClient : public MegaApp
     void triggerPeriodicScanEarly(handle backupID);
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
 
+    void ipcr(handle id, ipcactions_t action, PromiseBoolSP result);
+    bool ipcr(handle id, ipcactions_t action);
+    bool ipcr(handle id);
+
+    void   opcr(const string& email, opcactions_t action, PromiseHandleSP result);
+    handle opcr(const string& email, opcactions_t action);
+    bool   opcr(const string& email);
+
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;
     function<void(const SyncConfig&)> mOnFilterError;

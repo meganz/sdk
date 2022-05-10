@@ -3288,6 +3288,84 @@ void StandardClient::triggerPeriodicScanEarly(handle backupID)
     //client.syncs.triggerPeriodicScanEarly(backupID).get();
 }
 
+void StandardClient::ipcr(handle id, ipcactions_t action, PromiseBoolSP result)
+{
+    client.updatepcr(id, action, [=](error e, ipcactions_t) {
+        result->set_value(!e);
+    });
+}
+
+bool StandardClient::ipcr(handle id, ipcactions_t action)
+{
+    auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
+        client.ipcr(id, action, std::move(result));
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
+bool StandardClient::ipcr(handle id)
+{
+    auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
+        auto i = client.client.pcrindex.find(id);
+        auto j = client.client.pcrindex.end();
+
+        result->set_value(i != j && !i->second->isoutgoing);
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
+void StandardClient::opcr(const string& email, opcactions_t action, PromiseHandleSP result)
+{
+    auto completion = [=](handle h, error e, opcactions_t) {
+        result->set_value(!e ? h : UNDEF);
+    };
+
+    client.setpcr(email.c_str(),
+                  action,
+                  nullptr,
+                  nullptr,
+                  UNDEF,
+                  std::move(completion));
+}
+
+handle StandardClient::opcr(const string& email, opcactions_t action)
+{
+    auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
+        client.opcr(email, action, std::move(result));
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return UNDEF;
+
+    return result.get();
+}
+
+bool StandardClient::opcr(const string& email)
+{
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        for (auto& i : client.client.pcrindex)
+        {
+            if (i.second->targetemail == email)
+                return result->set_value(i.second->isoutgoing);
+        }
+
+        result->set_value(false);
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
 void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
 {
     auto totalTimeoutStart = chrono::steady_clock::now();
