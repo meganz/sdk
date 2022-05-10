@@ -2145,7 +2145,7 @@ bool CommandSetShare::procresult(Result r)
     }
 }
 
-CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
+CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, Completion completion)
 {
     cmd("upc");
 
@@ -2185,6 +2185,9 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
     tag = client->reqtag;
     this->action = action;
     this->temail = temail;
+
+    // Assume we've been passed a completion function.
+    mCompletion = std::move(completion);
 }
 
 bool CommandSetPendingContact::procresult(Result r)
@@ -2233,7 +2236,7 @@ bool CommandSetPendingContact::procresult(Result r)
             }
         }
 
-        client->app->setpcr_result(pcrhandle, r.errorOrOK(), this->action);
+        doComplete(pcrhandle, r.errorOrOK(), this->action);
         return true;
     }
 
@@ -2271,14 +2274,14 @@ bool CommandSetPendingContact::procresult(Result r)
                 if (ISUNDEF(p))
                 {
                     LOG_err << "Error in CommandSetPendingContact. Undefined handle";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    doComplete(UNDEF, API_EINTERNAL, this->action);
                     return true;
                 }
 
                 if (action != OPCA_ADD || !eValue || !m || ts == 0 || uts == 0)
                 {
                     LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    doComplete(UNDEF, API_EINTERNAL, this->action);
                     return true;
                 }
 
@@ -2286,18 +2289,26 @@ bool CommandSetPendingContact::procresult(Result r)
                 client->mappcr(p, unique_ptr<PendingContactRequest>(pcr));
 
                 client->notifypcr(pcr);
-                client->app->setpcr_result(p, API_OK, this->action);
+                doComplete(p, API_OK, this->action);
                 return true;
 
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Error in CommandSetPendingContact. Parse error";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    doComplete(UNDEF, API_EINTERNAL, this->action);
                     return false;
                 }
         }
     }
+}
+
+void CommandSetPendingContact::doComplete(handle handle, error result, opcactions_t actions)
+{
+    if (!mCompletion)
+        return client->app->setpcr_result(handle, result, actions);
+
+    mCompletion(handle, result, actions);
 }
 
 CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action)

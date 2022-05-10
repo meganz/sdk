@@ -585,7 +585,7 @@ public:
         int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
-    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
+    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF, CommandSetPendingContact::Completion completion = nullptr);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node

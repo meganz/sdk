@@ -680,9 +680,16 @@ class MEGA_API CommandSetPendingContact : public Command
     string temail;  // target email
 
 public:
+    using Completion = std::function<void(handle, error, opcactions_t)>;
+
     bool procresult(Result) override;
 
-    CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
+    CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF, Completion completion = nullptr);
+
+private:
+    void doComplete(handle handle, error result, opcactions_t actions);
+
+    Completion mCompletion;
 };
 
 class MEGA_API CommandUpdatePendingContact : public Command

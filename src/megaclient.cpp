@@ -10284,9 +10284,9 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
 }
 
 // Add/delete/remind outgoing pending contact request
-void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
+void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, CommandSetPendingContact::Completion completion)
 {
-    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink));
+    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink, std::move(completion)));
 }
 
 void MegaClient::updatepcr(handle p, ipcactions_t action)
