@@ -1048,39 +1048,45 @@ enum VersioningOption
 
 enum class SyncWaitReason {
     NoReason = 0,
-    ApplyMoveNeedsOtherSideParentFolderToExist,
-    ApplyMoveIsBlockedByExistingItem,
-    MoveNeedsDestinationNodeProcessing,
-    UpsyncNeedsTargetFolder,
-    DownsyncNeedsTargetFolder,
+    FileIssue,
+    MoveOrRenameCannotOccur,
     DeleteOrMoveWaitingOnScanning,
     DeleteWaitingOnMoves,
-    WaitingForFileToStopChanging,
-    MovingDownloadToTarget,
-    LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
-    CouldNotMoveToLocalDebrisFolder,
-    LocalFolderNotScannable,
-    SymlinksNotSupported,
-    FolderMatchedAgainstFile,
-    MatchedAgainstUnidentifiedItem,
-    MoveOrRenameFailed,
-    CreateFolderFailed,
-    UnknownExclusionState,
-    UnableToLoadIgnoreFile,
-    MoveTargetNameTooLong,
-    DownloadTargetNameTooLong,
-    CreateFolderNameTooLong,
-    CantFingrprintFileYet,
-    FolderContainsLockedFiles,
-    LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
+    UploadIssue,
+    DownloadIssue,
+    CannotCreateFolder,
+    CannotPerformDeletion,
     SyncItemExceedsSupportedTreeDepth,
-    MACVerificationFailure,
-    NoNameTripletsDetected,
-    EncounteredHardLinkAtMoveSource,
-    SpecialFilesNotSupported
+    FolderMatchedAgainstFile,
+    LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
+    LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
 };
 
-string syncWaitReasonString(SyncWaitReason);
+enum class PathProblem : unsigned short {
+    NoProblem = 0,
+    FileChangingFrequently,
+    IgnoreRulesUnknown,
+    DetectedHardLink,
+    DetectedSymlink,
+    DetectedSpecialFile,
+    DifferentFileOrFolderIsAlreadyPresent,
+    ParentFolderDoesNotExist,
+    FilesystemErrorDuringOperation,
+    NameTooLongForFilesystem,
+    CannotFingrprintFile,
+    DestinationPathInUnresolvedArea,
+    MACVerificationFailure,
+    DeletedOrMovedByUser,
+    FileFolderDeletedByUser,
+    MoveToDebrisFolderFailed,
+    IgnoreFileMalformed,
+    FilesystemErrorListingFolder,
+    FilesystemErrorIdentifyingFolderContent,
+    UndecryptedCloudNode,
+};
+
+const char* syncWaitReasonDebugString(SyncWaitReason r);
+const char* syncPathProblemDebugString(PathProblem r);
 
 bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason);
 

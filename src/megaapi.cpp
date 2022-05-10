@@ -5976,45 +5976,6 @@ void MegaSyncList::addSync(MegaSync *sync)
 
 }
 
-MegaSyncStall* MegaSyncStall::copy() const {
-    return nullptr; // @see implementation
-}
-
-const char* MegaSyncStall::indexPath() const
-{
-    return "";
-}
-
-const char* MegaSyncStall::localPath() const
-{
-    return "";
-}
-
-const char* MegaSyncStall::cloudPath() const
-{
-    return "";
-}
-
-MegaSyncStall::SyncStallReason MegaSyncStall::reason() const
-{
-    return MegaSyncStall::SyncStallReason::NoReason;
-}
-
-bool MegaSyncStall::isCloud() const
-{
-    return false;
-}
-
-bool MegaSyncStall::isImmediate() const
-{
-    return false;
-}
-
-const char*  MegaSyncStall::reasonString() const
-{
-    return "";
-}
-
 MegaSyncStallList* MegaSyncStallList::copy() const
 {
     return nullptr;

@@ -2085,66 +2085,67 @@ class TransferQueue
 class MegaSyncStallPrivate : public MegaSyncStall
 {
     public:
-        MegaSyncStallPrivate(
-            const string& indexPath,
-            const string& localPath,
-            const string& cloudPath,
-            SyncStallReason reason,
-            bool isCloud,
-            bool isImmediate
-        );
-
+        MegaSyncStallPrivate(const SyncStallEntry& e);
         MegaSyncStallPrivate(const MegaSyncStallPrivate& other);
 
         virtual ~MegaSyncStallPrivate() = default;
 
         MegaSyncStallPrivate* copy() const override;
 
-        const char* indexPath()  const override
-        {
-            return mIndexPath.c_str();
-        }
-
-        const char* localPath()  const override
-        {
-            return mLocalPath.c_str();
-        }
-
-        const char* cloudPath() const override
-        {
-            return mCloudPath.c_str();
-        }
-
         SyncStallReason reason() const override
         {
-            return mReason;
+            return SyncStallReason(info.reason);
         }
 
-        bool isCloud() const override
+        const char* path(bool cloudSide, int index)  const override
         {
-            return mIsCloud;
+            if (cloudSide)
+            {
+                if (index == 0) return info.cloudPath1.cloudPath.c_str();
+                if (index == 1) return info.cloudPath2.cloudPath.c_str();
+            }
+            else
+            {
+                if (lpConverted[0].empty() && lpConverted[1].empty())
+                {
+                    lpConverted[0] = info.localPath1.localPath.toPath();
+                    lpConverted[1] = info.localPath2.localPath.toPath();
+                }
+                if (index == 0) return lpConverted[0].c_str();
+                if (index == 1) return lpConverted[1].c_str();
+            }
+            return nullptr;
         }
 
-        bool isImmediate() const override
+        int pathProblem(bool cloudSide, int index) const override
         {
-            return mIsImmediate;
+            if (cloudSide)
+            {
+                if (index == 0) return int(info.cloudPath1.problem);
+                if (index == 1) return int(info.cloudPath2.problem);
+            }
+            else
+            {
+                if (index == 0) return int(info.localPath1.problem);
+                if (index == 1) return int(info.localPath2.problem);
+            }
+            return -1;
         }
 
-        const char* reasonString() const override
+        const char* reasonDebugString() const override
         {
-            return reasonString(mReason);
+            return reasonDebugString(reason());
         }
 
         static const char*
-        reasonString(MegaSyncStall::SyncStallReason reason);
+        reasonDebugString(MegaSyncStall::SyncStallReason reason);
+
+        static const char*
+        pathProblemDebugString(MegaSyncStall::SyncPathProblem reason);
 
     protected:
-        const std::string mIndexPath;
-        const std::string mLocalPath;
-        const std::string mCloudPath;
-        const SyncStallReason mReason;
-        const bool mIsCloud;
-        const bool mIsImmediate;
+        const SyncStallEntry info;
+        mutable string lpConverted[2];
 };
 
 /**

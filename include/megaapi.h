@@ -5525,6 +5525,45 @@ class MegaSyncStall
         MegaSyncStall() = default;
         virtual ~MegaSyncStall() = default;
 
+        enum SyncStallReason {
+            NoReason = 0,
+            FileIssue,
+            MoveOrRenameCannotOccur,
+            DeleteOrMoveWaitingOnScanning,
+            DeleteWaitingOnMoves,
+            UploadIssue,
+            DownloadIssue,
+            CannotCreateFolder,
+            CannotPerformDeletion,
+            SyncItemExceedsSupportedTreeDepth,
+            FolderMatchedAgainstFile,
+            LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
+            LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
+        };
+
+        enum SyncPathProblem {
+            NoProblem = 0,
+            FileChangingFrequently,
+            IgnoreRulesUnknown,
+            DetectedHardLink,
+            DetectedSymlink,
+            DetectedSpecialFile,
+            DifferentFileOrFolderIsAlreadyPresent,
+            ParentFolderDoesNotExist,
+            FilesystemErrorDuringOperation,
+            NameTooLongForFilesystem,
+            CannotFingrprintFile,
+            DestinationPathInUnresolvedArea,
+            MACVerificationFailure,
+            DeletedOrMovedByUser,
+            FileFolderDeletedByUser,
+            MoveToDebrisFolderFailed,
+            IgnoreFileMalformed,
+            FilesystemErrorListingFolder,
+            FilesystemErrorIdentifyingFolderContent,
+            UndecryptedCloudNode,
+        };
+
         /**
          * @brief Creates a copy of this MegaSyncStall object
          *
@@ -5532,79 +5571,40 @@ class MegaSyncStall
          *
          * @return Copy of the MegaSyncStall object
          */
-        virtual MegaSyncStall* copy() const;
+        virtual MegaSyncStall* copy() const = 0;
+
         /**
-         * @return path representing the sync stall
+        * @return reason for the sync stall
+        */
+        virtual SyncStallReason reason() const = 0;
+
+        /**
+        * @return a human readable (english only) representation of the sync stall reason. @see SyncStallReason
+        */
+        virtual const char* reasonDebugString() const = 0;
+
+        /**
+         * To get all paths involved in the stall,
+         * try with index 0, 1, 2 etc.  Usually there
+         * are two maximum.  Empty paths should be
+         * ignored unless there is a corresponding `pathProblem`.
+         * until the function returns NULL.  You can
+         * do this for each of cloudSide: true/false.
+         *
+         * @return path involved in the sync stall
          */
-        virtual const char* indexPath()  const;
+        virtual const char* path(bool cloudSide, int index) const = 0;
         /**
+         * use the same technique as for `path` with
+         * cloudSide, index. -1 is returned when there is no entry.
+         * This function returns an enum describing a condition
+         * of the corresponding `path` that will help
+         * explain the stall to the user.
+         * It is possible for there to be a reason but with an empty path.
+         *
          * @return local path involved in the sync stall
          */
-        virtual const char* localPath()  const;
-        /**
-         *  @return cloud path involved in the sync stall
-         */
-        virtual const char* cloudPath()  const;
-
-        /**
-         * @brief The reason of the sync stall.
-         *
-         * To be interpreted in the context of a MegaSyncStall path information
-         */
-        enum class SyncStallReason
-        {
-            NoReason = 0,
-            ApplyMoveNeedsOtherSideParentFolderToExist,
-            ApplyMoveIsBlockedByExistingItem,
-            MoveNeedsDestinationNodeProcessing,
-            UpsyncNeedsTargetFolder,
-            DownsyncNeedsTargetFolder,
-            DeleteOrMoveWaitingOnScanning,
-            DeleteWaitingOnMoves,
-            WaitingForFileToStopChanging,
-            MovingDownloadToTarget,
-            LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
-            CouldNotMoveToLocalDebrisFolder,
-            LocalFolderNotScannable,
-            SymlinksNotSupported,
-            FolderMatchedAgainstFile,
-            MatchedAgainstUnidentifiedItem,
-            MoveOrRenameFailed,
-            CreateFolderFailed,
-            UnknownExclusionState,
-            UnableToLoadIgnoreFile,
-            MoveTargetNameTooLong,
-            DownloadTargetNameTooLong,
-            CreateFolderNameTooLong,
-            CantFingrprintFileYet,
-            FolderContainsLockedFiles,
-            LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
-            SyncItemExceedsSupportedTreeDepth,
-            MACVerificationFailure,
-            NoNameTripletsDetected,
-            EncounteredHardLinkAtMoveSource,
-            SpecialFilesNotSupported
-        };
-
-        /**
-         * @return reason for the sync stall
-         */
-        virtual SyncStallReason reason() const;
-
-        /**
-         * @return true if the conflict was detected in the cloud side
-         */
-        virtual bool isCloud() const;
-
-        /**
-         * @return true if the end user is required to take actions to solve the sync stall
-         */
-        virtual bool isImmediate() const;
-
-        /**
-         * @return a human readable representation of the sync stall reason. @see SyncStallReason
-         */
-        virtual const char* reasonString() const;
+        virtual int pathProblem(bool cloudSide, int index) const = 0;
 };
 
 /**

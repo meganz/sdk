@@ -2871,55 +2871,66 @@ bool wildcardMatch(const char *pszString, const char *pszMatch)
     return !*pszMatch;
 }
 
-string syncWaitReasonString(SyncWaitReason r)
+const char* syncWaitReasonDebugString(SyncWaitReason r)
 {
     switch(r)
     {
         case SyncWaitReason::NoReason:                                      return "NoReason";
-        case SyncWaitReason::ApplyMoveNeedsOtherSideParentFolderToExist:    return "ApplyMoveNeedsOtherSideParentFolderToExist";
-        case SyncWaitReason::ApplyMoveIsBlockedByExistingItem:              return "ApplyMoveIsBlockedByExistingItem";
-        case SyncWaitReason::MoveNeedsDestinationNodeProcessing:            return "MoveNeedsDestinationNodeProcessing";
-        case SyncWaitReason::UpsyncNeedsTargetFolder:                       return "UpsyncNeedsTargetFolder";
-        case SyncWaitReason::DownsyncNeedsTargetFolder:                     return "DownsyncNeedsTargetFolder";
+        case SyncWaitReason::FileIssue:                                     return "FileIssue";
+        case SyncWaitReason::MoveOrRenameCannotOccur:                       return "MoveOrRenameCannotOccur";
         case SyncWaitReason::DeleteOrMoveWaitingOnScanning:                 return "DeleteOrMoveWaitingOnScanning";
         case SyncWaitReason::DeleteWaitingOnMoves:                          return "DeleteWaitingOnMoves";
-        case SyncWaitReason::WaitingForFileToStopChanging:                  return "WaitingForFileToStopChanging";
-        case SyncWaitReason::MovingDownloadToTarget:                        return "MovingDownloadToTarget";
-        case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
-        case SyncWaitReason::CouldNotMoveToLocalDebrisFolder:               return "CouldNotMoveToLocalDebrisFolder";
-        case SyncWaitReason::LocalFolderNotScannable:                       return "LocalFolderNotScannable";
-        case SyncWaitReason::SymlinksNotSupported:                          return "SymlinksNotSupported";
-        case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
-        case SyncWaitReason::MatchedAgainstUnidentifiedItem:                return "MatchedAgainstUnidentifiedItem";
-        case SyncWaitReason::MoveOrRenameFailed:                            return "MoveOrRenameFailed";
-        case SyncWaitReason::CreateFolderFailed:                            return "CreateFolderFailed";
-        case SyncWaitReason::UnknownExclusionState:                         return "UnknownExclusionState";
-        case SyncWaitReason::UnableToLoadIgnoreFile:                        return "UnableToLoadIgnoreFile";
-        case SyncWaitReason::MoveTargetNameTooLong:                         return "MoveTargetNameTooLong";
-        case SyncWaitReason::DownloadTargetNameTooLong:                     return "DownloadTargetNameTooLong";
-        case SyncWaitReason::CreateFolderNameTooLong:                       return "CreateFolderNameTooLong";
-        case SyncWaitReason::CantFingrprintFileYet:                         return "CantFingrprintFileYet";
-        case SyncWaitReason::FolderContainsLockedFiles:                     return "FolderContainsLockedFiles";
-        case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
+        case SyncWaitReason::UploadIssue:                                   return "UploadIssue";
+        case SyncWaitReason::DownloadIssue:                                 return "DownloadIssue";
+        case SyncWaitReason::CannotCreateFolder:                            return "CannotCreateFolder";
+        case SyncWaitReason::CannotPerformDeletion:                         return "CannotPerformDeletion";
         case SyncWaitReason::SyncItemExceedsSupportedTreeDepth:             return "SyncItemExceedsSupportedTreeDepth";
-        case SyncWaitReason::MACVerificationFailure:                        return "MACVerificationFailure";
-        case SyncWaitReason::NoNameTripletsDetected:                        return "NoNameTripletsDetected";
-        case SyncWaitReason::EncounteredHardLinkAtMoveSource:               return "EncounteredHardLinkAtMoveSource";
-        case SyncWaitReason::SpecialFilesNotSupported:                      return "SpecialFilesNotSupported";
+        case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
+        case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
+        case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
     }
     return "<out of range>";
 }
 
-bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason r)
+const char* syncPathProblemDebugString(PathProblem r)
 {
-    return r == SyncWaitReason::LocalFolderNotScannable ||
-           r == SyncWaitReason::SymlinksNotSupported ||
-           r == SyncWaitReason::SpecialFilesNotSupported ||
-           r == SyncWaitReason::FolderMatchedAgainstFile ||
-           r == SyncWaitReason::UnableToLoadIgnoreFile ||
-           r == SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose ||
-           r == SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose;
-}
+    switch (r)
+    {
+    case PathProblem::NoProblem: return "NoProblem";
+    case PathProblem::FileChangingFrequently: return "FileChangingFrequently";
+    case PathProblem::IgnoreRulesUnknown: return "IgnoreRulesUnknown";
+    case PathProblem::DetectedHardLink: return "DetectedHardLink";
+    case PathProblem::DetectedSymlink: return "DetectedSymlink";
+    case PathProblem::DetectedSpecialFile: return "DetectedSpecialFile";
+    case PathProblem::DifferentFileOrFolderIsAlreadyPresent: return "DifferentFileOrFolderIsAlreadyPresent";
+    case PathProblem::ParentFolderDoesNotExist: return "ParentFolderDoesNotExist";
+    case PathProblem::FilesystemErrorDuringOperation: return "FilesystemErrorDuringOperation";
+    case PathProblem::NameTooLongForFilesystem: return "NameTooLongForFilesystem";
+    case PathProblem::CannotFingrprintFile: return "CannotFingrprintFile";
+    case PathProblem::DestinationPathInUnresolvedArea: return "DestinationPathInUnresolvedArea";
+    case PathProblem::MACVerificationFailure: return "MACVerificationFailure";
+    case PathProblem::DeletedOrMovedByUser: return "DeletedOrMovedByUser";
+    case PathProblem::FileFolderDeletedByUser: return "FileFolderDeletedByUser";
+    case PathProblem::MoveToDebrisFolderFailed: return "MoveToDebrisFolderFailed";
+    case PathProblem::IgnoreFileMalformed: return "IgnoreFileMalformed";
+    case PathProblem::FilesystemErrorListingFolder: return "FilesystemErrorListingFolder";
+    case PathProblem::FilesystemErrorIdentifyingFolderContent: return "FilesystemErrorIdentifyingFolderContent";
+    case PathProblem::UndecryptedCloudNode: return "UndecryptedCloudNode";
+    }
+    return "<out of range>";
+};
+
+
+//bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason r)
+//{
+//    return r == SyncWaitReason::LocalFolderNotScannable ||
+//           r == SyncWaitReason::SymlinksNotSupported ||
+//           r == SyncWaitReason::SpecialFilesNotSupported ||
+//           r == SyncWaitReason::FolderMatchedAgainstFile ||
+//           r == SyncWaitReason::UnableToLoadIgnoreFile ||
+//           r == SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose ||
+//           r == SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose;
+//}
 
 UploadHandle UploadHandle::next()
 {
