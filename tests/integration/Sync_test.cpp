@@ -2878,6 +2878,13 @@ void StandardClient::movenode(handle h1, handle h2, PromiseBoolSP pb)
     pb->set_value(false);
 }
 
+bool StandardClient::movenode(handle h1, handle h2)
+{
+    return withWait([=](PromiseBoolSP result) {
+        movenode(h1, h2, std::move(result));
+    }, false);
+}
+
 void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
 {
     Node* n = drillchildnodebyname(gettestbasenode(), path);

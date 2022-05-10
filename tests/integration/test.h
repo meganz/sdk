@@ -623,6 +623,7 @@ struct StandardClient : public MegaApp
     bool movenode(string path, string newParentPath);
     void movenode(string path, string newparentpath, PromiseBoolSP pb);
     void movenode(handle h1, handle h2, PromiseBoolSP pb);
+    bool movenode(handle h1, handle h2);
     void movenodetotrash(string path, PromiseBoolSP pb);
     void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
