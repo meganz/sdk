@@ -3430,6 +3430,46 @@ bool StandardClient::share(Node& node, const string& email, accesslevel_t permis
     return result.get();
 }
 
+using SyncWaitPredicate = std::function<bool(StandardClient&)>;
+
+// Useful predicates.
+SyncWaitPredicate SyncRemoteMatch(NodeHandle handle, const Model::ModelNode* source)
+{
+    return [=](StandardClient& client) {
+        return client.match(handle, source);
+    };
+}
+
+SyncWaitPredicate SyncRemoteMatch(const Node& node, const Model::ModelNode* source)
+{
+    return SyncRemoteMatch(node.nodeHandle(), source);
+}
+
+SyncWaitPredicate SyncRemoteNodePresent(handle handle)
+{
+    return [handle](StandardClient& client) {
+        return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+            result->set_value(client.client.nodebyhandle(handle));
+        }).get();
+    };
+}
+
+SyncWaitPredicate SyncRemoteNodePresent(const Node& node)
+{
+    return SyncRemoteNodePresent(node.nodehandle);
+}
+
+SyncWaitPredicate SyncRemoteNodePresent(const string& path)
+{
+    return [path](StandardClient& client) {
+        return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+            auto root = client.gettestbasenode();
+            auto node = client.drillchildnodebyname(root, path);
+            result->set_value(!!node);
+        }).get();
+    };
+}
+
 void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
 {
     auto totalTimeoutStart = chrono::steady_clock::now();
@@ -9917,5 +9957,227 @@ TEST_F(BackupBehavior, SameMTimeSmallerSize)
 }
 
 #endif // DEBUG
+
+TEST_F(SyncTest, UndecryptableSharesBehavior)
+{
+    const auto TESTROOT = makeNewTestRoot();
+
+    StandardClient client0(TESTROOT, "client0");
+    StandardClient client1(TESTROOT, "client1");
+    StandardClient client2(TESTROOT, "client2");
+
+    // Log in the clients.
+    ASSERT_TRUE(client0.login_reset("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_TRUE(client1.login_reset("MEGA_EMAIL_AUX", "MEGA_PWD_AUX"));
+    ASSERT_TRUE(client2.login_reset("MEGA_EMAIL_AUX2", "MEGA_PWD_AUX2"));
+
+    // Make sure our "contacts" know about each other.
+    {
+        // Convenience predicate.
+        auto contactRequestReceived = [](handle id) {
+            return [id](StandardClient& client) {
+                return client.ipcr(id);
+            };
+        };
+
+        // Convenience helper.
+        auto contactAdd = [&](StandardClient& client, const string& name) {
+            // Get our hands on the contact's email.
+            string email = getenv(name.c_str());
+
+            // Are we already associated with this contact?
+            if (client0.iscontact(email))
+            {
+                // Then remove them.
+                ASSERT_TRUE(client0.rmcontact(email));
+            }
+
+            // Remove pending contact request, if any.
+            if (client0.opcr(email))
+            {
+                ASSERT_TRUE(client0.opcr(email, OPCA_DELETE));
+            }
+
+            // Add the contact.
+            auto id = client0.opcr(email, OPCA_ADD);
+            ASSERT_NE(id, UNDEF);
+
+            // Wait for the contact to receive the request.
+            ASSERT_TRUE(client.waitFor(contactRequestReceived(id), DEFAULTWAIT));
+
+            // Accept the contact request.
+            ASSERT_TRUE(client.ipcr(id, IPCA_ACCEPT));
+        };
+
+        // Introduce the contacts to each other.
+        ASSERT_NO_FATAL_FAILURE(contactAdd(client1, "MEGA_EMAIL_AUX"));
+        ASSERT_NO_FATAL_FAILURE(contactAdd(client2, "MEGA_EMAIL_AUX2"));
+    }
+
+    Model model;
+
+    // Populate the local filesystem.
+    model.addfile("t/f");
+    model.addfile("u/f");
+    model.addfile("v/f");
+    model.addfile("f");
+    model.addfile(".megaignore", "#");
+    model.generate(client1.fsBasePath / "s");
+
+    // Get our hands on the remote test root.
+    Node* r = client0.gettestbasenode();
+    ASSERT_NE(r, nullptr);
+
+    // Populate the remote test root.
+    {
+        auto sPath = client1.fsBasePath / "s";
+
+        ASSERT_TRUE(client0.uploadFolderTree(sPath, r));
+        ASSERT_TRUE(client0.uploadFilesInTree(sPath, r));
+    }
+
+    // Get our hands on the remote sync root.
+    Node* s = client0.drillchildnodebyname(r, "s");
+    ASSERT_NE(s, nullptr);
+
+    // Share the test root with client 1.
+    ASSERT_TRUE(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL));
+    ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), DEFAULTWAIT));
+
+    // Share the sync root with client 2.
+    ASSERT_TRUE(client0.share(*s, getenv("MEGA_EMAIL_AUX2"), FULL));
+    ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(*s), DEFAULTWAIT));
+
+    // Add and start a new sync.
+    auto id = UNDEF;
+
+    {
+        // View s from client 1's perspective.
+        auto* xs = client1.client.nodebyhandle(s->nodehandle);
+        ASSERT_NE(xs, nullptr);
+
+        // Add the sync.
+        id = client1.setupSync_mainthread("s", *xs, false, false);
+        ASSERT_NE(id, UNDEF);
+    }
+
+    // Wait for the initial sync to complete.
+    waitonsyncs(DEFAULTWAIT, &client1);
+
+    // Make sure the clients all agree with what's in the cloud.
+    ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id));
+    ASSERT_TRUE(client2.waitFor(SyncRemoteMatch(*s, model.root.get()), DEFAULTWAIT));
+
+    // Log out the sharing client so that it doesn't maintain keys.
+    client0.logout(false);
+
+    // Make a couple changes to client1's sync via client2.
+    {
+        // Nodes from client2's perspective.
+        auto* xs = client2.client.nodebyhandle(s->nodehandle);
+        ASSERT_NE(xs, nullptr);
+
+        auto* xt = client2.client.childnodebyname(xs, "t");
+        ASSERT_NE(xt, nullptr);
+
+        auto* xu = client2.client.childnodebyname(xs, "u");
+        ASSERT_NE(xu, nullptr);
+
+        auto* xv = client2.client.childnodebyname(xs, "v");
+        ASSERT_NE(xv, nullptr);
+
+        // Create a new directory w under s.
+        {
+            vector<NewNode> node(1);
+
+            client1.received_node_actionpackets = false;
+
+            model.addfolder("w");
+
+            client2.client.putnodes_prepareOneFolder(&node[0], "w");
+            ASSERT_TRUE(client2.putnodes(xs->nodeHandle(), NoVersioning, std::move(node)));
+            ASSERT_TRUE(client1.waitForNodesUpdated(30));
+        }
+
+        // Get our hands on w from client 2's perspective.
+        auto* xw = client2.client.childnodebyname(xs, "w");
+        ASSERT_NE(xw, nullptr);
+
+        // Be certain that client 1 can see w.
+        ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*xw), DEFAULTWAIT));
+        
+        // Let the engine try and process the change.
+        waitonsyncs(DEFAULTWAIT, &client1);
+
+        // Move t, u and v under w.
+        client1.received_node_actionpackets = false;
+
+        model.movenode("t", "w");
+
+        ASSERT_TRUE(client2.movenode(xt->nodehandle, xw->nodehandle));
+        ASSERT_TRUE(client1.waitForNodesUpdated(30));
+
+        client1.received_node_actionpackets = false;
+
+        model.movenode("u", "w");
+
+        ASSERT_TRUE(client2.movenode(xu->nodehandle, xw->nodehandle));
+        ASSERT_TRUE(client1.waitForNodesUpdated(30));
+
+        client1.received_node_actionpackets = false;
+
+        model.movenode("v", "w");
+
+        ASSERT_TRUE(client2.movenode(xv->nodehandle, xw->nodehandle));
+        ASSERT_TRUE(client1.waitForNodesUpdated(30));
+    }
+
+    // Wait for client 1 to stall (due to undecryptable nodes.)
+    //ASSERT_TRUE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
+
+    // Temporarily log out client 1.
+    //
+    // Undecrpytable nodes won't be serialized.
+    string session;
+
+    client1.client.dumpsession(session);
+    client1.localLogout();
+
+    // Hook resume callback.
+    promise<void> notify;
+
+    //client1.mOnSyncStateConfig = [&](const SyncConfig& config) {
+    //    if (config.mRunState != SyncRunState::Run)
+    //        return;
+
+    //    notify.set_value();
+    //    client1.mOnSyncStateConfig = nullptr;
+    //};
+
+    client1.onAutoResumeResult = [&](const SyncConfig&, bool, bool) {
+        notify.set_value();
+        client1.onAutoResumeResult = nullptr;
+    };
+
+    // Log the client back in.
+    ASSERT_TRUE(client1.login_fetchnodes(session));
+
+    // Wait for the sync to resume.
+    ASSERT_NE(notify.get_future().wait_for(DEFAULTWAIT), future_status::timeout);
+
+    // Give the sync some time to process changes.
+    waitonsyncs(DEFAULTWAIT, &client1);
+
+    // Make sure the client hasn't stalled.
+    //ASSERT_FALSE(client1.client.syncs.syncStallDetected());
+
+    // client 1 should've wipedd everything.
+    //
+    // This is the behavior we're going to want to fix.
+    model.movetosynctrash("w", "");
+    model.ensureLocalDebrisTmpLock("");
+
+    ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
+}
 
 #endif
