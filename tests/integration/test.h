@@ -658,6 +658,11 @@ struct StandardClient : public MegaApp
     handle opcr(const string& email, opcactions_t action);
     bool   opcr(const string& email);
 
+    bool iscontact(const string& email);
+
+    void rmcontact(const string& email, PromiseBoolSP result);
+    bool rmcontact(const string& email);
+
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;
     function<void(const SyncConfig&)> mOnFilterError;

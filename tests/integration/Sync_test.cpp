@@ -3366,6 +3366,43 @@ bool StandardClient::opcr(const string& email)
     return result.get();
 }
 
+bool StandardClient::iscontact(const string& email)
+{
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        for (auto &i : client.client.users)
+        {
+            if (i.second.email == email)
+                return result->set_value(i.second.show == VISIBLE);
+        }
+
+        result->set_value(false);
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
+void StandardClient::rmcontact(const string& email, PromiseBoolSP result)
+{
+    client.removecontact(email.c_str(), HIDDEN, [=](error e) {
+        result->set_value(!e);
+    });
+}
+
+bool StandardClient::rmcontact(const string& email)
+{
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        client.rmcontact(email, std::move(result));
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
 void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
 {
     auto totalTimeoutStart = chrono::steady_clock::now();
