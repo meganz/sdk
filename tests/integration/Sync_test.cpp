@@ -1913,7 +1913,7 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
 void StandardClient::setupSync_inThread(const string& localPath,
                                         const Node& remoteNode,
                                         const bool isBackup,
-                                        const bool uploadIgnoreFile,
+                                        const bool,
                                         PromiseHandleSP result)
 {
     // Check if node is (or is contained by) an in-share.
@@ -1982,20 +1982,20 @@ void StandardClient::setupSync_inThread(const string& localPath,
     };
 
     // Do we need to upload an ignore file?
-    if (uploadIgnoreFile)
-    {
-        auto ignorePath = fsBasePath / ".megaignore";
+    //if (uploadIgnoreFile)
+    //{
+    //    auto ignorePath = fsBasePath / ".megaignore";
 
-        // Create the ignore file.
-        if (!createDataFile(ignorePath, "#"))
-            return result->set_value(UNDEF);
+    //    // Create the ignore file.
+    //    if (!createDataFile(ignorePath, "#"))
+    //        return result->set_value(UNDEF);
 
-        // Upload the ignore file.
-        uploadFile(ignorePath, remoteNode, std::move(completion));
+    //    // Upload the ignore file.
+    //    uploadFile(ignorePath, remoteNode, std::move(completion));
 
-        // Completion function will continue the work.
-        return;
-    }
+    //    // Completion function will continue the work.
+    //    return;
+    //}
 
     // Make sure the client's received all its action packets.
     catchup(std::move(completion));
