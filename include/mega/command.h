@@ -697,9 +697,16 @@ class MEGA_API CommandUpdatePendingContact : public Command
     ipcactions_t action;
 
 public:
+    using Completion = std::function<void(error, ipcactions_t)>;
+
     bool procresult(Result) override;
 
-    CommandUpdatePendingContact(MegaClient*, handle, ipcactions_t);
+    CommandUpdatePendingContact(MegaClient*, handle, ipcactions_t, Completion completion = nullptr);
+
+private:
+    void doComplete(error result, ipcactions_t actions);
+
+    Completion mCompletion;
 };
 
 class MEGA_API CommandGetUserQuota : public Command

@@ -2311,7 +2311,7 @@ void CommandSetPendingContact::doComplete(handle handle, error result, opcaction
     mCompletion(handle, result, actions);
 }
 
-CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action)
+CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action, Completion completion)
 {
     cmd("upca");
 
@@ -2332,12 +2332,25 @@ CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, han
 
     tag = client->reqtag;
     this->action = action;
+
+    // Assume we've been provided a completion function.
+    mCompletion = std::move(completion);
 }
 
 bool CommandUpdatePendingContact::procresult(Result r)
 {
-    client->app->updatepcr_result(r.errorOrOK(), this->action);
+    doComplete(r.errorOrOK(), this->action);
+
     return r.wasErrorOrOK();
+}
+
+
+void CommandUpdatePendingContact::doComplete(error result, ipcactions_t actions)
+{
+    if (!mCompletion)
+        return client->app->updatepcr_result(result, actions);
+
+    mCompletion(result, actions);
 }
 
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)

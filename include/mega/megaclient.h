@@ -586,7 +586,7 @@ public:
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF, CommandSetPendingContact::Completion completion = nullptr);
-    void updatepcr(handle, ipcactions_t);
+    void updatepcr(handle, ipcactions_t, CommandUpdatePendingContact::Completion completion = nullptr);
 
     // export node link or remove existing exported link for this node
     error exportnode(Node*, int, m_time_t, bool writable, bool megaHosted,
