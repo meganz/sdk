@@ -107,9 +107,7 @@ struct DemoApp : public MegaApp
     void whyamiblocked_result(int) override;
 
     void sendsignuplink_result(error) override;
-    void querysignuplink_result(error) override;
-    void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
-    void confirmsignuplink_result(error) override;
+
     void confirmsignuplink2_result(handle, const char*, const char*, error) override;
     void setkeypair_result(error) override;
 
@@ -274,7 +272,6 @@ void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);
 void exec_cancelsignup(autocomplete::ACState& s);
-void exec_confirm(autocomplete::ACState& s);
 void exec_session(autocomplete::ACState& s);
 void exec_mount(autocomplete::ACState& s);
 void exec_ls(autocomplete::ACState& s);

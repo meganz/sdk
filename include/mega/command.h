@@ -44,6 +44,9 @@ protected:
     JSONWriter jsonWriter;
     bool mRead = false;// if json has already been read
 
+    bool loadIpsFromJson(std::vector<string>& ips);
+    bool cacheresolvedurls(const std::vector<string>& urls, std::vector<string>&& ips);
+
 public:
     MegaClient* client; // non-owning
 
@@ -156,6 +159,11 @@ public:
 // file attribute put
 struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 {
+    // For this command, the completion is exectued after the API response.
+    // If you supply a completion, that will short-circuit the upload process
+    using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
+    Cb mCompletion;
+
     NodeOrUploadHandle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
     fatype type;
     m_off_t progressreported;
@@ -165,7 +173,9 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     // progress information
     virtual m_off_t transferred(MegaClient*) override;
 
-    HttpReqCommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, std::unique_ptr<string> faData);
+    // either supply only size (to just get the URL) or supply only the data for auto-upload (but not both)
+    HttpReqCommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, size_t size_only,
+                        std::unique_ptr<string> faData, bool getIP = true, Cb &&completion = nullptr);
 
 private:
     std::unique_ptr<string> data;
@@ -250,14 +260,6 @@ public:
     CommandWhyAmIblocked(MegaClient*);
 };
 
-class MEGA_API CommandSendSignupLink : public Command
-{
-public:
-    bool procresult(Result) override;
-
-    CommandSendSignupLink(MegaClient*, const char*, const char*, byte*);
-};
-
 class MEGA_API CommandSendSignupLink2 : public Command
 {
 public:
@@ -267,30 +269,12 @@ public:
     CommandSendSignupLink2(MegaClient*, const char*, const char*, byte *, byte*, byte*);
 };
 
-class MEGA_API CommandQuerySignupLink : public Command
-{
-    string confirmcode;
-
-public:
-    bool procresult(Result) override;
-
-    CommandQuerySignupLink(MegaClient*, const byte*, unsigned);
-};
-
 class MEGA_API CommandConfirmSignupLink2 : public Command
 {
 public:
     bool procresult(Result) override;
 
     CommandConfirmSignupLink2(MegaClient*, const byte*, unsigned);
-};
-
-class MEGA_API CommandConfirmSignupLink : public Command
-{
-public:
-    bool procresult(Result) override;
-
-    CommandConfirmSignupLink(MegaClient*, const byte*, unsigned, uint64_t);
 };
 
 class MEGA_API CommandSetKeyPair : public Command

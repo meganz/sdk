@@ -1103,8 +1103,9 @@ void LocalNode::bumpnagleds()
     nagleds = sync->client->waiter->ds + 11;
 }
 
-LocalNode::LocalNode()
-: deleted{false}
+LocalNode::LocalNode(Sync* csync)
+: sync(csync)
+, deleted{false}
 , created{false}
 , reported{false}
 , checked{false}
@@ -1112,9 +1113,8 @@ LocalNode::LocalNode()
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
-void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
+void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
 {
-    sync = csync;
     parent = NULL;
     node.reset();
     notseen = 0;
@@ -1582,7 +1582,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     }
     assert(!r.hasdataleft());
 
-    LocalNode* l = new LocalNode();
+    LocalNode* l = new LocalNode(sync);
 
     l->type = type;
     l->size = size;

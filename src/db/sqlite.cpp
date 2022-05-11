@@ -27,6 +27,7 @@ namespace mega {
 SqliteDbAccess::SqliteDbAccess(const LocalPath& rootPath)
   : mRootPath(rootPath)
 {
+    assert(mRootPath.isAbsolute());
 }
 
 SqliteDbAccess::~SqliteDbAccess()
@@ -54,7 +55,77 @@ LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
     return path;
 }
 
-SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
+bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath)
+{
+    dbPath = databasePath(fsAccess, name, DB_VERSION);
+    auto upgraded = true;
+
+    {
+        auto legacyPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
+        auto fileAccess = fsAccess.newfileaccess();
+
+        if (fileAccess->fopen(legacyPath))
+        {
+            LOG_debug << "Found legacy database at: " << legacyPath;
+
+            if (LEGACY_DB_VERSION == LAST_DB_VERSION_WITHOUT_NOD)
+            {
+                LOG_debug << "Rename database file to update version to NOD";
+                if (!fsAccess.renamelocal(legacyPath, dbPath))
+                {
+                    fsAccess.unlinklocal(legacyPath);
+                }
+            }
+            else if (currentDbVersion == LEGACY_DB_VERSION)
+            {
+                LOG_debug << "Using a legacy database.";
+                dbPath = std::move(legacyPath);
+                upgraded = false;
+            }
+            else if ((flags & DB_OPEN_FLAG_RECYCLE))
+            {
+                LOG_debug << "Trying to recycle a legacy database.";
+
+                if (fsAccess.renamelocal(legacyPath, dbPath, false))
+                {
+                    auto suffix = LocalPath::fromRelativePath("-shm");
+                    auto from = legacyPath + suffix;
+                    auto to = dbPath + suffix;
+
+                    fsAccess.renamelocal(from, to);
+
+                    suffix = LocalPath::fromRelativePath("-wal");
+                    from = legacyPath + suffix;
+                    to = dbPath + suffix;
+
+                    fsAccess.renamelocal(from, to);
+
+                    LOG_debug << "Legacy database recycled.";
+                }
+                else
+                {
+                    LOG_debug << "Unable to recycle database, deleting...";
+                    fsAccess.unlinklocal(legacyPath);
+                }
+            }
+            else
+            {
+                LOG_debug << "Deleting outdated legacy database.";
+                fsAccess.unlinklocal(legacyPath);
+            }
+        }
+    }
+
+    if (upgraded)
+    {
+        LOG_debug << "Using an upgraded DB: " << dbPath;
+        currentDbVersion = DB_VERSION;
+    }
+
+    return fsAccess.fileExistsAt(dbPath);
+}
+
+SqliteDbTable *SqliteDbAccess::open(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags)
 {
     sqlite3 *db = nullptr;
     auto dbPath = databasePath(fsAccess, name, DB_VERSION);
@@ -68,6 +139,7 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
                              fsAccess,
                              dbPath,
                              (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
+
 }
 
 DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags)
@@ -132,69 +204,7 @@ const LocalPath& SqliteDbAccess::rootPath() const
 
 bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &fsAccess, const string &name, LocalPath &dbPath, const int flags)
 {
-    auto upgraded = true;
-
-    {
-        auto legacyPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
-        auto fileAccess = fsAccess.newfileaccess();
-
-        if (fileAccess->fopen(legacyPath))
-        {
-            LOG_debug << "Found legacy database at: " << legacyPath;
-            if (LEGACY_DB_VERSION == LAST_DB_VERSION_WITHOUT_NOD)
-            {
-                LOG_debug << "Rename database file to update version to NOD";
-                if (!fsAccess.renamelocal(legacyPath, dbPath))
-                {
-                    fsAccess.unlinklocal(legacyPath);
-                }
-            }
-            else if (currentDbVersion == LEGACY_DB_VERSION)
-            {
-                LOG_debug << "Using a legacy database.";
-                dbPath = std::move(legacyPath);
-                upgraded = false;
-            }
-            else if ((flags & DB_OPEN_FLAG_RECYCLE))
-            {
-                LOG_debug << "Trying to recycle a legacy database.";
-
-                if (fsAccess.renamelocal(legacyPath, dbPath, false))
-                {
-                    auto suffix = LocalPath::fromRelativePath("-shm");
-                    auto from = legacyPath + suffix;
-                    auto to = dbPath + suffix;
-
-                    fsAccess.renamelocal(from, to);
-
-                    suffix = LocalPath::fromRelativePath("-wal");
-                    from = legacyPath + suffix;
-                    to = dbPath + suffix;
-
-                    fsAccess.renamelocal(from, to);
-
-                    LOG_debug << "Legacy database recycled.";
-                }
-                else
-                {
-                    LOG_debug << "Unable to recycle database, deleting...";
-                    fsAccess.unlinklocal(legacyPath);
-                }
-            }
-            else
-            {
-                LOG_debug << "Deleting outdated legacy database.";
-                fsAccess.unlinklocal(legacyPath);
-            }
-        }
-    }
-
-    if (upgraded)
-    {
-        LOG_debug << "Using an upgraded DB: " << dbPath;
-        currentDbVersion = DB_VERSION;
-    }
-
+    checkDbFileAndAdjustLegacy(fsAccess, name, flags, dbPath);
     int result = sqlite3_open_v2(dbPath.toPath().c_str(), db,
         SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
         | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used withou restriction. (Required to avoid failure at SyncTest)
@@ -673,7 +683,8 @@ bool SqliteAccountState::put(Node *node)
         // node->attrstring has value => node is encrypted
         sqlite3_bind_int(stmt, 9, !node->attrstring);
         nameid favId = AttrMap::string2nameid("fav");
-        bool fav = (node->attrs.map.find(favId) != node->attrs.map.end());
+        auto favIt = node->attrs.map.find(favId);
+        bool fav = (favIt != node->attrs.map.end() && favIt->second == "1"); // test 'fav' attr value (only "1" is valid)
         sqlite3_bind_int(stmt, 10, fav);
         sqlite3_bind_int64(stmt, 11, node->ctime);
         sqlite3_bind_blob(stmt, 12, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);

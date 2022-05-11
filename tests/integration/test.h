@@ -21,6 +21,9 @@ using namespace ::mega;
 using namespace ::std;
 
 
+extern string_vector envVarAccount;
+extern string_vector envVarPass;
+
 std::string logTime();
 void WaitMillisec(unsigned n);
 
@@ -190,7 +193,7 @@ struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
 #ifdef GFX_CLASS
-    GFX_CLASS gfx;
+    GfxProc gfx;
 #endif
 
     string client_dbaccess_path;
@@ -239,7 +242,7 @@ struct StandardClient : public MegaApp
 
     string ensureDir(const fs::path& p);
 
-    StandardClient(const fs::path& basepath, const string& name);
+    StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder = fs::path());
     ~StandardClient();
     void localLogout();
 
@@ -514,8 +517,8 @@ struct StandardClient : public MegaApp
     bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile);
     bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported, bool expectFail, bool skipIgnoreFile);
     Sync* syncByBackupId(handle backupId);
-    void enableSyncByBackupId(handle id, PromiseBoolSP result);
-    bool enableSyncByBackupId(handle id);
+    void enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname);
+    bool enableSyncByBackupId(handle id, const string& logname);
     void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result);
 
     handle backupIdForSyncPath(fs::path path);
