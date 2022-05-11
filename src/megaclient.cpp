@@ -12040,7 +12040,11 @@ bool MegaClient::fetchsc(DbTable* sctable)
         // nodes are not loaded, proceed to load them only after Users and PCRs are loaded,
         // since Node::unserialize() will call mergenewshare(), and the latter requires
         // Users and PCRs to be available
-        mNodeManager.loadNodes();
+        if (!mNodeManager.loadNodes())
+        {
+            return false;
+        }
+
     }
 
     WAIT_CLASS::bumpds();
@@ -12406,7 +12410,7 @@ void MegaClient::fetchnodes(bool nocache)
         // don't allow to start new sc requests yet
         scsn.clear();
 
-#ifdef ENABLE_SYNC
+    #ifdef ENABLE_SYNC
         // If there are syncs present at this time, this is a reload-account request.
         // We will start by fetching a cached tree which likely won't match our current
         // state/scsn.  And then we will apply actionpackets until we are up to date.
@@ -12415,7 +12419,7 @@ void MegaClient::fetchnodes(bool nocache)
         // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
         // TODO: the sync rework branch, when ready, will be able to cope with this situation.
         syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
-#endif
+    #endif
 
         if (!loggedinfolderlink())
         {
@@ -16880,7 +16884,12 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         if (!n)
         {
             const NodeSerialized& ns = nHandleSerialized.second;
-            n = unserializeNode(&ns.mNode, ns.mDecrypted);
+            n = getNodeFromBlob(&ns.mNode, ns.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
         }
 
         nodes.push_back(n);
@@ -16944,7 +16953,12 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         Node* n = getNodeInRAM(nodeMapIt.first);
         if (!n)
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = getNodeFromBlob(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
         }
 
         nodes.push_back(n);
@@ -16995,7 +17009,12 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
         }
 
         if (n && (!parent || (parent && isAncestor(n->nodeHandle(), parent->nodeHandle()))))
@@ -17046,7 +17065,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     Node* n = getNodeInRAM(nodeSerialized.first);
     if (!n) // not loaded yet
     {
-        n = unserializeNode(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
+        n = getNodeFromBlob(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
     }
 
     return n;
@@ -17069,7 +17088,12 @@ node_vector NodeManager::getRootNodes()
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
         }
         nodes.push_back(n);
 
@@ -17115,7 +17139,12 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
         }
 
         nodes.push_back(n);
@@ -17156,6 +17185,18 @@ void NodeManager::loadTreeRecursively(const Node* node)
         const Node* ancestor = child->firstancestor();
         increaseCounter(child, ancestor->nodeHandle());
     }
+}
+
+Node *NodeManager::getNodeFromBlob(const std::string* serializedNode, bool decrypted)
+{
+    Node* node = unserializeNode(serializedNode, decrypted);
+    if (!node)
+    {
+        LOG_err << "Error unserializing a node. Reloading account";
+        mClient.fetchnodes(true);
+    }
+
+    return node;
 }
 
 NodeCounter NodeManager::getNodeCounter(const Node &node)
@@ -17788,24 +17829,22 @@ bool NodeManager::hasCacheLoaded()
     return mNodes.size();
 }
 
-void NodeManager::loadNodes()
+bool NodeManager::loadNodes()
 {
     if (!mTable)
     {
         assert(false);
-        return;
+        return false;
     }
-
-    mLoadingNodes = true;
 
     // Load map with fingerprints to speed up searching by fingerprint, as well as children
     std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
-    mTable->loadFingerprintsAndChildren(mFingerPrints, nodeAndParent);
-    for (auto pair : nodeAndParent)
+    if (!mTable->loadFingerprintsAndChildren(mFingerPrints, mNodeChildren))
     {
-        addChild(pair.first, pair.second);
+        return false;
     }
 
+    mLoadingNodes = true;
     node_vector rootnodes = getRootNodesWithoutNestedInshares();
 
     if (mKeepAllNodesInMemory)
@@ -17832,6 +17871,7 @@ void NodeManager::loadNodes()
     }
 
     mLoadingNodes = false;
+    return true;
 }
 
 Node* NodeManager::getNodeInRAM(NodeHandle handle)
@@ -18217,7 +18257,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     NodeSerialized nodeSerialized;
     if (mTable->getNode(handle, nodeSerialized))
     {
-        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
+        node = getNodeFromBlob(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
     }
 
     return node;

@@ -167,7 +167,7 @@ public:
     {
         return false;
     }
-    bool loadFingerprintsAndChildren(std::map<mega::FileFingerprint, std::map<mega::NodeHandle, mega::Node*>, mega::FileFingerprintCmp>& , std::vector<std::pair<mega::NodeHandle, mega::NodeHandle>>&) override
+    bool loadFingerprintsAndChildren(std::map<mega::FileFingerprint, std::map<mega::NodeHandle, mega::Node*>, mega::FileFingerprintCmp>& , std::map<mega::NodeHandle, std::set<mega::NodeHandle>>&) override
     {
         return false;
     }
