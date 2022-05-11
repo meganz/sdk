@@ -388,6 +388,12 @@ bool Node::serialize(string* d)
         }
     }
 
+    d->append((char*) &mCounter.files, sizeof (mCounter.files));
+    d->append((char*) &mCounter.folders, sizeof (mCounter.folders));
+    d->append((char*) &mCounter.storage, sizeof (mCounter.storage));
+    d->append((char*) &mCounter.versions, sizeof (mCounter.versions));
+    d->append((char*) &mCounter.versionStorage, sizeof (mCounter.versionStorage));
+
     return true;
 }
 

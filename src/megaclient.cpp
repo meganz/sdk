@@ -17609,6 +17609,20 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     }
     n->plink = plink;
 
+    NodeCounter counter;
+    memcpy((char*)&counter.files, ptr, sizeof (counter.files));
+    ptr += sizeof (counter.files);
+    memcpy((char*)&counter.folders, ptr, sizeof (counter.folders));
+    ptr += sizeof (counter.folders);
+    memcpy((char*)&counter.storage, ptr, sizeof (counter.storage));
+    ptr += sizeof (counter.storage);
+    memcpy((char*)&counter.versions, ptr, sizeof (counter.versions));
+    ptr += sizeof (counter.versions);
+    memcpy((char*)&counter.versionStorage, ptr, sizeof (counter.versionStorage));
+    ptr += sizeof (counter.versionStorage);
+
+    n->setCounter(counter);
+
     n->setfingerprint();
 
     if (ptr == end)
