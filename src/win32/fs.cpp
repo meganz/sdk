@@ -28,6 +28,7 @@
 #if defined(_WIN32)
 #include <winsock2.h>
 #include <Windows.h>
+#include <winioctl.h>
 #endif
 
 namespace mega {
@@ -1623,6 +1624,67 @@ bool reuseFingerprint(const FSNode& lhs, const FSNode& rhs)
         && lhs.fingerprint.size == rhs.fingerprint.size;
 };
 
+bool  WinFileSystemAccess::CheckForSymlink(const LocalPath& lp)
+{
+
+    ScopedFileHandle rightTypeHandle = CreateFileW(lp.localpath.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+        NULL);
+
+    typedef struct _REPARSE_DATA_BUFFER {
+        ULONG  ReparseTag;
+        USHORT ReparseDataLength;
+        USHORT Reserved;
+        union {
+            struct {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                ULONG  Flags;
+                WCHAR  PathBuffer[1];
+            } SymbolicLinkReparseBuffer;
+            struct {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                WCHAR  PathBuffer[1];
+            } MountPointReparseBuffer;
+            struct {
+                UCHAR DataBuffer[1];
+            } GenericReparseBuffer;
+        } DUMMYUNIONNAME;
+    } REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
+
+    union rightSizeBuffer {
+        REPARSE_DATA_BUFFER rdb;
+        char pad[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+    } rdb;
+
+    DWORD bytesReturned = 0;
+
+    if (rightTypeHandle.get() != INVALID_HANDLE_VALUE  &&
+        DeviceIoControl(
+        rightTypeHandle.get(),
+        FSCTL_GET_REPARSE_POINT,
+        NULL,
+        0,
+        &rdb,
+        sizeof(rdb),
+        &bytesReturned,
+        NULL))
+    {
+        return rdb.rdb.ReparseTag == IO_REPARSE_TAG_SYMLINK;
+    }
+
+    return false;
+}
+
 ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted)
 {
     assert(path.isAbsolute());
@@ -1706,6 +1768,12 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
                     result.fingerprint.size = (m_off_t)info->EndOfFile.QuadPart;
                     result.fsid = (handle)info->FileId.QuadPart;
                     result.type = TYPE_SPECIAL;
+
+                    if (CheckForSymlink(filePath))
+                    {
+                        result.isSymlink = true;
+                    }
+
 
                     results.emplace_back(std::move(result));
 

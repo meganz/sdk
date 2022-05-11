@@ -9499,29 +9499,27 @@ void exec_synclist(autocomplete::ACState& s)
         cout << "Stalled (mutually unresolvable changes detected)!" << endl;
         for (auto& p : stall.cloud)
         {
-            cout << "stalled node path: " << p.first << " " << syncWaitReasonString(p.second.reason);
-            if (!p.second.involvedCloudPath.empty())
-            {
-                cout << " (involved path: " << p.second.involvedCloudPath << ")";
-            }
-            if (!p.second.involvedLocalPath.empty())
-            {
-                cout << " (involved Local path: " << p.second.involvedLocalPath.toPath() << ")";
-            }
-            cout << endl;
+            cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
+            string r1 = p.second.cloudPath1.debugReport();
+            string r2 = p.second.cloudPath2.debugReport();
+            string r3 = p.second.localPath1.debugReport();
+            string r4 = p.second.localPath2.debugReport();
+            if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
+            if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
+            if (!r3.empty()) cout << "    here:" << r3 << endl;
+            if (!r4.empty()) cout << "    here:" << r4 << endl;
         }
         for (auto& p : stall.local)
         {
-            cout << "stalled local path: " << p.first.toPath() << " " << syncWaitReasonString(p.second.reason);
-            if (!p.second.involvedLocalPath.empty())
-            {
-                cout << " (involved path: " << p.second.involvedLocalPath.toPath() << ")";
-            }
-            if (!p.second.involvedCloudPath.empty())
-            {
-                cout << " (involved cloud path: " << p.second.involvedCloudPath << ")";
-            }
-            cout << endl;
+            cout << "stall issue: " << syncWaitReasonDebugString(p.second.reason) << endl;
+            string r1 = p.second.cloudPath1.debugReport();
+            string r2 = p.second.cloudPath2.debugReport();
+            string r3 = p.second.localPath1.debugReport();
+            string r4 = p.second.localPath2.debugReport();
+            if (!r1.empty()) cout << "    MEGA:" << r1 << endl;
+            if (!r2.empty()) cout << "    MEGA:" << r2 << endl;
+            if (!r3.empty()) cout << "    here:" << r3 << endl;
+            if (!r4.empty()) cout << "    here:" << r4 << endl;
         }
     }
 }

@@ -523,7 +523,9 @@ struct MEGA_API LocalNode
     // UTF8 NFC version of LocalNodeCore::localname.
     // Not serialized.
     // Should be updated whenever localname is.
-    string name;
+    // Does not match the corresponding Node's name,
+    // as escapes/case may be involved.
+    string toName_of_localname;
 
     // parent linkage
     LocalNode* parent = nullptr;
@@ -766,10 +768,7 @@ struct MEGA_API LocalNode
     LocalPath getLocalPath() const;
 
     // build full remote path to this node (might not exist anymore, of course)
-    string getCloudPath() const;
-
-    // Get cloud name (might not exist, of course.)
-    string getCloudName() const;
+    string getCloudPath(bool guessLeafName) const;
 
     // return child node by name   (TODO: could this be ambiguous, especially with case insensitive filesystems)
     LocalNode* childbyname(LocalPath*);

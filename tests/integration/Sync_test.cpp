@@ -5510,16 +5510,14 @@ TEST_F(SyncTest, BasicSync_CreateAndDeleteLink)
     {
         SyncStallInfo stalls;
 
-        auto reason = SyncWaitReason::SymlinksNotSupported;
-
-#ifdef _WIN32
-        reason = SyncWaitReason::SpecialFilesNotSupported;
-#endif // _WIN32
+        auto reason = SyncWaitReason::FileIssue;
+        auto problem = PathProblem::DetectedSymlink;
 
         ASSERT_TRUE(clientA1.client.syncs.syncStallDetected(stalls));
         ASSERT_FALSE(stalls.empty());
         ASSERT_FALSE(stalls.local.empty());
         ASSERT_EQ(stalls.local.begin()->second.reason, reason);
+        ASSERT_EQ(stalls.local.begin()->second.localPath1.problem, problem);
     }
 
     // Check client 2 is unaffected
@@ -5580,17 +5578,14 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
     {
         SyncStallInfo info;
 
-        auto reason = SyncWaitReason::SymlinksNotSupported;
-
-#ifdef _WIN32
-        // Reparse points are considered special files.
-        reason = SyncWaitReason::SpecialFilesNotSupported;
-#endif // _WIN32
+        auto reason = SyncWaitReason::FileIssue;
+        auto problem = PathProblem::DetectedSymlink;
 
         ASSERT_TRUE(clientA1.client.syncs.syncStallDetected(info));
         ASSERT_FALSE(info.empty());
         ASSERT_FALSE(info.local.empty());
         ASSERT_EQ(info.local.begin()->second.reason, reason);
+        ASSERT_EQ(info.local.begin()->second.localPath1.problem, problem);
     }
 
     //check client 2 is unaffected
@@ -5609,17 +5604,14 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
     {
         SyncStallInfo info;
 
-        auto reason = SyncWaitReason::SymlinksNotSupported;
-
-#ifdef _WIN32
-        // Reparse points are considered special files.
-        reason = SyncWaitReason::SpecialFilesNotSupported;
-#endif // _WIN32
+        auto reason = SyncWaitReason::FileIssue;
+        auto problem = PathProblem::DetectedSymlink;
 
         ASSERT_TRUE(clientA1.client.syncs.syncStallDetected(info));
         ASSERT_FALSE(info.empty());
         ASSERT_EQ(info.local.size(), 1u);
         ASSERT_EQ(info.local.begin()->second.reason, reason);
+        ASSERT_EQ(info.local.begin()->second.localPath1.problem, problem);
     }
 
     //check client 2 is unaffected
@@ -11709,7 +11701,8 @@ TEST_F(FilterFailureFixture, TriggersStall)
     ASSERT_EQ(entry.first.leafName(), IGNORE_FILE_NAME);
 
     // Was a load failure the cause of the stall?
-    ASSERT_EQ(entry.second.reason, SyncWaitReason::UnableToLoadIgnoreFile);
+    ASSERT_EQ(entry.second.reason, SyncWaitReason::FileIssue);
+    ASSERT_EQ(entry.second.localPath1.problem, PathProblem::IgnoreFileMalformed);
 }
 
 class LocalToCloudFilterFixture
@@ -14774,13 +14767,15 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
         ASSERT_EQ(stalls.local.begin()->first.toPath(),
                   localPath.u8string());
 
-        ASSERT_TRUE(stalls.local.begin()->second.involvedLocalPath.empty());
+        ASSERT_TRUE(stalls.local.begin()->second.localPath2.localPath.empty());
 
-        ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
+        ASSERT_EQ(stalls.local.begin()->second.cloudPath1.cloudPath,
                   cloudPath);
 
         ASSERT_EQ(stalls.local.begin()->second.reason,
-                  SyncWaitReason::CreateFolderNameTooLong);
+            SyncWaitReason::CannotCreateFolder);
+        ASSERT_EQ(stalls.local.begin()->second.localPath1.problem,
+            PathProblem::NameTooLongForFilesystem);
     }
 
     // Does the stall resolve if we remove the directory?
@@ -14815,17 +14810,23 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
         auto localPath = c.fsBasePath / "s" / FILE_NAME;
         auto cloudPath = "/mega_test_sync/s/" + FILE_NAME;
 
-        ASSERT_EQ(stalls.local.begin()->first.toPath(),
+        auto& sr = stalls.local.begin()->second;
+
+        ASSERT_TRUE(sr.localPath1.localPath.toPath().find(".getxfer") != string::npos);
+
+        ASSERT_EQ(sr.localPath2.localPath.toPath(),
             localPath.u8string());
 
-        ASSERT_EQ(stalls.local.begin()->second.involvedLocalPath.toPath(),
-                  string(""));
-
-        ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
+        ASSERT_EQ(sr.cloudPath1.cloudPath,
                   cloudPath);
 
-        ASSERT_EQ(stalls.local.begin()->second.reason,
-                  SyncWaitReason::DownloadTargetNameTooLong);
+        ASSERT_EQ(sr.cloudPath2.cloudPath,
+            string(""));
+
+        ASSERT_EQ(sr.reason,
+            SyncWaitReason::DownloadIssue);
+        ASSERT_EQ(sr.localPath2.problem,
+            PathProblem::NameTooLongForFilesystem);
     }
 
     // Does the stall resolve if we remove the file?
@@ -14884,18 +14885,25 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_FALSE(stalls.local.empty());
     ASSERT_TRUE(stalls.cloud.empty());
 
-    // Was the stall due to the rename?
-    ASSERT_EQ(stalls.local.begin()->first.toPath(),
-              (c.fsBasePath / "s" / "d" / FILE_NAME).u8string());
+    auto& sr = stalls.local.begin()->second;
 
-    ASSERT_EQ(stalls.local.begin()->second.involvedLocalPath.toPath(),
+    // Was the stall due to the rename?
+    ASSERT_EQ(sr.localPath1.localPath.toPath(),
               (c.fsBasePath / "s" / "d" / "f").u8string());
 
-    ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
-              "/mega_test_sync/s/d/" + FILE_NAME);
+    ASSERT_EQ(sr.localPath2.localPath.toPath(),
+              (c.fsBasePath / "s" / "d" / FILE_NAME).u8string());
 
-    ASSERT_EQ(stalls.local.begin()->second.reason,
-              SyncWaitReason::MoveTargetNameTooLong);
+    ASSERT_EQ(sr.cloudPath1.cloudPath,
+        "/mega_test_sync/s/d/f");
+
+    ASSERT_EQ(sr.cloudPath2.cloudPath,
+        "/mega_test_sync/s/d/" + FILE_NAME);
+
+    ASSERT_EQ(sr.reason,
+        SyncWaitReason::MoveOrRenameCannotOccur);
+    ASSERT_EQ(sr.localPath2.problem,
+        PathProblem::NameTooLongForFilesystem);
 
     // Correcting the name should resolve the stall.
     ASSERT_TRUE(c.rename("s/d/" + FILE_NAME, "ff"));
@@ -14927,31 +14935,42 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_FALSE(stalls.cloud.empty());
     ASSERT_FALSE(stalls.local.empty());
 
+    auto& local_sr = stalls.local.begin()->second;
+    auto& cloud_sr = stalls.cloud.begin()->second;
+
     // Correct paths reported?
-    ASSERT_EQ(stalls.cloud.begin()->first,
+    ASSERT_EQ(cloud_sr.cloudPath1.cloudPath,
               "/mega_test_sync/s/d/" + FILE_NAME);
 
-    ASSERT_EQ(stalls.cloud.begin()->second.involvedCloudPath,
+    ASSERT_EQ(cloud_sr.cloudPath2.cloudPath,
               "/mega_test_sync/s/" + FILE_NAME);
 
-    ASSERT_EQ(stalls.cloud.begin()->second.involvedLocalPath.toPath(),
+    ASSERT_EQ(cloud_sr.localPath1.localPath.toPath(),
               (c.fsBasePath / "s" / "d" / "ff").u8string());
 
-    ASSERT_EQ(stalls.local.begin()->first.toPath(),
+
+    ASSERT_EQ(local_sr.localPath1.localPath.toPath(),
+              (c.fsBasePath / "s" / "d" / "ff").u8string());
+
+    ASSERT_EQ(local_sr.localPath2.localPath.toPath(),
               (c.fsBasePath / "s" / FILE_NAME).u8string());
 
-    ASSERT_EQ(stalls.local.begin()->second.involvedCloudPath,
-              "/mega_test_sync/s/d/" + FILE_NAME);
+    ASSERT_EQ(local_sr.cloudPath1.cloudPath,
+              "/mega_test_sync/s/d/ff");
 
-    ASSERT_EQ(stalls.local.begin()->second.involvedLocalPath.toPath(),
-              (c.fsBasePath / "s" / "d" / "ff").u8string());
+    ASSERT_EQ(local_sr.cloudPath2.cloudPath,
+              "/mega_test_sync/s/" + FILE_NAME);
 
     // Correct reasons reported?
-    ASSERT_EQ(stalls.cloud.begin()->second.reason,
-              SyncWaitReason::MoveNeedsDestinationNodeProcessing);
+    ASSERT_EQ(cloud_sr.reason,
+        SyncWaitReason::MoveOrRenameCannotOccur);
+    ASSERT_EQ(cloud_sr.localPath2.problem,
+        PathProblem::DestinationPathInUnresolvedArea);
 
-    ASSERT_EQ(stalls.local.begin()->second.reason,
-              SyncWaitReason::MoveTargetNameTooLong);
+    ASSERT_EQ(local_sr.reason,
+        SyncWaitReason::MoveOrRenameCannotOccur);
+    ASSERT_EQ(local_sr.localPath2.problem,
+        PathProblem::NameTooLongForFilesystem);
 
     // Renaming the file to something sane should resolve the stall.
     ASSERT_TRUE(c.rename("s/" + FILE_NAME, "fff"));
@@ -15306,9 +15325,10 @@ TEST_F(SyncTest, StallsWhenEncounteringHardLink)
     // Check that we've stalled for the right reason.
     ASSERT_FALSE(stalls.local.empty());
 
-    ASSERT_EQ(stalls.local.begin()->first, targetPath);
-    ASSERT_EQ(stalls.local.begin()->second.involvedLocalPath, sourcePath);
-    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::EncounteredHardLinkAtMoveSource);
+    ASSERT_EQ(stalls.local.begin()->second.localPath1.localPath, targetPath);
+    ASSERT_EQ(stalls.local.begin()->second.localPath2.localPath, sourcePath);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::MoveOrRenameCannotOccur);
+    ASSERT_EQ(stalls.local.begin()->second.localPath1.problem, PathProblem::DetectedHardLink);
 
     // Check if we can resolve the stall by removing the hardlink.
     ASSERT_TRUE(fsAccess->unlinklocal(targetPath));

@@ -384,6 +384,12 @@ public:
 
     static bool copyTo(const LocalPath& source, LocalPath& target, m_time_t mtime,
                         TargetNameExistsResolution, FileSystemAccess& fsaccess, bool& transient_error, bool& name_too_long, Sync* syncForDebris);
+
+    LocalPath distributeFromPath()
+    {
+        lock_guard<recursive_mutex> g(mMutex);
+        return theFile;
+    }
 };
 
 

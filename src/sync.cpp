@@ -436,7 +436,7 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     }
     else if (row.syncNode)
     {
-        cloudPath += row.syncNode->name;
+        cloudPath += row.syncNode->toName_of_localname;
     }
     else if (row.fsNode)
     {
@@ -461,7 +461,7 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     }
     else if (row.syncNode)
     {
-        syncPath += row.syncNode->name;
+        syncPath += row.syncNode->toName_of_localname;
     }
     else if (row.fsNode)
     {
@@ -1510,14 +1510,14 @@ bool SyncStallInfo::hasImmediateStallReason() const
 {
     for (auto& i : cloud)
     {
-        if (syncWaitReasonAlwaysNeedsUserIntervention(i.second.reason))
+        if (i.second.alertUserImmediately)
         {
             return true;
         }
     }
     for (auto& i : local)
     {
-        if (syncWaitReasonAlwaysNeedsUserIntervention(i.second.reason))
+        if (i.second.alertUserImmediately)
         {
             return true;
         }
@@ -1619,7 +1619,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
         ProgressingMonitor monitor(syncs);
 
-        monitor.waitingLocal(fullPath.localPath, SyncStallEntry(SyncWaitReason::FileIssue,
+        monitor.waitingLocal(fullPath.localPath, SyncStallEntry(SyncWaitReason::FileIssue, true,
             {},
             {},
             {fullPath.localPath, problem},
@@ -1640,7 +1640,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
         ProgressingMonitor monitor(syncs);
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::FolderMatchedAgainstFile,
+            SyncWaitReason::FolderMatchedAgainstFile, true,
             {fullPath.cloudPath}, {},
             {fullPath.localPath}, {}));
 
@@ -1675,7 +1675,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                         // Let the engine know why we're not making any progress.
                         monitor.waitingLocal(movePendingTo->sourcePath, SyncStallEntry(
-                            SyncWaitReason::FileIssue,
+                            SyncWaitReason::FileIssue, false,
                             {}, {},
                             {movePendingTo->sourcePath, PathProblem::FileChangingFrequently}, {}));
 
@@ -1855,7 +1855,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             {
                 // Let the engine know why we can't perform the move.
                 monitor.waitingLocal(sourceSyncNode->getLocalPath(), SyncStallEntry(
-                    SyncWaitReason::FileIssue,
+                    SyncWaitReason::FileIssue, false,
                     {}, {},
                     {sourceSyncNode->getLocalPath(), PathProblem::IgnoreRulesUnknown}, {}));
 
@@ -1891,7 +1891,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 {
                     // Let the user know why we can't perform the move.
                     monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                        SyncWaitReason::FileIssue,
+                        SyncWaitReason::FileIssue, true,
                         {}, {},
                         {fullPath.localPath, PathProblem::DetectedHardLink}, {}));
 
@@ -1947,7 +1947,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                 // if we revist here and the file is still the same after enough time, we'll move it
                 monitor.waitingLocal(sourceSyncNode->getLocalPath(), SyncStallEntry(
-                    SyncWaitReason::FileIssue,
+                    SyncWaitReason::FileIssue, false,
                     {}, {},
                     {sourceSyncNode->getLocalPath(), PathProblem::FileChangingFrequently}, {}));
 
@@ -1981,8 +1981,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     row.syncNode->setCheckMovesAgain(false, true, false);
 
                     monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                        SyncWaitReason::MoveOrRenameCannotOccur,
-                        {sourceSyncNode->getCloudPath()},
+                        SyncWaitReason::MoveOrRenameCannotOccur, false,
+                        {sourceSyncNode->getCloudPath(true)},
                         {fullPath.cloudPath},
                         {sourceSyncNode->getLocalPath()},
                         {fullPath.localPath, PathProblem::DifferentFileOrFolderIsAlreadyPresent}));
@@ -2049,8 +2049,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     LOG_debug << syncname << "Move destination detected for fsid " << toHandle(row.fsNode->fsid) << " but we are belowRemovedCloudNode, must wait for resolution at: " << fullPath.cloudPath << logTriplet(row, fullPath);;
 
                     monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                        SyncWaitReason::MoveOrRenameCannotOccur,
-                        {sourceSyncNode->getCloudPath()},
+                        SyncWaitReason::MoveOrRenameCannotOccur, false,
+                        {sourceSyncNode->getCloudPath(true)},
                         {fullPath.cloudPath},
                         {sourceSyncNode->getLocalPath()},
                         {fullPath.localPath, PathProblem::ParentFolderDoesNotExist}));
@@ -2299,8 +2299,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     if (!foundTargetCloudNode) SYNC_verbose << syncname << "Target parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
 
                     monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                        SyncWaitReason::MoveOrRenameCannotOccur,
-                        {sourceSyncNode->getCloudPath()},
+                        SyncWaitReason::MoveOrRenameCannotOccur, false,
+                        {sourceSyncNode->getCloudPath(true)},
                         {fullPath.cloudPath},
                         {sourceSyncNode->getLocalPath()},
                         {fullPath.localPath, PathProblem::ParentFolderDoesNotExist}));
@@ -2374,7 +2374,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         LOG_debug << syncname << "checked node does not have the same type, blocked: " << fullPath.cloudPath;
 
         monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-            SyncWaitReason::FolderMatchedAgainstFile,
+            SyncWaitReason::FolderMatchedAgainstFile, true,
             {fullPath.cloudPath},
             {},
             {fullPath.localPath},
@@ -2427,8 +2427,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         {
             // Let the engine know why we couldn't process this move.
             monitor.waitingLocal(sourceSyncNode->getLocalPath(), SyncStallEntry(
-                SyncWaitReason::FileIssue,
-                {sourceSyncNode->getCloudPath(), PathProblem::IgnoreRulesUnknown},
+                SyncWaitReason::FileIssue, false,
+                {sourceSyncNode->getCloudPath(false), PathProblem::IgnoreRulesUnknown},
                 {},
                 {sourceSyncNode->getLocalPath(), PathProblem::IgnoreRulesUnknown},
                 {}));
@@ -2517,8 +2517,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 parentRow.syncNode->setCheckMovesAgain(false, true, false);
 
                 monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-                    SyncWaitReason::MoveOrRenameCannotOccur,
-                    {sourceSyncNode->getCloudPath()},
+                    SyncWaitReason::MoveOrRenameCannotOccur, false,
+                    {sourceSyncNode->getCloudPath(true)},
                     {fullPath.cloudPath, PathProblem::DifferentFileOrFolderIsAlreadyPresent},
                     {sourceSyncNode->getLocalPath()},
                     {fullPath.localPath}));
@@ -2570,8 +2570,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             LOG_debug << syncname << "Move destination detected for node " << row.cloudNode->handle << " but we are belowRemovedFsNode, must wait for resolution at: " << logTriplet(row, fullPath);;
 
             monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-                SyncWaitReason::MoveOrRenameCannotOccur,
-                {sourceSyncNode->getCloudPath()},
+                SyncWaitReason::MoveOrRenameCannotOccur, false,
+                {sourceSyncNode->getCloudPath(true)},
                 {fullPath.cloudPath, PathProblem::ParentFolderDoesNotExist},
                 {sourceSyncNode->getLocalPath()},
                 {fullPath.localPath}));
@@ -2605,7 +2605,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 assert(row.syncNode);
 
                 monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-                    SyncWaitReason::CannotPerformDeletion,
+                    SyncWaitReason::CannotPerformDeletion, false,
                     {},
                     {},
                     {fullPath.localPath, PathProblem::MoveToDebrisFolderFailed},
@@ -2704,8 +2704,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             LOG_warn << "transient error moving folder: " << sourcePath.toPath() << logTriplet(row, fullPath);
 
             monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                SyncWaitReason::MoveOrRenameCannotOccur,
-                {sourceSyncNode->getCloudPath()},
+                SyncWaitReason::MoveOrRenameCannotOccur, false,
+                {sourceSyncNode->getCloudPath(true)},
                 {fullPath.cloudPath},
                 {sourceSyncNode->getLocalPath()},
                 {fullPath.localPath, PathProblem::FilesystemErrorDuringOperation}));
@@ -2722,8 +2722,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                      << logTriplet(row, fullPath);
 
             monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                SyncWaitReason::MoveOrRenameCannotOccur,
-                {sourceSyncNode->getCloudPath()},
+                SyncWaitReason::MoveOrRenameCannotOccur, true,
+                {sourceSyncNode->getCloudPath(true)},
                 {fullPath.cloudPath},
                 {sourceSyncNode->getLocalPath()},
                 {fullPath.localPath, PathProblem::NameTooLongForFilesystem}));
@@ -2739,8 +2739,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             SYNC_verbose << "Move to here delayed since local parent doesn't exist yet: " << sourcePath.toPath() << logTriplet(row, fullPath);
 
             monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-                SyncWaitReason::MoveOrRenameCannotOccur,
-                {sourceSyncNode->getCloudPath()},
+                SyncWaitReason::MoveOrRenameCannotOccur, false,
+                {sourceSyncNode->getCloudPath(true)},
                 {fullPath.cloudPath},
                 {sourceSyncNode->getLocalPath()},
                 {fullPath.localPath, PathProblem::ParentFolderDoesNotExist}));
@@ -5883,7 +5883,7 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->name, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->toName_of_localname, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
@@ -5894,15 +5894,15 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.syncNode->name, true, rhs.cloudNode->name, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.cloudNode->name, true, caseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.syncNode->name, true, rhs.syncNode->name, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.syncNode->toName_of_localname, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.syncNode->name, true, rhs.fsNode->name, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.fsNode->name, true, caseInsensitive);
             }
         }
         else // lhs.fsNode
@@ -5913,7 +5913,7 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.fsNode->name, true, rhs.syncNode->name, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->name, true, rhs.syncNode->toName_of_localname, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
@@ -6066,7 +6066,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                   << depth + mCurrentRootDepth;
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::SyncItemExceedsSupportedTreeDepth,
+            SyncWaitReason::SyncItemExceedsSupportedTreeDepth, true,
             {fullPath.cloudPath},
             {},
             {fullPath.localPath},
@@ -6590,7 +6590,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
         ProgressingMonitor monitor(syncs);
 
         monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-            SyncWaitReason::FileIssue,
+            SyncWaitReason::FileIssue, true,
             {fullPath.cloudPath, PathProblem::UndecryptedCloudNode},
             {},
             {},
@@ -6724,7 +6724,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
         ProgressingMonitor monitor(syncs);
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::FileIssue,
+            SyncWaitReason::FileIssue, false,
             {},
             {},
             {fullPath.localPath, PathProblem::CannotFingrprintFile},
@@ -7192,7 +7192,7 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
 
     if ((sourceSyncNode = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid, movePtr->sourceType, movePtr->sourceFingerprint, this, nullptr)))
     {
-        LOG_debug << syncname << "Sync cloud move/rename from : " << sourceSyncNode->getCloudPath() << " resolved here! " << logTriplet(row, fullPath);
+        LOG_debug << syncname << "Sync cloud move/rename from : " << sourceSyncNode->getCloudPath(true) << " resolved here! " << logTriplet(row, fullPath);
 
         assert(sourceSyncNode == movePtr->sourcePtr);
 
@@ -7328,7 +7328,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
 
         // we couldn't get the file crc yet (opened by another proecess, etc)
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::FileIssue,
+            SyncWaitReason::FileIssue, false,
             {},
             {},
             {fullPath.localPath, PathProblem::CannotFingrprintFile},
@@ -7439,7 +7439,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
         SYNC_verbose << syncname << "Not deleting still-moving/renaming source node yet." << logTriplet(row, fullPath);
 
         monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-            SyncWaitReason::MoveOrRenameCannotOccur,
+            SyncWaitReason::MoveOrRenameCannotOccur, false,
             {fullPath.cloudPath},
             {"", PathProblem::DestinationPathInUnresolvedArea},
             {fullPath.localPath},
@@ -7658,7 +7658,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 row.syncNode->setSyncAgain(true, false, false);
 
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                    SyncWaitReason::UploadIssue,
+                    SyncWaitReason::UploadIssue, false,
                     {fullPath.cloudPath, PathProblem::ParentFolderDoesNotExist},
                     {},
                     {fullPath.localPath},
@@ -7699,7 +7699,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
             {
                 // So we can capture if necessary.
-                auto name = row.syncNode->name;
+                auto name = row.syncNode->toName_of_localname;
                 auto type = row.syncNode->type;
                 auto anomalyType = isFilenameAnomaly(fullPath.localPath, name, type);
 
@@ -7765,7 +7765,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             if (parentRow.cloudNode)
             {
                 // there can't be a matching cloud node in this row (for folders), so just toName() is correct
-                string foldername = row.syncNode->name;
+                string foldername = row.syncNode->toName_of_localname;
 
                 // Check for filename anomalies.
                 {
@@ -7806,7 +7806,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 row.syncNode->setSyncAgain(true, false, false);
 
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                    SyncWaitReason::CannotCreateFolder,
+                    SyncWaitReason::CannotCreateFolder, false,
                     {fullPath.cloudPath, PathProblem::ParentFolderDoesNotExist},
                     {},
                     {fullPath.localPath},
@@ -7921,7 +7921,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                                  << logTriplet(row, fullPath);
 
                     monitor.waitingLocal(downloadPtr->getLocalname(), SyncStallEntry(
-                        SyncWaitReason::DownloadIssue,
+                        SyncWaitReason::DownloadIssue, true,
                         {fullPath.cloudPath, PathProblem::MACVerificationFailure},
                         {},
                         {downloadPtr->getLocalname(), PathProblem::MACVerificationFailure},
@@ -7986,10 +7986,10 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                                  << logTriplet(row, fullPath);
 
                     monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                        SyncWaitReason::DownloadIssue,
+                        SyncWaitReason::DownloadIssue, true,
                         {fullPath.cloudPath},
                         {},
-                        {downloadPtr->getLocalname()},
+                        {downloadPtr->downloadDistributor->distributeFromPath()},
                         {fullPath.localPath, PathProblem::NameTooLongForFilesystem}));
 
                     // Leave the transfer intact so we don't reattempt the download.
@@ -8001,7 +8001,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                     // Let the monitor know what we're up to.
                     monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                        SyncWaitReason::DownloadIssue,
+                        SyncWaitReason::DownloadIssue, false,
                         {fullPath.cloudPath},
                         {},
                         {downloadPtr->getLocalname()},
@@ -8035,7 +8035,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
             row.syncNode->setSyncAgain(true, false, false);
 
             monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-                SyncWaitReason::DownloadIssue,
+                SyncWaitReason::DownloadIssue, false,
                 {fullPath.cloudPath},
                 {},
                 {fullPath.localPath, PathProblem::ParentFolderDoesNotExist},
@@ -8107,7 +8107,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 assert(row.syncNode);
 
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                    SyncWaitReason::CannotCreateFolder,
+                    SyncWaitReason::CannotCreateFolder, true,
                     {fullPath.cloudPath},
                     {},
                     {fullPath.localPath, PathProblem::NameTooLongForFilesystem},
@@ -8120,7 +8120,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 assert(row.syncNode);
 
                 monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                    SyncWaitReason::CannotCreateFolder,
+                    SyncWaitReason::CannotCreateFolder, false,
                     {fullPath.cloudPath},
                     {},
                     {fullPath.localPath, PathProblem::FilesystemErrorDuringOperation},
@@ -8134,7 +8134,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
             row.syncNode->setSyncAgain(true, false, false);
 
             monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                SyncWaitReason::CannotCreateFolder,
+                SyncWaitReason::CannotCreateFolder, false,
                 {fullPath.cloudPath},
                 {},
                 {fullPath.localPath, PathProblem::ParentFolderDoesNotExist},
@@ -8157,7 +8157,7 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& 
     if (row.syncNode)
     {
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
+            SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose, true,
             {fullPath.cloudPath},
             {},
             {fullPath.localPath},
@@ -8166,7 +8166,7 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, SyncPath& 
     else
     {
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
+            SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose, true,
             {fullPath.cloudPath},
             {},
             {fullPath.localPath},
@@ -8266,7 +8266,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
         }
 
         monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-            SyncWaitReason::MoveOrRenameCannotOccur,
+            SyncWaitReason::MoveOrRenameCannotOccur, false,
             {fullPath.cloudPath},
             {cloudPath},
             {fullPath.localPath},
@@ -8300,7 +8300,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
         else
         {
             monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-                SyncWaitReason::CannotPerformDeletion,
+                SyncWaitReason::CannotPerformDeletion, false,
                 {fullPath.cloudPath, PathProblem::DeletedOrMovedByUser},
                 {},
                 {fullPath.localPath, PathProblem::MoveToDebrisFolderFailed},
@@ -8319,7 +8319,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
         {
 
             monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
-                SyncWaitReason::DeleteWaitingOnMoves,
+                SyncWaitReason::DeleteWaitingOnMoves, false,
                 {fullPath.cloudPath, PathProblem::DeletedOrMovedByUser},
                 {},
                 {fullPath.localPath},
@@ -8681,9 +8681,9 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         // todo: do we need an equivalent to row.recurseToScanforNewLocalNodesOnly = true;  (in resolve_cloudNodeGone)
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::MoveOrRenameCannotOccur,
+            SyncWaitReason::MoveOrRenameCannotOccur, false,
             {fullPath.cloudPath},
-            {movedLocalNode->getCloudPath(), PathProblem::DestinationPathInUnresolvedArea},
+            {movedLocalNode->getCloudPath(false), PathProblem::DestinationPathInUnresolvedArea},
             {fullPath.localPath},
             {movedLocalNode->getLocalPath()}));
 
@@ -8693,7 +8693,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         SYNC_verbose << syncname << "Wait for scanning to finish before confirming fsid " << toHandle(row.syncNode->fsid_lastSynced) << " deleted or moved: " << logTriplet(row, fullPath);
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::DeleteOrMoveWaitingOnScanning,
+            SyncWaitReason::DeleteOrMoveWaitingOnScanning, false,
             {fullPath.cloudPath},
             {},
             {fullPath.localPath, PathProblem::DeletedOrMovedByUser},
@@ -8776,7 +8776,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
         SYNC_verbose << syncname << "Wait for moves to finish before confirming fsid " << toHandle(row.syncNode->fsid_lastSynced) << " deleted: " << logTriplet(row, fullPath);
 
         monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-            SyncWaitReason::DeleteWaitingOnMoves,
+            SyncWaitReason::DeleteWaitingOnMoves, false,
             {fullPath.cloudPath},
             {},
             {fullPath.localPath, PathProblem::DeletedOrMovedByUser},
@@ -10227,7 +10227,7 @@ void Syncs::syncLoop()
                         if (!(lp->sync && lp->sync->getConfig().mTemporarilyPaused))
                         {
                             mSyncFlags->stall.waitingLocal(lp->localPath, SyncStallEntry(
-                                SyncWaitReason::FileIssue,
+                                SyncWaitReason::FileIssue, true,
                                 {},
                                 {},
                                 {lp->localPath, PathProblem::IgnoreFileMalformed},
@@ -10262,7 +10262,7 @@ void Syncs::syncLoop()
                         if (sbp->folderUnreadable)
                         {
                             mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
-                                SyncWaitReason::FileIssue,
+                                SyncWaitReason::FileIssue, false,
                                 {},
                                 {},
                                 {sbp->scanBlockedLocalPath, PathProblem::FilesystemErrorListingFolder},
@@ -10272,7 +10272,7 @@ void Syncs::syncLoop()
                         {
                             assert(sbp->filesUnreadable);
                             mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
-                                SyncWaitReason::FileIssue,
+                                SyncWaitReason::FileIssue, false,
                                 {},
                                 {},
                                 {sbp->scanBlockedLocalPath, PathProblem::FilesystemErrorIdentifyingFolderContent},
@@ -10650,7 +10650,7 @@ bool Syncs::isDefinitelyExcluded(const pair<Node*, Sync*>& root, const Node* chi
             break;
 
         // Name doesn't match so we'll have to check by remote path.
-        if (node->getCloudName() != i->second)
+        if (node->toName_of_localname != i->second)
             break;
 
         // Children are definitely excluded if their parent is.

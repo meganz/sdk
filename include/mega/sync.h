@@ -790,35 +790,55 @@ private:
  */
 struct SyncStallEntry
 {
+    // Gives an overall reason for the stall
+    // There may be a more specific pathProblem in one of the paths
     SyncWaitReason reason = SyncWaitReason::NoReason;
 
-    enum PathFlags : unsigned short { NoFlags = 0x00, PathAbsent = 0x01, ParentAbsent = 0x02, };
+    // Set this true if there's no way this stall will be resolved
+    // automatically.  That way, we can alert the user at the first
+    // opportunity, instead of waiting until we run out of sync
+    // activity that can occur.
+    bool alertUserImmediately = false;
 
     struct StallCloudPath
     {
         PathProblem problem = PathProblem::NoProblem;
-        PathFlags flags = NoFlags;
         string cloudPath;
 
         StallCloudPath() {}
 
-        StallCloudPath(const string& cp, PathProblem pp = PathProblem::NoProblem, PathFlags pf = NoFlags)
-            : problem(pp), flags(pf), cloudPath(cp)
+        StallCloudPath(const string& cp, PathProblem pp = PathProblem::NoProblem)
+            : problem(pp), cloudPath(cp)
         {
+        }
+
+        string debugReport()
+        {
+            string r = cloudPath;
+            if (problem != PathProblem::NoProblem)
+                r += " (" + string(syncPathProblemDebugString(problem)) + ")";
+            return r;
         }
     };
 
     struct StallLocalPath
     {
         PathProblem problem = PathProblem::NoProblem;
-        PathFlags flags = NoFlags;
         LocalPath localPath;
 
         StallLocalPath() {}
 
-        StallLocalPath(const LocalPath& lp, PathProblem pp = PathProblem::NoProblem, PathFlags pf = NoFlags)
-            : problem(pp), flags(pf), localPath(lp)
+        StallLocalPath(const LocalPath& lp, PathProblem pp = PathProblem::NoProblem)
+            : problem(pp), localPath(lp)
         {
+        }
+
+        string debugReport()
+        {
+            string r = localPath.toPath();
+            if (problem != PathProblem::NoProblem)
+                r += " (" + string(syncPathProblemDebugString(problem)) + ")";
+            return r;
         }
     };
 
@@ -834,8 +854,9 @@ struct SyncStallEntry
     StallLocalPath localPath1;
     StallLocalPath localPath2;
 
-    SyncStallEntry(SyncWaitReason r, StallCloudPath&& cp1, StallCloudPath&& cp2, StallLocalPath&& lp1, StallLocalPath&& lp2)
+    SyncStallEntry(SyncWaitReason r, bool immediate, StallCloudPath&& cp1, StallCloudPath&& cp2, StallLocalPath&& lp1, StallLocalPath&& lp2)
         : reason(r)
+        , alertUserImmediately(immediate)
         , cloudPath1(move(cp1))
         , cloudPath2(move(cp2))
         , localPath1(move(lp1))
@@ -1247,7 +1268,7 @@ private:
         void report(SyncStallInfo& stallInfo)
         {
             stallInfo.waitingLocal(mPath, SyncStallEntry(
-                SyncWaitReason::FileIssue,
+                SyncWaitReason::FileIssue, true,
                 {},
                 {},
                 {mPath, PathProblem::IgnoreFileMalformed},

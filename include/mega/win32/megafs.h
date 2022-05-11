@@ -106,6 +106,9 @@ public:
 #endif
 
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
+
+private:
+    bool CheckForSymlink(const LocalPath& lp);
 };
 
 #ifdef ENABLE_SYNC
