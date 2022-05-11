@@ -31,27 +31,25 @@ class MEGA_API SqliteDbTable : public DbTable
 {
     sqlite3* db;
     sqlite3_stmt* pStmt;
-    string dbfile;
+    LocalPath dbfile;
     FileSystemAccess *fsaccess;
 
 public:
-    void rewind();
-    bool next(uint32_t*, string*);
-    bool get(uint32_t, string*);
-    bool put(uint32_t, char*, unsigned);
-    bool del(uint32_t);
-    void truncate();
-    void begin();
-    void commit();
-    void abort();
-    void remove();
+    void rewind() override;
+    bool next(uint32_t*, string*) override;
+    bool get(uint32_t, string*) override;
+    bool put(uint32_t, char*, unsigned) override;
+    bool del(uint32_t) override;
+    void truncate() override;
+    void begin() override;
+    void commit() override;
+    void abort() override;
+    void remove() override;
 
-    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
+    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted);
     ~SqliteDbTable();
 
     bool inTransaction() const override;
-
-    LocalPath dbFile() const;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess
@@ -66,6 +64,8 @@ public:
     LocalPath databasePath(const FileSystemAccess& fsAccess,
                            const string& name,
                            const int version) const;
+
+    bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) override;
 
     SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
 

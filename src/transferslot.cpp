@@ -60,7 +60,7 @@ const dstime TransferSlot::XFERTIMEOUT = 600;
 const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 
 // max request size for downloads
-#if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
+#if defined(__ANDROID__) || defined(USE_IOS)
     const m_off_t TransferSlot::MAX_REQ_SIZE = 2097152; // 2 MB
 #elif defined (_WIN32) || defined(HAVE_AIO_RT)
     const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB
@@ -78,7 +78,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     lastprogressreport = 0;
     progressreported = 0;
     speed = meanSpeed = 0;
-    progresscontiguous = 0;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -98,7 +97,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     slots_it = transfer->client->tslots.end();
 
     maxRequestSize = MAX_REQ_SIZE;
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+#if defined(_WIN32)
     MEMORYSTATUSEX statex;
     memset(&statex, 0, sizeof (statex));
     statex.dwLength = sizeof (statex);
@@ -374,7 +373,6 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
             {
                 LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " from " << end;
                 auto correctMac = macsmac(&transfer->chunkmacs);
-                transfer->currentmetamac = correctMac;
                 transfer->metamac = correctMac;
                 // TODO: update the Node's key to be correct (needs some API additions before enabling)
                 return true;
@@ -398,7 +396,6 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
                     {
                         LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " " << start2 << " " << len2 << " from " << end;
                         auto correctMac = macsmac(&transfer->chunkmacs);
-                        transfer->currentmetamac = correctMac;
                         transfer->metamac = correctMac;
                         // TODO: update the Node's key to be correct (needs some API additions before enabling)
                         return true;
@@ -414,15 +411,9 @@ bool TransferSlot::checkDownloadTransferFinished(DBTableTransactionCommitter& co
 {
     if (transfer->progresscompleted == transfer->size)
     {
-        if (transfer->progresscompleted)
-        {
-            transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-            transfer->hascurrentmetamac = true;
-        }
-
         // verify meta MAC
         if (!transfer->size
-            || (transfer->currentmetamac == transfer->metamac)
+            || (macsmac(&transfer->chunkmacs) == transfer->metamac)
             || checkMetaMacWithMissingLateEntries())
         {
             client->transfercacheadd(transfer, &committer);
@@ -516,11 +507,8 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             if (fa && transfer->type == GET)
             {
                 LOG_debug << "Verifying cached download";
-                transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-                transfer->hascurrentmetamac = true;
-
                 // verify meta MAC
-                if (transfer->currentmetamac == transfer->metamac)
+                if (macsmac(&transfer->chunkmacs) == transfer->metamac)
                 {
                     return transfer->complete(committer);
                 }
@@ -656,11 +644,11 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     {
                         // completed put transfers are signalled through the
                         // return of the upload token
-                        if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN)
+                        if (reqs[i]->in.size() == UPLOADTOKENLEN)
                         {
                             LOG_debug << "Upload token received";
-                            transfer->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
-                            memcpy(transfer->ultoken.get(), reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
+                            transfer->ultoken.reset(new UploadToken);
+                            memcpy(transfer->ultoken.get(), reqs[i]->in.data(), UPLOADTOKENLEN);
 
                             errorcount = 0;
                             transfer->failcount = 0;
@@ -686,10 +674,10 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                             updatecontiguousprogress();
 
-                            memcpy(transfer->filekey, transfer->transferkey.data(), sizeof transfer->transferkey);
-                            ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
-                            ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
-                            SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
+                            memcpy(&transfer->filekey.key, transfer->transferkey.data(), sizeof transfer->transferkey);
+                            transfer->filekey.iv_u64 = transfer->ctriv;
+                            transfer->filekey.crc_u64 = macsmac(&transfer->chunkmacs);
+                            SymmCipher::xorblock(transfer->filekey.iv_bytes.data(), transfer->filekey.key.data());
 
                             client->transfercacheadd(transfer, &committer);
 
@@ -766,7 +754,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         bool earliestInFlight = true;
                         for (int j = connections; j--; )
                         {
-                            if (j != i && reqs[j] && 
+                            if (j != i && reqs[j] &&
                                (reqs[j]->status == REQ_INFLIGHT || reqs[j]->status == REQ_SUCCESS) &&
                                (reqs[j]->pos < reqs[i]->pos))
                             {
@@ -1024,21 +1012,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     if (reqs[i]->httpstatus == 509)
                     {
-                        if (reqs[i]->timeleft < 0)
-                        {
-                            client->sendevent(99408, "Overquota without timeleft", 0);
-                        }
-
                         LOG_warn << "Bandwidth overquota from storage server";
-                        if (reqs[i]->timeleft > 0)
-                        {
-                            backoff = dstime(reqs[i]->timeleft * 10);
-                        }
-                        else
-                        {
-                            // default retry intervals
-                            backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
-                        }
+
+                        dstime backoff = client->overTransferQuotaBackoff(reqs[i].get());
 
                         return transfer->failed(API_EOVERQUOTA, committer, backoff);
                     }
@@ -1414,23 +1390,23 @@ void TransferSlot::progress()
     }
 }
 
-void TransferSlot::updatecontiguousprogress()
+m_off_t TransferSlot::updatecontiguousprogress()
 {
-    chunkmac_map::iterator pcit;
-    chunkmac_map &pcchunkmacs = transfer->chunkmacs;
-    while ((pcit = pcchunkmacs.find(progresscontiguous)) != pcchunkmacs.end()
-           && pcit->second.finished)
-    {
-        progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, transfer->size);
-    }
+    m_off_t contiguousProgress = transfer->chunkmacs.updateContiguousProgress(transfer->size);
+
+    // Since that is updated, we may have a chance to consolidate the macsmac calculation so far also
+    transfer->chunkmacs.updateMacsmacProgress(transfer->transfercipher());
+
     if (!transferbuf.tempUrlVector().empty() && transferbuf.isRaid())
     {
-        LOG_debug << "Contiguous progress: " << progresscontiguous;
+        LOG_debug << "Contiguous progress: " << contiguousProgress;
     }
     else
     {
-        LOG_debug << "Contiguous progress: " << progresscontiguous << " (" << (transfer->pos - progresscontiguous) << ")";
+        LOG_debug << "Contiguous progress: " << contiguousProgress << " (" << (transfer->pos - contiguousProgress) << ")";
     }
+
+    return contiguousProgress;
 }
 
 } // namespace

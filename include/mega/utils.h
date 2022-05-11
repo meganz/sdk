@@ -60,7 +60,11 @@ std::string toHandle(handle h);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
 class SimpleLogger;
+class LocalPath;
 SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
+SimpleLogger& operator<<(SimpleLogger&, UploadHandle h);
+SimpleLogger& operator<<(SimpleLogger&, NodeOrUploadHandle h);
+SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp);
 
 std::string backupTypeToStr(BackupType type);
 
@@ -88,7 +92,6 @@ struct MEGA_API PaddedCBC
      * @param iv Optional initialisation vector for encryption. Will use a
      *     zero IV if not given. If `iv` is a zero length string, a new IV
      *     for encryption will be generated and available through the reference.
-     * @return Void.
      */
     static void encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
 
@@ -383,7 +386,7 @@ public:
         std::unique_ptr<char[]> result(new char[size]);
         for (size_t i = 0; i < size; ++i)
         {
-            result[i] = (data[i >> 2] >> (24 - (i & 3) * 8)) & 255;
+            result[i] = static_cast<char>((data[i >> 2] >> (24 - (i & 3) * 8)) & 255);
         }
         return std::string (result.get(), size);
     }
@@ -420,6 +423,9 @@ public:
     {
         return utf8proc_toupper(c);
     }
+
+    static string toUpperUtf8(const string& text);
+    static string toLowerUtf8(const string& text);
 
     // Platform-independent case-insensitive comparison.
     static int icasecmp(const std::string& lhs,
@@ -463,17 +469,73 @@ int macOSmajorVersion();
 #endif
 
 // file chunk macs
-class chunkmac_map : public map<m_off_t, ChunkMAC>
+class chunkmac_map
 {
+
+    struct ChunkMAC
+    {
+        // do not change the size or layout, it is directly serialized to db from whatever the binary format is for this compiler/platform
+        byte mac[SymmCipher::BLOCKSIZE];
+
+        // For a partially completed chunk, offset is the number of bytes processed (from the start of the chunk)
+        // For a finished chunk, it's 0
+        // When we start consolidating from the front for macsmac calculation, it's -1 (and finished==true)
+        unsigned int offset = 0;
+
+        // True when the entire chunk has been processed.
+        // For the special case of the first record being the macsmac calculation to this point,
+        // finished == true and offset == -1, and mac == macsmac to the end of this block.
+        bool finished = false;
+
+        // valid for download where we always set one or the other.   Not so for upload
+        bool notStarted() { return !finished && !offset; }
+
+        // the very first record can be the macsmac calculation so far, from the start to some contiguous point
+        bool isMacsmacSoFar() { return finished && offset == unsigned(-1); }
+    };
+
+    map<m_off_t, ChunkMAC> mMacMap;
+
+    // we collapse the leading consecutive entries, for large files.
+    // this is the map key for how far that collapsing has progressed
+    m_off_t macsmacSoFarPos = -1;
+
+    m_off_t progresscontiguous = 0;
+
+
 public:
     int64_t macsmac(SymmCipher *cipher);
     int64_t macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, size_t g3, size_t g4);
     void serialize(string& d) const;
     bool unserialize(const char*& ptr, const char* end);
-    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
+    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* sumOfPartialChunks = nullptr);
     m_off_t nextUnprocessedPosFrom(m_off_t pos);
     m_off_t expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize);
     void finishedUploadChunks(chunkmac_map& macs);
+    bool finishedAt(m_off_t pos);
+    m_off_t updateContiguousProgress(m_off_t fileSize);
+    void updateMacsmacProgress(SymmCipher *cipher);
+    void copyEntriesTo(chunkmac_map& other);
+    void copyEntryTo(m_off_t pos, chunkmac_map& other);
+
+    void ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
+    void ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
+
+    size_t size() const
+    {
+        return mMacMap.size();
+    }
+    void clear()
+    {
+        mMacMap.clear();
+        macsmacSoFarPos = -1;
+        progresscontiguous = 0;
+    }
+    void swap(chunkmac_map& other) {
+        mMacMap.swap(other.mMacMap);
+        std::swap(macsmacSoFarPos, other.macsmacSoFarPos);
+        std::swap(progresscontiguous, other.progresscontiguous);
+    }
 };
 
 struct CacheableWriter
@@ -785,7 +847,7 @@ public:
 
         return result;
     }
-    
+
     bool match(const int32_t character)
     {
         if (peek() != character)
@@ -839,11 +901,57 @@ inline int hexval(const int c)
     return ((c & 0xf) + (c >> 6)) | ((c >> 3) & 0x8);
 }
 
-bool islchex(const int c);
+bool islchex_high(const int c);
+bool islchex_low(const int c);
 
 // gets a safe url by replacing private parts to be used in logs
 std::string getSafeUrl(const std::string &posturl);
 
-} // namespace
+bool wildcardMatch(const string& text, const string& pattern);
+bool wildcardMatch(const char* text, const char* pattern);
+
+struct MEGA_API FileSystemAccess;
+
+// generate a new drive id
+handle generateDriveId(PrnGen& rng);
+
+// return API_OK if success and set driveID handle to the drive id read from the drive,
+// otherwise return error code and set driveId to UNDEF
+error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId);
+error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, handle& driveId);
+
+// return API_OK if success, otherwise error code
+error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId);
+
+int platformGetRLimitNumFile();
+
+bool platformSetRLimitNumFile(int newNumFileLimit = -1);
+
+void debugLogHeapUsage();
+
+struct SyncTransferCount
+{
+    bool operator==(const SyncTransferCount& rhs) const;
+    bool operator!=(const SyncTransferCount& rhs) const;
+    void operator-=(const SyncTransferCount& rhs);
+
+    size_t mCompleted = 0;
+    size_t mCompletedBytes = 0;
+    size_t mPending = 0;
+    size_t mPendingBytes = 0;
+};
+
+struct SyncTransferCounts
+{
+    bool operator==(const SyncTransferCounts& rhs) const;
+    bool operator!=(const SyncTransferCounts& rhs) const;
+    void operator-=(const SyncTransferCounts& rhs);
+    double progress(m_off_t inflightProgress) const;
+
+    SyncTransferCount mDownloads;
+    SyncTransferCount mUploads;
+};
+
+} // namespace mega
 
 #endif

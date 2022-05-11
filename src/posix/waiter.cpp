@@ -71,7 +71,7 @@ void Waiter::bumpds()
 
     m_clock_getmonotonictime(&ts);
 
-    ds = ts.tv_sec * 10 + ts.tv_nsec / 100000000;
+    ds = static_cast<dstime>(ts.tv_sec * 10 + ts.tv_nsec / 100000000);
 }
 
 // update maxfd for select()

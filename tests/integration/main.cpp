@@ -17,8 +17,33 @@ bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
-int gFseventsFd = -1;
+
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
+
+string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
+string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
+
+
+void WaitMillisec(unsigned n)
+{
+#ifdef _WIN32
+    if (n > 1000)
+    {
+        for (int i = 0; i < 10; ++i)
+        {
+            // better for debugging, with breakpoints, pauses, etc
+            Sleep(n/10);
+        }
+    }
+    else
+    {
+        Sleep(n);
+    }
+#else
+    usleep(n * 1000);
+#endif
+}
+
 
 LogStream::~LogStream()
 {
@@ -37,7 +62,8 @@ std::string getCurrentTimestamp()
 {
     using std::chrono::system_clock;
     auto currentTime = std::chrono::system_clock::now();
-    char buffer[80];
+    constexpr const auto buffSz = 80;
+    char buffer[buffSz];
 
     auto transformed = currentTime.time_since_epoch().count() / 1000000;
 
@@ -46,8 +72,8 @@ std::string getCurrentTimestamp()
     std::time_t tt;
     tt = system_clock::to_time_t ( currentTime );
     auto timeinfo = localtime (&tt);
-    strftime (buffer,80,"%H:%M:%S",timeinfo);
-    sprintf(buffer, "%s:%03d",buffer,(int)millis);
+    size_t timeStrSz = strftime (buffer, buffSz,"%H:%M:%S",timeinfo);
+    snprintf(buffer + timeStrSz , buffSz - timeStrSz, ":%03d",(int)millis);
 
     return std::string(buffer);
 }
@@ -62,10 +88,9 @@ LogStream out()
     return LogStream();
 }
 
-namespace {
-
-class MegaLogger : public Logger
+class TestMegaLogger : public Logger
 {
+    mutex logMutex;
 public:
     void log(const char* time, int loglevel, const char* source, const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
@@ -93,6 +118,8 @@ public:
             os << " (" << source << ")";
         }
         os << std::endl;
+
+        lock_guard<mutex> g(logMutex);
 
         if (loglevel <= SimpleLogger::logCurrentLevel)
         {
@@ -198,8 +225,6 @@ public:
     }
 }; // GTestLogger
 
-} // anonymous
-
 int main (int argc, char *argv[])
 {
     if (!getenv("MEGA_EMAIL") || !getenv("MEGA_PWD") || !getenv("MEGA_EMAIL_AUX") || !getenv("MEGA_PWD_AUX"))
@@ -210,6 +235,7 @@ int main (int argc, char *argv[])
 
     std::vector<char*> myargv1(argv, argv + argc);
     std::vector<char*> myargv2;
+    bool startOneSecLogger = false;
 
     for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
     {
@@ -244,26 +270,18 @@ int main (int argc, char *argv[])
             gResumeSessions = true;
             argc -= 1;
         }
-#ifdef __APPLE__
-        else if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
+        else if (std::string(*it) == "--ONESECLOGGER")
         {
-            int fseventsFd = std::stoi(std::string(*it).substr(13));
-            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
-                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
-                return 1;
-            }
-
-            gFseventsFd = fseventsFd;
+            startOneSecLogger = true;
             argc -= 1;
         }
-#endif
         else
         {
             myargv2.push_back(*it);
         }
     }
 
-    MegaLogger megaLogger;
+    TestMegaLogger megaLogger;
 
     SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&megaLogger);
@@ -279,6 +297,11 @@ int main (int argc, char *argv[])
     wc->setShellConsole();
 #endif
 
+#if defined(__APPLE__)
+    // Try and raise the file descriptor limit as high as we can.
+    platformSetRLimitNumFile();
+#endif // __APPLE__
+
     ::testing::InitGoogleTest(&argc, myargv2.data());
 
     if (gRunningInCI)
@@ -287,7 +310,28 @@ int main (int argc, char *argv[])
         listeners.Append(new GTestLogger());
     }
 
-    return RUN_ALL_TESTS();
+    bool exitFlag = false;
+    std::thread one_sec_logger;
+    if (startOneSecLogger)
+    {
+        one_sec_logger = std::thread([&](){
+            int count = 0;
+            while (!exitFlag)
+            {
+                LOG_debug << "onesec count: " << ++count;
+                WaitMillisec(1000);
+            }
+        });
+    }
+
+    auto ret = RUN_ALL_TESTS();
+
+    exitFlag = true;
+    if (startOneSecLogger) one_sec_logger.join();
+
+    SimpleLogger::setOutputClass(nullptr);
+
+    return ret;
 }
 
 
@@ -397,5 +441,10 @@ fs::path makeNewTestRoot()
     fs::create_directories(p);
     assert(b);
     return p;
+}
+
+std::unique_ptr<::mega::FileSystemAccess> makeFsAccess()
+{
+    return ::mega::make_unique<FSACCESS_CLASS>();
 }
 

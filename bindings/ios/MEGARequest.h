@@ -29,6 +29,7 @@
 #import "MEGAPushNotificationSettings.h"
 #import "MEGABannerList.h"
 #import "MEGAHandleList.h"
+#import "MEGACurrency.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -248,7 +249,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * This value is valid for these requests:
  * - [MEGASdk querySignupLink:] - Returns the confirmation link
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the confirmation link
- * - [MEGASdk fastConfirmAccountWithLink:base64pwkey:] - Returns the confirmation link
  * - [MEGASdk loginToFolderLink:] - Returns the link to the folder
  * - [MEGASdk importMegaFileLink:parent:] - Returns the link to the file to import
  * - [MEGASdk publicNodeForMegaFileLink:] - Returns the link to the file
@@ -294,7 +294,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * error code is MEGAErrorTypeApiOk:
  * - [MEGASdk querySignupLink:] - Returns the name of the user
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the name of the user
- * - [MEGASdk fastConfirmAccountWithLink:base64pwkey:] - Returns the name of the user
  *
  */
 @property (readonly, nonatomic) NSString *name;
@@ -316,7 +315,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * error code is MEGAErrorTypeApiOk:
  * - [MEGASdk querySignupLink:] - Returns the name of the user
  * - [MEGASdk confirmAccountWithLink:password:] - Returns the name of the user
- * - [MEGASdk fastConfirmAccountWithLink:base64pwkey:] - Returns the name of the user
  *
  */
 @property (readonly, nonatomic) NSString *email;
@@ -342,16 +340,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) NSString *newPassword;
-
-/**
- * @brief Returns a private key related to the request.
- *
- * This value is valid for these requests:
- * - [MEGASdk fastLoginWithEmail:password:] - Returns the base64pwKey parameter
- * - [MEGASdk fastConfirmAccountWithLink:base64pwkey:] - Returns the base64pwKey parameter
- *
- */
-@property (readonly, nonatomic) NSString *privateKey;
 
 /**
  * @brief An access level related to the request.
@@ -465,6 +453,15 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) MEGAPricing *pricing;
+
+/**
+ * @brief Currency data related to prices
+ *
+ * This value is valid for these request in onRequestFinish when the
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk getPricing] - Returns the currency data related to prices
+ */
+@property (readonly, nonatomic) MEGACurrency *currency;
 
 /**
  * @brief Details related to the MEGA Achievements of this account

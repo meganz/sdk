@@ -7,7 +7,7 @@
  * This file is part of the MEGA SDK - Client Access Engine.
  *
  * Applications using the MEGA API must present a valid application key
- * and comply with the the rules set forth in the Terms of Service.
+ * and comply with the rules set forth in the Terms of Service.
  *
  * The MEGA SDK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -73,32 +73,11 @@ public:
     bool operator==(const SyncConfig &rhs) const;
     bool operator!=(const SyncConfig &rhs) const;
 
-    // Id for the sync, also used in sync heartbeats
-    handle getBackupId() const;
-    void setBackupId(const handle& backupId);
-
     // the local path of the sync root folder
     const LocalPath& getLocalPath() const;
 
-    // the remote path of the sync
-    NodeHandle getRemoteNode() const;
-    void setRemoteNode(NodeHandle remoteNode);
-
-    // the fingerprint of the local sync root folder
-    fsfp_t getLocalFingerprint() const;
-    void setLocalFingerprint(fsfp_t fingerprint);
-
     // returns the type of the sync
     Type getType() const;
-
-    // This is where the remote root node was, last time we checked
-
-    // error code or warning (errors mean the sync was stopped)
-    SyncError getError() const;
-    void setError(SyncError value);
-
-    //SyncWarning getWarning() const;
-    //void setWarning(SyncWarning value);
 
     // If the sync is enabled, we will auto-start it
     bool getEnabled() const;
@@ -109,6 +88,7 @@ public:
 
     // Whether this sync is backed by an external device.
     bool isExternal() const;
+    bool isInternal() const;
 
     // check if we need to notify the App about error/enable flag changes
     bool errorOrEnabledChanged();
@@ -134,8 +114,8 @@ public:
     // the path to the remote node, as last known (not definitive)
     string mOriginalPathOfRemoteRootNode;
 
-    // the local fingerprint
-    fsfp_t mLocalFingerprint;
+    // uniquely identifies the filesystem, we check this is unchanged.
+    fsfp_t mFilesystemFingerprint;
 
     // type of the sync, defaults to bidirectional
     Type mSyncType;
@@ -158,10 +138,21 @@ public:
     // Whether this backup is monitoring or mirroring.
     SyncBackupState mBackupState;
 
+    // If the database exists then its running/paused/suspended.  Not serialized.
+    bool mDatabaseExists = false;
+
+    // Name of this sync's state cache.
+    string getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const;
+
+    // Current running state.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
+    syncstate_t mRunningState = SYNC_CANCELED;    // cancelled indicates there is no assoicated mSync
+
     // enum to string conversion
     static const char* syncstatename(const syncstate_t state);
     static const char* synctypename(const Type type);
     static bool synctypefromname(const string& name, Type& type);
+
+    SyncError knownError() const;
 
 private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
@@ -171,11 +162,12 @@ private:
 
 // Convenience.
 using SyncConfigVector = vector<SyncConfig>;
+struct Syncs;
 
 struct UnifiedSync
 {
-    // Reference to client
-    MegaClient& mClient;
+    // Reference to containing Syncs object
+    Syncs& syncs;
 
     // We always have a config
     SyncConfig mConfig;
@@ -190,22 +182,59 @@ struct UnifiedSync
     std::shared_ptr<HeartBeatSyncInfo> mNextHeartbeat;
 
     // ctor/dtor
-    UnifiedSync(MegaClient&, const SyncConfig&);
+    UnifiedSync(Syncs&, const SyncConfig&);
 
     // Try to create and start the Sync
-    error enableSync(bool resetFingerprint, bool notifyApp);
+    void changeState(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp);
+    error enableSync(bool resetFingerprint, bool notifyApp, const string& logname);
 
     // Update remote location
     bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 private:
     friend class Sync;
     friend struct Syncs;
-    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, bool isNetwork, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
+    error startSync(MegaClient* client, const string& debris, const LocalPath& localdebris,
+                    NodeHandle rootNodeHandle, bool inshare, bool isNetwork, LocalPath& rootpath,
+                    std::unique_ptr<FileAccess>& openedLocalFolder, const string& logname);
     void changedConfigState(bool notifyApp);
 };
 
-using SyncCompletionFunction =
-  std::function<void(UnifiedSync*, const SyncError&, error)>;
+class SyncThreadsafeState
+{
+    // This class contains things that are read/written from either the Syncs thread,
+    // or the MegaClient thread.  A mutex is used to keep the data consistent.
+    // Referred to by shared_ptr so transfers etc don't have awkward lifetime issues.
+    mutable mutex mMutex;
+
+    // Transfers update these from the client thread
+    void adjustTransferCounts(bool upload, int32_t adjustQueued, int32_t adjustCompleted, m_off_t adjustQueuedBytes, m_off_t adjustCompletedBytes);
+
+    // track uploads/downloads
+    SyncTransferCounts mTransferCounts;
+
+    // know where the sync's tmp folder is
+    LocalPath mSyncTmpFolder;
+
+    MegaClient* mClient = nullptr;
+    handle mBackupId = 0;
+
+public:
+    void transferBegin(direction_t direction, m_off_t numBytes);
+    void transferComplete(direction_t direction, m_off_t numBytes);
+    void transferFailed(direction_t direction, m_off_t numBytes);
+
+    // Return a snapshot of this sync's current transfer counts.
+    SyncTransferCounts transferCounts() const;
+
+    std::atomic<unsigned> neverScannedFolderCount{};
+
+    LocalPath syncTmpFolder() const;
+    void setSyncTmpFolder(const LocalPath&);
+
+    SyncThreadsafeState(handle backupId, MegaClient* client) : mClient(client), mBackupId(backupId)  {}
+    handle backupId() const { return mBackupId; }
+    MegaClient* client() const { return mClient; }
+};
 
 class MEGA_API Sync
 {
@@ -216,6 +245,7 @@ public:
     const SyncConfig& getConfig() const;
 
     MegaClient* client = nullptr;
+    Syncs& syncs;
 
     // for logging
     string syncname;
@@ -228,13 +258,8 @@ public:
 
     FileSystemType mFilesystemType = FS_UNKNOWN;
 
-    // Path used to normalize sync locaroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
-    // are served with such prefix from macOS catalina +
-#ifdef __APPLE__
-    string mFsEventsPath;
-#endif
     // current state
-    syncstate_t state = SYNC_INITIALSCAN;
+    syncstate_t& state() { return getConfig().mRunningState; }
 
     // are we conducting a full tree scan? (during initialization and if event notification failed)
     bool fullscan = true;
@@ -296,12 +321,13 @@ public:
     // debris path component relative to the base path
     string debris;
     LocalPath localdebris;
+    LocalPath localdebrisname;
 
     // permanent lock on the debris/tmp folder
-    std::unique_ptr<FileAccess> tmpfa;
+    unique_ptr<FileAccess> tmpfa;
 
     // state cache table
-    DbTable* statecachetable = nullptr;
+    unique_ptr<DbTable> statecachetable;
 
     // move file or folder to localdebris
     bool movetolocaldebris(LocalPath& localpath);
@@ -330,8 +356,11 @@ public:
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
-    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool);
+    Sync(UnifiedSync&, const string& cdebris, const LocalPath& clocaldebris, Node*, bool, const string& logname);
     ~Sync();
+
+    // Should we synchronize this sync?
+    bool active() const;
 
     static const int SCANNING_DELAY_DS;
     static const int EXTRA_SCANNING_DELAY_DS;
@@ -355,10 +384,15 @@ public:
     // Move the sync into the monitoring state.
     void setBackupMonitoring();
 
+    // True if this sync should have a state cache database.
+    bool shouldHaveDatabase() const;
+
     UnifiedSync& mUnifiedSync;
 
+    shared_ptr<SyncThreadsafeState> threadSafeState;
+
 protected :
-    bool readstatecache();
+    void readstatecache();
 
 private:
     LocalPath mLocalPath;
@@ -385,11 +419,14 @@ public:
     // Remember whether we need to update the file containing configs on this drive.
     void markDriveDirty(const LocalPath& drivePath);
 
+    // Retrieve a drive's unique backup ID.
+    handle driveID(const LocalPath& drivePath) const;
+
     // Whether any config data has changed and needs to be written to disk
     bool dirty() const;
 
     // Reads a database from disk.
-    error read(const LocalPath& drivePath, SyncConfigVector& configs);
+    error read(const LocalPath& drivePath, SyncConfigVector& configs, bool isExternal);
 
     // Write the configs with this drivepath to disk.
     error write(const LocalPath& drivePath, const SyncConfigVector& configs);
@@ -410,11 +447,12 @@ private:
     // Metadata regarding a given drive.
     struct DriveInfo
     {
-        // Directory on the drive containing the database.
-        LocalPath dbPath;
-
         // Path to the drive itself.
         LocalPath drivePath;
+
+        // The drive's unique backup ID.
+        // Meaningful only for external backups.
+        handle driveID = UNDEF;
 
         // Tracks which 'slot' we're writing to.
         unsigned int slot = 0;
@@ -431,7 +469,7 @@ private:
     LocalPath dbPath(const LocalPath& drivePath) const;
 
     // Reads a database from the specified slot on disk.
-    error read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot);
+    error read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot, bool isExternal);
 
     // Where we store databases for internal syncs.
     const LocalPath mInternalSyncStorePath;
@@ -455,16 +493,21 @@ public:
 
     virtual ~SyncConfigIOContext();
 
-    MEGA_DISABLE_COPY_MOVE(SyncConfigIOContext);
+    MEGA_DISABLE_COPY_MOVE(SyncConfigIOContext)
 
     // Deserialize configs from JSON (with logging.)
     bool deserialize(const LocalPath& dbPath,
                      SyncConfigVector& configs,
                      JSON& reader,
-                     unsigned int slot) const;
+                     unsigned int slot,
+                     bool isExternal) const;
 
     bool deserialize(SyncConfigVector& configs,
-                     JSON& reader) const;
+                     JSON& reader,
+                     bool isExternal) const;
+
+    // Retrieve a drive's unique backup ID.
+    virtual handle driveID(const LocalPath& drivePath) const;
 
     // Return a reference to this context's filesystem access.
     FileSystemAccess& fsAccess() const;
@@ -506,7 +549,7 @@ private:
     bool decrypt(const string& in, string& out);
 
     // Deserialize a config from JSON.
-    bool deserialize(SyncConfig& config, JSON& reader) const;
+    bool deserialize(SyncConfig& config, JSON& reader, bool isExternal) const;
 
     // Encrypt data.
     string encrypt(const string& data);
@@ -532,14 +575,26 @@ private:
 
 struct Syncs
 {
+    // Retrieve a copy of configured sync settings (thread safe)
+    SyncConfigVector getConfigs(bool onlyActive) const;
+    bool configById(handle backupId, SyncConfig&) const;
+    SyncConfigVector configsForDrive(const LocalPath& drive) const;
+
+    // Add new sync setups
     UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
 
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
     unsigned numSyncs();    // includes non-running syncs, but configured
     Sync* firstRunningSync();
-    Sync* runningSyncByBackupId(handle backupId) const;
-    SyncConfig* syncConfigByBackupId(handle backupId) const;
+
+    // only for use in tests; not really thread safe
+    Sync* runningSyncByBackupIdForTests(handle backupId) const;
+
+    void transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused);
+
+    // returns a copy of the config, for thread safety
+    bool syncConfigByBackupId(handle backupId, SyncConfig&) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
@@ -551,13 +606,11 @@ struct Syncs
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
-    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&);
+    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&, const string& logname);
+    void disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
-    void disableSyncs(SyncError syncError, bool newEnabledFlag);
-
-    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag);
+    void disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -565,19 +618,19 @@ struct Syncs
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
 
+    // async, callback on client thread
+    void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
+
     // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
     void purgeSyncs();
 
     void resetSyncConfigStore();
     void clear();
 
-    SyncConfigVector configsForDrive(const LocalPath& drive) const;
-    SyncConfigVector allConfigs() const;
-
     // updates in state & error
     void saveSyncConfig(const SyncConfig& config);
 
-    Syncs(MegaClient& mc);
+    Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa);
 
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool isEmpty = true;
@@ -656,13 +709,27 @@ struct Syncs
     void importSyncConfigs(const char* data, std::function<void(error)> completion);
 
 private:
+    friend class Sync;
+    friend struct UnifiedSync;
+    friend class BackupInfoSync;
+    friend class BackupMonitor;
     void exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const;
 
     bool importSyncConfig(JSON& reader, SyncConfig& config);
-    bool importSyncConfigs(const char* data, SyncConfigVector& configs);
+    bool importSyncConfigs(const string& data, SyncConfigVector& configs);
 
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();
+
+    // ------ private data members
+
+    MegaClient& mClient;
+
+    // Syncs should have a separate fsaccess for thread safety
+    unique_ptr<FileSystemAccess>& fsaccess;
+
+    // pseudo-random number generator
+    PrnGen rng;
 
     // This user's internal sync configuration store.
     unique_ptr<SyncConfigStore> mSyncConfigStore;
@@ -670,6 +737,7 @@ private:
     // Responsible for securely writing config databases to disk.
     unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
 
+    mutable mutex mSyncVecMutex;  // will be relevant for sync rework
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
@@ -678,7 +746,10 @@ private:
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
     void unloadSyncByIndex(size_t index);
 
-    MegaClient& mClient;
+
+    bool mDownloadsPaused = false;
+    bool mUploadsPaused = false;
+
 };
 
 } // namespace

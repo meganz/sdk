@@ -89,8 +89,8 @@ class SyncApp : public MegaApp, public Logger
     void request_error(error e);
 
 #ifdef ENABLE_SYNC
-    void syncupdate_stateconfig(handle backupId) override;
-    void syncupdate_treestate(LocalNode*) override;
+    void syncupdate_stateconfig(const SyncConfig& config) override;
+    void syncupdate_treestate(const SyncConfig& config, const LocalPath& lp, treestate_t ts, nodetype_t) override;
 #endif
 
     Node* nodebypath(const char* ptr, string* user, string* namepart);
@@ -233,7 +233,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
                     if(!name.size())
                     {
                         name =  c[1];
-                        n->client->fsaccess->normalize(&name);
+                        LocalPath::utf8_normalize(&name);
                     }
 
                     if (!strcmp(name.c_str(), n->displayname()))
@@ -260,11 +260,11 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodebyhandle(client->rootnodes[1]);
+                    n = client->nodeByHandle(client->rootnodes.inbox);
                 }
                 else if (c[2] == "bin")
                 {
-                    n = client->nodebyhandle(client->rootnodes[2]);
+                    n = client->nodeByHandle(client->rootnodes.rubbish);
                 }
                 else
                 {
@@ -275,7 +275,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
             }
             else
             {
-                n = client->nodebyhandle(client->rootnodes[0]);
+                n = client->nodeByHandle(client->rootnodes.files);
 
                 l = 1;
             }
@@ -411,7 +411,7 @@ void SyncApp::fetchnodes_result(const Error &e)
         initial_fetch = false;
         if (ISUNDEF(cwd))
         {
-            cwd = client->rootnodes[0];
+            cwd = client->rootnodes.files.as8byte();
         }
 
         Node* n = nodebypath(remote_folder.c_str());
@@ -430,9 +430,9 @@ void SyncApp::fetchnodes_result(const Error &e)
             else
             {
 #ifdef ENABLE_SYNC
-                SyncConfig syncConfig(LocalPath::fromPath(local_folder, *client->fsaccess), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
+                SyncConfig syncConfig(LocalPath::fromAbsolutePath(local_folder), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
                 client->addsync(syncConfig, false,
-                                [](mega::UnifiedSync*, const SyncError& serr, error err) {
+                                [](error err, const SyncError& serr, handle backupId) {
                     if (err)
                     {
                         LOG_err << "Sync could not be added! " << err << " syncError = " << serr;
@@ -442,7 +442,7 @@ void SyncApp::fetchnodes_result(const Error &e)
                     {
                         LOG_info << "Sync started !";
                     }
-                });
+                }, "");
 #endif
             }
         }
@@ -462,9 +462,9 @@ void SyncApp::request_error(error e)
 }
 
 #ifdef ENABLE_SYNC
-void SyncApp::syncupdate_stateconfig(handle backupId)
+void SyncApp::syncupdate_stateconfig(const SyncConfig& config)
 {
-    LOG_info << "Sync config updated: " << backupId;
+    LOG_info << "Sync config updated: " << config.mBackupId;
 }
 
 
@@ -488,9 +488,9 @@ static const char* treestatename(treestate_t ts)
     return "UNKNOWN";
 }
 
-void SyncApp::syncupdate_treestate(LocalNode* l)
+void SyncApp::syncupdate_treestate(const SyncConfig &config, const LocalPath& lp, treestate_t ts, nodetype_t)
 {
-    LOG_info << "Sync - state change of node " << l->name << " to " << treestatename(l->ts);
+    LOG_info << "Sync - state change of node " << lp.toPath() << " to " << treestatename(ts);
 }
 
 #endif
@@ -526,7 +526,7 @@ int main(int argc, char *argv[])
     }
 
     // Needed so we can get our hands on the cwd.
-    auto fsAccess = new FSACCESS_CLASS();
+    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
 
     // Where are we?
     LocalPath currentDir;
@@ -542,14 +542,14 @@ int main(int argc, char *argv[])
     client = new MegaClient(app,
                             new WAIT_CLASS,
                             new HTTPIO_CLASS,
-                            fsAccess,
+                            move(fsAccess),
                         #ifdef DBACCESS_CLASS
                             new DBACCESS_CLASS(currentDir),
                         #else
                             nullptr,
                         #endif
                         #ifdef GFX_CLASS
-                            new GFX_CLASS,
+                            new GfxProc(::mega::make_unique<GFX_CLASS>()),
                         #else
                             nullptr,
                         #endif
@@ -565,9 +565,6 @@ int main(int argc, char *argv[])
             SimpleLogger::setLogLevel(logDebug);
         }
     }
-
-    // uncomment this line if you want to follow symbolic links
-    //client->followsymlinks = true;
 
     // get values from env
     login.password = getenv("MEGA_PWD");

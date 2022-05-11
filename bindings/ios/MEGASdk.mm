@@ -66,6 +66,7 @@ using namespace mega;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener;
+- (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
 - (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 - (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
@@ -422,18 +423,6 @@ using namespace mega;
 
 #pragma mark - Utils
 
-- (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email {
-    if(base64pwkey == nil || email == nil || self.megaApi == nil)  return  nil;
-    
-    const char *val = self.megaApi->getStringHash([base64pwkey UTF8String], [email UTF8String]);
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
-}
-
 + (uint64_t)handleForBase64Handle:(NSString *)base64Handle {
     if(base64Handle == nil) return ::mega::INVALID_HANDLE;
     
@@ -655,15 +644,20 @@ using namespace mega;
     return ret;
 }
 
-- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey {
-    if (self.megaApi) {
-        self.megaApi->fastLogin(email.UTF8String, stringHash.UTF8String, base64pwKey.UTF8String);
-    }
+- (NSString *)accountAuth {
+    if (self.megaApi == nil) return nil;
+    const char *val = self.megaApi->getAccountAuth();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
-- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setAccountAuth:(NSString *)accountAuth {
     if (self.megaApi) {
-        self.megaApi->fastLogin(email.UTF8String, stringHash.UTF8String, base64pwKey.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+        self.megaApi->setAccountAuth(accountAuth.UTF8String);
     }
 }
 
@@ -810,6 +804,17 @@ using namespace mega;
 
 #pragma mark - Create account and confirm account Requests
 
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname {
+    if (self.megaApi) {
+        self.megaApi->createEphemeralAccountPlusPlus(firstname.UTF8String, lastname.UTF8String);
+    }
+}
+
+- (void)createEphemeralAccountPlusPlusWithFirstname:(NSString *)firstname lastname:(NSString *)lastname delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->createEphemeralAccountPlusPlus(firstname.UTF8String, lastname.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
 
 - (void)createAccountWithEmail:(NSString *)email password:(NSString *)password firstname:(NSString *)firstname lastname:(NSString *)lastname {
     if (self.megaApi) {
@@ -871,15 +876,9 @@ using namespace mega;
     }
 }
 
-- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+- (void)resendSignupLinkWithEmail:(NSString *)email name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->fastSendSignupLink(email.UTF8String, base64pwkey.UTF8String, name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name {
-    if (self.megaApi) {
-        self.megaApi->fastSendSignupLink(email.UTF8String, base64pwkey.UTF8String, name.UTF8String);
+        self.megaApi->resendSignupLink(email.UTF8String, name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
@@ -904,19 +903,6 @@ using namespace mega;
 - (void)confirmAccountWithLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->confirmAccount(link.UTF8String, password.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey {
-    if (self.megaApi) {
-        self.megaApi->fastConfirmAccount(link.UTF8String, base64pwkey.UTF8String);
-    }
-}
-
-
-- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->fastConfirmAccount(link.UTF8String, base64pwkey.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
@@ -1786,6 +1772,12 @@ using namespace mega;
     }
 }
 
+- (void)creditCardCancelSubscriptions:(nullable NSString *)reason delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->creditCardCancelSubscriptions(reason.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->changePassword(oldPassword.UTF8String, newPassword.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -1994,6 +1986,30 @@ using namespace mega;
     }
 }
 
+- (void)getCameraUploadsFolderSecondaryWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getCameraUploadsFolderSecondary([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)getCameraUploadsFolderSecondary {
+    if (self.megaApi) {
+        self.megaApi->getCameraUploadsFolderSecondary();
+    }
+}
+
+- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getMyBackupsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)getMyBackupsFolder {
+    if (self.megaApi) {
+        self.megaApi->getMyBackupsFolder();
+    }
+}
+
 - (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -2197,6 +2213,18 @@ using namespace mega;
     MegaTransfer *transfer = self.megaApi->getTransferByTag((int)transferTag);
     
     return transfer ? [[MEGATransfer alloc] initWithMegaTransfer:transfer cMemoryOwn:YES] : nil;
+}
+
+- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->startUploadForSupport(localPath.UTF8String, isSourceTemporary, [self createDelegateMEGATransferListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary {
+    if (self.megaApi) {
+        self.megaApi->startUploadForSupport(localPath.UTF8String, isSourceTemporary);
+    }
 }
 
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent delegate:(id<MEGATransferDelegate>)delegate {
@@ -2828,12 +2856,6 @@ using namespace mega;
     return (MEGAShareType) self.megaApi->getAccess([node getCPtr]);
 }
 
-- (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level {
-    if (node == nil || self.megaApi == nil) return nil;
-    
-    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccess(node.getCPtr, (int) level).copy() cMemoryOwn:YES];
-}
-
 - (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level {
     if (self.megaApi == nil) return nil;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccessErrorExtended(node.getCPtr, (int)level) cMemoryOwn:YES];
@@ -2842,11 +2864,6 @@ using namespace mega;
 - (BOOL)isNodeInRubbish:(MEGANode *)node {
     if (self.megaApi == nil) return NO;
     return self.megaApi->isInRubbish(node.getCPtr);
-}
-
-- (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target {
-    if (self.megaApi == nil) return nil;
-    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMove(node.getCPtr, target.getCPtr).copy() cMemoryOwn:YES];
 }
 
 - (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {
@@ -3422,6 +3439,18 @@ using namespace mega;
     }
 }
 
+- (void)getDeviceNameWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getDeviceName([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)setDeviceName:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->setDeviceName(name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
 #pragma mark - Debug
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {
@@ -3456,6 +3485,18 @@ using namespace mega;
     }
 }
 
+- (void)createSupportTicketWithMessage:(NSString *)message type:(NSInteger)type delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->createSupportTicket(message.UTF8String, (int)type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)createSupportTicketWithMessage:(NSString *)message type:(NSInteger)type {
+    if (self.megaApi) {
+        self.megaApi->createSupportTicket(message.UTF8String, (int)type);
+    }
+}
+
 #pragma mark - Private methods
 
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener {
@@ -3473,9 +3514,13 @@ using namespace mega;
 }
 
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener {
+    return [self createDelegateMEGATransferListener:delegate singleListener:singleListener queueType:ListenerQueueTypeMain];
+}
+
+- (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType {
     if (delegate == nil) return nil;
     
-    DelegateMEGATransferListener *delegateListener = new DelegateMEGATransferListener(self, delegate, singleListener);
+    DelegateMEGATransferListener *delegateListener = new DelegateMEGATransferListener(self, delegate, singleListener, queueType);
     pthread_mutex_lock(&listenerMutex);
     _activeTransferListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);

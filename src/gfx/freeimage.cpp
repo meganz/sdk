@@ -63,40 +63,109 @@ extern "C" {
 namespace mega {
 
 #if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
-std::mutex GfxProcFreeImage::gfxMutex;
+std::mutex GfxProviderFreeImage::gfxMutex;
 #endif
 
-GfxProcFreeImage::GfxProcFreeImage()
+#ifdef FREEIMAGE_LIB
+std::mutex GfxProviderFreeImage::libFreeImageInitializedMutex;
+unsigned GfxProviderFreeImage::libFreeImageInitialized = 0;
+#endif
+
+GfxProviderFreeImage::GfxProviderFreeImage()
 {
     dib = NULL;
     w = 0;
     h = 0;
 
 #ifdef FREEIMAGE_LIB
-	FreeImage_Initialise(TRUE);
+    {
+        std::unique_lock<std::mutex> guard(libFreeImageInitializedMutex);
+        if (!libFreeImageInitialized)
+        {
+            FreeImage_Initialise(TRUE);
+            libFreeImageInitialized++;
+        }
+    }
 #endif
+
 #ifdef HAVE_PDFIUM
-    PdfiumReader::init();
+    pdfiumInitialized = false;
 #endif
+
 #ifdef HAVE_FFMPEG
-    gfxMutex.lock();
-    av_register_all();
-    avcodec_register_all();
 //    av_log_set_level(AV_LOG_VERBOSE);
-    gfxMutex.unlock();
 #endif
 }
 
-GfxProcFreeImage::~GfxProcFreeImage()
+GfxProviderFreeImage::~GfxProviderFreeImage()
 {
+#ifdef FREEIMAGE_LIB
+    {
+        std::unique_lock<std::mutex> guard(libFreeImageInitializedMutex);
+        if (libFreeImageInitialized)
+        {
+            FreeImage_DeInitialise();
+            libFreeImageInitialized--;
+        }
+    }
+#endif
+
 #ifdef HAVE_PDFIUM
     gfxMutex.lock();
-    PdfiumReader::destroy();
+    if (pdfiumInitialized)
+    {
+        PdfiumReader::destroy();
+    }
     gfxMutex.unlock();
 #endif
 }
 
-bool GfxProcFreeImage::readbitmapFreeimage(FileAccess*, const LocalPath& imagePath, int size)
+#ifdef USE_MEDIAINFO
+bool GfxProviderFreeImage::readbitmapMediaInfo(const LocalPath& imagePath)
+{
+    const pair<string, string>& cover = MediaProperties::getCoverFromId3v2(imagePath.localpath);
+    if (cover.first.empty())
+    {
+        return false;
+    }
+
+    FREE_IMAGE_FORMAT format = FIF_UNKNOWN;
+    int flags = 0;
+    if (cover.second == "jpg")
+    {
+        format = FIF_JPEG;
+        flags = JPEG_EXIFROTATE | JPEG_FAST;
+    }
+    else if (cover.second == "png")
+    {
+        format = FIF_PNG;
+    }
+
+    if (format == FIF_UNKNOWN)
+    {
+        // It either didn't have a cover, or there was a problem reading it,
+        // in which case it should have been already logged by now.
+        return false;
+    }
+
+    BYTE* dataBytes = (BYTE*)cover.first.c_str();
+    FIMEMORY* dataMem = FreeImage_OpenMemory(dataBytes, (DWORD)cover.first.size());
+    dib = FreeImage_LoadFromMemory(format, dataMem, flags);
+    FreeImage_CloseMemory(dataMem);
+    if (!dib)
+    {
+        LOG_warn << "Error converting raw MediaInfo bitmap from memory.";
+        return false;
+    }
+
+    w = static_cast<int>(FreeImage_GetWidth(dib));
+    h = static_cast<int>(FreeImage_GetHeight(dib));
+
+    return true;
+}
+#endif
+
+bool GfxProviderFreeImage::readbitmapFreeimage(FileSystemAccess*, const LocalPath& imagePath, int size)
 {
 
     // FIXME: race condition, need to use open file instead of filename
@@ -135,12 +204,7 @@ bool GfxProcFreeImage::readbitmapFreeimage(FileAccess*, const LocalPath& imagePa
     w = static_cast<int>(FreeImage_GetWidth(dib));
     h = static_cast<int>(FreeImage_GetHeight(dib));
 
-    if (!w || !h)
-    {
-        return false;
-    }
-
-    return true;
+    return w > 0 && h > 0;
 }
 
 #ifdef HAVE_FFMPEG
@@ -151,7 +215,7 @@ bool GfxProcFreeImage::readbitmapFreeimage(FileAccess*, const LocalPath& imagePa
 #define CAP_TRUNCATED CODEC_CAP_TRUNCATED
 #endif
 
-const char *GfxProcFreeImage::supportedformatsFfmpeg()
+const char *GfxProviderFreeImage::supportedformatsFfmpeg()
 {
     return  ".264.265.3g2.3gp.3gpa.3gpp.3gpp2.mp3"
             ".avi.dde.divx.evo.f4v.flv.gvi.h261.h263.h264.h265.hevc"
@@ -160,7 +224,7 @@ const char *GfxProcFreeImage::supportedformatsFfmpeg()
             ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
 }
 
-bool GfxProcFreeImage::isFfmpegFile(const string& ext)
+bool GfxProviderFreeImage::isFfmpegFile(const string& ext)
 {
     const char* ptr;
     if ((ptr = strstr(supportedformatsFfmpeg(), ext.c_str())) && ptr[ext.size()] == '.')
@@ -170,34 +234,54 @@ bool GfxProcFreeImage::isFfmpegFile(const string& ext)
     return false;
 }
 
-bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePath, int size)
+
+template<class Deleter, class Ptr>
+class ScopeGuard {
+public:
+    ScopeGuard(Deleter deleter, Ptr arg) : mDeleter(deleter), mArg(arg) {}
+    ~ScopeGuard() { mDeleter(mArg); }
+private:
+    Deleter mDeleter;
+    Ptr mArg;
+};
+
+template<class F, class P>
+ScopeGuard<F, P> makeScopeGuard(F f, P p){ return ScopeGuard<F, P>(f, p);	}
+
+bool GfxProviderFreeImage::readbitmapFfmpeg(FileSystemAccess* fa, const LocalPath& imagePath, int size)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
 #endif
 
     // Open video file
-    AVFormatContext* formatContext = avformat_alloc_context();
-    if (avformat_open_input(&formatContext, imagePath.toPath(*client->fsaccess).c_str(), NULL, NULL))
+    AVFormatContext* formatContext = nullptr;
+#if defined(LIBAVFORMAT_VERSION_MAJOR) && LIBAVFORMAT_VERSION_MAJOR < 58
+    // deprecated/no longer required in FFMPEG 4.0:
+    av_register_all();
+#endif
+    if (avformat_open_input(&formatContext, imagePath.toPath().c_str(), NULL, NULL))
     {
-        LOG_warn << "Error opening video: " << imagePath.toPath(*client->fsaccess);
-        return NULL;
+        LOG_warn << "Error opening video: " << imagePath;
+        return false;
     }
+
+    auto fmtContextGuard = makeScopeGuard(avformat_close_input, &formatContext);
 
     // Get stream information
     if (avformat_find_stream_info(formatContext, NULL))
     {
-        LOG_warn << "Stream info not found: " << imagePath.toPath(*client->fsaccess);
-        avformat_close_input(&formatContext);
-        return NULL;
+        LOG_warn << "Stream info not found: " << imagePath;
+        return false;
     }
+
 
     // Find first video stream type
     AVStream *videoStream = NULL;
     int videoStreamIdx = 0;
     for (unsigned i = 0; i < formatContext->nb_streams; i++)
     {
-        if (formatContext->streams[i]->codec && formatContext->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
+        if (formatContext->streams[i]->codecpar && formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         {
             videoStream = formatContext->streams[i];
             videoStreamIdx = i;
@@ -207,50 +291,41 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
 
     if (!videoStream)
     {
-        LOG_warn << "Video stream not found: " << imagePath.toPath(*client->fsaccess);
-        avformat_close_input(&formatContext);
-        return NULL;
+        LOG_warn << "Video stream not found: " << imagePath;
+        return false;
     }
 
-    // Get codec context to determine video frame dimensions
-    AVCodecContext codecContext = *(videoStream->codec);
-    int width = codecContext.width;
-    int height = codecContext.height;
+    // Get codec params to determine video frame dimensions
+    AVCodecParameters *codecParm = videoStream->codecpar;
+    int width = codecParm->width;
+    int height = codecParm->height;
     if (width <= 0 || height <= 0)
     {
         LOG_warn << "Invalid video dimensions: " << width << ", " << height;
-        avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
-    if (codecContext.pix_fmt == AV_PIX_FMT_NONE)
+    if (codecParm->format == AV_PIX_FMT_NONE)
     {
-        LOG_warn << "Invalid pixel format: " << codecContext.pix_fmt;
-        avformat_close_input(&formatContext);
-        return NULL;
-    }
-
-    AVPixelFormat sourcePixelFormat = codecContext.pix_fmt;
-    AVPixelFormat targetPixelFormat = AV_PIX_FMT_BGR24; //raw data expected by freeimage is in this format
-    SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
-                                            width, height, targetPixelFormat,
-                                            SWS_FAST_BILINEAR, NULL, NULL, NULL);
-    if (!swsContext)
-    {
-        LOG_warn << "SWS Context not found: " << sourcePixelFormat;
-        avformat_close_input(&formatContext);
-        return NULL;
+        LOG_warn << "Invalid pixel format: " << codecParm->format;
+        return false;
     }
 
     // Find decoder for video stream
-    AVCodecID codecId = codecContext.codec_id;
+    AVCodecID codecId = codecParm->codec_id;
     AVCodec* decoder = avcodec_find_decoder(codecId);
     if (!decoder)
     {
         LOG_warn << "Codec not found: " << codecId;
-        sws_freeContext(swsContext);
-        avformat_close_input(&formatContext);
-        return NULL;
+        return false;
+    }
+
+    AVCodecContext *codecContext = avcodec_alloc_context3(decoder);
+    auto codecContextGuard = makeScopeGuard(avcodec_free_context, &codecContext);
+    if (codecContext && avcodec_parameters_to_context(codecContext, codecParm) < 0)
+    {
+        LOG_warn << "Could not copy codec parameters to context";
+        return false;
     }
 
     // Force seeking to key frames
@@ -258,35 +333,39 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     videoStream->skip_to_keyframe = true;
     if (decoder->capabilities & CAP_TRUNCATED)
     {
-        codecContext.flags |= CAP_TRUNCATED;
+        codecContext->flags |= CAP_TRUNCATED;
+    }
+
+    AVPixelFormat sourcePixelFormat = static_cast<AVPixelFormat>(codecParm->format);
+    AVPixelFormat targetPixelFormat = AV_PIX_FMT_BGR24; //raw data expected by freeimage is in this format
+    SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
+                                            width, height, targetPixelFormat,
+                                            SWS_FAST_BILINEAR, NULL, NULL, NULL);
+    auto swsContextGuard = makeScopeGuard(sws_freeContext, swsContext);
+    if (!swsContext)
+    {
+        LOG_warn << "SWS Context not found: " << sourcePixelFormat;
+        return false;
     }
 
     // Open codec
-    if (avcodec_open2(&codecContext, decoder, NULL) < 0)
+    if (avcodec_open2(codecContext, decoder, NULL) < 0)
     {
         LOG_warn << "Error opening codec: " << codecId;
-        sws_freeContext(swsContext);
-        avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     //Allocate video frames
     AVFrame* videoFrame = av_frame_alloc();
+    auto videoFrameGuard = makeScopeGuard(av_frame_free, &videoFrame);
+
     AVFrame* targetFrame = av_frame_alloc();
+    auto targetFrameGuard = makeScopeGuard(av_frame_free, &targetFrame);
+
     if (!videoFrame || !targetFrame)
     {
         LOG_warn << "Error allocating video frames";
-        if (videoFrame)
-        {
-            av_frame_free(&videoFrame);
-        }
-        if (targetFrame)
-        {
-            av_frame_free(&targetFrame);
-        }
-        sws_freeContext(swsContext);
-        avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     targetFrame->format = targetPixelFormat;
@@ -295,13 +374,10 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     if (av_image_alloc(targetFrame->data, targetFrame->linesize, targetFrame->width, targetFrame->height, targetPixelFormat, 32) < 0)
     {
         LOG_warn << "Error allocating frame";
-        av_frame_free(&videoFrame);
-        av_frame_free(&targetFrame);
-        avcodec_close(&codecContext);
-        sws_freeContext(swsContext);
-        avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
+
+    auto targetFrameDataGuard = makeScopeGuard(av_freep, &targetFrame->data[0]);
 
     // Calculation of seeking point. We need to rescale time units (seconds) to AVStream.time_base units to perform the seeking
     // Timestamp in streams are measured in frames rather than seconds
@@ -318,18 +394,12 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     }
 
     string extension;
-    if (client->fsaccess->getextension(imagePath, extension)
+    if (fa->getextension(imagePath, extension)
             && strcmp(extension.c_str(),".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
         LOG_warn << "Error seeking video";
-        av_frame_free(&videoFrame);
-        av_freep(&targetFrame->data[0]);
-        av_frame_free(&targetFrame);
-        avcodec_close(&codecContext);
-        sws_freeContext(swsContext);
-        avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     AVPacket packet;
@@ -337,55 +407,51 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
     packet.data = NULL;
     packet.size = 0;
 
-    int decodedBytes;
     int scalingResult;
     int actualNumFrames = 0;
-    int frameExtracted  = 0;
 
     // Read frames until succesfull decodification or reach limit of 220 frames
     while (actualNumFrames < 220 && av_read_frame(formatContext, &packet) >= 0)
     {
+       auto avPacketGuard = makeScopeGuard(av_packet_unref, &packet);
        if (packet.stream_index == videoStream->index)
        {
-           decodedBytes = avcodec_decode_video2(&codecContext, videoFrame, &frameExtracted, &packet);
-           if (frameExtracted && decodedBytes >= 0)
+           int ret = avcodec_send_packet(codecContext, &packet);
+           if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF)
            {
-                if (sourcePixelFormat != codecContext.pix_fmt)
+               break;
+           }
+
+           while (avcodec_receive_frame(codecContext, videoFrame) >= 0)
+           {
+                if (sourcePixelFormat != codecContext->pix_fmt)
                 {
-                    LOG_warn << "Error: pixel format changed from " << sourcePixelFormat << " to " << codecContext.pix_fmt;
-                    av_packet_unref(&packet);
-                    av_frame_free(&videoFrame);
-                    avcodec_close(&codecContext);
-                    av_freep(&targetFrame->data[0]);
-                    av_frame_free(&targetFrame);
-                    sws_freeContext(swsContext);
-                    avformat_close_input(&formatContext);
-                    return NULL;
+                    LOG_warn << "Error: pixel format changed from " << sourcePixelFormat << " to " << codecContext->pix_fmt;
+                    return false;
                 }
 
                 scalingResult = sws_scale(swsContext, videoFrame->data, videoFrame->linesize,
-                                     0, codecContext.height, targetFrame->data, targetFrame->linesize);
+                                          0, codecParm->height, targetFrame->data, targetFrame->linesize);
 
                 if (scalingResult > 0)
                 {
-                    int fav = targetPixelFormat;
-                    int imagesize = avpicture_get_size((enum AVPixelFormat)fav, width, height);
+                    const int legacy_align = 1;
+                    int imagesize = av_image_get_buffer_size(targetPixelFormat, width, height, legacy_align);
                     FIMEMORY fmemory;
                     fmemory.data = malloc(imagesize);
+                    if (!fmemory.data)
+                    {
+                        LOG_warn << "Error allocating image copy buffer";
+                        return false;
+                    }
+                    auto fmemoryDataGuard = makeScopeGuard(free, fmemory.data);
 
-                    if (avpicture_layout((AVPicture *)targetFrame, (enum AVPixelFormat)fav,
-                                    width, height, (unsigned char*)fmemory.data, imagesize) <= 0)
+                    if (av_image_copy_to_buffer((uint8_t *)fmemory.data, imagesize,
+                                targetFrame->data, targetFrame->linesize,
+                                targetPixelFormat, width, height, legacy_align) <= 0)
                     {
                         LOG_warn << "Error copying frame";
-                        av_packet_unref(&packet);
-                        av_frame_free(&videoFrame);
-                        avcodec_close(&codecContext);
-                        av_freep(&targetFrame->data[0]);
-                        av_frame_free(&targetFrame);
-                        sws_freeContext(swsContext);
-                        avformat_close_input(&formatContext);
-                        free (fmemory.data);
-                        return NULL;
+                        return false;
                     }
 
                     //int pitch = imagesize/height;
@@ -395,64 +461,40 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
                                                              pitch, 24, FI_RGBA_RED_SHIFT, FI_RGBA_GREEN_MASK,
                                                              FI_RGBA_BLUE_MASK | 0xFFFF, TRUE) ) )
                     {
-                        LOG_warn << "Error loading freeimage from memory: " << imagePath.toPath(*client->fsaccess);
+                        LOG_warn << "Error loading freeimage from memory: " << imagePath;
                     }
                     else
                     {
-                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath.toPath(*client->fsaccess);
+                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath;
                     }
 
-                    free (fmemory.data);
-
                     LOG_debug << "Video image ready";
-
-                    av_packet_unref(&packet);
-                    av_frame_free(&videoFrame);
-                    avcodec_close(&codecContext);
-                    av_freep(&targetFrame->data[0]);
-                    av_frame_free(&targetFrame);
-                    sws_freeContext(swsContext);
-                    avformat_close_input(&formatContext);
 
                     w = FreeImage_GetWidth(dib);
                     h = FreeImage_GetHeight(dib);
 
-                    if (!w || !h)
-                    {
-                        return false;
-                    }
-
-                    return true;
+                    return w > 0 && h > 0;
                 }
            }
 
            actualNumFrames++;
        }
-
-       av_packet_unref(&packet);
     }
 
 
     LOG_warn << "Error reading frame";
-    av_packet_unref(&packet);
-    av_frame_free(&videoFrame);
-    avcodec_close(&codecContext);
-    av_freep(&targetFrame->data[0]);
-    av_frame_free(&targetFrame);
-    sws_freeContext(swsContext);
-    avformat_close_input(&formatContext);
-    return NULL;
+    return false;
 }
 
 #endif
 
 #ifdef HAVE_PDFIUM
-const char* GfxProcFreeImage::supportedformatsPDF()
+const char* GfxProviderFreeImage::supportedformatsPDF()
 {
     return ".pdf.";
 }
 
-bool GfxProcFreeImage::isPdfFile(const string &ext)
+bool GfxProviderFreeImage::isPdfFile(const string &ext)
 {
     const char* ptr;
     if ((ptr = strstr(supportedformatsPDF(), ext.c_str())) && ptr[ext.size()] == '.')
@@ -462,10 +504,15 @@ bool GfxProcFreeImage::isPdfFile(const string &ext)
     return false;
 }
 
-bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath, int size)
+bool GfxProviderFreeImage::readbitmapPdf(FileSystemAccess* fa, const LocalPath& imagePath, int size)
 {
-
     std::lock_guard<std::mutex> g(gfxMutex);
+    if (!pdfiumInitialized)
+    {
+        pdfiumInitialized = true;
+        PdfiumReader::init();
+    }
+
     int orientation;
 #ifdef _WIN32
     wstring tmpPath;
@@ -478,12 +525,12 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
     }
     else
     {
-        workingDir = LocalPath::fromPlatformEncoded(tmpPath.c_str());
+        workingDir = LocalPath::fromPlatformEncodedAbsolute(tmpPath.c_str());
     }
 
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess, workingDir);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, fa, workingDir);
 #else
-    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, client->fsaccess);
+    unique_ptr<char[]> data = PdfiumReader::readBitmapFromPdf(w, h, orientation, imagePath, fa);
 #endif
 
     if (!data || !w || !h)
@@ -494,7 +541,7 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
     dib = FreeImage_ConvertFromRawBits(reinterpret_cast<BYTE*>(data.get()), w, h, w * 4, 32, 0xFF0000, 0x00FF00, 0x0000FF);
     if (!dib)
     {
-        LOG_warn << "Error converting raw pdfium bitmap from memory: " << imagePath.toPath(*client->fsaccess);
+        LOG_warn << "Error converting raw pdfium bitmap from memory: " << imagePath;
         return false;
     }
     FreeImage_FlipHorizontal(dib);
@@ -503,11 +550,12 @@ bool GfxProcFreeImage::readbitmapPdf(FileAccess* fa, const LocalPath& imagePath,
 }
 #endif
 
-const char* GfxProcFreeImage::supportedformats()
+const char* GfxProviderFreeImage::supportedformats()
 {
-    if (!sformats.size())
+    if (sformats.empty())
     {
-        sformats+=".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
+        //Disable thumbnail creation temporarily for .tiff.tif
+        sformats+=".jpg.png.bmp.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
            ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
            ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
            ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
@@ -518,18 +566,32 @@ const char* GfxProcFreeImage::supportedformats()
 #ifdef HAVE_PDFIUM
         sformats.append(supportedformatsPDF());
 #endif
+#ifdef USE_MEDIAINFO
+        sformats.append(MediaProperties::supportedformatsMediaInfo());
+#endif
     }
 
     return sformats.c_str();
 }
 
-bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, int size)
+const char *GfxProviderFreeImage::supportedvideoformats()
+{
+    return NULL;
+}
+
+bool GfxProviderFreeImage::readbitmap(FileSystemAccess* fa, const LocalPath& localname, int size)
 {
 
     bool bitmapLoaded = false;
     string extension;
-    if (client->fsaccess->getextension(localname, extension))
+    if (fa->getextension(localname, extension))
     {
+#ifdef USE_MEDIAINFO
+        if (MediaProperties::isMediaFilenameExtAudio(extension))
+        {
+            return readbitmapMediaInfo(localname);
+        }
+#endif
 #ifdef HAVE_FFMPEG
         if (isFfmpegFile(extension))
         {
@@ -553,7 +615,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     }
     if (!bitmapLoaded)
     {
-        if (!readbitmapFreeimage(fa, localname, size) )
+        if (!readbitmapFreeimage(fa, localname, size))
         {
             return false;
         }
@@ -562,7 +624,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     return true;
 }
 
-bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
+bool GfxProviderFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 {
     FIBITMAP* tdib;
     FIMEMORY* hmem;
@@ -621,10 +683,10 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
         }
     }
 
-    return !!jpegout->size();
+    return !jpegout->empty();
 }
 
-void GfxProcFreeImage::freebitmap()
+void GfxProviderFreeImage::freebitmap()
 {
     if (dib != NULL)
     {

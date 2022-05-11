@@ -36,10 +36,6 @@
   #define __STDC_FORMAT_MACROS
 #endif
 
-#ifdef WINDOWS_PHONE
-#define __STDC_LIMIT_MACROS
-#endif
-
 // (inttypes.h is not present in Microsoft Visual Studio < 2015)
 #if (defined (MSC_VER) && (_MSC_VER < 1900)) && !defined(HAVE_INTTYPES_H)
   #define PRIu32 "I32u"
@@ -80,13 +76,11 @@
 #include <winsock2.h>
 #include <windows.h>
 
-#ifndef WINDOWS_PHONE
 #ifdef __MINGW32__
  //#include <wincrypt.h> // x509 define clashes with webrtc
 #endif
  //#include <wincrypt.h> // x509 define clashes with webrtc
  #include <shlwapi.h>
-#endif
 
 #include <shellapi.h>
 

@@ -92,6 +92,7 @@ class MEGA_API DBTableTransactionCommitter
 {
     DbTable* mTable;
     bool mStarted = false;
+    std::thread::id threadId;
 
 public:
     void beginOnce()
@@ -130,12 +131,13 @@ public:
     }
 
     explicit DBTableTransactionCommitter(unique_ptr<DbTable>& t)
-        : mTable(t.get())
+        : mTable(t.get()), threadId(std::this_thread::get_id())
     {
         if (mTable)
         {
             if (mTable->mTransactionCommitter)
             {
+                assert(mTable->mTransactionCommitter->threadId == threadId);
                 mTable = nullptr;  // we are nested; this one does nothing.  This can occur during eg. putnodes response when the core sdk and the intermediate layer both do db work.
             }
             else
@@ -165,6 +167,8 @@ struct MEGA_API DbAccess
     DbAccess();
 
     virtual ~DbAccess() { }
+
+    virtual bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) = 0;
 
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 

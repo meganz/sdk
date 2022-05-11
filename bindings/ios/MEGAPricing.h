@@ -97,12 +97,11 @@
 - (NSInteger)amountAtProductIndex:(NSInteger)index;
 
 /**
- * @brief Get the currency associated with [MEGAPricing amountAtProductIndex:].
- *
- * @param index Product index (from 0 to [MEGAPricing products]).
- * @return Currency associated with [MEGAPricing amountAtProductIndex:].
+ * @brief Get the price in the local currency (in cents)
+ * @param index Product index (from 0 to MegaPricing::getNumProducts)
+ * @return Price of the product (in cents)
  */
-- (NSString *)currencyAtProductIndex:(NSInteger)index;
+- (NSInteger)localPriceAtProductIndex:(NSInteger)index;
 
 /**
  * @brief Get a description of the product

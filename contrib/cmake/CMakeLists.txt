@@ -14,14 +14,17 @@
 
 
 if (WIN32)
-cmake_minimum_required(VERSION 3.15)
-cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
+  cmake_minimum_required(VERSION 3.15)
+  cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
 else()
-cmake_minimum_required(VERSION 3.13)
+  cmake_minimum_required(VERSION 3.13)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Useful for make or ninja
+  message( "CMAKE_EXPORT_COMPILE_COMMANDS ON")
 endif()
 
 project(MegaSDK)
 
+set( CMAKE_EXPORT_COMPILE_COMMANDS ON) # Generates compile_commands.json with the compilers calls for all translations units
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
 if (CMAKE_HOST_APPLE AND NOT IOS)
@@ -45,9 +48,10 @@ set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web an
 set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
 set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
-set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
+set (USE_PCRE 0 CACHE STRING "Can be used by client apps. The SDK does not use it itself anymore")
 set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
 set (MEGA_USE_C_ARES 1 CACHE STRING "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL")
+set (MEGA_QT_VERSION 5.12.11 CACHE STRING "Qt version installed in c:/Qt")
 
 if (USE_PTHREAD)
     set( USE_CPPTHREAD 0)
@@ -151,20 +155,24 @@ ENDIF(WIN32)
 if (USE_QT)
 
     #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
-    if (NOT DEFINED CMAKE_PREFIX_PATH AND NOT DEFINED QT_DIR)
+    if (NOT DEFINED QT_DIR)
         if (CMAKE_HOST_WIN32 )
             if (build_64_bit)
-                set (QT_DIR "C:/Qt/5.12.10/msvc2017_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
+                set (QT_DIR "C:/Qt/${MEGA_QT_VERSION}/msvc2017_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
             else()
-                set (QT_DIR "C:/Qt/5.12.10/msvc2017" CACHE STRING "Specify your QT install folder if it is nonstandard")
+                set (QT_DIR "C:/Qt/${MEGA_QT_VERSION}/msvc2017" CACHE STRING "Specify your QT install folder if it is nonstandard")
             ENDIF()
         ELSE()
-            set (QT_DIR "/Users/Shared/Qt/5.12.10/clang_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            set (QT_DIR "/Users/Shared/Qt/${MEGA_QT_VERSION}/clang_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
         ENDIF()
-        set(CMAKE_PREFIX_PATH "${QT_DIR}/lib/cmake/Qt5;${CMAKE_PREFIX_PATH}")
     ENDIF()
 
+    if (NOT DEFINED CMAKE_PREFIX_PATH)
+        set(CMAKE_PREFIX_PATH "${QT_DIR}/lib/cmake/Qt5")
+    endif()
+
     message(STATUS "CMAKE_PREFIX_PATH (should contain the QT install path): ${CMAKE_PREFIX_PATH}")
+    message(STATUS "QT_DIR: ${QT_DIR}")
 
     foreach (PKG IN LISTS MEGA_QT_REQUIRED_COMPONENTS)
         message(STATUS "Finding Qt package ${PKG}")
@@ -248,7 +256,9 @@ if (WIN32)
     endif()
 
     # warnings as errors, just for windows builds, as warnings keep creeping in.  Best if we address them once in the original MRs.
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /WX" )
+    if (build_64_bit)
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /WX" )
+    endif()
 
     # accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
@@ -388,7 +398,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 #find_package(CURL CONFIG REQUIRED PATHS "${vcpkg_dir}/share/curl" NO_DEFAULT_PATH )
             ENDIF()
         ENDIF()
-        IF(USE_CURL)
+        IF(MEGA_USE_C_ARES)
             ImportStdVcpkgLibrary(cares       cares cares libcares libcares)
         ENDIF()
 
@@ -409,8 +419,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
 
-        ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
+        IF (NOT IOS)
+	ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
         ImportStdVcpkgLibrary(gmock           gmockd gmock libgmockd libgmock)
+	ENDIF()
 
         IF(USE_MEDIAINFO)
             IF(CMAKE_HOST_APPLE)
@@ -428,12 +440,12 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
         IF(USE_LIBRAW OR USE_FREEIMAGE OR USE_PDFIUM)
             ImportStdVcpkgLibrary(liblcms        lcmsd            lcms           liblcmsd            liblcms)
-            ImportStdVcpkgLibrary(libturbojpeg   turbojpegd       turbojpeg      libturbojpeg        libturbojpeg       )
+            ImportStdVcpkgLibrary(libturbojpeg   turbojpeg        turbojpeg      libturbojpeg        libturbojpeg       )
         ENDIF()
 
         IF(USE_LIBRAW OR USE_FREEIMAGE)
             # we might need libraw directly (eg MEGAsync) but also freeimage needs it
-            ImportStdVcpkgLibrary(libraw         rawd             raw            librawd             libraw)
+            ImportStdVcpkgLibrary(libraw         raw_rd           raw_r          libraw_rd           libraw_r)
 
             # libraw needs jasper and lcms and libjpeg-turbo (all also part of freeimage)
             ImportStdVcpkgLibrary(libjasper      jasperd          jasper         libjasperd          libjasper)
@@ -464,7 +476,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_IlmImfUtil  IlmImfUtil-2_5_d IlmImfUtil-2_5 libIlmImfUtil-2_5_d libIlmImfUtil-2_5  )
             ImportStdVcpkgLibrary(freeimage_IlmThread   IlmThread-2_5_d  IlmThread-2_5  libIlmThread-2_5_d  libIlmThread-2_5   )
             ImportStdVcpkgLibrary(freeimage_Imath       IMath-2_5_d      IMath-2_5      libImath-2_5_d      libImath-2_5       )
-            ImportStdVcpkgLibrary(freeimage_jpeg        jpegd            jpeg           libjpeg             libjpeg            )
+            ImportStdVcpkgLibrary(freeimage_jpeg        jpeg             jpeg           libjpeg             libjpeg            )
             ImportStdVcpkgLibrary(freeimage_jpegxr      jpegxrd          jpegxr         libjpegxrd          libjpegxr          )
             ImportStdVcpkgLibrary(freeimage_jxrglue     jxrglued         jxrglue        libjxrglued         libjxrglue         )
             ImportStdVcpkgLibrary(freeimage_half        half-2_5_d       half-2_5       libHalf-2_5_d       libHalf-2_5        )
@@ -498,8 +510,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                                             freeimage_jxrglue
                                             freeimage_jpegxr)
             if(NOT IOS)
-                ImportStdVcpkgLibrary(freeimage_tiffxx        tiffxxd            tiffxx           libtiffxxd            libtiffxx            )
-                target_link_libraries(freeimage INTERFACE freeimage_tiffxx)
+                #ImportStdVcpkgLibrary(freeimage_tiffxx        tiffxxd            tiffxx           libtiffxxd            libtiffxx            )
+                #target_link_libraries(freeimage INTERFACE freeimage_tiffxx)
             endif()
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
@@ -562,7 +574,10 @@ set(UNICODE 1)
 
 if(WIN32)
 
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -D_CONSOLE )
+    IF(USE_PCRE)
+        add_definitions(-DPCRE_STATICWIN32 )
+    ENDIF(USE_PCRE)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
     SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<$<OR:${USE_CURL},${USE_WEBRTC}>:Wldap32.lib> )
     IF(USE_LIBUV)
@@ -601,30 +616,47 @@ ELSE(WIN32)
 
     IF(APPLE)
         SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm)
+
+        # if building all-static megacli for mac, you will need these (uncomment to enable)
+        #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework LDAP")
+        #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "libresolv.dylib")
+
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
+                                       ${MegaDir}/include/mega/osx/megafs.h
+                                       ${MegaDir}/src/osx/fs.cpp)
+
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                                       "-framework CoreServices")
     ENDIF()
 
-    IF(USE_DRIVE_NOTIFICATIONS)
-        IF(APPLE)
-            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} 
-                ${MegaDir}/include/mega/osx/drivenotifyosx.h
-                ${MegaDir}/src/osx/drivenotifyosx.cpp
-            )
+    IF (APPLE)
+        IF (USE_DRIVE_NOTIFICATIONS)
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
+                                           ${MegaDir}/include/mega/osx/drivenotifyosx.h
+                                           ${MegaDir}/src/osx/drivenotifyosx.cpp)
             SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
-                "-framework DiskArbitration"
-                "-framework CoreFoundation"
-            )
+                                          "-framework DiskArbitration"
+                                          "-framework CoreFoundation")
         ENDIF()
+    ENDIF ()
 
-        IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
-            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/posix/drivenotifyposix.h ${MegaDir}/src/posix/drivenotifyposix.cpp)
-        ENDIF()
-    ENDIF(USE_DRIVE_NOTIFICATIONS)
+    IF (CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+        IF (USE_DRIVE_NOTIFICATIONS)
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
+                                           ${MegaDir}/include/mega/posix/drivenotifyposix.h
+                                           ${MegaDir}/src/posix/drivenotifyposix.cpp)
+        ENDIF ()
+    ENDIF ()
 
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
 
     SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap)
     IF(APPLE)
        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework SystemConfiguration -framework Security")
+
+       SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/osx
+                                         ${Mega_PlatformSpecificIncludes})
+
        if (NOT IOS)
            set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa")
        else()
@@ -641,11 +673,12 @@ ELSE(WIN32)
     ELSE()
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
     ENDIF()
-    IF(USE_DRIVE_NOTIFICATIONS)
-        IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+
+    IF (CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+        IF (USE_DRIVE_NOTIFICATIONS)
             SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} udev)
-        ENDIF()
-    ENDIF(USE_DRIVE_NOTIFICATIONS)
+        ENDIF ()
+    ENDIF ()
 
     IF(USE_WEBRTC)
         add_definitions( -DWEBRTC_POSIX )
@@ -654,6 +687,7 @@ ELSE(WIN32)
 ENDIF(WIN32)
 
 configure_file ("${MegaDir}/contrib/cmake/config.h.in" "${MegaDir}/include/mega/config.h" )
+configure_file ("${MegaDir}/contrib/cmake/config.h.in" "${MegaDir}/include/config.h" )  # MEGAsync moc files also want it at mega/include/config.h
 add_definitions( -DHAVE_CONFIG_H) #otherwise, it won't be included in Windows build!
 
 SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/sodium.cpp)
@@ -849,7 +883,6 @@ target_compile_definitions(Mega PUBLIC
                 $<${ENABLE_CHAT}:ENABLE_CHAT>
                 $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
                 $<${USE_ROTATIVEPERFORMANCELOGGER}:USE_ROTATIVEPERFORMANCELOGGER>
-                $<${USE_ROTATIVEPERFORMANCELOGGER}:ENABLE_LOG_PERFORMANCE>
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE>
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>
@@ -907,6 +940,7 @@ if(IOS)
         ${MegaDir}/bindings/ios/MEGAChildrenLists.mm
         ${MegaDir}/bindings/ios/MEGAContactRequest.mm
         ${MegaDir}/bindings/ios/MEGAContactRequestList.mm
+	${MegaDir}/bindings/ios/MEGACurrency.mm
         ${MegaDir}/bindings/ios/MEGAError.mm
         ${MegaDir}/bindings/ios/MEGAEvent.mm
         ${MegaDir}/bindings/ios/MEGAFolderInfo.mm
@@ -987,7 +1021,7 @@ add_executable(test_integration
 )
 
 if(APPLE)
-    add_executable(test_integration_fsevents_loader 
+    add_executable(test_integration_fsevents_loader
         ${MegaDir}/tests/integration/fsevents_loader_main.cpp
     )
 
@@ -1041,10 +1075,14 @@ endif()
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
+configure_file("${MegaDir}/tests/integration/test_cover_png.mp3" test_cover_png.mp3 COPYONLY)
 
 # actual apps
 
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
+if (APPLE)
+    add_executable(megacli_fsloader ${MegaDir}/examples/fsevents_loader_megacli_maconly.cpp)
+endif()
 target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
     target_link_libraries(megacli ${readline_LIBRARIES})
@@ -1073,6 +1111,8 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")  # declaration hides previous local declaration
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4266")  # derived class did not override all overloads of a virtual function
     #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
+
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")  # Sync_test.cpp : fatal error C1128: number of sections exceeded object file format limit: compile with /bigobj
 
     set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET megacli PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")

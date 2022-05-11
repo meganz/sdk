@@ -59,6 +59,7 @@ configure_cross_options=""
 openssl_cross_option=""
 status_dir=""
 persistent_path="/opt/persistent"
+warning_as_error=0
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -551,9 +552,9 @@ zlib_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Zlib"
-    local zlib_ver="1.2.11"
-    local zlib_url="http://zlib.net/zlib-$zlib_ver.tar.gz"
-    local zlib_md5="1c9f62f0778697a09d36121ead88e08e"
+    local zlib_ver="1.2.12"
+    local zlib_url="https://zlib.net/fossils/zlib-$zlib_ver.tar.gz"
+    local zlib_md5="5fc414a9726be31427b440b434d05f78"
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
     local loc_conf_opts=$config_opts
@@ -778,8 +779,17 @@ termcap_pkg() {
     fi
 
     package_extract $name $termcap_file $termcap_dir
+    local OLD_CPPFLAGS="$CPPFLAGS"
+
+    # linking with static library requires -fPIC
+    if [ $use_dynamic -eq 0 ]; then
+        export CPPFLAGS="$CPPFLAGS -fPIC"
+    fi
     package_configure $name $termcap_dir $install_dir "$termcap_params"
     package_build $name $termcap_dir
+
+    export CPPFLAGS="$OLD_CPPFLAGS"
+
     package_install $name $termcap_dir $install_dir $termcap_md5
 }
 
@@ -1086,6 +1096,11 @@ build_sdk() {
     fi
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
+        # Gcc, CLang warnings as errors
+        if [ ${warning_as_error} -eq 1 ];
+        then
+            export CXXFLAGS="${CXXFLAGS} -Werror"
+        fi
         local configure_flags="\
             $configure_cross_options \
             $static_flags \
@@ -1161,7 +1176,7 @@ display_help() {
     local app=$(basename "$0")
     echo ""
     echo "Usage:"
-    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-N] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z]"
+    echo " $app [-a] [-c] [-h] [-d] [-e] [-f] [-g] [-l] [-m opts] [-n] [-N] [-o path] [-p path] [-q] [-r] [-s] [-t] [-w] [-x opts] [-y] [z] [-0] [-E]"
     echo ""
     echo "By the default this script builds static megacli executable."
     echo "This script can be run with numerous options to configure and build MEGA SDK."
@@ -1197,6 +1212,7 @@ display_help() {
     echo " -q : Use Crypto++"
     echo " -z : Disable libz"
     echo " -0 : Turn off optimisations (in case of issues on old compilers)"  
+    echo " -E : Treat compiler warnings as errors for the SDK code)"
     echo ""
 }
 
@@ -1210,7 +1226,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:nNo:p:rRsS:tuvyx:XC:O:wWqz0" opt; do
+    while getopts ":habcdefgiIlm:nNo:p:rRsS:tuvyx:XC:O:wWqz0E" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1344,6 +1360,10 @@ main() {
             0)
                 no_optimisation=1
                 echo "* Disabling compiler optimisations."  # some older versions of gcc have optimisations problems with eg. OpenSSL - rsa_test suite can fail
+                ;;
+            E)
+                warning_as_error=1
+                echo "* Treat Compiler Warnings as Errors for the SDK code"
                 ;;
             \?)
                 display_help $0

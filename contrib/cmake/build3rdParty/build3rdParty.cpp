@@ -63,6 +63,7 @@ fs::path patchPath;
 string triplet;
 
 map<string, string> ports;
+map<string, string> featurePackages;
 map<string, fs::path> patches;
 
 fs::path initialDir = fs::current_path();
@@ -123,7 +124,12 @@ try
                 if (fs::is_directory(vcpkgDir / "ports" / portname))
                 {
                     cout << "Removing " << (vcpkgDir / "ports" / portname).u8string() << endl;
+                    #ifdef WIN32
+                    // remove_all doesn't like read-only files in the git repo.  however it seems that will be fixed in future
+                    execute("rmdir /S /Q " + ("\"" + (vcpkgDir / "ports" / portname).u8string() + "\""));
+                    #else
                     fs::remove_all(vcpkgDir / "ports" / portname);
+                    #endif
                 }
                 if (portversion.size() == 40)
                 {
@@ -132,6 +138,14 @@ try
                     cout << "Copying port for " << portname << " from vcpkg commit " << portversion << endl;
                     fs::copy(cloneDir / "ports" / portname, vcpkgDir / "ports" / portname, fs::copy_options::recursive);
                     fs::current_path(vcpkgDir / "ports" / portname);
+
+                    // before we apply any patch, init this as a new git repo to make it easy to
+                    // amend or add to patches - or to create a new patch file for this lib
+                    // (this turned out to cause problems for normal situations but perhaps we can overcome those in future or use it selectively)
+                    //execute("git init .");
+                    //execute("git add *.*");
+                    //execute("git add ./*");
+                    //execute("git commit -m patchInit");
 
                     auto patch = patches.find(portname);
                     if (patch != patches.end()) {
@@ -192,9 +206,9 @@ try
             for (auto portPair : ports)
             {
                 #ifdef WIN32
-                    execute("vcpkg install --triplet " + triplet + " " + portPair.first);
+                    execute("vcpkg install --triplet " + triplet + " " + portPair.first + featurePackages[portPair.first]);
                 #else
-                    execute("./vcpkg install --triplet " + triplet + " " + portPair.first);
+                    execute("./vcpkg install --triplet " + triplet + " " + portPair.first + featurePackages[portPair.first]);
                 #endif
             }
         }
@@ -389,14 +403,14 @@ cout << "considering " << rawExpr << endl;
 cout << "build" << endl;
 }
                else if (exprArg == "off") {
-cout << "don't build" << endl; 
+cout << "don't build" << endl;
 shouldBuild = false;
 }
                else if (fs::path(expr[1]).extension() != ".patch")
                {
                    cout << "Not a patch file: " << expr[1] << " for " << s << endl;
                    exit(1);
-               }  
+               }
                else {
                    patchFile = exprArg;
                    shouldBuild = true;
@@ -417,6 +431,15 @@ cout << "build with patch " << patchFile << endl;
         string portname = s.substr(0, slashpos);
         string portversion = s.substr(slashpos + 1);
 
+	// extract featurePackage
+	string featurePackage;
+	auto featurePackagePos = portname.find("[");
+	if (featurePackagePos != string::npos)
+	{
+ 		featurePackage = portname.substr(featurePackagePos);
+		portname = portname.substr(0, featurePackagePos);
+	}
+
         auto existing = ports.find(portname);
         if (existing != ports.end() && existing->second != portversion)
         {
@@ -424,6 +447,7 @@ cout << "build with patch " << patchFile << endl;
             return 1;
         }
         ports[portname] = portversion;
+        featurePackages[portname] = featurePackage;
 
         if (build) continue;
 

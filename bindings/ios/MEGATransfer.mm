@@ -139,7 +139,14 @@ using namespace mega;
 }
 
 - (MEGANode *)publicNode {
-    return (self.megaTransfer && self.megaTransfer->getPublicMegaNode()) ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
+    if (self.megaTransfer) {
+        MegaNode *n = self.megaTransfer->getPublicMegaNode();
+        if (n) {
+            MEGANode *node = [[MEGANode alloc] initWithMegaNode:n cMemoryOwn:YES];
+            return node;
+        }
+    }
+    return nil;
 }
 
 - (BOOL)isStreamingTransfer {
@@ -175,6 +182,14 @@ using namespace mega;
 
 - (unsigned long long)priority {
     return self.megaTransfer ? self.megaTransfer->getPriority() : 0;
+}
+
+- (long long)notificationNumber {
+    return self.megaTransfer ? self.megaTransfer->getNotificationNumber() : 0;
+}
+
+- (BOOL)targetOverride {
+    return self.megaTransfer ? self.megaTransfer->getTargetOverride() : NO;
 }
 
 @end

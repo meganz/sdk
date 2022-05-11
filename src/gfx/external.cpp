@@ -24,17 +24,17 @@
 
 namespace mega {
 
-GfxProcExternal::GfxProcExternal()
+GfxProviderExternal::GfxProviderExternal()
 {
     processor = NULL;
 }
 
-void GfxProcExternal::setProcessor(MegaGfxProcessor *processor)
+void GfxProviderExternal::setProcessor(MegaGfxProcessor *processor)
 {
 	this->processor = processor;
 }
 
-bool GfxProcExternal::isgfx(string* name)
+bool GfxProviderExternal::isgfx(string* name)
 {
 	if(!processor) return false;
 
@@ -49,8 +49,9 @@ bool GfxProcExternal::isgfx(string* name)
 
     tolower_string(ext);
 
+    //Disable thumbnail creation temporarily for .tiff.tif
     char* ptr =
-            strstr((char*) ".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
+            strstr((char*) ".jpg.png.bmp.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
             ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
             ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw"
             ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga"
@@ -59,7 +60,7 @@ bool GfxProcExternal::isgfx(string* name)
     return ptr && ptr[ext.size()] == '.';
 }
 
-bool GfxProcExternal::readbitmap(FileAccess* /*fa*/, const LocalPath& localname, int /*size*/)
+bool GfxProviderExternal::readbitmap(FileSystemAccess* /*fa*/, const LocalPath& localname, int /*size*/)
 {
     if(!processor) return false;
 
@@ -81,7 +82,7 @@ bool GfxProcExternal::readbitmap(FileAccess* /*fa*/, const LocalPath& localname,
 	return true;
 }
 
-bool GfxProcExternal::resizebitmap(int rw, int rh, string* jpegout)
+bool GfxProviderExternal::resizebitmap(int rw, int rh, string* jpegout)
 {
     int px, py;
 
@@ -96,8 +97,19 @@ bool GfxProcExternal::resizebitmap(int rw, int rh, string* jpegout)
     return processor->getBitmapData((char *)jpegout->data(), jpegout->size());
 }
 
-void GfxProcExternal::freebitmap()
+void GfxProviderExternal::freebitmap()
 {
 	processor->freeBitmap();
 }
+
+const char *GfxProviderExternal::supportedformats()
+{
+    return NULL;
+}
+
+const char *GfxProviderExternal::supportedvideoformats()
+{
+    return NULL;
+}
+
 } // namespace

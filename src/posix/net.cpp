@@ -23,6 +23,10 @@
 #include "mega/posix/meganet.h"
 #include "mega/logging.h"
 
+#if defined(USE_OPENSSL)
+#include <openssl/err.h>
+#endif
+
 #if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
 #include <jni.h>
 extern JavaVM *MEGAjvm;
@@ -277,7 +281,7 @@ CurlHttpIO::CurlHttpIO()
         sslMutexes = new std::recursive_mutex*[numLocks];
         memset(sslMutexes, 0, numLocks * sizeof(std::recursive_mutex*));
 #if OPENSSL_VERSION_NUMBER >= 0x10000000  || defined (LIBRESSL_VERSION_NUMBER)
-        CRYPTO_THREADID_set_callback(CurlHttpIO::id_function);
+        ((void)(CRYPTO_THREADID_set_callback(CurlHttpIO::id_function)));
 #else
         CRYPTO_set_id_callback(CurlHttpIO::id_function);
 #endif
@@ -291,7 +295,7 @@ CurlHttpIO::CurlHttpIO()
         curl_global_init(CURL_GLOBAL_DEFAULT);
 #ifdef MEGA_USE_C_ARES
         ares_library_init(ARES_LIB_INIT_ALL);
-                
+
         const char *aresversion = ares_version(NULL);
         if (aresversion)
         {
@@ -312,7 +316,6 @@ CurlHttpIO::CurlHttpIO()
     numconnections[API] = 0;
     numconnections[GET] = 0;
     numconnections[PUT] = 0;
-    curlsocketsprocessed = true;
 
 #ifdef MEGA_USE_C_ARES
     struct ares_options options;
@@ -622,9 +625,16 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 int CurlHttpIO::checkevents(Waiter*)
 {
 #ifdef WIN32
+    // if this assert triggers, it means that we detected that cURL needs to be called,
+    // and it was not called.  Since we reset the event, we don't get another chance.
+    assert(!mSocketsWaitEvent_curl_call_needed);
+    bool wasSet = WAIT_OBJECT_0 == WaitForSingleObject(mSocketsWaitEvent, 0);
+    mSocketsWaitEvent_curl_call_needed = wasSet;
     ResetEvent(mSocketsWaitEvent);
-#endif
+    return wasSet ? Waiter::NEEDEXEC : 0;
+#else
     return 0;
+#endif
 }
 
 #ifdef MEGA_USE_C_ARES
@@ -697,8 +707,9 @@ void CurlHttpIO::processaresevents()
 void CurlHttpIO::processcurlevents(direction_t d)
 {
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
-
-#ifndef _WIN32
+#ifdef WIN32
+    mSocketsWaitEvent_curl_call_needed = false;
+#else
     auto *rfds = &((PosixWaiter *)waiter)->rfds;
     auto *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
@@ -1050,8 +1061,6 @@ void CurlHttpIO::addevents(Waiter* w, int)
             waiter->maxds = dstime(timeoutds);
         }
     }
-    curlsocketsprocessed = false;
-
 #ifdef MEGA_USE_C_ARES
     timeval tv;
     if (ares_timeout(ares, NULL, &tv))
@@ -1546,9 +1555,9 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                   !memcmp(req->posturl.data(), httpio->APIURL.data(), httpio->APIURL.size())
                     ? "sha256//0W38e765pAfPqS3DqSVOrPsC4MEOvRBaXQ7nY1AJ47E=;" //API 1
                       "sha256//gSRHRu1asldal0HP95oXM/5RzBfP1OIrPjYsta8og80="  //API 2
-                    : (!memcmp(req->posturl.data(), MegaClient::CHATSTATSURL.data(), MegaClient::CHATSTATSURL.size())
-                       || !memcmp(req->posturl.data(), MegaClient::GELBURL.data(), MegaClient::GELBURL.size()))
-                                 ? "sha256//a1vEOQRTsb7jMsyAhr4X/6YSF774gWlht8JQZ58DHlQ="  //CHAT
+                    : (!memcmp(req->posturl.data(), MegaClient::SFUSTATSURL.data(), MegaClient::SFUSTATSURL.size()))
+                           ? "sha256//2ZAltznnzY3Iee3NIZPOgqIQVNXVjvDEjWTmAreYVFU=;"  // STATSSFU  1
+                             "sha256//7jLrvaEtfqTCHew0iibvEm2k61iatru+rwhFD7g3nxA="   // STATSSFU  2
                                  : nullptr) ==  CURLE_OK)
             {
                 curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
@@ -1817,7 +1826,18 @@ int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t siz
     if (type == CURLINFO_TEXT && size)
     {
         data[size - 1] = 0;
-        LOG_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data;
+        std::string errnoInfo;
+        if (strstr(data, "SSL_ERROR_SYSCALL"))
+        {
+            // This function is called quite early by curl code, and hopefully no other call would have
+            // modified errno in the meantime.
+            errnoInfo = " (System errno: " + std::to_string(errno) +
+#if defined(USE_OPENSSL)
+                        "; OpenSSL last err: " + std::to_string(ERR_peek_last_error()) +
+#endif
+                        ")";
+        }
+        LOG_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data << errnoInfo;
     }
 
     return 0;
@@ -2121,11 +2141,6 @@ bool CurlHttpIO::doio()
     result = statechange;
     statechange = false;
 
-    if (curlsocketsprocessed)
-    {
-        return result;
-    }
-
     processcurlevents(API);
     result |= multidoio(curlm[API]);
 
@@ -2157,7 +2172,6 @@ bool CurlHttpIO::doio()
         }
     }
 
-    curlsocketsprocessed = true;
     return result;
 }
 
@@ -2286,6 +2300,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                 // check httpstatus and response length
                 req->status = (req->httpstatus == 200
+                               && errorCode != CURLE_PARTIAL_FILE
                                && (req->contentlength < 0
                                    || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
                         ? REQ_SUCCESS : REQ_FAILURE;
@@ -2298,8 +2313,12 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
                 else
                 {
-                    LOG_warn << req->logname << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
-                             << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
+                    LOG_warn << req->logname << "REQ_FAILURE."
+                             << " Status: " << req->httpstatus
+                             << " CURLcode: " << errorCode
+                             << "  Content-Length: " << req->contentlength
+                             << "  buffer? " << (req->buf != NULL)
+                             << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
                 }
 
                 if (req->httpstatus)
@@ -2702,6 +2721,11 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         info.mode = what;
 #if defined(_WIN32)
         info.createAssociateEvent();
+
+        if (what & CURL_POLL_OUT)
+        {
+            info.signalledWrite = true;
+        }
 #endif
     }
 
@@ -2802,7 +2826,7 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
     return CURLE_OK;
 }
 
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER) || defined (OPENSSL_IS_BORINGSSL)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
    #define X509_STORE_CTX_get0_cert(ctx) (ctx->cert)
    #define X509_STORE_CTX_get0_untrusted(ctx) (ctx->untrusted)
    #define EVP_PKEY_get0_DSA(_pkey_) ((_pkey_)->pkey.dsa)
@@ -2867,11 +2891,12 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         {
             BN_bn2bin(RSA_get0_n(EVP_PKEY_get0_RSA(evp)), buf);
 
+            // check the public key matches for the URL of the connection (API or SFU-stats)
             if ((!memcmp(request->posturl.data(), httpio->APIURL.data(), httpio->APIURL.size())
                     && (!memcmp(buf, APISSLMODULUS1, sizeof APISSLMODULUS1 - 1) || !memcmp(buf, APISSLMODULUS2, sizeof APISSLMODULUS2 - 1)))
-                || ((!memcmp(request->posturl.data(), MegaClient::CHATSTATSURL.data(), MegaClient::CHATSTATSURL.size())
-                     || !memcmp(request->posturl.data(), MegaClient::GELBURL.data(), MegaClient::GELBURL.size()))
-                    && !memcmp(buf, CHATSSLMODULUS, sizeof CHATSSLMODULUS - 1)))
+                ||(!memcmp(request->posturl.data(), MegaClient::SFUSTATSURL.data(), MegaClient::SFUSTATSURL.size())
+                    && (!memcmp(buf, SFUSTATSSSLMODULUS, sizeof SFUSTATSSSLMODULUS - 1) || !memcmp(buf, SFUSTATSSSLMODULUS2, sizeof SFUSTATSSSLMODULUS2 - 1)))
+                )
             {
                 BN_bn2bin(RSA_get0_e(EVP_PKEY_get0_RSA(evp)), buf);
 
