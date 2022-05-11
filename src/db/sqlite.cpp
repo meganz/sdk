@@ -1264,7 +1264,7 @@ uint64_t SqliteAccountState::getNumberOfNodes()
     return nodeNumber;
 }
 
-bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node *>, FileFingerprintCmp> &fingerprints, std::vector<std::pair<NodeHandle, NodeHandle>>& nodeAndParent)
+bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node *>, FileFingerprintCmp> &fingerprints, std::map<NodeHandle, std::set<NodeHandle> > &children)
 {
     if (!db)
     {
@@ -1294,7 +1294,7 @@ bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, s
                 fingerprints[*fingerprint].insert(std::pair<NodeHandle, Node*>(nodeHandle, nullptr));
             }
 
-            nodeAndParent.push_back(std::make_pair(parentHandle, nodeHandle));
+            children[parentHandle].insert(nodeHandle);
         }
     }
 
