@@ -1088,8 +1088,6 @@ enum class PathProblem : unsigned short {
 const char* syncWaitReasonDebugString(SyncWaitReason r);
 const char* syncPathProblemDebugString(PathProblem r);
 
-bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason);
-
 } // namespace mega
 
 #define MEGA_DISABLE_COPY(class_name) \

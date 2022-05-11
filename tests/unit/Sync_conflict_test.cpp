@@ -33,79 +33,79 @@ class SyncConflictTest : public Test {
         SyncConflictTest(){}
         ~SyncConflictTest(){}
         
-        // Add conflicts
-        static void addLocalConflict(mega::SyncStallInfo& si);
-        static void addCloudConflict(mega::SyncStallInfo& si);
+        //// Add conflicts
+        //static void addLocalConflict(mega::SyncStallInfo& si);
+        //static void addCloudConflict(mega::SyncStallInfo& si);
     private:
 
     protected:
 };
 
-void
-SyncConflictTest::addLocalConflict(mega::SyncStallInfo& si) {
-    // Superposition!. Which universe should we choose from?
-    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
-    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
-    const auto localPath = mega::LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
-
-    si.waitingLocal(  
-        localPath, 
-        localPath,
-        theRemotePath,
-        mega::SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
-     );
-}
-
-void
-SyncConflictTest::addCloudConflict(mega::SyncStallInfo& si) {
-    // Superposition!. Which universe should we choose from?
-    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
-    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
-    const auto localPath = mega::LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
-
-    si.waitingCloud(
-        theRemotePath,
-        theRemotePath,
-        localPath,
-        mega::SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
-     );
-}
+//void
+//SyncConflictTest::addLocalConflict(mega::SyncStallInfo& si) {
+//    // Superposition!. Which universe should we choose from?
+//    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+//    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
+//    const auto localPath = mega::LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+//
+//    si.waitingLocal(  
+//        localPath, 
+//        localPath,
+//        theRemotePath,
+//        mega::SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+//     );
+//}
+//
+//void
+//SyncConflictTest::addCloudConflict(mega::SyncStallInfo& si) {
+//    // Superposition!. Which universe should we choose from?
+//    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+//    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
+//    const auto localPath = mega::LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+//
+//    si.waitingCloud(
+//        theRemotePath,
+//        theRemotePath,
+//        localPath,
+//        mega::SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+//     );
+//}
 
 /**
  * A Local change where Folder A is moved into folder B and
  * a Cloud change where Folder B is moved into folder A
  */
-TEST(SyncConflictTest, LocalStallsWithChanges_Local_AB_Cloud_BA) {
-    mega::SyncStallInfo syncStallInfo;
-
-    // Fresh from the oven. No stalls
-    ASSERT_TRUE(syncStallInfo.empty());
-    ASSERT_FALSE(syncStallInfo.hasImmediateStallReason());
-
-    SyncConflictTest::addLocalConflict(syncStallInfo);
-
-    ASSERT_FALSE(syncStallInfo.empty()); // Houston! We have a conflict.
-    ASSERT_TRUE(syncStallInfo.hasImmediateStallReason()); // User should choose
-
-}
-
-/**
- * A Cloud change where Folder B is moved into folder A and
- * a Local change where Folder A is moved into folder B
- */
-TEST(SyncConflictTest, CloudStallsWithChanges_Cloud_AB_Local_BA) {
-    mega::SyncStallInfo syncStallInfo;
-    ASSERT_TRUE(syncStallInfo.empty());
-
-    // Fresh from the oven. No stalls
-    ASSERT_TRUE(syncStallInfo.empty());
-    ASSERT_FALSE(syncStallInfo.hasImmediateStallReason());
-
-    SyncConflictTest::addCloudConflict(syncStallInfo);
-
-    ASSERT_FALSE(syncStallInfo.empty());
-    ASSERT_TRUE(syncStallInfo.hasImmediateStallReason()); // User should choose
-}
+//TEST(SyncConflictTest, LocalStallsWithChanges_Local_AB_Cloud_BA) {
+//    mega::SyncStallInfo syncStallInfo;
+//
+//    // Fresh from the oven. No stalls
+//    ASSERT_TRUE(syncStallInfo.empty());
+//    ASSERT_FALSE(syncStallInfo.hasImmediateStallReason());
+//
+//    SyncConflictTest::addLocalConflict(syncStallInfo);
+//
+//    ASSERT_FALSE(syncStallInfo.empty()); // Houston! We have a conflict.
+//    ASSERT_TRUE(syncStallInfo.hasImmediateStallReason()); // User should choose
+//
+//}
+//
+///**
+// * A Cloud change where Folder B is moved into folder A and
+// * a Local change where Folder A is moved into folder B
+// */
+//TEST(SyncConflictTest, CloudStallsWithChanges_Cloud_AB_Local_BA) {
+//    mega::SyncStallInfo syncStallInfo;
+//    ASSERT_TRUE(syncStallInfo.empty());
+//
+//    // Fresh from the oven. No stalls
+//    ASSERT_TRUE(syncStallInfo.empty());
+//    ASSERT_FALSE(syncStallInfo.hasImmediateStallReason());
+//
+//    SyncConflictTest::addCloudConflict(syncStallInfo);
+//
+//    ASSERT_FALSE(syncStallInfo.empty());
+//    ASSERT_TRUE(syncStallInfo.hasImmediateStallReason()); // User should choose
+//}
 
 } //namespace
 

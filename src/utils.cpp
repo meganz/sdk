@@ -2920,18 +2920,6 @@ const char* syncPathProblemDebugString(PathProblem r)
     return "<out of range>";
 };
 
-
-//bool syncWaitReasonAlwaysNeedsUserIntervention(SyncWaitReason r)
-//{
-//    return r == SyncWaitReason::LocalFolderNotScannable ||
-//           r == SyncWaitReason::SymlinksNotSupported ||
-//           r == SyncWaitReason::SpecialFilesNotSupported ||
-//           r == SyncWaitReason::FolderMatchedAgainstFile ||
-//           r == SyncWaitReason::UnableToLoadIgnoreFile ||
-//           r == SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose ||
-//           r == SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose;
-//}
-
 UploadHandle UploadHandle::next()
 {
     do
