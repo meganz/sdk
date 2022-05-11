@@ -356,8 +356,9 @@ public:
     // add the counter for 'h' (it must not exist yet)
     void addCounter(const NodeHandle &h);
 
-    // create the counter and calculate its count recursively (it must not exist yet)
-    void calculateCounter(const Node &n);
+    // calculate the counter for 'node' and all its children recursively, updating their Node::mCounter (in RAM only)
+    // (note: this method is used only for migration of legacy DB to NOD DB)
+    NodeCounter calculateCounter(Node &node);
 
     // subtract the counter of 'n' (calculated from DB) from its first antecesor, which must be a rootnode
     void subtractFromRootCounter(const Node& n);
@@ -383,6 +384,9 @@ public:
 
     // write all nodes into DB (used for migration from legacy to NOD DB schema)
     void dumpNodes();
+
+    // calculate counters for all nodes (used for migration from legacy to NOD DB schema)
+    void calculateCounters();
 
     // This method only can be used in Megacli for testing purposes
     uint64_t getNumberNodesInRam() const;

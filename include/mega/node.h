@@ -216,7 +216,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     void faspec(string*);
 
-    NodeCounter subnodeCounts() const;
+    NodeCounter getCounter() const;
+    void setCounter(const NodeCounter &counter);
 
     // parent
     Node* parent = nullptr;
@@ -271,6 +272,9 @@ private:
     // node crypto keys (raw or cooked -
     // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
     string nodekeydata;
+
+    // keeps track of counts of files, folder, versions, storage and version's storage
+    NodeCounter mCounter;
 };
 
 inline const string& Node::nodekey() const

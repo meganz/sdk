@@ -277,7 +277,7 @@ bool Node::serialize(string* d)
     d->append((char*)&owner, MegaClient::USERHANDLE);
 
     // FIXME: use Serialize64
-    time_t ts = 0;  // we don't want to break backward compatibiltiy by changing the size (where m_time_t differs)
+    time_t ts = 0;  // we don't want to break backward compatibility by changing the size (where m_time_t differs)
     d->append((char*)&ts, sizeof(ts));
 
     ts = (time_t)ctime;
@@ -759,9 +759,14 @@ bool Node::applykey()
     return applied;
 }
 
-NodeCounter Node::subnodeCounts() const
+NodeCounter Node::getCounter() const
 {
-    return client->getTreeInfoFromNode(*this);
+    return mCounter;
+}
+
+void Node::setCounter(const NodeCounter &counter)
+{
+    mCounter = counter;
 }
 
 // returns whether node was moved

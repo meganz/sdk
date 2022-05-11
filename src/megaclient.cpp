@@ -430,13 +430,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                             n->inshare->user->sharing.insert(n->nodehandle);
                             NodeHandle nodeHandle;
                             nodeHandle.set6byte(n->nodehandle);
-                            // Avoid to add nested in shares. Also when loading nodes,
-                            // since node counters are calculated at NodeManager::loadNodes()
-                            // in a more efficient way (incrementally, with all nodes in memory)
-                            if (!n->parent && !mNodeManager.isLoadingNodes())
-                            {
-                                mNodeManager.calculateCounter(*n);
-                            }
                         }
 
                         if (notify)
@@ -12052,25 +12045,11 @@ bool MegaClient::fetchsc(DbTable* sctable)
         // Node counters for inshares are calculated at this method
         mergenewshares(0, true);
 
+        // calculate node counters for all nodes recursively (it initializes the Node::mCounter
+        mNodeManager.calculateCounters();
+
         // finally write nodes in DB
         mNodeManager.dumpNodes();
-
-        // Calculate counters for rootnodes
-        Node* rootNodeFile = mNodeManager.getNodeByHandle(rootnodes.files);
-        assert(rootNodeFile);
-        mNodeManager.calculateCounter(*rootNodeFile);
-
-        // If we are logged into folder link, inbox and rubbish nodes are undefined
-        if (!loggedIntoFolder())
-        {
-            Node* rootNodeInbox = mNodeManager.getNodeByHandle(rootnodes.inbox);
-            assert(rootNodeInbox);
-            mNodeManager.calculateCounter(*rootNodeInbox);
-
-            Node* rootNodeRubbish = mNodeManager.getNodeByHandle(rootnodes.rubbish);
-            assert(rootNodeRubbish);
-            mNodeManager.calculateCounter(*rootNodeRubbish);
-        }
 
         // and force commit, since old DB has been upgraded to new schema for NOD
         sctable->commit();
@@ -17250,6 +17229,8 @@ NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t
         nc.folders++;
     }
 
+    node->setCounter(nc);
+
     return nc;
 }
 
@@ -17734,18 +17715,6 @@ void NodeManager::notifyPurge()
 
         DBTableTransactionCommitter committer(mClient.tctable);
 
-        // Add counters for nested inshares if parent is going to be removed.
-        // If parent from nested inshare is removed, is due to upper inshare is removed
-        // and we have to calculate the node counter for nested inshare
-        node_vector inShares = getNodesWithInShares();
-        for (Node* node : inShares)
-        {
-            if (!node->changed.removed && node->parent && node->parent->changed.removed)
-            {
-                calculateCounter(*node);
-            }
-        }
-
         // check all notified nodes for removed status and purge
         for (auto n : mNodeNotify)
         {
@@ -17867,8 +17836,6 @@ void NodeManager::loadNodes()
         for (auto &node : rootnodes)
         {
             getChildren(node);
-            // calculate node counters based on DB queries
-            calculateCounter(*node);
         }
     }
 
@@ -18036,36 +18003,45 @@ void NodeManager::addCounter(const NodeHandle &h)
     assert(ret.second);
 }
 
-void NodeManager::calculateCounter(const Node& n)
+NodeCounter NodeManager::calculateCounter(Node& node)
 {
-    // while processing command f (fetchnodes), node counters for in-shares are first added
-    // at the end of fetch node proc result. Later, MegaClient::mergeNewShare call this method, but the
-    // counter is already there. Need to skip adding it again here for this case
-    if (mClient.fetchingnodes && !n.notified)
+    NodeCounter nc;
+
+    std::set<NodeHandle> children;
+    auto it = mNodeChildren.find(node.nodeHandle());
+    if (it != mNodeChildren.end())
     {
-        return;
+        children = it->second;
     }
 
-    NodeHandle h = n.nodeHandle();
-    assert(mNodeCounters.find(h) == mNodeCounters.end());
-    // this method is called only for rootnodes and inshares, where
-    // the parent node can be FOLDERNODE (for nested inshares), or TYPE_UNKNOWN
-    // (for inshares and rootnodes). The purpose of the type is to differentiate
-    // between rootnodes, folders and files, so we can pass the own node's type
-    mNodeCounters[h] = getNodeCounter(n);
-
-    // if a node counter is added for the parent of an existing one, then the
-    // counter of the child should be removed (ie. when a the parent of an
-    // existing in-share is also shared)
-    for (const auto& counter : mNodeCounters)
+    for (const NodeHandle &h : children)
     {
-        NodeHandle ancestor = getFirstAncestor(counter.first);
-        if (counter.first != ancestor && ancestor == n.nodeHandle())
+        Node *child = getNodeInRAM(h);  assert(child);
+        nc += calculateCounter(*child);
+    }
+
+    if (node.type == FILENODE)
+    {
+        bool isVersion = (node.parent && node.parent->type == FILENODE);
+        if (isVersion)
         {
-            mNodeCounters.erase(counter.first);
-            break;
+            nc.versions++;
+            nc.versionStorage += node.size;
+        }
+        else
+        {
+            nc.files++;
+            nc.storage += node.size;
         }
     }
+    else if (node.type == FOLDERNODE)
+    {
+        nc.folders++;
+    }
+
+    node.setCounter(nc);
+
+    return nc;
 }
 
 void NodeManager::subtractFromRootCounter(const Node& n)
@@ -18202,6 +18178,32 @@ void NodeManager::dumpNodes()
     for (auto &it : mNodes)
     {
         mTable->put(it.second.get());
+    }
+}
+
+void NodeManager::calculateCounters()
+{
+    node_vector rootnodes;
+    rootnodes.push_back(getNodeByHandle(mClient.rootnodes.files));
+
+    // if we are logged into folder link, inbox and rubbish nodes are undefined
+    // and there are no incoming shares
+    if (!mClient.loggedIntoFolder())
+    {
+        rootnodes.push_back(getNodeByHandle(mClient.rootnodes.inbox));
+        rootnodes.push_back(getNodeByHandle(mClient.rootnodes.rubbish));
+
+        node_vector inshares = mClient.getInShares();
+        for (auto inshare : inshares)
+        {
+            rootnodes.push_back(inshare);
+        }
+    }
+
+    // calculate counters for all trees, recursively
+    for (auto &node : rootnodes)
+    {
+        calculateCounter(*node);
     }
 }
 
