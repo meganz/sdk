@@ -505,6 +505,23 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
     //else -> It will be updated at notifypurge
 }
 
+node_vector MegaClient::getInShares()
+{
+    node_vector nodes;
+    for (auto &it : users)
+    {
+        for (auto &share : it.second.sharing)
+        {
+            Node *n = nodebyhandle(share);
+            if (n && !n->parent)    // top-level inshare have parent==nullptr
+            {
+                nodes.push_back(n);
+            }
+        }
+    }
+
+    return nodes;
+}
 
 bool MegaClient::setlang(string *code)
 {

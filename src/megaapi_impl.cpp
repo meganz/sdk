@@ -10743,46 +10743,20 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser, int order)
 
 MegaNodeList* MegaApiImpl::getInShares(int order)
 {
-    sdkMutex.lock();
+    SdkMutexGuard lock(sdkMutex);
 
-    node_vector nodes;
-    for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
-    {
-        Node *n;
-        User *user = &(it->second);
-        for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
-        {
-            if ((n = client->nodebyhandle(*sit)) && !n->parent)
-            {
-                nodes.push_back(n);
-            }
-        }
-    }
+    node_vector nodes = client->getInShares();
 
     sortByComparatorFunction(nodes, order, *client);
 
-    MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
-    sdkMutex.unlock();
-    return nodeList;
+    return new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 }
 
 MegaShareList* MegaApiImpl::getInSharesList(int order)
 {
-    sdkMutex.lock();
+    SdkMutexGuard lock(sdkMutex);
 
-    node_vector nodes;
-    for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
-    {
-        Node *n;
-        User *user = &(it->second);
-        for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
-        {
-            if ((n = client->nodebyhandle(*sit)) && !n->parent)
-            {
-                nodes.push_back(n);
-            }
-        }
-    }
+    node_vector nodes = client->getInShares();
 
     sortByComparatorFunction(nodes, order, *client);
 

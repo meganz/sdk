@@ -1561,6 +1561,9 @@ public:
     void mergenewshares(bool notify, bool skipWriteInDb = false);
     void mergenewshare(NewShare *s, bool notify, bool skipWriteInDb);    // merge only the given share
 
+    // return the list of incoming shared folder (only top level, nested inshares are skipped)
+    node_vector getInShares();
+
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
     BackoffTimerGroupTracker transferRetryBackoffs[2];
