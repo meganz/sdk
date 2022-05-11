@@ -11894,7 +11894,7 @@ long long MegaApiImpl::getSize(MegaNode *n)
         return 0;
     }
 
-    NodeCounter nodeCounter = client->getTreeInfoFromNode(*node);
+    NodeCounter nodeCounter = node->getCounter();
     sdkMutex.unlock();
 
     return nodeCounter.storage;
@@ -22492,7 +22492,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            NodeCounter nc = client->getTreeInfoFromNode(*node);
+            NodeCounter nc = node->getCounter();
             std::unique_ptr<MegaFolderInfo> folderInfo = make_unique<MegaFolderInfoPrivate>((int)nc.files, (int)nc.folders, (int)nc.versions, nc.storage, nc.versionStorage);
             request->setMegaFolderInfo(folderInfo.get());
 

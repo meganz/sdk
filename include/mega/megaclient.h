@@ -347,9 +347,6 @@ public:
     // return the counter for 'h' if available in memory. Otherwise, nullptr
     const NodeCounter* getCounter(const NodeHandle& h) const;
 
-    // return the counter for 'h' (for other than rootnodes, it requires DB query)
-    NodeCounter getCounterForSubtree(const Node& n);
-
     // return the counter for all root nodes (cloud+inbox+rubbish), without DB query
     NodeCounter getCounterOfRootNodes();
 
@@ -1118,9 +1115,6 @@ public:
 
     // Get number of children from a node
     size_t getNumberOfChildren(NodeHandle parentHandle);
-
-    // Get sub tree info from a node
-    NodeCounter getTreeInfoFromNode(const Node& node);
 
     // use HTTPS for all communications
     bool usehttps;

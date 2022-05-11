@@ -16304,11 +16304,6 @@ size_t MegaClient::getNumberOfChildren(NodeHandle parentHandle)
     return mNodeManager.getNumberOfChildrenFromNode(parentHandle);
 }
 
-NodeCounter MegaClient::getTreeInfoFromNode(const Node& node)
-{
-    return mNodeManager.getCounterForSubtree(node);
-}
-
 bool MegaClient::loggedIntoFolder() const
 {
     return !ISUNDEF(mFolderLink.mPublicHandle);
@@ -18055,17 +18050,6 @@ void NodeManager::subtractFromRootCounter(const Node& n)
     }
 }
 
-NodeCounter NodeManager::getCounterForSubtree(const Node& n)
-{
-    auto it = mNodeCounters.find(n.nodeHandle());
-    if (it != mNodeCounters.end())
-    {
-        return it->second;
-    }
-
-    return getNodeCounter(n);
-}
-
 void NodeManager::updateCounter(const Node& n, const Node* oldParent)
 {
     const Node* oldAncestor = oldParent ? oldParent->firstancestor() : nullptr;
@@ -18105,7 +18089,7 @@ void NodeManager::updateCounter(const Node& n, const Node* oldParent)
         if (itOld != mNodeCounters.end())
         {
             // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
-            nc = getCounterForSubtree(n);
+            nc = n.getCounter();
             itOld->second -= nc;
             subTreeCalculated = true;
         }
@@ -18113,7 +18097,7 @@ void NodeManager::updateCounter(const Node& n, const Node* oldParent)
         auto itNew = mNodeCounters.find(nah);
         if (itNew != mNodeCounters.end())
         {
-            itNew->second += subTreeCalculated ? nc : getCounterForSubtree(n);
+            itNew->second += subTreeCalculated ? nc : n.getCounter();
         }
     }
     // else -> movement inside same subtree, nothing to update
