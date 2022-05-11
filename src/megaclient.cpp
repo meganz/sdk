@@ -17949,6 +17949,8 @@ bool NodeManager::hasVersion(NodeHandle nodeHandle)
     return false;
 }
 
+// TODO: when all nodes are read from API (upon new session), this method
+// should calculate them and write to DB for all nodes
 void NodeManager::initializeCounters()
 {
     node_vector rootNodes = getRootNodesWithoutNestedInshares();
@@ -18039,6 +18041,8 @@ NodeCounter NodeManager::calculateCounter(Node& node)
     return nc;
 }
 
+// TODO: it should update this `n` and all its parents to root, adding
+// them to the notification queue (to eventually write to disk)
 void NodeManager::subtractFromRootCounter(const Node& n)
 {
     NodeHandle firstValidAntecestor = getFirstAncestor(n.nodeHandle());
@@ -18050,6 +18054,9 @@ void NodeManager::subtractFromRootCounter(const Node& n)
     }
 }
 
+// TODO: it should update both paths to root, `n` and `oldParent`. Both should be
+// loaded and can be updated in the Node directly, adding them to the notification
+// queue to be written into DB eventually
 void NodeManager::updateCounter(const Node& n, const Node* oldParent)
 {
     const Node* oldAncestor = oldParent ? oldParent->firstancestor() : nullptr;
