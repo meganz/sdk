@@ -3171,7 +3171,6 @@ protected:
 #endif
 
         void backupput_result(const Error&, handle backupId) override;
-        void backupremove_result(const Error&, handle) override;
 
 protected:
         // suggest reload due to possible race condition with other clients

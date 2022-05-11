@@ -3063,19 +3063,15 @@ void exec_timelocal(autocomplete::ACState& s)
 // if `moveOrDelete` is true, the `backupRootNode` will be moved to `targetDest`. If the latter were `nullptr`, then it will be deleted
 void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool moveOrDelete)
 {
-    // remove backup
-    client->reqs.add(new CommandBackupRemove(client, backupId)); // the following should be done in a completion though
-
-    // update node's sds attribute
+    // validate node's sds attribute
     auto sdsBkps = backupRootNode->getSdsBackups();
     assert(std::find_if(sdsBkps.begin(), sdsBkps.end(), [&backupId](const pair<handle, int>& n)
         {
             return n.first == backupId && n.second == CommandBackupPut::DELETED;
         }) == sdsBkps.end());
-    sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
-    const string& sdsValue = Node::toSdsString(sdsBkps);
 
-    CommandSetAttr::Completion attrCompl = [=](NodeHandle nh, Error e)
+    // prepare to update sds node attribute
+    CommandSetAttr::Completion attrCompl = [backupRootNode, targetDest, moveOrDelete](NodeHandle nh, Error e)
     {
         if (e != API_OK)
         {
@@ -3118,11 +3114,27 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
         }
     };
 
-    auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), 0, nullptr, move(attrCompl), true);
-    if (e != API_OK)
-    {
-        cout << "failed to set new node attributes (e = " << e << ')' << endl;
-    }
+    // remove backup
+    client->reqs.add(new CommandBackupRemove(client, backupId,
+        [backupId, backupRootNode, sdsBkps, attrCompl](const Error& cbrErr) mutable
+        {
+            if (cbrErr != API_OK)
+            {
+                cout << "Backup Centre - Failed to remove backup (" << error(cbrErr) << ": " << errorstring(cbrErr) << ')' << endl;
+                return;
+            }
+
+            cout << "Backup Centre - backup removed" << endl;
+
+            sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
+            const string& sdsValue = Node::toSdsString(sdsBkps);
+
+            auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), 0, nullptr, move(attrCompl), true);
+            if (e != API_OK)
+            {
+                cout << "Backup Centre - Failed to set sds node attributes (" << e << ": " << errorstring(e) << ')' << endl;
+            }
+        }));
 }
 
 void exec_backupcentre(autocomplete::ACState& s)
@@ -8543,18 +8555,6 @@ void DemoApp::dismissbanner_result(error e)
     }
 }
 
-void DemoApp::backupremove_result(const Error &e, handle backupId)
-{
-    if (e != API_OK)
-    {
-        cout << "Removal of backup " << toHandle(backupId) << " failed: " << errorstring(e) <<endl;
-    }
-    else
-    {
-        cout << "Backup " << toHandle(backupId) << " removed successfully" << endl;
-    }
-}
-
 #ifndef NO_READLINE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
@@ -9504,8 +9504,6 @@ void exec_syncremove(autocomplete::ACState& s)
     Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
 
     // Try and remove the config.
-    bool found = false;
-
     handle bkpDest = UNDEF;
     if (s.words.size() > 3)
     {
@@ -9514,23 +9512,41 @@ void exec_syncremove(autocomplete::ACState& s)
             bkpDest = bkpDestNode->nodehandle;
     }
 
-    client->syncs.removeSelectedSyncs(
-      [&](SyncConfig& config, Sync*)
-      {
-          auto matched = config.mBackupId == backupId;
+    error err = client->syncs.removeSelectedSync(
+        [&](SyncConfig& config, Sync*)
+        {
+            auto matched = config.mBackupId == backupId;
 
-          found |= matched;
+            return matched;
+        },
+        bkpDest, false,
+            [](Error e)
+        {
+            if (e == API_OK)
+            {
+                cout << "Backup Centre - backup removed" << endl;
+            }
+            else
+            {
+                cout << "Backup Centre - Failed to remove backup (" << error(e) << ": " << errorstring(e) << ')' << endl;
+            }
+        });
 
-          return matched;
-      },
-        bkpDest);
-
-    if (!found)
+    switch (err)
     {
+    case API_ENOENT:
         cerr << "No sync config exists with the backupId "
-             << Base64Str<sizeof(handle)>(backupId)
-             << endl;
-        return;
+            << Base64Str<sizeof(handle)>(backupId)
+            << endl;
+
+    case API_OK:
+        break;
+
+    default:
+        cerr << "Removing sync with backupId "
+            << Base64Str<sizeof(handle)>(backupId)
+            << " failed (" << err << ": " << errorstring(err) << ')'
+            << endl;
     }
 }
 
