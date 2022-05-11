@@ -11950,10 +11950,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 LOG_info << "Loading nodes from old cache";
                 if ((n = mNodeManager.unserializeNode(&data, true, true)))
                 {
-                    if (!n)
-                    {
-                        return false;
-                    }
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
 
@@ -12421,9 +12417,6 @@ void MegaClient::fetchnodes(bool nocache)
     }
     else if (!fetchingnodes)
     {
-        // It's required here??
-        app->reload("Node inconsistency");
-
         fnstats.mode = FetchNodesStats::MODE_API;
         fnstats.cache = nocache ? FetchNodesStats::API_NO_CACHE : FetchNodesStats::API_CACHE;
         fetchingnodes = true;
@@ -17218,9 +17211,9 @@ void NodeManager::loadTreeRecursively(const Node* node)
     }
 }
 
-Node *NodeManager::getNodeFromBlob(const std::string *nodeSerialized, bool decrypted)
+Node *NodeManager::getNodeFromBlob(const std::string* serializedNode, bool decrypted)
 {
-    Node* node = unserializeNode(nodeSerialized, decrypted);
+    Node* node = unserializeNode(serializedNode, decrypted);
     if (!node)
     {
         LOG_err << "Error unserializing a node. Reloading account";

@@ -331,6 +331,7 @@ public:
     // Load nodes from DB, if mKeepAllNodesInMemory is active load all nodes, in other case,
     // load rootnodes (ROOTNODE, INCOMING, RUBBISH) and children from ROOTNODE.
     // Futhermore, calculate mNodeCounters
+    // return true if success, false if error
     bool loadNodes();
 
     // ===--- Node Counters ---===
@@ -441,7 +442,8 @@ private:
     // Load nodes recursively and update nodeCounters
     void loadTreeRecursively(const Node *node);
 
-    Node* getNodeFromBlob(const string*nodeSerialized, bool decrypted = true);
+    // returns nullptr if there are unserialization errors. Also triggers a full reload (fetchnodes)
+    Node* getNodeFromBlob(const string* serializedNode, bool decrypted = true);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
@@ -938,8 +940,6 @@ public:
 
     // free all state information
     void locallogout(bool removecaches, bool keepSyncsConfigFile);
-
-    void reloadAccount(bool nocache);
 
     // SDK version
     const char* version();
