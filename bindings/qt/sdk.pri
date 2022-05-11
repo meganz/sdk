@@ -1,8 +1,6 @@
 
 MEGASDK_BASE_PATH = $$PWD/../../
 
-CONFIG += object_parallel_to_source
-
 # Define MEGA_USE_C_ARES by default. Allow disabling c-ares code
 # by defining env var MEGA_USE_C_ARES=no before running qmake.
 ENV_MEGA_USE_C_ARES=$$(MEGA_USE_C_ARES)
@@ -741,11 +739,15 @@ unix:!macx {
 }
 
 macx {
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/osx
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
+   # recreate source folder tree for object files. Needed to build osx/fs.cpp and posix/fs.cpp,
+   # otherwise all obj files are placed into same directory, causing overwrite.
+   CONFIG += object_parallel_to_source
 
-   SOURCES += src/osx/fs.cpp 
-   HEADERS += include/mega/osx/megafs.h
+   HEADERS += $$MEGASDK_BASE_PATH/include/mega/osx/megafs.h
+   SOURCES += $$MEGASDK_BASE_PATH/src/osx/fs.cpp
+
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/osx
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix   
 
    OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
 

@@ -33,11 +33,13 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
-HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, std::unique_ptr<string> cdata)
-    : data(move(cdata))
+HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, size_t size_only, std::unique_ptr<string> cdata, bool getIP, HttpReqCommandPutFA::Cb &&completion)
+    : mCompletion(std::move(completion)), data(std::move(cdata))
 {
+    assert(!!size_only ^ !!data);   // get URL or upload data, not both
+    assert(!!mCompletion ^ !!data);  // completion and upload are incompatible
     cmd("ufa");
-    arg("s", data->size());
+    arg("s", data ? data->size() : size_only);
 
     if (cth.isNodeHandle())
     {
@@ -53,12 +55,41 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, b
         arg("ssl", 2);
     }
 
+    if (getIP)
+    {
+        arg("v", 3);
+    }
+
     th = cth;
     type = ctype;
 
     binary = true;
 
     tag = ctag;
+
+    if (!mCompletion)
+    {
+        mCompletion = [this](Error e, const std::string & /*url*/, const vector<std::string> & /*ips*/)
+        {
+            if (!data || data->empty())
+            {
+                e = API_EARGS;
+                LOG_err << "Data object is " << (!data ? "nullptr" : "empty");
+            }
+
+            if (e == API_OK)
+            {
+                LOG_debug << "Sending file attribute data";
+                progressreported = 0;
+                HttpReq::type = REQ_BINARY;
+                post(client, data->data(), static_cast<unsigned>(data->size()));
+            }
+            else
+            {
+                client->app->putfa_result(th.nodeHandle().as8byte(), type, e);
+            }
+        };
+    }
 }
 
 bool HttpReqCommandPutFA::procresult(Result r)
@@ -91,13 +122,14 @@ bool HttpReqCommandPutFA::procresult(Result r)
             }
 
             status = REQ_SUCCESS;
-            client->app->putfa_result(th.nodeHandle().as8byte(), type, r.errorOrOK());
+            mCompletion(r.errorOrOK(), {}, {});
         }
         return true;
     }
     else
     {
         const char* p = NULL;
+        std::vector<string> ips;
 
         for (;;)
         {
@@ -107,6 +139,10 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     p = client->json.getvalue();
                     break;
 
+                case MAKENAMEID2('i', 'p'):
+                    loadIpsFromJson(ips);
+                    break;
+
                 case EOO:
                     if (!p)
                     {
@@ -114,19 +150,26 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     }
                     else
                     {
-                        LOG_debug << "Sending file attribute data";
                         JSON::copystring(&posturl, p);
-                        progressreported = 0;
-                        HttpReq::type = REQ_BINARY;
-                        post(client, data->data(), unsigned(data->size()));
+
+                        // cache resolved URLs if received
+                        std::vector<string> urls(1, posturl);
+                        if(!cacheresolvedurls(urls, std::move(ips)))
+                        {
+                            LOG_err << "Unpaired IPs received for URLs in `ufa` command. URLs: " << urls.size() << " IPs: " << ips.size();
+                        }
+
+                        mCompletion(API_OK, posturl, ips);
+
+                        return true;
                     }
-                    return true;
+                    break;
 
                 default:
                     if (!client->json.storeobject())
                     {
                         status = REQ_SUCCESS;
-                        client->app->putfa_result(th.nodeHandle().as8byte(), type, API_EINTERNAL);
+                        mCompletion(API_EINTERNAL, {}, {});
                         return false;
                     }
             }
@@ -308,7 +351,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
         arg("ssl", 2);
     }
 
-    arg("v", 2);
+    arg("v", 3);
     arg("s", tslot->fa->size);
     arg("ms", ms);
 
@@ -390,6 +433,7 @@ bool CommandPutFile::procresult(Result r)
     }
 
     std::vector<std::string> tempurls;
+    std::vector<std::string> tempips;
     for (;;)
     {
         switch (client->json.getnameid())
@@ -399,11 +443,19 @@ bool CommandPutFile::procresult(Result r)
                 client->json.storeobject(canceled ? NULL : &tempurls.back());
                 break;
 
+            case MAKENAMEID2('i', 'p'):
+                loadIpsFromJson(tempips);
+                break;
             case EOO:
                 if (canceled) return true;
 
                 if (tempurls.size() == 1)
                 {
+                    if(!cacheresolvedurls(tempurls, std::move(tempips)))
+                    {
+                        LOG_err << "Unpaired IPs received for URLs in `u` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
+                    }
+
                     tslot->transfer->tempurls = tempurls;
                     tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
@@ -474,19 +526,7 @@ bool CommandGetPutUrl::procresult(Result r)
                 client->json.storeobject(canceled ? nullptr : &url);
                 break;
             case MAKENAMEID2('i', 'p'):
-                if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
-                {
-                    for (;;)
-                    {
-                        std::string ti;
-                        if (!client->json.storeobject(&ti))
-                        {
-                            break;
-                        }
-                        ips.push_back(ti);
-                    }
-                    client->json.leavearray();
-                }
+                loadIpsFromJson(ips);
                 break;
             case EOO:
                 if (canceled) return true;
@@ -740,8 +780,8 @@ bool CommandGetFile::procresult(Result r)
     string fileattrstring;
     string filenamestring;
     string filefingerprint;
-    std::vector<string> tempurls;
-    std::vector<string> tempips;
+    vector<string> tempurls;
+    vector<string> tempips;
 
     for (;;)
     {
@@ -772,21 +812,9 @@ bool CommandGetFile::procresult(Result r)
                 e.setErrorCode(API_OK);
                 break;
 
-        case MAKENAMEID2('i', 'p'):
-            if (client->json.enterarray())   // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
-            {
-                for (;;)
-                {
-                    std::string ti;
-                    if (!client->json.storeobject(&ti))
-                    {
-                        break;
-                    }
-                    tempips.push_back(ti);
-                }
-                client->json.leavearray();
-            }
-            break;
+            case MAKENAMEID2('i', 'p'):
+                loadIpsFromJson(tempips);
+                break;
 
             case 's':
                 s = client->json.getint();
@@ -822,15 +850,8 @@ bool CommandGetFile::procresult(Result r)
                 // thus we can use them before going out of scope
                 std::shared_ptr<void> deferThis(nullptr, [this, &tempurls, &tempips](...)
                 {
-                    // cache resolved URLs if received
-                    if (tempurls.size() * 2 == tempips.size())
+                    if(!cacheresolvedurls(tempurls, std::move(tempips)))
                     {
-                        client->httpio->cacheresolvedurls(tempurls, move(tempips));
-                    }
-                    else
-                    {
-                        assert(false);
-                        client->sendevent(99456, "Unpaired IPs received for URLs in `g` command");
                         LOG_err << "Unpaired IPs received for URLs in `g` command. URLs: " << tempurls.size() << " IPs: " << tempips.size();
                     }
                 });
@@ -2107,7 +2128,7 @@ bool CommandSetShare::procresult(Result r)
     }
 }
 
-CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
+CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, Completion completion)
 {
     mV3 = false;
     cmd("upc");
@@ -2148,6 +2169,9 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
     tag = client->reqtag;
     this->action = action;
     this->temail = temail;
+
+    // Assume we've been passed a completion function.
+    mCompletion = std::move(completion);
 }
 
 bool CommandSetPendingContact::procresult(Result r)
@@ -2196,7 +2220,7 @@ bool CommandSetPendingContact::procresult(Result r)
             }
         }
 
-        client->app->setpcr_result(pcrhandle, r.errorOrOK(), this->action);
+        doComplete(pcrhandle, r.errorOrOK(), this->action);
         return true;
     }
 
@@ -2234,14 +2258,14 @@ bool CommandSetPendingContact::procresult(Result r)
                 if (ISUNDEF(p))
                 {
                     LOG_err << "Error in CommandSetPendingContact. Undefined handle";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    doComplete(UNDEF, API_EINTERNAL, this->action);
                     return true;
                 }
 
                 if (action != OPCA_ADD || !eValue || !m || ts == 0 || uts == 0)
                 {
                     LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    doComplete(UNDEF, API_EINTERNAL, this->action);
                     return true;
                 }
 
@@ -2249,21 +2273,29 @@ bool CommandSetPendingContact::procresult(Result r)
                 client->mappcr(p, unique_ptr<PendingContactRequest>(pcr));
 
                 client->notifypcr(pcr);
-                client->app->setpcr_result(p, API_OK, this->action);
+                doComplete(p, API_OK, this->action);
                 return true;
 
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Error in CommandSetPendingContact. Parse error";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    doComplete(UNDEF, API_EINTERNAL, this->action);
                     return false;
                 }
         }
     }
 }
 
-CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action)
+void CommandSetPendingContact::doComplete(handle handle, error result, opcactions_t actions)
+{
+    if (!mCompletion)
+        return client->app->setpcr_result(handle, result, actions);
+
+    mCompletion(handle, result, actions);
+}
+
+CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action, Completion completion)
 {
     cmd("upca");
 
@@ -2284,12 +2316,25 @@ CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, han
 
     tag = client->reqtag;
     this->action = action;
+
+    // Assume we've been provided a completion function.
+    mCompletion = std::move(completion);
 }
 
 bool CommandUpdatePendingContact::procresult(Result r)
 {
-    client->app->updatepcr_result(r.errorResultOrActionpacket(), this->action);
+    doComplete(r.errorResultOrActionpacket(), this->action);
+
     return r.wasErrorOrActionpacket();
+}
+
+
+void CommandUpdatePendingContact::doComplete(error result, ipcactions_t actions)
+{
+    if (!mCompletion)
+        return client->app->updatepcr_result(result, actions);
+
+    mCompletion(result, actions);
 }
 
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
@@ -2819,7 +2864,7 @@ bool CommandPurchaseCheckout::procresult(Result r)
     }
 }
 
-CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show)
+CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show, Completion completion)
 {
     mV3 = false;
 
@@ -2831,6 +2876,9 @@ CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, vi
     arg("l", (int)show);
 
     tag = client->reqtag;
+
+    // Assume we've been given a completion function.
+    mCompletion = std::move(completion);
 }
 
 bool CommandRemoveContact::procresult(Result r)
@@ -2846,12 +2894,20 @@ bool CommandRemoveContact::procresult(Result r)
             u->show = v;
         }
 
-        client->app->removecontact_result(API_OK);
+        doComplete(API_OK);
         return true;
     }
 
-    client->app->removecontact_result(r.errorOrOK());
+    doComplete(r.errorOrOK());
     return r.wasErrorOrOK();
+}
+
+void CommandRemoveContact::doComplete(error result)
+{
+    if (!mCompletion)
+        return client->app->removecontact_result(result);
+
+    mCompletion(result);
 }
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)
@@ -3774,6 +3830,11 @@ bool CommandPubKeyRequest::procresult(Result r)
                     break;
             }
         }
+    }
+
+    if (!u) // user has cancelled the account, or HIDDEN user was removed
+    {
+        return true;
     }
 
     // satisfy all pending PubKeyAction requests for this user
@@ -5533,22 +5594,6 @@ bool CommandWhyAmIblocked::procresult(Result r)
 	return false;
 }
 
-CommandSendSignupLink::CommandSendSignupLink(MegaClient* client, const char* email, const char* name, byte* c)
-{
-    cmd("uc");
-    arg("c", c, 2 * SymmCipher::KEYLENGTH);
-    arg("n", (byte*)name, int(strlen(name)));
-    arg("m", (byte*)email, int(strlen(email)));
-
-    tag = client->reqtag;
-}
-
-bool CommandSendSignupLink::procresult(Result r)
-{
-    client->app->sendsignuplink_result(r.errorOrOK());
-    return r.wasErrorOrOK();
-}
-
 CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name)
 {
     cmd("uc2");
@@ -5575,55 +5620,6 @@ bool CommandSendSignupLink2::procresult(Result r)
 {
     client->app->sendsignuplink_result(r.errorOrOK());
     return r.wasErrorOrOK();
-}
-
-CommandQuerySignupLink::CommandQuerySignupLink(MegaClient* client, const byte* code, unsigned len)
-{
-    confirmcode.assign((char*)code, len);
-
-    cmd("ud");
-    arg("c", code, len);
-
-    tag = client->reqtag;
-}
-
-bool CommandQuerySignupLink::procresult(Result r)
-{
-    string name;
-    string email;
-    handle uh;
-    const char* kc;
-    const char* pwcheck;
-    string namebuf, emailbuf;
-    byte pwcheckbuf[SymmCipher::KEYLENGTH];
-    byte kcbuf[SymmCipher::KEYLENGTH];
-
-    if (r.wasErrorOrOK())
-    {
-        client->app->querysignuplink_result(r.errorOrOK());
-        return true;
-    }
-
-    assert(r.hasJsonArray());
-    if (client->json.storebinary(&name) && client->json.storebinary(&email)
-        && (uh = client->json.gethandle(MegaClient::USERHANDLE))
-        && (kc = client->json.getvalue()) && (pwcheck = client->json.getvalue()))
-    {
-        if (!ISUNDEF(uh)
-            && (Base64::atob(pwcheck, pwcheckbuf, sizeof pwcheckbuf) == sizeof pwcheckbuf)
-            && (Base64::atob(kc, kcbuf, sizeof kcbuf) == sizeof kcbuf))
-        {
-            client->app->querysignuplink_result(uh, name.c_str(),
-                                                       email.c_str(),
-                                                       pwcheckbuf, kcbuf,
-                                                       (const byte*)confirmcode.data(),
-                                                       confirmcode.size());
-            return true;
-        }
-    }
-
-    client->app->querysignuplink_result(API_EINTERNAL);
-	return false;
 }
 
 CommandConfirmSignupLink2::CommandConfirmSignupLink2(MegaClient* client,
@@ -5668,41 +5664,6 @@ bool CommandConfirmSignupLink2::procresult(Result r)
         client->app->confirmsignuplink2_result(UNDEF, NULL, NULL, API_EINTERNAL);
         return false;
     }
-}
-
-CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
-                                                   const byte* code,
-                                                   unsigned len,
-                                                   uint64_t emailhash)
-{
-    mStringIsNotSeqtag = true;
-
-    cmd("up");
-    arg("c", code, len);
-    arg("uh", (byte*)&emailhash, sizeof emailhash);
-
-    tag = client->reqtag;
-}
-
-bool CommandConfirmSignupLink::procresult(Result r)
-{
-    assert(r.hasJsonItem() || r.wasStrictlyError());
-
-    if (r.hasJsonItem())
-    {
-        client->json.storeobject();
-        client->ephemeralSession = false;
-        client->ephemeralSessionPlusPlus = false;
-        client->app->confirmsignuplink_result(API_OK);
-        return true;
-    }
-
-    client->json.storeobject();
-
-    client->ephemeralSession = false;
-    client->ephemeralSessionPlusPlus = false;
-    client->app->confirmsignuplink_result(r.errorOrOK());
-    return r.wasStrictlyError();
 }
 
 CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,

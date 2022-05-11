@@ -826,7 +826,7 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
-
+#ifdef ENABLE_SYNC
 fsfp_t FileSystemAccess::fsFingerprint(const LocalPath&) const
 {
     return 0;
@@ -836,6 +836,7 @@ bool FileSystemAccess::fsStableIDs(const LocalPath&) const
 {
     return true;
 }
+#endif
 
 handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow)
 {
