@@ -331,7 +331,7 @@ public:
     // Load nodes from DB, if mKeepAllNodesInMemory is active load all nodes, in other case,
     // load rootnodes (ROOTNODE, INCOMING, RUBBISH) and children from ROOTNODE.
     // Futhermore, calculate mNodeCounters
-    void loadNodes();
+    bool loadNodes();
 
     // ===--- Node Counters ---===
 
