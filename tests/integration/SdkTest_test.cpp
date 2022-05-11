@@ -2761,7 +2761,9 @@ TEST_F(SdkTest, SdkTestShares2)
     static constexpr char fileByUser2[] = "by_user_2.txt";
     createFile(fileByUser2, false);   // not a large file since don't need to test transfers here
     MegaHandle hfile2U2 = 0;
+    mApi[1].nodeUpdated = false;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(1, &hfile2U2, fileByUser2, std::unique_ptr<MegaNode>{megaApi[1]->getNodeByHandle(hfolder2)}.get())) << "Cannot upload a second test file";
+    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
 
 
     // --- Check that User1 has received the change ---
