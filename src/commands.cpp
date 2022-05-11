@@ -2145,7 +2145,7 @@ bool CommandSetShare::procresult(Result r)
     }
 }
 
-CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
+CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, Completion completion)
 {
     cmd("upc");
 
@@ -2185,6 +2185,9 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
     tag = client->reqtag;
     this->action = action;
     this->temail = temail;
+
+    // Assume we've been passed a completion function.
+    mCompletion = std::move(completion);
 }
 
 bool CommandSetPendingContact::procresult(Result r)
@@ -2233,7 +2236,7 @@ bool CommandSetPendingContact::procresult(Result r)
             }
         }
 
-        client->app->setpcr_result(pcrhandle, r.errorOrOK(), this->action);
+        doComplete(pcrhandle, r.errorOrOK(), this->action);
         return true;
     }
 
@@ -2271,14 +2274,14 @@ bool CommandSetPendingContact::procresult(Result r)
                 if (ISUNDEF(p))
                 {
                     LOG_err << "Error in CommandSetPendingContact. Undefined handle";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    doComplete(UNDEF, API_EINTERNAL, this->action);
                     return true;
                 }
 
                 if (action != OPCA_ADD || !eValue || !m || ts == 0 || uts == 0)
                 {
                     LOG_err << "Error in CommandSetPendingContact. Wrong parameters";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    doComplete(UNDEF, API_EINTERNAL, this->action);
                     return true;
                 }
 
@@ -2286,21 +2289,29 @@ bool CommandSetPendingContact::procresult(Result r)
                 client->mappcr(p, unique_ptr<PendingContactRequest>(pcr));
 
                 client->notifypcr(pcr);
-                client->app->setpcr_result(p, API_OK, this->action);
+                doComplete(p, API_OK, this->action);
                 return true;
 
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Error in CommandSetPendingContact. Parse error";
-                    client->app->setpcr_result(UNDEF, API_EINTERNAL, this->action);
+                    doComplete(UNDEF, API_EINTERNAL, this->action);
                     return false;
                 }
         }
     }
 }
 
-CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action)
+void CommandSetPendingContact::doComplete(handle handle, error result, opcactions_t actions)
+{
+    if (!mCompletion)
+        return client->app->setpcr_result(handle, result, actions);
+
+    mCompletion(handle, result, actions);
+}
+
+CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action, Completion completion)
 {
     cmd("upca");
 
@@ -2321,12 +2332,25 @@ CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, han
 
     tag = client->reqtag;
     this->action = action;
+
+    // Assume we've been provided a completion function.
+    mCompletion = std::move(completion);
 }
 
 bool CommandUpdatePendingContact::procresult(Result r)
 {
-    client->app->updatepcr_result(r.errorOrOK(), this->action);
+    doComplete(r.errorOrOK(), this->action);
+
     return r.wasErrorOrOK();
+}
+
+
+void CommandUpdatePendingContact::doComplete(error result, ipcactions_t actions)
+{
+    if (!mCompletion)
+        return client->app->updatepcr_result(result, actions);
+
+    mCompletion(result, actions);
 }
 
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
@@ -2856,7 +2880,7 @@ bool CommandPurchaseCheckout::procresult(Result r)
     }
 }
 
-CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show)
+CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show, Completion completion)
 {
     this->email = m ? m : "";
     this->v = show;
@@ -2866,6 +2890,9 @@ CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, vi
     arg("l", (int)show);
 
     tag = client->reqtag;
+
+    // Assume we've been given a completion function.
+    mCompletion = std::move(completion);
 }
 
 bool CommandRemoveContact::procresult(Result r)
@@ -2881,12 +2908,20 @@ bool CommandRemoveContact::procresult(Result r)
             u->show = v;
         }
 
-        client->app->removecontact_result(API_OK);
+        doComplete(API_OK);
         return true;
     }
 
-    client->app->removecontact_result(r.errorOrOK());
+    doComplete(r.errorOrOK());
     return r.wasErrorOrOK();
+}
+
+void CommandRemoveContact::doComplete(error result)
+{
+    if (!mCompletion)
+        return client->app->removecontact_result(result);
+
+    mCompletion(result);
 }
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)
