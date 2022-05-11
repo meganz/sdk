@@ -807,7 +807,7 @@ bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void
     return result;
 }
 
-void SdkTest::createFile(string filename, bool largeFile)
+bool SdkTest::createFile(string filename, bool largeFile)
 {
     fs::path p = fs::u8path(filename);
     std::ofstream file(p,ios::out);
@@ -829,6 +829,8 @@ void SdkTest::createFile(string filename, bool largeFile)
 
         file.close();
     }
+
+    return file.good();
 }
 
 int64_t SdkTest::getFilesize(string filename)
@@ -845,7 +847,6 @@ void SdkTest::deleteFile(string filename)
     std::error_code ignoredEc;
     fs::remove(p, ignoredEc);
 }
-
 void SdkTest::getAccountsForTest(unsigned howMany)
 {
     assert(howMany > 0 && howMany <= 3);
@@ -1200,7 +1201,7 @@ void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, co
 
     // Request a media upload URL
     auto err = synchronousMediaUploadRequestURL(apiIndex, fileSize, req.get(), nullptr);
-    ASSERT_EQ(MegaError::API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
+    ASSERT_EQ(API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
 
     // Get the generated media upload URL
     std::unique_ptr<char[]> url(req->getUploadURL());
@@ -1235,7 +1236,7 @@ void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, co
 
     err = synchronousMediaUploadComplete(apiIndex, req.get(), fileOutput, rootnode.get(), fingreprint.get(), fingreprintOrig.get(), base64UploadToken.get(), nullptr);
 
-    ASSERT_EQ(MegaError::API_OK, err) << "Cannot complete media upload (error: " << err << ")";
+    ASSERT_EQ(API_OK, err) << "Cannot complete media upload (error: " << err << ")";
 #else
     ASSERT_ANY_THROW(true) << "Not linux, cannot complete test.";
 #endif
@@ -1584,7 +1585,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
     string filename1 = UPFILE;
-    createFile(filename1, false);
+    ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << UPFILE;
 
     MegaHandle uploadedNode = UNDEF;
     ASSERT_EQ(API_OK, doStartUpload(0, &uploadedNode, filename1.data(), rootnode.get())) << "Cannot upload a test file";
@@ -1760,7 +1761,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // ___ again but unshareable this time - totally separate new node - set the coords  (unshareable)
 
     string filename2 = "a"+UPFILE;
-    createFile(filename2, false);
+    ASSERT_TRUE(createFile(filename2, false)) << "Couldn't create " << filename2;
     MegaHandle uploadedNodeHande = UNDEF;
     ASSERT_EQ(API_OK, doStartUpload(0, &uploadedNodeHande, filename2.data(), rootnode.get())) << "Cannot upload a test file";
     MegaNode *n2 = megaApi[0]->getNodeByHandle(uploadedNodeHande);
@@ -2053,7 +2054,7 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
     string filename1 = UPFILE;
-    createFile(filename1);
+    ASSERT_TRUE(createFile(filename1)) << "Couldn't create " << filename1;
 
 
     // --- Cancel a transfer ---
@@ -2127,7 +2128,7 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // put original filename1 back
     fs::remove(filename1);
-    createFile(filename1);
+    ASSERT_TRUE(createFile(filename1)) << "Couldn't create " << filename1;
     ASSERT_EQ(API_OK, doStartUpload(0, nullptr, filename1.c_str(), rootnode));
     n1 = megaApi[0]->getNodeByPath(("/" + filename1).c_str());
 
@@ -2624,7 +2625,8 @@ TEST_F(SdkTest, SdkTestShares)
     MegaHandle hfolder2 = createFolder(0, foldername2, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get());
     ASSERT_NE(hfolder2, UNDEF);
 
-    createFile(PUBLICFILE.data(), false);   // not a large file since don't need to test transfers here
+    // not a large file since don't need to test transfers here
+    ASSERT_TRUE(createFile(PUBLICFILE.data(), false)) << "Couldn't create " << PUBLICFILE.data();
 
     MegaHandle hfile1 = UNDEF;
     ASSERT_EQ(API_OK,doStartUpload(0, &hfile1, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder1)}.get())) << "Cannot upload a test file";
@@ -4529,7 +4531,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     // make a file to download, and upload so we can pull it down
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     deleteFile(UPFILE);
-    createFile(UPFILE, true);
+    ASSERT_TRUE(createFile(UPFILE, true)) << "Couldn't create " << UPFILE;
 
     MegaHandle uploadedNodeHandle = UNDEF;
     ASSERT_EQ(API_OK, doStartUpload(0, &uploadedNodeHandle, UPFILE.c_str(), rootnode.get())) << "Upload transfer failed";
@@ -4919,7 +4921,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     deleteFile(DOWNFILE);
 
     string filename1 = UPFILE;
-    createFile(filename1, false);
+    ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
     auto err = doStartUpload(0, nullptr, filename1.c_str(), rootnode);
     ASSERT_EQ(API_OK, err) << "Cannot upload a test file (error: " << err << ")";
     WaitMillisec(1000);
@@ -4935,7 +4937,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     synchronousCatchup(0);
 
     string filename2 = DOWNFILE;
-    createFile(filename2, false);
+    ASSERT_TRUE(createFile(filename2, false)) << "Couldn't create " << filename2;
 
     err = doStartUpload(0, nullptr, filename2.c_str(), rootnode);
     ASSERT_EQ(API_OK, err) << "Cannot upload a test file2 (error: " << err << ")";
@@ -5011,6 +5013,10 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
 }
 
+#ifdef __linux__
+
+// synchronousMediaUpload has only been properly written for linux.  todo: implement properly for win/mac
+
 TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
@@ -5031,11 +5037,12 @@ TEST_F(SdkTest, SdkMediaUploadTest)
     unsigned int apiIndex = 0;
     int64_t fileSize = 10000;
     string filename = UPFILE;
-    createFile(filename, false);
+    ASSERT_TRUE(createFile(filename, false)) << "Couldnt create " << filename;
     const char* outputFile = "newfile.txt";
     synchronousMediaUpload(apiIndex, fileSize, filename.c_str(), DOWNFILE.c_str(), outputFile);
 
 }
+#endif
 
 TEST_F(SdkTest, SdkGetPricing)
 {
@@ -5365,7 +5372,7 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     ASSERT_TRUE(!!subFolderA);
 
     string filename1 = UPFILE;
-    createFile(filename1, false);
+    ASSERT_TRUE(createFile(filename1, false)) << "Couldn't create " << filename1;
 
     MegaHandle h = UNDEF;
     ASSERT_EQ(API_OK, doStartUpload(0, &h, filename1.data(), subFolderA.get())) << "Cannot upload a test file";
@@ -6116,9 +6123,9 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     // Create local directories and a files.
     fs::create_directories(localPath1);
-    createFile((localPath1 / "fileTest1").u8string(), false);
+    ASSERT_TRUE(createFile((localPath1 / "fileTest1").u8string(), false));
     fs::create_directories(localPath2);
-    createFile((localPath2 / "fileTest2").u8string(), false);
+    ASSERT_TRUE(createFile((localPath2 / "fileTest2").u8string(), false));
     fs::create_directories(localPath3);
 
     LOG_verbose << "SyncBasicOperations :  Creating the remote folders to be synced to.";
@@ -6579,7 +6586,7 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     // Create local directory and file.
     fs::create_directories(localPath);
-    createFile((localPath / "fileTest1").u8string(), false);
+    ASSERT_TRUE(createFile((localPath / "fileTest1").u8string(), false));
 
     LOG_verbose << "SyncRemoteNode :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
@@ -6798,7 +6805,7 @@ TEST_F(SdkTest, SyncPersistence)
 
     // Create local directory and file.
     fs::create_directories(localPath);
-    createFile((localPath / "fileTest1").u8string(), false);
+    ASSERT_TRUE(createFile((localPath / "fileTest1").u8string(), false));
 
     LOG_verbose << "SyncPersistence :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
@@ -6917,7 +6924,7 @@ TEST_F(SdkTest, DISABLED_SyncPaths)
     ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
 
     LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced: " << filePath.u8string();
-    createFile(filePath.u8string(), false);
+    ASSERT_TRUE(createFile(filePath.u8string(), false)) << "Couldnt create " << filePath.u8string();
     std::unique_ptr<MegaNode> remoteNode;
     WaitFor([this, &remoteNode, &remoteBaseNode, fileNameStr]() -> bool
     {
@@ -6956,7 +6963,7 @@ TEST_F(SdkTest, DISABLED_SyncPaths)
     ASSERT_TRUE(syncSym && syncSym->getRunState() == MegaSync::RUNSTATE_RUNNING);
 
     LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced,";
-    createFile((localPath / "level_1A" / fs::u8path(fileNameStr.c_str())).u8string(), false);
+    ASSERT_TRUE(createFile((localPath / "level_1A" / fs::u8path(fileNameStr.c_str())).u8string(), false));
     WaitFor([this, &remoteNode, &remoteNodeSym, fileNameStr]() -> bool
     {
         remoteNode.reset(megaApi[0]->getNodeByPath(("/" + string(remoteNodeSym->getName()) + "/" + fileNameStr).c_str()));
@@ -7168,7 +7175,7 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
 
         // ... with a file in it
         string filename1 = UPFILE;
-        createFile(filename1, false);
+        ASSERT_TRUE(createFile(filename1, false)) << "Couldnt create " << filename1;
         ASSERT_EQ(API_OK, doStartUpload(0, nullptr, filename1.data(), remoteSubFolderNode.get())) << "Cannot upload a test file";
     }
 
@@ -7300,7 +7307,7 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
 
         // ... with a file in it
         string filename1 = UPFILE;
-        createFile(filename1, false);
+        ASSERT_TRUE(createFile(filename1, false)) << "Couldnt create " << filename1;
         ASSERT_EQ(API_OK, doStartUpload(0, nullptr, filename1.data(), remoteSubFolderNode.get())) << "Cannot upload a test file";
     }
 
@@ -7543,7 +7550,7 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
 
     //// --- Clean rubbish bin for secondary account ---
     auto err = synchronousCleanRubbishBin(1);
-    ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
+    ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
 }
 
 /**
@@ -7596,7 +7603,7 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
 
-    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, mp3.c_str(), rootnode.get())) << "Cannot upload test file " << mp3;
+    ASSERT_EQ(API_OK, doStartUpload(0, nullptr, mp3.c_str(), rootnode.get())) << "Cannot upload test file " << mp3;
     std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByPath(AUDIO_FILENAME.c_str(), rootnode.get()));
     ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
 }

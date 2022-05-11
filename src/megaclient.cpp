@@ -981,10 +981,10 @@ void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
-Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
+const Node* MegaClient::childnodebyname(const Node* p, const char* name, bool skipfolders) const
 {
     string nname = name;
-    Node *found = NULL;
+    const Node *found = NULL;
 
     if (!p || p->type == FILENODE)
     {
@@ -993,7 +993,7 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
 
     LocalPath::utf8_normalize(&nname);
 
-    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+    for (node_list::const_iterator it = p->children.begin(); it != p->children.end(); it++)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
@@ -1011,6 +1011,12 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
     }
 
     return found;
+}
+
+Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
+{
+    // Casting simply to reuse the above code.
+    return const_cast<Node*>(childnodebyname(static_cast<const Node*>(p), name, skipfolders));
 }
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
@@ -4644,7 +4650,7 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, data->size(), std::move(data)));
+    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, 0, std::move(data)));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
@@ -9352,24 +9358,14 @@ void MegaClient::mapuser(handle uh, const char* email)
     }
 }
 
-void MegaClient::discarduser(handle uh, bool discardnotified)
+void MegaClient::dodiscarduser(User* u, bool discardnotified)
 {
-    User *u = finduser(uh);
     if (!u)
     {
         return;
     }
 
-    while (u->pkrs.size())  // protect any pending pubKey request
-    {
-        auto& pka = u->pkrs.front();
-        if(pka->cmd)
-        {
-            pka->cmd->invalidateUser();
-        }
-        pka->proc(this, u);
-        u->pkrs.pop_front();
-    }
+    u->removepkrs(this);
 
     if (discardnotified)
     {
@@ -9377,34 +9373,20 @@ void MegaClient::discarduser(handle uh, bool discardnotified)
     }
 
     umindex.erase(u->email);
-    users.erase(uhindex[uh]);
-    uhindex.erase(uh);
+    users.erase(uhindex[u->userhandle]);
+    uhindex.erase(u->userhandle);
+}
+
+void MegaClient::discarduser(handle uh, bool discardnotified)
+{
+    User *u = finduser(uh);
+    dodiscarduser(u, discardnotified);
 }
 
 void MegaClient::discarduser(const char *email)
 {
     User *u = finduser(email);
-    if (!u)
-    {
-        return;
-    }
-
-    while (u->pkrs.size())  // protect any pending pubKey request
-    {
-        auto& pka = u->pkrs.front();
-        if(pka->cmd)
-        {
-            pka->cmd->invalidateUser();
-        }
-        pka->proc(this, u);
-        u->pkrs.pop_front();
-    }
-
-    discardnotifieduser(u);
-
-    uhindex.erase(u->userhandle);
-    users.erase(umindex[email]);
-    umindex.erase(email);
+    dodiscarduser(u, true);
 }
 
 PendingContactRequest* MegaClient::findpcr(handle p)
@@ -9605,14 +9587,14 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
 }
 
 // Add/delete/remind outgoing pending contact request
-void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
+void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, CommandSetPendingContact::Completion completion)
 {
-    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink));
+    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink, std::move(completion)));
 }
 
-void MegaClient::updatepcr(handle p, ipcactions_t action)
+void MegaClient::updatepcr(handle p, ipcactions_t action, CommandUpdatePendingContact::Completion completion)
 {
-    reqs.add(new CommandUpdatePendingContact(this, p, action));
+    reqs.add(new CommandUpdatePendingContact(this, p, action, std::move(completion)));
 }
 
 // enumerate Pro account purchase options (not fully implemented)
@@ -9771,14 +9753,14 @@ void MegaClient::getpaymentmethods()
 }
 
 // delete or block an existing contact
-error MegaClient::removecontact(const char* email, visibility_t show)
+error MegaClient::removecontact(const char* email, visibility_t show, CommandRemoveContact::Completion completion)
 {
     if (!strchr(email, '@') || (show != HIDDEN && show != BLOCKED))
     {
         return API_EARGS;
     }
 
-    reqs.add(new CommandRemoveContact(this, email, show));
+    reqs.add(new CommandRemoveContact(this, email, show, std::move(completion)));
 
     return API_OK;
 }
@@ -12583,9 +12565,8 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
         User *u = &(it->second);
         if ((!keepOwnUser || u->userhandle != me) || u->userhandle == UNDEF)
         {
-            umindex.erase(u->email);
-            uhindex.erase(u->userhandle);
-            users.erase(it++);
+            ++it;
+            dodiscarduser(u, true);
         }
         else
         {
@@ -13659,8 +13640,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
                 {
                     if (!l->reported)
                     {
-                        char* buf = new char[(*it)->nodekey().size() * 4 / 3 + 4];
-                        Base64::btoa((byte *)(*it)->nodekey().data(), int((*it)->nodekey().size()), buf);
+                        // So we don't trip an assertion if the key's not decoded.
+                        auto& nodeKey = (*it)->nodekeyUnchecked();
+
+                        char* buf = new char[nodeKey.size() * 4 / 3 + 4];
+                        Base64::btoa((byte *)nodeKey.data(), int(nodeKey.size()), buf);
 
                         LOG_warn << "Sync: Undecryptable child node. " << buf;
 
