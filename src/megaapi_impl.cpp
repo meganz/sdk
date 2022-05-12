@@ -1317,7 +1317,6 @@ const MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const
 
 void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls)
 {
-    const bool itIsCloud = true;
     for(auto& stall : syncStalls.cloud)
     {
         mStalls.emplace_back(stall.second);
@@ -1326,7 +1325,6 @@ void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls)
 
 void MegaSyncStallListPrivate::addLocalStalls(const SyncStallInfo& syncStalls)
 {
-    const bool itIsCloud = false;
     for(auto& stall : syncStalls.local)
     {
         mStalls.emplace_back(stall.second);

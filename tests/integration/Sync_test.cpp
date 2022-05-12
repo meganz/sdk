@@ -15325,10 +15325,13 @@ TEST_F(SyncTest, StallsWhenEncounteringHardLink)
     // Check that we've stalled for the right reason.
     ASSERT_FALSE(stalls.local.empty());
 
-    ASSERT_EQ(stalls.local.begin()->second.localPath1.localPath, targetPath);
-    ASSERT_EQ(stalls.local.begin()->second.localPath2.localPath, sourcePath);
-    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::MoveOrRenameCannotOccur);
-    ASSERT_EQ(stalls.local.begin()->second.localPath1.problem, PathProblem::DetectedHardLink);
+    auto& sr = stalls.local.begin()->second;
+
+    ASSERT_EQ(sr.localPath1.localPath, sourcePath);
+    ASSERT_EQ(sr.localPath2.localPath, targetPath);
+    ASSERT_EQ(sr.reason, SyncWaitReason::FileIssue);
+    ASSERT_EQ(sr.localPath1.problem, PathProblem::DetectedHardLink);
+    ASSERT_EQ(sr.localPath2.problem, PathProblem::DetectedHardLink);
 
     // Check if we can resolve the stall by removing the hardlink.
     ASSERT_TRUE(fsAccess->unlinklocal(targetPath));
@@ -15390,7 +15393,7 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
     ASSERT_TRUE(stalls.cloud.empty());
     ASSERT_EQ(stalls.local.size(), 1u);
-    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::CantFingrprintFileYet);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::FileIssue);
 
     // Make sure d/f is still present in the cloud.
     ASSERT_TRUE(client->waitFor(SyncRemoteNodePresent("s/d/f"), TIMEOUT));
@@ -15415,7 +15418,7 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
     ASSERT_TRUE(stalls.cloud.empty());
     ASSERT_EQ(stalls.local.size(), 1u);
-    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::LocalFolderNotScannable);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::FileIssue);
 
     // Make sure d/f is still present in the cloud.
     ASSERT_TRUE(client->waitFor(SyncRemoteNodePresent("s/d/f"), TIMEOUT));
@@ -15479,7 +15482,7 @@ TEST_F(SyncTest, StallsOnSpecialFile)
     ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
     ASSERT_TRUE(stalls.cloud.empty());
     ASSERT_EQ(stalls.local.size(), 1u);
-    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::SpecialFilesNotSupported);
+    ASSERT_EQ(stalls.local.begin()->second.reason, SyncWaitReason::FileIssue);
 
     // Remove the pipe.
     ASSERT_EQ(unlink(fPath.c_str()), 0);

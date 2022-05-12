@@ -1890,10 +1890,15 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 if (sourceFSID != UNDEF && sourceFSID == targetFSID)
                 {
                     // Let the user know why we can't perform the move.
+                    // Actually we shouldn't even think this is a move since
+                    // it's just due to duplicate fsids.  Just report these
+                    // two files as hard-links of the same file
                     monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
                         SyncWaitReason::FileIssue, true,
-                        {}, {},
-                        {fullPath.localPath, PathProblem::DetectedHardLink}, {}));
+                        {},
+                        {},
+                        {sourceSyncNode->getLocalPath(), PathProblem::DetectedHardLink},
+                        {fullPath.localPath, PathProblem::DetectedHardLink}));
 
                     // Don't try and synchronize our associate.
                     markSiblingSourceRow();
@@ -1948,8 +1953,10 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 // if we revist here and the file is still the same after enough time, we'll move it
                 monitor.waitingLocal(sourceSyncNode->getLocalPath(), SyncStallEntry(
                     SyncWaitReason::FileIssue, false,
-                    {}, {},
-                    {sourceSyncNode->getLocalPath(), PathProblem::FileChangingFrequently}, {}));
+                    {sourceSyncNode->getCloudPath(true)},
+                    {fullPath.cloudPath},
+                    {sourceSyncNode->getLocalPath(), PathProblem::FileChangingFrequently},
+                    {fullPath.localPath}));
 
                 return rowResult = false, true;
             }
@@ -2572,9 +2579,9 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
                 SyncWaitReason::MoveOrRenameCannotOccur, false,
                 {sourceSyncNode->getCloudPath(true)},
-                {fullPath.cloudPath, PathProblem::ParentFolderDoesNotExist},
+                {fullPath.cloudPath},
                 {sourceSyncNode->getLocalPath()},
-                {fullPath.localPath}));
+                {fullPath.localPath, PathProblem::ParentFolderDoesNotExist}));
 
             if (parentRow.syncNode) parentRow.syncNode->setSyncAgain(false, true, false);
             rowResult = false;
