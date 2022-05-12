@@ -115,8 +115,6 @@ public:
     bool serialize(string*) override;
     static User* unserialize(class MegaClient *, string*);
 
-    void removepkrs(MegaClient*);
-
     // attribute methods: set/get/invalidate...
     void setattr(attr_t at, string *av, string *v);
     const string *getattr(attr_t at);
