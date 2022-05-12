@@ -345,20 +345,6 @@ User* User::unserialize(MegaClient* client, string* d)
     return u;
 }
 
-void User::removepkrs(MegaClient* client)
-{
-    while (!pkrs.empty())  // protect any pending pubKey request
-    {
-        auto& pka = pkrs.front();
-        if (pka->cmd)
-        {
-            pka->cmd->invalidateUser();
-        }
-        pka->proc(client, this);
-        pkrs.pop_front();
-    }
-}
-
 void User::setattr(attr_t at, string *av, string *v)
 {
     setChanged(at);
