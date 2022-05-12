@@ -336,7 +336,14 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         ptr += authKeySize;
     }
 
-    for (i = 5; i--;)
+    if (ptr + (unsigned)*ptr > end)
+        return nullptr;
+
+    auto encrypted = *ptr && ptr[1];
+
+    ptr += (unsigned)*ptr + 1;
+    
+    for (i = 4; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -369,7 +376,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     n.reset(new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts));
 
-    if (k)
+    if (!encrypted && k)
     {
         n->setkey(k);
     }
@@ -438,6 +445,37 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     n->setfingerprint();
 
+    if (encrypted)
+    {
+        // Have we encoded the node key data's length?
+        if (ptr + sizeof(unsigned short) > end)
+            return nullptr;
+
+        auto length = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(length);
+
+        // Have we encoded the node key data?
+        if (ptr + length > end)
+            return nullptr;
+
+        n->nodekeydata.assign(ptr, length);
+        ptr += length;
+
+        // Have we encoded the length of the attribute string?
+        if (ptr + sizeof(unsigned short) > end)
+            return nullptr;
+
+        length = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(length);
+
+        // Have we encoded the attribute string?
+        if (ptr + length > end)
+            return nullptr;
+
+        n->attrstring.reset(new string(ptr, length));
+        ptr += length;
+    }
+
     if (ptr == end)
         return n.release();
 
@@ -457,23 +495,20 @@ bool Node::serialize(string* d)
         setattr();
 
         if (attrstring)
-        {
-            LOG_warn << "Skipping undecryptable node";
-            return false;
-        }
+            LOG_warn << "Serializing an encrypted node.";
     }
 
     switch (type)
     {
         case FILENODE:
-            if ((int)nodekeydata.size() != FILENODEKEYLENGTH)
+            if (!attrstring && (int)nodekeydata.size() != FILENODEKEYLENGTH)
             {
                 return false;
             }
             break;
 
         case FOLDERNODE:
-            if ((int)nodekeydata.size() != FOLDERNODEKEYLENGTH)
+            if (!attrstring && (int)nodekeydata.size() != FOLDERNODEKEYLENGTH)
             {
                 return false;
             }
@@ -514,7 +549,21 @@ bool Node::serialize(string* d)
     ts = (time_t)ctime;
     d->append((char*)&ts, sizeof(ts));
 
-    d->append(nodekeydata);
+    if (attrstring)
+    {
+        auto length = 0u;
+
+        if (type == FOLDERNODE)
+            length = FOLDERNODEKEYLENGTH;
+        else if (type == FILENODE)
+            length = FILENODEKEYLENGTH;
+
+        d->append(length, '\0');
+    }
+    else
+    {
+        d->append(nodekeydata);
+    }
 
     if (type == FILENODE)
     {
@@ -540,7 +589,12 @@ bool Node::serialize(string* d)
         d->append("", 1);
     }
 
-    d->append("\0\0\0\0", 5); // Use these bytes for extensions
+    d->append(1, static_cast<char>(!!attrstring));
+
+    if (attrstring)
+        d->append(1, '\1');
+
+    d->append(4, '\0');
 
     if (inshare)
     {
@@ -588,7 +642,15 @@ bool Node::serialize(string* d)
         }
     }
 
-    attrs.serialize(d);
+    // Encrypted nodes have no attributes.
+    if (attrstring)
+    {
+        d->append(1, '\0');
+    }
+    else
+    {
+        attrs.serialize(d);
+    }
 
     if (isExported)
     {
@@ -599,6 +661,20 @@ bool Node::serialize(string* d)
         {
             d->append((char*) &plink->cts, sizeof(plink->cts));
         }
+    }
+
+    // Write data necessary to thaw encrypted nodes.
+    if (attrstring)
+    {
+        // Write node key data.
+        auto length = (unsigned short)nodekeydata.size();
+        d->append((char*)&length, sizeof(length));
+        d->append(nodekeydata, 0, length);
+
+        // Write attribute string data.
+        length = (unsigned short)attrstring->size();
+        d->append((char*)&length, sizeof(length));
+        d->append(*attrstring, 0, length);
     }
 
     return true;
