@@ -3779,6 +3779,11 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
                 LOG_err << "Backup destination folder does not exist";
                 return API_EACCESS;
             }
+            else if (n->firstancestor()->nodeHandle() != mClient.rootnodes.files)
+            {
+                LOG_err << "Backup destination folder must be in the Cloud";
+                return API_EACCESS;
+            }
             else if (!n->children.empty())
             {
                 LOG_err << "Backup destination folder is not empty";
