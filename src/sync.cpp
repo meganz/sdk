@@ -3445,10 +3445,7 @@ void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
 {
     for (auto& s : mSyncVec)
     {
-        if (s) // This happened to be null. Was that valid scenario?
-        {
-            f(*s);
-        }
+        f(*s);
     }
 }
 
