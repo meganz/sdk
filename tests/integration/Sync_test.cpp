@@ -5681,7 +5681,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
         ASSERT_TRUE(clientA1.client.syncs.syncStallDetected(info));
         ASSERT_FALSE(info.empty());
         ASSERT_FALSE(info.local.empty());
-        ASSERT_EQ(info.local.begin()->second.reason, SyncWaitReason::SymlinksNotSupported);
+        ASSERT_EQ(info.local.begin()->second.reason, SyncWaitReason::FileIssue);
     }
 
     //check client 2 is unaffected
