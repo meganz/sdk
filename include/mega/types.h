@@ -1060,6 +1060,7 @@ enum class SyncWaitReason {
     FolderMatchedAgainstFile,
     LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
     LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
+    NamesWouldClashWhenSynced,
 };
 
 enum class PathProblem : unsigned short {

@@ -1063,7 +1063,7 @@ MegaHandleList* MegaRequest::getMegaHandleList() const
 
 #ifdef ENABLE_SYNC
 
-MegaSyncProblems* MegaRequest::getMegaSyncProblems() const
+MegaSyncStallList* MegaRequest::getMegaSyncStallList() const
 {
     return nullptr;
 }
@@ -3427,9 +3427,9 @@ long long MegaApi::getNumLocalNodes()
     return pImpl->getNumLocalNodes();
 }
 
-void MegaApi::getSyncProblems(MegaRequestListener* listener, bool detailed)
+void MegaApi::getMegaSyncStallList(MegaRequestListener* listener)
 {
-    pImpl->getSyncProblems(listener, detailed);
+    pImpl->getMegaSyncStallList(listener);
 }
 
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
@@ -7131,26 +7131,5 @@ MegaCurrency *MegaCurrency::copy()
 {
     return nullptr;
 }
-
-#ifdef ENABLE_SYNC
-
-MegaSyncNameConflict::~MegaSyncNameConflict() = default;
-
-MegaSyncNameConflict::MegaSyncNameConflict() = default;
-
-MegaSyncNameConflictList::~MegaSyncNameConflictList() = default;
-
-MegaSyncNameConflictList::MegaSyncNameConflictList() = default;
-
-MegaSyncProblems::~MegaSyncProblems() = default;
-
-MegaSyncProblems::MegaSyncProblems() = default;
-
-bool MegaSyncProblems::anyProblems() const
-{
-    return anyNameConflictsDetected() || anyStallsDetected();
-}
-
-#endif // ENABLE_SYNC
 
 }

@@ -2053,7 +2053,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                 if (belowRemovedCloudNode)
                 {
-                    LOG_debug << syncname << "Move destination detected for fsid " << toHandle(row.fsNode->fsid) << " but we are belowRemovedCloudNode, must wait for resolution at: " << fullPath.cloudPath << logTriplet(row, fullPath);;
+                    LOG_debug << syncname << "Move destination detected for fsid " << toHandle(row.fsNode->fsid) << " but we are belowRemovedCloudNode, must wait for resolution at: " << fullPath.cloudPath << logTriplet(row, fullPath);
 
                     monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
                         SyncWaitReason::MoveOrRenameCannotOccur, false,
@@ -3326,8 +3326,7 @@ Syncs::~Syncs()
 }
 
 void Syncs::getSyncProblems(std::function<void(SyncProblems&)> completion,
-                            bool completionInClient,
-                            bool detailed)
+                            bool completionInClient)
 {
     using MC = MegaClient;
     using DBTC = DBTableTransactionCommitter;
@@ -3341,21 +3340,19 @@ void Syncs::getSyncProblems(std::function<void(SyncProblems&)> completion,
         };
     }
 
-    queueSync([this, detailed, completion]() mutable {
+    queueSync([this, completion]() mutable {
         SyncProblems problems;
-        getSyncProblems_inThread(problems, detailed);
+        getSyncProblems_inThread(problems);
         completion(problems);
     });
 }
 
-void Syncs::getSyncProblems_inThread(SyncProblems& problems, bool detailed)
+void Syncs::getSyncProblems_inThread(SyncProblems& problems)
 {
     assert(onSyncThread());
 
     problems.mConflictsDetected = conflictsFlagged();
     problems.mStallsDetected = syncStallState;
-
-    if (!detailed) return;
 
     conflictsDetected(problems.mConflicts);
     problems.mStalls = stallReport;

@@ -1141,8 +1141,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaHandleList* getMegaHandleList() const override;
 
 #ifdef ENABLE_SYNC
-        MegaSyncProblems* getMegaSyncProblems() const override;
-        void setMegaSyncProblems(unique_ptr<MegaSyncProblems> problems);
+        MegaSyncStallList* getMegaSyncStallList() const override;
+        void setMegaSyncStallList(unique_ptr<MegaSyncStallList>&& stalls);
 #endif // ENABLE_SYNC
 
 #ifdef ENABLE_CHAT
@@ -1222,8 +1222,6 @@ protected:
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
 #ifdef ENABLE_SYNC
-        unique_ptr<MegaSyncNameConflictList> mNameConflictList;
-        unique_ptr<MegaSyncProblems> mProblems;
         unique_ptr<MegaSyncStallList> mSyncStallList;
 #endif // ENABLE_SYNC
 };
@@ -2086,9 +2084,6 @@ class MegaSyncStallPrivate : public MegaSyncStall
 {
     public:
         MegaSyncStallPrivate(const SyncStallEntry& e);
-        MegaSyncStallPrivate(const MegaSyncStallPrivate& other);
-
-        virtual ~MegaSyncStallPrivate() = default;
 
         MegaSyncStallPrivate* copy() const override;
 
@@ -2148,34 +2143,92 @@ class MegaSyncStallPrivate : public MegaSyncStall
         mutable string lpConverted[2];
 };
 
+class MegaSyncNameConflictStallPrivate : public MegaSyncStall
+{
+public:
+    MegaSyncNameConflictStallPrivate(const NameConflict& nc) : mConfict(nc) {}
+
+    MegaSyncStall* copy() const override
+    {
+        return new MegaSyncNameConflictStallPrivate(*this);
+    }
+
+    SyncStallReason reason() const override
+    {
+        return SyncStallReason(NamesWouldClashWhenSynced);
+    }
+
+    const char* path(bool cloudSide, int index)  const override
+    {
+        if (cloudSide)
+        {
+            auto i = mCache1.find(index);
+            if (i != mCache1.end()) return i->second.c_str();
+
+            if (index >= 0 && index < mConfict.clashingCloudNames.size())
+            {
+                mCache1[index] = mConfict.cloudPath + "/" + mConfict.clashingCloudNames[index];
+                return mCache1[index].c_str();
+            }
+        }
+        else
+        {
+            auto i = mCache2.find(index);
+            if (i != mCache2.end()) return i->second.c_str();
+
+            if (index >= 0 && index < mConfict.clashingLocalNames.size())
+            {
+                LocalPath lp = mConfict.localPath;
+                lp.appendWithSeparator(mConfict.clashingLocalNames[index], true);
+                mCache2[index] = lp.toPath();
+                return mCache2[index].c_str();
+            }
+        }
+        return nullptr;
+    }
+
+    int pathProblem(bool cloudSide, int index) const override
+    {
+        return -1;
+    }
+
+    const char* reasonDebugString() const override
+    {
+        return reasonDebugString(reason());
+    }
+
+    static const char*
+        reasonDebugString(MegaSyncStall::SyncStallReason reason);
+
+    static const char*
+        pathProblemDebugString(MegaSyncStall::SyncPathProblem reason);
+
+protected:
+    const NameConflict mConfict;
+    mutable map<int, string> mCache1, mCache2;
+};
+
 /**
  * A thin wrapper to make them look like a List
  */
 class MegaSyncStallListPrivate : public MegaSyncStallList
 {
     public:
-        MegaSyncStallListPrivate(const SyncStallInfo& stalls);
-        virtual ~MegaSyncStallListPrivate() = default;
-
-        MegaSyncStallListPrivate(const MegaSyncStallListPrivate& other);
+        MegaSyncStallListPrivate(const SyncProblems&);
 
         MegaSyncStallListPrivate* copy() const override;
-        /**
-         * @return a new heap allocated MegaSyncStall object
-         */
-        const MegaSyncStall* get(size_t i) const override;
 
+        const MegaSyncStall* get(size_t i) const override;
 
         size_t size() const override
         {
             return mStalls.size();
         }
+
     protected:
+        std::vector<MegaSyncNameConflictStallPrivate> mNameConflicts;
         std::vector<MegaSyncStallPrivate> mStalls;
-        void addCloudStalls(const SyncStallInfo& syncStalls);
-        void addLocalStalls(const SyncStallInfo& syncStalls);
-        MegaSyncStall::SyncStallReason
-        syncStallReasonMapping(SyncWaitReason reason) const;
+        MegaSyncStall::SyncStallReason syncStallReasonMapping(SyncWaitReason reason) const;
 };
 
 #endif // ENABLE_SYNC
@@ -2515,7 +2568,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByBackupId(mega::MegaHandle backupId);
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
-        void getSyncProblems(MegaRequestListener* listener, bool detailed);
+        void getMegaSyncStallList(MegaRequestListener* listener);
 
 #endif // ENABLE_SYNC
 
@@ -3888,81 +3941,6 @@ public:
 };
 
 #endif
-
-#ifdef ENABLE_SYNC
-
-class MegaSyncNameConflictPrivate
-  : public MegaSyncNameConflict
-{
-public:
-    MegaSyncNameConflictPrivate(const NameConflict &conflict);
-
-    MegaSyncNameConflictPrivate(const MegaSyncNameConflictPrivate& other);
-
-    MegaStringList* cloudNames() const override;
-
-    const char* cloudPath() const override;
-
-    MegaSyncNameConflict* copy() const override;
-
-    MegaStringList* localNames() const override;
-
-    const char* localPath() const override;
-
-private:
-    MegaStringListPtr mCloudNames;
-    MegaStringListPtr mLocalNames;
-    string mCloudPath;
-    string mLocalPath;
-}; // MegaSyncNameConflictPrivate
-
-using MegaSyncNameConflictPtr = unique_ptr<MegaSyncNameConflict>;
-using MegaSyncNameConflictVector = vector<MegaSyncNameConflictPtr>;
-
-class MegaSyncNameConflictListPrivate
-  : public MegaSyncNameConflictList
-{
-public:
-    MegaSyncNameConflictListPrivate(const list<NameConflict>& conflicts);
-
-    MegaSyncNameConflictListPrivate(const MegaSyncNameConflictListPrivate& other);
-
-    MegaSyncNameConflictList* copy() const override;
-
-    MegaSyncNameConflict* get(int index) const override;
-
-    int size() const override;
-
-private:
-    MegaSyncNameConflictVector mConflicts;
-}; // MegaSyncNameConflictListPrivate
-
-class MegaSyncProblemsPrivate
-  : public MegaSyncProblems
-{
-public:
-    explicit MegaSyncProblemsPrivate(const SyncProblems& problems);
-
-    MegaSyncProblemsPrivate(const MegaSyncProblemsPrivate& other);
-
-    bool anyNameConflictsDetected() const override;
-
-    bool anyStallsDetected() const override;
-
-    MegaSyncProblems* copy() const override;
-
-    MegaSyncNameConflictList* nameConflicts() const override;
-
-    MegaSyncStallList* stalls() const override;
-
-private:
-    unique_ptr<MegaSyncNameConflictList> mConflicts;
-    unique_ptr<MegaSyncStallList> mStalls;
-    bool mConflictsDetected;
-    bool mStallsDetected;
-}; // MegaSyncProblemsPrivate
-
-#endif // ENABLE_SYNC
 
 }
 

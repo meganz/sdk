@@ -974,10 +974,9 @@ struct Syncs
     ~Syncs();
 
     void getSyncProblems(std::function<void(SyncProblems&)> completion,
-                         bool completionInClient,
-                         bool detailed);
+                         bool completionInClient);
 
-    void getSyncProblems_inThread(SyncProblems& problems, bool detailed);
+    void getSyncProblems_inThread(SyncProblems& problems);
 
     // Retrieve status information about sync(s).
     using SyncStatusInfoCompletion =

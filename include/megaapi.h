@@ -86,9 +86,6 @@ class MegaApi;
 class MegaSemaphore;
 class MegaSyncStall;
 class MegaSyncStallList;
-class MegaSyncNameConflict;
-class MegaSyncNameConflictList;
-class MegaSyncProblems;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -3182,7 +3179,7 @@ class MegaRequest
             TYPE_START_CHAT_CALL                                            = 142,
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
-            TYPE_GET_SYNC_PROBLEMS                                          = 146,
+            TYPE_GET_SYNC_STALL_LIST                                        = 146,
             TYPE_SET_SYNC_RUNSTATE                                          = 148,
             TOTAL_OF_REQUEST_TYPES                                          = 149,
         };
@@ -3967,15 +3964,16 @@ class MegaRequest
 
         /**
          * @brief
-         * Returns a reference to this request's MegaSyncProblems instance.
+         * Returns a reference to this request's MegaSyncStallList instance.
          *
          * This value is valid only for the following requests:
-         * - MegaApi::getSyncProblems
+         * - MegaApi::getMegaSyncStallList
          *
          * @return
-         * A reference to this request's MegaSyncProblems instance.
+         * A reference to this request's MegaSyncStallList instance.
          */
-        virtual MegaSyncProblems* getMegaSyncProblems() const;
+        virtual MegaSyncStallList* getMegaSyncStallList() const;
+
 
 
 #endif // ENABLE_SYNC
@@ -5539,6 +5537,7 @@ class MegaSyncStall
             FolderMatchedAgainstFile,
             LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
             LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
+            NamesWouldClashWhenSynced,
         };
 
         enum SyncPathProblem {
@@ -14165,9 +14164,9 @@ class MegaApi
 
         /**
          * @brief
-         * Query whether the sync engine has detected any problems.
+         * Query the sync engine to find out what is causing sync stalls
          *
-         * The type of this request is MegaRequest::TYPE_GET_SYNC_PROBLEMS.
+         * The type of this request is MegaRequest::TYPE_GET_SYNC_STALL_LIST.
          *
          * @param listener
          * A MegaRequestListener with which to track the request.
@@ -14183,21 +14182,7 @@ class MegaApi
          * If the flag is true, the engine will include detailed information
          * about any detected name conflicts or stalls.
          */
-        void getSyncProblems(MegaRequestListener* listener, bool detailed);
-
-        /**
-         * @brief Retrieves information involving any Local <-> Cloud synchronization stall conflict
-         * These conflicts requires user intervention to be solved.
-         *
-         * For example: While the synchronization was disabled
-         * Folder C was moved inside folder E. (C->E) Locally
-         * folder E was moved inside folder C. (E->C) in the cloud
-         * When the synchronization is re-enabled there could be interpreted as a conflict
-         *
-         * @param syncStallList MegaSyncStallList of sync stalls
-         * @return number of conflicts reported.
-         */
-        size_t getSyncStalls(MegaSyncStallList** syncStallList);
+        void getMegaSyncStallList(MegaRequestListener* listener);
 
 #endif // ENABLE_SYNC
 
@@ -14268,7 +14253,7 @@ class MegaApi
         /**
         * @brief Find out if the syncs need User intervention for some files/folders
         *
-        * use getMegaSyncProblems() to find out what needs attention.
+        * use getMegaSyncStallList() to find out what needs attention.
         *
         * @return true if the User is needs to intervene.
         *
@@ -20021,169 +20006,6 @@ public:
      */
     virtual bool isCancelled() const;
 };
-
-#ifdef ENABLE_SYNC
-
-class MegaSyncNameConflict
-{
-public:
-    virtual ~MegaSyncNameConflict();
-
-    /**
-     * @brief
-     * Retrieve a reference to a list of conflicting cloud names.
-     *
-     * @return
-     * A reference to a list of conflicting cloud names.
-     */
-    virtual MegaStringList* cloudNames() const = 0;
-
-    /**
-     * @brief
-     * Retrieve a reference to the cloud path of this conflict.
-     *
-     * @return
-     * A reference to the cloud path of this conflict.
-     */
-    virtual const char* cloudPath() const = 0;
-
-    /**
-     * @brief
-     * Create a deep copy of this conflict.
-     *
-     * @return
-     * A deep copy of this conflict.
-     */
-    virtual MegaSyncNameConflict* copy() const = 0;
-
-    /**
-     * @brief
-     * Retrieve a reference to a list of conflicting local names.
-     *
-     * @return
-     * A reference to a list of conflicting local names.
-     */
-    virtual MegaStringList* localNames() const = 0;
-
-    /**
-     * @brief
-     * Retrieve a reference to the local path of this conflict.
-     *
-     * @return
-     * A reference to the local path of this conflict.
-     */
-    virtual const char* localPath() const = 0;
-
-protected:
-    MegaSyncNameConflict();
-};
-
-class MegaSyncNameConflictList
-{
-public:
-    virtual ~MegaSyncNameConflictList();
-
-    /**
-     * @brief
-     * Create a deep copy of this list of conflicts.
-     *
-     * @return
-     * A deep copy of this list of conflicts.
-     */
-    virtual MegaSyncNameConflictList* copy() const = 0;
-
-    /**
-     * @brief
-     * Retrieve a reference to the specified conflict.
-     *
-     * @param index
-     * The index of the conflict you'd like to retrieve.
-     *
-     * @return
-     * A reference to the specified conflict.
-     */
-    virtual MegaSyncNameConflict* get(int index) const = 0;
-
-    /**
-     * @brief
-     * Query how many conflicts are contained by this list.
-     *
-     * @return
-     * The number of conflicts contained by this list.
-     */
-    virtual int size() const = 0;
-
-protected:
-    MegaSyncNameConflictList();
-};
-
-class MegaSyncProblems
-{
-public:
-    virtual ~MegaSyncProblems();
-
-    /**
-     * @brief
-     * Query whether the sync engine has detected any name conflicts.
-     *
-     * @return
-     * True if the sync engine has detected any name conflicts.
-     */
-    virtual bool anyNameConflictsDetected() const = 0;
-
-    /**
-     * @brief
-     * Query whether the sync engine has detected any problems.
-     *
-     * @return
-     * True if the sync engine has detected any problems.
-     *
-     * @see MegaSyncProblems::anyNameConflictsDetected
-     * @see MegaSyncProblems::anyStallsDetected
-     */
-    virtual bool anyProblems() const;
-
-    /**
-     * @brief
-     * Query whether the sync engine has detected any stall states.
-     *
-     * @return
-     * True if the sync engine has detected any stall states.
-     */
-    virtual bool anyStallsDetected() const = 0;
-
-    /**
-     * @brief
-     * Create a deep copy of this MegaSyncProblems instance.
-     *
-     * @return
-     * A deep copy of this MegaSyncProblems instance.
-     */
-    virtual MegaSyncProblems* copy() const = 0;
-
-    /**
-     * @brief
-     * Query what name conflicts the sync engine has detected.
-     *
-     * @return
-     * A reference to a list of name conflicts.
-     */
-    virtual MegaSyncNameConflictList* nameConflicts() const = 0;
-
-    /**
-     * @brief
-     * Query what stall states the sync engine has detected.
-     *
-     * @return
-     * A reference to a list of stalls.
-     */
-    virtual MegaSyncStallList* stalls() const = 0;
-
-protected:
-    MegaSyncProblems();
-}; // MegaSyncProblems
-
-#endif // ENABLE_SYNC
 
 }
 

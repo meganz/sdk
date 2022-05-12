@@ -1248,25 +1248,17 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
     return nullptr;
 }
 
-void MegaApiImpl::getSyncProblems(MegaRequestListener* listener, bool detailed)
+void MegaApiImpl::getMegaSyncStallList(MegaRequestListener* listener)
 {
-    auto type = MegaRequest::TYPE_GET_SYNC_PROBLEMS;
+    auto type = MegaRequest::TYPE_GET_SYNC_STALL_LIST;
     auto request = make_unique<MegaRequestPrivate>(type, listener);
 
-    request->setNumDetails(detailed);
-
-    requestQueue.push(request.get());
-    request.release();
-
+    requestQueue.push(request.release());
     waiter->notify();
 }
 
 MegaSyncStallPrivate::MegaSyncStallPrivate(const SyncStallEntry& e)
 :info(e)
-{}
-
-MegaSyncStallPrivate::MegaSyncStallPrivate(const MegaSyncStallPrivate& other)
- :info(other.info)
 {}
 
 MegaSyncStallPrivate* MegaSyncStallPrivate::copy() const
@@ -1295,11 +1287,16 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     return syncPathProblemDebugString(PathProblem(reason));
 }
 
-MegaSyncStallListPrivate::MegaSyncStallListPrivate(const MegaSyncStallListPrivate& other) {
-    mStalls.reserve(other.size());
-    for(const auto& s: other.mStalls){
-        mStalls.emplace_back(MegaSyncStallPrivate(s));
-    }
+const char*
+MegaSyncNameConflictStallPrivate::reasonDebugString(MegaSyncStall::SyncStallReason reason)
+{
+    return syncWaitReasonDebugString(SyncWaitReason(reason));
+}
+
+const char*
+MegaSyncNameConflictStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reason)
+{
+    return syncPathProblemDebugString(PathProblem(reason));
 }
 
 MegaSyncStallListPrivate* MegaSyncStallListPrivate::copy() const {
@@ -1308,33 +1305,38 @@ MegaSyncStallListPrivate* MegaSyncStallListPrivate::copy() const {
 
 const MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const
 {
-    if( i >= mStalls.size())
+    auto N1 = mNameConflicts.size();
+    if (i < N1)
     {
-        return nullptr;
+        return &mNameConflicts[i];
     }
-    return &mStalls[i];
+
+    i -= N1;
+
+    if( i < mStalls.size())
+    {
+        return &mStalls[i];
+    }
+
+    return nullptr;
 }
 
-void MegaSyncStallListPrivate::addCloudStalls(const SyncStallInfo& syncStalls)
+MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncProblems& sp)
 {
-    for(auto& stall : syncStalls.cloud)
+    for(auto& nc : sp.mConflicts)
+    {
+        mNameConflicts.emplace_back(nc);
+    }
+
+    for(auto& stall : sp.mStalls.cloud)
     {
         mStalls.emplace_back(stall.second);
     }
-}
 
-void MegaSyncStallListPrivate::addLocalStalls(const SyncStallInfo& syncStalls)
-{
-    for(auto& stall : syncStalls.local)
+    for(auto& stall : sp.mStalls.local)
     {
         mStalls.emplace_back(stall.second);
     }
-}
-
-MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncStallInfo& stalls)
-{
-    addLocalStalls(stalls);
-    addCloudStalls(stalls);
 }
 
 error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::syncFolder()
@@ -3265,12 +3267,6 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
 
 #ifdef ENABLE_SYNC
-    if (request->mNameConflictList)
-        mNameConflictList.reset(request->mNameConflictList->copy());
-
-    if (request->mProblems)
-        mProblems.reset(request->mProblems->copy());
-
     if (request->mSyncStallList)
         mSyncStallList.reset(request->mSyncStallList->copy());
 #endif // ENABLE_SYNC
@@ -3312,14 +3308,14 @@ MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
 
 #ifdef ENABLE_SYNC
 
-MegaSyncProblems* MegaRequestPrivate::getMegaSyncProblems() const
+MegaSyncStallList* MegaRequestPrivate::getMegaSyncStallList() const
 {
-    return mProblems.get();
+    return mSyncStallList.get();
 }
 
-void MegaRequestPrivate::setMegaSyncProblems(unique_ptr<MegaSyncProblems> problems)
+void MegaRequestPrivate::setMegaSyncStallList(unique_ptr<MegaSyncStallList>&& sl)
 {
-    mProblems = std::move(problems);
+    mSyncStallList = std::move(sl);
 }
 
 #endif // ENABLE_SYNC
@@ -3982,7 +3978,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS: return "LOAD_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_CLOSE_EXTERNAL_DRIVE_BACKUPS: return "CLOSE_EXTERNAL_DRIVE_BACKUPS";
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
-        case TYPE_GET_SYNC_PROBLEMS: return "GET_SYNC_PROBLEMS";
+        case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
     }
     return "UNKNOWN";
 }
@@ -21344,20 +21340,18 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
-        case MegaRequest::TYPE_GET_SYNC_PROBLEMS:
+        case MegaRequest::TYPE_GET_SYNC_STALL_LIST:
         {
             auto completion = [this, request](SyncProblems& problems) {
                 auto error = ::mega::make_unique<MegaErrorPrivate>(API_OK);
-                auto probs = ::mega::make_unique<MegaSyncProblemsPrivate>(problems);
+                auto stalls = ::mega::make_unique<MegaSyncStallListPrivate>(problems);
 
-                request->setMegaSyncProblems(std::move(probs));
+                request->setMegaSyncStallList(std::move(stalls));
 
                 fireOnRequestFinish(request, std::move(error));
             };
 
-            bool detailed = request->getNumDetails();
-
-            client->syncs.getSyncProblems(std::move(completion), true, detailed);
+            client->syncs.getSyncProblems(std::move(completion), true);
             break;
         }
 #endif  // ENABLE_SYNC
@@ -33496,146 +33490,4 @@ const vector<handle>& FavouriteProcessor::getHandles() const
     return handles;
 }
 
-#ifdef ENABLE_SYNC
-
-MegaSyncNameConflictPrivate::MegaSyncNameConflictPrivate(const NameConflict& conflict)
-  : mCloudNames()
-  , mLocalNames()
-  , mCloudPath(conflict.cloudPath)
-  , mLocalPath(conflict.localPath.toPath())
-{
-    string_vector cloudNames = conflict.clashingCloudNames;
-    string_vector localNames;
-
-    localNames.reserve(conflict.clashingLocalNames.size());
-
-    for (auto& name : conflict.clashingLocalNames)
-        localNames.emplace_back(name.toPath());
-
-    mCloudNames.reset(new MegaStringListPrivate(std::move(cloudNames)));
-    mLocalNames.reset(new MegaStringListPrivate(std::move(localNames)));
-}
-
-MegaSyncNameConflictPrivate::MegaSyncNameConflictPrivate(const MegaSyncNameConflictPrivate& other)
-  : mCloudNames(other.mCloudNames->copy())
-  , mLocalNames(other.mLocalNames->copy())
-  , mCloudPath(other.mCloudPath)
-  , mLocalPath(other.mLocalPath)
-{
-}
-
-MegaStringList* MegaSyncNameConflictPrivate::cloudNames() const
-{
-    return mCloudNames.get();
-}
-
-const char* MegaSyncNameConflictPrivate::cloudPath() const
-{
-    return mCloudPath.c_str();
-}
-
-MegaSyncNameConflict* MegaSyncNameConflictPrivate::copy() const
-{
-    return new MegaSyncNameConflictPrivate(*this);
-}
-
-MegaStringList* MegaSyncNameConflictPrivate::localNames() const
-{
-    return mLocalNames.get();
-}
-
-const char* MegaSyncNameConflictPrivate::localPath() const
-{
-    return mLocalPath.c_str();
-}
-
-MegaSyncNameConflictListPrivate::MegaSyncNameConflictListPrivate(const list<NameConflict>& conflicts)
-  : mConflicts()
-{
-    mConflicts.reserve(conflicts.size());
-
-    for (auto& conflict : conflicts)
-        mConflicts.emplace_back(new MegaSyncNameConflictPrivate(conflict));
-}
-
-MegaSyncNameConflictListPrivate::MegaSyncNameConflictListPrivate(const MegaSyncNameConflictListPrivate& other)
-  : mConflicts()
-{
-    mConflicts.reserve(other.mConflicts.size());
-
-    for (auto& conflict : other.mConflicts)
-        mConflicts.emplace_back(conflict->copy());
-}
-
-MegaSyncNameConflictList* MegaSyncNameConflictListPrivate::copy() const
-{
-    return new MegaSyncNameConflictListPrivate(*this);
-}
-
-MegaSyncNameConflict* MegaSyncNameConflictListPrivate::get(int index) const
-{
-    if (index < 0 || index >= size())
-        return nullptr;
-
-    return mConflicts[index].get();
-}
-
-int MegaSyncNameConflictListPrivate::size() const
-{
-    return static_cast<int>(mConflicts.size());
-}
-
-MegaSyncProblemsPrivate::MegaSyncProblemsPrivate(const SyncProblems& problems)
-  : mConflicts()
-  , mStalls()
-  , mConflictsDetected(problems.mConflictsDetected)
-  , mStallsDetected(problems.mStallsDetected)
-{
-    if (!problems.mConflicts.empty())
-        mConflicts.reset(new MegaSyncNameConflictListPrivate(problems.mConflicts));
-
-    if (!problems.mStalls.empty())
-        mStalls.reset(new MegaSyncStallListPrivate(problems.mStalls));
-}
-
-MegaSyncProblemsPrivate::MegaSyncProblemsPrivate(const MegaSyncProblemsPrivate& other)
-  : mConflicts()
-  , mStalls()
-  , mConflictsDetected(other.mConflictsDetected)
-  , mStallsDetected(other.mStallsDetected)
-{
-    if (other.mConflicts)
-        mConflicts.reset(other.mConflicts->copy());
-
-    if (other.mStalls)
-        mStalls.reset(other.mStalls->copy());
-}
-
-bool MegaSyncProblemsPrivate::anyNameConflictsDetected() const
-{
-    return mConflictsDetected;
-}
-
-bool MegaSyncProblemsPrivate::anyStallsDetected() const
-{
-    return mStallsDetected;
-}
-
-MegaSyncProblems* MegaSyncProblemsPrivate::copy() const
-{
-    return new MegaSyncProblemsPrivate(*this);
-}
-
-MegaSyncNameConflictList* MegaSyncProblemsPrivate::nameConflicts() const
-{
-    return mConflicts.get();
-}
-
-MegaSyncStallList* MegaSyncProblemsPrivate::stalls() const
-{
-    return mStalls.get();
-}
-
-#endif // ENABLE_SYNC
-
-}
+} // namespace mega
