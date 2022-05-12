@@ -13753,18 +13753,19 @@ class MegaApi
          * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId
          *
-          * On the onRequestFinish error, the error code associated to the MegaError can be:
-          * - MegaError::API_EARGS - If the local folder was not set.
-          * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
-          * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-          * wrong 'dev-id'/'drv-id' tag.
-          * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
-          * the handle.
-          * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
-          * - or the node could not be found.
-          * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
-          * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
-          * or device name was empty.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
+         * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
+         * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
+         * wrong 'dev-id'/'drv-id' tag.
+         * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
+         * the handle.
+         * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+         * - or the node could not be found.
+         * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
+         * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
+         * or device name was empty.
+         * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
          *
          * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
          * @param localSyncRootFolder Path of the Local folder to sync/backup.

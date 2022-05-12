@@ -8554,10 +8554,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
     request->setNodeHandle(megaHandle);
-    if(localFolder)
-    {
-        request->setFile(localFolder);
-    }
+    request->setFile(localFolder);
 
     if (name || type == SyncConfig::TYPE_BACKUP)
     {
@@ -8568,11 +8565,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
         request->setName(request->getFile());
     }
     request->setParamType(type);
-
-    if (driveRootIfExternal)
-    {
-        request->setLink(driveRootIfExternal);  // TYPE_BACKUP; continue in sendPendingRequest(), case MegaRequest::TYPE_ADD_SYNC.
-    }
+    request->setLink(driveRootIfExternal);  // TYPE_BACKUP; continue in sendPendingRequest(), case MegaRequest::TYPE_ADD_SYNC.
 
     requestQueue.push(request);
     waiter->notify();
@@ -22867,16 +22860,8 @@ error MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, const string& s
         return API_EARGS;
     }
 
-    std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(request->getNodeHandle()) };
-    if (!remotePath)
-    {
-        LOG_debug << "Node path not found for sync add";
-        request->setNumDetails(REMOTE_NODE_NOT_FOUND);
-        return API_ENOENT;
-    }
-
     SyncConfig syncConfig(localPath,
-        syncName, NodeHandle().set6byte(request->getNodeHandle()), remotePath.get(),
+        syncName, NodeHandle().set6byte(request->getNodeHandle()), node->displaypath(),
         0, drivePath, true, syncType);
 
     client->addsync(move(syncConfig), false,
@@ -22913,7 +22898,7 @@ error MegaApiImpl::addBackupByRequest(MegaRequestPrivate* request, const string&
                                       const LocalPath& localPath, const LocalPath& drivePath)
 {
     CommandPutNodes::Completion thenAddSync = [request, syncName, localPath, drivePath, this]
-    (const Error&, targettype_t, vector<NewNode>& nn, bool targetOverride)
+    (const Error&, targettype_t, vector<NewNode>& nn, bool /*targetOverride*/)
     {
         request->setNodeHandle(nn.back().mAddedHandle);
         error err = addSyncByRequest(request, syncName, localPath, drivePath, SyncConfig::TYPE_BACKUP);

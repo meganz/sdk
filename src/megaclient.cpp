@@ -14349,7 +14349,7 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (deviceNameNode)
         {
             LOG_err << "Add backup: new device, but a folder with the same device-name (" << deviceName << ") already existed";
-            return API_EACCESS; // should this be API_EEXIST ?
+            return API_EEXIST;
         }
 
         // add a new node for it
