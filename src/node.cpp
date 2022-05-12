@@ -212,6 +212,22 @@ void Node::setkey(const byte* newkey)
 // mismatch vector
 Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 {
+    // Makes sure the node's properly unlinked when we delete it.
+    auto node_deleter = [client, dp](Node* node) {
+        // Make sure the client has no dangling references.
+        client->nodes.erase(node->nodeHandle());
+
+        // Make sure the node vector has no dangling references.
+        if (!dp->empty() && dp->back() == node)
+            dp->pop_back();
+
+        // Destroy the node.
+        delete node;
+    };
+
+    // For convenience.
+    using node_pointer = unique_ptr<Node, decltype(node_deleter)>;
+
     handle h, ph;
     nodetype_t t;
     m_off_t s;
@@ -223,7 +239,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     unsigned short ll;
-    Node* n;
+    node_pointer n(nullptr, std::move(node_deleter));
     int i;
     char isExported = '\0';
     char hasLinkCreationTs = '\0';
@@ -351,7 +367,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
+    n.reset(new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts));
 
     if (k)
     {
@@ -382,10 +398,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     ptr = n->attrs.unserialize(ptr, end);
     if (!ptr)
-    {
-        delete n;
         return NULL;
-    }
 
     // It's needed to re-normalize node names because
     // the updated version of utf8proc doesn't provide
@@ -401,10 +414,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     if (isExported)
     {
         if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
-        {
-            delete n;
             return NULL;
-        }
 
         handle ph = 0;
         memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
@@ -429,14 +439,9 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     n->setfingerprint();
 
     if (ptr == end)
-    {
-        return n;
-    }
-    else
-    {
-        delete n;
-        return NULL;
-    }
+        return n.release();
+
+    return nullptr;
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
