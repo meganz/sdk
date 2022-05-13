@@ -826,17 +826,6 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
-
-fsfp_t FileSystemAccess::fsFingerprint(const LocalPath&) const
-{
-    return 0;
-}
-
-bool FileSystemAccess::fsStableIDs(const LocalPath&) const
-{
-    return true;
-}
-
 handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow)
 {
     auto fileAccess = newfileaccess(follow);
