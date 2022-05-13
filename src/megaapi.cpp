@@ -1373,7 +1373,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             {
                 case API_EC_IMPORT:
                 case API_EC_DOWNLOAD:
-                    return "Not accessible due to ToS/AUP violation";
+                    return "File removed as it violated our Terms of Service";
                 default:
                     return "Blocked";
             }
@@ -1740,13 +1740,6 @@ MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent
 {
     pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, workerThreadCount);
 }
-
-#ifdef ENABLE_SYNC
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount)
-{
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd, workerThreadCount);
-}
-#endif
 
 #ifdef HAVE_MEGAAPI_RPC
 MegaApi::MegaApi() {}
@@ -2216,6 +2209,11 @@ void MegaApi::cancelCreateAccount(MegaRequestListener *listener)
 void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
 {
     pImpl->sendSignupLink(email, name, password, listener);
+}
+
+void MegaApi::resendSignupLink(const char *email, const char *name, MegaRequestListener *listener)
+{
+    pImpl->resendSignupLink(email, name, listener);
 }
 
 void MegaApi::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
@@ -5427,6 +5425,16 @@ void MegaApi::completeUpload(const char* utf8Name, MegaNode *parent, const char*
 void MegaApi::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
 {
     return pImpl->getUploadURL(fullFileSize, forceSSL, listener);
+}
+
+void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+{
+    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::THUMBNAIL, forceSSL, listener);
+}
+
+void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+{
+    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::PREVIEW, forceSSL, listener);
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,

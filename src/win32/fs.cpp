@@ -390,7 +390,7 @@ void WinFileAccess::asyncsysopen(AsyncIOContext *context)
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
-    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false);
+    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false, false);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -514,17 +514,16 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes)
+bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck)
 {
-    return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes);
+    return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes, skipcasecheck);
 }
 
-bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes)
+bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
     BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
-    bool skipcasecheck = false;
 
     if (write)
     {
@@ -699,6 +698,23 @@ bool WinFileSystemAccess::cwd(LocalPath& path) const
     return nWritten > 0;
 }
 
+bool WinFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& target)
+{
+    if (!CreateHardLinkW(target.localpath.c_str(), source.localpath.c_str(), nullptr))
+    {
+        LOG_warn << "Unable to create hard link from "
+                 << source.toPath()
+                 << " to "
+                 << target.toPath()
+                 << ". Error code was: "
+                 << GetLastError();
+
+        return false;
+    }
+
+    return true;
+}
+
 bool WinFileSystemAccess::istransient(DWORD e)
 {
     return e == ERROR_ACCESS_DENIED
@@ -719,18 +735,6 @@ bool WinFileSystemAccess::istransientorexists(DWORD e)
 
 void WinFileSystemAccess::addevents(Waiter* w, int)
 {
-}
-
-// generate unique local filename in the same fs as relatedpath
-void WinFileSystemAccess::tmpnamelocal(LocalPath& localname) const
-{
-    static mutex staticMutex;
-    static unsigned tmpindex;
-    char buf[128];
-
-    lock_guard<mutex> g(staticMutex);
-    sprintf(buf, ".getxfer.%lu.%u.mega", GetCurrentProcessId(), tmpindex++);
-    localname = LocalPath::fromRelativePath(buf);
 }
 
 // write short name of the last path component to sname
@@ -1174,10 +1178,23 @@ void WinDirNotify::addnotify(LocalNode* l, const LocalPath&)
 {
 }
 
-fsfp_t WinDirNotify::fsfingerprint() const
+fsfp_t WinFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
-	BY_HANDLE_FILE_INFORMATION fi;
-	if (!GetFileInformationByHandle(hDirectory, &fi))
+    ScopedFileHandle hDirectory =
+        CreateFileW(path.localpath.c_str(),
+                    FILE_LIST_DIRECTORY,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    NULL,
+                    OPEN_EXISTING,
+                    FILE_FLAG_BACKUP_SEMANTICS,
+                    NULL);
+
+    if (!hDirectory)
+        return 0;
+
+    BY_HANDLE_FILE_INFORMATION fi;
+
+	if (!GetFileInformationByHandle(hDirectory.get(), &fi))
     {
         LOG_err << "Unable to get fsfingerprint. Error code: " << GetLastError();
         return 0;
@@ -1186,10 +1203,10 @@ fsfp_t WinDirNotify::fsfingerprint() const
     return fi.dwVolumeSerialNumber + 1;
 }
 
-bool WinDirNotify::fsstableids() const
+bool WinFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
     TCHAR volume[MAX_PATH + 1];
-    if (GetVolumePathNameW(localbasepath.localpath.data(), volume, MAX_PATH + 1))
+    if (GetVolumePathNameW(path.localpath.data(), volume, MAX_PATH + 1))
     {
         TCHAR fs[MAX_PATH + 1];
         if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
@@ -1230,7 +1247,7 @@ void WinDirNotify::process(DWORD dwBytes)
         LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
                 << " errors: " << errCount;
         readchanges();
-        notify(DIREVENTS, localrootnode, LocalPath());
+        notify(DIREVENTS, localrootnode, LocalPath(), false, false);
 #endif
     }
     else
@@ -1267,7 +1284,7 @@ void WinDirNotify::process(DWORD dwBytes)
                         && fni->FileName[ignore.localpath.size() - 1] == L'\\')))
             {
 #ifdef ENABLE_SYNC
-                notify(DIREVENTS, localrootnode, LocalPath::fromPlatformEncodedRelative(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
+                notify(DIREVENTS, localrootnode, LocalPath::fromPlatformEncodedRelative(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))), false, false);
 #endif
             }
 

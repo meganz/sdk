@@ -19,8 +19,12 @@
  * program.
  */
 
+#ifndef MEGA_POSIX_FS_H
+#define MEGA_POSIX_FS_H
+
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS PosixFileSystemAccess
+#endif // ! FSACCESS_CLASS
 
 #ifdef  __APPLE__
 // Apple calls it sendfile, but it isn't
@@ -82,7 +86,6 @@ public:
     static char *appbasepath;
 #endif
 
-    bool notifyerr;
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
@@ -94,8 +97,6 @@ public:
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
     bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning) override;
-
-    void tmpnamelocal(LocalPath&) const override;
 
     bool getsname(const LocalPath&, LocalPath&) const override;
 
@@ -123,11 +124,21 @@ public:
     int getdefaultfolderpermissions();
     void setdefaultfolderpermissions(int);
 
-    PosixFileSystemAccess(int = -1);
+    PosixFileSystemAccess();
     ~PosixFileSystemAccess();
 
     static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
+
+#ifdef ENABLE_SYNC
+    fsfp_t fsFingerprint(const LocalPath& path) const override;
+
+    bool fsStableIDs(const LocalPath& path) const override;
+
+    bool initFilesystemNotificationSystem() override;
+#endif // ENABLE_SYNC
+
+    bool hardLink(const LocalPath& source, const LocalPath& target) override;
 };
 
 #ifdef HAVE_AIO_RT
@@ -155,7 +166,7 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
+    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false) override;
 
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
@@ -197,9 +208,6 @@ public:
 
     void addnotify(LocalNode*, const LocalPath&) override;
     void delnotify(LocalNode*) override;
-
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
 
     PosixDirNotify(const LocalPath&, const LocalPath&, Sync* s);
 };

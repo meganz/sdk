@@ -92,6 +92,7 @@ endif
 
 if DARWIN
 if !USE_IOS
+nobase_libmegainclude_HEADERS += mega/osx/megafs.h
 nobase_libmegainclude_HEADERS += mega/osx/osxutils.h
 endif
 endif

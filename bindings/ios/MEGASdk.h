@@ -1693,26 +1693,52 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @brief Sends the confirmation email for a new account
  *
  * This function is useful to send the confirmation link again or to send it to a different
- * email address, in case the user mistyped the email at the registration form.
+ * email address, in case the user mistyped the email at the registration form. It can only
+ * be used after a successful call to [MEGASdk createAccount] or [MEGASdk resumeCreateAccount].
+ *
+ * The associated request type with this request is MEGARequestTypeSendSignupLink.
  *
  * @param email Email for the account
  * @param name Firstname of the user
  * @param password Password for the account
  * @param delegate MEGARequestDelegate to track this request
+ *
+ * @deprecated This method will be eventually removed. Please, use [MEGASdk resendSignupLinkWithEmail:name:delegate]
  */
-- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk resendSignupLinkWithEmail:name:delegate] instead of this function.")));
 
 /**
  * @brief Sends the confirmation email for a new account
  *
  * This function is useful to send the confirmation link again or to send it to a different
- * email address, in case the user mistyped the email at the registration form.
+ * email address, in case the user mistyped the email at the registration form. It can only
+ * be used after a successful call to [MEGASdk createAccount] or [MEGASdk resumeCreateAccount].
+ *
+ * The associated request type with this request is MEGARequestTypeSendSignupLink.
  *
  * @param email Email for the account
  * @param name Firstname of the user
  * @param password Password for the account
+ *
+ * @deprecated This method will be eventually removed. Please, use [MEGASdk resendSignupLinkWithEmail:name]
  */
-- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password;
+- (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password __attribute__((deprecated("Use [MEGASdk resendSignupLinkWithEmail:name] instead of this function.")));
+
+/**
+ * @brief Sends the confirmation email for a new account
+ *
+ * This function is useful to send the confirmation link again or to send it to a different
+ * email address, in case the user mistyped the email at the registration form. It can only
+ * be used after a successful call to [MEGASdk createAccount] or [MEGASdk resumeCreateAccount].
+ *
+ * The associated request type with this request is MEGARequestTypeSendSignupLink.
+ *
+ * @param email Email for the account
+ * @param name Firstname of the user
+ * @param delegate MEGARequestDelegate to track this request
+ *
+ */
+- (void)resendSignupLinkWithEmail:(NSString *)email name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get information about a confirmation link or a new signup link.
@@ -1726,12 +1752,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - [MEGARequest email] - Return the email associated with the confirmation link.
  * - [MEGARequest name] - Returns the name associated with the confirmation link.
  * - [MEGARequest flag] - Returns true if the account was automatically confirmed, otherwise false
- 
- * If [MEGARequest flag] returns YES, the account was automatically confirmed and it's not needed
- * to call [MEGASdk confirmAccountWithLink:password:delegate]. If it returns NO, it's needed to call [MEGASdk confirmAccountWithLink:password:delegate]
- * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
- * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
- * to know how to proceed.
  *
  * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
  * in onRequestFinish.
@@ -1757,12 +1777,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - [MEGARequest email] - Return the email associated with the confirmation link.
  * - [MEGARequest name] - Returns the name associated with the confirmation link.
  * - [MEGARequest flag] - Returns true if the account was automatically confirmed, otherwise false
- 
- * If [MEGARequest flag] returns YES, the account was automatically confirmed and it's not needed
- * to call [MEGASdk confirmAccountWithLink:password:delegate]. If it returns NO, it's needed to call [MEGASdk confirmAccountWithLink:password:delegate]
- * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
- * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
- * to know how to proceed.
  *
  * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
  * in onRequestFinish.
@@ -5340,6 +5354,40 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
  */
 - (void)getCameraUploadsFolder;
+
+/**
+ * @brief Gets Camera Uploads secondary target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ * - [MEGARequest flag] - Returns YES
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
+ *
+ * If the secondary folder is not set, the request will fail with the error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getCameraUploadsFolderSecondaryWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets Camera Uploads target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ * - [MEGARequest flag] - Returns YES
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
+ *
+ * If the secondary folder is not set, the request will fail with the error code MEGAErrorTypeApiENoent.
+ */
+- (void)getCameraUploadsFolderSecondary;
 
 /**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
