@@ -221,45 +221,45 @@ TEST(MegaApi, getMimeType)
 
 #ifdef ENABLE_SYNC
 
-TEST(MegaApi, MegaSyncStallList_copy_constructor){
-    SyncStallInfo syncStallInfo;
-
-    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
-    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
-    const auto localPath = LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
-    const auto localPathOther = LocalPath::fromPlatformEncodedAbsolute("/here/there/be/Other/Egg" );
-
-    syncStallInfo.waitingLocal(
-        localPath,
-        localPath,
-        theRemotePath,
-        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
-    );
-
-    syncStallInfo.waitingLocal(
-        localPathOther,
-        localPathOther,
-        theRemotePath,
-        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
-    );
-
-    MegaSyncStallListPrivate syncStallList(syncStallInfo);
-
-    auto copyOfList = syncStallList.copy();
-
-    ASSERT_EQ(copyOfList->size(), 2u);
-    ASSERT_EQ(syncStallList.size(), 2u);
-
-    for(size_t i=0; i<copyOfList->size();++i){
-        const MegaSyncStall* fromCopyPtr = copyOfList->get(i);
-        const MegaSyncStall* fromOrigPtr = syncStallList.get(i);
-        ASSERT_NE(fromCopyPtr, fromOrigPtr); // Are copies
-        ASSERT_NE(fromCopyPtr->indexPath(),fromOrigPtr->indexPath()); // Are copies
-        ASSERT_EQ(strcmp(fromCopyPtr->indexPath(),fromOrigPtr->indexPath()),0); // Same information
-    }
-
-    delete copyOfList;
-    ASSERT_EQ(syncStallList.size(), 2u);
-}
+//TEST(MegaApi, MegaSyncStallList_copy_constructor){
+//    SyncStallInfo syncStallInfo;
+//
+//    const std::string theLocalPath  = "/here/there/be/Chicken/Egg";
+//    const std::string theRemotePath = "/here/there/be/Egg/Chicken";
+//    const auto localPath = LocalPath::fromPlatformEncodedAbsolute(theLocalPath);
+//    const auto localPathOther = LocalPath::fromPlatformEncodedAbsolute("/here/there/be/Other/Egg" );
+//
+//    syncStallInfo.waitingLocal(
+//        localPath,
+//        localPath,
+//        theRemotePath,
+//        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+//    );
+//
+//    syncStallInfo.waitingLocal(
+//        localPathOther,
+//        localPathOther,
+//        theRemotePath,
+//        SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose
+//    );
+//
+//    MegaSyncStallListPrivate syncStallList(syncStallInfo);
+//
+//    auto copyOfList = syncStallList.copy();
+//
+//    ASSERT_EQ(copyOfList->size(), 2u);
+//    ASSERT_EQ(syncStallList.size(), 2u);
+//
+//    for(size_t i=0; i<copyOfList->size();++i){
+//        const MegaSyncStall* fromCopyPtr = copyOfList->get(i);
+//        const MegaSyncStall* fromOrigPtr = syncStallList.get(i);
+//        ASSERT_NE(fromCopyPtr, fromOrigPtr); // Are copies
+//        ASSERT_NE(fromCopyPtr->indexPath(),fromOrigPtr->indexPath()); // Are copies
+//        ASSERT_EQ(strcmp(fromCopyPtr->indexPath(),fromOrigPtr->indexPath()),0); // Same information
+//    }
+//
+//    delete copyOfList;
+//    ASSERT_EQ(syncStallList.size(), 2u);
+//}
 
 #endif // ENABLE_SYNC

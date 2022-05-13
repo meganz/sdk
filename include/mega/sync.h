@@ -788,10 +788,81 @@ private:
  * A Synchronization operation detected a problem and is
  * not able to continue (a stall)
  */
-struct SyncStallEntry {
+struct SyncStallEntry
+{
+    // Gives an overall reason for the stall
+    // There may be a more specific pathProblem in one of the paths
     SyncWaitReason reason = SyncWaitReason::NoReason;
-    string involvedCloudPath;    ///<! remote path representation
-    LocalPath involvedLocalPath;
+
+    // Set this true if there's no way this stall will be resolved
+    // automatically.  That way, we can alert the user at the first
+    // opportunity, instead of waiting until we run out of sync
+    // activity that can occur.
+    bool alertUserImmediately = false;
+
+    struct StallCloudPath
+    {
+        PathProblem problem = PathProblem::NoProblem;
+        string cloudPath;
+
+        StallCloudPath() {}
+
+        StallCloudPath(const string& cp, PathProblem pp = PathProblem::NoProblem)
+            : problem(pp), cloudPath(cp)
+        {
+        }
+
+        string debugReport()
+        {
+            string r = cloudPath;
+            if (problem != PathProblem::NoProblem)
+                r += " (" + string(syncPathProblemDebugString(problem)) + ")";
+            return r;
+        }
+    };
+
+    struct StallLocalPath
+    {
+        PathProblem problem = PathProblem::NoProblem;
+        LocalPath localPath;
+
+        StallLocalPath() {}
+
+        StallLocalPath(const LocalPath& lp, PathProblem pp = PathProblem::NoProblem)
+            : problem(pp), localPath(lp)
+        {
+        }
+
+        string debugReport()
+        {
+            string r = localPath.toPath();
+            if (problem != PathProblem::NoProblem)
+                r += " (" + string(syncPathProblemDebugString(problem)) + ")";
+            return r;
+        }
+    };
+
+    // These are the paths involved with the stall case.
+    // If a path is empty, it's irrelevant to the case
+    // The problem might be local or remote, chck the correpsonding PathProblem.
+    // Typically we tried to do soemthing on the problem side
+    // The paths on the other side are what motivated the attempt.
+    // Eg. Saw in the cloud cloudPath1 moved to cloudPath2
+    //     Tried to move localPath1 to localPath2, got error localPath2Problem.
+    StallCloudPath cloudPath1;
+    StallCloudPath cloudPath2;
+    StallLocalPath localPath1;
+    StallLocalPath localPath2;
+
+    SyncStallEntry(SyncWaitReason r, bool immediate, StallCloudPath&& cp1, StallCloudPath&& cp2, StallLocalPath&& lp1, StallLocalPath&& lp2)
+        : reason(r)
+        , alertUserImmediately(immediate)
+        , cloudPath1(move(cp1))
+        , cloudPath2(move(cp2))
+        , localPath1(move(lp1))
+        , localPath2(move(lp2))
+    {
+    }
 };
 
 struct SyncStallInfo
@@ -802,15 +873,11 @@ struct SyncStallInfo
     /** No stalls detected */
     bool empty() const;
 
-    bool waitingCloud(const string& cloudPath1,
-                      const string& cloudPath2,
-                      const LocalPath& localPath,
-                      SyncWaitReason reason);
+    bool waitingCloud(const string& mapKeyPath,
+                      SyncStallEntry&& e);
 
-    bool waitingLocal(const LocalPath& localPath1,
-                      const LocalPath& localPath2,
-                      const string& cloudPath,
-                      SyncWaitReason reason);
+    bool waitingLocal(const LocalPath& mapKeyPath,
+                      SyncStallEntry&& e);
 
     CloudStallInfoMap cloud;
     LocalStallInfoMap local;
@@ -907,10 +974,9 @@ struct Syncs
     ~Syncs();
 
     void getSyncProblems(std::function<void(SyncProblems&)> completion,
-                         bool completionInClient,
-                         bool detailed);
+                         bool completionInClient);
 
-    void getSyncProblems_inThread(SyncProblems& problems, bool detailed);
+    void getSyncProblems_inThread(SyncProblems& problems);
 
     // Retrieve status information about sync(s).
     using SyncStatusInfoCompletion =
@@ -1200,10 +1266,12 @@ private:
         // Report the load failure as a stall.
         void report(SyncStallInfo& stallInfo)
         {
-            stallInfo.waitingLocal(mPath,
-                                   LocalPath(),
-                                   string(),
-                                   SyncWaitReason::UnableToLoadIgnoreFile);
+            stallInfo.waitingLocal(mPath, SyncStallEntry(
+                SyncWaitReason::FileIssue, true,
+                {},
+                {},
+                {mPath, PathProblem::IgnoreFileMalformed},
+                {}));
         }
 
         // Has the ignore file failure been resolved?

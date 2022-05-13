@@ -1063,7 +1063,7 @@ MegaHandleList* MegaRequest::getMegaHandleList() const
 
 #ifdef ENABLE_SYNC
 
-MegaSyncProblems* MegaRequest::getMegaSyncProblems() const
+MegaSyncStallList* MegaRequest::getMegaSyncStallList() const
 {
     return nullptr;
 }
@@ -3432,9 +3432,9 @@ long long MegaApi::getNumLocalNodes()
     return pImpl->getNumLocalNodes();
 }
 
-void MegaApi::getSyncProblems(MegaRequestListener* listener, bool detailed)
+void MegaApi::getMegaSyncStallList(MegaRequestListener* listener)
 {
-    pImpl->getSyncProblems(listener, detailed);
+    pImpl->getMegaSyncStallList(listener);
 }
 
 MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
@@ -5991,45 +5991,6 @@ void MegaSyncList::addSync(MegaSync *sync)
 
 }
 
-MegaSyncStall* MegaSyncStall::copy() const {
-    return nullptr; // @see implementation
-}
-
-const char* MegaSyncStall::indexPath() const
-{
-    return "";
-}
-
-const char* MegaSyncStall::localPath() const
-{
-    return "";
-}
-
-const char* MegaSyncStall::cloudPath() const
-{
-    return "";
-}
-
-MegaSyncStall::SyncStallReason MegaSyncStall::reason() const
-{
-    return MegaSyncStall::SyncStallReason::NoReason;
-}
-
-bool MegaSyncStall::isCloud() const
-{
-    return false;
-}
-
-bool MegaSyncStall::isImmediate() const
-{
-    return false;
-}
-
-const char*  MegaSyncStall::reasonString() const
-{
-    return "";
-}
-
 MegaSyncStallList* MegaSyncStallList::copy() const
 {
     return nullptr;
@@ -7185,26 +7146,5 @@ MegaCurrency *MegaCurrency::copy()
 {
     return nullptr;
 }
-
-#ifdef ENABLE_SYNC
-
-MegaSyncNameConflict::~MegaSyncNameConflict() = default;
-
-MegaSyncNameConflict::MegaSyncNameConflict() = default;
-
-MegaSyncNameConflictList::~MegaSyncNameConflictList() = default;
-
-MegaSyncNameConflictList::MegaSyncNameConflictList() = default;
-
-MegaSyncProblems::~MegaSyncProblems() = default;
-
-MegaSyncProblems::MegaSyncProblems() = default;
-
-bool MegaSyncProblems::anyProblems() const
-{
-    return anyNameConflictsDetected() || anyStallsDetected();
-}
-
-#endif // ENABLE_SYNC
 
 }

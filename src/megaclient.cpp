@@ -14847,7 +14847,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
                    remoteNodes->end(),
                    [&](const Node *remoteNode) -> bool
                    {
-                       return localNode->name == remoteNode->displayname();
+                       return localNode->toName_of_localname == remoteNode->displayname();
                    });
 
     if (remoteNode != remoteNodes->end())

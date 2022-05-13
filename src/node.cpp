@@ -1192,7 +1192,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
     {
         // set new name
         localname = newlocalpath;
-        name = localname.toName(*sync->syncs.fsaccess);
+        toName_of_localname = localname.toName(*sync->syncs.fsaccess);
     }
 
     if (shortnameChange)
@@ -1380,7 +1380,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     else
     {
         localname = cfullpath;
-        name = localname.toName(*sync->syncs.fsaccess);
+        toName_of_localname = localname.toName(*sync->syncs.fsaccess);
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
 
         mExclusionState = ES_INCLUDED;
@@ -2166,11 +2166,23 @@ void LocalNode::getlocalpath(LocalPath& path) const
     }
 }
 
-string LocalNode::getCloudPath() const
+string LocalNode::getCloudPath(bool guessLeafName) const
 {
+    // We may need to guess the leaf name if we suspect
+    // or know that the corresponding cloud node has been moved/renamed
+    // and we need its old name
+
     string path;
 
-    for (const LocalNode* l = this; l != nullptr; l = l->parent)
+    const LocalNode* l = this;
+
+    if (guessLeafName)
+    {
+        path = l->localname.toName(*sync->syncs.fsaccess);
+        l = l->parent;
+    }
+
+    for (; l != nullptr; l = l->parent)
     {
         string name;
 
@@ -2183,7 +2195,7 @@ string LocalNode::getCloudPath() const
         }
         else
         {
-            name = this->name;
+            name = l->localname.toName(*sync->syncs.fsaccess);
         }
 
         assert(!l->parent || l->parent->sync == sync);
@@ -2194,11 +2206,6 @@ string LocalNode::getCloudPath() const
         path.insert(0, l->parent ? name : fullpath);
     }
     return path;
-}
-
-string LocalNode::getCloudName() const
-{
-    return name;
 }
 
 // locate child by localname or slocalname
@@ -2232,7 +2239,7 @@ FSNode LocalNode::getLastSyncedFSDetails() const
 
     FSNode n;
     n.localname = localname;
-    n.name = name;
+    n.name = toName_of_localname;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_lastSynced;
@@ -2247,7 +2254,7 @@ FSNode LocalNode::getScannedFSDetails() const
 {
     FSNode n;
     n.localname = localname;
-    n.name = name;
+    n.name = toName_of_localname;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_asScanned;
@@ -2882,7 +2889,7 @@ bool LocalNode::isExcluded(RemotePathPair namePath, nodetype_t type, bool inheri
         }
 
         // Update path so that it's applicable to the next node's path filters.
-        namePath.second.prependWithSeparator(node->name);
+        namePath.second.prependWithSeparator(node->toName_of_localname);
     }
 
     // File's included.
