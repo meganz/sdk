@@ -3857,7 +3857,7 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
                     else
                     {
                         LOG_err << "Backup move destination upon removal does not exist";
-                        if (completion) completion(API_EACCESS);
+                        if (completion) completion(API_EINCOMPLETE);
                     }
                 }
             }
