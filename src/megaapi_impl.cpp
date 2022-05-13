@@ -2944,6 +2944,25 @@ bool MegaTransferPrivate::getDoNotStopSubTransfers() const
     return mDoNotStopSubTransfers;
 }
 
+void MegaTransferPrivate::completeRecursiveOperation(Error e)
+{
+    if (!isRecursive())
+    {
+        return;
+    }
+
+    if (getType() == MegaTransfer::TYPE_DOWNLOAD)
+    {
+        MegaFolderDownloadController* downloadController = static_cast<MegaFolderDownloadController*>(recursiveOperation.get());
+        downloadController->complete(e, true);
+    }
+    else
+    {
+        MegaFolderUploadController* uploadController = static_cast<MegaFolderUploadController*>(recursiveOperation.get());
+        uploadController->complete(e, true);
+    }
+}
+
 MegaCancelToken* MegaTransferPrivate::getCancelToken() const
 {
     return mCancelToken;
@@ -7774,25 +7793,29 @@ void MegaApiImpl::abortPendingActions(error preverror)
         // clear existing transfers
         while (!transferMap.empty())
         {
-            MegaTransferPrivate* transfer = nullptr;
-
-            for (auto& t : transferMap)
+            MegaTransferPrivate* transfer = transferMap.begin()->second;
+            if (transfer->isRecursive())
             {
-                // skip the folder upload/download records- their last sub-transfer will remove them too
-                if (!t.second->isRecursive())
+                if (!transfer->getCancelToken())
                 {
-                    transfer = t.second;
-					break;
+                    LOG_err << "abortPendingActions: Folder transfer with tag (" << transfer->getTag() <<") doesn't have a valid cancel token";
+                    assert(false);
+                    transfer->setState(MegaTransfer::STATE_FAILED);
+                    transfer->setDoNotStopSubTransfers(true);
+                    fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
+                }
+                else if (!transfer->getCancelToken()->isCancelled())
+                {
+                    transferMap.erase(transfer->getTag());
+                    transfer->completeRecursiveOperation(API_EINCOMPLETE);
                 }
             }
-            if (!transfer) break;
-
-            transfer->setState(MegaTransfer::STATE_FAILED);
-
-            transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
-
-            // this call can be recursive and remove multiple, eg with MegaFolderUploadController
-            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
+            else
+            {
+                transfer->setState(MegaTransfer::STATE_FAILED);
+                transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
+                fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
+            }
         }
         assert(transferMap.empty());
         transferMap.clear();

@@ -884,6 +884,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         bool getDoNotStopSubTransfers() const;
         MegaCancelToken* getCancelToken() const override;
         bool isRecursive() const { return recursiveOperation.get() != nullptr; }
+        void completeRecursiveOperation(Error e);
 
 protected:
         int type;
