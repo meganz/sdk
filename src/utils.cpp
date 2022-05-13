@@ -2888,6 +2888,9 @@ const char* syncWaitReasonDebugString(SyncWaitReason r)
         case SyncWaitReason::FolderMatchedAgainstFile:                      return "FolderMatchedAgainstFile";
         case SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose: return "BothChangedSinceLastSynced";
         case SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose: return "LocalAndRemotePreviouslyUnsyncedDiffer";
+        case SyncWaitReason::NamesWouldClashWhenSynced:                     return "NamesWouldClashWhenSynced";
+
+        case SyncWaitReason::SyncWaitReason_LastPlusOne: break;
     }
     return "<out of range>";
 }
@@ -2916,6 +2919,8 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::FilesystemErrorListingFolder: return "FilesystemErrorListingFolder";
     case PathProblem::FilesystemErrorIdentifyingFolderContent: return "FilesystemErrorIdentifyingFolderContent";
     case PathProblem::UndecryptedCloudNode: return "UndecryptedCloudNode";
+
+    case PathProblem::PathProblem_LastPlusOne: break;
     }
     return "<out of range>";
 };
