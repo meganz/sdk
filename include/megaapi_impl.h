@@ -2169,7 +2169,7 @@ public:
             auto i = mCache1.find(index);
             if (i != mCache1.end()) return i->second.c_str();
 
-            if (index >= 0 && index < mConfict.clashingCloudNames.size())
+            if (index >= 0 && index < int(mConfict.clashingCloudNames.size()))
             {
                 mCache1[index] = mConfict.cloudPath + "/" + mConfict.clashingCloudNames[index];
                 return mCache1[index].c_str();
@@ -2180,7 +2180,7 @@ public:
             auto i = mCache2.find(index);
             if (i != mCache2.end()) return i->second.c_str();
 
-            if (index >= 0 && index < mConfict.clashingLocalNames.size())
+            if (index >= 0 && index < int(mConfict.clashingLocalNames.size()))
             {
                 LocalPath lp = mConfict.localPath;
                 lp.appendWithSeparator(mConfict.clashingLocalNames[index], true);
