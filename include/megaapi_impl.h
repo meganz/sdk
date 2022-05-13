@@ -882,7 +882,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         void setDoNotStopSubTransfers(bool doNotStopSubTransfers);
         bool getDoNotStopSubTransfers() const;
-        MegaCancelToken* getCancelToken() const;
+        MegaCancelToken* getCancelToken() const override;
         bool isRecursive() const { return recursiveOperation.get() != nullptr; }
 
 protected:
