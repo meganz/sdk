@@ -103,7 +103,7 @@ class MEGA_API LocalPath
     friend class PosixFileAccess;
     friend void RemoveHiddenFileAttribute(LocalPath& path);
     friend void AddHiddenFileAttribute(LocalPath& path);
-    friend class GfxProcFreeImage;
+    friend class GfxProviderFreeImage;
     friend struct FileSystemAccess;
 #ifdef USE_ROTATIVEPERFORMANCELOGGER
     friend class RotativePerformanceLoggerLoggingThread;

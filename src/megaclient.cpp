@@ -981,10 +981,10 @@ void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
-Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
+const Node* MegaClient::childnodebyname(const Node* p, const char* name, bool skipfolders) const
 {
     string nname = name;
-    Node *found = NULL;
+    const Node *found = NULL;
 
     if (!p || p->type == FILENODE)
     {
@@ -993,7 +993,7 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
 
     LocalPath::utf8_normalize(&nname);
 
-    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+    for (node_list::const_iterator it = p->children.begin(); it != p->children.end(); it++)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
@@ -1011,6 +1011,12 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
     }
 
     return found;
+}
+
+Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
+{
+    // Casting simply to reuse the above code.
+    return const_cast<Node*>(childnodebyname(static_cast<const Node*>(p), name, skipfolders));
 }
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
@@ -1180,7 +1186,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
-    nsr_enabled = false;
     aplvp_enabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
@@ -3611,7 +3616,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     accountsince = 0;
     gmfa_enabled = false;
     ssrs_enabled = false;
-    nsr_enabled = false;
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
@@ -4646,7 +4650,7 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, std::move(data)));
+    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, 0, std::move(data)));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
@@ -7148,6 +7152,18 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
         return API_EACCESS;
     }
 
+    // Check and delete invalid fav attributes
+    {
+        std::vector<nameid> nameIds = { AttrMap::string2nameid("fav"), AttrMap::string2nameid("lbl") };
+        for (nameid& nameId : nameIds)
+        {
+            auto itAttr= n->attrs.map.find(nameId);
+            if (itAttr != n->attrs.map.end() && (itAttr->second.empty() || itAttr->second == "0"))
+            {
+                updates[nameId] = "";
+            }
+        }
+    }
     // we only update the values stored in the node once the command completes successfully
     reqs.add(new CommandSetAttr(this, n, std::move(updates), move(c)));
 
@@ -8394,9 +8410,6 @@ error MegaClient::readmiscflags(JSON *json)
         case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler (only available when logged in)
             ssrs_enabled = bool(json->getint());
             break;
-        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-            nsr_enabled = bool(json->getint());
-            break;
         case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled (only available when logged in)
             aplvp_enabled = bool(json->getint());
             break;
@@ -9598,14 +9611,14 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
 }
 
 // Add/delete/remind outgoing pending contact request
-void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
+void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, CommandSetPendingContact::Completion completion)
 {
-    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink));
+    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink, std::move(completion)));
 }
 
-void MegaClient::updatepcr(handle p, ipcactions_t action)
+void MegaClient::updatepcr(handle p, ipcactions_t action, CommandUpdatePendingContact::Completion completion)
 {
-    reqs.add(new CommandUpdatePendingContact(this, p, action));
+    reqs.add(new CommandUpdatePendingContact(this, p, action, std::move(completion)));
 }
 
 // enumerate Pro account purchase options (not fully implemented)
@@ -9764,14 +9777,14 @@ void MegaClient::getpaymentmethods()
 }
 
 // delete or block an existing contact
-error MegaClient::removecontact(const char* email, visibility_t show)
+error MegaClient::removecontact(const char* email, visibility_t show, CommandRemoveContact::Completion completion)
 {
     if (!strchr(email, '@') || (show != HIDDEN && show != BLOCKED))
     {
         return API_EARGS;
     }
 
-    reqs.add(new CommandRemoveContact(this, email, show));
+    reqs.add(new CommandRemoveContact(this, email, show, std::move(completion)));
 
     return API_OK;
 }
@@ -11221,21 +11234,6 @@ void MegaClient::createephemeralPlusPlus()
     createephemeral();
 }
 
-void MegaClient::sendsignuplink(const char* email, const char* name, const byte* pwhash)
-{
-    SymmCipher pwcipher(pwhash);
-    byte c[2 * SymmCipher::KEYLENGTH];
-
-    memcpy(c, key.key, sizeof key.key);
-    rng.genblock(c + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH / 4);
-    memset(c + SymmCipher::KEYLENGTH + SymmCipher::KEYLENGTH / 4, 0, SymmCipher::KEYLENGTH / 2);
-    rng.genblock(c + 2 * SymmCipher::KEYLENGTH - SymmCipher::KEYLENGTH / 4, SymmCipher::KEYLENGTH / 4);
-
-    pwcipher.ecb_encrypt(c, c, sizeof c);
-
-    reqs.add(new CommandSendSignupLink(this, email, name, c));
-}
-
 string MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
 {
     byte clientrandomvalue[SymmCipher::KEYLENGTH];
@@ -11274,18 +11272,6 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
 void MegaClient::resendsignuplink2(const char *email, const char *name)
 {
     reqs.add(new CommandSendSignupLink2(this, email, name));
-}
-
-// if query is 0, actually confirm account; just decode/query signup link
-// details otherwise
-void MegaClient::querysignuplink(const byte* code, unsigned len)
-{
-    reqs.add(new CommandQuerySignupLink(this, code, len));
-}
-
-void MegaClient::confirmsignuplink(const byte* code, unsigned len, uint64_t emailhash)
-{
-    reqs.add(new CommandConfirmSignupLink(this, code, len, emailhash));
 }
 
 void MegaClient::confirmsignuplink2(const byte *code, unsigned len)
@@ -13679,8 +13665,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
                 {
                     if (!l->reported)
                     {
-                        char* buf = new char[(*it)->nodekey().size() * 4 / 3 + 4];
-                        Base64::btoa((byte *)(*it)->nodekey().data(), int((*it)->nodekey().size()), buf);
+                        // So we don't trip an assertion if the key's not decoded.
+                        auto& nodeKey = (*it)->nodekeyUnchecked();
+
+                        char* buf = new char[nodeKey.size() * 4 / 3 + 4];
+                        Base64::btoa((byte *)nodeKey.data(), int(nodeKey.size()), buf);
 
                         LOG_warn << "Sync: Undecryptable child node. " << buf;
 

@@ -2221,6 +2221,11 @@ void MegaApi::sendSignupLink(const char *email, const char *name, const char *pa
     pImpl->sendSignupLink(email, name, password, listener);
 }
 
+void MegaApi::resendSignupLink(const char *email, const char *name, MegaRequestListener *listener)
+{
+    pImpl->resendSignupLink(email, name, listener);
+}
+
 void MegaApi::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
 {
     pImpl->fastSendSignupLink(email, base64pwkey, name, listener);
@@ -5394,6 +5399,16 @@ void MegaApi::completeUpload(const char* utf8Name, MegaNode *parent, const char*
 void MegaApi::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
 {
     return pImpl->getUploadURL(fullFileSize, forceSSL, listener);
+}
+
+void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+{
+    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::THUMBNAIL, forceSSL, listener);
+}
+
+void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+{
+    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::PREVIEW, forceSSL, listener);
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
