@@ -1061,6 +1061,8 @@ enum class SyncWaitReason {
     LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
     LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
     NamesWouldClashWhenSynced,
+
+    SyncWaitReason_LastPlusOne
 };
 
 enum class PathProblem : unsigned short {
@@ -1084,6 +1086,8 @@ enum class PathProblem : unsigned short {
     FilesystemErrorListingFolder,
     FilesystemErrorIdentifyingFolderContent,
     UndecryptedCloudNode,
+
+    PathProblem_LastPlusOne
 };
 
 const char* syncWaitReasonDebugString(SyncWaitReason r);

@@ -5538,6 +5538,8 @@ class MegaSyncStall
             LocalAndRemoteChangedSinceLastSyncedState_userMustChoose,
             LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose,
             NamesWouldClashWhenSynced,
+
+            SyncStallReason_LastPlusOne
         };
 
         enum SyncPathProblem {
@@ -5561,6 +5563,8 @@ class MegaSyncStall
             FilesystemErrorListingFolder,
             FilesystemErrorIdentifyingFolderContent,
             UndecryptedCloudNode,
+
+            SyncPathProblem_LastPlusOne
         };
 
         /**

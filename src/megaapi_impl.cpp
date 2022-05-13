@@ -1266,24 +1266,54 @@ MegaSyncStallPrivate* MegaSyncStallPrivate::copy() const
     return new MegaSyncStallPrivate(*this);
 }
 
-MegaSyncStall::SyncStallReason
-MegaSyncStallListPrivate::syncStallReasonMapping(SyncWaitReason reason) const
-{
-    static_assert((int)SyncWaitReason::NoReason == (int)MegaSyncStall::SyncStallReason::NoReason);
-    // tbd
-
-    return  MegaSyncStall::SyncStallReason(reason);
-}
-
 const char*
 MegaSyncStallPrivate::reasonDebugString(MegaSyncStall::SyncStallReason reason)
 {
+    static_assert((int)SyncWaitReason::NoReason == (int)MegaSyncStall::SyncStallReason::NoReason);
+    static_assert((int)SyncWaitReason::FileIssue == (int)MegaSyncStall::SyncStallReason::FileIssue);
+    static_assert((int)SyncWaitReason::MoveOrRenameCannotOccur == (int)MegaSyncStall::SyncStallReason::MoveOrRenameCannotOccur);
+    static_assert((int)SyncWaitReason::DeleteOrMoveWaitingOnScanning == (int)MegaSyncStall::SyncStallReason::DeleteOrMoveWaitingOnScanning);
+    static_assert((int)SyncWaitReason::DeleteWaitingOnMoves == (int)MegaSyncStall::SyncStallReason::DeleteWaitingOnMoves);
+    static_assert((int)SyncWaitReason::UploadIssue == (int)MegaSyncStall::SyncStallReason::UploadIssue);
+    static_assert((int)SyncWaitReason::DownloadIssue == (int)MegaSyncStall::SyncStallReason::DownloadIssue);
+    static_assert((int)SyncWaitReason::CannotCreateFolder == (int)MegaSyncStall::SyncStallReason::CannotCreateFolder);
+    static_assert((int)SyncWaitReason::CannotPerformDeletion == (int)MegaSyncStall::SyncStallReason::CannotPerformDeletion);
+    static_assert((int)SyncWaitReason::SyncItemExceedsSupportedTreeDepth == (int)MegaSyncStall::SyncStallReason::SyncItemExceedsSupportedTreeDepth);
+    static_assert((int)SyncWaitReason::FolderMatchedAgainstFile == (int)MegaSyncStall::SyncStallReason::FolderMatchedAgainstFile);
+    static_assert((int)SyncWaitReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose == (int)MegaSyncStall::SyncStallReason::LocalAndRemoteChangedSinceLastSyncedState_userMustChoose);
+    static_assert((int)SyncWaitReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose == (int)MegaSyncStall::SyncStallReason::LocalAndRemotePreviouslyUnsyncedDiffer_userMustChoose);
+    static_assert((int)SyncWaitReason::NamesWouldClashWhenSynced == (int)MegaSyncStall::SyncStallReason::NamesWouldClashWhenSynced);
+    static_assert((int)SyncWaitReason::SyncWaitReason_LastPlusOne == (int)MegaSyncStall::SyncStallReason::SyncStallReason_LastPlusOne);
+
     return syncWaitReasonDebugString(SyncWaitReason(reason));
 }
 
 const char*
 MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reason)
 {
+    static_assert((int)PathProblem::NoProblem == (int)MegaSyncStall::SyncPathProblem::NoProblem);
+
+    static_assert((int)PathProblem::FileChangingFrequently == (int)MegaSyncStall::SyncPathProblem::FileChangingFrequently);
+    static_assert((int)PathProblem::IgnoreRulesUnknown == (int)MegaSyncStall::SyncPathProblem::IgnoreRulesUnknown);
+    static_assert((int)PathProblem::DetectedHardLink == (int)MegaSyncStall::SyncPathProblem::DetectedHardLink);
+    static_assert((int)PathProblem::DetectedSymlink == (int)MegaSyncStall::SyncPathProblem::DetectedSymlink);
+    static_assert((int)PathProblem::DetectedSpecialFile == (int)MegaSyncStall::SyncPathProblem::DetectedSpecialFile);
+    static_assert((int)PathProblem::DifferentFileOrFolderIsAlreadyPresent == (int)MegaSyncStall::SyncPathProblem::DifferentFileOrFolderIsAlreadyPresent);
+    static_assert((int)PathProblem::ParentFolderDoesNotExist == (int)MegaSyncStall::SyncPathProblem::ParentFolderDoesNotExist);
+    static_assert((int)PathProblem::FilesystemErrorDuringOperation == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorDuringOperation);
+    static_assert((int)PathProblem::NameTooLongForFilesystem == (int)MegaSyncStall::SyncPathProblem::NameTooLongForFilesystem);
+    static_assert((int)PathProblem::CannotFingrprintFile == (int)MegaSyncStall::SyncPathProblem::CannotFingrprintFile);
+    static_assert((int)PathProblem::DestinationPathInUnresolvedArea == (int)MegaSyncStall::SyncPathProblem::DestinationPathInUnresolvedArea);
+    static_assert((int)PathProblem::MACVerificationFailure == (int)MegaSyncStall::SyncPathProblem::MACVerificationFailure);
+    static_assert((int)PathProblem::DeletedOrMovedByUser == (int)MegaSyncStall::SyncPathProblem::DeletedOrMovedByUser);
+    static_assert((int)PathProblem::FileFolderDeletedByUser == (int)MegaSyncStall::SyncPathProblem::FileFolderDeletedByUser);
+    static_assert((int)PathProblem::MoveToDebrisFolderFailed == (int)MegaSyncStall::SyncPathProblem::MoveToDebrisFolderFailed);
+    static_assert((int)PathProblem::IgnoreFileMalformed == (int)MegaSyncStall::SyncPathProblem::IgnoreFileMalformed);
+    static_assert((int)PathProblem::FilesystemErrorListingFolder == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorListingFolder);
+    static_assert((int)PathProblem::FilesystemErrorIdentifyingFolderContent == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorIdentifyingFolderContent);
+    static_assert((int)PathProblem::UndecryptedCloudNode == (int)MegaSyncStall::SyncPathProblem::UndecryptedCloudNode);
+    static_assert((int)PathProblem::PathProblem_LastPlusOne == (int)MegaSyncStall::SyncPathProblem::SyncPathProblem_LastPlusOne);
+
     return syncPathProblemDebugString(PathProblem(reason));
 }
 

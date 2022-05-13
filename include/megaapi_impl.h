@@ -2228,7 +2228,6 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
     protected:
         std::vector<MegaSyncNameConflictStallPrivate> mNameConflicts;
         std::vector<MegaSyncStallPrivate> mStalls;
-        MegaSyncStall::SyncStallReason syncStallReasonMapping(SyncWaitReason reason) const;
 };
 
 #endif // ENABLE_SYNC
