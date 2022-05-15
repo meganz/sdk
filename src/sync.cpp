@@ -10266,7 +10266,7 @@ void Syncs::syncLoop()
                         if (sbp->folderUnreadable)
                         {
                             mSyncFlags->stall.waitingLocal(sbp->scanBlockedLocalPath, SyncStallEntry(
-                                SyncWaitReason::FileIssue, false,
+                                SyncWaitReason::FileIssue, true,
                                 {},
                                 {},
                                 {sbp->scanBlockedLocalPath, PathProblem::FilesystemErrorListingFolder},
