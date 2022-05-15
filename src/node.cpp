@@ -186,6 +186,11 @@ bool Node::hasChildWithName(const string& name) const
     return false;
 }
 
+void Node::setNodeKeyData(const string& data)
+{
+    nodekeydata = data;
+}
+
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
@@ -491,7 +496,7 @@ bool Node::serialize(string* d)
         LOG_warn << "Trying to serialize an encrypted node";
 
         //Last attempt to decrypt the node
-        applykey();
+        applykey(true);
         setattr();
 
         if (attrstring)
@@ -933,7 +938,7 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
 }
 
 // attempt to apply node key - sets nodekey to a raw key if successful
-bool Node::applykey()
+bool Node::applykey(bool notAppliedOk)
 {
     if (type > FOLDERNODE)
     {
@@ -1018,7 +1023,7 @@ bool Node::applykey()
         setattr();
     }
 
-    assert(keyApplied());
+    assert(keyApplied() || notAppliedOk);
     return true;
 }
 
