@@ -7798,8 +7798,7 @@ void MegaApiImpl::abortPendingActions(error preverror)
             {
                 if (!transfer->getCancelToken())
                 {
-                    LOG_err << "abortPendingActions: Folder transfer with tag (" << transfer->getTag() <<") doesn't have a valid cancel token";
-                    assert(false);
+                    LOG_debug << "abortPendingActions: Folder transfer with tag (" << transfer->getTag() <<") doesn't have a valid cancel token";
                     transfer->setState(MegaTransfer::STATE_FAILED);
                     transfer->setDoNotStopSubTransfers(true);
                     fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
