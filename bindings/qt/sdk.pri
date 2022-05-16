@@ -737,8 +737,15 @@ unix:!macx {
 }
 
 macx {
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
+   # recreate source folder tree for object files. Needed to build osx/fs.cpp and posix/fs.cpp,
+   # otherwise all obj files are placed into same directory, causing overwrite.
+   CONFIG += object_parallel_to_source
+
+   HEADERS += $$MEGASDK_BASE_PATH/include/mega/osx/megafs.h
+   SOURCES += $$MEGASDK_BASE_PATH/src/osx/fs.cpp
+
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/osx
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix   
 
    OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
 

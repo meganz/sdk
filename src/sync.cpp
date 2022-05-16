@@ -798,19 +798,40 @@ SyncError SyncConfig::knownError() const
     return mKnownError;
 }
 
+string SyncConfig::getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle userId) const
+{
+    handle tableid[3];
+    tableid[0] = fsid;
+    tableid[1] = nh.as8byte();
+    tableid[2] = userId;
+
+    string dbname;
+    dbname.resize(sizeof tableid * 4 / 3 + 3);
+    dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
+    return dbname;
+}
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(UnifiedSync& us, const char* cdebris,
-           LocalPath* clocaldebris, Node* remotenode, bool cinshare)
+Sync::Sync(UnifiedSync& us, const string& cdebris,
+           const LocalPath& clocaldebris, Node* remotenode, bool cinshare, const string& logname)
 : syncs(us.syncs)
-, localroot(new LocalNode)
+, localroot(nullptr)
 , mUnifiedSync(us)
 , threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient))
 {
+    assert(cdebris.empty() || clocaldebris.empty());
+    assert(!cdebris.empty() || !clocaldebris.empty());
+
+    localroot.reset(new LocalNode(this));
+
+    const SyncConfig& config = us.mConfig;
+
     isnetwork = false;
     client = &syncs.mClient;
     inshare = cinshare;
     tmpfa = NULL;
+    syncname = logname; // can be updated to be more specific in logs
     initializing = true;
     updatedfilesize = ~0;
     updatedfilets = 0;
@@ -843,20 +864,22 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
         }
     }
 
-    if (cdebris)
+    if (!cdebris.empty())
     {
         debris = cdebris;
-        localdebris = LocalPath::fromRelativePath(debris);
+        localdebrisname = LocalPath::fromRelativePath(debris);
+        localdebris = localdebrisname;
         localdebris.prependWithSeparator(mLocalPath);
     }
     else
     {
-        localdebris = *clocaldebris;
+        localdebrisname = clocaldebris.leafName();
+        localdebris = clocaldebris;
     }
 
     mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
 
-    localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
+    localroot->init(FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setnode(remotenode);
 
     // notifications may be queueing from this moment
@@ -874,64 +897,40 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     }
     else
     {
-        fsfp = client->fsaccess->fsFingerprint(mLocalPath);
+        fsfp = syncs.fsaccess->fsFingerprint(mLocalPath);
     }
 
-    fsstableids = client->fsaccess->fsStableIDs(mLocalPath);
+    fsstableids = syncs.fsaccess->fsStableIDs(mLocalPath);
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
 
-#ifdef __APPLE__
-    if (macOSmajorVersion() >= 19) //macOS catalina+
+    auto fas = syncs.fsaccess->newfileaccess(false);
+
+    if (fas->fopen(mLocalPath, true, false))
     {
-        LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
-        string supercrootpath = "/System/Volumes/Data" + mLocalPath.platformEncoded();
+        // get the fsid of the synced folder
+        localroot->fsid = fas->fsid;
 
-        int fd = open(supercrootpath.c_str(), O_RDONLY);
-        if (fd == -1)
+        // load LocalNodes from cache (only for internal syncs)
+        // We are using SQLite in the no-mutex mode, so only access a database from a single thread.
+        if (shouldHaveDatabase())
         {
-            LOG_debug << "Unable to open path using fseventspath.";
-            mFsEventsPath = mLocalPath.platformEncoded();
-        }
-        else
-        {
-            char buf[MAXPATHLEN];
-            if (fcntl(fd, F_GETPATH, buf) < 0)
+            string dbname = config.getSyncDbStateCacheName(fas->fsid, config.mRemoteNode, syncs.mClient.me);
+
+            // Check if the database exists on disk.
+            us.mConfig.mDatabaseExists = syncs.mClient.dbaccess->probe(*syncs.fsaccess, dbname);
+
+            // Note, we opened dbaccess in thread-safe mode
+            statecachetable.reset(syncs.mClient.dbaccess->open(syncs.rng, *syncs.fsaccess, dbname));
+
+            // Did the call above create the database?
+            us.mConfig.mDatabaseExists |= !!statecachetable;
+
+            // Don't bother trying to read the cache if we couldn't open the database.
+            if (us.mConfig.mDatabaseExists)
             {
-                LOG_debug << "Using standard paths to detect filesystem notifications.";
-                mFsEventsPath = mLocalPath.platformEncoded();
+                readstatecache();
             }
-            else
-            {
-                LOG_debug << "Using fsevents paths to detect filesystem notifications.";
-                mFsEventsPath = supercrootpath;
-            }
-            close(fd);
-        }
-    }
-#endif
-
-    // load LocalNodes from cache (only for internal syncs)
-    if (client->dbaccess && !us.mConfig.isExternal())
-    {
-        // open state cache table
-        handle tableid[3];
-        string dbname;
-
-        auto fas = client->fsaccess->newfileaccess(false);
-
-        if (fas->fopen(mLocalPath, true, false))
-        {
-            tableid[0] = fas->fsid;
-            tableid[1] = remotenode->nodehandle;
-            tableid[2] = client->me;
-
-            dbname.resize(sizeof tableid * 4 / 3 + 3);
-            dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
-
-            statecachetable.reset(client->dbaccess->open(client->rng, *client->fsaccess, dbname));
-
-            readstatecache();
         }
     }
 }
@@ -1006,6 +1005,11 @@ void Sync::setBackupMonitoring()
     client->syncs.saveSyncConfig(config);
 }
 
+bool Sync::shouldHaveDatabase() const
+{
+    return syncs.mClient.dbaccess && !mUnifiedSync.mConfig.isExternal();
+}
+
 bool Sync::active() const
 {
     return getConfig().mRunningState >= SYNC_INITIALSCAN;
@@ -1038,10 +1042,10 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         }
         else
         {
-            shortname = client->fsaccess->fsShortname(localpath);
+            shortname = syncs.fsaccess->fsShortname(localpath);
         }
 
-        l->init(this, l->type, p, localpath, std::move(shortname));
+        l->init(l->type, p, localpath, std::move(shortname));
 
 #ifdef DEBUG
         auto fa = client->fsaccess->newfileaccess(false);
@@ -1075,7 +1079,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
     }
 }
 
-bool Sync::readstatecache()
+void Sync::readstatecache()
 {
     if (statecachetable && state() == SYNC_INITIALSCAN)
     {
@@ -1103,11 +1107,7 @@ bool Sync::readstatecache()
         // trigger a single-pass full scan to identify deleted nodes
         fullscan = true;
         scanseqno++;
-
-        return true;
     }
-
-    return false;
 }
 
 SyncConfig& Sync::getConfig()
@@ -1935,8 +1935,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                 {
                     // this is a new node: add
                     LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO") << " fsid " << (fa->fsidvalid ? toHandle(fa->fsid) : "NO");
-                    l = new LocalNode;
-                    l->init(this, fa->type, parent, *localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                    l = new LocalNode(this);
+                    l->init(fa->type, parent, *localpathNew, client->fsaccess->fsShortname(*localpathNew));
 
                     if (fa->fsidvalid)
                     {
@@ -2374,7 +2374,7 @@ UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
 }
 
 
-error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
+error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp, const string& logname)
 {
     assert(!mSync);
     mConfig.mError = NO_SYNC_ERROR;
@@ -2397,7 +2397,7 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
         return e;
     }
 
-    e = startSync(&syncs.mClient, DEBRISFOLDER, nullptr, mConfig.mRemoteNode, inshare, isnetwork, rootpath, openedLocalFolder);
+    e = startSync(&syncs.mClient, DEBRISFOLDER, LocalPath(), mConfig.mRemoteNode, inshare, isnetwork, rootpath, openedLocalFolder, logname);
     syncs.mClient.syncactivity = true;
     changedConfigState(notifyApp);
 
@@ -2446,9 +2446,9 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
 
 
-error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* localdebris,
+error UnifiedSync::startSync(MegaClient* client, const string& debris, const LocalPath& localdebris,
     NodeHandle rootNodeHandle, bool inshare, bool isNetwork, LocalPath& rootpath,
-    std::unique_ptr<FileAccess>& openedLocalFolder)
+    std::unique_ptr<FileAccess>& openedLocalFolder, const string& logname)
 {
     auto prevFingerprint = mConfig.mFilesystemFingerprint;
 
@@ -2459,7 +2459,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     }
 
     assert(!mSync);
-    mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare));
+    mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare, logname));
     mConfig.mFilesystemFingerprint = mSync->fsfp;
 
     if (prevFingerprint && prevFingerprint != mConfig.mFilesystemFingerprint)
@@ -2524,9 +2524,12 @@ void UnifiedSync::changedConfigState(bool notifyApp)
     }
 }
 
-Syncs::Syncs(MegaClient& mc)
+Syncs::Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa)
   : mClient(mc)
+  , fsaccess(fsa)  // reference to MegaClient's for now.  In sync rework, this will be a separate instance
 {
+    fsaccess->initFilesystemNotificationSystem();
+
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
 }
 
@@ -2859,6 +2862,21 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
             LOG_debug << "Loaded "
                       << configs.size()
                       << " internal sync config(s) from disk.";
+
+            // check if sync databases exist, so we know if a sync is disabled or merely suspended
+            for (auto& c: configs)
+            {
+                auto fas = fsaccess->newfileaccess(false);
+                if (fas->fopen(c.mLocalPath, true, false))
+                {
+                    string dbname = c.getSyncDbStateCacheName(fas->fsid, c.mRemoteNode, mClient.me);
+
+                    // Note, we opened dbaccess in thread-safe mode
+                    LocalPath dbPath;
+                    c.mDatabaseExists = mClient.dbaccess->checkDbFileAndAdjustLegacy(*fsaccess, dbname, DB_OPEN_FLAG_TRANSACTED, dbPath);
+                }
+
+            }
 
             return API_OK;
         }
@@ -3852,7 +3870,7 @@ void Syncs::unloadSyncByIndex(size_t index)
     }
 }
 
-error Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*& syncPtrRef)
+error Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*& syncPtrRef, const string& logname)
 {
     for (auto& s : mSyncVec)
     {
@@ -3861,7 +3879,7 @@ error Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, Unifie
             syncPtrRef = s.get();
             if (!s->mSync)
             {
-                return s->enableSync(resetFingerprint, true);
+                return s->enableSync(resetFingerprint, true, logname);
             }
             return API_EEXIST;
         }
@@ -3929,7 +3947,7 @@ void Syncs::resumeResumableSyncsOnStartup()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
-                unifiedSync->enableSync(false, false);
+                unifiedSync->enableSync(false, false, "");
                 LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
                 mClient.app->sync_auto_resume_result(unifiedSync->mConfig, true, hadAnError);
