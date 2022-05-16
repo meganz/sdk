@@ -2116,6 +2116,36 @@ class MegaSyncStallPrivate : public MegaSyncStall
             return nullptr;
         }
 
+        unsigned int pathCount(bool cloudSide) const override
+        {
+            unsigned int count(0);
+
+            if(cloudSide)
+            {
+                if(!info.cloudPath1.cloudPath.empty())
+                {
+                    count++;
+                }
+                if(!info.cloudPath2.cloudPath.empty())
+                {
+                    count++;
+                }
+            }
+            else
+            {
+                if(!info.localPath1.localPath.empty())
+                {
+                    count++;
+                }
+                if(!info.localPath2.localPath.empty())
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
         int pathProblem(bool cloudSide, int index) const override
         {
             if (cloudSide)
@@ -2150,7 +2180,7 @@ class MegaSyncStallPrivate : public MegaSyncStall
 class MegaSyncNameConflictStallPrivate : public MegaSyncStall
 {
 public:
-    MegaSyncNameConflictStallPrivate(const NameConflict& nc) : mConfict(nc) {}
+    MegaSyncNameConflictStallPrivate(const NameConflict& nc) : mConflict(nc) {}
 
     MegaSyncStall* copy() const override
     {
@@ -2169,9 +2199,9 @@ public:
             auto i = mCache1.find(index);
             if (i != mCache1.end()) return i->second.c_str();
 
-            if (index >= 0 && index < int(mConfict.clashingCloudNames.size()))
+            if (index >= 0 && index < int(mConflict.clashingCloudNames.size()))
             {
-                mCache1[index] = mConfict.cloudPath + "/" + mConfict.clashingCloudNames[index];
+                mCache1[index] = mConflict.cloudPath + "/" + mConflict.clashingCloudNames[index];
                 return mCache1[index].c_str();
             }
         }
@@ -2180,10 +2210,10 @@ public:
             auto i = mCache2.find(index);
             if (i != mCache2.end()) return i->second.c_str();
 
-            if (index >= 0 && index < int(mConfict.clashingLocalNames.size()))
+            if (index >= 0 && index < int(mConflict.clashingLocalNames.size()))
             {
-                LocalPath lp = mConfict.localPath;
-                lp.appendWithSeparator(mConfict.clashingLocalNames[index], true);
+                LocalPath lp = mConflict.localPath;
+                lp.appendWithSeparator(mConflict.clashingLocalNames[index], true);
                 mCache2[index] = lp.toPath();
                 return mCache2[index].c_str();
             }
@@ -2191,7 +2221,19 @@ public:
         return nullptr;
     }
 
-    int pathProblem(bool cloudSide, int index) const override
+    unsigned int pathCount(bool cloudSide) const override
+    {
+        if(cloudSide)
+        {
+            return static_cast<unsigned int>(mConflict.clashingCloudNames.size());
+        }
+        else
+        {
+            return static_cast<unsigned int>(mConflict.clashingLocalNames.size());
+        }
+    }
+
+    int pathProblem(bool, int) const override
     {
         return -1;
     }
@@ -2208,7 +2250,7 @@ public:
         pathProblemDebugString(MegaSyncStall::SyncPathProblem reason);
 
 protected:
-    const NameConflict mConfict;
+    const NameConflict mConflict;
     mutable map<int, string> mCache1, mCache2;
 };
 
@@ -2230,8 +2272,7 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
         }
 
     protected:
-        std::vector<MegaSyncNameConflictStallPrivate> mNameConflicts;
-        std::vector<MegaSyncStallPrivate> mStalls;
+        std::vector<std::shared_ptr<MegaSyncStall>> mStalls;
 };
 
 #endif // ENABLE_SYNC
