@@ -5604,6 +5604,14 @@ class MegaSyncStall
          * @return path involved in the sync stall
          */
         virtual const char* path(bool cloudSide, int index) const = 0;
+
+        /**
+         * To get the count of paths
+         *
+         * @return path count involved in the sync stall
+         */
+        virtual unsigned int pathCount(bool cloudSide) const = 0;
+
         /**
          * use the same technique as for `path` with
          * cloudSide, index. -1 is returned when there is no entry.

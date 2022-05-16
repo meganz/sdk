@@ -1349,17 +1349,9 @@ MegaSyncStallListPrivate* MegaSyncStallListPrivate::copy() const {
 
 const MegaSyncStall* MegaSyncStallListPrivate::get(size_t i) const
 {
-    auto N1 = mNameConflicts.size();
-    if (i < N1)
-    {
-        return &mNameConflicts[i];
-    }
-
-    i -= N1;
-
     if( i < mStalls.size())
     {
-        return &mStalls[i];
+        return mStalls[i].get();
     }
 
     return nullptr;
@@ -1369,17 +1361,17 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncProblems& sp)
 {
     for(auto& nc : sp.mConflicts)
     {
-        mNameConflicts.emplace_back(nc);
+        mStalls.push_back(std::make_shared<MegaSyncNameConflictStallPrivate>(nc));
     }
 
     for(auto& stall : sp.mStalls.cloud)
     {
-        mStalls.emplace_back(stall.second);
+        mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
     }
 
     for(auto& stall : sp.mStalls.local)
     {
-        mStalls.emplace_back(stall.second);
+        mStalls.push_back(std::make_shared<MegaSyncStallPrivate>(stall.second));
     }
 }
 
