@@ -2,7 +2,7 @@
 
 set -e
 
-COMMIT=41bfcf4a63611409220fcd458a03deaa2cd23619
+COMMIT=954f7274ac91594d0e06ec052d0d0401631d02ee
 ARCHS="arm64 x64"
 LIPO_COMMAND="lipo -create"
 LIBWEBRTC_A="libwebrtc.a"
@@ -19,15 +19,12 @@ pushd src
 
 git checkout $COMMIT
 
-git apply ../../../../../patches/webRtcPatch.patch
-git apply ../../../../../patches/webRtcSocketIosPatch.patch
-
 mkdir lib
 pushd lib
 
 for ARCH in $ARCHS
 do
-$DEPOT_TOOLS_PATH/gn gen $ARCH --args='target_os="ios" target_cpu="'$ARCH'" rtc_include_tests=false rtc_build_examples=false treat_warnings_as_errors=false fatal_linker_warnings=false use_custom_libcxx=false is_debug=false ios_deployment_target="12.1" rtc_build_tools=false rtc_enable_protobuf=false enable_ios_bitcode=true use_xcode_clang=true is_component_build=false ios_enable_code_signing=false' 
+$DEPOT_TOOLS_PATH/gn gen $ARCH --args='target_os="ios" target_cpu="'$ARCH'" rtc_include_tests=false rtc_build_examples=false treat_warnings_as_errors=false fatal_linker_warnings=false use_custom_libcxx=false is_debug=false ios_deployment_target="13.0" rtc_build_tools=false rtc_enable_protobuf=false is_clang=true is_component_build=false ios_enable_code_signing=false'
 
 pushd $ARCH
 $DEPOT_TOOLS_PATH/ninja -C .

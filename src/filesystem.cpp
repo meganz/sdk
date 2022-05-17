@@ -416,11 +416,11 @@ bool LocalPath::invariant() const
 #elif WIN32
     if (isFromRoot)
     {
-        // must contain a drive letter
+        // if it starts with \\ then it's absolute, either by us or provided
+        if (localpath.size() >= 2 && localpath[0] == '\\' && localpath[1] == '\\') return true;
+        // otherwise it must contain a drive letter
         if (localpath.find(L":") == string_type::npos) return false;
-        // must start "\\"
-        if (localpath.size() < 4) return false;
-        if (localpath.substr(0, 2) != L"\\\\") return false;
+        // ok so probably relative then, but double check:
         if (PathIsRelativeW(localpath.c_str())) return false;
     }
     else
@@ -499,6 +499,14 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "F2FS";
         case FS_XFS:
             return "XFS";
+        case FS_CIFS:
+            return "CIFS";
+        case FS_NFS:
+            return "NFS";
+        case FS_SMB:
+            return "SMB";
+        case FS_SMB2:
+            return "SMB2";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -668,6 +676,25 @@ std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localn
     return nullptr;
 }
 
+handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow)
+{
+    auto fileAccess = newfileaccess(follow);
+
+    if (fileAccess->fopen(path, true, false))
+        return fileAccess->fsid;
+
+    return UNDEF;
+}
+
+#ifdef ENABLE_SYNC
+
+bool FileSystemAccess::initFilesystemNotificationSystem()
+{
+    return true;
+}
+
+#endif // ENABLE_SYNC
+
 bool FileSystemAccess::fileExistsAt(const LocalPath& path)
 {
     auto fa = newfileaccess(false);
@@ -721,32 +748,17 @@ bool DirNotify::empty()
 }
 
 // notify base LocalNode + relative path/filename
-void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
+void DirNotify::notify(notifyqueue queue, LocalNode* node, LocalPath&& path, bool immediate, bool recursive)
 {
     // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
+    auto timestamp = immediate ? 0 : Waiter::ds;
 
-    Notification n(immediate ? 0 : Waiter::ds, std::move(path), l);
-    notifyq[q].pushBack(std::move(n));
+    notifyq[queue].pushBack(Notification(timestamp, std::move(path), node, recursive));
 
 #ifdef ENABLE_SYNC
-    if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
-    {
-        sync->client->syncactivity = true;
-    }
-#endif
-
-}
-
-// default: no fingerprint
-fsfp_t DirNotify::fsfingerprint() const
-{
-    return 0;
-}
-
-bool DirNotify::fsstableids() const
-{
-    return true;
+    sync->client->syncactivity |= queue == DIREVENTS || queue == EXTRA;
+#endif // ENABLE_SYNC
 }
 
 DirNotify* FileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter*, LocalNode* syncroot)
@@ -1571,14 +1583,17 @@ void LocalPath::local2path(const string* local, string* path)
 #endif
 
 
+std::atomic<unsigned> LocalPath_tmpNameLocal_counter{};
 
-
-LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
+LocalPath LocalPath::tmpNameLocal()
 {
-    LocalPath lp;
-    fsaccess.tmpnamelocal(lp);
-    assert(lp.invariant());
-    return lp;
+    char buf[128];
+#ifdef WIN32
+    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)GetCurrentProcessId(), ++LocalPath_tmpNameLocal_counter);
+#else
+    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), ++LocalPath_tmpNameLocal_counter);
+#endif
+    return LocalPath::fromRelativePath(buf);
 }
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
@@ -1659,6 +1674,7 @@ ScopedLengthRestore::~ScopedLengthRestore()
 
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
 {
+    // toPath() to make sure the name is in NFC.
     auto localName = localPath.leafName().toPath();
 
     if (localName != remoteName)
@@ -1686,6 +1702,15 @@ FilenameAnomalyType isFilenameAnomaly(const LocalNode& node)
     return isFilenameAnomaly(node.localname, node.name, node.type);
 }
 #endif
+
+
+bool isNetworkFilesystem(FileSystemType type)
+{
+    return type == FS_CIFS
+           || type == FS_NFS
+           || type == FS_SMB
+           || type == FS_SMB2;
+}
 
 } // namespace
 

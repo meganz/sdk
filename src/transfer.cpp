@@ -101,7 +101,7 @@ Transfer::~Transfer()
         }
 
         (*it)->transfer = NULL;
-        (*it)->terminated();
+        (*it)->terminated(API_OK);
     }
 
     if (!mOptimizedDelete)
@@ -389,7 +389,7 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
     transfer->files.erase(f->file_it);
     client->app->file_removed(f, e);
     f->transfer = NULL;
-    f->terminated();
+    f->terminated(e);
 }
 
 // transfer attempt failed, notify all related files, collect request on
@@ -487,7 +487,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
              continue;
         }
 
-        if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
+        if (((*it)->failed(e, client) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
@@ -547,7 +547,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
+                client->syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
                 alreadyDisabled = true;
             }
 #endif
@@ -922,10 +922,10 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         client->filecachedel(*it, &committer);
                         client->app->file_complete(*it);
                         (*it)->transfer = NULL;
-                        (*it)->completed(this, NULL);
+                        (*it)->completed(this, (*it)->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
                     }
 
-                    if (success || !(*it)->failed(API_EAGAIN))
+                    if (success || !(*it)->failed(API_EAGAIN, client))
                     {
                         File* f = (*it);
                         files.erase(it++);
@@ -941,7 +941,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #endif
                             client->app->file_removed(f, API_EWRITE);
                             f->transfer = NULL;
-                            f->terminated();
+                            f->terminated(API_EWRITE);
                         }
                     }
                     else
@@ -1112,7 +1112,7 @@ void Transfer::completefiles()
 
         client->app->file_complete(f);
         f->transfer = NULL;
-        f->completed(this, NULL);
+        f->completed(this, f->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
         files.erase(it++);
     }
     ids.push_back(dbid);

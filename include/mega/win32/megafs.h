@@ -64,8 +64,6 @@ public:
 
     bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
 
-    void tmpnamelocal(LocalPath&) const override;
-
     bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
@@ -97,8 +95,14 @@ public:
     bool cwd(LocalPath& path) const override;
 
 #ifdef ENABLE_SYNC
+    fsfp_t fsFingerprint(const LocalPath& path) const override;
+
+    bool fsStableIDs(const LocalPath& path) const override;
+
     std::set<WinDirNotify*> dirnotifys;
 #endif
+
+    bool hardLink(const LocalPath& source, const LocalPath& target) override;
 };
 
 #ifdef ENABLE_SYNC
@@ -138,9 +142,6 @@ public:
 
     void addnotify(LocalNode*, const LocalPath&) override;
 
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
-
     WinDirNotify(const LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter, LocalNode* syncroot);
     ~WinDirNotify();
 };
@@ -163,8 +164,8 @@ public:
     HANDLE hFind;
     WIN32_FIND_DATAW ffd;
 
-    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes) override;
-    bool fopen_impl(const LocalPath&, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes);
+    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck) override;
+    bool fopen_impl(const LocalPath&, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck);
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);

@@ -1554,11 +1554,10 @@ public class MegaApiJava {
      *
      * @param email    Email for the account
      * @param name     Full name of the user (firstname + lastname)
-     * @param password Password for the account
      * @param listener MegaRequestListener to track this request
      */
-    public void sendSignupLink(String email, String name, String password, MegaRequestListenerInterface listener) {
-        megaApi.sendSignupLink(email, name, password, createDelegateRequestListener(listener));
+    public void resendSignupLink(String email, String name, MegaRequestListenerInterface listener) {
+        megaApi.resendSignupLink(email, name, createDelegateRequestListener(listener));
     }
 
     /**

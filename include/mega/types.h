@@ -182,7 +182,7 @@ class chunkmac_map;
 /**
  * @brief Declaration of API error codes.
  */
-typedef enum ErrorCodes
+typedef enum ErrorCodes : int
 {
     API_OK = 0,                     ///< Everything OK.
     API_EINTERNAL = -1,             ///< Internal error.

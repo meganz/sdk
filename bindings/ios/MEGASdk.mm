@@ -876,6 +876,12 @@ using namespace mega;
     }
 }
 
+- (void)resendSignupLinkWithEmail:(NSString *)email name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->resendSignupLink(email.UTF8String, name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 - (void)querySignupLink:(NSString *)link {
     if (self.megaApi) {
         self.megaApi->querySignupLink(link.UTF8String);
@@ -1980,15 +1986,15 @@ using namespace mega;
     }
 }
 
-- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
+- (void)getCameraUploadsFolderSecondaryWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->getMyBackupsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->getCameraUploadsFolderSecondary([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 
-- (void)getMyBackupsFolder {
+- (void)getCameraUploadsFolderSecondary {
     if (self.megaApi) {
-        self.megaApi->getMyBackupsFolder();
+        self.megaApi->getCameraUploadsFolderSecondary();
     }
 }
 
