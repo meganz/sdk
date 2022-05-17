@@ -25112,6 +25112,12 @@ void MegaFolderUploadController::cancel()
     {
         mWorkerThread.join();
     }
+    // if user cancelled recursive operation via cancel token at STAGE_GEN_TRANSFERS or STAGE_PROCESS_TRANSFER_QUEUE stage,
+    // pendingTransfers could not be 0, as pendingTransfers are increased at (gen[Upload/Download]TransfersForFiles) and
+    // decreased at onTransferFinish for every subtransfer.
+    // On the other hand subTransfers are increased at onTransferStart called from sendPendingTransfers, so if we cancel recursive
+    // operation before adding subtransfers, there will be a mismatch between pendingTransfers and subTransfers
+    bool subtransfersMismatch = pendingTransfers > subTransfers.size();
 
     //remove subtransfers from pending transferQueue
     megaApi->cancelPendingTransfersByFolderTag(tag);
@@ -25208,8 +25214,7 @@ void MegaFolderUploadController::cancel()
     }
 
     LOG_verbose << " MegaFolderUploadController, cancelled subTransfers = " << cancelledSubTransfers;
-    // if user cancelled recursive operation via cancel token at STAGE_PROCESS_TRANSFER_QUEUE stage, pendingTransfers could not be 0
-    assert(pendingTransfers == 0 || (transfer->getCancelToken() && transfer->getCancelToken()->isCancelled()));
+    assert(pendingTransfers == 0 || subtransfersMismatch);
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
@@ -26770,6 +26775,13 @@ void MegaFolderDownloadController::cancel()
         mWorkerThread.join();
     }
 
+    // if user cancelled recursive operation via cancel token at STAGE_GEN_TRANSFERS or STAGE_PROCESS_TRANSFER_QUEUE stage,
+    // pendingTransfers could not be 0, as pendingTransfers are increased at (gen[Upload/Download]TransfersForFiles) and
+    // decreased at onTransferFinish for every subtransfer.
+    // On the other hand subTransfers are increased at onTransferStart called from sendPendingTransfers, so if we cancel recursive
+    // operation before adding subtransfers, there will be a mismatch between pendingTransfers and subTransfers
+    bool subtransfersMismatch = pendingTransfers > subTransfers.size();
+
     //remove subtransfers from pending transferQueue
     megaApi->cancelPendingTransfersByFolderTag(tag);
 
@@ -26865,8 +26877,7 @@ void MegaFolderDownloadController::cancel()
     }
 
     LOG_verbose << "MegaFolderDownloadController, cancelled subTransfers = " << cancelledSubTransfers;
-    // if user cancelled recursive operation via cancel token at STAGE_PROCESS_TRANSFER_QUEUE stage, pendingTransfers could not be 0
-    assert(pendingTransfers == 0 || (transfer->getCancelToken() && transfer->getCancelToken()->isCancelled()));
+    assert(pendingTransfers == 0 || subtransfersMismatch);
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
