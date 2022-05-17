@@ -3105,7 +3105,7 @@ void putua_map(const std::string& b64key, const std::string& b64value, attr_t at
     }
     else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
     {
-        cout << "User attribute is versioned (need to know current version first). ";
+        cout << "User attribute is outdated";
         cout << "Fetch the attribute first" << endl;
         return;
     }
@@ -3194,7 +3194,6 @@ void exec_getextdrivename(autocomplete::ACState& s)
         {
             b64driveid = s.words[1].s;
         }
-
         else if (pathFlag)
         {
             // read drive-id from <drivepath>/.megabackup/drive-id
@@ -3264,11 +3263,11 @@ void exec_getmybackups(autocomplete::ACState&)
     Node* n = client->nodebyhandle(h);
     if (!n)
     {
-        cout << "\"My Backups\" folder could not be found." << h << endl;
+        cout << "\"My Backups\" folder could not be found." << toHandle(h) << endl;
         return;
     }
 
-    cout << "\"My Backups\" folder (handle " << h << "): " << n->displaypath() << endl;
+    cout << "\"My Backups\" folder (handle " << toHandle(h) << "): " << n->displaypath() << endl;
 }
 
 // if `moveOrDelete` is true, the `backupRootNode` will be moved to `targetDest`. If the latter were `nullptr`, then it will be deleted
