@@ -3274,12 +3274,16 @@ void exec_getmybackups(autocomplete::ACState&)
 // if `moveOrDelete` is true, the `backupRootNode` will be moved to `targetDest`. If the latter were `nullptr`, then it will be deleted
 void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool moveOrDelete)
 {
-    // validate node's sds attribute
-    auto sdsBkps = backupRootNode->getSdsBackups();
-    assert(std::find_if(sdsBkps.begin(), sdsBkps.end(), [&backupId](const pair<handle, int>& n)
-        {
-            return n.first == backupId && n.second == CommandBackupPut::DELETED;
-        }) == sdsBkps.end());
+    vector<pair<handle, int>> sdsBkps;
+    if (backupRootNode) // also allow removing orphan syncs (with no nodes)
+    {
+        // validate node's sds attribute
+        sdsBkps = backupRootNode->getSdsBackups();
+        assert(std::find_if(sdsBkps.begin(), sdsBkps.end(), [&backupId](const pair<handle, int>& n)
+            {
+                return n.first == backupId && n.second == CommandBackupPut::DELETED;
+            }) == sdsBkps.end());
+    }
 
     // prepare to update sds node attribute
     CommandSetAttr::Completion attrCompl = [backupRootNode, targetDest, moveOrDelete](NodeHandle nh, Error e)
@@ -3331,19 +3335,22 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
         {
             if (cbrErr != API_OK)
             {
-                cout << "Backup Centre - Failed to remove backup (" << error(cbrErr) << ": " << errorstring(cbrErr) << ')' << endl;
+                cout << "Backup Centre - Failed to remove sync / backup (" << error(cbrErr) << ": " << errorstring(cbrErr) << ')' << endl;
                 return;
             }
 
-            cout << "Backup Centre - backup removed" << endl;
+            cout << "Backup Centre - Sync / backup removed" << endl;
 
-            sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
-            const string& sdsValue = Node::toSdsString(sdsBkps);
-
-            auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), 0, nullptr, move(attrCompl), true);
-            if (e != API_OK)
+            if (backupRootNode)
             {
-                cout << "Backup Centre - Failed to set sds node attributes (" << e << ": " << errorstring(e) << ')' << endl;
+                sdsBkps.emplace_back(std::make_pair(backupId, CommandBackupPut::DELETED));
+                const string& sdsValue = Node::toSdsString(sdsBkps);
+
+                auto e = client->setattr(backupRootNode, attr_map(Node::sdsId(), sdsValue), 0, nullptr, move(attrCompl), true);
+                if (e != API_OK)
+                {
+                    cout << "Backup Centre - Failed to set sds node attributes (" << e << ": " << errorstring(e) << ')' << endl;
+                }
             }
         }));
 }
@@ -3382,7 +3389,7 @@ void exec_backupcentre(autocomplete::ACState& s)
                     cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl << endl;
                 }
 
-                cout << "Backup Centre - Backups count: " << data.size() << endl;
+                cout << "Backup Centre - Sync / backup count: " << data.size() << endl;
             }
         }));
     }
@@ -3434,9 +3441,16 @@ void exec_backupcentre(autocomplete::ACState& s)
                     Node* remoteNode = client->nodebyhandle(d.rootNode);
                     if (!remoteNode)
                     {
-                        cout << "Backup Centre - Remote node for backup not found: "
-                             << Base64Str<MegaClient::NODEHANDLE>(d.rootNode) << endl;
-                        return;
+                        cout << "Backup Centre - Remote node not found for id: " << backupIdStr << endl;
+
+                        if (stopFlag && d.backupType == BackupType::TWO_WAY)
+                        {
+                            cout << "Backup Centre - Attempt to forcefully remove orphan sync." << endl;
+                        }
+                        else
+                        {
+                            return;
+                        }
                     }
 
                     backupremove(backupId, remoteNode, targetDest, delFlag);
@@ -3446,7 +3460,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
             if (!found)
             {
-                cout << "Backup Centre - Backup id not found: " << backupIdStr << endl;
+                cout << "Backup Centre - id not found: " << backupIdStr << endl;
                 return;
             }
         }));
