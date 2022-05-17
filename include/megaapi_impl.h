@@ -248,10 +248,10 @@ protected:
     MegaTransferListener *listener;
     int recursive;
     int tag;
-    int pendingTransfers;
+    uint64_t pendingTransfers;
     bool cancelled = false;
     std::set<MegaTransferPrivate*> subTransfers;
-    int mIncompleteTransfers = 0;
+    uint64_t mIncompleteTransfers = 0;
 
     // If the thread was started, it queues a completion before exiting
     // That will be executed when the queued request is procesed
