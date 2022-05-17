@@ -3850,6 +3850,7 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
     {
         auto& config = mSyncVec[index]->mConfig;
         bool removingBackupRemoteContents = config.isBackup() && !skipMoveOrDelBackup;
+        string newNameOfMovedBackup;
 
         // validate backup destination upon removal
         if (removingBackupRemoteContents && bkpDest != UNDEF)
@@ -3865,10 +3866,18 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
                 LOG_err << "Backup destination folder must be in the Cloud";
                 return API_EACCESS;
             }
-            else if (!n->children.empty())
+            else if (mClient.childnodebynametype(n, config.mName.c_str(), FOLDERNODE))
             {
-                LOG_err << "Backup destination folder is not empty";
-                return API_EACCESS;
+                // generate new name when move destination already contained a folder with the same name
+                for (unsigned i = 1; i <= UINT_MAX; ++i) // at UINT_MAX there will be duplicates, but it should suffice
+                {
+                    newNameOfMovedBackup = config.mName + " (" + std::to_string(i) + ')';
+                    if (!mClient.childnodebynametype(n, newNameOfMovedBackup.c_str(), FOLDERNODE))
+                    {
+                        LOG_debug << "Former backup \"" << config.mName << "\" renamed to \"" << newNameOfMovedBackup << "\" at destination.";
+                        break;
+                    }
+                }
             }
         }
 
@@ -3886,7 +3895,7 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
         mClient.app->sync_removed(config);
 
         auto c = !removingBackupRemoteContents ? completion :
-        [this, remoteNodeHandle, bkpDest, completion](Error err)
+        [this, remoteNodeHandle, bkpDest, newNameOfMovedBackup, completion](Error err)
         {
             if (error(err))
             {
@@ -3926,7 +3935,8 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
                     {
                         NodeHandle prevParent;
                         prevParent.set6byte(remoteNode->parenthandle);
-                        error e = mClient.rename(remoteNode, destinationNode, SYNCDEL_NONE, prevParent, nullptr,
+                        const char* newName = newNameOfMovedBackup.empty() ? nullptr : newNameOfMovedBackup.c_str();
+                        error e = mClient.rename(remoteNode, destinationNode, SYNCDEL_NONE, prevParent, newName,
                             [completion](NodeHandle, Error err)
                             {
                                 if (error(err) != API_OK)
