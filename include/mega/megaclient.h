@@ -1163,6 +1163,8 @@ private:
 
     static const char PAYMENT_PUBKEY[];
 
+    void dodiscarduser(User* u, bool discardnotified);
+
 public:
     void enabletransferresumption(const char *loggedoutid = NULL);
     void disabletransferresumption(const char *loggedoutid = NULL);
