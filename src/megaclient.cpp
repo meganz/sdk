@@ -12037,7 +12037,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
             Node *parent = mNodeManager.getNodeByHandle(it.first);
             for (Node* child : it.second)
             {
-                child->setparent(parent, false);
+                // In DB migration we have to calculate counters as they aren't calculated previously
+                child->setparent(parent, true);
             }
         }
 
@@ -16778,12 +16779,6 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     // 'notify' is false when loading nodes from API or DB. True when node is received from
     // actionpackets and/or from response of CommandPutnodes
 
-    if (!mTable)
-    {
-        assert(false);
-        return false;
-    }
-
     bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE;
     if (rootNode)
     {
@@ -17247,7 +17242,12 @@ NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t
         nc.folders++;
     }
 
-    node->setCounter(nc);
+    if (node)
+    {
+        node->setCounter(nc);
+    }
+
+    mTable->updateCounter(nodehandle, nc);
 
     return nc;
 }
@@ -17519,14 +17519,14 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     assert(mNodes.find(NodeHandle().set6byte(h)) == mNodes.end());
     mNodes[n->nodeHandle()].reset(n);
 
-    // setparent() skiping update of node counters, since they are already calculated
-    // before loading specific nodes from database
-    n->setparent(getNodeByHandle(n->parentHandle()), false);
     if (fromOldCache)
     {
         n->setInitialNodeCounter();
     }
 
+    // setparent() skiping update of node counters, since they are already calculated in DB
+    // In DB migration we have to calculate as they aren't calculated previously
+    n->setparent(getNodeByHandle(n->parentHandle()), fromOldCache);
 
     if (k)
     {
@@ -17845,13 +17845,7 @@ void NodeManager::loadNodes()
     {
         for (auto &node : rootnodes)
         {
-            // add counter to accumulate count recursively
-            addCounter(node->nodeHandle());
-
             loadTreeRecursively(node);
-
-            // finally increase the count for each rootnode (only applies to folder links)
-            increaseCounter(node, node->nodeHandle());
         }
     }
     else // load only first level
@@ -17976,8 +17970,7 @@ void NodeManager::initializeCounters()
     node_vector rootNodes = getRootNodesWithoutNestedInshares();
     for (Node* node : rootNodes)
     {
-        assert(mNodeCounters.find(node->nodeHandle()) == mNodeCounters.end());
-        mNodeCounters[node->nodeHandle()] = getNodeCounter(*node);
+        getNodeCounter(*node);
     }
 }
 
