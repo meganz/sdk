@@ -16904,15 +16904,40 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
 
 uint64_t NodeManager::getNodeCount()
 {
-    uint64_t count = 0;
-    // it assumes that node counters are only available for rootnodes and inshares
-    for (auto &counter : mNodeCounters)
+    if (mClient.loggedin() == NOTLOGGEDIN)
     {
-        count += counter.second.files + counter.second.folders + counter.second.versions;
+        return 0;
+    }
+
+    uint64_t count = 0;
+    node_vector rootnodes;
+    rootnodes.push_back(getNodeByHandle(mClient.rootnodes.files));
+
+    // if we are logged into folder link, inbox and rubbish nodes are undefined
+    // and there are no incoming shares
+    if (!mClient.loggedIntoFolder())
+    {
+        rootnodes.push_back(getNodeByHandle(mClient.rootnodes.inbox));
+        rootnodes.push_back(getNodeByHandle(mClient.rootnodes.rubbish));
+
+        node_vector inshares = mClient.getInShares();
+        for (auto inshare : inshares)
+        {
+            rootnodes.push_back(inshare);
+        }
+    }
+
+    for (Node* node : rootnodes)
+    {
+        if (node) // TODO: investigate
+        {
+            NodeCounter nc = node->getCounter();
+            count += nc.files + nc.folders + nc.versions;
+        }
     }
 
 #ifdef DEBUG
-    if (mNodes.size())  // --> NodeCounters are initialized
+    if (mNodes.size())
     {
         uint64_t countDb = mTable ? mTable->getNumberOfNodes() : 0;
         assert(!mTable || count == countDb);
