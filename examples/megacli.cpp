@@ -9656,28 +9656,15 @@ void exec_syncremove(autocomplete::ACState& s)
     if (s.words.size() > 3)
     {
         // get final destination
-        const string& destination = s.words[3].s;
-        handle d = 0;
-        if (destination.size() == 8) // could be a B64 encoded node (folder) handle
+        Node* destination = nodebypath(s.words[3].s.c_str());
+        if (destination)
         {
-            Base64::atob(destination.c_str(), (byte*)&d, sizeof(handle));
-        }
-        if (d && client->nodebyhandle(d))
-        {
-            bkpDest = d;
+            bkpDest = destination->nodehandle;
         }
         else
         {
-            Node* bkpDestNode = client->nodeByPath(destination.c_str());
-            if (bkpDestNode)
-            {
-                bkpDest = bkpDestNode->nodehandle;
-            }
-            else
-            {
-                cout << "Wrong backup remove destination: " << destination << endl;
-                return;
-            }
+            cout << "Wrong backup remove destination: " << s.words[3].s << endl;
+            return;
         }
     }
 
