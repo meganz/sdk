@@ -17980,19 +17980,25 @@ NodeCounter NodeManager::getCounterOfRootNodes()
         return c;
     }
 
-    NodeHandle h = mClient.rootnodes.files;
-    assert(mNodeCounters.find(h) != mNodeCounters.end());
-    c = mNodeCounters[h];
+    Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
+    if (rootNode)
+    {
+        c = rootNode->getCounter();
+    }
 
     if (!mClient.loggedIntoFolder())
     {
-        h = mClient.rootnodes.inbox;
-        assert(mNodeCounters.find(h) != mNodeCounters.end());
-        c += mNodeCounters[h];
+        Node* inBox = getNodeByHandle(mClient.rootnodes.inbox);
+        if (inBox)
+        {
+            c += inBox->getCounter();
+        }
 
-        h = mClient.rootnodes.rubbish;
-        assert(mNodeCounters.find(h) != mNodeCounters.end());
-        c += mNodeCounters[h];
+        Node* rubbish = getNodeByHandle(mClient.rootnodes.rubbish);
+        if (rubbish)
+        {
+            c += rubbish->getCounter();
+        }
     }
 
     return c;
