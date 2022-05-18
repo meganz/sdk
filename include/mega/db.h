@@ -34,6 +34,7 @@ class NodeSerialized
 public:
     bool mDecrypted = true;
     std::string mNode;
+    std::string mNodeCounters;
 };
 
 class MEGA_API DbTable

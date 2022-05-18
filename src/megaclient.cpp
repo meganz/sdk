@@ -16896,6 +16896,7 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         {
             const NodeSerialized& ns = nHandleSerialized.second;
             n = unserializeNode(&ns.mNode, ns.mDecrypted);
+            n->setCounter(NodeCounter(ns.mNodeCounters));
         }
 
         nodes.push_back(n);
@@ -16960,6 +16961,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         if (!n)
         {
             n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n->setCounter(NodeCounter(nodeMapIt.second.mNodeCounters));
         }
 
         nodes.push_back(n);
@@ -17011,6 +17013,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
         if (!n)
         {
             n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
         }
 
         if (n && (!parent || (parent && isAncestor(n->nodeHandle(), parent->nodeHandle()))))
@@ -17062,6 +17065,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     if (!n) // not loaded yet
     {
         n = unserializeNode(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
+        n->setCounter(NodeCounter(nodeSerialized.second.mNodeCounters));
     }
 
     return n;
@@ -17085,6 +17089,7 @@ node_vector NodeManager::getRootNodes()
         if (!n)
         {
             n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
         }
         nodes.push_back(n);
 
@@ -17131,6 +17136,7 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         if (!n)
         {
             n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
         }
 
         nodes.push_back(n);
@@ -18266,6 +18272,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     if (mTable->getNode(handle, nodeSerialized))
     {
         node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
+        node->setCounter(NodeCounter(nodeSerialized.mNodeCounters));
     }
 
     return node;
