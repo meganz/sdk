@@ -487,17 +487,19 @@ struct StandardClient : public MegaApp
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
 
-    void backupAdd_inthread(const string& drivePath,
-        string sourcePath,
-        const string& targetPath,
-        std::function<void(error, SyncError, handle)> completion,
-        const string& logname);
-
     handle backupAdd_mainthread(const string& drivePath,
         const string& sourcePath,
         const string& targetPath,
         const string& logname);
 
+//<<<<<<< HEAD
+    error addSync(const string& displayPath, const fs::path& localpath, handle remoteNode,
+                  function<void(error, SyncError, handle)> addSyncCompletion, const string& logname,
+                  SyncConfig::Type type);
+
+    bool setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
+        std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);
+//=======
     handle setupSync_mainthread(const string& localPath,
                                 const Node& remoteNode,
                                 const bool isBackup = false,
@@ -519,6 +521,7 @@ struct StandardClient : public MegaApp
                                 const bool isBackup = false,
                                 const bool uploadIgnoreFile = true);
 
+//>>>>>>> feature/SDK-1918_backup-rework
     void importSyncConfigs(string configs, PromiseBoolSP result);
     bool importSyncConfigs(string configs);
     string exportSyncConfigs();

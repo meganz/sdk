@@ -1405,7 +1405,7 @@ class MEGA_API CommandBackupRemove : public Command
 public:
     bool procresult(Result) override;
 
-    CommandBackupRemove(MegaClient* client, handle backupId, std::function<void(const Error&)> completion);
+    CommandBackupRemove(MegaClient* client, handle backupId, std::function<void(Error)> completion);
 };
 
 class MEGA_API CommandBackupPutHeartBeat : public Command

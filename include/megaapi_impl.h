@@ -3243,7 +3243,10 @@ private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 #ifdef ENABLE_SYNC
-        error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
+        error addSyncByRequest(MegaRequestPrivate* request, const string& syncName,
+                               const LocalPath& localPath, const LocalPath& drivePath, const SyncConfig::Type syncType);
+        error addBackupByRequest(MegaRequestPrivate* request, const string& syncName,
+                                 const LocalPath& localPath, const LocalPath& drivePath);
 #endif
 };
 
