@@ -461,6 +461,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_FAVOURITE;
     }
+    if (node->changed.size)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_SIZE;
+    }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
     this->previewAvailable = (node->hasfileattribute(1) != 0);

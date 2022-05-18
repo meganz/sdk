@@ -203,6 +203,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         // this field is only used internally in syncdown()
         bool syncdown_node_matched_here : 1;
 #endif
+        bool size : 1;
 
     } changed;
 
@@ -217,7 +218,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     void faspec(string*);
 
     NodeCounter getCounter() const;
-    void setCounter(const NodeCounter &counter);
+    void setCounter(const NodeCounter &counter, bool notify = false);
 
     // parent
     Node* parent = nullptr;

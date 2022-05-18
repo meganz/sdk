@@ -778,9 +778,15 @@ NodeCounter Node::getCounter() const
     return mCounter;
 }
 
-void Node::setCounter(const NodeCounter &counter)
+void Node::setCounter(const NodeCounter &counter, bool notify)
 {
     mCounter = counter;
+
+    if (notify)
+    {
+        changed.size = true;
+        client->notifynode(this);
+    }
 }
 
 // returns whether node was moved
