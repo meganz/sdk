@@ -330,7 +330,6 @@ public:
 
     // Load nodes from DB, if mKeepAllNodesInMemory is active load all nodes, in other case,
     // load rootnodes (ROOTNODE, INCOMING, RUBBISH) and children from ROOTNODE.
-    // Futhermore, calculate mNodeCounters
     void loadNodes();
 
     // ===--- Node Counters ---===
@@ -344,24 +343,15 @@ public:
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
 
-    // return the counter for 'h' if available in memory. Otherwise, nullptr
-    const NodeCounter* getCounter(const NodeHandle& h) const;
-
     // return the counter for all root nodes (cloud+inbox+rubbish), without DB query
     NodeCounter getCounterOfRootNodes();
-
-    // add the counter for 'h' (it must not exist yet)
-    void addCounter(const NodeHandle &h);
 
     // calculate the counter for 'node' and all its children recursively, updating their Node::mCounter (in RAM only)
     // (note: this method is used only for migration of legacy DB to NOD DB)
     NodeCounter calculateCounter(Node &node);
 
-    // subtract the counter of 'n' (calculated from DB) from its first antecesor, which must be a rootnode
-    void subtractFromRootCounter(const Node& n);
-
     // update the counter of 'n' when its parent is updated (from 'oldParent' to 'n.parent')
-    void updateCounter(const Node& n, const Node *oldParent);
+    void updateCounter(Node &n, Node *oldParent);
 
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;
@@ -406,6 +396,7 @@ public:
     bool hasVersion(NodeHandle nodeHandle);
 
     // Called to initialize and set values to counters
+    // If some value is set previously (setParent), this value will be removed
     void initializeCounters();
 
 private:
@@ -416,9 +407,6 @@ private:
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     node_map mNodes;
-
-    // keep track of user storage, inshare storage and file/folder/versions counts (only for root nodes and inshares)
-    NodeCounterMap mNodeCounters;
 
     // flag to force all nodes to be loaded in memory
 #ifdef ENABLE_SYNC
@@ -437,10 +425,10 @@ private:
     void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
 
-    // Increase node counters with a node type and values
-    void increaseCounter(const Node *node, NodeHandle firstAncestorHandle);
     // Load nodes recursively and update nodeCounters
     void loadTreeRecursively(const Node *node);
+
+    void updateTreeCounter(Node* origin, NodeCounter nc, bool increase);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;

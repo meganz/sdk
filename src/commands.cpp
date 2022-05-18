@@ -4788,12 +4788,13 @@ bool CommandGetUserQuota::procresult(Result r)
 #ifdef _DEBUG
                         // TODO: remove this debugging block once local count is confirmed to work correctly 100%
                         // verify the new local storage counters per root match server side (could fail if actionpackets are pending)
-                        const NodeCounter* counter = client->mNodeManager.getCounter(NodeHandle().set6byte(h));
-                        if (counter)
+                        const Node* node = client->nodebyhandle(h);
+                        if (node)
                         {
-                            LOG_debug << client->nodebyhandle(h)->displaypath() << " " << counter->storage << " " << ns->bytes << " " << counter->files << " " << ns->files << " " << counter->folders << " " << ns->folders << " "
-                                      << counter->versionStorage << " " << ns->version_bytes << " " << counter->versions << " " << ns->version_files
-                                      << (counter->storage == ns->bytes && counter->files == ns->files && counter->folders == ns->folders && counter->versionStorage == ns->version_bytes && counter->versions == ns->version_files
+                            NodeCounter counter = node->getCounter();
+                            LOG_debug << node->displaypath() << " " << counter.storage << " " << ns->bytes << " " << counter.files << " " << ns->files << " " << counter.folders << " " << ns->folders << " "
+                                      << counter.versionStorage << " " << ns->version_bytes << " " << counter.versions << " " << ns->version_files
+                                      << (counter.storage == ns->bytes && counter.files == ns->files && counter.folders == ns->folders && counter.versionStorage == ns->version_bytes && counter.versions == ns->version_files
                                           ? "" : " ******************************************* mismatch *******************************************");
                         }
 #endif

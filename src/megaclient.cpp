@@ -8576,7 +8576,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             }
 
             // do not wait for notifypurge() to dump to disk / DB, since
-            // some operations rely on DB queries (ie. NodeCounters)
+            // some operations rely on DB queries
             mNodeManager.saveNodeInDb(n);
             n = nullptr;    // ownership is taken by NodeManager upon addNode()
         }
@@ -12042,11 +12042,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
         }
 
         // now that Users and PCRs are loaded, need to mergenewshare()
-        // Node counters for inshares are calculated at this method
         mergenewshares(0, true);
-
-        // calculate node counters for all nodes recursively (it initializes the Node::mCounter
-        mNodeManager.calculateCounters();
 
         // finally write nodes in DB
         mNodeManager.dumpNodes();
@@ -17146,27 +17142,6 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
     return nodes;
 }
 
-void NodeManager::increaseCounter(const Node *node, NodeHandle firstAncestorHandle)
-{
-    if (node->type == FILENODE)
-    {
-        if (isFileNode(node->parentHandle()))   // is a version? (returns false for unknown parents)
-        {
-            mNodeCounters[firstAncestorHandle].versions++;
-            mNodeCounters[firstAncestorHandle].versionStorage += node->size;
-        }
-        else
-        {
-            mNodeCounters[firstAncestorHandle].files++;
-            mNodeCounters[firstAncestorHandle].storage += node->size;
-        }
-    }
-    else if (node->type == FOLDERNODE)
-    {
-        mNodeCounters[firstAncestorHandle].folders++;
-    }
-}
-
 void NodeManager::loadTreeRecursively(const Node* node)
 {
     node_list children = getChildren(node);
@@ -17329,7 +17304,6 @@ void NodeManager::cleanNodes()
     mNodes.clear();
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
-    mNodeCounters.clear();
     mNodesWithMissingParent.clear();
     mNodeChildren.clear();
     mLoadingNodes = false;
@@ -17891,12 +17865,6 @@ void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
     }
 }
 
-const NodeCounter* NodeManager::getCounter(const NodeHandle& h) const
-{
-    auto it = mNodeCounters.find(h);
-    return it == mNodeCounters.end() ? nullptr : &(it->second);
-}
-
 bool NodeManager::isRootNode(NodeHandle h) const
 {
     return h == mClient.rootnodes.files
@@ -17961,8 +17929,6 @@ bool NodeManager::hasVersion(NodeHandle nodeHandle)
     return false;
 }
 
-// TODO: when all nodes are read from API (upon new session), this method
-// should calculate them and write to DB for all nodes
 void NodeManager::initializeCounters()
 {
     node_vector rootNodes = getRootNodesWithoutNestedInshares();
@@ -18006,120 +17972,34 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     return c;
 }
 
-void NodeManager::addCounter(const NodeHandle &h)
+void NodeManager::updateCounter(Node& n, Node* oldParent)
 {
-    auto ret = mNodeCounters.emplace(h, NodeCounter());
-    assert(ret.second);
-}
-
-NodeCounter NodeManager::calculateCounter(Node& node)
-{
-    NodeCounter nc;
-
-    std::set<NodeHandle> children;
-    auto it = mNodeChildren.find(node.nodeHandle());
-    if (it != mNodeChildren.end())
+    NodeCounter nc = n.getCounter();
+    if (oldParent)
     {
-        children = it->second;
+        updateTreeCounter(oldParent, nc, false);
     }
-
-    for (const NodeHandle &h : children)
-    {
-        Node *child = getNodeInRAM(h);  assert(child);
-        nc += calculateCounter(*child);
-    }
-
-    if (node.type == FILENODE)
-    {
-        bool isVersion = (node.parent && node.parent->type == FILENODE);
-        if (isVersion)
-        {
-            nc.versions++;
-            nc.versionStorage += node.size;
-        }
-        else
-        {
-            nc.files++;
-            nc.storage += node.size;
-        }
-    }
-    else if (node.type == FOLDERNODE)
-    {
-        nc.folders++;
-    }
-
-    node.setCounter(nc);
-
-    return nc;
-}
-
-// TODO: it should update this `n` and all its parents to root, adding
-// them to the notification queue (to eventually write to disk)
-void NodeManager::subtractFromRootCounter(const Node& n)
-{
-    NodeHandle firstValidAntecestor = getFirstAncestor(n.nodeHandle());
-    assert(firstValidAntecestor != UNDEF);
-    auto it = mNodeCounters.find(firstValidAntecestor);
-    if (it != mNodeCounters.end())
-    {
-        it->second -= getNodeCounter(n);
-    }
-}
-
-// TODO: it should update both paths to root, `n` and `oldParent`. Both should be
-// loaded and can be updated in the Node directly, adding them to the notification
-// queue to be written into DB eventually
-void NodeManager::updateCounter(const Node& n, const Node* oldParent)
-{
-    const Node* oldAncestor = oldParent ? oldParent->firstancestor() : nullptr;
-    const NodeHandle& oah = oldAncestor ? oldAncestor->nodeHandle() : NodeHandle();
-
-    const Node* newAncestor = n.firstancestor();
-    const NodeHandle &nah = newAncestor->nodeHandle();
 
     // if node is a new version
     if (n.parent && n.parent->type == FILENODE)
     {
-        // current version converted to previous version: two cases
-        // A. action by own client: response from command 1st creates the new node and later moves old version as child of new version
-        // B. action by another client: actionpacket 1st deletes the old node, later adds the new version and finally adds the old version
-        auto it = mNodeCounters.find(nah);
-        if (it != mNodeCounters.end())
+        if (nc.files > 0)
         {
-            NodeCounter &nc = it->second;
-            if (oldParent)  // case A: new version created by own client
-            {
-                assert(oldParent->type != FILENODE && oah == nah);
-                // discount the old version, previously counted as file
-                nc.files--;
-                nc.storage -= n.size;
-            }
-
+            assert(nc.files == 1);
+            // discount the old version, previously counted as file
+            nc.files--;
+            nc.storage -= n.size;
             nc.versions++;
             nc.versionStorage += n.size;
+            n.setCounter(nc);
         }
+
     }
-    else if (oah != nah)   // node is a new file/folder, movements of file/folder between different trees
+
+    if (n.parent)
     {
-        bool subTreeCalculated = false; // is the subtree available in the node's counter for old root?
-        NodeCounter nc;
-
-        auto itOld = mNodeCounters.find(oah);
-        if (itOld != mNodeCounters.end())
-        {
-            // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
-            nc = n.getCounter();
-            itOld->second -= nc;
-            subTreeCalculated = true;
-        }
-
-        auto itNew = mNodeCounters.find(nah);
-        if (itNew != mNodeCounters.end())
-        {
-            itNew->second += subTreeCalculated ? nc : n.getCounter();
-        }
+        updateTreeCounter(n.parent, nc, true);
     }
-    // else -> movement inside same subtree, nothing to update
 }
 
 mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
@@ -18181,32 +18061,6 @@ void NodeManager::dumpNodes()
     for (auto &it : mNodes)
     {
         mTable->put(it.second.get());
-    }
-}
-
-void NodeManager::calculateCounters()
-{
-    node_vector rootnodes;
-    rootnodes.push_back(getNodeByHandle(mClient.rootnodes.files));
-
-    // if we are logged into folder link, inbox and rubbish nodes are undefined
-    // and there are no incoming shares
-    if (!mClient.loggedIntoFolder())
-    {
-        rootnodes.push_back(getNodeByHandle(mClient.rootnodes.inbox));
-        rootnodes.push_back(getNodeByHandle(mClient.rootnodes.rubbish));
-
-        node_vector inshares = mClient.getInShares();
-        for (auto inshare : inshares)
-        {
-            rootnodes.push_back(inshare);
-        }
-    }
-
-    // calculate counters for all trees, recursively
-    for (auto &node : rootnodes)
-    {
-        calculateCounter(*node);
     }
 }
 
