@@ -16685,8 +16685,6 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
             client1.received_node_actionpackets = false;
 
-            model.addfolder("w");
-
             client2.client.putnodes_prepareOneFolder(&node[0], "w");
             ASSERT_TRUE(client2.putnodes(xs->nodeHandle(), NoVersioning, std::move(node)));
             ASSERT_TRUE(client1.waitForNodesUpdated(30));
@@ -16705,21 +16703,15 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         // Move t, u and v under w.
         client1.received_node_actionpackets = false;
 
-        model.movenode("t", "w");
-
         ASSERT_TRUE(client2.movenode(xt->nodehandle, xw->nodehandle));
         ASSERT_TRUE(client1.waitForNodesUpdated(30));
 
         client1.received_node_actionpackets = false;
 
-        model.movenode("u", "w");
-
         ASSERT_TRUE(client2.movenode(xu->nodehandle, xw->nodehandle));
         ASSERT_TRUE(client1.waitForNodesUpdated(30));
 
         client1.received_node_actionpackets = false;
-
-        model.movenode("v", "w");
 
         ASSERT_TRUE(client2.movenode(xv->nodehandle, xw->nodehandle));
         ASSERT_TRUE(client1.waitForNodesUpdated(30));
@@ -16756,18 +16748,10 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     // Give the sync some time to process changes.
     waitonsyncs(DEFAULTWAIT, &client1);
 
-    // Make sure the client hasn't stalled.
-    {
-        SyncStallInfo stalls;
-        ASSERT_FALSE(client1.client.syncs.syncStallDetected(stalls));
-    }
+    // Wait for the engine to stall once again.
+    ASSERT_TRUE(client1.waitFor(SyncStallState(true), DEFAULTWAIT));
 
-    // client 1 should've wiped everything.
-    //
-    // This is the behavior we're going to want to fix.
-    model.movetosynctrash("w", "");
-    model.ensureLocalDebrisTmpLock("");
-
+    // Make sure client 1 hasn't changed anything!
     ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
 }
 

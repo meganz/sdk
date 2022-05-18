@@ -286,7 +286,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     unsigned depth() const;
 
     // try to resolve node key string
-    bool applykey();
+    bool applykey(bool notAppliedOk = false);
 
     // set up nodekey in a static SymmCipher
     SymmCipher* nodecipher();
@@ -415,6 +415,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // Returns true if this node has a child with the given name.
     bool hasChildWithName(const string& name) const;
+
+    // For purposes of testing.
+    void setNodeKeyData(const string& data);
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted

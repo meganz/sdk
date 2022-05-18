@@ -186,6 +186,11 @@ bool Node::hasChildWithName(const string& name) const
     return false;
 }
 
+void Node::setNodeKeyData(const string& data)
+{
+    nodekeydata = data;
+}
+
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
@@ -212,6 +217,22 @@ void Node::setkey(const byte* newkey)
 // mismatch vector
 Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 {
+    // Makes sure the node's properly unlinked when we delete it.
+    auto node_deleter = [client, dp](Node* node) {
+        // Make sure the client has no dangling references.
+        client->nodes.erase(node->nodeHandle());
+
+        // Make sure the node vector has no dangling references.
+        if (!dp->empty() && dp->back() == node)
+            dp->pop_back();
+
+        // Destroy the node.
+        delete node;
+    };
+
+    // For convenience.
+    using node_pointer = unique_ptr<Node, decltype(node_deleter)>;
+
     handle h, ph;
     nodetype_t t;
     m_off_t s;
@@ -223,7 +244,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     unsigned short ll;
-    Node* n;
+    node_pointer n(nullptr, std::move(node_deleter));
     int i;
     char isExported = '\0';
     char hasLinkCreationTs = '\0';
@@ -320,7 +341,14 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         ptr += authKeySize;
     }
 
-    for (i = 5; i--;)
+    if (ptr + (unsigned)*ptr > end)
+        return nullptr;
+
+    auto encrypted = *ptr && ptr[1];
+
+    ptr += (unsigned)*ptr + 1;
+    
+    for (i = 4; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -351,9 +379,9 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
+    n.reset(new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts));
 
-    if (k)
+    if (!encrypted && k)
     {
         n->setkey(k);
     }
@@ -382,10 +410,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     ptr = n->attrs.unserialize(ptr, end);
     if (!ptr)
-    {
-        delete n;
         return NULL;
-    }
 
     // It's needed to re-normalize node names because
     // the updated version of utf8proc doesn't provide
@@ -401,10 +426,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     if (isExported)
     {
         if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
-        {
-            delete n;
             return NULL;
-        }
 
         handle ph = 0;
         memcpy((char*)&ph, ptr, MegaClient::NODEHANDLE);
@@ -428,15 +450,41 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     n->setfingerprint();
 
+    if (encrypted)
+    {
+        // Have we encoded the node key data's length?
+        if (ptr + sizeof(unsigned short) > end)
+            return nullptr;
+
+        auto length = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(length);
+
+        // Have we encoded the node key data?
+        if (ptr + length > end)
+            return nullptr;
+
+        n->nodekeydata.assign(ptr, length);
+        ptr += length;
+
+        // Have we encoded the length of the attribute string?
+        if (ptr + sizeof(unsigned short) > end)
+            return nullptr;
+
+        length = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(length);
+
+        // Have we encoded the attribute string?
+        if (ptr + length > end)
+            return nullptr;
+
+        n->attrstring.reset(new string(ptr, length));
+        ptr += length;
+    }
+
     if (ptr == end)
-    {
-        return n;
-    }
-    else
-    {
-        delete n;
-        return NULL;
-    }
+        return n.release();
+
+    return nullptr;
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
@@ -448,27 +496,24 @@ bool Node::serialize(string* d)
         LOG_warn << "Trying to serialize an encrypted node";
 
         //Last attempt to decrypt the node
-        applykey();
+        applykey(true);
         setattr();
 
         if (attrstring)
-        {
-            LOG_warn << "Skipping undecryptable node";
-            return false;
-        }
+            LOG_warn << "Serializing an encrypted node.";
     }
 
     switch (type)
     {
         case FILENODE:
-            if ((int)nodekeydata.size() != FILENODEKEYLENGTH)
+            if (!attrstring && (int)nodekeydata.size() != FILENODEKEYLENGTH)
             {
                 return false;
             }
             break;
 
         case FOLDERNODE:
-            if ((int)nodekeydata.size() != FOLDERNODEKEYLENGTH)
+            if (!attrstring && (int)nodekeydata.size() != FOLDERNODEKEYLENGTH)
             {
                 return false;
             }
@@ -509,7 +554,21 @@ bool Node::serialize(string* d)
     ts = (time_t)ctime;
     d->append((char*)&ts, sizeof(ts));
 
-    d->append(nodekeydata);
+    if (attrstring)
+    {
+        auto length = 0u;
+
+        if (type == FOLDERNODE)
+            length = FOLDERNODEKEYLENGTH;
+        else if (type == FILENODE)
+            length = FILENODEKEYLENGTH;
+
+        d->append(length, '\0');
+    }
+    else
+    {
+        d->append(nodekeydata);
+    }
 
     if (type == FILENODE)
     {
@@ -535,7 +594,12 @@ bool Node::serialize(string* d)
         d->append("", 1);
     }
 
-    d->append("\0\0\0\0", 5); // Use these bytes for extensions
+    d->append(1, static_cast<char>(!!attrstring));
+
+    if (attrstring)
+        d->append(1, '\1');
+
+    d->append(4, '\0');
 
     if (inshare)
     {
@@ -583,7 +647,15 @@ bool Node::serialize(string* d)
         }
     }
 
-    attrs.serialize(d);
+    // Encrypted nodes have no attributes.
+    if (attrstring)
+    {
+        d->append(1, '\0');
+    }
+    else
+    {
+        attrs.serialize(d);
+    }
 
     if (isExported)
     {
@@ -594,6 +666,20 @@ bool Node::serialize(string* d)
         {
             d->append((char*) &plink->cts, sizeof(plink->cts));
         }
+    }
+
+    // Write data necessary to thaw encrypted nodes.
+    if (attrstring)
+    {
+        // Write node key data.
+        auto length = (unsigned short)nodekeydata.size();
+        d->append((char*)&length, sizeof(length));
+        d->append(nodekeydata, 0, length);
+
+        // Write attribute string data.
+        length = (unsigned short)attrstring->size();
+        d->append((char*)&length, sizeof(length));
+        d->append(*attrstring, 0, length);
     }
 
     return true;
@@ -852,7 +938,7 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
 }
 
 // attempt to apply node key - sets nodekey to a raw key if successful
-bool Node::applykey()
+bool Node::applykey(bool notAppliedOk)
 {
     if (type > FOLDERNODE)
     {
@@ -937,7 +1023,7 @@ bool Node::applykey()
         setattr();
     }
 
-    assert(keyApplied());
+    assert(keyApplied() || notAppliedOk);
     return true;
 }
 
