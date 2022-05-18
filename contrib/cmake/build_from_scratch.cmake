@@ -246,7 +246,7 @@ else()
             OUTPUT_VARIABLE HOST_ARCHITECTURE
             OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-        # Are we crosscompiling?
+        # Are we crosscompiling? Compare against the triplet value
         if (NOT HOST_ARCHITECTURE STREQUAL VCPKG_OSX_ARCHITECTURES)
             set(_toolchain_cross_compile_args
                 "-DCMAKE_OSX_ARCHITECTURES=${VCPKG_OSX_ARCHITECTURES}")
@@ -263,7 +263,7 @@ else()
 
         execute_checked_command(
             COMMAND ${_cmake}
-               -B ${_build_dir}
+                -B ${_build_dir}
                 "-DCMAKE_BUILD_TYPE=${_config}"
                 ${_common_cmake_args}
                 ${_extra_cmake_args}
