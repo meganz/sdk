@@ -17722,8 +17722,10 @@ void NodeManager::notifyPurge()
         DBTableTransactionCommitter committer(mClient.tctable);
 
         // check all notified nodes for removed status and purge
-        for (auto n : mNodeNotify)
+        while (mNodeNotify.size())
         {
+            Node* n = mNodeNotify.front();
+            mNodeNotify.erase(mNodeNotify.begin());
             if (n->attrstring)
             {
                 // make this just a warning to avoid auto test failure
@@ -17761,15 +17763,14 @@ void NodeManager::notifyPurge()
 
             if (n->changed.removed)
             {
-                // remove item from related maps, etc. (mNodeCounters, mFingerprints, mNodeChildren, ...)
+                // remove item from related maps, etc. (mFingerprints, mNodeChildren, ...)
                 if (n->parent)  // only process node counters for subtrees not deleted already
                 {
-                    subtractFromRootCounter(*n);
+                    // Decrease counters for all ancestor in the tree
+                    updateTreeCounter(n->parent, n->getCounter(), false);
 
                     removeChild(n->parentHandle(), n->nodeHandle());
                 }
-
-                mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
 
                 removeFingerprint(n);
 
