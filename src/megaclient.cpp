@@ -10051,10 +10051,31 @@ void MegaClient::dodiscarduser(User* u, bool discardnotified)
         discardnotifieduser(u);
     }
 
-    umindex.erase(u->email);
-    int uhidx = uhindex[u->userhandle];
-    uhindex.erase(u->userhandle);
-    users.erase(uhidx);
+    int uidx = -1;
+
+    if (!u->email.empty())
+    {
+        auto it = umindex.find(u->email);
+        if (it != umindex.end())
+        {
+            uidx = it->second;
+            umindex.erase(it);
+        }
+    }
+
+    if (u->userhandle != UNDEF)
+    {
+        auto it = uhindex.find(u->userhandle);
+        if (it != uhindex.end())
+        {
+            assert(uidx == -1 || uidx == it->second);
+            uidx = it->second;
+            uhindex.erase(it);
+        }
+    }
+
+    assert(uidx != -1);
+    users.erase(uidx);
 }
 
 void MegaClient::discarduser(handle uh, bool discardnotified)
