@@ -144,6 +144,8 @@ public:
 
     virtual void cancelQuery() = 0;
 
+    virtual void updateCounter(NodeHandle nodeHandle, const NodeCounter& nodeCounter) = 0;
+
 };
 
 class MEGA_API DBTableTransactionCommitter

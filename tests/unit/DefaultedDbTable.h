@@ -118,6 +118,10 @@ public:
     {
 
     }
+    void updateCounter(mega::NodeHandle, const mega::NodeCounter &) override
+    {
+
+    }
     bool put(uint32_t, char*, unsigned) override
     {
         return false;

@@ -583,6 +583,9 @@ struct NodeCounter
     size_t versions = 0;
     void operator += (const NodeCounter&);
     void operator -= (const NodeCounter&);
+    std::string serialize() const;
+    NodeCounter(const std::string& blob);
+    NodeCounter() = default;
 };
 
 typedef std::map<NodeHandle, NodeCounter> NodeCounterMap;

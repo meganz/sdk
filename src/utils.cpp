@@ -2526,6 +2526,33 @@ void NodeCounter::operator -= (const NodeCounter& o)
     versionStorage -= o.versionStorage;
 }
 
+std::string NodeCounter::serialize() const
+{
+    std::string nodeCountersBlob;
+    nodeCountersBlob.append((char*) &files, sizeof (files));
+    nodeCountersBlob.append((char*) &folders, sizeof (folders));
+    nodeCountersBlob.append((char*) &storage, sizeof (storage));
+    nodeCountersBlob.append((char*) &versions, sizeof (versions));
+    nodeCountersBlob.append((char*) &versionStorage, sizeof (versionStorage));
+
+    return nodeCountersBlob;
+}
+
+NodeCounter::NodeCounter(const std::string &blob)
+{
+    const char* ptr = blob.data();
+    memcpy((char*)&files, ptr, sizeof (files));
+    ptr += sizeof (files);
+    memcpy((char*)&folders, ptr, sizeof (folders));
+    ptr += sizeof (folders);
+    memcpy((char*)&storage, ptr, sizeof (storage));
+    ptr += sizeof (storage);
+    memcpy((char*)&versions, ptr, sizeof (versions));
+    ptr += sizeof (versions);
+    memcpy((char*)&versionStorage, ptr, sizeof (versionStorage));
+    ptr += sizeof (versionStorage);
+}
+
 
 CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
     : mType(type)
