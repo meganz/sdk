@@ -16899,7 +16899,7 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
 
 uint64_t NodeManager::getNodeCount()
 {
-    if (mClient.loggedin() == NOTLOGGEDIN)
+    if (mNodes.empty())
     {
         return 0;
     }
@@ -17979,7 +17979,7 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     NodeCounter c;
 
     // if not logged in yet, node counters are not available
-    if (mClient.loggedin() == NOTLOGGEDIN)
+    if (mNodes.empty())
     {
         assert((mClient.rootnodes.files.isUndef()
                 && mClient.rootnodes.inbox.isUndef()
@@ -17990,7 +17990,7 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     }
 
     Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
-    if (rootNode)
+    assert(rootNode);
     {
         c = rootNode->getCounter();
     }
@@ -17998,13 +17998,13 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     if (!mClient.loggedIntoFolder())
     {
         Node* inBox = getNodeByHandle(mClient.rootnodes.inbox);
-        if (inBox)
+        assert(inBox);
         {
             c += inBox->getCounter();
         }
 
         Node* rubbish = getNodeByHandle(mClient.rootnodes.rubbish);
-        if (rubbish)
+        assert(rubbish);
         {
             c += rubbish->getCounter();
         }
