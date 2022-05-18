@@ -17979,7 +17979,7 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     NodeCounter c;
 
     // if not logged in yet, node counters are not available
-    if (mNodeCounters.empty())
+    if (mClient.loggedin() == NOTLOGGEDIN)
     {
         assert((mClient.rootnodes.files.isUndef()
                 && mClient.rootnodes.inbox.isUndef()
