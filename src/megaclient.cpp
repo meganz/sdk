@@ -17173,11 +17173,27 @@ void NodeManager::loadTreeRecursively(const Node* node)
     for (const Node* child : children)
     {
         loadTreeRecursively(child);
-
-        // Update counters, now that all ancestors are loaded
-        const Node* ancestor = child->firstancestor();
-        increaseCounter(child, ancestor->nodeHandle());
     }
+}
+
+void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, bool increase)
+{
+    do
+    {
+        NodeCounter ancestorCounter = origin->getCounter();
+        if (increase)
+        {
+            ancestorCounter += nc;
+        }
+        else
+        {
+            ancestorCounter -= nc;
+        }
+
+        origin->setCounter(ancestorCounter, true);
+        origin = origin->parent;
+    }
+    while (origin);
 }
 
 NodeCounter NodeManager::getNodeCounter(const Node &node)

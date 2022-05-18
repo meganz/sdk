@@ -428,6 +428,7 @@ private:
     // Load nodes recursively and update nodeCounters
     void loadTreeRecursively(const Node *node);
 
+    // Update a node tree recrusively ( true for add nodes, false for decrease)
     void updateTreeCounter(Node* origin, NodeCounter nc, bool increase);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
