@@ -263,6 +263,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     int getShareType() const;
 
+    // Initialize node counter values, we only take account node type
+    // There isn't any recursive calculation
+    void setInitialNodeCounter();
+
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC

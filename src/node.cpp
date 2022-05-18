@@ -173,6 +173,20 @@ int Node::getShareType() const
     return shareType;
 }
 
+void Node::setInitialNodeCounter()
+{
+    if (type == FILENODE)
+    {
+        mCounter.files++;
+        mCounter.storage += size;
+    }
+    else if (type == FOLDERNODE)
+    {
+        mCounter.folders++;
+    }
+
+}
+
 #ifdef ENABLE_SYNC
 
 void Node::detach(const bool recreate)

@@ -16808,6 +16808,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 
     if (keepNodeInMemory)
     {
+        node->setInitialNodeCounter();
         saveNodeInRAM(node, rootNode || isFolderLink);   // takes ownership
     }
     else
@@ -17506,6 +17507,11 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     // setparent() skiping update of node counters, since they are already calculated
     // before loading specific nodes from database
     n->setparent(getNodeByHandle(n->parentHandle()), false);
+    if (fromOldCache)
+    {
+        n->setInitialNodeCounter();
+    }
+
 
     if (k)
     {
