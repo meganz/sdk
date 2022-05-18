@@ -9358,59 +9358,57 @@ void MegaClient::mapuser(handle uh, const char* email)
     }
 }
 
-void MegaClient::discarduser(handle uh, bool discardnotified)
+void MegaClient::dodiscarduser(User* u, bool discardnotified)
 {
-    User *u = finduser(uh);
     if (!u)
     {
         return;
     }
 
-    while (u->pkrs.size())  // protect any pending pubKey request
-    {
-        auto& pka = u->pkrs.front();
-        if(pka->cmd)
-        {
-            pka->cmd->invalidateUser();
-        }
-        pka->proc(this, u);
-        u->pkrs.pop_front();
-    }
+    u->removepkrs(this);
 
     if (discardnotified)
     {
         discardnotifieduser(u);
     }
 
-    umindex.erase(u->email);
-    users.erase(uhindex[uh]);
-    uhindex.erase(uh);
+    int uidx = -1;
+
+    if (!u->email.empty())
+    {
+        auto it = umindex.find(u->email);
+        if (it != umindex.end())
+        {
+            uidx = it->second;
+            umindex.erase(it);
+        }
+    }
+
+    if (u->userhandle != UNDEF)
+    {
+        auto it = uhindex.find(u->userhandle);
+        if (it != uhindex.end())
+        {
+            assert(uidx == -1 || uidx == it->second);
+            uidx = it->second;
+            uhindex.erase(it);
+        }
+    }
+
+    assert(uidx != -1);
+    users.erase(uidx);
+}
+
+void MegaClient::discarduser(handle uh, bool discardnotified)
+{
+    User *u = finduser(uh);
+    dodiscarduser(u, discardnotified);
 }
 
 void MegaClient::discarduser(const char *email)
 {
     User *u = finduser(email);
-    if (!u)
-    {
-        return;
-    }
-
-    while (u->pkrs.size())  // protect any pending pubKey request
-    {
-        auto& pka = u->pkrs.front();
-        if(pka->cmd)
-        {
-            pka->cmd->invalidateUser();
-        }
-        pka->proc(this, u);
-        u->pkrs.pop_front();
-    }
-
-    discardnotifieduser(u);
-
-    uhindex.erase(u->userhandle);
-    users.erase(umindex[email]);
-    umindex.erase(email);
+    dodiscarduser(u, true);
 }
 
 PendingContactRequest* MegaClient::findpcr(handle p)
@@ -12589,9 +12587,8 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
         User *u = &(it->second);
         if ((!keepOwnUser || u->userhandle != me) || u->userhandle == UNDEF)
         {
-            umindex.erase(u->email);
-            uhindex.erase(u->userhandle);
-            users.erase(it++);
+            ++it;
+            dodiscarduser(u, true);
         }
         else
         {
