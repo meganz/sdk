@@ -510,7 +510,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     if (!u || u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
     {
         // cannot set a new folder if not logged in or it already exists
-        return API_EACCESS;
+        return API_EEXIST;
     }
 
     // 1. prepare the NewNode and create it via putnodes(), with flag `vw:1`

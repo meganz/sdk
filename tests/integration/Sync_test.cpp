@@ -1823,7 +1823,6 @@ handle StandardClient::backupAdd_mainthread(const string& drivePath,
     return result.get();
 }
 
-//<<<<<<< HEAD
 error StandardClient::addSync(const string& displayPath, const fs::path& localpath, handle remoteNode,
                               function<void(error, SyncError, handle)> addSyncCompletion, const string& logname,
                               SyncConfig::Type type)
@@ -2049,7 +2048,6 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
         return UNDEF;
 
     return result.get();
-//>>>>>>> feature/SDK-1918_backup-rework
 }
 
 void StandardClient::importSyncConfigs(string configs, PromiseBoolSP result)
