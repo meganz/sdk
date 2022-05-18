@@ -16924,11 +16924,8 @@ uint64_t NodeManager::getNodeCount()
 
     for (Node* node : rootnodes)
     {
-        if (node) // TODO: investigate
-        {
-            NodeCounter nc = node->getCounter();
-            count += nc.files + nc.folders + nc.versions;
-        }
+        NodeCounter nc = node->getCounter();
+        count += nc.files + nc.folders + nc.versions;
     }
 
 #ifdef DEBUG
@@ -17525,7 +17522,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     }
 
     // setparent() skiping update of node counters, since they are already calculated in DB
-    // In DB migration we have to calculate as they aren't calculated previously
+    // In DB migration we have to calculate them as they aren't calculated previously
     n->setparent(getNodeByHandle(n->parentHandle()), fromOldCache);
 
     if (k)
