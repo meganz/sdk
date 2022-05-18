@@ -16799,7 +16799,6 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 
     if (keepNodeInMemory)
     {
-        node->setInitialNodeCounter();
         saveNodeInRAM(node, rootNode || isFolderLink);   // takes ownership
     }
     else
@@ -16888,7 +16887,7 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         {
             const NodeSerialized& ns = nHandleSerialized.second;
             n = unserializeNode(&ns.mNode, ns.mDecrypted);
-            n->setCounter(NodeCounter(ns.mNodeCounters));
+            n->setCounter(NodeCounter(ns.mNodeCounter));
         }
 
         nodes.push_back(n);
@@ -16975,7 +16974,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         if (!n)
         {
             n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
-            n->setCounter(NodeCounter(nodeMapIt.second.mNodeCounters));
+            n->setCounter(NodeCounter(nodeMapIt.second.mNodeCounter));
         }
 
         nodes.push_back(n);
@@ -17021,13 +17020,13 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByOrigFingerprint(fingerprint, nodesFromTable);
 
-    for (const auto& nHandleSerialized : nodesFromTable)
+    for (const auto& it : nodesFromTable)
     {
-        Node* n = getNodeInRAM(nHandleSerialized.first);
+        Node* n = getNodeInRAM(it.first);
         if (!n)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
-            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
+            n = unserializeNode(&it.second.mNode, it.second.mDecrypted);
+            n->setCounter(NodeCounter(it.second.mNodeCounter));
         }
 
         if (n && (!parent || (parent && isAncestor(n->nodeHandle(), parent->nodeHandle()))))
@@ -17079,7 +17078,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     if (!n) // not loaded yet
     {
         n = unserializeNode(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
-        n->setCounter(NodeCounter(nodeSerialized.second.mNodeCounters));
+        n->setCounter(NodeCounter(nodeSerialized.second.mNodeCounter));
     }
 
     return n;
@@ -17103,7 +17102,7 @@ node_vector NodeManager::getRootNodes()
         if (!n)
         {
             n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
-            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
+            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounter));
         }
         nodes.push_back(n);
 
@@ -17150,7 +17149,7 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         if (!n)
         {
             n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
-            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
+            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounter));
         }
 
         nodes.push_back(n);
@@ -17173,25 +17172,21 @@ void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType 
     do
     {
         NodeCounter ancestorCounter = origin->getCounter();
-        if (operation == INCREASE)
+        switch (operation)
         {
+        case INCREASE:
             ancestorCounter += nc;
-        }
-        else
-        {
+            break;
+
+        case DECREASE:
             ancestorCounter -= nc;
+            break;
         }
 
         origin->setCounter(ancestorCounter, true);
         origin = origin->parent;
     }
     while (origin);
-}
-
-NodeCounter NodeManager::calculateNodeCounter(const Node &node)
-{
-    nodetype_t parentType = node.parent ? node.parent->type : mTable->getNodeType(node.parentHandle());
-    return calculateNodeCounter(node.nodeHandle(), parentType);
 }
 
 NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType)
@@ -17515,11 +17510,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     n = new Node(mClient, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
     assert(mNodes.find(NodeHandle().set6byte(h)) == mNodes.end());
     mNodes[n->nodeHandle()].reset(n);
-
-    if (fromOldCache)
-    {
-        n->setInitialNodeCounter();
-    }
 
     // setparent() skiping update of node counters, since they are already calculated in DB
     // In DB migration we have to calculate them as they aren't calculated previously
@@ -17967,7 +17957,7 @@ void NodeManager::initializeCounters()
     node_vector rootNodes = getRootNodesWithoutNestedInshares();
     for (Node* node : rootNodes)
     {
-        calculateNodeCounter(*node);
+        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN);
     }
 }
 
@@ -17988,9 +17978,7 @@ NodeCounter NodeManager::getCounterOfRootNodes()
 
     Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
     assert(rootNode);
-    {
-        c = rootNode->getCounter();
-    }
+    c = rootNode->getCounter();
 
     if (!mClient.loggedIntoFolder())
     {
@@ -18031,7 +18019,6 @@ void NodeManager::updateCounter(Node& n, Node* oldParent)
             nc.versionStorage += n.size;
             n.setCounter(nc);
         }
-
     }
 
     if (n.parent)
@@ -18156,7 +18143,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     if (mTable->getNode(handle, nodeSerialized))
     {
         node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
-        node->setCounter(NodeCounter(nodeSerialized.mNodeCounters));
+        node->setCounter(NodeCounter(nodeSerialized.mNodeCounter));
     }
 
     return node;

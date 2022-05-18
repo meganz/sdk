@@ -559,7 +559,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, T &nodes)
         int size = sqlite3_column_bytes(stmt, 2);
         if (data && size)
         {
-            node.mNodeCounters = std::string(static_cast<const char*>(data), size);
+            node.mNodeCounter = std::string(static_cast<const char*>(data), size);
         }
 
         // blob node
@@ -753,7 +753,7 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
                 int size = sqlite3_column_bytes(stmt, 1);
                 if (data && size)
                 {
-                    nodeSerialized.mNodeCounters.assign(static_cast<const char*>(data), size);
+                    nodeSerialized.mNodeCounter.assign(static_cast<const char*>(data), size);
                 }
 
                 data = sqlite3_column_blob(stmt, 2);
@@ -1042,7 +1042,7 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
                     int size = sqlite3_column_bytes(stmt, 1);
                     if (data && size)
                     {
-                        node.second.mNodeCounters.assign(static_cast<const char*>(data), size);
+                        node.second.mNodeCounter.assign(static_cast<const char*>(data), size);
                     }
 
                     data = sqlite3_column_blob(stmt, 2);

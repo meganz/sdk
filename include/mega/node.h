@@ -203,7 +203,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         // this field is only used internally in syncdown()
         bool syncdown_node_matched_here : 1;
 #endif
-        bool size : 1;
+        bool counter : 1;
 
     } changed;
 
@@ -263,10 +263,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     ~Node();
 
     int getShareType() const;
-
-    // Initialize node counter values, we only take account node type
-    // There isn't any recursive calculation
-    void setInitialNodeCounter();
 
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);

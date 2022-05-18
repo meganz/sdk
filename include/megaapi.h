@@ -496,7 +496,7 @@ class MegaNode
             CHANGE_TYPE_NEW             = 0x400,
             CHANGE_TYPE_NAME            = 0x800,
             CHANGE_TYPE_FAVOURITE       = 0x1000,
-            CHANGE_TYPE_SIZE            = 0x2000,
+            CHANGE_TYPE_COUNTER            = 0x2000,
         };
 
         static const int INVALID_DURATION = -1;
@@ -953,8 +953,8 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_FAVOURITE       = 0x1000
          * Check if the node was added to or removed from favorites
          *
-         * - MegaNode::CHANGE_TYPE_SIZE            = 0x2000
-         * Check if subtree has changed its size
+         * - MegaNode::CHANGE_TYPE_COUNTER         = 0x2000
+         * Check if counter for this node (its subtree) has changed
          *
          */
         virtual int getChanges();

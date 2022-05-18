@@ -461,9 +461,9 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_FAVOURITE;
     }
-    if (node->changed.size)
+    if (node->changed.counter)
     {
-        this->changed |= MegaNode::CHANGE_TYPE_SIZE;
+        this->changed |= MegaNode::CHANGE_TYPE_COUNTER;
     }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);

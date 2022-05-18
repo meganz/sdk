@@ -332,18 +332,10 @@ public:
     // load rootnodes (ROOTNODE, INCOMING, RUBBISH) and children from ROOTNODE.
     void loadNodes();
 
-    // ===--- Node Counters ---===
-
-    // returns the counter for 'node', recursively, accessing to DB if it's neccesary
-private:
-    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
-public:
-    NodeCounter calculateNodeCounter(const Node &node);
-
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
 
-    // return the counter for all root nodes (cloud+inbox+rubbish), without DB query
+    // return the counter for all root nodes (cloud+inbox+rubbish)
     NodeCounter getCounterOfRootNodes();
 
     // update the counter of 'n' when its parent is updated (from 'oldParent' to 'n.parent')
@@ -427,9 +419,12 @@ private:
         DECREASE,
     };
 
-    // Update a node tree recrusively
-    // If operationType is INCREASE nc is added, in other case is decreased
+    // Update a node counter for 'origin' and its subtree (recursively)
+    // If operationType is INCREASE, nc is added, in other case is decreased (ie. upon deletion)
     void updateTreeCounter(Node* origin, NodeCounter nc, OperationType operation);
+
+    // returns the counter for the specified node, calculating it recursively and accessing to DB if it's neccesary
+    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;

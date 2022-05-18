@@ -74,6 +74,16 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
     memset(&changed, 0, sizeof changed);
 
     mFingerPrintPosition = client->mNodeManager.getInvalidPosition();
+
+    if (type == FILENODE)
+    {
+        mCounter.files = 1;
+        mCounter.storage = size;
+    }
+    else if (type == FOLDERNODE)
+    {
+        mCounter.folders = 1;
+    }
 }
 
 Node::~Node()
@@ -171,20 +181,6 @@ int Node::getShareType() const
     }
 
     return shareType;
-}
-
-void Node::setInitialNodeCounter()
-{
-    if (type == FILENODE)
-    {
-        mCounter.files++;
-        mCounter.storage += size;
-    }
-    else if (type == FOLDERNODE)
-    {
-        mCounter.folders++;
-    }
-
 }
 
 #ifdef ENABLE_SYNC
@@ -784,7 +780,7 @@ void Node::setCounter(const NodeCounter &counter, bool notify)
 
     if (notify)
     {
-        changed.size = true;
+        changed.counter = true;
         client->notifynode(this);
     }
 }
