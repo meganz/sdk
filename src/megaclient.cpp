@@ -17188,13 +17188,13 @@ void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType 
     while (origin);
 }
 
-NodeCounter NodeManager::getNodeCounter(const Node &node)
+NodeCounter NodeManager::calculateNodeCounter(const Node &node)
 {
     nodetype_t parentType = node.parent ? node.parent->type : mTable->getNodeType(node.parentHandle());
-    return getNodeCounter(node.nodeHandle(), parentType);
+    return calculateNodeCounter(node.nodeHandle(), parentType);
 }
 
-NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType)
+NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType)
 {
     NodeCounter nc;
     if (!mTable)
@@ -17215,7 +17215,7 @@ NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t
 
     for (const NodeHandle &h : children)
     {
-        nc += getNodeCounter(h, nodeType);
+        nc += calculateNodeCounter(h, nodeType);
     }
 
     if (nodeType == FILENODE)
@@ -17967,7 +17967,7 @@ void NodeManager::initializeCounters()
     node_vector rootNodes = getRootNodesWithoutNestedInshares();
     for (Node* node : rootNodes)
     {
-        getNodeCounter(*node);
+        calculateNodeCounter(*node);
     }
 }
 

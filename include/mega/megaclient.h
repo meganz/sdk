@@ -336,9 +336,9 @@ public:
 
     // returns the counter for 'node', recursively, accessing to DB if it's neccesary
 private:
-    NodeCounter getNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
+    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
 public:
-    NodeCounter getNodeCounter(const Node &node);
+    NodeCounter calculateNodeCounter(const Node &node);
 
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
