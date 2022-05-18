@@ -17171,12 +17171,12 @@ void NodeManager::loadTreeRecursively(const Node* node)
     }
 }
 
-void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, bool increase)
+void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType operation)
 {
     do
     {
         NodeCounter ancestorCounter = origin->getCounter();
-        if (increase)
+        if (operation == INCREASE)
         {
             ancestorCounter += nc;
         }
@@ -17783,7 +17783,7 @@ void NodeManager::notifyPurge()
                 if (n->parent)  // only process node counters for subtrees not deleted already
                 {
                     // Decrease counters for all ancestor in the tree
-                    updateTreeCounter(n->parent, n->getCounter(), false);
+                    updateTreeCounter(n->parent, n->getCounter(), DECREASE);
 
                     removeChild(n->parentHandle(), n->nodeHandle());
                 }
@@ -18018,7 +18018,7 @@ void NodeManager::updateCounter(Node& n, Node* oldParent)
     NodeCounter nc = n.getCounter();
     if (oldParent)
     {
-        updateTreeCounter(oldParent, nc, false);
+        updateTreeCounter(oldParent, nc, DECREASE);
     }
 
     // if node is a new version
@@ -18039,7 +18039,7 @@ void NodeManager::updateCounter(Node& n, Node* oldParent)
 
     if (n.parent)
     {
-        updateTreeCounter(n.parent, nc, true);
+        updateTreeCounter(n.parent, nc, INCREASE);
     }
 }
 

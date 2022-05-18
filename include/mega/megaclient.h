@@ -421,8 +421,15 @@ private:
     // Load nodes recursively and update nodeCounters
     void loadTreeRecursively(const Node *node);
 
-    // Update a node tree recrusively ( true for add nodes, false for decrease)
-    void updateTreeCounter(Node* origin, NodeCounter nc, bool increase);
+    enum OperationType
+    {
+        INCREASE = 0,
+        DECREASE,
+    };
+
+    // Update a node tree recrusively
+    // If operationType is INCREASE nc is added, in other case is decreased
+    void updateTreeCounter(Node* origin, NodeCounter nc, OperationType operation);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
