@@ -346,10 +346,6 @@ public:
     // return the counter for all root nodes (cloud+inbox+rubbish), without DB query
     NodeCounter getCounterOfRootNodes();
 
-    // calculate the counter for 'node' and all its children recursively, updating their Node::mCounter (in RAM only)
-    // (note: this method is used only for migration of legacy DB to NOD DB)
-    NodeCounter calculateCounter(Node &node);
-
     // update the counter of 'n' when its parent is updated (from 'oldParent' to 'n.parent')
     void updateCounter(Node &n, Node *oldParent);
 
@@ -371,9 +367,6 @@ public:
 
     // write all nodes into DB (used for migration from legacy to NOD DB schema)
     void dumpNodes();
-
-    // calculate counters for all nodes (used for migration from legacy to NOD DB schema)
-    void calculateCounters();
 
     // This method only can be used in Megacli for testing purposes
     uint64_t getNumberNodesInRam() const;
