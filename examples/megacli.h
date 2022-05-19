@@ -55,8 +55,8 @@ struct AppFileGet : public AppFile
 {
     void start() override;
     void update();
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
 
     AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
@@ -66,8 +66,8 @@ struct AppFilePut : public AppFile
 {
     void start() override;
     void update();
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
 
     void displayname(string*);
 
@@ -107,9 +107,7 @@ struct DemoApp : public MegaApp
     void whyamiblocked_result(int) override;
 
     void sendsignuplink_result(error) override;
-    void querysignuplink_result(error) override;
-    void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
-    void confirmsignuplink_result(error) override;
+
     void confirmsignuplink2_result(handle, const char*, const char*, error) override;
     void setkeypair_result(error) override;
 
@@ -274,7 +272,6 @@ void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);
 void exec_cancelsignup(autocomplete::ACState& s);
-void exec_confirm(autocomplete::ACState& s);
 void exec_session(autocomplete::ACState& s);
 void exec_mount(autocomplete::ACState& s);
 void exec_ls(autocomplete::ACState& s);
@@ -330,7 +327,6 @@ void exec_recon(autocomplete::ACState& s);
 void exec_reload(autocomplete::ACState& s);
 void exec_logout(autocomplete::ACState& s);
 void exec_locallogout(autocomplete::ACState& s);
-void exec_symlink(autocomplete::ACState& s);
 void exec_version(autocomplete::ACState& s);
 void exec_debug(autocomplete::ACState& s);
 void exec_verbose(autocomplete::ACState& s);

@@ -621,30 +621,42 @@ ELSE(WIN32)
         #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework LDAP")
         #SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "libresolv.dylib")
 
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
+                                       ${MegaDir}/include/mega/osx/megafs.h
+                                       ${MegaDir}/src/osx/fs.cpp)
+
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                                       "-framework CoreServices")
     ENDIF()
 
-    IF(USE_DRIVE_NOTIFICATIONS)
-        IF(APPLE)
+    IF (APPLE)
+        IF (USE_DRIVE_NOTIFICATIONS)
             SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
-                ${MegaDir}/include/mega/osx/drivenotifyosx.h
-                ${MegaDir}/src/osx/drivenotifyosx.cpp
-            )
+                                           ${MegaDir}/include/mega/osx/drivenotifyosx.h
+                                           ${MegaDir}/src/osx/drivenotifyosx.cpp)
             SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
-                "-framework DiskArbitration"
-                "-framework CoreFoundation"
-            )
+                                          "-framework DiskArbitration"
+                                          "-framework CoreFoundation")
         ENDIF()
+    ENDIF ()
 
-        IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
-            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/posix/drivenotifyposix.h ${MegaDir}/src/posix/drivenotifyposix.cpp)
-        ENDIF()
-    ENDIF(USE_DRIVE_NOTIFICATIONS)
+    IF (CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+        IF (USE_DRIVE_NOTIFICATIONS)
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles}
+                                           ${MegaDir}/include/mega/posix/drivenotifyposix.h
+                                           ${MegaDir}/src/posix/drivenotifyposix.cpp)
+        ENDIF ()
+    ENDIF ()
 
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
 
     SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} pthread z dl termcap)
     IF(APPLE)
        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework SystemConfiguration -framework Security")
+
+       SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/osx
+                                         ${Mega_PlatformSpecificIncludes})
+
        if (NOT IOS)
            set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} "-framework Cocoa")
        else()
@@ -661,11 +673,12 @@ ELSE(WIN32)
     ELSE()
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} crypto rt stdc++fs)
     ENDIF()
-    IF(USE_DRIVE_NOTIFICATIONS)
-        IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+
+    IF (CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+        IF (USE_DRIVE_NOTIFICATIONS)
             SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} udev)
-        ENDIF()
-    ENDIF(USE_DRIVE_NOTIFICATIONS)
+        ENDIF ()
+    ENDIF ()
 
     IF(USE_WEBRTC)
         add_definitions( -DWEBRTC_POSIX )
@@ -870,7 +883,6 @@ target_compile_definitions(Mega PUBLIC
                 $<${ENABLE_CHAT}:ENABLE_CHAT>
                 $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
                 $<${USE_ROTATIVEPERFORMANCELOGGER}:USE_ROTATIVEPERFORMANCELOGGER>
-                $<${USE_ROTATIVEPERFORMANCELOGGER}:ENABLE_LOG_PERFORMANCE>
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE>
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>
@@ -1063,6 +1075,7 @@ endif()
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
+configure_file("${MegaDir}/tests/integration/test_cover_png.mp3" test_cover_png.mp3 COPYONLY)
 
 # actual apps
 

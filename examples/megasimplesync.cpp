@@ -549,7 +549,7 @@ int main(int argc, char *argv[])
                             nullptr,
                         #endif
                         #ifdef GFX_CLASS
-                            new GFX_CLASS,
+                            new GfxProc(::mega::make_unique<GFX_CLASS>()),
                         #else
                             nullptr,
                         #endif
@@ -565,9 +565,6 @@ int main(int argc, char *argv[])
             SimpleLogger::setLogLevel(logDebug);
         }
     }
-
-    // uncomment this line if you want to follow symbolic links
-    //client->followsymlinks = true;
 
     // get values from env
     login.password = getenv("MEGA_PWD");

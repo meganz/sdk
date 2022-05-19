@@ -66,6 +66,7 @@ using namespace mega;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener;
+- (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
 - (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 - (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
@@ -872,6 +873,12 @@ using namespace mega;
 - (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password {
     if (self.megaApi) {
         self.megaApi->sendSignupLink(email.UTF8String, name.UTF8String, password.UTF8String);
+    }
+}
+
+- (void)resendSignupLinkWithEmail:(NSString *)email name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->resendSignupLink(email.UTF8String, name.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 
@@ -1979,6 +1986,18 @@ using namespace mega;
     }
 }
 
+- (void)getCameraUploadsFolderSecondaryWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getCameraUploadsFolderSecondary([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)getCameraUploadsFolderSecondary {
+    if (self.megaApi) {
+        self.megaApi->getCameraUploadsFolderSecondary();
+    }
+}
+
 - (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getMyBackupsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
@@ -2194,6 +2213,18 @@ using namespace mega;
     MegaTransfer *transfer = self.megaApi->getTransferByTag((int)transferTag);
     
     return transfer ? [[MEGATransfer alloc] initWithMegaTransfer:transfer cMemoryOwn:YES] : nil;
+}
+
+- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->startUploadForSupport(localPath.UTF8String, isSourceTemporary, [self createDelegateMEGATransferListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+    }
+}
+
+- (void)startUploadForSupportWithLocalPath:(NSString *)localPath isSourceTemporary:(BOOL)isSourceTemporary {
+    if (self.megaApi) {
+        self.megaApi->startUploadForSupport(localPath.UTF8String, isSourceTemporary);
+    }
 }
 
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent delegate:(id<MEGATransferDelegate>)delegate {
@@ -3483,9 +3514,13 @@ using namespace mega;
 }
 
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener {
+    return [self createDelegateMEGATransferListener:delegate singleListener:singleListener queueType:ListenerQueueTypeMain];
+}
+
+- (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType {
     if (delegate == nil) return nil;
     
-    DelegateMEGATransferListener *delegateListener = new DelegateMEGATransferListener(self, delegate, singleListener);
+    DelegateMEGATransferListener *delegateListener = new DelegateMEGATransferListener(self, delegate, singleListener, queueType);
     pthread_mutex_lock(&listenerMutex);
     _activeTransferListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);

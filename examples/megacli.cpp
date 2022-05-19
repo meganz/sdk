@@ -63,6 +63,11 @@
 #include <winioctl.h>
 #endif
 
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+#include "mega/rotativeperformancelogger.h"
+#endif
+
+
 namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
@@ -93,14 +98,11 @@ bool gVerboseMode = false;
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
-// true by default, to register a new account v2 (false means account v1)
-bool signupV2 = true;
-
 // signup code being confirmed
 static string signupcode;
 
 // signup password challenge and encrypted master key
-static byte signuppwchallenge[SymmCipher::KEYLENGTH], signupencryptedmasterkey[SymmCipher::KEYLENGTH];
+static byte signuppwchallenge[SymmCipher::KEYLENGTH];
 
 // password recovery e-mail address and code being confirmed
 static string recoveryemail, recoverycode;
@@ -140,7 +142,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
 // converts the given sync configuration to a string
 std::string syncConfigToString(const SyncConfig& config)
 {
-    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
+    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.mBackupId));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
         description.append(" TWOWAY");
@@ -305,28 +307,28 @@ void AppFileGet::start()
 }
 
 // transfer completion
-void AppFileGet::completed(Transfer*, LocalNode*)
+void AppFileGet::completed(Transfer*, putsource_t source)
 {
     // (at this time, the file has already been placed in the final location)
     delete this;
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFileGet::terminated()
+void AppFileGet::terminated(error e)
 {
     delete this;
 }
 
-void AppFilePut::completed(Transfer* t, LocalNode*)
+void AppFilePut::completed(Transfer* t, putsource_t source)
 {
     // perform standard completion (place node in user filesystem etc.)
-    File::completed(t, NULL);
+    File::completed(t, source);
 
     delete this;
 }
 
 // transfer terminated - too many failures, or unrecoverable failure, or cancelled
-void AppFilePut::terminated()
+void AppFilePut::terminated(error e)
 {
     delete this;
 }
@@ -351,7 +353,7 @@ void AppFile::progress()
 {
 }
 
-static void displaytransferdetails(Transfer* t, const char* action)
+static void displaytransferdetails(Transfer* t, const string& action)
 {
     string name;
 
@@ -387,14 +389,13 @@ void DemoApp::transfer_update(Transfer* /*t*/)
 
 void DemoApp::transfer_failed(Transfer* t, const Error& e, dstime)
 {
-    displaytransferdetails(t, "failed (");
     if (e == API_ETOOMANY && e.hasExtraInfo())
     {
-         cout << getExtraInfoErrorString(e) << ")" << endl;
+        displaytransferdetails(t, "failed (" + getExtraInfoErrorString(e) + ")\n");
     }
     else
     {
-        cout << errorstring(e) << ")" << endl;
+        displaytransferdetails(t, "failed (" + string(errorstring(e)) + ")\n");
     }
 }
 
@@ -428,11 +429,8 @@ void DemoApp::transfer_prepare(Transfer* t)
         // only set localfilename if the engine has not already done so
         if (t->localfilename.empty())
         {
-            LocalPath relative;
-            client->fsaccess->tmpnamelocal(relative);
-
             t->localfilename = LocalPath::fromAbsolutePath(".");
-            t->localfilename.appendWithSeparator(relative, true);
+            t->localfilename.appendWithSeparator(LocalPath::tmpNameLocal(), false);
         }
     }
 }
@@ -452,17 +450,17 @@ void DemoApp::syncupdate_active(const SyncConfig& config, bool active)
 
 void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, bool hadAnError)
 {
-    handle backupId = config.getBackupId();
+    handle backupId = config.mBackupId;
     if (attempted)
     {
         conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath()  << " enabled: "
-             << config.getEnabled()  << " syncError: " << config.getError()
+             << config.getEnabled()  << " syncError: " << config.mError
              << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
     else
     {
         conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
-            << config.getEnabled() << " syncError: " << config.getError()
+            << config.getEnabled() << " syncError: " << config.mError
             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
 }
@@ -1036,7 +1034,7 @@ void DemoApp::fetchnodes_result(const Error& e)
             else
             {
                 assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+                cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
 
@@ -3199,10 +3197,11 @@ autocomplete::ACN autocompleteSyntax()
                                 opt(either(sequence(param("firstname"), param("lastname")),     // to create an ephemeral++
                                         param("ephemeralhandle#ephemeralpw"),               // to resume an ephemeral
                                         param("session")))));                                 // to resume an ephemeral++
-    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
+    p->Add(exec_signup, sequence(text("signup"),
+                                 either(sequence(param("email"), param("name")),
+                                        param("confirmationlink"))));
 
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
-    p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
     p->Add(exec_ls, sequence(text("ls"), opt(flag("-R")), opt(sequence(flag("-tofile"), param("filename"))), opt(remoteFSFolder(client, &cwd))));
@@ -3217,7 +3216,12 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_import, sequence(text("import"), exportedLink(true, false)));
     p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
-    p->Add(exec_open, sequence(text("open"), exportedLink(false, true)));
+
+    p->Add(exec_open,
+           sequence(text("open"),
+                    exportedLink(false, true),
+                    opt(param("authToken"))));
+
     p->Add(exec_put, sequence(text("put"), opt(flag("-r")), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(exec_putq, sequence(text("putq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
@@ -3304,7 +3308,7 @@ autocomplete::ACN autocompleteSyntax()
 
 #endif
 
-    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
+    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(flag("-mega-hosted")), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
@@ -3341,12 +3345,16 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_reload, sequence(text("reload"), opt(text("nocache"))));
     p->Add(exec_logout, sequence(text("logout"), opt(flag("-keepsyncconfigs"))));
     p->Add(exec_locallogout, sequence(text("locallogout")));
-    p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
     p->Add(exec_debug, sequence(text("debug"),
                 opt(either(flag("-on"), flag("-off"), flag("-verbose"))),
                 opt(either(flag("-console"), flag("-noconsole"))),
-                opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile())))));
+                opt(either(flag("-nofile"), sequence(flag("-file"), localFSFile())))
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+                ,opt(sequence(flag("-rotative_performance_logger_file"), localFSFile(), opt(flag("-rotative_performance_logger_toconsole")), opt(flag("-rotative_performance_logger_exerciseOutput"))))
+#endif
+                ));
+
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_clear, sequence(text("clear")));
     p->Add(exec_codepage, sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
@@ -3595,11 +3603,6 @@ static void process_line(char* l)
             {
                 cout << endl << "Incorrect password, please try again." << endl;
             }
-            else
-            {
-                client->confirmsignuplink((const byte*)signupcode.data(), unsigned(signupcode.size()),
-                    MegaClient::stringhash64(&signupemail, &pwcipher));
-            }
 
             signupcode.clear();
         }
@@ -3659,14 +3662,7 @@ static void process_line(char* l)
 
             if (signupemail.size())
             {
-                if (signupV2)
-                {
-                    client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
-                }
-                else
-                {
-                    client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
-                }
+                client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
             }
             else if (recoveryemail.size() && recoverycode.size())
             {
@@ -3702,7 +3698,6 @@ static void process_line(char* l)
 
         setprompt(COMMAND);
         signupemail.clear();
-        signupV2 = true;
         return;
 
     case MASTERKEY:
@@ -4031,7 +4026,7 @@ void exec_cp(autocomplete::ACState& s)
             }
 
             TreeProcCopy_mcli tc;
-            handle ovhandle = UNDEF;
+            NodeHandle ovhandle;
 
             if (!n->keyApplied())
             {
@@ -4076,17 +4071,17 @@ void exec_cp(autocomplete::ACState& s)
                         return;
                     }
 
-                    ovhandle = ovn->nodehandle;
+                    ovhandle = ovn->nodeHandle();
                 }
             }
 
             // determine number of nodes to be copied
-            client->proctree(n, &tc, false, ovhandle != UNDEF);
+            client->proctree(n, &tc, false, !ovhandle.isUndef());
 
             tc.allocnodes();
 
             // build new nodes array
-            client->proctree(n, &tc, false, ovhandle != UNDEF);
+            client->proctree(n, &tc, false, !ovhandle.isUndef());
 
             // if specified target is a filename, use it
             if (newname.size())
@@ -4751,15 +4746,11 @@ void exec_open(autocomplete::ACState& s)
         {
             using namespace mega;
 #ifdef GFX_CLASS
-            auto gfx = new GFX_CLASS;
+            auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
             gfx->startProcessingThread();
 #endif
 
-#ifdef __APPLE__
-            auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
-#else
             auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
-#endif
 
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
@@ -4788,7 +4779,12 @@ void exec_open(autocomplete::ACState& s)
             clientFolder->logout(false);
         }
 
-        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), nullptr));
+        const char* authToken = nullptr;
+
+        if (s.words.size() > 2)
+            authToken = s.words[2].s.c_str();
+
+        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), authToken));
     }
     else
     {
@@ -5496,6 +5492,68 @@ void exec_debug(autocomplete::ACState& s)
             }
         }
     }
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+    string rpl_filename;
+    string rpl_toconsole;
+    if (s.extractflagparam("-rotative_performance_logger_file", rpl_filename))
+    {
+        bool toconsole = s.extractflag("-rotative_performance_logger_toconsole");
+
+        bool exerciseOutput = s.extractflag("-rotative_performance_logger_exerciseOutput");
+
+        // singletons...
+        RotativePerformanceLogger::Instance().initialize(".", rpl_filename.c_str(), toconsole);
+
+        if (exerciseOutput)
+        {
+            // two competing threads, both logging, so we're not just paused during gzipping
+
+            new std::thread([](){
+                std::map<long, int> fps;
+
+                auto start = std::chrono::high_resolution_clock::now();
+                while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() < 10)
+                {
+                    LOG_info << "Logging from thread 1" ;
+                    fps[long(m_time())]++;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000/30));
+                }
+                auto cl = conlock(cout);
+                cl << "thread 1:";
+                for (auto& n : fps) cl << " " << n.second;
+                cl << "\n";
+            });
+
+
+            new std::thread([](){
+                std::map<long, int> fps;
+
+                auto start = std::chrono::high_resolution_clock::now();
+                while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - start).count() < 10)
+                {
+                    LOG_info << "Logging from thread 2" ;
+                    fps[long(m_time())]++;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000/30));
+                }
+                auto cl = conlock(cout);
+                cl << "thread 2:";
+                for (auto& n : fps) cl << " " << n.second;
+                cl << "\n";
+            });
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            string dm(99999999, 'x');
+            for (int i = 0 ; i < 30 ; i++)
+            {
+                LOG_err << DirectMessage(dm.c_str());
+            }
+
+
+        }
+
+    }
+#endif
+
 
     cout << "Debug level set to " << SimpleLogger::logCurrentLevel << endl;
     cout << "Log to console: " << (gLogger.logToConsole ? "on" : "off") << endl;
@@ -5978,38 +6036,36 @@ void exec_signup(autocomplete::ACState& s)
             ptr = tptr + 7;
 
             std::string code = Base64::atob(std::string(ptr));
-            if (!code.empty())
+            if (code.find("ConfirmCodeV2") != string::npos)
             {
-                if (code.find("ConfirmCodeV2") != string::npos)
+                size_t posEmail = 13 + 15;
+                size_t endEmail = code.find("\t", posEmail);
+                if (endEmail != string::npos)
                 {
-                    size_t posEmail = 13 + 15;
-                    size_t endEmail = code.find("\t", posEmail);
-                    if (endEmail != string::npos)
-                    {
-                        signupemail = code.substr(posEmail, endEmail - posEmail);
-                        signupname = code.substr(endEmail + 1, code.size() - endEmail - 9);
+                    signupemail = code.substr(posEmail, endEmail - posEmail);
+                    signupname = code.substr(endEmail + 1, code.size() - endEmail - 9);
 
-                        if (client->loggedin() == FULLACCOUNT)
-                        {
-                            cout << "Already logged in." << endl;
-                        }
-                        else    // not-logged-in / ephemeral account / partially confirmed
-                        {
-                            client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
-                        }
+                    if (client->loggedin() == FULLACCOUNT)
+                    {
+                        cout << "Already logged in." << endl;
+                    }
+                    else    // not-logged-in / ephemeral account / partially confirmed
+                    {
+                        client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
                     }
                 }
-                else
-                {
-                    // we first just query the supplied signup link,
-                    // then collect and verify the password,
-                    // then confirm the account
-                    client->querysignuplink((const byte*)code.data(), (unsigned)code.size());
-                }
+            }
+            else
+            {
+                cout << "Received argument was not a confirmation link." << endl;
             }
         }
+        else
+        {
+            cout << "New accounts must follow registration flow v2. Old flow is not supported anymore." << endl;
+        }
     }
-    else if (s.words.size() == 3 || s.words.size() == 4)
+    else if (s.words.size() == 3)
     {
         switch (client->loggedin())
         {
@@ -6027,7 +6083,6 @@ void exec_signup(autocomplete::ACState& s)
             {
                 signupemail = s.words[1].s;
                 signupname = s.words[2].s;
-                signupV2 = !s.extractflag("-v1");
 
                 cout << endl;
                 setprompt(NEWPASSWORD);
@@ -6153,6 +6208,7 @@ void exec_export(autocomplete::ACState& s)
     int etstmp = 0;
 
     bool writable = s.extractflag("-writable");
+    bool megaHosted = s.extractflag("-mega-hosted");
 
 
     if ((n = nodebypath(s.words[1].s.c_str())))
@@ -6170,7 +6226,7 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, writable, gNextClientTag++, [](Error e, handle h, handle ph){
+        if ((e = client->exportnode(n, deltmp, etstmp, writable, megaHosted, gNextClientTag++, [](Error e, handle h, handle ph){
             exportnode_result(e, h, ph);
         })))
         {
@@ -6553,20 +6609,6 @@ void exec_lmkdir(autocomplete::ACState& s)
 }
 #endif
 
-
-void exec_confirm(autocomplete::ACState& s)
-{
-    if (signupemail.size() && signupcode.size())
-    {
-        cout << "Please type " << signupemail << "'s password to confirm the signup." << endl;
-        setprompt(LOGINPASSWORD);
-    }
-    else
-    {
-        cout << "Need to query link first. Type 'signup code'";
-    }
-}
-
 void exec_recover(autocomplete::ACState& s)
 {
     if (client->loggedin() != NOTLOGGEDIN)
@@ -6622,18 +6664,6 @@ void exec_session(autocomplete::ACState& s)
     else
     {
         cout << "Internal error." << endl;
-    }
-}
-
-void exec_symlink(autocomplete::ACState& s)
-{
-    if (client->followsymlinks ^= true)
-    {
-        cout << "Now following symlinks. Please ensure that sync does not see any filesystem item twice!" << endl;
-    }
-    else
-    {
-        cout << "No longer following symlinks." << endl;
     }
 }
 
@@ -7050,7 +7080,7 @@ void exec_driveid(autocomplete::ACState& s)
     if (!force)
     {
         auto id = UNDEF;
-        auto result = client->readDriveId(drivePath, id);
+        auto result = readDriveId(*client->fsaccess, drivePath, id);
 
         switch (result)
         {
@@ -7085,8 +7115,8 @@ void exec_driveid(autocomplete::ACState& s)
         }
     }
 
-    auto id = client->generateDriveId();
-    auto result = client->writeDriveId(drivePath, id);
+    auto id = generateDriveId(client->rng);
+    auto result = writeDriveId(*client->fsaccess, drivePath, id);
 
     if (result != API_OK)
     {
@@ -7285,38 +7315,6 @@ void DemoApp::sendsignuplink_result(error e)
     else
     {
         cout << "Thank you. Please check your e-mail and enter the command signup followed by the confirmation link." << endl;
-    }
-}
-
-// signup link query result
-void DemoApp::querysignuplink_result(handle /*uh*/, const char* email, const char* name, const byte* pwc, const byte* /*kc*/,
-                                     const byte* c, size_t len)
-{
-    cout << "Ready to confirm user account " << email << " (" << name << ") - enter confirm to execute." << endl;
-
-    signupemail = email;
-    signupcode.assign((char*) c, len);
-    memcpy(signuppwchallenge, pwc, sizeof signuppwchallenge);
-    memcpy(signupencryptedmasterkey, pwc, sizeof signupencryptedmasterkey);
-}
-
-// signup link query failed
-void DemoApp::querysignuplink_result(error e)
-{
-    cout << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
-}
-
-// signup link (account e-mail) confirmation result
-void DemoApp::confirmsignuplink_result(error e)
-{
-    if (e)
-    {
-        cout << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
-    }
-    else
-    {
-        cout << "Signup confirmed, logging in..." << endl;
-        client->login(signupemail.c_str(), pwkey);
     }
 }
 
@@ -7534,7 +7532,6 @@ void DemoApp::cancelsignup_result(error)
     signupcode.clear();
     signupemail.clear();
     signupname.clear();
-    signupV2 = true;
 }
 
 void DemoApp::whyamiblocked_result(int code)
@@ -7782,7 +7779,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
                     }
                 }
 
-                newnode->ovhandle = ovn->nodehandle;
+                newnode->ovhandle = ovn->nodeHandle();
             }
         }
 
@@ -8663,40 +8660,38 @@ int main(int argc, char* argv[])
     // The program megacli_fsloader in CMakeLists is the one that gets the special descriptor and starts megacli (mac only).
     std::vector<char*> myargv1(argv, argv + argc);
 
-    for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
-    {
-#ifdef __APPLE__
-        if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
-        {
-            int fseventsFd = std::stoi(std::string(*it).substr(13));
-            if (fcntl(fseventsFd, F_GETFD) == -1 || errno == EBADF) {
-                std::cout << "Received bad fsevents fd " << fseventsFd << "\n";
-                return 1;
-            }
-
-            gFilesystemEventsFd = fseventsFd;
-            std::cout << "Using filesystem events notification handle passed from loader: " << gFilesystemEventsFd << std::endl;
-        }
-#endif
-    }
-
     SimpleLogger::setLogLevel(logMax);
-    SimpleLogger::setOutputClass(&gLogger);
+    //SimpleLogger::setOutputClass(&gLogger);
+    auto gLoggerAddr = &gLogger;
+    g_externalLogger.addMegaLogger(&gLogger,
+
+        [gLoggerAddr](const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+#endif
+            ){
+                gLoggerAddr->log(time, loglevel, source, message
+#ifdef ENABLE_LOG_PERFORMANCE
+                    , directMessages, directMessagesSizes, numberMessages
+#endif
+                );
+         });
 
     console = new CONSOLE_CLASS;
 
 #ifdef GFX_CLASS
-    auto gfx = new GFX_CLASS;
+    auto gfx = new GfxProc(::mega::make_unique<GFX_CLASS>());
     gfx->startProcessingThread();
 #else
     mega::GfxProc* gfx = nullptr;
 #endif
 
     // Needed so we can get the cwd.
-#ifdef __APPLE__
-    auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>(gFilesystemEventsFd);
-#else
     auto fsAccess = ::mega::make_unique<FSACCESS_CLASS>();
+
+#ifdef __APPLE__
+    // Try and raise the file descriptor limit as high as we can.
+    platformSetRLimitNumFile();
 #endif
 
     // Where are we?
@@ -8789,31 +8784,37 @@ void DemoAppFolder::login_result(error e)
 
 void DemoAppFolder::fetchnodes_result(const Error& e)
 {
+    bool success = false;
     if (e)
     {
         if (e == API_ENOENT && e.hasExtraInfo())
         {
-            cout << "File/folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
+            cout << "Folder retrieval failed: " << getExtraInfoErrorString(e) << endl;
         }
         else
         {
-            cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+            cout << "Folder retrieval failed (" << errorstring(e) << ")" << endl;
         }
     }
     else
     {
-        // check if we fetched a folder link and the key is invalid
+        // check if the key is invalid
         if (clientFolder->isValidFolderLink())
         {
-            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            cout << "Folder link loaded correctly." << endl;
+            success = true;
         }
         else
         {
-            cout << "Failed to load folder link" << endl;
-
-            delete clientFolder;
-            clientFolder = NULL;
+            assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
+            cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
         }
+    }
+
+    if (!success)
+    {
+        delete clientFolder;
+        clientFolder = NULL;
     }
 }
 
@@ -9002,12 +9003,12 @@ void exec_syncadd(autocomplete::ACState& s)
 
         // Try and generate a drive ID.
         auto id = UNDEF;
-        auto result = client->readDriveId(drive.c_str(), id);
+        auto result = readDriveId(*client->fsaccess, drive.c_str(), id);
 
         if (result == API_ENOENT)
         {
-            id = client->generateDriveId();
-            result = client->writeDriveId(drive.c_str(), id);
+            id = generateDriveId(client->rng);
+            result = writeDriveId(*client->fsaccess, drive.c_str(), id);
         }
 
         if (result != API_OK)
@@ -9196,7 +9197,7 @@ void exec_synclist(autocomplete::ACState& s)
         return;
     }
 
-    SyncConfigVector configs = client->syncs.allConfigs();
+    SyncConfigVector configs = client->syncs.getConfigs(false);
 
     if (configs.empty())
     {
@@ -9214,7 +9215,7 @@ void exec_synclist(autocomplete::ACState& s)
             << toHandle(config.mBackupId)
             << "\n";
 
-        auto cloudnode = client->nodeByHandle(config.getRemoteNode());
+        auto cloudnode = client->nodeByHandle(config.mRemoteNode);
         string cloudpath = cloudnode ? cloudnode->displaypath() : "<null>";
 
         // Display source/target mapping.
@@ -9319,7 +9320,7 @@ void exec_syncxable(autocomplete::ACState& s)
         // sync enable id
         UnifiedSync* unifiedSync;
         error result =
-          client->syncs.enableSyncByBackupId(backupId, false, unifiedSync);
+          client->syncs.enableSyncByBackupId(backupId, false, unifiedSync, "");
 
         if (result)
         {
@@ -9346,31 +9347,23 @@ void exec_syncxable(autocomplete::ACState& s)
     // Disable or fail?
     if (command == "fail")
     {
-        client->syncs.disableSelectedSyncs(
-            [backupId](SyncConfig& config, Sync*)
-            {
-                return config.getBackupId() == backupId;
-            },
+        client->syncs.disableSyncByBackupId(
+            backupId,
             true, // disable is fail
             static_cast<SyncError>(error),
-            false,
-            [](size_t nFailed){
-            cout << "Failing of syncs complete. Count failed: " << nFailed << endl;
-        });
+            false, nullptr);
+
+        cout << "Failing of syncs complete." << endl;
     }
     else    // command == "disable"
     {
-        client->syncs.disableSelectedSyncs(
-          [backupId](SyncConfig& config, Sync*)
-          {
-              return config.getBackupId() == backupId;
-          },
+        client->syncs.disableSyncByBackupId(
+          backupId,
           false,
           static_cast<SyncError>(error),
-          false,
-          [](size_t nDisabled){
-            cout << "disablement complete. Count disabled: " << nDisabled << endl;
-          });
+          false, nullptr);
+
+        cout << "disablement complete." << endl;
     }
 }
 

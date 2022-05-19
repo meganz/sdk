@@ -1373,7 +1373,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             {
                 case API_EC_IMPORT:
                 case API_EC_DOWNLOAD:
-                    return "Not accessible due to ToS/AUP violation";
+                    return "File removed as it violated our Terms of Service";
                 default:
                     return "Blocked";
             }
@@ -1741,13 +1741,6 @@ MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent
     pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, workerThreadCount);
 }
 
-#ifdef ENABLE_SYNC
-MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount)
-{
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, fseventsfd, workerThreadCount);
-}
-#endif
-
 #ifdef HAVE_MEGAAPI_RPC
 MegaApi::MegaApi() {}
 #endif
@@ -1911,14 +1904,14 @@ void MegaApi::setLogToConsole(bool enable)
     MegaApiImpl::setLogToConsole(enable);
 }
 
-void MegaApi::addLoggerObject(MegaLogger *megaLogger)
+void MegaApi::addLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    MegaApiImpl::addLoggerClass(megaLogger);
+    MegaApiImpl::addLoggerClass(megaLogger, singleExclusiveLogger);
 }
 
-void MegaApi::removeLoggerObject(MegaLogger *megaLogger)
+void MegaApi::removeLoggerObject(MegaLogger *megaLogger, bool singleExclusiveLogger)
 {
-    MegaApiImpl::removeLoggerClass(megaLogger);
+    MegaApiImpl::removeLoggerClass(megaLogger, singleExclusiveLogger);
 }
 
 void MegaApi::setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter)
@@ -2216,6 +2209,11 @@ void MegaApi::cancelCreateAccount(MegaRequestListener *listener)
 void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
 {
     pImpl->sendSignupLink(email, name, password, listener);
+}
+
+void MegaApi::resendSignupLink(const char *email, const char *name, MegaRequestListener *listener)
+{
+    pImpl->resendSignupLink(email, name, listener);
 }
 
 void MegaApi::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
@@ -2605,22 +2603,22 @@ void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, dou
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, 0, false, listener);
+    pImpl->exportNode(node, 0, false, false, listener);
 }
 
-void MegaApi::exportNode(MegaNode *node, bool writable, MegaRequestListener *listener)
+void MegaApi::exportNode(MegaNode *node, bool writable, bool megaHosted, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, 0, writable, listener);
+    pImpl->exportNode(node, 0, writable, megaHosted, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, expireTime, false, listener);
+    pImpl->exportNode(node, expireTime, false, false, listener);
 }
 
-void MegaApi::exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener)
+void MegaApi::exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, expireTime, writable, listener);
+    pImpl->exportNode(node, expireTime, writable, megaHosted, listener);
 }
 
 void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
@@ -4324,12 +4322,12 @@ MegaApiLock* MegaApi::getMegaApiLock(bool lockNow)
 
 bool MegaApi::platformSetRLimitNumFile(int newNumFileLimit) const
 {
-    return pImpl->platformSetRLimitNumFile(newNumFileLimit);
+    return mega::platformSetRLimitNumFile(newNumFileLimit);
 }
 
 int MegaApi::platformGetRLimitNumFile() const
 {
-    return pImpl->platformGetRLimitNumFile();
+    return mega::platformGetRLimitNumFile();
 }
 
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
@@ -5437,6 +5435,16 @@ void MegaApi::completeUpload(const char* utf8Name, MegaNode *parent, const char*
 void MegaApi::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
 {
     return pImpl->getUploadURL(fullFileSize, forceSSL, listener);
+}
+
+void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+{
+    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::THUMBNAIL, forceSSL, listener);
+}
+
+void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+{
+    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::PREVIEW, forceSSL, listener);
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,

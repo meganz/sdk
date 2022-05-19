@@ -46,7 +46,7 @@
 #include <fcntl.h>
 #endif
 
-#ifdef TARGET_OS_IPHONE
+#if TARGET_OS_IPHONE
 #include "mega/gfx/GfxProcCG.h"
 #endif
 
@@ -74,11 +74,11 @@ class MegaSemaphore : public CppSemaphore {};
 #endif
 
 #if USE_FREEIMAGE
-class MegaGfxProc : public GfxProcFreeImage {};
+using MegaGfxProvider = GfxProviderFreeImage;
 #elif TARGET_OS_IPHONE
-class MegaGfxProc : public GfxProcCG {};
+using MegaGfxProvider = GfxProviderCG;
 #else
-class MegaGfxProc : public GfxProcExternal {};
+using MegaGfxProvider = GfxProviderExternal;
 #endif
 
 #ifdef WIN32
@@ -92,7 +92,11 @@ class MegaGfxProc : public GfxProcExternal {};
 #else
     #ifdef __APPLE__
     typedef CurlHttpIO MegaHttpIO;
-    typedef PosixFileSystemAccess MegaFileSystemAccess;
+        #if TARGET_OS_IPHONE
+        typedef PosixFileSystemAccess MegaFileSystemAccess;
+        #else
+        typedef MacFileSystemAccess MegaFileSystemAccess;
+        #endif
     typedef PosixWaiter MegaWaiter;
     #else
     class MegaHttpIO : public CurlHttpIO {};
@@ -140,28 +144,6 @@ private:
     long long mValue = 0;
     long long mUserStatus = MegaError::UserErrorCode::USER_ETD_UNKNOWN;
     long long mLinkStatus = MegaError::LinkErrorCode::LINK_UNKNOWN;
-};
-
-class ExternalLogger : public Logger
-{
-public:
-    ExternalLogger();
-    ~ExternalLogger();
-    void addMegaLogger(MegaLogger* logger);
-    void removeMegaLogger(MegaLogger *logger);
-    void setLogLevel(int logLevel);
-    void setLogToConsole(bool enable);
-    void postLog(int logLevel, const char *message, const char *filename, int line);
-    void log(const char *time, int loglevel, const char *source, const char *message
-#ifdef ENABLE_LOG_PERFORMANCE
-             , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
-#endif
-            ) override;
-
-private:
-    std::recursive_mutex mutex;
-    set <MegaLogger *> megaLoggers;
-    bool logToConsole;
 };
 
 class MegaFilenameAnomalyReporterProxy
@@ -456,7 +438,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaHandle getHandle() override;
         MegaHandle getRestoreHandle() override;
         MegaHandle getParentHandle() override;
-        std::string* getNodeKey() override;        
+        std::string* getNodeKey() override;
         bool isNodeKeyDecrypted() override;
         char *getBase64Key() override;
         char* getFileAttrString() override;
@@ -1077,7 +1059,7 @@ class MegaSyncListPrivate : public MegaSyncList
         int s;
 };
 
-#endif
+#endif // ENABLE_SYNC
 
 
 class MegaPricingPrivate;
@@ -1088,6 +1070,10 @@ class MegaRequestPrivate : public MegaRequest
 	public:
         MegaRequestPrivate(int type, MegaRequestListener *listener = NULL);
         MegaRequestPrivate(MegaRequestPrivate *request);
+
+        // Set this action to be executed in sendPendingRequests()
+        // instead of the huge switch, as a structural improvement
+        std::function<void()> action;
 
         virtual ~MegaRequestPrivate();
         MegaRequest *copy() override;
@@ -1917,11 +1903,11 @@ protected:
 
 struct MegaFileGet : public MegaFile
 {
-    void prepare() override;
+    void prepare(FileSystemAccess&) override;
     void updatelocalname() override;
     void progress() override;
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
     MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType);
     MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath);
     ~MegaFileGet() {}
@@ -1935,8 +1921,8 @@ private:
 
 struct MegaFilePut : public MegaFile
 {
-    void completed(Transfer* t, LocalNode*) override;
-    void terminated() override;
+    void completed(Transfer* t, putsource_t source) override;
+    void terminated(error e) override;
     MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}
 
@@ -2182,6 +2168,7 @@ class MegaApiImpl : public MegaApp
         void resumeCreateAccountEphemeralPlusPlus(const char* sid, MegaRequestListener *listener = NULL);
         void cancelCreateAccount(MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
+        void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
         void fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
@@ -2197,6 +2184,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
+        void loggedInStateChanged(sessiontype_t, handle me) override;
         bool isEphemeralPlusPlus();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
@@ -2220,8 +2208,8 @@ class MegaApiImpl : public MegaApp
         char* getMyRSAPrivateKey();
         static void setLogLevel(int logLevel);
         static void setMaxPayloadLogSize(long long maxSize);
-        static void addLoggerClass(MegaLogger *megaLogger);
-        static void removeLoggerClass(MegaLogger *megaLogger);
+        static void addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
+        static void removeLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLogger);
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
         void setLoggingName(const char* loggingName);
@@ -2229,9 +2217,6 @@ class MegaApiImpl : public MegaApp
         static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
 #endif
         void setFilenameAnomalyReporter(MegaFilenameAnomalyReporter* reporter);
-
-        bool platformSetRLimitNumFile(int newNumFileLimit) const;
-        int platformGetRLimitNumFile() const;
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
@@ -2294,7 +2279,7 @@ class MegaApiImpl : public MegaApp
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
-        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, bool megaHosted, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
@@ -2623,6 +2608,8 @@ class MegaApiImpl : public MegaApp
         void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
                                                const char *string64UploadToken, const char *string64FileKey, MegaRequestListener *listener);
 
+        void getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullFileSize, int faType, bool forceSSL, MegaRequestListener *listener);
+
 
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
@@ -2816,10 +2803,9 @@ class MegaApiImpl : public MegaApp
         bool tryLockMutexFor(long long time);
 
 protected:
-        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, int fseventsfd /*= -1*/, unsigned clientWorkerThreadCount /*= 1*/);
+        void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);
-        static ExternalLogger externalLogger;
 
         MegaTransferPrivate* getMegaTransferPrivate(int tag);
 
@@ -2842,7 +2828,7 @@ protected:
         void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
         void fireOnSyncDisabled(MegaSyncPrivate *sync);
         void fireOnSyncEnabled(MegaSyncPrivate *sync);
-        void fireonSyncDeleted(MegaSyncPrivate *sync);
+        void fireOnSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
 
@@ -2866,6 +2852,14 @@ protected:
         GfxProc *gfxAccess;
         string basePath;
         bool nocache;
+
+        mutex mLastRecievedLoggedMeMutex;
+        sessiontype_t mLastReceivedLoggedInState = NOTLOGGEDIN;
+        handle mLastReceivedLoggedInMeHandle = UNDEF;
+
+        unique_ptr<MegaNode> mLastKnownRootNode;
+        unique_ptr<MegaNode> mLastKnownInboxNode;
+        unique_ptr<MegaNode> mLastKnownRubbishNode;
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;
@@ -2994,9 +2988,6 @@ protected:
 
         // account creation
         void sendsignuplink_result(error) override;
-        void querysignuplink_result(error) override;
-        void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
-        void confirmsignuplink_result(error) override;
         void confirmsignuplink2_result(handle, const char*, const char*, error) override;
         void setkeypair_result(error) override;
 
@@ -3299,7 +3290,7 @@ public:
     void setMaxOutputSize(unsigned int outputSize);
 
     static const unsigned int MAX_BUFFER_SIZE = 2097152;
-    static const unsigned int MAX_OUTPUT_SIZE = 16384;
+    static const unsigned int MAX_OUTPUT_SIZE = MAX_BUFFER_SIZE / 10;
 
 protected:
     char *buffer;

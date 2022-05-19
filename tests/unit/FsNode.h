@@ -126,32 +126,32 @@ public:
 
 private:
 
-    class FileAccess : public DefaultedFileAccess
-    {
-    public:
-        explicit FileAccess(const FsNode& fsNode);
+    //class FileAccess : public DefaultedFileAccess
+    //{
+    //public:
+    //    explicit FileAccess(const FsNode& fsNode);
 
-        bool fopen(const mega::LocalPath& path, bool, bool, mega::DirAccess* iteratingDir = nullptr, bool = false) override;
+    //    bool fopen(const mega::LocalPath& path, bool, bool, mega::DirAccess* iteratingDir = nullptr, bool = false) override;
 
-        bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override;
+    //    bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override;
 
-        bool sysopen(bool async = false) override;
+    //    bool sysopen(bool async = false) override;
 
-        bool sysread(mega::byte* buffer, unsigned size, m_off_t offset) override;
+    //    bool sysread(mega::byte* buffer, unsigned size, m_off_t offset) override;
 
-        void sysclose() override;
+    //    void sysclose() override;
 
-    private:
-        mega::LocalPath mPath;
-        const FsNode& mFsNode;
-    };
+    //private:
+    //    mega::LocalPath mPath;
+    //    const FsNode& mFsNode;
+    //};
 
     mega::handle mFsId = mega::UNDEF;
     m_off_t mSize = -1;
     mega::m_time_t mMTime = 0;
     std::vector<mega::byte> mContent;
     mega::FileFingerprint mFingerprint;
-    std::unique_ptr<mega::FileAccess> mFileAccess = std::unique_ptr<mega::FileAccess>{new FileAccess{*this}};
+    //std::unique_ptr<mega::FileAccess> mFileAccess = std::unique_ptr<mega::FileAccess>{new FileAccess{*this}};
     const FsNode* mParent = nullptr;
     const mega::nodetype_t mType = mega::TYPE_UNKNOWN;
     const mega::LocalPath mName;

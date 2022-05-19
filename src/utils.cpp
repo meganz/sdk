@@ -27,6 +27,7 @@
 #include "mega/filesystem.h"
 
 #include <iomanip>
+#include <cctype>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>
@@ -35,6 +36,11 @@
 #ifdef __APPLE__
 #include <sys/sysctl.h>
 #endif
+
+#ifndef WIN32
+#include <sys/time.h>
+#include <sys/resource.h>
+#endif // ! WIN32
 
 namespace mega {
 
@@ -1824,6 +1830,63 @@ size_t Utils::utf8SequenceSize(unsigned char c)
     }
 }
 
+string  Utils::toUpperUtf8(const string& text)
+{
+    string result;
+
+    auto n = utf8proc_ssize_t(text.size());
+    auto d = text.data();
+
+    for (;;)
+    {
+        utf8proc_int32_t c;
+        auto nn = utf8proc_iterate((utf8proc_uint8_t *)d, n, &c);
+
+        if (nn == 0) break;
+
+        assert(nn <= n);
+        d += nn;
+        n -= nn;
+
+        c = utf8proc_toupper(c);
+
+        char buff[8];
+        auto charLen = utf8proc_encode_char(c, (utf8proc_uint8_t *)buff);
+        result.append(buff, charLen);
+    }
+
+    return result;
+}
+
+string  Utils::toLowerUtf8(const string& text)
+{
+    string result;
+
+    auto n = utf8proc_ssize_t(text.size());
+    auto d = text.data();
+
+    for (;;)
+    {
+        utf8proc_int32_t c;
+        auto nn = utf8proc_iterate((utf8proc_uint8_t *)d, n, &c);
+
+        if (nn == 0) break;
+
+        assert(nn <= n);
+        d += nn;
+        n -= nn;
+
+        c = utf8proc_tolower(c);
+
+        char buff[8];
+        auto charLen = utf8proc_encode_char(c, (utf8proc_uint8_t *)buff);
+        result.append(buff, charLen);
+    }
+
+    return result;
+}
+
+
 bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
 {
     uint8_t utf8cp1;
@@ -2705,6 +2768,56 @@ std::string getSafeUrl(const std::string &posturl)
     return safeurl;
 }
 
+bool wildcardMatch(const string& text, const string& pattern)
+{
+    return wildcardMatch(text.c_str(), pattern.c_str());
+}
+
+bool wildcardMatch(const char *pszString, const char *pszMatch)
+//  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
+{
+    const char *cp = nullptr;
+    const char *mp = nullptr;
+
+    while ((*pszString) && (*pszMatch != '*'))
+    {
+        if ((*pszMatch != *pszString) && (*pszMatch != '?'))
+        {
+            return false;
+        }
+        pszMatch++;
+        pszString++;
+    }
+
+    while (*pszString)
+    {
+        if (*pszMatch == '*')
+        {
+            if (!*++pszMatch)
+            {
+                return true;
+            }
+            mp = pszMatch;
+            cp = pszString + 1;
+        }
+        else if ((*pszMatch == *pszString) || (*pszMatch == '?'))
+        {
+            pszMatch++;
+            pszString++;
+        }
+        else
+        {
+            pszMatch = mp;
+            pszString = cp++;
+        }
+    }
+    while (*pszMatch == '*')
+    {
+        pszMatch++;
+    }
+    return !*pszMatch;
+}
+
 UploadHandle UploadHandle::next()
 {
     do
@@ -2723,5 +2836,217 @@ UploadHandle UploadHandle::next()
     return *this;
 }
 
-} // namespace
+handle generateDriveId(PrnGen& rng)
+{
+    handle driveId;
+
+    rng.genblock((byte *)&driveId, sizeof(driveId));
+    driveId |= m_time(nullptr);
+
+    return driveId;
+}
+
+error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId)
+{
+    if (pathToDrive && strlen(pathToDrive))
+        return readDriveId(fsAccess, LocalPath::fromAbsolutePath(pathToDrive), driveId);
+
+    driveId = UNDEF;
+
+    return API_EREAD;
+}
+
+error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, handle& driveId)
+{
+    assert(!pathToDrive.empty());
+
+    driveId = UNDEF;
+
+    auto path = pathToDrive;
+
+    path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
+    path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
+
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    if (!fileAccess->fopen(path, true, false))
+    {
+        // This case is valid when only checking for file existence
+        return API_ENOENT;
+    }
+
+    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to read drive-id from file: " << path;
+        return API_EREAD;
+    }
+
+    return API_OK;
+}
+
+error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId)
+{
+    auto path = LocalPath::fromAbsolutePath(pathToDrive);
+
+    path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
+
+    // Try and create the backup configuration directory
+    if (!(fsAccess.mkdirlocal(path, false, false) || fsAccess.target_exists))
+    {
+        LOG_err << "Unable to create config DB directory: " << path;
+
+        // Couldn't create the directory and it doesn't exist.
+        return API_EWRITE;
+    }
+
+    path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
+
+    // Open the file for writing
+    auto fileAccess = fsAccess.newfileaccess(false);
+    if (!fileAccess->fopen(path, false, true))
+    {
+        LOG_err << "Unable to open file to write drive-id: " << path;
+        return API_EWRITE;
+    }
+
+    // Write the drive-id to file
+    if (!fileAccess->fwrite((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to write drive-id to file: " << path;
+        return API_EWRITE;
+    }
+
+    return API_OK;
+}
+
+int platformGetRLimitNumFile()
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return -1;
+    }
+
+    return int(rl.rlim_cur);
+#else
+    LOG_err << "Code for calling getrlimit is not available yet (or not relevant) on this platform";
+    return -1;
+#endif
+}
+
+bool platformSetRLimitNumFile(int newNumFileLimit)
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return false;
+    }
+    else
+    {
+        LOG_info << "rlimit for NOFILE before change is: " << rl.rlim_cur << ", " << rl.rlim_max;
+
+        if (newNumFileLimit < 0)
+        {
+            rl.rlim_cur = rl.rlim_max;
+        }
+        else
+        {
+            rl.rlim_cur = rlim_t(newNumFileLimit);
+
+            if (rl.rlim_cur > rl.rlim_max)
+            {
+                LOG_info << "Requested rlimit (" << newNumFileLimit << ") will be replaced by maximum allowed value (" << rl.rlim_max << ")";
+                rl.rlim_cur = rl.rlim_max;
+            }
+        }
+
+        if (0 < setrlimit(RLIMIT_NOFILE, &rl))
+        {
+            auto e = errno;
+            LOG_err << "Error calling setrlimit: " << e;
+            return false;
+        }
+    }
+    return true;
+#else
+    LOG_err << "Code for calling setrlimit is not available yet (or not relevant) on this platform";
+    return false;
+#endif
+}
+
+void debugLogHeapUsage()
+{
+#ifdef DEBUG
+#ifdef WIN32
+    _CrtMemState state;
+    _CrtMemCheckpoint(&state);
+
+    LOG_debug << "MEM use.  Heap: " << state.lTotalCount << " highwater: " << state.lHighWaterCount
+        << " _FREE_BLOCK/" << state.lCounts[_FREE_BLOCK] << "/" << state.lSizes[_FREE_BLOCK]
+        << " _NORMAL_BLOCK/" << state.lCounts[_NORMAL_BLOCK] << "/" << state.lSizes[_NORMAL_BLOCK]
+        << " _CRT_BLOCK/" << state.lCounts[_CRT_BLOCK] << "/" << state.lSizes[_CRT_BLOCK]
+        << " _IGNORE_BLOCK/" << state.lCounts[_IGNORE_BLOCK] << "/" << state.lSizes[_IGNORE_BLOCK]
+        << " _CLIENT_BLOCK/" << state.lCounts[_CLIENT_BLOCK] << "/" << state.lSizes[_CLIENT_BLOCK];
+#endif
+#endif
+}
+
+void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
+{
+    mCompleted -= rhs.mCompleted;
+    mCompletedBytes -= rhs.mCompletedBytes;
+    mPending -= rhs.mPending;
+    mPendingBytes -= rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator==(const SyncTransferCount& rhs) const
+{
+    return mCompleted == rhs.mCompleted
+        && mCompletedBytes == rhs.mCompletedBytes
+        && mPending == rhs.mPending
+        && mPendingBytes == rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator!=(const SyncTransferCount& rhs) const
+{
+    return !(*this == rhs);
+}
+
+void SyncTransferCounts::operator-=(const SyncTransferCounts& rhs)
+{
+    mDownloads -= rhs.mDownloads;
+    mUploads -= rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator==(const SyncTransferCounts& rhs) const
+{
+    return mDownloads == rhs.mDownloads && mUploads == rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
+{
+    return !(*this == rhs);
+}
+
+double SyncTransferCounts::progress(m_off_t inflightProgress) const
+{
+    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
+
+    if (!pending)
+        return 1.0;
+
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes + inflightProgress;
+    auto progress = static_cast<double>(completed) / static_cast<double>(pending);
+
+    return std::min(1.0, progress);
+}
+
+
+} // namespace mega
 

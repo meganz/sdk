@@ -132,12 +132,12 @@ void LocalTreeProcMove::proc(MegaClient*, LocalNode* localnode)
     nc++;
 }
 
-void LocalTreeProcUpdateTransfers::proc(MegaClient *, LocalNode *localnode)
+void LocalTreeProcUpdateTransfers::proc(MegaClient *client, LocalNode *localnode)
 {
     if (localnode->transfer && !localnode->transfer->localfilename.empty())
     {
         LOG_debug << "Updating transfer path";
-        localnode->prepare();
+        localnode->prepare(*client->fsaccess);
     }
 }
 

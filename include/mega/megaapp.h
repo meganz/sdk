@@ -47,6 +47,8 @@ struct MEGA_API MegaApp
     // logout result
     virtual void logout_result(error) { }
 
+    virtual void loggedInStateChanged(sessiontype_t, handle me) { }
+
     // user data result
     virtual void userdata_result(string*, string*, string*, Error) { }
 
@@ -63,11 +65,6 @@ struct MEGA_API MegaApp
 
     // account creation
     virtual void sendsignuplink_result(error) { }
-    virtual void querysignuplink_result(error) { }
-    virtual void querysignuplink_result(handle, const char*, const char*,
-                                        const byte*, const byte*, const byte*,
-                                        size_t) { }
-    virtual void confirmsignuplink_result(error) { }
     virtual void confirmsignuplink2_result(handle, const char*, const char*, error) { }
     virtual void setkeypair_result(error) { }
 

@@ -271,9 +271,6 @@ public:
     // Server-Side Rubbish-bin Scheduler enabled (autopurging)
     bool ssrs_enabled;
 
-    // New Secure Registration method enabled
-    bool nsr_enabled;
-
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
 
@@ -332,13 +329,9 @@ public:
     void cancelsignup();
 
     // full account confirmation/creation support
-    void sendsignuplink(const char*, const char*, const byte*);
-
     string sendsignuplink2(const char*, const char *, const char*);
     void resendsignuplink2(const char*, const char *);
 
-    void querysignuplink(const byte*, unsigned);
-    void confirmsignuplink(const byte*, unsigned, uint64_t);
     void confirmsignuplink2(const byte*, unsigned);
     void setkeypair();
 
@@ -374,6 +367,11 @@ public:
 
     // check if logged in
     sessiontype_t loggedin();
+
+    // provide state by change callback
+    void reportLoggedInChanges();
+    sessiontype_t mLastLoggedInReportedState = NOTLOGGEDIN;
+    handle mLastLoggedInMeHandle = UNDEF;
 
     // check if logged in a folder link
     bool loggedinfolderlink();
@@ -476,10 +474,10 @@ public:
     error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c);
 
     // prefix and encrypt attribute json
-    void makeattr(SymmCipher*, string*, const char*, int = -1) const;
+    static void makeattr(SymmCipher*, string*, const char*, int = -1);
 
     // convenience version of the above (frequently we are passing a NodeBase's attrstring)
-    void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1) const;
+    static void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1);
 
     // check node access level
     int checkaccess(Node*, accesslevel_t);
@@ -527,15 +525,11 @@ public:
 
     MegaClientAsyncQueue mAsyncQueue;
 
-    // if set, symlinks will be followed except in recursive deletions
-    // (give the user ample warning about possible sync repercussions)
-    bool followsymlinks;
-
     // number of parallel connections per transfer (PUT/GET)
     unsigned char connections[2];
 
     // helpfer function for preparing a putnodes call for new node
-    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const std::string &binaryUploadToken,
+    error putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, const char *utf8Name, const UploadToken& binaryUploadToken,
                                   byte *theFileKey, char *megafingerprint, const char *fingerprintOriginal,
                                   std::function<error(AttrMap&)> addNodeAttrsFunc = nullptr,
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
@@ -548,7 +542,7 @@ public:
     void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
-    void putnodes(const char*, vector<NewNode>&&, int tag);
+    void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
 
     // attach file attribute to upload or node handle
     void putfa(NodeOrUploadHandle, fatype, SymmCipher*, int tag, std::unique_ptr<string>);
@@ -584,20 +578,20 @@ public:
 #endif
 
     // delete or block an existing contact
-    error removecontact(const char*, visibility_t = HIDDEN);
+    error removecontact(const char*, visibility_t = HIDDEN, CommandRemoveContact::Completion completion = nullptr);
 
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
-	    int tag, std::function<void(Error, bool writable)> completion);
+        int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
-    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
-    void updatepcr(handle, ipcactions_t);
+    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF, CommandSetPendingContact::Completion completion = nullptr);
+    void updatepcr(handle, ipcactions_t, CommandUpdatePendingContact::Completion completion = nullptr);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, bool writable,
-	    int tag, std::function<void(Error, handle, handle)> completion);
-    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable,
+    error exportnode(Node*, int, m_time_t, bool writable, bool megaHosted,
+        int tag, std::function<void(Error, handle, handle)> completion);
+    void requestPublicLink(Node* n, int del, m_time_t ets, bool writable, bool megaHosted,
 	    int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer
@@ -881,7 +875,7 @@ public:
     m_off_t getmaxuploadspeed();
 
     // get the handle of the older version for a NewNode
-    handle getovhandle(Node *parent, string *name);
+    Node* getovnode(Node *parent, string *name);
 
     // use HTTPS for all communications
     bool usehttps;
@@ -1009,9 +1003,6 @@ private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
-
-    // backoff for heartbeats
-    BackoffTimer btheartbeat;
 
     vector<TimerWithBackoff *> bttimers;
 
@@ -1171,6 +1162,8 @@ private:
     void abortreads(handle, bool, m_off_t, m_off_t);
 
     static const char PAYMENT_PUBKEY[];
+
+    void dodiscarduser(User* u, bool discardnotified);
 
 public:
     void enabletransferresumption(const char *loggedoutid = NULL);
@@ -1645,10 +1638,11 @@ public:
     void warn(const char*);
     bool warnlevel();
 
+    const Node* childnodebyname(const Node*, const char*, bool = false) const;
     Node* childnodebyname(Node*, const char*, bool = false);
     Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
     Node* childnodebyattribute(Node*, nameid, const char*);
-    void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
+    static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
@@ -1905,16 +1899,6 @@ public:
     } performanceStats;
 
     std::string getDeviceidHash();
-
-    // generate a new drive id
-    handle generateDriveId();
-
-    // return API_OK if success and set driveId handle to the drive id read from the drive,
-    // otherwise return error code and set driveId to UNDEF
-    error readDriveId(const char *pathToDrive, handle &driveId) const;
-
-    // return API_OK if success, otherwise error code
-    error writeDriveId(const char *pathToDrive, handle driveId);
 
     /**
      * @brief This function calculates the time (in deciseconds) that a user

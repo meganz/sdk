@@ -62,15 +62,14 @@ struct MEGA_API NodeCore
 struct MEGA_API NewNode : public NodeCore
 {
     static const int OLDUPLOADTOKENLEN = 27;
-    static const int UPLOADTOKENLEN = 36;
 
     string nodekey;
 
     newnodesource_t source = NEW_NODE;
 
-    handle ovhandle = UNDEF;
+    NodeHandle ovhandle;
     UploadHandle uploadhandle;
-    byte uploadtoken[UPLOADTOKENLEN]{};
+    UploadToken uploadtoken;
 
     handle syncid = UNDEF;
 #ifdef ENABLE_SYNC
@@ -80,8 +79,8 @@ struct MEGA_API NewNode : public NodeCore
 
     // versioning used for this new node, forced at server's side regardless the account's value
     VersioningOption mVersioningOption = NoVersioning;
-    bool added = false;
-    handle mAddedHandle = UNDEF;
+    bool added = false;           // set true when the actionpacket arrives
+    handle mAddedHandle = UNDEF;  // updated as actionpacket arrives
 };
 
 struct MEGA_API PublicLink
@@ -403,9 +402,9 @@ struct MEGA_API LocalNode : public File
     handle dirnotifytag = mega::UNDEF;
 #endif
 
-    void prepare() override;
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void prepare(FileSystemAccess&) override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
 
     void setnode(Node*);
 
@@ -417,8 +416,8 @@ struct MEGA_API LocalNode : public File
 
     void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
 
-    LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
+    LocalNode(Sync*);
+    void init(nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
     bool serialize(string*) override;
     static LocalNode* unserialize( Sync* sync, const string* sData );

@@ -101,7 +101,7 @@ Transfer::~Transfer()
         }
 
         (*it)->transfer = NULL;
-        (*it)->terminated();
+        (*it)->terminated(API_OK);
     }
 
     if (!mOptimizedDelete)
@@ -147,7 +147,7 @@ bool Transfer::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
 
-    d->append((const char*)filekey, sizeof(filekey));
+    d->append((const char*)&filekey.bytes, sizeof(filekey.bytes));
     d->append((const char*)&ctriv, sizeof(ctriv));
     d->append((const char*)&metamac, sizeof(metamac));
     d->append((const char*)transferkey.data(), sizeof (transferkey));
@@ -173,7 +173,7 @@ bool Transfer::serialize(string *d)
     {
         hasUltoken = 2;
         d->append((const char*)&hasUltoken, sizeof(char));
-        d->append((const char*)ultoken.get(), NewNode::UPLOADTOKENLEN);
+        d->append((const char*)ultoken.get(), UPLOADTOKENLEN);
     }
     else
     {
@@ -252,7 +252,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     unique_ptr<Transfer> t(new Transfer(client, type));
 
-    memcpy(t->filekey, ptr, sizeof t->filekey);
+    memcpy(&t->filekey, ptr, sizeof t->filekey);
     ptr += sizeof(t->filekey);
 
     t->ctriv = MemAccess::get<int64_t>(ptr);
@@ -307,7 +307,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     char hasUltoken = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : NewNode::UPLOADTOKENLEN) : 0;
+    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : UPLOADTOKENLEN) : 0;
     if (hasUltoken < 0 || hasUltoken > 2
             || (ptr + ll + sizeof(unsigned short) > end))
     {
@@ -317,7 +317,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     if (hasUltoken)
     {
-        t->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
+        t->ultoken.reset(new UploadToken);
         memcpy(t->ultoken.get(), ptr, ll);
         ptr += ll;
     }
@@ -389,7 +389,7 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
     transfer->files.erase(f->file_it);
     client->app->file_removed(f, e);
     f->transfer = NULL;
-    f->terminated();
+    f->terminated(e);
 }
 
 // transfer attempt failed, notify all related files, collect request on
@@ -487,7 +487,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
              continue;
         }
 
-        if (((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
+        if (((*it)->failed(e, client) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
@@ -547,7 +547,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
+                client->syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
                 alreadyDisabled = true;
             }
 #endif
@@ -580,7 +580,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
         !client->mediaFileInfo.mediaCodecsFailed)
     {
         // for upload, the key is in the transfer.  for download, the key is in the node.
-        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey().data());
+        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey.bytes.data() : (byte*)node->nodekey().data());
 
         if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
@@ -920,10 +920,10 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         client->filecachedel(*it, &committer);
                         client->app->file_complete(*it);
                         (*it)->transfer = NULL;
-                        (*it)->completed(this, NULL);
+                        (*it)->completed(this, (*it)->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
                     }
 
-                    if (success || !(*it)->failed(API_EAGAIN))
+                    if (success || !(*it)->failed(API_EAGAIN, client))
                     {
                         File* f = (*it);
                         files.erase(it++);
@@ -939,7 +939,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #endif
                             client->app->file_removed(f, API_EWRITE);
                             f->transfer = NULL;
-                            f->terminated();
+                            f->terminated(API_EWRITE);
                         }
                     }
                     else
@@ -1110,7 +1110,7 @@ void Transfer::completefiles()
 
         client->app->file_complete(f);
         f->transfer = NULL;
-        f->completed(this, NULL);
+        f->completed(this, f->syncxfer ? PUTNODES_SYNC : PUTNODES_APP);
         files.erase(it++);
     }
     ids.push_back(dbid);
