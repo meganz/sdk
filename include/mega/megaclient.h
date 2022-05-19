@@ -433,7 +433,7 @@ private:
     void updateTreeCounter(Node* origin, NodeCounter nc, OperationType operation);
 
     // returns nullptr if there are unserialization errors. Also triggers a full reload (fetchnodes)
-    Node* getNodeFromBlob(const string* serializedNode, bool decrypted = true);
+    Node* getNodeFromNodeSerialized(const NodeSerialized& nodeSerialized);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
