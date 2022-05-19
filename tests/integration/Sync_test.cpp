@@ -1884,7 +1884,7 @@ bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::p
     error e = client.registerbackup(subfoldername, "", thenAddSync);
     return !e;
 }
-//=======
+
 handle StandardClient::setupSync_mainthread(const string& localPath,
                                             const Node& remoteNode,
                                             const bool isBackup,
