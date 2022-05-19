@@ -65,6 +65,12 @@ src_libmega_la_SOURCES += src/mega_evt_tls.cpp
 src_libmega_la_SOURCES += src/gfx/external.cpp
 src_libmega_la_SOURCES += src/pendingcontactrequest.cpp
 src_libmega_la_SOURCES += src/mega_zxcvbn.cpp
+src_libmega_la_SOURCES += src/sccloudraid/base64_sccr.cpp
+src_libmega_la_SOURCES += src/sccloudraid/config.cpp
+src_libmega_la_SOURCES += src/sccloudraid/logger.cpp
+src_libmega_la_SOURCES += src/sccloudraid/pstats.cpp
+src_libmega_la_SOURCES += src/sccloudraid/raidproxy.cpp
+src_libmega_la_SOURCES += src/sccloudraid/main_sccr.cpp
 
 EXTRA_DIST = src/mega_utf8proc_data.c
 

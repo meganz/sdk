@@ -34,6 +34,7 @@ src/crypto/.deps src/crypto/.dirstamp src/crypto/.libs src/crypto/*.lo
 src/db/.deps src/db/.dirstamp src/db/.libs src/db/*.lo
 src/gfx/.deps src/gfx/.dirstamp src/gfx/.libs src/gfx/*.lo
 src/posix/.deps src/posix/.dirstamp src/posix/.libs src/posix/*.lo
+src/sccloudraid/.deps src/sccloudraid/.dirstamp src/sccloudraid/.libs src/sccloudraid/*.lo
 src/win32/.deps src/win32/.dirstamp
 tests/.deps tests/.dirstamp
 doc/api doc/sphinx_api doc/_build

@@ -56,7 +56,17 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/freeimage.h \
 	mega/gfx/GfxProcCG.h \
 	mega/raid.h \
-	mega/mediafileattribute.h
+	mega/mediafileattribute.h \
+	mega/sccloudraid/aes.h \
+	mega/sccloudraid/base64.h \
+	mega/sccloudraid/chunkedhash.h \
+	mega/sccloudraid/config.h \
+	mega/sccloudraid/logger.h \
+	mega/sccloudraid/mega.h \
+	mega/sccloudraid/pstats.h \
+	mega/sccloudraid/raidproxy.h \
+	mega/sccloudraid/raidstub.h \
+	mega/sccloudraid/system.h
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h

@@ -73,7 +73,13 @@ SOURCES += src/attrmap.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
     src/testhooks.cpp \
-    src/heartbeats.cpp
+    src/heartbeats.cpp \
+    src/sccloudraid/base64_sccr.cpp \
+    src/sccloudraid/config.cpp \
+    src/sccloudraid/logger.cpp \
+    src/sccloudraid/pstats.cpp \
+    src/sccloudraid/raidproxy.cpp \
+    src/sccloudraid/main_sccr.cpp
 
 CONFIG(USE_MEGAAPI) {
   SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
@@ -499,7 +505,17 @@ HEADERS  += include/mega.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
             include/mega/testhooks.h \
-            include/mega/drivenotify.h
+            include/mega/drivenotify.h \
+            include/mega/sccloudraid/aes.h \
+            include/mega/sccloudraid/base64.h \
+            include/mega/sccloudraid/chunkedhash.h \
+            include/mega/sccloudraid/config.h \
+            include/mega/sccloudraid/logger.h \
+            include/mega/sccloudraid/mega.h \
+            include/mega/sccloudraid/pstats.h \
+            include/mega/sccloudraid/raidproxy.h \
+            include/mega/sccloudraid/raidstub.h \
+            include/mega/sccloudraid/system.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
