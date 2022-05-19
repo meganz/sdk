@@ -656,9 +656,18 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const NodeCounter 
     int sqlResult = SQLITE_ERROR;
     sqlite3_stmt *stmt;
     sqlResult = sqlite3_prepare(db, "UPDATE nodes SET counter = ?  WHERE nodehandle = ?", -1, &stmt, NULL);
-    sqlite3_bind_blob(stmt, 1, nodeCounterSerialized.data(), static_cast<int>(nodeCounterSerialized.size()), SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 2, nodeHandle.as8byte());
-    sqlResult = sqlite3_step(stmt);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_blob(stmt, 1, nodeCounterSerialized.data(), static_cast<int>(nodeCounterSerialized.size()), SQLITE_STATIC)) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_bind_int64(stmt, 2, nodeHandle.as8byte())) == SQLITE_OK)
+            {
+                sqlResult = sqlite3_step(stmt);
+            }
+        }
+
+    }
+
     sqlite3_finalize(stmt);
 
     if (sqlResult == SQLITE_ERROR)
