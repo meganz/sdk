@@ -19,14 +19,23 @@ CONFIG -= qt
 
 win32 {
     CONFIG += console
-    debug:LIBS += -lgtestd
-    !debug:LIBS += -lgtest
 }
 else {
     CONFIG += object_parallel_to_source
-    LIBS += -lgtest
 }
 
 include(../../../../bindings/qt/sdk.pri)
 
+vcpkg {
+    debug:LIBS += -lgtestd
+    !debug:LIBS += -lgtest
+}
+else {
+    LIBS += -lgtest
+}
+
 SOURCES += ../../../../tests/tool/purge_account.cpp
+
+macx {
+    LIBS += -framework Cocoa
+}

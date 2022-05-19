@@ -21,14 +21,17 @@ CONFIG += object_parallel_to_source
 win32 {
     CONFIG += USE_AUTOCOMPLETE
     CONFIG += console
+}
+
+include(../../../../bindings/qt/sdk.pri)
+
+vcpkg {
     debug:LIBS += -lgmockd -lgtestd
     !debug:LIBS += -lgmock -lgtest
 }
 else {
     LIBS += -lgmock -lgtest
 }
-
-include(../../../../bindings/qt/sdk.pri)
 
 SOURCES += \
 ../../../../tests/unit/AttrMap_test.cpp \
@@ -62,3 +65,7 @@ HEADERS += \
 ../../../../tests/unit/FsNode.h \
 ../../../../tests/unit/NotImplemented.h \
 ../../../../tests/unit/utils.h
+
+macx {
+    LIBS += -framework Cocoa
+}
