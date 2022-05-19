@@ -594,7 +594,7 @@ TEST_F(SqliteDBTest, CreateCurrent)
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
     // Create a new database.
-    unique_ptr<SqliteDbTable> dbTable(dbAccess.open(rng, fsAccess, name));
+    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
 
     // Was the database created successfully?
     ASSERT_TRUE(!!dbTable);
@@ -612,7 +612,7 @@ TEST_F(SqliteDBTest, OpenCurrent)
 
         EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
-        DbTablePtr dbTable(dbAccess.open(rng, fsAccess, name));
+        DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
         ASSERT_TRUE(!!dbTable);
 
         EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
@@ -623,7 +623,7 @@ TEST_F(SqliteDBTest, OpenCurrent)
 
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
 
-    DbTablePtr dbTable(dbAccess.open(rng, fsAccess, name));
+    DbTablePtr dbTable(dbAccess.openTableWithNodes(rng, fsAccess, name));
     EXPECT_TRUE(!!dbTable);
 
     EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);

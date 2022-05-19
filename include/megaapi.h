@@ -3181,7 +3181,8 @@ class MegaRequest
             TYPE_START_CHAT_CALL                                            = 142,
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
-            TOTAL_OF_REQUEST_TYPES                                          = 145,
+            TYPE_GET_FA_UPLOAD_URL                                          = 145,
+            TOTAL_OF_REQUEST_TYPES                                          = 146,
         };
 
         virtual ~MegaRequest();
@@ -3308,6 +3309,8 @@ class MegaRequest
          * - MegaApi::getUrlChat - Returns the user-specific URL for the chat
          * - MegaApi::getChatPresenceURL - Returns the user-specific URL for the chat presence server
          * - MegaApi::getUploadURL - Returns the upload IPv4
+         * - MegaApi::getThumbnailUploadURL - Returns the upload IPv4
+         * - MegaApi::getPreviewUploadURL - Returns the upload IPv4
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv4 of the server in the URL(s)
          *
          * The SDK retains the ownership of the returned value. It will be valid until
@@ -3370,6 +3373,8 @@ class MegaRequest
          * - MegaApi::setScheduledCopy - Returns the device id hash of the backup source device
          * - MegaApi::updateBackup - Returns the device id hash of the backup source device
          * - MegaApi::getUploadURL - Returns the upload URL
+         * - MegaApi::getThumbnailUploadURL - Returns the upload URL
+         * - MegaApi::getPreviewUploadURL - Returns the upload URL
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3585,6 +3590,8 @@ class MegaRequest
          * - MegaApi::createAccount - Returns the lastname for the new account
          * - MegaApi::setScheduledCopy - Returns the cron like time string to define period
          * - MegaApi::getUploadURL - Returns the upload IPv6
+         * - MegaApi::getThumbnailUploadURL - Returns the upload IPv6
+         * - MegaApi::getPreviewUploadURL - Returns the upload IPv6
          * - MegaApi::getDownloadUrl - Returns semicolon-separated IPv6 of the server in the URL(s)
          * - MegaApi::startChatCall - Returns the url sfu
          * - MegaApi::joinChatCall - Returns the url sfu
@@ -8998,6 +9005,8 @@ class MegaApi
          * @param name Fullname of the user (firstname + lastname)
          * @param password Password for the account
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This method will be eventually removed. Please, use the new version without the 'password' parameter
          */
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
 
@@ -9005,15 +9014,19 @@ class MegaApi
          * @brief Sends the confirmation email for a new account
          *
          * This function is useful to send the confirmation link again or to send it to a different
-         * email address, in case the user mistyped the email at the registration form.
+         * email address, in case the user mistyped the email at the registration form. It can only
+         * be used after a successful call to MegaApi::createAccount or MegaApi::resumeCreateAccount.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_SIGNUP_LINK.
          *
          * @param email Email for the account
          * @param name Fullname of the user (firstname + lastname)
-         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
          * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This function only works using the old registration method and will be removed soon.
-         * Please use MegaApi::sendSignupLink (with email and password) instead.
+         */
+        void resendSignupLink(const char* email, const char *name, MegaRequestListener *listener = NULL);
+
+        /**
+         * @obsolete  This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
          */
         void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
 
@@ -9029,12 +9042,6 @@ class MegaApi
          * - MegaRequest::getEmail - Return the email associated with the link
          * - MegaRequest::getName - Returns the name associated with the link (available only for confirmation links)
          * - MegaRequest::getFlag - Returns true if the account was automatically confirmed, otherwise false
-         *
-         * If MegaRequest::getFlag returns true, the account was automatically confirmed and it's not needed
-         * to call MegaApi::confirmAccount. If it returns false, it's needed to call MegaApi::confirmAccount
-         * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
-         * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
-         * to know how to proceed.
          *
          * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
          * in onRequestFinish.
@@ -9080,29 +9087,7 @@ class MegaApi
         void confirmAccount(const char* link, const char *password, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Confirm a MEGA account using a confirmation link and a precomputed key
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CONFIRM_ACCOUNT
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getLink - Returns the confirmation link
-         * - MegaRequest::getPrivateKey - Returns the base64pwkey parameter
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getEmail - Email of the account
-         * - MegaRequest::getName - Name of the user
-         *
-         * As a result of a successfull confirmation, the app will receive the callback
-         * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
-         * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
-         * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
-         *
-         * @param link Confirmation link
-         * @param base64pwkey Private key precomputed with MegaApi::getBase64PwKey
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This function only works using the old registration method and will be removed soon.
-         * Please use MegaApi::confirmAccount instead.
+         * @obsolete This method cannot be used anymore by apps. It will always result on API_EINTERNAL.
          */
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
@@ -16828,7 +16813,7 @@ class MegaApi
         /**
          * @brief Create the node after completing the upload of the file by the app.
          *
-		 * Note: added for the use of MEGA Proxy and not otherwise supported
+         * Note: added for the use of MEGAproxy and not otherwise supported
 		 *
          * Call this function after completing the upload of all the file data
          * The node representing the file will be created in the cloud, with all the suitable
@@ -16864,7 +16849,7 @@ class MegaApi
         /**
          * @brief Request the URL suitable for uploading a file.
          *
-		 * Note: added for the use of MEGA Proxy and not otherwise supported
+         * Note: added for the use of MEGAproxy and not otherwise supported
 		 *
          * This function requests the base URL needed for uploading the file.
          * The URL will need the urlSuffix resulting from encryption.
@@ -16881,10 +16866,60 @@ class MegaApi
          * A new URL could specify a different upload server for example.
          *
          * @param fullFileSize The size of the file
-         * @param forceSSL Enforce using getting a https URL
+         * @param forceSSL Enforce getting a https URL
          * @param listener MegaRequestListener to track this request
          */
          void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+
+         /**
+          * @brief Request the URL suitable for uploading a thubmnail for a node.
+          *
+          * Note: added for the use of MEGAproxy
+          *
+          * This function requests the base URL needed for uploading the thumbnail.
+          *
+          * The associated request type with this request is MegaRequest::TYPE_GET_FA_UPLOAD_URL
+          * Valid data in the MegaRequest object received in onRequestFinish when the error code
+          * is MegaError::API_OK:
+          * - MegaRequest::getName - The URL to use
+          * - MegaRequest::getLink - The IPv4 of the upload server
+          * - MegaRequest::getText - The IPv6 of the upload server
+          *
+          * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
+          * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
+          * A new URL could specify a different upload server for example.
+          *
+          * @param nodehandle handle of the node
+          * @param fullFileSize The size of the thumbnail
+          * @param forceSSL Enforce getting a https URL
+          * @param listener MegaRequestListener to track this request
+          */
+         void getThumbnailUploadURL(MegaHandle nodehandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+
+         /**
+          * @brief Request the URL suitable for uploading a preview for a node.
+          *
+          * Note: added for the use of MEGAproxy
+          *
+          * This function requests the base URL needed for uploading the preview.
+          *
+          * The associated request type with this request is MegaRequest::TYPE_GET_FA_UPLOAD_URL
+          * Valid data in the MegaRequest object received in onRequestFinish when the error code
+          * is MegaError::API_OK:
+          * - MegaRequest::getName - The URL to use
+          * - MegaRequest::getLink - The IPv4 of the upload server
+          * - MegaRequest::getText - The IPv6 of the upload server
+          *
+          * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
+          * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
+          * A new URL could specify a different upload server for example.
+          *
+          * @param nodehandle handle of the node
+          * @param fullFileSize The size of the preview
+          * @param forceSSL Enforce getting a https URL
+          * @param listener MegaRequestListener to track this request
+          */
+         void getPreviewUploadURL(MegaHandle nodehandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
 
         /**
          * @brief Create the node after completing the background upload of the file.

@@ -131,7 +131,7 @@ public:
     virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
 
     // Get all fingerprints with their asociated NodeHandle
-    virtual bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp>& fingerprints, std::vector<std::pair<NodeHandle, NodeHandle>>& nodeAndParent) = 0;
+    virtual bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, std::set<NodeHandle>>& children) = 0;
 
     // count of items in 'nodes' table. Returns 0 if error
     virtual uint64_t getNumberOfNodes() = 0;
@@ -228,6 +228,8 @@ struct MEGA_API DbAccess
     DbAccess();
 
     virtual ~DbAccess() { }
+
+    virtual bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) = 0;
 
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 

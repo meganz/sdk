@@ -1181,9 +1181,10 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
    , btworkinglock(rng)
    , btsc(rng)
    , btpfa(rng)
+   , fsaccess(move(f))
    , mNodeManager(*this)
 #ifdef ENABLE_SYNC
-    , syncs(*this)
+    , syncs(*this, fsaccess)
     , syncfslockretrybt(rng)
     , syncdownbt(rng)
     , syncnaglebt(rng)
@@ -1213,7 +1214,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
-    nsr_enabled = false;
     aplvp_enabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
@@ -1266,8 +1266,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     init();
 
-    f->client = this;
-    f->waiter = w;
+    fsaccess->client = this;
+    fsaccess->waiter = w;
     transferlist.client = this;
 
     if ((app = a))
@@ -1277,11 +1277,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
-    
-    fsaccess = move(f);
-#ifdef ENABLE_SYNC
-    fsaccess->initFilesystemNotificationSystem();
-#endif // ENABLE_SYNC
 
     dbaccess = d;
 
@@ -4290,7 +4285,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     accountsince = 0;
     gmfa_enabled = false;
     ssrs_enabled = false;
-    nsr_enabled = false;
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
@@ -5325,7 +5319,7 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, std::move(data)));
+    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, 0, std::move(data)));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
@@ -7614,6 +7608,18 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
         return API_EKEY;
     }
 
+    // Check and delete invalid fav attributes
+    {
+        std::vector<nameid> nameIds = { AttrMap::string2nameid("fav"), AttrMap::string2nameid("lbl") };
+        for (nameid& nameId : nameIds)
+        {
+            auto itAttr= n->attrs.map.find(nameId);
+            if (itAttr != n->attrs.map.end() && (itAttr->second.empty() || itAttr->second == "0"))
+            {
+                updates[nameId] = "";
+            }
+        }
+    }
     n->changed.name = n->attrs.hasUpdate('n', updates);
     n->changed.favourite = n->attrs.hasUpdate(AttrMap::string2nameid("fav"), updates);
 
@@ -8929,9 +8935,6 @@ error MegaClient::readmiscflags(JSON *json)
             break;
         case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler (only available when logged in)
             ssrs_enabled = bool(json->getint());
-            break;
-        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-            nsr_enabled = bool(json->getint());
             break;
         case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled (only available when logged in)
             aplvp_enabled = bool(json->getint());
@@ -11827,21 +11830,6 @@ void MegaClient::createephemeralPlusPlus()
     createephemeral();
 }
 
-void MegaClient::sendsignuplink(const char* email, const char* name, const byte* pwhash)
-{
-    SymmCipher pwcipher(pwhash);
-    byte c[2 * SymmCipher::KEYLENGTH];
-
-    memcpy(c, key.key, sizeof key.key);
-    rng.genblock(c + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH / 4);
-    memset(c + SymmCipher::KEYLENGTH + SymmCipher::KEYLENGTH / 4, 0, SymmCipher::KEYLENGTH / 2);
-    rng.genblock(c + 2 * SymmCipher::KEYLENGTH - SymmCipher::KEYLENGTH / 4, SymmCipher::KEYLENGTH / 4);
-
-    pwcipher.ecb_encrypt(c, c, sizeof c);
-
-    reqs.add(new CommandSendSignupLink(this, email, name, c));
-}
-
 string MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
 {
     byte clientrandomvalue[SymmCipher::KEYLENGTH];
@@ -11880,18 +11868,6 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
 void MegaClient::resendsignuplink2(const char *email, const char *name)
 {
     reqs.add(new CommandSendSignupLink2(this, email, name));
-}
-
-// if query is 0, actually confirm account; just decode/query signup link
-// details otherwise
-void MegaClient::querysignuplink(const byte* code, unsigned len)
-{
-    reqs.add(new CommandQuerySignupLink(this, code, len));
-}
-
-void MegaClient::confirmsignuplink(const byte* code, unsigned len, uint64_t emailhash)
-{
-    reqs.add(new CommandConfirmSignupLink(this, code, len, emailhash));
 }
 
 void MegaClient::confirmsignuplink2(const byte *code, unsigned len)
@@ -12057,7 +12033,11 @@ bool MegaClient::fetchsc(DbTable* sctable)
         // nodes are not loaded, proceed to load them only after Users and PCRs are loaded,
         // since Node::unserialize() will call mergenewshare(), and the latter requires
         // Users and PCRs to be available
-        mNodeManager.loadNodes();
+        if (!mNodeManager.loadNodes())
+        {
+            return false;
+        }
+
     }
 
     WAIT_CLASS::bumpds();
@@ -12423,7 +12403,7 @@ void MegaClient::fetchnodes(bool nocache)
         // don't allow to start new sc requests yet
         scsn.clear();
 
-#ifdef ENABLE_SYNC
+    #ifdef ENABLE_SYNC
         // If there are syncs present at this time, this is a reload-account request.
         // We will start by fetching a cached tree which likely won't match our current
         // state/scsn.  And then we will apply actionpackets until we are up to date.
@@ -12432,7 +12412,7 @@ void MegaClient::fetchnodes(bool nocache)
         // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
         // TODO: the sync rework branch, when ready, will be able to cope with this situation.
         syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
-#endif
+    #endif
 
         if (!loggedinfolderlink())
         {
@@ -13967,7 +13947,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
             UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
-            e = unifiedSync->enableSync(false, notifyApp);
+            e = unifiedSync->enableSync(false, notifyApp, logname);
 
             syncactivity = true;
 
@@ -16887,7 +16867,13 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         if (!n)
         {
             const NodeSerialized& ns = nHandleSerialized.second;
-            n = unserializeNode(&ns.mNode, ns.mDecrypted);
+            n = getNodeFromBlob(&ns.mNode, ns.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+
             n->setCounter(NodeCounter(ns.mNodeCounters));
         }
 
@@ -16974,7 +16960,13 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         Node* n = getNodeInRAM(nodeMapIt.first);
         if (!n)
         {
-            n = unserializeNode(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = getNodeFromBlob(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+
             n->setCounter(NodeCounter(nodeMapIt.second.mNodeCounters));
         }
 
@@ -17026,7 +17018,13 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+
             n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
         }
 
@@ -17078,7 +17076,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     Node* n = getNodeInRAM(nodeSerialized.first);
     if (!n) // not loaded yet
     {
-        n = unserializeNode(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
+        n = getNodeFromBlob(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
         n->setCounter(NodeCounter(nodeSerialized.second.mNodeCounters));
     }
 
@@ -17102,7 +17100,13 @@ node_vector NodeManager::getRootNodes()
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+
             n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
         }
         nodes.push_back(n);
@@ -17149,7 +17153,13 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = unserializeNode(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+
             n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
         }
 
@@ -17166,6 +17176,18 @@ void NodeManager::loadTreeRecursively(const Node* node)
     {
         loadTreeRecursively(child);
     }
+}
+
+Node *NodeManager::getNodeFromBlob(const std::string* serializedNode, bool decrypted)
+{
+    Node* node = unserializeNode(serializedNode, decrypted);
+    if (!node)
+    {
+        LOG_err << "Error unserializing a node. Reloading account";
+        mClient.fetchnodes(true);
+    }
+
+    return node;
 }
 
 void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType operation)
@@ -17818,24 +17840,22 @@ bool NodeManager::hasCacheLoaded()
     return mNodes.size();
 }
 
-void NodeManager::loadNodes()
+bool NodeManager::loadNodes()
 {
     if (!mTable)
     {
         assert(false);
-        return;
+        return false;
     }
-
-    mLoadingNodes = true;
 
     // Load map with fingerprints to speed up searching by fingerprint, as well as children
     std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
-    mTable->loadFingerprintsAndChildren(mFingerPrints, nodeAndParent);
-    for (auto pair : nodeAndParent)
+    if (!mTable->loadFingerprintsAndChildren(mFingerPrints, mNodeChildren))
     {
-        addChild(pair.first, pair.second);
+        return false;
     }
 
+    mLoadingNodes = true;
     node_vector rootnodes = getRootNodesWithoutNestedInshares();
 
     if (mKeepAllNodesInMemory)
@@ -17854,6 +17874,7 @@ void NodeManager::loadNodes()
     }
 
     mLoadingNodes = false;
+    return true;
 }
 
 Node* NodeManager::getNodeInRAM(NodeHandle handle)
@@ -18155,7 +18176,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     NodeSerialized nodeSerialized;
     if (mTable->getNode(handle, nodeSerialized))
     {
-        node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
+        node = getNodeFromBlob(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
         node->setCounter(NodeCounter(nodeSerialized.mNodeCounters));
     }
 
