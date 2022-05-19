@@ -17176,7 +17176,7 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
         mClient.fetchnodes(true);
     }
 
-    node->setCounter(NodeCounter(nodeSerialized.mNodeCounters));
+    node->setCounter(NodeCounter(nodeSerialized.mNodeCounter));
 
     return node;
 }
