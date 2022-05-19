@@ -65,7 +65,7 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getNodesByName(const std::string&, std::map<mega::NodeHandle, mega::NodeSerialized>&) override
+    bool getNodesByName(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
     {
         return false;
         //throw NotImplemented(__func__);

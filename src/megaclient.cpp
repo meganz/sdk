@@ -16932,7 +16932,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         return nodes;
     }
 
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodeMap;
     mTable->getNodesByName(searchString, nodeMap);
     if (!nodeHandle.isUndef())  // filter results by subtree (nodeHandle)
     {
