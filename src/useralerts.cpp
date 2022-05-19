@@ -458,12 +458,12 @@ UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
         if (f[n].t == FOLDERNODE)
         {
             ++folderCount;
-            foldersNodeHandle.push_back(f[n].h);
+            folderNodeHandles.push_back(f[n].h);
         }
         else if (f[n].t == FILENODE)
         {
             ++fileCount;
-            filesNodeHandle.push_back(f[n].h);
+            fileNodeHandles.push_back(f[n].h);
         }
         // else should not be happening, we can add a sanity check
     }
@@ -480,14 +480,14 @@ UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, handle uh, h
     fileCount = nfiles;
     for (auto& item: alertTypePerFileNode)
     {
-        filesNodeHandle.push_back(item.first);
+        fileNodeHandles.push_back(item.first);
     }
     for (auto& item: alertTypePerFolderNode)
     {
-        foldersNodeHandle.push_back(item.first);
+        folderNodeHandles.push_back(item.first);
     }
-    assert((fileCount == static_cast<unsigned>(filesNodeHandle.size()))
-           && (folderCount == static_cast<unsigned>(foldersNodeHandle.size())));
+    assert((fileCount == static_cast<unsigned>(fileNodeHandles.size()))
+           && (folderCount == static_cast<unsigned>(folderNodeHandles.size())));
 }
 
 void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* mc)
@@ -924,10 +924,10 @@ void UserAlerts::add(UserAlert::Base* unb)
                 np->parentHandle == op->parentHandle && !ISUNDEF(np->parentHandle))
             {
                 op->fileCount += np->fileCount;
-                op->filesNodeHandle.insert(std::end(op->filesNodeHandle), std::begin(np->filesNodeHandle), std::end(np->filesNodeHandle));
+                op->fileNodeHandles.insert(std::end(op->fileNodeHandles), std::begin(np->fileNodeHandles), std::end(np->fileNodeHandles));
                 op->folderCount += np->folderCount;
-                op->foldersNodeHandle.insert(std::end(op->foldersNodeHandle),
-                                             std::begin(np->foldersNodeHandle), std::end(np->foldersNodeHandle));
+                op->folderNodeHandles.insert(std::end(op->folderNodeHandles),
+                                             std::begin(np->folderNodeHandles), std::end(np->folderNodeHandles));
                 LOG_debug << "Merged user alert, type " << np->type << " ts " << np->timestamp;
 
                 if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
@@ -1172,22 +1172,22 @@ UserAlert::NewSharedNodes* UserAlerts::eraseNewNodeAlert(handle nodeHandleToRemo
     bool found = false;
     if (ptrNewNodeAlert)
     {
-        auto it = std::find(std::begin(ptrNewNodeAlert->filesNodeHandle), std::end(ptrNewNodeAlert->filesNodeHandle),
+        auto it = std::find(std::begin(ptrNewNodeAlert->fileNodeHandles), std::end(ptrNewNodeAlert->fileNodeHandles),
                             nodeHandleToRemove);
-        if (it != std::end(ptrNewNodeAlert->filesNodeHandle))
+        if (it != std::end(ptrNewNodeAlert->fileNodeHandles))
         {
             --ptrNewNodeAlert->fileCount;
-            ptrNewNodeAlert->filesNodeHandle.erase(it);
+            ptrNewNodeAlert->fileNodeHandles.erase(it);
             found = true;
         }
         else
         {
-            it = std::find(std::begin(ptrNewNodeAlert->foldersNodeHandle), std::end(ptrNewNodeAlert->foldersNodeHandle),
+            it = std::find(std::begin(ptrNewNodeAlert->folderNodeHandles), std::end(ptrNewNodeAlert->folderNodeHandles),
                            nodeHandleToRemove);
-            if (it != std::end(ptrNewNodeAlert->foldersNodeHandle))
+            if (it != std::end(ptrNewNodeAlert->folderNodeHandles))
             {
                 --ptrNewNodeAlert->folderCount;
-                ptrNewNodeAlert->foldersNodeHandle.erase(it);
+                ptrNewNodeAlert->folderNodeHandles.erase(it);
                 found = true;
             }
         }
@@ -1212,7 +1212,8 @@ bool UserAlerts::isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, notedSh
 {
     if (catchupdone && notingSharedNodes)
     {
-        auto itToNotedSharedNodes = find_if(begin(notedSharedNodesMap), end(notedSharedNodesMap),
+        auto itToNotedSharedNodes = std::find_if(std::begin(notedSharedNodesMap),
+                                                 std::end(notedSharedNodesMap),
         [=](const pair<pair<handle, handle>, ff>& element)
         {
             const map<handle,int>& fileAlertTypes = element.second.alertTypePerFileNode;
@@ -1220,25 +1221,25 @@ bool UserAlerts::isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, notedSh
             const map<handle,int>& folderAlertTypes = element.second.alertTypePerFolderNode;
             auto itToFolderNodeHandleAndAlertType = folderAlertTypes.find(nodeHandleToFind);
 
-            bool isInFileNodes = ((itToFileNodeHandleAndAlertType != end(fileAlertTypes))
+            bool isInFileNodes = ((itToFileNodeHandleAndAlertType != std::end(fileAlertTypes))
                                   && (itToFileNodeHandleAndAlertType->second == MegaUserAlert::TYPE_REMOVEDSHAREDNODES));
 
             // shortcircuit in case it was already found
             bool isInFolderNodes = isInFileNodes ||
-                ((itToFolderNodeHandleAndAlertType != end(folderAlertTypes)
+                ((itToFolderNodeHandleAndAlertType != std::end(folderAlertTypes)
                   && (itToFolderNodeHandleAndAlertType->second == MegaUserAlert::TYPE_REMOVEDSHAREDNODES)));
 
             return (isInFileNodes || isInFolderNodes);
         });
 
-        return itToNotedSharedNodes != end(notedSharedNodesMap);
+        return itToNotedSharedNodes != std::end(notedSharedNodesMap);
     }
     return false;
 }
 
 bool UserAlerts::removeNotedSharedNodeFrom(notedShNodesMap::iterator itToStashedNodeToRemove, Node* nodeToRemove, notedShNodesMap& notedSharedNodesMap)
 {
-    if (itToStashedNodeToRemove != end(notedSharedNodesMap))
+    if (itToStashedNodeToRemove != std::end(notedSharedNodesMap))
     {
         ff& f = itToStashedNodeToRemove->second;
         if (nodeToRemove->type == FOLDERNODE)
@@ -1290,7 +1291,7 @@ bool UserAlerts::setNotedSharedNodeToUpdate(Node* nodeToChange)
                                              map<handle,int>{}));
         if (removeNotedSharedNodeFrom(itToNotedSharedNodes, nodeToChange, notedSharedNodes))
         {
-            LOG_debug << "Node with node handle|" << nodeToChange->nodehandle << "| removed from annotated node add-alerts and update-alert created in its place";
+            LOG_debug << "Node with node handle |" << nodeToChange->nodehandle << "| removed from annotated node add-alerts and update-alert created in its place";
         }
         return true;
     }
@@ -1340,7 +1341,7 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
     }
 
     handle nodeHandleToRemove = nodeToRemoveAlert->nodehandle;
-    std::string debug_msg = "Suppressed alert for node with handle|" + std::to_string(nodeHandleToRemove) + "| found as a ";
+    std::string debug_msg = "Suppressed alert for node with handle |" + std::to_string(nodeHandleToRemove) + "| found as a ";
     std::function<bool (UserAlert::Base*)> isAlertToRemove =
         // context captured as a reference to avoid copying debug_msg string
         [&](UserAlert::Base* alertToCheck)
@@ -1363,22 +1364,10 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             };
 
     // remove from possible existing alerts
-    { // erase_if is C++20
-        auto it = std::find_if(std::begin(alerts), std::end(alerts), isAlertToRemove);
-        if (it != std::end(alerts))
-        {
-            alerts.erase(it);
-        }
-    }
+    std::remove_if(std::begin(alerts), std::end(alerts), isAlertToRemove);
 
     // remove from possible notifications meant to become alerts
-    { // erase_if is C++20
-        auto it = std::find_if(std::begin(useralertnotify), std::end(useralertnotify), isAlertToRemove);
-        if (it != std::end(useralertnotify))
-        {
-            useralertnotify.erase(it);
-        }
-    }
+    std::remove_if(std::begin(useralertnotify), std::end(useralertnotify), isAlertToRemove);
 
     // remove from annotated changes pending to become notifications to become alerts
     if (removeNotedSharedNodeFrom(nodeToRemoveAlert, deletedSharedNodesStash))
@@ -1403,7 +1392,7 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
     std::string debug_msg = "New-alert replaced by update-alert for nodehandle |"
         + std::to_string(nodeHandleToUpdate) + "|";
 
-    std::function<bool (UserAlert::Base*)> isAlertToBeRemovedAndUpdateNodeAlert =
+    auto isAlertToBeRemovedAndUpdateNodeAlert =
         // context captured as reference to avoid copying debug_msg string
         [&](UserAlert::Base* alertToCheck)
             {
@@ -1412,8 +1401,7 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
                 if (ptrNewNodeAlert)
                 {
                     // for an update alert, it doesn't matter if the node is a file or a folder
-                    add((UserAlert::Base*)
-                        new UserAlert::UpdatedSharedNode(1 /* nitems */,
+                    add(new UserAlert::UpdatedSharedNode(1 /* nitems */,
                                                          ptrNewNodeAlert->userHandle,
                                                          ptrNewNodeAlert->timestamp,
                                                          nextId(),
@@ -1421,31 +1409,35 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
                                                                      MegaUserAlert::TYPE_UPDATEDSHAREDNODES}},
                                                          map<handle,int> {}));
 
-                    // if there no files or folders for this entry in the alerts, we can remove the whole alert
-                    ret = !static_cast<bool>(ptrNewNodeAlert->fileCount + ptrNewNodeAlert->folderCount);
+                    // if there are no files or folders for this entry in the alerts, we can remove the whole alert
+                    auto total = ptrNewNodeAlert->fileCount + ptrNewNodeAlert->folderCount;
+                    if (!total)
+                    {
+                        ret = true;
+                    }
                     LOG_debug << debug_msg << " there are " << (ret ? "no " : "") << " remaining alters for this folder";
                 }
                 return false;
             };
 
     // remove from existing alerts
-    { // erase_if is C++20
-        auto it = std::find_if(std::begin(alerts), std::end(alerts),
-                               isAlertToBeRemovedAndUpdateNodeAlert);
-        if (it != std::end(alerts))
+    {
+        auto previousEnd = std::end(alerts);
+        auto newEnd = std::remove_if(std::begin(alerts), std::end(alerts),
+                                     isAlertToBeRemovedAndUpdateNodeAlert);
+        if (previousEnd != newEnd)
         {
-            alerts.erase(it);
             return;
         }
     }
 
     // remove from notifications meant to be alerts
-    { // erase_if is C++20
-        auto it = std::find_if(std::begin(useralertnotify), std::end(useralertnotify),
-                               isAlertToBeRemovedAndUpdateNodeAlert);
-        if (it != std::end(useralertnotify))
+    {
+        auto previousEnd = std::end(useralertnotify);
+        auto newEnd = std::remove_if(std::begin(useralertnotify), std::end(useralertnotify),
+                                     isAlertToBeRemovedAndUpdateNodeAlert);
+        if (previousEnd != newEnd)
         {
-            useralertnotify.erase(it);
             return;
         }
     }

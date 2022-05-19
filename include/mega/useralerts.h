@@ -175,8 +175,8 @@ namespace UserAlert
     {
         unsigned fileCount, folderCount;
         handle parentHandle;
-        vector<handle> filesNodeHandle;
-        vector<handle> foldersNodeHandle;
+        vector<handle> fileNodeHandles;
+        vector<handle> folderNodeHandles;
 
         NewSharedNodes(UserAlertRaw& un, unsigned int id);
         NewSharedNodes(int nfolders, int nfiles, handle uh, handle ph, m_time_t timestamp, unsigned int id,
