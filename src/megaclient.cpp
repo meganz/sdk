@@ -16867,14 +16867,12 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         if (!n)
         {
             const NodeSerialized& ns = nHandleSerialized.second;
-            n = getNodeFromBlob(&ns.mNode, ns.mDecrypted);
+            n = getNodeFromNodeSerialized(ns);
             if (!n)
             {
                 nodes.clear();
                 return nodes;
             }
-
-            n->setCounter(NodeCounter(ns.mNodeCounters));
         }
 
         nodes.push_back(n);
@@ -16960,14 +16958,12 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         Node* n = getNodeInRAM(nodeMapIt.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = getNodeFromNodeSerialized(nodeMapIt.second);
             if (!n)
             {
                 nodes.clear();
                 return nodes;
             }
-
-            n->setCounter(NodeCounter(nodeMapIt.second.mNodeCounters));
         }
 
         nodes.push_back(n);
@@ -17018,14 +17014,12 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromNodeSerialized(nHandleSerialized.second);
             if (!n)
             {
                 nodes.clear();
                 return nodes;
             }
-
-            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
         }
 
         if (n && (!parent || (parent && isAncestor(n->nodeHandle(), parent->nodeHandle()))))
@@ -17076,8 +17070,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     Node* n = getNodeInRAM(nodeSerialized.first);
     if (!n) // not loaded yet
     {
-        n = getNodeFromBlob(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
-        n->setCounter(NodeCounter(nodeSerialized.second.mNodeCounters));
+        n = getNodeFromNodeSerialized(nodeSerialized.second);
     }
 
     return n;
@@ -17100,15 +17093,14 @@ node_vector NodeManager::getRootNodes()
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromNodeSerialized(nHandleSerialized.second);
             if (!n)
             {
                 nodes.clear();
                 return nodes;
             }
-
-            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
         }
+
         nodes.push_back(n);
 
         setrootnode(n);
@@ -17153,14 +17145,12 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromNodeSerialized(nHandleSerialized.second);
             if (!n)
             {
                 nodes.clear();
                 return nodes;
             }
-
-            n->setCounter(NodeCounter(nHandleSerialized.second.mNodeCounters));
         }
 
         nodes.push_back(n);
@@ -17178,14 +17168,16 @@ void NodeManager::loadTreeRecursively(const Node* node)
     }
 }
 
-Node *NodeManager::getNodeFromBlob(const std::string* serializedNode, bool decrypted)
+Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialized)
 {
-    Node* node = unserializeNode(serializedNode, decrypted);
+    Node* node = unserializeNode(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
     if (!node)
     {
         LOG_err << "Error unserializing a node. Reloading account";
         mClient.fetchnodes(true);
     }
+
+    node->setCounter(NodeCounter(nodeSerialized.mNodeCounters));
 
     return node;
 }
@@ -18176,8 +18168,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     NodeSerialized nodeSerialized;
     if (mTable->getNode(handle, nodeSerialized))
     {
-        node = getNodeFromBlob(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
-        node->setCounter(NodeCounter(nodeSerialized.mNodeCounters));
+        node = getNodeFromNodeSerialized(nodeSerialized);
     }
 
     return node;
