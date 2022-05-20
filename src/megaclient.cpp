@@ -16750,7 +16750,7 @@ bool NodeManager::setrootnode(Node* node)
 bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 {
     // ownership of 'node' is taken by NodeManager::mNodes if node is kept in memory,
-    // and by NodeManager::mNodesToWriteInDB if node is only written to DB. In the latter,
+    // and by NodeManager::mNodeToWriteInDB if node is only written to DB. In the latter,
     // the 'node' is deleted upon saveNodeInDb()
 
     // 'isFetching' is true only when CommandFetchNodes is in flight and/or it has been received,
@@ -17183,7 +17183,7 @@ Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialize
 
 void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType operation)
 {
-    do
+    while (origin)
     {
         NodeCounter ancestorCounter = origin->getCounter();
         switch (operation)
@@ -17200,7 +17200,6 @@ void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType 
         origin->setCounter(ancestorCounter, true);
         origin = origin->parent;
     }
-    while (origin);
 }
 
 NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType)
@@ -17780,29 +17779,32 @@ void NodeManager::notifyPurge()
 
             if (n->changed.removed)
             {
-                // remove item from related maps, etc. (mFingerprints, mNodeChildren, ...)
-                if (n->parent)  // only process node counters for subtrees not deleted already
+                NodeHandle h = n->nodeHandle();
+
+                // Decrease counters for all ancestor in the tree
+                updateTreeCounter(n->parent, n->getCounter(), DECREASE);
+
+                if (n->parent)
                 {
-                    // Decrease counters for all ancestor in the tree
-                    updateTreeCounter(n->parent, n->getCounter(), DECREASE);
-
-                    removeChild(n->parentHandle(), n->nodeHandle());
+                    // optimization: if the parent has already been deleted, the relationship
+                    // of children with their parent has been removed by the parent already
+                    // so we can avoid lookups for non existing parent handle.
+                    removeChild(n->parentHandle(), h);
                 }
-
-                removeFingerprint(n);
-
                 node_list children = getChildren(n);
                 for (auto child : children)
                 {
                     child->parent = nullptr;
                 }
+                mNodeChildren.erase(h);
 
-                mNodeChildren.erase(n->nodeHandle());
+                removeFingerprint(n);
 
                 // effectively delete node from RAM
-                mNodesWithMissingParent.erase(n->nodeHandle());
-                mTable->remove(n->nodeHandle());
-                mNodes.erase(n->nodeHandle());
+                mNodesWithMissingParent.erase(h);
+                mNodes.erase(h);
+
+                mTable->remove(h);
             }
             else
             {
@@ -18014,10 +18016,7 @@ NodeCounter NodeManager::getCounterOfRootNodes()
 void NodeManager::updateCounter(Node& n, Node* oldParent)
 {
     NodeCounter nc = n.getCounter();
-    if (oldParent)
-    {
-        updateTreeCounter(oldParent, nc, DECREASE);
-    }
+    updateTreeCounter(oldParent, nc, DECREASE);
 
     // if node is a new version
     if (n.parent && n.parent->type == FILENODE)
@@ -18034,10 +18033,7 @@ void NodeManager::updateCounter(Node& n, Node* oldParent)
         }
     }
 
-    if (n.parent)
-    {
-        updateTreeCounter(n.parent, nc, INCREASE);
-    }
+    updateTreeCounter(n.parent, nc, INCREASE);
 }
 
 mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
