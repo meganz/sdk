@@ -17738,10 +17738,10 @@ void NodeManager::notifyPurge()
         DBTableTransactionCommitter committer(mClient.tctable);
 
         // check all notified nodes for removed status and purge
-        while (mNodeNotify.size())
+        for (size_t i = 0; i < mNodeNotify.size(); i++)
         {
-            Node* n = mNodeNotify.front();
-            mNodeNotify.erase(mNodeNotify.begin());
+            Node* n = mNodeNotify[i];
+
             if (n->attrstring)
             {
                 // make this just a warning to avoid auto test failure
