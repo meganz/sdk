@@ -185,6 +185,11 @@ void CacheableWriter::serializei64(int64_t field)
     dest.append((char*)&field, sizeof(field));
 }
 
+void CacheableWriter::serializeu64(uint64_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializeu32(uint32_t field)
 {
     dest.append((char*)&field, sizeof(field));
@@ -651,6 +656,18 @@ bool CacheableReader::unserializei64(int64_t& field)
     }
     field = MemAccess::get<int64_t>(ptr);
     ptr += sizeof(int64_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu64(uint64_t& field)
+{
+    if (ptr + sizeof(uint64_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint64_t>(ptr);
+    ptr += sizeof(uint64_t);
     fieldnum += 1;
     return true;
 }
@@ -2529,28 +2546,24 @@ void NodeCounter::operator -= (const NodeCounter& o)
 std::string NodeCounter::serialize() const
 {
     std::string nodeCountersBlob;
-    nodeCountersBlob.append((char*) &files, sizeof (files));
-    nodeCountersBlob.append((char*) &folders, sizeof (folders));
-    nodeCountersBlob.append((char*) &storage, sizeof (storage));
-    nodeCountersBlob.append((char*) &versions, sizeof (versions));
-    nodeCountersBlob.append((char*) &versionStorage, sizeof (versionStorage));
+    CacheableWriter w(nodeCountersBlob);
+    w.serializeu64(files);
+    w.serializeu64(folders);
+    w.serializei64(storage);
+    w.serializeu64(versions);
+    w.serializei64(versionStorage);
 
     return nodeCountersBlob;
 }
 
 NodeCounter::NodeCounter(const std::string &blob)
 {
-    const char* ptr = blob.data();
-    memcpy((char*)&files, ptr, sizeof (files));
-    ptr += sizeof (files);
-    memcpy((char*)&folders, ptr, sizeof (folders));
-    ptr += sizeof (folders);
-    memcpy((char*)&storage, ptr, sizeof (storage));
-    ptr += sizeof (storage);
-    memcpy((char*)&versions, ptr, sizeof (versions));
-    ptr += sizeof (versions);
-    memcpy((char*)&versionStorage, ptr, sizeof (versionStorage));
-    ptr += sizeof (versionStorage);
+    CacheableReader r(blob);
+    r.unserializeu64(files);
+    r.unserializeu64(folders);
+    r.unserializei64(storage);
+    r.unserializeu64(versions);
+    r.unserializei64(versionStorage);
 }
 
 

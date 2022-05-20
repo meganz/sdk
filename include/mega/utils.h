@@ -549,6 +549,7 @@ struct CacheableWriter
     void serializestring(const string& field);
     void serializecompressed64(int64_t field);
     void serializei64(int64_t field);
+    void serializeu64(uint64_t field);
     void serializeu32(uint32_t field);
     void serializehandle(handle field);
     void serializenodehandle(handle field);
@@ -576,6 +577,7 @@ struct CacheableReader
     bool unserializestring(string& s);
     bool unserializecompressed64(uint64_t& field);
     bool unserializei64(int64_t& s);
+    bool unserializeu64(uint64_t& s);
     bool unserializeu32(uint32_t& s);
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
