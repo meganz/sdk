@@ -645,20 +645,19 @@ void SqliteAccountState::cancelQuery()
     sqlite3_interrupt(db);
 }
 
-void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const NodeCounter &nodeCounter)
+void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob)
 {
     if (!db)
     {
         return;
     }
 
-    std::string nodeCounterSerialized = nodeCounter.serialize();
     int sqlResult = SQLITE_ERROR;
     sqlite3_stmt *stmt;
     sqlResult = sqlite3_prepare(db, "UPDATE nodes SET counter = ?  WHERE nodehandle = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_blob(stmt, 1, nodeCounterSerialized.data(), static_cast<int>(nodeCounterSerialized.size()), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_blob(stmt, 1, nodeCounterBlob.data(), static_cast<int>(nodeCounterBlob.size()), SQLITE_STATIC)) == SQLITE_OK)
         {
             if ((sqlResult = sqlite3_bind_int64(stmt, 2, nodeHandle.as8byte())) == SQLITE_OK)
             {

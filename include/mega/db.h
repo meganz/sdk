@@ -144,7 +144,7 @@ public:
 
     virtual void cancelQuery() = 0;
 
-    virtual void updateCounter(NodeHandle nodeHandle, const NodeCounter& nodeCounter) = 0;
+    virtual void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) = 0;
 
 };
 

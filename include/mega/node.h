@@ -100,6 +100,20 @@ struct MEGA_API PublicLink
     bool isExpired();
 };
 
+struct NodeCounter
+{
+    m_off_t storage = 0;
+    m_off_t versionStorage = 0;
+    size_t files = 0;
+    size_t folders = 0;
+    size_t versions = 0;
+    void operator += (const NodeCounter&);
+    void operator -= (const NodeCounter&);
+    std::string serialize() const;
+    NodeCounter(const std::string& blob);
+    NodeCounter() = default;
+};
+
 typedef std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp> FingerprintMap;
 typedef FingerprintMap::iterator FingerprintMapPosition;
 

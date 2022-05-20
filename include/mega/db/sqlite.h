@@ -82,7 +82,7 @@ public:
     bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, std::set<NodeHandle>>& children) override;
 
     void cancelQuery() override;
-    void updateCounter(NodeHandle nodeHandle, const NodeCounter& nodeCounter) override;
+    void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
 
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
 

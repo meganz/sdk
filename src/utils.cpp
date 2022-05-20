@@ -2525,48 +2525,6 @@ int macOSmajorVersion()
 }
 #endif
 
-void NodeCounter::operator += (const NodeCounter& o)
-{
-    storage += o.storage;
-    files += o.files;
-    folders += o.folders;
-    versions += o.versions;
-    versionStorage += o.versionStorage;
-}
-
-void NodeCounter::operator -= (const NodeCounter& o)
-{
-    storage -= o.storage;
-    files -= o.files;
-    folders -= o.folders;
-    versions -= o.versions;
-    versionStorage -= o.versionStorage;
-}
-
-std::string NodeCounter::serialize() const
-{
-    std::string nodeCountersBlob;
-    CacheableWriter w(nodeCountersBlob);
-    w.serializeu64(files);
-    w.serializeu64(folders);
-    w.serializei64(storage);
-    w.serializeu64(versions);
-    w.serializei64(versionStorage);
-
-    return nodeCountersBlob;
-}
-
-NodeCounter::NodeCounter(const std::string &blob)
-{
-    CacheableReader r(blob);
-    r.unserializeu64(files);
-    r.unserializeu64(folders);
-    r.unserializei64(storage);
-    r.unserializeu64(versions);
-    r.unserializei64(versionStorage);
-}
-
-
 CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
     : mType(type)
     , mValue(value)

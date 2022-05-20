@@ -17253,7 +17253,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
         node->setCounter(nc);
     }
 
-    mTable->updateCounter(nodehandle, nc);
+    mTable->updateCounter(nodehandle, nc.serialize());
 
     return nc;
 }

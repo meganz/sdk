@@ -118,7 +118,7 @@ public:
     {
 
     }
-    void updateCounter(mega::NodeHandle, const mega::NodeCounter &) override
+    void updateCounter(mega::NodeHandle, const std::string&) override
     {
 
     }
