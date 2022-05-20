@@ -173,13 +173,12 @@ namespace UserAlert
 
     struct NewSharedNodes : public Base
     {
-        unsigned fileCount, folderCount;
         handle parentHandle;
         vector<handle> fileNodeHandles;
         vector<handle> folderNodeHandles;
 
         NewSharedNodes(UserAlertRaw& un, unsigned int id);
-        NewSharedNodes(int nfolders, int nfiles, handle uh, handle ph, m_time_t timestamp, unsigned int id,
+        NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
                        map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
                        map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode);
 
@@ -188,11 +187,10 @@ namespace UserAlert
 
     struct RemovedSharedNode : public Base
     {
-        size_t itemsNumber;
         vector<handle> nodeHandles;
 
         RemovedSharedNode(UserAlertRaw& un, unsigned int id);
-        RemovedSharedNode(int nitems, handle uh, m_time_t timestamp, unsigned int id,
+        RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
                           map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
                           map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode);
 
@@ -201,11 +199,10 @@ namespace UserAlert
 
     struct UpdatedSharedNode : public Base
     {
-        size_t itemsNumber;
         vector<handle> nodeHandles;
 
         UpdatedSharedNode(UserAlertRaw& un, unsigned int id);
-        UpdatedSharedNode(int nitems, handle uh, m_time_t timestamp, unsigned int id,
+        UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
                           map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
                           map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode);
         virtual void text(string& header, string& title, MegaClient* mc);

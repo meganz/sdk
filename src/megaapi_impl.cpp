@@ -2032,8 +2032,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         userHandle = p->userHandle;
         email = p->userEmail;
         nodeHandle = p->parentHandle;
-        numbers.push_back(p->folderCount);
-        numbers.push_back(p->fileCount);
+        numbers.push_back(p->folderNodeHandles.size());
+        numbers.push_back(p->fileNodeHandles.size());
     }
     break;
     case UserAlert::type_d:
@@ -2042,7 +2042,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_REMOVEDSHAREDNODES;
         userHandle = p->userHandle;
         email = p->userEmail;
-        numbers.push_back(p->itemsNumber);
+        numbers.push_back(p->nodeHandles.size());
     }
     break;
     case UserAlert::type_u:
@@ -2051,7 +2051,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_UPDATEDSHAREDNODES;
         userHandle = p->userHandle;
         email = p->userEmail;
-        numbers.push_back(p->itemsNumber);
+        numbers.push_back(p->nodeHandles.size());
     }
     break;
     case UserAlert::type_psts:
