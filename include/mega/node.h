@@ -127,7 +127,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     const Node* latestFileVersion() const;
 
     // try to resolve node key string
-    bool applykey();
+    bool applykey(bool notAppliedOk = false);
 
     // set up nodekey in a static SymmCipher
     SymmCipher* nodecipher();
