@@ -17189,7 +17189,7 @@ void NodeManager::loadTreeRecursively(const Node* node)
 
 Node *NodeManager::getNodeFromBlob(const std::string* serializedNode, bool decrypted)
 {
-    Node* node = unserializeNode(serializedNode, decrypted);
+    Node* node = unserializeNode(serializedNode, decrypted, false);
     if (!node)
     {
         LOG_err << "Error unserializing a node. Reloading account";

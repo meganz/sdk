@@ -312,7 +312,7 @@ public:
     void cleanNodes();
 
     // reads from DB and loads the node in memory
-    Node* unserializeNode(const string*, bool decrypted = true, bool fromOldCache = false);
+    Node* unserializeNode(const string*, bool decrypted, bool fromOldCache);
 
     // attempt to apply received keys to decrypt node's keys
     void applyKeys(uint32_t appliedKeys);
