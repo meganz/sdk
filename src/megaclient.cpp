@@ -11924,7 +11924,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
             case CACHEDNODE:
                 LOG_info << "Loading nodes from old cache";
-                if ((n = mNodeManager.unserializeNode(&data, true, true)))
+                if ((n = mNodeManager.unserializeNode(&data, true)))
                 {
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
@@ -16884,7 +16884,7 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         if (!n)
         {
             const NodeSerialized& ns = nHandleSerialized.second;
-            n = getNodeFromBlob(&ns.mNode, ns.mDecrypted);
+            n = getNodeFromBlob(&ns.mNode);
             if (!n)
             {
                 nodes.clear();
@@ -16953,7 +16953,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         Node* n = getNodeInRAM(nodeMapIt.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = getNodeFromBlob(&nodeMapIt.second.mNode);
             if (!n)
             {
                 nodes.clear();
@@ -17009,7 +17009,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode);
             if (!n)
             {
                 nodes.clear();
@@ -17065,7 +17065,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     Node* n = getNodeInRAM(nodeSerialized.first);
     if (!n) // not loaded yet
     {
-        n = getNodeFromBlob(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
+        n = getNodeFromBlob(&nodeSerialized.second.mNode);
     }
 
     return n;
@@ -17088,7 +17088,7 @@ node_vector NodeManager::getRootNodes()
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode);
             if (!n)
             {
                 nodes.clear();
@@ -17139,7 +17139,7 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode);
             if (!n)
             {
                 nodes.clear();
@@ -17187,9 +17187,9 @@ void NodeManager::loadTreeRecursively(const Node* node)
     }
 }
 
-Node *NodeManager::getNodeFromBlob(const std::string* serializedNode, bool decrypted)
+Node *NodeManager::getNodeFromBlob(const std::string* serializedNode)
 {
-    Node* node = unserializeNode(serializedNode, decrypted, false);
+    Node* node = unserializeNode(serializedNode, false);
     if (!node)
     {
         LOG_err << "Error unserializing a node. Reloading account";
@@ -17357,7 +17357,7 @@ void NodeManager::cleanNodes()
 
 // parse serialized node and return Node object - updates nodes hash and parent
 // mismatch vector
-Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fromOldCache)
+Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
 {
     handle h, ph;
     nodetype_t t;
@@ -18270,7 +18270,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     NodeSerialized nodeSerialized;
     if (mTable->getNode(handle, nodeSerialized))
     {
-        node = getNodeFromBlob(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
+        node = getNodeFromBlob(&nodeSerialized.mNode);
     }
 
     return node;

@@ -279,7 +279,7 @@ TEST(Serialization, Node_whenFolderIsEncrypted)
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
 
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, false, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     ASSERT_TRUE(dn);
 
     checkDeserializedNode(*dn, n);
@@ -297,7 +297,7 @@ TEST(Serialization, Node_whenFileIsEncrypted)
     std::string data;
     ASSERT_TRUE(n.serialize(&data));
 
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, false, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     ASSERT_TRUE(dn);
 
     checkDeserializedNode(*dn, n);
@@ -321,7 +321,7 @@ TEST(Serialization, Node_forFile_withoutParent_withoutShares_withoutAttrs_withou
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(90u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -335,7 +335,7 @@ TEST(Serialization, Node_forFolder_withoutParent_withoutShares_withoutAttrs_with
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(71u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -350,7 +350,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutAttrs_withoutFileAttrStrin
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(90u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -369,7 +369,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutFileAttrString_withoutPlin
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(104u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -389,7 +389,7 @@ TEST(Serialization, Node_forFile_withoutShares_withoutPlink)
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(108u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -410,7 +410,7 @@ TEST(Serialization, Node_forFile_withoutShares)
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(131u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -432,7 +432,7 @@ TEST(Serialization, Node_forFile_withoutShares_withAuthKey)
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(142u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -467,7 +467,7 @@ TEST(Serialization, Node_forFile_withoutShares_32bit)
     };
     const std::string data(rawData.data(), rawData.size());
 
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -482,7 +482,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutAttrs_withoutFileAttrStr
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(71u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -501,7 +501,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutFileAttrString_withoutPl
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(85u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n);
 }
 
@@ -521,7 +521,7 @@ TEST(Serialization, Node_forFolder_withoutShares_withoutPlink)
     std::string data;
     ASSERT_TRUE(n->serialize(&data));
     ASSERT_EQ(85u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n, true);
 }
 
@@ -543,7 +543,7 @@ TEST(Serialization, Node_forFolder_withoutShares)
     ASSERT_TRUE(n->serialize(&data));
 
     ASSERT_EQ(108u, data.size());
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n, true);
 }
 
@@ -578,6 +578,6 @@ TEST(Serialization, Node_forFolder_withoutShares_32bit)
     };
     const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
-    auto dn = client.cli->mNodeManager.unserializeNode(&data, true, false);
+    auto dn = client.cli->mNodeManager.unserializeNode(&data, false);
     checkDeserializedNode(*dn, *n, true);
 }
