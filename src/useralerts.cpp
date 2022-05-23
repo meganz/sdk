@@ -611,7 +611,7 @@ void UserAlert::UpdatedSharedNode::text(string& header, string& title, MegaClien
     header = userEmail;
     const auto itemsNumber = nodeHandles.size();
     const string& itemText = (itemsNumber == 1) ? "" : "s";
-    title = "Updated " + to_string(itemsNumber) + "item" + itemText + " in shared folder";
+    title = "Updated " + to_string(itemsNumber) + " item" + itemText + " in shared folder";
 }
 
 string UserAlert::Payment::getProPlanName()
@@ -1123,10 +1123,10 @@ UserAlerts::notedShNodesMap::iterator UserAlerts::findNotedSharedNodeIn(handle n
 
 bool UserAlerts::containsRemovedNodeAlert(handle nh, UserAlert::Base* a)
 {
-    return (nullptr != eraseIfRemovedNodeAlert(nh, a, false));
+    return (nullptr != findRemovedNodeAlert(nh, a, false));
 }
 
-UserAlert::RemovedSharedNode* UserAlerts::eraseIfRemovedNodeAlert(handle nodeHandleToFind, UserAlert::Base* alertToCheck, bool eraseConfirmation)
+UserAlert::RemovedSharedNode* UserAlerts::findRemovedNodeAlert(handle nodeHandleToFind, UserAlert::Base* alertToCheck, bool eraseAlert)
 {
     UserAlert::RemovedSharedNode* ptrDelNodeAlert = dynamic_cast<UserAlert::RemovedSharedNode*>(alertToCheck);
 
@@ -1137,7 +1137,7 @@ UserAlert::RemovedSharedNode* UserAlerts::eraseIfRemovedNodeAlert(handle nodeHan
                             nodeHandleToFind);
         found = it != end(ptrDelNodeAlert->nodeHandles);
 
-        if (found && eraseConfirmation)
+        if (found && eraseAlert)
         {
             ptrDelNodeAlert->nodeHandles.erase(it);
         }
@@ -1177,7 +1177,7 @@ UserAlert::NewSharedNodes* UserAlerts::eraseNewNodeAlert(handle nodeHandleToRemo
 
 UserAlert::RemovedSharedNode* UserAlerts::eraseRemovedNodeAlert(handle nh, UserAlert::Base* a)
 {
-    return eraseIfRemovedNodeAlert(nh, a, true);
+    return findRemovedNodeAlert(nh, a, true);
 }
 
 bool UserAlerts::isSharedNodeNotedAsRemoved(handle nodeHandleToFind)
