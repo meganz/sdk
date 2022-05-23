@@ -3886,7 +3886,7 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
         auto c = !removingBackupRemoteContents ? completion :
         [this, config, bkpDest, newNameOfMovedBackup, completion](Error err)
         {
-            if (error(err))
+            if (error(err) && err != API_ENOENT)
             {
                 LOG_err << "CommandBackupRemove failed";
                 if (completion)
