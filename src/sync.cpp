@@ -3881,21 +3881,10 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
             }
         }
 
-        if (auto& syncPtr = mSyncVec[index]->mSync)
-        {
-            syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-            assert(!syncPtr->statecachetable);
-            syncPtr.reset(); // deletes sync
-        }
-
-        mSyncConfigStore->markDriveDirty(config.mExternalDrivePath);
-
-        // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
-        NodeHandle remoteNodeHandle = config.mRemoteNode;
-        mClient.app->sync_removed(config);
+        unloadSyncByIndex(index);
 
         auto c = !removingBackupRemoteContents ? completion :
-        [this, remoteNodeHandle, bkpDest, newNameOfMovedBackup, completion](Error err)
+        [this, config, bkpDest, newNameOfMovedBackup, completion](Error err)
         {
             if (error(err))
             {
@@ -3904,8 +3893,13 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
                     completion(err);
             }
 
+            // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
+            mClient.app->sync_removed(config);
+            mSyncConfigStore->markDriveDirty(config.mExternalDrivePath);
+
             // remote node may be missing, due to an incomplete earlier removal that ended in error,
             // but if it's there then it must be in Vault
+            NodeHandle remoteNodeHandle = config.mRemoteNode;
             Node* remoteNode = mClient.nodeByHandle(remoteNodeHandle);
             assert(!remoteNode || remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault);
 
@@ -3965,11 +3959,6 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
         };
         // unregister this sync/backup from API (backup center)
         mClient.reqs.add(new CommandBackupRemove(&mClient, config.mBackupId, c));
-
-        mClient.syncactivity = true;
-        mSyncVec.erase(mSyncVec.begin() + (decltype(mSyncVec)::difference_type)index);
-
-        isEmpty = mSyncVec.empty();
 
         return API_OK;
     }
