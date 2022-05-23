@@ -282,7 +282,8 @@ public:
     // Valid values for nodeType: FILENODE, FOLDERNODE, TYPE_UNKNOWN (when unknown, it returns both files and folders)
     Node* getNodeByNameFirstLevel(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
 
-    // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE
+    // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE (In case of logged into folder link returns only ROOTNODE)
+    // Load from DB if it's necessary
     node_vector getRootNodes();
 
     node_vector getNodesWithInShares();

@@ -16888,22 +16888,7 @@ uint64_t NodeManager::getNodeCount()
     }
 
     uint64_t count = 0;
-    node_vector rootnodes;
-    rootnodes.push_back(getNodeByHandle(mClient.rootnodes.files));
-
-    // if we are logged into folder link, inbox and rubbish nodes are undefined
-    // and there are no incoming shares
-    if (!mClient.loggedIntoFolder())
-    {
-        rootnodes.push_back(getNodeByHandle(mClient.rootnodes.inbox));
-        rootnodes.push_back(getNodeByHandle(mClient.rootnodes.rubbish));
-
-        node_vector inshares = mClient.getInShares();
-        for (auto inshare : inshares)
-        {
-            rootnodes.push_back(inshare);
-        }
-    }
+    node_vector rootnodes = getRootNodesWithoutNestedInshares();
 
     for (Node* node : rootnodes)
     {
@@ -17084,25 +17069,45 @@ node_vector NodeManager::getRootNodes()
         return nodes;
     }
 
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getRootNodes(nodesFromTable);
-
-    for (const auto& nHandleSerialized : nodesFromTable)
+    // If rootnodes.file isn't set yet, we try to recover from DB
+    // We only check rootnodes.files because if we are logged into folder,
+    // only rootnodes.files is defined
+    if (mClient.rootnodes.files.isUndef())
     {
-        Node* n = getNodeInRAM(nHandleSerialized.first);
-        if (!n)
+        std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+        mTable->getRootNodes(nodesFromTable);
+
+        for (const auto& nHandleSerialized : nodesFromTable)
         {
-            n = getNodeFromNodeSerialized(nHandleSerialized.second);
+            assert(!getNodeInRAM(nHandleSerialized.first));
+            Node* n = getNodeFromNodeSerialized(nHandleSerialized.second);
             if (!n)
             {
                 nodes.clear();
                 return nodes;
             }
+
+            nodes.push_back(n);
+
+            setrootnode(n);
         }
+    }
+    else
+    {
+        Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
+        assert(rootNode);
+        nodes.push_back(rootNode);
 
-        nodes.push_back(n);
+        if (!mClient.loggedIntoFolder())
+        {
+            Node* inBox = getNodeByHandle(mClient.rootnodes.inbox);
+            assert(inBox);
+            nodes.push_back(inBox);
 
-        setrootnode(n);
+            Node* rubbish = getNodeByHandle(mClient.rootnodes.rubbish);
+            assert(rubbish);
+            nodes.push_back(rubbish);
+        }
     }
 
     return nodes;
@@ -17840,13 +17845,18 @@ bool NodeManager::loadNodes()
     }
 
     mLoadingNodes = true;
-    node_vector rootnodes = getRootNodesWithoutNestedInshares();
+    node_vector rootnodes = getRootNodes();
+    // We can't base in `user.sharing` because it's set yet. We have to get from DB
+    node_vector inshares = getNodesWithInShares();
 
     if (mKeepAllNodesInMemory)
     {
         for (auto &node : rootnodes)
         {
-            loadTreeRecursively(node);
+            if (!node->parent) // Avoid load nested in-shares (Performance improvement)
+            {
+                loadTreeRecursively(node);
+            }
         }
     }
     else // load only first level
@@ -17991,23 +18001,10 @@ NodeCounter NodeManager::getCounterOfRootNodes()
         return c;
     }
 
-    Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
-    assert(rootNode);
-    c = rootNode->getCounter();
-
-    if (!mClient.loggedIntoFolder())
+    node_vector rootNodes = getRootNodes();
+    for (Node* node : rootNodes)
     {
-        Node* inBox = getNodeByHandle(mClient.rootnodes.inbox);
-        assert(inBox);
-        {
-            c += inBox->getCounter();
-        }
-
-        Node* rubbish = getNodeByHandle(mClient.rootnodes.rubbish);
-        assert(rubbish);
-        {
-            c += rubbish->getCounter();
-        }
+        c += node->getCounter();
     }
 
     return c;
@@ -18160,27 +18157,12 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
 node_vector NodeManager::getRootNodesWithoutNestedInshares()
 {
     node_vector rootnodes;
-    if (mClient.loggedIntoFolder())
-    {
-        Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
-        assert(rootNode);
 
-        rootnodes.push_back(rootNode);
-    }
-    else    // logged into user's account: load rootnodes and incoming shared folders
+    rootnodes = getRootNodes();
+    if (!mClient.loggedIntoFolder()) // logged into user's account: incoming shared folders
     {
-        rootnodes = getRootNodes();
-
-        node_vector inSharesNodes = getNodesWithInShares();
-        for (auto& node : inSharesNodes)
-        {
-            // If parent exits => nested in-share. We don't need to add
-            // Nested in-shares aren't added to node counters
-            if (!node->parent)
-            {
-                rootnodes.push_back(node);
-            }
-        }
+        node_vector inshares = mClient.getInShares();
+        rootnodes.insert(rootnodes.end(), inshares.begin(), inshares.end());
     }
 
     return rootnodes;
