@@ -3752,6 +3752,26 @@ void StandardClient::triggerPeriodicScanEarly(handle backupID)
     client.syncs.triggerPeriodicScanEarly(backupID).get();
 }
 
+handle StandardClient::getNodeHandle(const CloudItem& item)
+{
+    auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
+        client.getNodeHandle(item, std::move(result));
+    });
+
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return UNDEF;
+
+    return result.get();
+}
+
+void StandardClient::getNodeHandle(const CloudItem& item, PromiseHandleSP result)
+{
+    if (auto* node = item.resolve(*this))
+        return result->set_value(node->nodehandle);
+
+    result->set_value(UNDEF);
+}
+
 FileFingerprint StandardClient::fingerprint(const fs::path& fsPath)
 {
     // Convenience.

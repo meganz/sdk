@@ -693,6 +693,9 @@ struct StandardClient : public MegaApp
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
 
+    handle getNodeHandle(const CloudItem& item);
+    void getNodeHandle(const CloudItem& item, PromiseHandleSP result);
+
     FileFingerprint fingerprint(const fs::path& fsPath);
 
     vector<FileFingerprint> fingerprints(const string& path);
