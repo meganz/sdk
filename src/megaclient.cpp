@@ -16888,7 +16888,7 @@ uint64_t NodeManager::getNodeCount()
     }
 
     uint64_t count = 0;
-    node_vector rootnodes = getRootNodesWithoutNestedInshares();
+    node_vector rootnodes = getRootNodesAndInshares();
 
     for (Node* node : rootnodes)
     {
@@ -17069,10 +17069,24 @@ node_vector NodeManager::getRootNodes()
         return nodes;
     }
 
-    // If rootnodes.file isn't set yet, we try to recover from DB
-    // We only check rootnodes.files because if we are logged into folder,
-    // only rootnodes.files is defined
-    if (mClient.rootnodes.files.isUndef())
+    if (mNodes.size()) // nodes already loaded from DB
+    {
+        Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
+        assert(rootNode);
+        nodes.push_back(rootNode);
+
+        if (!mClient.loggedIntoFolder())
+        {
+            Node* inBox = getNodeByHandle(mClient.rootnodes.inbox);
+            assert(inBox);
+            nodes.push_back(inBox);
+
+            Node* rubbish = getNodeByHandle(mClient.rootnodes.rubbish);
+            assert(rubbish);
+            nodes.push_back(rubbish);
+        }
+    }
+    else    // nodes not loaded yet
     {
         std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
         mTable->getRootNodes(nodesFromTable);
@@ -17090,23 +17104,6 @@ node_vector NodeManager::getRootNodes()
             nodes.push_back(n);
 
             setrootnode(n);
-        }
-    }
-    else
-    {
-        Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
-        assert(rootNode);
-        nodes.push_back(rootNode);
-
-        if (!mClient.loggedIntoFolder())
-        {
-            Node* inBox = getNodeByHandle(mClient.rootnodes.inbox);
-            assert(inBox);
-            nodes.push_back(inBox);
-
-            Node* rubbish = getNodeByHandle(mClient.rootnodes.rubbish);
-            assert(rubbish);
-            nodes.push_back(rubbish);
         }
     }
 
@@ -17847,7 +17844,7 @@ bool NodeManager::loadNodes()
     mLoadingNodes = true;
     node_vector rootnodes = getRootNodes();
     // We can't base in `user.sharing` because it's set yet. We have to get from DB
-    node_vector inshares = getNodesWithInShares();
+    node_vector inshares = getNodesWithInShares();  // it includes nested inshares
 
     if (mKeepAllNodesInMemory)
     {
@@ -17979,7 +17976,7 @@ bool NodeManager::hasVersion(NodeHandle nodeHandle)
 
 void NodeManager::initializeCounters()
 {
-    node_vector rootNodes = getRootNodesWithoutNestedInshares();
+    node_vector rootNodes = getRootNodesAndInshares();
     for (Node* node : rootNodes)
     {
         calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN);
@@ -18154,7 +18151,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     return node;
 }
 
-node_vector NodeManager::getRootNodesWithoutNestedInshares()
+node_vector NodeManager::getRootNodesAndInshares()
 {
     node_vector rootnodes;
 

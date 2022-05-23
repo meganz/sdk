@@ -286,7 +286,7 @@ public:
     // Load from DB if it's necessary
     node_vector getRootNodes();
 
-    node_vector getNodesWithInShares();
+    node_vector getNodesWithInShares(); // both, top-level and nested ones
     node_vector getNodesWithOutShares();
     node_vector getNodesWithPendingOutShares();
     node_vector getNodesWithLinks();
@@ -438,7 +438,7 @@ private:
     Node* getNodeFromDataBase(NodeHandle handle);
 
     // Returns root nodes without nested in-shares
-    node_vector getRootNodesWithoutNestedInshares();
+    node_vector getRootNodesAndInshares();
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
