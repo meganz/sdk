@@ -8421,6 +8421,7 @@ void MegaApiImpl::startUploadForSupport(const char *localPath, bool isSourceTemp
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
+    std::cout << "[MegaApiImpl::startDownload] BEGIN [new MegaTransfer::TYPE_DOWNLOAD]" << std::endl;
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
     if(localPath)
@@ -8456,6 +8457,7 @@ void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* loc
 
     transferQueue.push(transfer);
     waiter->notify();
+    std::cout << "[MegaApiImpl::startDownload] END" << std::endl;
 }
 
 void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
@@ -11385,11 +11387,14 @@ void MegaApiImpl::queryDNS(const char *hostname, MegaRequestListener *listener)
 
 void MegaApiImpl::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
 {
+    std::cout << "[MegaApiImpl::downloadFile] BEGIN" << std::endl;
+    std::cout << "[MegaApiImpl::downloadFile] [new MegaRequestPrivate(MegaRequest::TYPE_DOWNLOAD_FILE, listener)] url = " << url << std::endl;
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DOWNLOAD_FILE, listener);
     request->setLink(url);
     request->setFile(dstpath);
     requestQueue.push(request);
     waiter->notify();
+    std::cout << "[MegaApiImpl::downloadFile] END" << std::endl;
 }
 
 void MegaApiImpl::contactLinkCreate(bool renew, MegaRequestListener *listener)
@@ -17936,6 +17941,7 @@ void MegaApiImpl::updateBackups()
 
 unsigned MegaApiImpl::sendPendingTransfers()
 {
+    std::cout << "[MegaApiImpl::sendPendingTransfers] BEGIN" << std::endl;
     auto t0 = std::chrono::steady_clock::now();
     unsigned count = 0;
 
@@ -17944,6 +17950,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
     while(MegaTransferPrivate *transfer = transferQueue.pop())
     {
+        std::cout << "[MegaApiImpl::sendPendingTransfers] while(MegaTransferPrivate *transfer = transferQueue.pop()" << std::endl;
         error e = API_OK;
         int nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -17952,6 +17959,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
         {
             case MegaTransfer::TYPE_UPLOAD:
             {
+                std::cout << "[MegaApiImpl::sendPendingTransfers] case MegaTransfer::TYPE_UPLOAD" << std::endl;
                 const char* localPath = transfer->getPath();
                 const char* fileName = transfer->getFileName();
                 int64_t mtime = transfer->getTime();
@@ -18166,11 +18174,13 @@ unsigned MegaApiImpl::sendPendingTransfers()
             }
             case MegaTransfer::TYPE_DOWNLOAD:
             {
+                std::cout << "[MegaApiImpl::sendPendingTransfers] case MegaTransfer::TYPE_DOWNLOAD" << std::endl;
                 Node *node = NULL;
                 MegaNode *publicNode = transfer->getPublicNode();
                 const char *parentPath = transfer->getParentPath();
                 const char *fileName = transfer->getFileName();
                 bool startFirst = transfer->shouldStartFirst();
+                std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] transfer->getFileName = " << fileName << ", transfer->shouldStartFirst = " << startFirst << "" << std::endl;
 
                 if (!publicNode)
                 {
@@ -18203,6 +18213,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 // File download
                 if (!transfer->isStreamingTransfer())
                 {
+                    std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] File download [totalDownloads=" << totalDownloads << ", pendingDownloads=" << pendingDownloads << "]" << std::endl;
                     LocalPath name;
                     LocalPath wLocalPath;
 
@@ -18291,6 +18302,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                         if (duplicate)
                         {
+                            std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] [File download] duplicate = true" << std::endl;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
@@ -18363,6 +18375,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     currentTransfer = transfer;
                     m_off_t startPos = transfer->getStartPos();
                     m_off_t endPos = transfer->getEndPos();
+                    std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] [File download] [startPos=" << startPos << ", endpos=" << endPos << "]" << std::endl;
                     if (startPos < 0 || endPos < 0 || startPos > endPos)
                     {
                         e = API_EARGS;
@@ -18383,6 +18396,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         transfer->setTotalBytes(totalBytes);
                         transfer->setTag(nextTag);
                         transfer->setState(MegaTransfer::STATE_QUEUED);
+                        std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] [File download] Is Node. [transfer->setTotalBytes=" << totalBytes << ", transfer->setState=MegaTransfer::STATE_QUEUED]" << std::endl;
 
                         fireOnTransferStart(transfer);
                         client->pread(node, startPos, totalBytes, transfer);
@@ -18402,6 +18416,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         transfer->setTotalBytes(totalBytes);
                         transfer->setTag(nextTag);
                         transfer->setState(MegaTransfer::STATE_QUEUED);
+                        std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] [File download] NOT Node. [transfer->setTotalBytes=" << totalBytes << ", transfer->setState=MegaTransfer::STATE_QUEUED]" << std::endl;
                         fireOnTransferStart(transfer);
                         SymmCipher cipher;
                         cipher.setkey(publicNode->getNodeKey());
@@ -18415,6 +18430,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     }
                 }
 
+                std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] currentTransfer = NULL & break" << std::endl;
                 currentTransfer = NULL;
                 break;
             }
@@ -18422,6 +18438,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
         if (e)
         {
+            std::cout << "[MegaApiImpl::sendPendingTransfers] e = true (error)" << std::endl;
             transferMap[nextTag] = transfer;
             transfer->setTag(nextTag);
             transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -18437,6 +18454,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
             break;
         }
     }
+    std::cout << "[MegaApiImpl::sendPendingTransfers] END" << std::endl;
     return count;
 }
 
@@ -19327,6 +19345,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_DOWNLOAD_URLS:
         {
+            std::cout << "[CommandGetFile::CommandGetFile()] MegaRequest::TYPE_GET_DOWNLOAD_URLS" << std::endl;
             Node *node = client->nodebyhandle(request->getNodeHandle());
             bool singleUrl = request->getFlag();
             if(!node)
@@ -21920,6 +21939,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_DOWNLOAD_FILE:
         {
+            std::cout << "[MegaApiImpl::sendPendingRequests] MegaRequest::TYPE_DOWNLOAD_FILE" << std::endl;
             const char *url = request->getLink();
             const char *file = request->getFile();
             if (!url || !file)

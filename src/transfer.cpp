@@ -365,6 +365,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     }
     ptr++;
 
+    std::cout << "[Transfer::unserialize] t->chunkmacs.calcprogress(size, pos, progresscompleted)" << std::endl;
     t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
     auto it_bool = transfers[type].insert(pair<FileFingerprint*, Transfer*>(t.get(), t.get()));
@@ -608,6 +609,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 // fingerprint, notify app, notify files
 void Transfer::complete(DBTableTransactionCommitter& committer)
 {
+    std::cout << "[Transfer::complete] BEGIN" << std::endl;
     CodeCounter::ScopeTimer ccst(client->performanceStats.transferComplete);
 
     state = TRANSFERSTATE_COMPLETING;
@@ -615,7 +617,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
     if (type == GET)
     {
-
+        std::cout << "[Transfer::complete] client->clientname = " << client->clientname << ". Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "") << std::endl;
         LOG_debug << client->clientname << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "");
 
         bool transient_error = false;
@@ -1087,10 +1089,12 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         client->checkfacompletion(uploadhandle, this);
         return;
     }
+    std::cout << "[Transfer::complete] END" << std::endl;
 }
 
 void Transfer::completefiles()
 {
+    std::cout << "[Transfer::completefiles] call" << std::endl;
     // notify all files and give them an opportunity to self-destruct
     vector<uint32_t> &ids = client->pendingtcids[tag];
     vector<LocalPath> *pfs = NULL;

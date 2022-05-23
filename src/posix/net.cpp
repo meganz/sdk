@@ -44,11 +44,13 @@ namespace mega {
 
 HANDLE SockInfo::sharedEventHandle()
 {
+    std::cout << "[SockInfo::sharedEventHandle] call" << std::endl;
     return mSharedEvent;
 }
 
 bool SockInfo::createAssociateEvent()
 {
+    std::cout << "[SockInfo::createAssociateEvent] call" << std::endl;
     int events = (mode & SockInfo::READ ? FD_READ : 0) | (mode & SockInfo::WRITE ? FD_WRITE : 0);
 
     if (associatedHandleEvents != events)
@@ -67,6 +69,7 @@ bool SockInfo::createAssociateEvent()
 
 bool SockInfo::checkEvent(bool& read, bool& write, bool logErr)
 {
+    std::cout << "[SockInfo::checkEvent] BEGIN" << std::endl;
     WSANETWORKEVENTS wne;
     memset(&wne, 0, sizeof(wne));
     auto err = WSAEnumNetworkEvents(fd, NULL, &wne);
@@ -115,11 +118,13 @@ bool SockInfo::checkEvent(bool& read, bool& write, bool logErr)
         signalledWrite = signalledWrite || write;
         return true;   // if we return true, both read and write must have been set.
     }
+    std::cout << "[SockInfo::checkEvent] END" << std::endl;
     return false;
 }
 
 void SockInfo::closeEvent(bool adjustSocket)
 {
+    std::cout << "[SockInfo::closeEvent] call [adjustSocket = " << adjustSocket << "]" << std::endl;
     if (adjustSocket)
     {
         int result = WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
@@ -155,6 +160,7 @@ std::recursive_mutex **CurlHttpIO::sslMutexes = NULL;
 static std::mutex lock_init_mutex;
 void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
 {
+    std::cout << "[CurlHttpIO::locking_function] BEGIN" << std::endl;
     std::recursive_mutex *mutex = sslMutexes[lockNumber];
     if (mutex == NULL)
     {
@@ -175,6 +181,7 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
     {
         mutex->unlock();
     }
+    std::cout << "[CurlHttpIO::locking_function] END" << std::endl;
 }
 
 #if OPENSSL_VERSION_NUMBER >= 0x10000000 || defined (LIBRESSL_VERSION_NUMBER)
@@ -193,6 +200,7 @@ unsigned long CurlHttpIO::id_function()
 
 CurlHttpIO::CurlHttpIO()
 {
+    std::cout << "[CurlHttpIO::CurlHttpIO] BEGIN" << std::endl;
 #ifdef WIN32
     mSocketsWaitEvent = WSACreateEvent();
     if (mSocketsWaitEvent == WSA_INVALID_EVENT)
@@ -372,6 +380,7 @@ CurlHttpIO::CurlHttpIO()
     ipv6deactivationtime = Waiter::ds;
     waiter = NULL;
     proxyport = 0;
+    std::cout << "[CurlHttpIO::CurlHttpIO] END" << std::endl;
 }
 
 bool CurlHttpIO::ipv6available()
@@ -500,6 +509,7 @@ void CurlHttpIO::filterDNSservers()
 
 void CurlHttpIO::addaresevents(Waiter *waiter)
 {
+    std::cout << "[CurlHttpIO::addaresevents] BEGIN [waiter = " << waiter << "]" << std::endl;
     CodeCounter::ScopeTimer ccst(countAddAresEventsCode);
 
     SockInfoMap prevAressockets;   // if there are SockInfo records that were in use, and won't be anymore, they will be deleted with this
@@ -572,12 +582,14 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
         mapPair.second.closeEvent(false);
     }
 #endif
+    std::cout << "[CurlHttpIO::addaresevents] END [waiter = " << waiter << "]" << std::endl;
 }
 
 #endif // #ifdef MEGA_USE_C_ARES
 
 void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 {
+    std::cout << "[CurlHttpIO::addcurlevents] BEGIN [waiter = " << waiter << ", direction_t = " << d << "]" << std::endl;
     CodeCounter::ScopeTimer ccst(countAddCurlEventsCode);
 
 #if defined(_WIN32)
@@ -620,10 +632,12 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
         static_cast<WinWaiter*>(waiter)->maxds = 0;
     }
 #endif
+    std::cout << "[CurlHttpIO::addcurlevents] END [waiter = " << waiter << ", direction_t = " << d << "]" << std::endl;
 }
 
 int CurlHttpIO::checkevents(Waiter*)
 {
+    std::cout << "[CurlHttpIO::checkevents] call [waiter = " << waiter << "]" << std::endl;
 #ifdef WIN32
     // if this assert triggers, it means that we detected that cURL needs to be called,
     // and it was not called.  Since we reset the event, we don't get another chance.
@@ -640,6 +654,7 @@ int CurlHttpIO::checkevents(Waiter*)
 #ifdef MEGA_USE_C_ARES
 void CurlHttpIO::closearesevents()
 {
+    std::cout << "[CurlHttpIO::closearesevents] call" << std::endl;
 #if defined(_WIN32)
     for (auto& mapPair : aressockets)
     {
@@ -652,6 +667,7 @@ void CurlHttpIO::closearesevents()
 
 void CurlHttpIO::closecurlevents(direction_t d)
 {
+    std::cout << "[CurlHttpIO::closecurlevents] call [direction_t = " << d << "]" << std::endl;
     SockInfoMap &socketmap = curlsockets[d];
 #if defined(_WIN32)
     for (SockInfoMap::iterator it = socketmap.begin(); it != socketmap.end(); it++)
@@ -665,6 +681,7 @@ void CurlHttpIO::closecurlevents(direction_t d)
 #ifdef MEGA_USE_C_ARES
 void CurlHttpIO::processaresevents()
 {
+    std::cout << "[CurlHttpIO::processaresevents] call" << std::endl;
     CodeCounter::ScopeTimer ccst(countProcessAresEventsCode);
 
 #ifndef _WIN32
@@ -706,6 +723,7 @@ void CurlHttpIO::processaresevents()
 
 void CurlHttpIO::processcurlevents(direction_t d)
 {
+    std::cout << "[CurlHttpIO::processcurlevents] BEGIN [direction_t = " << d << "]" << std::endl;
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
 #ifdef WIN32
     mSocketsWaitEvent_curl_call_needed = false;
@@ -764,10 +782,12 @@ void CurlHttpIO::processcurlevents(direction_t d)
             it++;
         }
     }
+    std::cout << "[CurlHttpIO::processcurlevents] END [direction_t = " << d << "]" << std::endl;
 }
 
 CurlHttpIO::~CurlHttpIO()
 {
+    std::cout << "[CurlHttpIO::~CurlHttpIO] call" << std::endl;
     disconnecting = true;
 #ifdef MEGA_USE_C_ARES
     ares_destroy(ares);
@@ -830,6 +850,8 @@ void CurlHttpIO::setdnsservers(const char* servers)
 
 void CurlHttpIO::disconnect()
 {
+    std::cout << "[CurlHttpIO::disconnect] BEGIN" << std::endl;
+    std::cout << "[CurlHttpIO::disconnect] Reinitializing the network layer" << std::endl;
     LOG_debug << "Reinitializing the network layer";
     disconnecting = true;
     assert(!numconnections[API] && !numconnections[GET] && !numconnections[PUT]);
@@ -925,6 +947,7 @@ void CurlHttpIO::disconnect()
         LOG_debug << "Unresolved proxy name. Resolving...";
         request_proxy_ip();
     }
+    std::cout << "[CurlHttpIO::disconnect] END" << std::endl;
 }
 
 bool CurlHttpIO::setmaxdownloadspeed(m_off_t bpslimit)
@@ -982,6 +1005,7 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int)
 {
+    std::cout << "[CurlHttpIO::addevents] BEGIN [waiter* = " << w << "]" << std::endl;
     CodeCounter::ScopeTimer ccst(countCurlHttpIOAddevents);
 
     waiter = (WAIT_CLASS*)w;
@@ -1082,11 +1106,13 @@ void CurlHttpIO::addevents(Waiter* w, int)
         arestimeout = -1;
     }
 #endif
+    std::cout << "[CurlHttpIO::addevents] END [waiter* = " << w << "]" << std::endl;
 }
 
 #ifdef MEGA_USE_C_ARES
 void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
 {
+    std::cout << "[CurlHttpIO::proxy_ready_callback] call" << std::endl;
     // the name of a proxy has been resolved
     CurlHttpContext* httpctx = (CurlHttpContext*)arg;
     CurlHttpIO* httpio = httpctx->httpio;
@@ -1409,6 +1435,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
 struct curl_slist* CurlHttpIO::clone_curl_slist(struct curl_slist* inlist)
 {
+    std::cout << "[CurlHttpIO::clone_curl_slist] call" << std::endl;
     struct curl_slist* outlist = NULL;
     struct curl_slist* tmp;
 
@@ -1436,6 +1463,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     auto len = httpctx->len;
     const char* data = httpctx->data;
 
+    std::cout << "[CurlHttpIO::send_request] len = " << len << ", [" << httpctx->req->logname << "POST target URL: " << getSafeUrl(req->posturl) << "]" << std::endl;
     LOG_debug << httpctx->req->logname << "POST target URL: " << getSafeUrl(req->posturl);
 
     if (req->binary)
@@ -1654,6 +1682,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
 
     httpio->statechange = true;
+    std::cout << "[CurlHttpIO::send_request] END" << std::endl;
 }
 
 void CurlHttpIO::request_proxy_ip()
@@ -1855,6 +1884,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->headers = NULL;
     httpctx->isIPv6 = false;
     httpctx->isCachedIp = false;
+    std::cout << "[CurlHttpIO::post] BEGIN [len = " << len << "]" << std::endl;
 #ifdef MEGA_USE_C_ARES
     httpctx->ares_pending = 0;
 #endif
@@ -2028,10 +2058,12 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     LOG_debug << "Resolving IPv4 address for " << httpctx->hostname;
     ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
 #endif
+    std::cout << "[CurlHttpIO::post] END" << std::endl;
 }
 
 void CurlHttpIO::setproxy(Proxy* proxy)
 {
+    std::cout << "[CurlHttpIO::setproxy] BEGIN" << std::endl;
     // clear the previous proxy IP
     proxyip.clear();
 
@@ -2074,11 +2106,13 @@ void CurlHttpIO::setproxy(Proxy* proxy)
     ipv6requestsenabled = false;
     ipv6proxyenabled = ipv6requestsenabled;
     request_proxy_ip();
+    std::cout << "[CurlHttpIO::setproxy] END" << std::endl;
 }
 
 // cancel pending HTTP request
 void CurlHttpIO::cancel(HttpReq* req)
 {
+    std::cout << "[CurlHttpIO::cancel] BEGIN" << std::endl;
     if (req->httpiohandle)
     {
         CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
@@ -2112,11 +2146,13 @@ void CurlHttpIO::cancel(HttpReq* req)
 
         req->httpiohandle = NULL;
     }
+    std::cout << "[CurlHttpIO::cancel] END" << std::endl;
 }
 
 // real-time progress information on POST data
 m_off_t CurlHttpIO::postpos(void* handle)
 {
+    std::cout << "[CurlHttpIO::postpos] BEGIN" << std::endl;
     double bytes = 0;
     CurlHttpContext* httpctx = (CurlHttpContext*)handle;
 
@@ -2125,12 +2161,14 @@ m_off_t CurlHttpIO::postpos(void* handle)
         curl_easy_getinfo(httpctx->curl, CURLINFO_SIZE_UPLOAD, &bytes);
     }
 
+    std::cout << "[CurlHttpIO::postpos] END [bytes = " << bytes << "]" << std::endl;
     return (m_off_t)bytes;
 }
 
 // process events
 bool CurlHttpIO::doio()
 {
+    std::cout << "[CurlHttpIO::doio] BEGIN" << std::endl;
     bool result;
     statechange = false;
 
@@ -2172,11 +2210,13 @@ bool CurlHttpIO::doio()
         }
     }
 
+    std::cout << "[CurlHttpIO::doio] END [result = " << result << "]" << std::endl;
     return result;
 }
 
 bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 {
+    std::cout << "[CurlHttpIO::multidoio] BEGIN" << std::endl;
     int dummy = 0;
     CURLMsg* msg;
     bool result;
@@ -2437,12 +2477,14 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
     result = statechange;
     statechange = false;
+    std::cout << "[CurlHttpIO::multidoio] END [result = " << result << "]" << std::endl;
     return result;
 }
 
 // callback for incoming HTTP payload
 void CurlHttpIO::send_pending_requests()
 {
+    std::cout << "[CurlHttpIO::send_pending_requests] BEGIN [pendingrequests.size = " << pendingrequests.size() << "]" << std::endl;
     while (pendingrequests.size())
     {
         CurlHttpContext* httpctx = pendingrequests.front();
@@ -2457,10 +2499,12 @@ void CurlHttpIO::send_pending_requests()
 
         pendingrequests.pop();
     }
+    std::cout << "[CurlHttpIO::send_pending_requests] END [pendingrequests.size = " << pendingrequests.size() << "]" << std::endl;
 }
 
 void CurlHttpIO::drop_pending_requests()
 {
+    std::cout << "[CurlHttpIO::drop_pending_requests] BEGIN [pendingrequests.size = " << pendingrequests.size() << "]" << std::endl;
     while (pendingrequests.size())
     {
         CurlHttpContext* httpctx = pendingrequests.front();
@@ -2480,6 +2524,7 @@ void CurlHttpIO::drop_pending_requests()
         }
         pendingrequests.pop();
     }
+    std::cout << "[CurlHttpIO::drop_pending_requests] END [pendingrequests.size = " << pendingrequests.size() << "]" << std::endl;
 }
 
 size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
@@ -2490,6 +2535,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
     CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
     size_t len = size * nmemb;
     CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
+    std::cout << "[CurlHttpIO::read_data] BEGIN [size = " << size << ", len  = " << len << ", req = " << req << "]" << std::endl;
 
     if (httpctx->data)
     {
@@ -2540,6 +2586,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
     memcpy(ptr, buf, nread);
     req->outpos += nread;
     //LOG_debug << req->logname << "Supplying " << nread << " bytes to cURL to send";
+    std::cout << "[CurlHttpIO::read_data] END [req->outpos += nread = " << nread << ", return nread]" << std::endl;
     return nread;
 }
 
@@ -2547,6 +2594,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 {
     int len = int(size * nmemb);
     HttpReq *req = (HttpReq*)target;
+    std::cout << "[CurlHttpIO::write_data] BEGIN [size = " << size << ", len = " << len << ", req = " << req << "]" << std::endl;
     CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
     if (httpio)
     {
@@ -2577,6 +2625,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
         req->lastdata = Waiter::ds;
     }
 
+    std::cout << "[CurlHttpIO::write_data] END [len = " << len << "]" << std::endl;
     return len;
 }
 
@@ -2585,6 +2634,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
 {
     HttpReq *req = (HttpReq*)target;
     size_t len = size * nmemb;
+    std::cout << "[CurlHttpIO::check_header] BEGIN [size = " << size << ", len = " << len << ", req = " << req << "]" << std::endl;
     if (len > 2)
     {
         LOG_verbose << req->logname << "Header: " << string((const char *)ptr, len - 2);
@@ -2633,6 +2683,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
         req->lastdata = Waiter::ds;
     }
 
+    std::cout << "[CurlHttpIO::check_header] END [len = " << len << "]" << std::endl;
     return len;
 }
 
@@ -2651,6 +2702,7 @@ int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
     {
         totalsize = req->out->size();
     }
+    std::cout << "[CurlHttpIO::seek_data] BEGIN [offset = " << offset << ", totalsize = " << totalsize << ", req = " << req << "]" << std::endl;
 
     switch (origin)
     {
@@ -2676,6 +2728,8 @@ int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
     }
     req->outpos = size_t(newoffset);
     LOG_debug << "Successful seek to position " << newoffset << " of " << totalsize;
+    std::cout << "[CurlHttpIO::seek_data] Successful seek to position " << newoffset << " of " << totalsize << std::endl;
+    std::cout << "[CurlHttpIO::seek_data] END" << std::endl;
     return CURL_SEEKFUNC_OK;
 }
 
@@ -2683,6 +2737,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
     SockInfoMap &socketmap = httpio->curlsockets[d];
+    std::cout << "[CurlHttpIO::socket_callback] BEGIN [httpio = " << httpio << "]" << std::endl;
 
     if (what == CURL_POLL_REMOVE)
     {
@@ -2729,6 +2784,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
 #endif
     }
 
+    std::cout << "[CurlHttpIO::socket_callback] END [httpio = " << httpio << "]" << std::endl;
     return 0;
 }
 
@@ -2764,22 +2820,26 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
 
 int CurlHttpIO::api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp)
 {
+    std::cout << "[CurlHttpIO::api_socket_callback] call" << std::endl;
     return socket_callback(e, s, what, userp, socketp, API);
 }
 
 int CurlHttpIO::download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp)
 {
+    std::cout << "[CurlHttpIO::download_socket_callback] call" << std::endl;
     return socket_callback(e, s, what, userp, socketp, GET);
 }
 
 int CurlHttpIO::upload_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp)
 {
+    std::cout << "[CurlHttpIO::upload_socket_callback] call" << std::endl;
     return socket_callback(e, s, what, userp, socketp, PUT);
 }
 
 int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
+    std::cout << "[CurlHttpIO::timer_callback] BEGIN [httpio = " << httpio << "]" << std::endl;
     //auto oldValue = httpio->curltimeoutreset[d];
     if (timeout_ms < 0)
     {
@@ -2801,21 +2861,25 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_
     //{
     //    LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " from " << timeout_ms << "(ms) at ds: " << Waiter::ds;
     //}
+    std::cout << "[CurlHttpIO::timer_callback] END [httpio = " << httpio << "]" << std::endl;
     return 0;
 }
 
 int CurlHttpIO::api_timer_callback(CURLM *multi, long timeout_ms, void *userp)
 {
+    std::cout << "[CurlHttpIO::api_timer_callback] call" << std::endl;
     return timer_callback(multi, timeout_ms, userp, API);
 }
 
 int CurlHttpIO::download_timer_callback(CURLM *multi, long timeout_ms, void *userp)
 {
+    std::cout << "[CurlHttpIO::download_timer_callback] call" << std::endl;
     return timer_callback(multi, timeout_ms, userp, GET);
 }
 
 int CurlHttpIO::upload_timer_callback(CURLM *multi, long timeout_ms, void *userp)
 {
+    std::cout << "[CurlHttpIO::upload_timer_callback] call" << std::endl;
     return timer_callback(multi, timeout_ms, userp, PUT);
 }
 

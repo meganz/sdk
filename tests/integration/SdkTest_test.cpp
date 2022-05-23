@@ -4420,6 +4420,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
+    std::cout << "[SdkTestCloudraidTransferWithConnectionFailures] BEGIN" << std::endl;
     LOG_info << "___TEST Cloudraid transfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
@@ -4460,6 +4461,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+    std::cout << "[SdkTestCloudraidTransferWithConnectionFailures] END" << std::endl;
 }
 #endif
 
