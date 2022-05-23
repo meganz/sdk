@@ -738,6 +738,25 @@ struct StandardClient : public MegaApp
     function<void(bool)> mOnConflictsDetected;
 };
 
+struct ScopedSyncPauser
+{
+    ScopedSyncPauser(StandardClient& client, handle id)
+      : mClient(client)
+      , mId(id)
+    {
+        auto result = mClient.setSyncPausedByBackupId(mId, true);
+        EXPECT_TRUE(result);
+    }
+
+    ~ScopedSyncPauser()
+    {
+        auto result = mClient.setSyncPausedByBackupId(mId, false);
+        EXPECT_TRUE(result);
+    }
+
+    StandardClient& mClient;
+    handle mId;
+}; // ScopedSyncPauser
 
 struct StandardClientInUseEntry
 {
