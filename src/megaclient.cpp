@@ -456,31 +456,27 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
         {
             // check if the low(ered) access level is affecting any syncs
             // a) have we just cut off full access to a subtree of a sync?
-            auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
-            for (NodeHandle rootHandle : activeSyncRootHandles)
+            auto activeConfigs = syncs.getConfigs(true);
+            for (auto& sc : activeConfigs)
             {
-                if (n->isbelow(rootHandle))
+                if (n->isbelow(sc.mRemoteNode))
                 {
                     LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                        return c.mRemoteNode == rootHandle;
-                        }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
-
+                    syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
                 }
             }
 
             // b) have we just lost full access to the subtree a sync is in?
             Node* root = nullptr;
-            for (NodeHandle rootHandle : activeSyncRootHandles)
+            for (auto& sc : activeConfigs)
             {
-                if (n->isbelow(rootHandle) &&
-                    (nullptr != (root = nodeByHandle(rootHandle))) &&
+                if (n->isbelow(sc.mRemoteNode) &&
+                    (nullptr != (root = nodeByHandle(sc.mRemoteNode))) &&
                     !checkaccess(root, FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
-                    syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                        return c.mRemoteNode == rootHandle;
-                        }, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
+
+                    syncs.disableSyncByBackupId(sc.mBackupId, true, SHARE_NON_FULL_ACCESS, false, nullptr);   // passing true for SYNC_FAILED
                 }
             };
         }
@@ -984,10 +980,10 @@ void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
-Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
+const Node* MegaClient::childnodebyname(const Node* p, const char* name, bool skipfolders) const
 {
     string nname = name;
-    Node *found = NULL;
+    const Node *found = NULL;
 
     if (!p || p->type == FILENODE)
     {
@@ -996,7 +992,7 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
 
     LocalPath::utf8_normalize(&nname);
 
-    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+    for (node_list::const_iterator it = p->children.begin(); it != p->children.end(); it++)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
@@ -1014,6 +1010,12 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
     }
 
     return found;
+}
+
+Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
+{
+    // Casting simply to reuse the above code.
+    return const_cast<Node*>(childnodebyname(static_cast<const Node*>(p), name, skipfolders));
 }
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
@@ -1174,8 +1176,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
    , btworkinglock(rng)
    , btsc(rng)
    , btpfa(rng)
+   , fsaccess(move(f))
 #ifdef ENABLE_SYNC
-    , syncs(*this)
+    , syncs(*this, fsaccess)
     , syncfslockretrybt(rng)
     , syncdownbt(rng)
     , syncnaglebt(rng)
@@ -1204,7 +1207,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
-    nsr_enabled = false;
     aplvp_enabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
@@ -1257,8 +1259,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     init();
 
-    f->client = this;
-    f->waiter = w;
+    fsaccess->client = this;
+    fsaccess->waiter = w;
     transferlist.client = this;
 
     if ((app = a))
@@ -1268,11 +1270,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
 
     waiter = w;
     httpio = h;
-    
-    fsaccess = move(f);
-#ifdef ENABLE_SYNC
-    fsaccess->initFilesystemNotificationSystem();
-#endif // ENABLE_SYNC
 
     dbaccess = d;
 
@@ -2183,7 +2180,7 @@ void MegaClient::exec()
                         // Fail all syncs.
                         // Setting flag for fail rather than disable
                         std::promise<bool> pb;
-                        syncs.disableSelectedSyncs([](SyncConfig&, Sync* s){ return !!s; },
+                        syncs.disableSyncs(
                             true,
                             TOO_MANY_ACTION_PACKETS,
                             false,
@@ -2537,9 +2534,7 @@ void MegaClient::exec()
 
                 if (syncErr != NO_SYNC_ERROR)
                 {
-                    syncs.disableSelectedSyncs(
-                        [&](SyncConfig&, Sync* s) { return s == sync; },
-                        true, syncErr, false, nullptr);
+                    syncs.disableSyncByBackupId(sync->getConfig().mBackupId, true, syncErr, false, nullptr);
                 }
             }
         });
@@ -4288,7 +4283,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     accountsince = 0;
     gmfa_enabled = false;
     ssrs_enabled = false;
-    nsr_enabled = false;
     aplvp_enabled = false;
     mNewLinkFormat = false;
     mCookieBannerEnabled = false;
@@ -4458,7 +4452,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     {
         // Special case backward compatibility for MEGAsync
         // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-        syncs.disableSyncs(LOGGED_OUT, false);
+        syncs.disableSyncs(false, LOGGED_OUT, false, nullptr);
     }
     else
     {
@@ -5365,7 +5359,7 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
     key->cbc_encrypt((byte*)data->data(), data->size());
 
-    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, std::move(data)));
+    queuedfa.push_back(new HttpReqCommandPutFA(th, t, usehttps, tag, 0, std::move(data)));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
@@ -5409,7 +5403,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
         if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
         {
-            syncs.disableSyncs(STORAGE_OVERQUOTA, false);
+            syncs.disableSyncs(false, STORAGE_OVERQUOTA, false, nullptr);
         }
 #endif
 
@@ -7122,7 +7116,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(BUSINESS_EXPIRED, false);
+            syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
         }
 #endif
     }
@@ -7298,8 +7292,8 @@ void MegaClient::notifypurge(void)
 
                 if (syncErr != NO_SYNC_ERROR)
                 {
-                    syncs.disableSelectedSyncs(
-                        [&](SyncConfig&, Sync* s) { return s == activeSync.get(); },
+                    syncs.disableSyncByBackupId(
+                        activeSync->getConfig().mBackupId,
                         true, syncErr, false, nullptr);
                 }
             }
@@ -7769,6 +7763,18 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
         return API_EKEY;
     }
 
+    // Check and delete invalid fav attributes
+    {
+        std::vector<nameid> nameIds = { AttrMap::string2nameid("fav"), AttrMap::string2nameid("lbl") };
+        for (nameid& nameId : nameIds)
+        {
+            auto itAttr= n->attrs.map.find(nameId);
+            if (itAttr != n->attrs.map.end() && (itAttr->second.empty() || itAttr->second == "0"))
+            {
+                updates[nameId] = "";
+            }
+        }
+    }
     n->changed.name = n->attrs.hasUpdate('n', updates);
     n->changed.favourite = n->attrs.hasUpdate(AttrMap::string2nameid("fav"), updates);
 
@@ -9083,9 +9089,6 @@ error MegaClient::readmiscflags(JSON *json)
         case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler (only available when logged in)
             ssrs_enabled = bool(json->getint());
             break;
-        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
-            nsr_enabled = bool(json->getint());
-            break;
         case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled (only available when logged in)
             aplvp_enabled = bool(json->getint());
             break;
@@ -10287,14 +10290,14 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writa
 }
 
 // Add/delete/remind outgoing pending contact request
-void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
+void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink, CommandSetPendingContact::Completion completion)
 {
-    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink));
+    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink, std::move(completion)));
 }
 
-void MegaClient::updatepcr(handle p, ipcactions_t action)
+void MegaClient::updatepcr(handle p, ipcactions_t action, CommandUpdatePendingContact::Completion completion)
 {
-    reqs.add(new CommandUpdatePendingContact(this, p, action));
+    reqs.add(new CommandUpdatePendingContact(this, p, action, std::move(completion)));
 }
 
 // enumerate Pro account purchase options (not fully implemented)
@@ -10453,14 +10456,14 @@ void MegaClient::getpaymentmethods()
 }
 
 // delete or block an existing contact
-error MegaClient::removecontact(const char* email, visibility_t show)
+error MegaClient::removecontact(const char* email, visibility_t show, CommandRemoveContact::Completion completion)
 {
     if (!strchr(email, '@') || (show != HIDDEN && show != BLOCKED))
     {
         return API_EARGS;
     }
 
-    reqs.add(new CommandRemoveContact(this, email, show));
+    reqs.add(new CommandRemoveContact(this, email, show, std::move(completion)));
 
     return API_OK;
 }
@@ -11853,7 +11856,7 @@ void MegaClient::block(bool fromServerClientResponse)
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
 #ifdef ENABLE_SYNC
-    syncs.disableSyncs(ACCOUNT_BLOCKED, false);
+    syncs.disableSyncs(false, ACCOUNT_BLOCKED, false, nullptr);
 #endif
 }
 
@@ -11973,21 +11976,6 @@ void MegaClient::createephemeralPlusPlus()
     createephemeral();
 }
 
-void MegaClient::sendsignuplink(const char* email, const char* name, const byte* pwhash)
-{
-    SymmCipher pwcipher(pwhash);
-    byte c[2 * SymmCipher::KEYLENGTH];
-
-    memcpy(c, key.key, sizeof key.key);
-    rng.genblock(c + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH / 4);
-    memset(c + SymmCipher::KEYLENGTH + SymmCipher::KEYLENGTH / 4, 0, SymmCipher::KEYLENGTH / 2);
-    rng.genblock(c + 2 * SymmCipher::KEYLENGTH - SymmCipher::KEYLENGTH / 4, SymmCipher::KEYLENGTH / 4);
-
-    pwcipher.ecb_encrypt(c, c, sizeof c);
-
-    reqs.add(new CommandSendSignupLink(this, email, name, c));
-}
-
 string MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
 {
     byte clientrandomvalue[SymmCipher::KEYLENGTH];
@@ -12026,18 +12014,6 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
 void MegaClient::resendsignuplink2(const char *email, const char *name)
 {
     reqs.add(new CommandSendSignupLink2(this, email, name));
-}
-
-// if query is 0, actually confirm account; just decode/query signup link
-// details otherwise
-void MegaClient::querysignuplink(const byte* code, unsigned len)
-{
-    reqs.add(new CommandQuerySignupLink(this, code, len));
-}
-
-void MegaClient::confirmsignuplink(const byte* code, unsigned len, uint64_t emailhash)
-{
-    reqs.add(new CommandConfirmSignupLink(this, code, len, emailhash));
 }
 
 void MegaClient::confirmsignuplink2(const byte *code, unsigned len)
@@ -12539,7 +12515,7 @@ void MegaClient::fetchnodes(bool nocache)
         // or they may be new ones that were not previously applied.
         // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
         // TODO: the sync rework branch, when ready, will be able to cope with this situation.
-        syncs.disableSyncs(WHOLE_ACCOUNT_REFETCHED, false);
+        syncs.disableSyncs(false, WHOLE_ACCOUNT_REFETCHED, false, nullptr);
 #endif
 
         if (!loggedinfolderlink())
@@ -14084,7 +14060,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
             UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
-            e = unifiedSync->enableSync(false, notifyApp);
+            e = unifiedSync->enableSync(false, notifyApp, logname);
 
             syncactivity = true;
 
@@ -14704,8 +14680,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                 {
                     if (!l->reported)
                     {
-                        char* buf = new char[(*it)->nodekey().size() * 4 / 3 + 4];
-                        Base64::btoa((byte *)(*it)->nodekey().data(), int((*it)->nodekey().size()), buf);
+                        // So we don't trip an assertion if the key's not decoded.
+                        auto& nodeKey = (*it)->nodekeyUnchecked();
+
+                        char* buf = new char[nodeKey.size() * 4 / 3 + 4];
+                        Base64::btoa((byte *)nodeKey.data(), int(nodeKey.size()), buf);
 
                         LOG_warn << "Sync: Undecryptable child node. " << buf;
 
@@ -15722,15 +15701,15 @@ void MegaClient::disableSyncContainingNode(NodeHandle nodeHandle, SyncError sync
 {
     if (Node* n = nodeByHandle(nodeHandle))
     {
-        auto activeSyncRootHandles = syncs.getSyncRootHandles(true);
-        for (NodeHandle rootHandle : activeSyncRootHandles)
+        auto activeConfigs = syncs.getConfigs(true);
+        for (auto& sc : activeConfigs)
         {
-            if (n->isbelow(rootHandle))
+            if (n->isbelow(sc.mRemoteNode))
             {
                 LOG_warn << "Disabling sync containing node " << n->displaypath();
-                syncs.disableSelectedSyncs([rootHandle](SyncConfig& c, Sync* sync) {
-                    return c.mRemoteNode == rootHandle;
-                    }, false, syncError, newEnabledFlag, nullptr);
+                syncs.disableSyncByBackupId(
+                    sc.mBackupId,
+                    false, syncError, newEnabledFlag, nullptr);
             }
         }
     }

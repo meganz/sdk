@@ -21,6 +21,9 @@ using namespace ::mega;
 using namespace ::std;
 
 
+extern string_vector envVarAccount;
+extern string_vector envVarPass;
+
 std::string logTime();
 void WaitMillisec(unsigned n);
 
@@ -190,7 +193,7 @@ struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
 #ifdef GFX_CLASS
-    GFX_CLASS gfx;
+    GfxProc gfx;
 #endif
 
     string client_dbaccess_path;
@@ -239,9 +242,10 @@ struct StandardClient : public MegaApp
 
     string ensureDir(const fs::path& p);
 
-    StandardClient(const fs::path& basepath, const string& name);
+    StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder = fs::path());
     ~StandardClient();
     void localLogout();
+    void logout(bool keepSyncsConfigFile);
 
     static mutex om;
     bool logcb = false;
@@ -416,15 +420,26 @@ struct StandardClient : public MegaApp
     }; // FilePut
 
     bool uploadFolderTree(fs::path p, Node* n2);
-    void uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo = NoVersioning);
-    void uploadFile(const fs::path& path, const string& name, Node* parent, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
-    bool uploadFile(const fs::path& path, const string& name, Node* parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
+    void uploadFile(const fs::path& path, const string& name, const Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo = NoVersioning);
+    void uploadFile(const fs::path& path, const string& name, const Node* parent, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
+    bool uploadFile(const fs::path& path, const string& name, const Node* parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
     bool uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
-    bool uploadFile(const fs::path& path, Node* parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
+    bool uploadFile(const fs::path& path, const Node* parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
     bool uploadFile(const fs::path& path, const string& parentPath, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
-    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo);
-    bool uploadFilesInTree(fs::path p, Node* n2, VersioningOption vo = NoVersioning);
-    void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
+    void uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo);
+    bool uploadFilesInTree(fs::path p, const Node* n2, VersioningOption vo = NoVersioning);
+    void uploadFilesInTree(fs::path p, const Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
+
+    void uploadFile(const fs::path& sourcePath,
+                    const string& targetName,
+                    const Node& parent,
+                    std::function<void(error)> completion,
+                    const VersioningOption versioningPolicy = NoVersioning);
+
+    void uploadFile(const fs::path& sourcePath,
+                    const Node& parent,
+                    std::function<void(error)> completion,
+                    const VersioningOption versioningPolicy = NoVersioning);
 
     class TreeProcPrintTree : public TreeProc
     {
@@ -442,6 +457,8 @@ struct StandardClient : public MegaApp
     void fetchnodes(bool noCache, PromiseBoolSP pb);
     bool fetchnodes(bool noCache = false);
     NewNode makeSubfolder(const string& utf8Name);
+
+    void catchup(std::function<void(error)> completion);
     void catchup(PromiseBoolSP pb);
 
     unsigned deleteTestBaseFolder(bool mayNeedDeleting);
@@ -481,8 +498,27 @@ struct StandardClient : public MegaApp
         const string& targetPath,
         const string& logname);
 
-    void setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
-        std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);
+    handle setupSync_mainthread(const string& localPath,
+                                const Node& remoteNode,
+                                const bool isBackup = false,
+                                const bool uploadIgnoreFile = true);
+
+    void setupSync_inThread(const string& localPath,
+                            const Node& remoteNode,
+                            const bool isBackup,
+                            const bool uploadIgnoreFile,
+                            PromiseHandleSP result);
+
+    handle setupSync_mainthread(const string& localPath,
+                                const string& remotePath,
+                                const bool isBackup = false,
+                                const bool uploadIgnoreFile = true);
+
+    handle setupSync_mainthread(const string& localPath,
+                                const handle remoteHandle,
+                                const bool isBackup = false,
+                                const bool uploadIgnoreFile = true);
+
     void importSyncConfigs(string configs, PromiseBoolSP result);
     bool importSyncConfigs(string configs);
     string exportSyncConfigs();
@@ -514,8 +550,8 @@ struct StandardClient : public MegaApp
     bool recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile);
     bool recursiveConfirm(Model::ModelNode* mn, fs::path p, int& descendants, const string& identifier, int depth, bool ignoreDebris, bool& firstreported, bool expectFail, bool skipIgnoreFile);
     Sync* syncByBackupId(handle backupId);
-    void enableSyncByBackupId(handle id, PromiseBoolSP result);
-    bool enableSyncByBackupId(handle id);
+    void enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname);
+    bool enableSyncByBackupId(handle id, const string& logname);
     void backupIdForSyncPath(const fs::path& path, PromiseHandleSP result);
 
     handle backupIdForSyncPath(fs::path path);
@@ -587,6 +623,7 @@ struct StandardClient : public MegaApp
     bool movenode(string path, string newParentPath);
     void movenode(string path, string newparentpath, PromiseBoolSP pb);
     void movenode(handle h1, handle h2, PromiseBoolSP pb);
+    bool movenode(handle h1, handle h2);
     void movenodetotrash(string path, PromiseBoolSP pb);
     void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
@@ -601,16 +638,33 @@ struct StandardClient : public MegaApp
     bool login(const string& user, const string& pw);
     bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false);
     bool login_fetchnodes(const string& session);
-    handle setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, bool isBackup = false, bool uploadIgnoreFirst = true);
     bool delSync_mainthread(handle backupId);
     bool confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris = false, int confirm = CONFIRM_ALL, bool expectFail = false, bool skipIgnoreFile = true);
     bool match(handle id, const Model::ModelNode* source);
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);
+    bool match(NodeHandle handle, const Model::ModelNode* source);
+    void match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result);
     bool waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
+
+    void ipcr(handle id, ipcactions_t action, PromiseBoolSP result);
+    bool ipcr(handle id, ipcactions_t action);
+    bool ipcr(handle id);
+
+    void   opcr(const string& email, opcactions_t action, PromiseHandleSP result);
+    handle opcr(const string& email, opcactions_t action);
+    bool   opcr(const string& email);
+
+    bool iscontact(const string& email);
+
+    void rmcontact(const string& email, PromiseBoolSP result);
+    bool rmcontact(const string& email);
+
+    void share(Node& node, const string& email, accesslevel_t permissions, PromiseBoolSP result);
+    bool share(Node& node, const string& email, accesslevel_t permissions);
 
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;

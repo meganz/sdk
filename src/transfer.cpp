@@ -547,7 +547,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
+                client->syncs.disableSyncs(false, BUSINESS_EXPIRED, false, nullptr);
                 alreadyDisabled = true;
             }
 #endif
