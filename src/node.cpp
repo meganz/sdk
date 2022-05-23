@@ -221,7 +221,7 @@ bool Node::serialize(string* d)
         LOG_debug << "Trying to serialize an encrypted node";
 
         //Last attempt to decrypt the node
-        applykey(true);
+        applykey();
         setattr();
 
         if (attrstring)
@@ -332,6 +332,7 @@ bool Node::serialize(string* d)
         d->append(1, '\1');
     }
 
+    // Use these bytes for extensions.
     d->append(4, '\0');
 
     if (inshare)
@@ -380,15 +381,7 @@ bool Node::serialize(string* d)
         }
     }
 
-    // Encrypted nodes have no attributes.
-    if (attrstring)
-    {
-        d->append(1, '\0');
-    }
-    else
-    {
-        attrs.serialize(d);
-    }
+    attrs.serialize(d);
 
     if (isExported)
     {
@@ -405,7 +398,7 @@ bool Node::serialize(string* d)
     if (attrstring)
     {
         // Write node key data.
-        auto length = (unsigned short)nodekeydata.size();
+        unsigned short length = (unsigned short)nodekeydata.size();
         d->append((char*)&length, sizeof(length));
         d->append(nodekeydata, 0, length);
 
@@ -680,7 +673,7 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
 }
 
 // attempt to apply node key - sets nodekey to a raw key if successful
-bool Node::applykey(bool notAppliedOk)
+bool Node::applykey()
 {
     if (type > FOLDERNODE)
     {
@@ -773,7 +766,7 @@ bool Node::applykey(bool notAppliedOk)
     }
 
     bool applied = keyApplied();
-    if (!applied && !notAppliedOk)
+    if (!applied)
     {
         LOG_warn << "Failed to apply key for node: " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
         // keys could be missing due to nested inshares with multiple users: user A shares a folder 1
