@@ -3886,11 +3886,21 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
         auto c = !removingBackupRemoteContents ? completion :
         [this, remoteNodeHandle, bkpDest, newNameOfMovedBackup, completion](Error err)
         {
-            if (error(err) && err != API_ENOENT)
+            if (error(err))
             {
-                LOG_err << "CommandBackupRemove failed";
-                if (completion)
-                    completion(err);
+                if (err == API_ENOENT)
+                {
+                    // backup has already been removed, so better to not touch the backup folder anymore
+                    // (it could had been moved to the cloud or deleted by the backup center already)
+                    LOG_warn << "Backup folder was already moved/deleted by Backup Center";
+                    err = API_OK;
+                }
+                else
+                {
+                    LOG_err << "CommandBackupRemove failed";
+                }
+
+                if (completion) completion(err);
                 return;
             }
 
