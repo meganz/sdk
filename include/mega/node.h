@@ -62,15 +62,14 @@ struct MEGA_API NodeCore
 struct MEGA_API NewNode : public NodeCore
 {
     static const int OLDUPLOADTOKENLEN = 27;
-    static const int UPLOADTOKENLEN = 36;
 
     string nodekey;
 
     newnodesource_t source = NEW_NODE;
 
-    handle ovhandle = UNDEF;
+    NodeHandle ovhandle;
     UploadHandle uploadhandle;
-    byte uploadtoken[UPLOADTOKENLEN]{};
+    UploadToken uploadtoken;
 
     handle syncid = UNDEF;
 #ifdef ENABLE_SYNC
@@ -80,8 +79,8 @@ struct MEGA_API NewNode : public NodeCore
 
     // versioning used for this new node, forced at server's side regardless the account's value
     VersioningOption mVersioningOption = NoVersioning;
-    bool added = false;
-    handle mAddedHandle = UNDEF;
+    bool added = false;           // set true when the actionpacket arrives
+    handle mAddedHandle = UNDEF;  // updated as actionpacket arrives
 };
 
 struct MEGA_API PublicLink
@@ -213,6 +212,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool parent : 1;
         bool publiclink : 1;
         bool newnode : 1;
+        bool name : 1;
+        bool favourite : 1;
 
 #ifdef ENABLE_SYNC
         // this field is only used internally in syncdown()

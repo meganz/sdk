@@ -48,7 +48,7 @@ set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web an
 set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
 set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
-set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or file listings")
+set (USE_PCRE 0 CACHE STRING "Can be used by client apps. The SDK does not use it itself anymore")
 set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
 set (MEGA_USE_C_ARES 1 CACHE STRING "If set, the SDK will manage DNS lookups and ipv4/ipv6 itself, using the c-ares library.  Otherwise we rely on cURL")
 set (MEGA_QT_VERSION 5.12.11 CACHE STRING "Qt version installed in c:/Qt")
@@ -574,7 +574,10 @@ set(UNICODE 1)
 
 if(WIN32)
 
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -D_CONSOLE )
+    IF(USE_PCRE)
+        add_definitions(-DPCRE_STATICWIN32 )
+    ENDIF(USE_PCRE)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
     SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<$<OR:${USE_CURL},${USE_WEBRTC}>:Wldap32.lib> )
     IF(USE_LIBUV)
@@ -867,7 +870,6 @@ target_compile_definitions(Mega PUBLIC
                 $<${ENABLE_CHAT}:ENABLE_CHAT>
                 $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
                 $<${USE_ROTATIVEPERFORMANCELOGGER}:USE_ROTATIVEPERFORMANCELOGGER>
-                $<${USE_ROTATIVEPERFORMANCELOGGER}:ENABLE_LOG_PERFORMANCE>
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE>
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>
@@ -1060,6 +1062,7 @@ endif()
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
+configure_file("${MegaDir}/tests/integration/test_cover_png.mp3" test_cover_png.mp3 COPYONLY)
 
 # actual apps
 

@@ -1042,11 +1042,11 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, synchronousShare(apiIndex, n, email, action)) << "Folder sharing failed" << "User: " << email << " Action: " << action;
 }
 
-void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable)
+void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable, bool megaHosted)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_EXPORT] = false;
 
-    auto err = synchronousExportNode(apiIndex, n, expireDate, writable);
+    auto err = synchronousExportNode(apiIndex, n, expireDate, writable, megaHosted);
 
     if (!expireDate || !isFreeAccount)
     {
@@ -1543,6 +1543,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // ___ Set duration of a node ___
 
     ASSERT_EQ(MegaError::API_OK, synchronousSetNodeDuration(0, n1.get(), 929734)) << "Cannot set node duration";
+
+
+    megaApi[0]->log(2, "test postlog", __FILE__, __LINE__);
 
     n1.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_EQ(929734, n1->getDuration()) << "Duration value does not match";
@@ -7348,5 +7351,60 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     // --- Clean rubbish bin for secondary account ---
     auto err = synchronousCleanRubbishBin(1);
     ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
+}
+
+/**
+ * @brief TEST_F SdkTestAudioFileThumbnail
+ *
+ * Tests extracting thumbnail for uploaded audio file.
+ *
+ * The file to be uploaded must exist or the test will fail.
+ * If environment variable MEGA_DIR_PATH_TO_INPUT_FILES is defined, the file is expected to be in that folder. Otherwise,
+ * a relative path will be checked. Currently, the relative path is dependent on the building tool
+ */
+#if !USE_FREEIMAGE || !USE_MEDIAINFO
+TEST_F(SdkTest, DISABLED_SdkTestAudioFileThumbnail)
+#else
+TEST_F(SdkTest, SdkTestAudioFileThumbnail)
+#endif
+{
+    LOG_info << "___TEST Audio File Thumbnail___";
+
+    const char* bufPathToMp3 = getenv("MEGA_DIR_PATH_TO_INPUT_FILES"); // needs platform-specific path separators
+    static const std::string AUDIO_FILENAME = "test_cover_png.mp3";
+
+    // Attempt to get the test audio file from these locations:
+    // 1. dedicated env var;
+    // 2. subtree location, like the one in the repo;
+    // 3. current working directory
+    LocalPath mp3LP;
+
+    if (bufPathToMp3)
+    {
+        mp3LP = LocalPath::fromAbsolutePath(bufPathToMp3);
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
+    }
+    else
+    {
+        mp3LP.append(LocalPath::fromRelativePath("."));
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath("tests"), false);
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath("integration"), false);
+        mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
+
+        if (!fileexists(mp3LP.toPath()))
+            mp3LP = LocalPath::fromRelativePath(AUDIO_FILENAME);
+    }
+
+    const std::string& mp3 = mp3LP.toPath();
+
+    ASSERT_TRUE(fileexists(mp3)) << mp3 << " file does not exist";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest());
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, mp3.c_str(), rootnode.get())) << "Cannot upload test file " << mp3;
+    std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
 }
 #endif

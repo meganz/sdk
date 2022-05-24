@@ -403,7 +403,7 @@ public:
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 
-    void createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false);
+    void createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable = false, bool megaHosted = false);
     void importPublicLink(unsigned apiIndex, string link, MegaNode *parent, int timeout = maxTimeout);
     void getPublicNode(unsigned apiIndex, string link, int timeout = maxTimeout);
     void removePublicLink(unsigned apiIndex, MegaNode *n, int timeout = maxTimeout);
