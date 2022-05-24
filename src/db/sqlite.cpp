@@ -688,7 +688,7 @@ bool SqliteAccountState::put(Node *node)
     sqlite3_stmt *stmt;
     int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
                                         "name, fingerprint, origFingerprint, type, size, share, fav, ctime, counter, node) "
-                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
+                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
 
     if (sqlResult == SQLITE_OK)
     {
