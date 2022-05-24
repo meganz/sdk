@@ -7567,21 +7567,22 @@ void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *
 char *MegaApiImpl::getAvatarColor(handle userhandle)
 {
     string colors[] = {
-        "#4ADC95",
-        "#10CC37",
-        "#31B500",
-        "#00897B",
-        "#00ACC1",
         "#61D2FF",
-        "#2BA6DE",
+        "#FC8A00",
+        "#C20075",
         "#FFD300",
-        "#FFA500",
-        "#FF6F00",
-        "#D84D02",
-        "#FF5252",
-        "#FF333A",
-        "#C51162",
-        "#880E4F"
+        "#57E65E",
+        "#BDBDBD",
+        "#4DB6AC",
+        "#7FEC7E",
+        "#FFA700",
+        "#FE219B",
+        "#F37476",
+        "#F99C9D",
+        "#B2EAF2",
+        "#69F0AE",
+        "#80DDEA",
+        "#FEEA3F"
     };
 
     auto index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
@@ -7592,21 +7593,22 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
 char *MegaApiImpl::getAvatarSecondaryColor(handle userhandle)
 {
     string colors[] = {
-        "#64FFB3",
-        "#13F241",
-        "#5FDB00",
-        "#00BDB2",
-        "#00D5E2",
-        "#9AEAFF",
-        "#55D2F0",
-        "#FFEB00",
-        "#FFD200",
-        "#FFA700",
-        "#FF8700",
-        "#FF8989",
-        "#FF626C",
-        "#E4269B",
-        "#BC2086"
+        "#2BA6DE",
+        "#D84D02",
+        "#8A0955",
+        "#FFA500",
+        "#31B500",
+        "#9E9E9E",
+        "#00897B",
+        "#13E03C",
+        "#FC7600",
+        "#C51162",
+        "#FF333A",
+        "#FF5252",
+        "#61D2FF",
+        "#00E890",
+        "#00ACC1"
+        "#FFD300"
     };
 
     auto index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
