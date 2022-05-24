@@ -611,7 +611,7 @@ struct StandardClient : public MegaApp
     void fetchnodes_result(const Error& e) override;
     bool setattr(const CloudItem& item, attr_map&& updates);
     void setattr(const CloudItem& item, attr_map&& updates, PromiseBoolSP result);
-    bool rename(const string& path, const string& newName);
+    bool rename(const CloudItem& item, const string& newName);
     void unlink_result(handle h, error e) override;
 
     handle lastPutnodesResultFirstHandle = UNDEF;

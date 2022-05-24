@@ -3110,17 +3110,9 @@ void StandardClient::setattr(const CloudItem& item, attr_map&& updates, PromiseB
                             }, nullptr);
 }
 
-bool StandardClient::rename(const string& path, const string& newName)
+bool StandardClient::rename(const CloudItem& item, const string& newName)
 {
-    // Locate the node corresponding to the specified path.
-    auto* node = drillchildnodebyname(gettestbasenode(), path);
-
-    // Can't rename a node that doesn't exist.
-    if (!node)
-        return false;
-
-    // Rename the node.
-    return setattr(node, attr_map('n', newName));
+    return setattr(item, attr_map('n', newName));
 }
 
 void StandardClient::unlink_result(handle h, error e)
@@ -4015,6 +4007,11 @@ SyncWaitPredicate SyncRemoteMatch(const CloudItem& item, const Model::ModelNode*
             result->set_value(false);
         }).get();
     };
+}
+
+SyncWaitPredicate SyncRemoteMatch(const CloudItem& item, const Model& source)
+{
+    return SyncRemoteMatch(item, source.root.get());
 }
 
 SyncWaitPredicate SyncRemoteNodePresent(const CloudItem& item)
@@ -16672,6 +16669,355 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
     // Make sure client 1 hasn't changed anything!
     ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
+}
+
+TEST_F(SyncTest, CloudHorizontalMoveChain)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("q.txt");
+    model.addfile("r.txt");
+    model.addfile("s.txt");
+    model.addfile(".megaignore", "#");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s", false, false);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto qh = client->getNodeHandle("s/q.txt");
+    ASSERT_NE(qh, UNDEF);
+    auto rh = client->getNodeHandle("s/r.txt");
+    ASSERT_NE(rh, UNDEF);
+    auto sh = client->getNodeHandle("s/s.txt");
+    ASSERT_NE(sh, UNDEF);
+
+    // Rotate the cloud files: x -> y -> z -> x
+    {
+        ScopedSyncPauser pauser(*client, id);
+        auto root = client->fsBasePath / "s";
+
+        model.findnode("s.txt")->name = "t.txt";
+        ASSERT_TRUE(client->rename(sh, "t.txt"));
+
+        model.findnode("r.txt")->name = "s.txt";
+        ASSERT_TRUE(client->rename(rh, "s.txt"));
+
+        model.findnode("q.txt")->name = "r.txt";
+        ASSERT_TRUE(client->rename(qh, "r.txt"));
+
+        // Wait for our changes to hit the cloud.
+        ASSERT_TRUE(client->waitFor(SyncRemoteMatch("s", model), DEFAULTWAIT));
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was synchronized correctly.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Make sure the nodes were truly moved.
+    EXPECT_EQ(qh, client->getNodeHandle("s/r.txt"));
+    EXPECT_EQ(rh, client->getNodeHandle("s/s.txt"));
+    EXPECT_EQ(sh, client->getNodeHandle("s/t.txt"));
+}
+
+TEST_F(SyncTest, CloudHorizontalMoveCycle)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("x.txt");
+    model.addfile("y.txt");
+    model.addfile("z.txt");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto xh = client->getNodeHandle("s/x.txt");
+    ASSERT_NE(xh, UNDEF);
+    auto yh = client->getNodeHandle("s/y.txt");
+    ASSERT_NE(yh, UNDEF);
+    auto zh = client->getNodeHandle("s/z.txt");
+    ASSERT_NE(zh, UNDEF);
+
+    // Rotate the cloud files: x -> y -> z -> x
+    {
+        ScopedSyncPauser pauser(*client, id);
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->rename(zh, "x.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->rename(yh, "z.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->rename(xh, "y.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), DEFAULTWAIT));
+
+    // Make sure we've stalled for the right reasons.
+    {
+        SyncStallInfo stalls;
+
+        ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+        ASSERT_EQ(stalls.cloud.size(), 3u);
+
+        std::set<PathProblem> problems;
+        std::set<SyncWaitReason> reasons;
+
+        for (auto& i : stalls.cloud)
+        {
+            reasons.emplace(i.second.reason);
+            problems.emplace(i.second.cloudPath1.problem);
+            problems.emplace(i.second.cloudPath2.problem);
+            problems.emplace(i.second.localPath1.problem);
+            problems.emplace(i.second.localPath2.problem);
+        }
+
+        problems.erase(PathProblem::NoProblem);
+
+        ASSERT_EQ(problems.size(), 1u);
+        ASSERT_EQ(*problems.begin(), PathProblem::WaitingForAnotherMoveToComplete);
+
+        ASSERT_EQ(reasons.size(), 1u);
+        ASSERT_EQ(*reasons.begin(), SyncWaitReason::MoveOrRenameCannotOccur);
+    }
+
+    // Make sure nothing's changed on disk.
+    EXPECT_TRUE(client->confirmModel_mainthread(
+                  model.root.get(),
+                  id,
+                  false,
+                  StandardClient::CONFIRM_LOCALFS));
+
+    // Make sure the nodes haven't been moved in the cloud.
+    EXPECT_EQ(xh, client->getNodeHandle("s/y.txt"));
+    EXPECT_EQ(yh, client->getNodeHandle("s/z.txt"));
+    EXPECT_EQ(zh, client->getNodeHandle("s/x.txt"));
+}
+
+TEST_F(SyncTest, CloudVerticalMoveChain)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("q.txt");
+    model.addfile("0/r.txt");
+    model.addfile("0/1/s.txt");
+    model.addfolder("0/1/2");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto qh = client->getNodeHandle("s/q.txt");
+    ASSERT_NE(qh, UNDEF);
+    auto rh = client->getNodeHandle("s/0/r.txt");
+    ASSERT_NE(rh, UNDEF);
+    auto sh = client->getNodeHandle("s/0/1/s.txt");
+    ASSERT_NE(sh, UNDEF);
+
+    // Rotate the local files: q -> 0/r -> 0/1/s -> 0/1/2/t
+    {
+        ScopedSyncPauser pauser(*client, id);
+
+        auto node = model.removenode("0/1/s.txt");
+        node->name = "t.txt";
+        model.findnode("0/1/2")->addkid(std::move(node));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(sh, "s/0/1/2", "t.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        node = model.removenode("0/r.txt");
+        node->name = "s.txt";
+        model.findnode("0/1")->addkid(std::move(node));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(rh, "s/0/1", "s.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        node = model.removenode("q.txt");
+        node->name = "r.txt";
+        model.findnode("0")->addkid(std::move(node));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(qh, "s/0", "r.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure the moves were synchronized correctly.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Make sure the nodes have actually been moved.
+    EXPECT_EQ(qh, client->getNodeHandle("s/0/r.txt"));
+    EXPECT_EQ(rh, client->getNodeHandle("s/0/1/s.txt"));
+    EXPECT_EQ(sh, client->getNodeHandle("s/0/1/2/t.txt"));
+}
+
+TEST_F(SyncTest, CloudVerticalMoveCycle)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("x.txt", "x");
+    model.addfile("0/y.txt", "y");
+    model.addfile("0/1/z.txt", "z");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto xh = client->getNodeHandle("s/x.txt");
+    ASSERT_NE(xh, UNDEF);
+    auto yh = client->getNodeHandle("s/0/y.txt");
+    ASSERT_NE(yh, UNDEF);
+    auto zh = client->getNodeHandle("s/0/1/z.txt");
+    ASSERT_NE(zh, UNDEF);
+
+    // Rotate the local files: x -> 0/y -> 0/1/z -> x
+    {
+        ScopedSyncPauser pauser(*client, id);
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(yh, "s/0/1", "z.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(xh, "s/0", "y.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(zh, "s", "x.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), DEFAULTWAIT));
+
+    // Make sure we've stalled for the right reasons.
+    {
+        SyncStallInfo stalls;
+
+        ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+        ASSERT_EQ(stalls.cloud.size(), 3u);
+
+        std::set<PathProblem> problems;
+        std::set<SyncWaitReason> reasons;
+
+        for (auto& i : stalls.cloud)
+        {
+            reasons.emplace(i.second.reason);
+            problems.emplace(i.second.cloudPath1.problem);
+            problems.emplace(i.second.cloudPath2.problem);
+            problems.emplace(i.second.localPath1.problem);
+            problems.emplace(i.second.localPath2.problem);
+        }
+
+        problems.erase(PathProblem::NoProblem);
+
+        ASSERT_EQ(problems.size(), 1u);
+        ASSERT_EQ(*problems.begin(), PathProblem::WaitingForAnotherMoveToComplete);
+
+        ASSERT_EQ(reasons.size(), 1u);
+        ASSERT_EQ(*reasons.begin(), SyncWaitReason::MoveOrRenameCannotOccur);
+    }
+
+    // Make sure nothing's changed on the local filesystem.
+    ASSERT_TRUE(client->confirmModel_mainthread(
+                  model.root.get(),
+                  id,
+                  false,
+                  StandardClient::CONFIRM_LOCALFS));
+
+    // Make sure the cloud remains the way we made it.
+    EXPECT_EQ(xh, client->getNodeHandle("s/0/y.txt"));
+    EXPECT_EQ(yh, client->getNodeHandle("s/0/1/z.txt"));
+    EXPECT_EQ(zh, client->getNodeHandle("s/x.txt"));
 }
 
 TEST_F(SyncTest, LocalHorizontalMoveChain)
