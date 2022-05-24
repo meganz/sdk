@@ -15906,13 +15906,13 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<Me
     activeRequest = request;
     activeError = e.get();
 
-    if(e->getErrorCode())
+    if (!e->getErrorCode() || (request->getType() == MegaRequest::TYPE_BACKUP_REMOVE && e->getErrorCode() == API_ENOENT))
     {
-        LOG_warn << (client ? client->clientname : "") << "Request (" << request->getRequestString() << ") finished with error: " << e->getErrorString();
+        LOG_info << (client ? client->clientname : "") << "Request (" << request->getRequestString() << ") finished";
     }
     else
     {
-        LOG_info << (client ? client->clientname : "") << "Request (" << request->getRequestString() << ") finished";
+        LOG_warn << (client ? client->clientname : "") << "Request (" << request->getRequestString() << ") finished with error: " << e->getErrorString();
     }
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)

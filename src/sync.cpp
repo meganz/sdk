@@ -3881,25 +3881,21 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
             }
         }
 
-        unloadSyncByIndex(index);
+        NodeHandle remoteNodeHandle = config.mRemoteNode;
 
         auto c = !removingBackupRemoteContents ? completion :
-        [this, config, bkpDest, newNameOfMovedBackup, completion](Error err)
+        [this, remoteNodeHandle, bkpDest, newNameOfMovedBackup, completion](Error err)
         {
             if (error(err) && err != API_ENOENT)
             {
                 LOG_err << "CommandBackupRemove failed";
                 if (completion)
                     completion(err);
+                return;
             }
-
-            // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
-            mClient.app->sync_removed(config);
-            mSyncConfigStore->markDriveDirty(config.mExternalDrivePath);
 
             // remote node may be missing, due to an incomplete earlier removal that ended in error,
             // but if it's there then it must be in Vault
-            NodeHandle remoteNodeHandle = config.mRemoteNode;
             Node* remoteNode = mClient.nodeByHandle(remoteNodeHandle);
             assert(!remoteNode || remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault);
 
@@ -3957,8 +3953,24 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
                 LOG_warn << "Remote node of the backup not found";
             }
         };
+
+        auto removeSyncConfig = [this, config, index, c](Error err)
+        {
+            if (error(err) == API_OK || err == API_ENOENT)
+            {
+                // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
+                mClient.app->sync_removed(config);
+                mSyncConfigStore->markDriveDirty(config.mExternalDrivePath);
+                unloadSyncByIndex(index);
+            }
+
+            // continue with completion of either sync removal or backup remote data removal
+            if (c)
+                c(err);
+        };
+
         // unregister this sync/backup from API (backup center)
-        mClient.reqs.add(new CommandBackupRemove(&mClient, config.mBackupId, c));
+        mClient.reqs.add(new CommandBackupRemove(&mClient, config.mBackupId, removeSyncConfig));
 
         return API_OK;
     }
