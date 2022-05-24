@@ -32,7 +32,6 @@ class DBTableTransactionCommitter;
 class NodeSerialized
 {
 public:
-    bool mDecrypted = true;
     std::string mNode;
 };
 

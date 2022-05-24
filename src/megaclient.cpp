@@ -11924,7 +11924,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
             case CACHEDNODE:
                 LOG_info << "Loading nodes from old cache";
-                if ((n = mNodeManager.unserializeNode(&data, true, true)))
+                if ((n = mNodeManager.unserializeNode(&data, true)))
                 {
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
@@ -16884,7 +16884,7 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         if (!n)
         {
             const NodeSerialized& ns = nHandleSerialized.second;
-            n = getNodeFromBlob(&ns.mNode, ns.mDecrypted);
+            n = getNodeFromBlob(&ns.mNode);
             if (!n)
             {
                 nodes.clear();
@@ -16953,7 +16953,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         Node* n = getNodeInRAM(nodeMapIt.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nodeMapIt.second.mNode, nodeMapIt.second.mDecrypted);
+            n = getNodeFromBlob(&nodeMapIt.second.mNode);
             if (!n)
             {
                 nodes.clear();
@@ -17009,7 +17009,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode);
             if (!n)
             {
                 nodes.clear();
@@ -17065,7 +17065,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     Node* n = getNodeInRAM(nodeSerialized.first);
     if (!n) // not loaded yet
     {
-        n = getNodeFromBlob(&nodeSerialized.second.mNode, nodeSerialized.second.mDecrypted);
+        n = getNodeFromBlob(&nodeSerialized.second.mNode);
     }
 
     return n;
@@ -17088,7 +17088,7 @@ node_vector NodeManager::getRootNodes()
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode);
             if (!n)
             {
                 nodes.clear();
@@ -17139,7 +17139,7 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode, nHandleSerialized.second.mDecrypted);
+            n = getNodeFromBlob(&nHandleSerialized.second.mNode);
             if (!n)
             {
                 nodes.clear();
@@ -17187,9 +17187,9 @@ void NodeManager::loadTreeRecursively(const Node* node)
     }
 }
 
-Node *NodeManager::getNodeFromBlob(const std::string* serializedNode, bool decrypted)
+Node *NodeManager::getNodeFromBlob(const std::string* serializedNode)
 {
-    Node* node = unserializeNode(serializedNode, decrypted);
+    Node* node = unserializeNode(serializedNode, false);
     if (!node)
     {
         LOG_err << "Error unserializing a node. Reloading account";
@@ -17357,7 +17357,7 @@ void NodeManager::cleanNodes()
 
 // parse serialized node and return Node object - updates nodes hash and parent
 // mismatch vector
-Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fromOldCache)
+Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
 {
     handle h, ph;
     nodetype_t t;
@@ -17416,35 +17416,17 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     ts = (uint32_t)MemAccess::get<time_t>(ptr);
     ptr += sizeof(time_t);
 
-    std::string undecryptedKey;
-    if (decrypted)
+    if ((t == FILENODE) || (t == FOLDERNODE))
     {
-        if ((t == FILENODE) || (t == FOLDERNODE))
-        {
-            int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
 
-            if (ptr + keylen + 8 + sizeof(short) > end)
-            {
-                return NULL;
-            }
-
-            k = (const byte*)ptr;
-            ptr += keylen;
-        }
-    }
-    else
-    {
-        ll = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof ll;
-
-        if (ptr + ll > end)
+        if (ptr + keylen + 8 + sizeof(short) > end)
         {
             return NULL;
         }
 
-        k = nullptr;
-        undecryptedKey = std::string(ptr, ll);
-        ptr += ll;
+        k = (const byte*)ptr;
+        ptr += keylen;
     }
 
     if (t == FILENODE)
@@ -17486,7 +17468,16 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
         ptr += authKeySize;
     }
 
-    for (i = 5; i--;)
+    if (ptr + (unsigned)*ptr > end)
+    {
+        return nullptr;
+    }
+
+    auto encrypted = *ptr && ptr[1];
+
+    ptr += (unsigned)*ptr + 1;
+    
+    for (i = 4; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -17525,13 +17516,9 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     // before loading specific nodes from database
     n->setparent(getNodeByHandle(n->parentHandle()), false);
 
-    if (k)
+    if (!encrypted && k)
     {
         n->setkey(k);
-    }
-    else if (!decrypted)
-    {
-        n->setUndecryptedKey(undecryptedKey);
     }
 
     // read inshare, outshares, or pending shares
@@ -17569,30 +17556,13 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
         }
     }
 
-    if (decrypted)
+    ptr = n->attrs.unserialize(ptr, end);
+    if (!ptr)
     {
-        ptr = n->attrs.unserialize(ptr, end);
-        if (!ptr)
-        {
-            mNodes.erase(n->nodeHandle());
-            LOG_err << "Failed to unserialize attrs";
-            assert(false);
-            return NULL;
-        }
-    }
-    else
-    {
-        ll = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof ll;
-
-        if (ptr + ll > end)
-        {
-            mNodes.erase(n->nodeHandle());
-            return NULL;
-        }
-
-        n->attrstring = make_unique<std::string>(ptr, ll);
-        ptr += ll;
+        mNodes.erase(n->nodeHandle());
+        LOG_err << "Failed to unserialize attrs";
+        assert(false);
+        return NULL;
     }
 
     // It's needed to re-normalize node names because
@@ -17634,6 +17604,49 @@ Node *NodeManager::unserializeNode(const std::string *d, bool decrypted, bool fr
     n->plink = plink;
 
     n->setfingerprint();
+
+    if (encrypted)
+    {
+        // Have we encoded the node key data's length?
+        if (ptr + sizeof(unsigned short) > end)
+        {
+            mNodes.erase(n->nodeHandle());
+            return nullptr;
+        }
+
+        auto length = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(length);
+
+        // Have we encoded the node key data?
+        if (ptr + length > end)
+        {
+            mNodes.erase(n->nodeHandle());
+            return nullptr;
+        }
+
+        n->setUndecryptedKey(string(ptr, length));
+        ptr += length;
+
+        // Have we encoded the length of the attribute string?
+        if (ptr + sizeof(unsigned short) > end)
+        {
+            mNodes.erase(n->nodeHandle());
+            return nullptr;
+        }
+
+        length = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(length);
+
+        // Have we encoded the attribute string?
+        if (ptr + length > end)
+        {
+            mNodes.erase(n->nodeHandle());
+            return nullptr;
+        }
+
+        n->attrstring.reset(new string(ptr, length));
+        ptr += length;
+    }
 
     if (ptr == end)
     {
@@ -18257,7 +18270,7 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     NodeSerialized nodeSerialized;
     if (mTable->getNode(handle, nodeSerialized))
     {
-        node = getNodeFromBlob(&nodeSerialized.mNode, nodeSerialized.mDecrypted);
+        node = getNodeFromBlob(&nodeSerialized.mNode);
     }
 
     return node;

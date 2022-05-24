@@ -154,7 +154,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // Create specific table for handle nodes
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
-                      "type tinyint, size int64, share tinyint, decrypted tinyint, fav tinyint, "
+                      "type tinyint, size int64, share tinyint, fav tinyint, "
                       "ctime int64, node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
@@ -562,10 +562,9 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, T &nodes)
         nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
 
         NodeSerialized node;
-        node.mDecrypted = sqlite3_column_int(stmt, 1);
 
-        const void* data = sqlite3_column_blob(stmt, 2);
-        int size = sqlite3_column_bytes(stmt, 2);
+        const void* data = sqlite3_column_blob(stmt, 1);
+        int size = sqlite3_column_bytes(stmt, 1);
         if (data && size)
         {
             node.mNode = std::string(static_cast<const char*>(data), size);
@@ -648,8 +647,8 @@ bool SqliteAccountState::put(Node *node)
 
     sqlite3_stmt *stmt;
     int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                        "name, fingerprint, origFingerprint, type, size, share, decrypted, fav, ctime, node) "
-                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
+                                        "name, fingerprint, origFingerprint, type, size, share, fav, ctime, node) "
+                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         string nodeSerialized;
@@ -681,13 +680,12 @@ bool SqliteAccountState::put(Node *node)
         sqlite3_bind_int(stmt, 8, shareType);
 
         // node->attrstring has value => node is encrypted
-        sqlite3_bind_int(stmt, 9, !node->attrstring);
         nameid favId = AttrMap::string2nameid("fav");
         auto favIt = node->attrs.map.find(favId);
         bool fav = (favIt != node->attrs.map.end() && favIt->second == "1"); // test 'fav' attr value (only "1" is valid)
-        sqlite3_bind_int(stmt, 10, fav);
-        sqlite3_bind_int64(stmt, 11, node->ctime);
-        sqlite3_bind_blob(stmt, 12, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        sqlite3_bind_int(stmt, 9, fav);
+        sqlite3_bind_int64(stmt, 10, node->ctime);
+        sqlite3_bind_blob(stmt, 11, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
 
         sqlResult = sqlite3_step(stmt);
     }
@@ -713,19 +711,17 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
     }
 
     nodeSerialized.mNode.clear();
-    nodeSerialized.mDecrypted = true;
 
     int sqlResult = SQLITE_ERROR;
     sqlite3_stmt *stmt;
-    if ((sqlResult = sqlite3_prepare(db, "SELECT decrypted, node FROM nodes  WHERE nodehandle = ?", -1, &stmt, NULL)) == SQLITE_OK)
+    if ((sqlResult = sqlite3_prepare(db, "SELECT node FROM nodes  WHERE nodehandle = ?", -1, &stmt, NULL)) == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int64(stmt, 1, nodehandle.as8byte())) == SQLITE_OK)
         {
             if((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
             {
-                nodeSerialized.mDecrypted = sqlite3_column_int(stmt, 0);
-                const void* data = sqlite3_column_blob(stmt, 1);
-                int size = sqlite3_column_bytes(stmt, 1);
+                const void* data = sqlite3_column_blob(stmt, 0);
+                int size = sqlite3_column_bytes(stmt, 0);
                 if (data && size)
                 {
                     nodeSerialized.mNode.assign(static_cast<const char*>(data), size);
@@ -756,7 +752,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
 
     sqlite3_stmt *stmt;
     bool result = false;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE origfingerprint = ?", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, node FROM nodes WHERE origfingerprint = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_blob(stmt, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
@@ -786,7 +782,7 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
 
     sqlite3_stmt *stmt;
     bool result = false;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE type >= ? AND type <= ?", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, node FROM nodes WHERE type >= ? AND type <= ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         // nodeHandleUndef; // By default is set as undef
@@ -819,7 +815,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
 
     sqlite3_stmt *stmt;
     bool result = false;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int(stmt, 1, static_cast<int>(shareType))) == SQLITE_OK)
@@ -849,7 +845,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::
 
     // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
     // (with or without any additional char at the beginning and/or end of the name). The '%' is the wildcard in SQL
-    std::string sqlQuery = "SELECT nodehandle, decrypted, node FROM nodes WHERE LOWER(name) LIKE LOWER(";
+    std::string sqlQuery = "SELECT nodehandle, node FROM nodes WHERE LOWER(name) LIKE LOWER(";
     sqlQuery.append("'%")
             .append(name)
             .append("%')");
@@ -892,7 +888,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
         "SELECT COUNT(nodehandle) FROM nodesCTE where type = " + std::to_string(RUBBISHNODE);
     const std::string filenode = std::to_string(FILENODE);
 
-    std::string sqlQuery = "SELECT n1.nodehandle, n1.decrypted, n1.node, (" + isInRubbish + ") isinrubbish FROM nodes n1 "
+    std::string sqlQuery = "SELECT n1.nodehandle, n1.node, (" + isInRubbish + ") isinrubbish FROM nodes n1 "
         "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle"
         " where n1.type = " + filenode + " AND n1.ctime >= ? AND n2.type != " + filenode + " AND isinrubbish = 0"
         " ORDER BY n1.ctime DESC";
@@ -1003,8 +999,6 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
                 if((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
                 {
                     node.first.set6byte(sqlite3_column_int64(stmt, 0));
-                    // matches by 'name' requires node to be decrypted at all times
-                    node.second.mDecrypted = true;
                     const void* data = sqlite3_column_blob(stmt, 1);
                     int size = sqlite3_column_bytes(stmt, 1);
                     if (data && size)

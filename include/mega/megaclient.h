@@ -312,7 +312,7 @@ public:
     void cleanNodes();
 
     // reads from DB and loads the node in memory
-    Node* unserializeNode(const string*, bool decrypted = true, bool fromOldCache = false);
+    Node* unserializeNode(const string*, bool fromOldCache);
 
     // attempt to apply received keys to decrypt node's keys
     void applyKeys(uint32_t appliedKeys);
@@ -443,7 +443,7 @@ private:
     void loadTreeRecursively(const Node *node);
 
     // returns nullptr if there are unserialization errors. Also triggers a full reload (fetchnodes)
-    Node* getNodeFromBlob(const string* serializedNode, bool decrypted = true);
+    Node* getNodeFromBlob(const string* serializedNode);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
