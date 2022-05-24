@@ -1680,10 +1680,10 @@ std::string NodeCounter::serialize() const
 {
     std::string nodeCountersBlob;
     CacheableWriter w(nodeCountersBlob);
-    w.serializeu64(files);
-    w.serializeu64(folders);
+    w.serializesize_t(files);
+    w.serializesize_t(folders);
     w.serializei64(storage);
-    w.serializeu64(versions);
+    w.serializesize_t(versions);
     w.serializei64(versionStorage);
 
     return nodeCountersBlob;
@@ -1692,10 +1692,10 @@ std::string NodeCounter::serialize() const
 NodeCounter::NodeCounter(const std::string &blob)
 {
     CacheableReader r(blob);
-    r.unserializeu64(files);
-    r.unserializeu64(folders);
+    r.unserializesize_t(files);
+    r.unserializesize_t(folders);
     r.unserializei64(storage);
-    r.unserializeu64(versions);
+    r.unserializesize_t(versions);
     r.unserializei64(versionStorage);
 }
 
