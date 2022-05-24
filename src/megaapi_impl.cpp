@@ -21318,12 +21318,6 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             handle backupTarget = request->getNodeHandle();
-            if (c.isBackup() && !ISUNDEF(backupTarget) && client->nodebyhandle(backupTarget) == nullptr)
-            {
-                LOG_err << "Backup destination not found: " << Base64Str<MegaClient::NODEHANDLE>(backupTarget);
-                e = API_EARGS;
-                break;
-            }
 
             e = client->syncs.removeSelectedSync([&](SyncConfig& c, Sync* sync)
             {
