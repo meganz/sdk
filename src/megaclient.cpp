@@ -17575,6 +17575,13 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         LocalPath::utf8_normalize(&(it->second));
     }
 
+    if (!encrypted)
+    {
+        // only if the node is not encrypted, we can generate a valid
+        // fingerprint, based on the node's attribute 'c'
+        n->setfingerprint();
+    }
+
     PublicLink *plink = NULL;
     if (isExported)
     {
@@ -17602,8 +17609,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
     }
     n->plink = plink;
-
-    n->setfingerprint();
 
     if (encrypted)
     {
