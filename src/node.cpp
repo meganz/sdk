@@ -226,7 +226,6 @@ void Node::setkey(const byte* newkey)
 bool Node::serialize(string* d)
 {
     // do not serialize encrypted nodes
-    bool decrypted = true;
     if (attrstring)
     {
         LOG_debug << "Trying to serialize an encrypted node";
@@ -237,22 +236,21 @@ bool Node::serialize(string* d)
 
         if (attrstring)
         {
-            LOG_warn << "Unable undecryptable node, save in bd encryped";
-            decrypted = false;
+            LOG_debug << "Serializing an encrypted node.";
         }
     }
 
     switch (type)
     {
         case FILENODE:
-            if ((int)nodekeydata.size() != FILENODEKEYLENGTH && decrypted)
+            if (!attrstring && (int)nodekeydata.size() != FILENODEKEYLENGTH)
             {
                 return false;
             }
             break;
 
         case FOLDERNODE:
-            if ((int)nodekeydata.size() != FOLDERNODEKEYLENGTH && decrypted)
+            if (!attrstring && (int)nodekeydata.size() != FOLDERNODEKEYLENGTH)
             {
                 return false;
             }
@@ -293,15 +291,24 @@ bool Node::serialize(string* d)
     ts = (time_t)ctime;
     d->append((char*)&ts, sizeof(ts));
 
-    if (decrypted)
+    if (attrstring)
     {
-        d->append(nodekeydata);
+        auto length = 0u;
+
+        if (type == FOLDERNODE)
+        {
+            length = FOLDERNODEKEYLENGTH;
+        }
+        else if (type == FILENODE)
+        {
+            length = FILENODEKEYLENGTH;
+        }
+
+        d->append(length, '\0');
     }
     else
     {
-        ll = static_cast<unsigned short>(nodekeydata.size() + 1);
-        d->append((char*)&ll, sizeof ll);
-        d->append(nodekeydata.c_str(), ll);
+        d->append(nodekeydata);
     }
 
     if (type == FILENODE)
@@ -328,7 +335,15 @@ bool Node::serialize(string* d)
         d->append("", 1);
     }
 
-    d->append("\0\0\0\0", 5); // Use these bytes for extensions
+    d->append(1, static_cast<char>(!!attrstring));
+
+    if (attrstring)
+    {
+        d->append(1, '\1');
+    }
+
+    // Use these bytes for extensions.
+    d->append(4, '\0');
 
     if (inshare)
     {
@@ -376,16 +391,7 @@ bool Node::serialize(string* d)
         }
     }
 
-    if (decrypted)
-    {
-        attrs.serialize(d);
-    }
-    else
-    {
-        ll = static_cast<unsigned short>(attrstring->size() + 1);
-        d->append((char*)&ll, sizeof ll);
-        d->append(attrstring->c_str(), ll);
-    }
+    attrs.serialize(d);
 
     if (isExported)
     {
@@ -396,6 +402,20 @@ bool Node::serialize(string* d)
         {
             d->append((char*) &plink->cts, sizeof(plink->cts));
         }
+    }
+
+    // Write data necessary to thaw encrypted nodes.
+    if (attrstring)
+    {
+        // Write node key data.
+        unsigned short length = (unsigned short)nodekeydata.size();
+        d->append((char*)&length, sizeof(length));
+        d->append(nodekeydata, 0, length);
+
+        // Write attribute string data.
+        length = (unsigned short)attrstring->size();
+        d->append((char*)&length, sizeof(length));
+        d->append(*attrstring, 0, length);
     }
 
     return true;
