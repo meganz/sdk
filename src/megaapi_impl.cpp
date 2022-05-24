@@ -10808,7 +10808,6 @@ MegaShareList* MegaApiImpl::getInSharesList(int order)
     }
 
     MegaShareList *shareList = new MegaShareListPrivate(shares.data(), handles.data(), int(shares.size()));
-    sdkMutex.unlock();
     return shareList;
 }
 
