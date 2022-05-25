@@ -155,7 +155,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
                       "type tinyint, size int64, share tinyint, fav tinyint, "
-                      "ctime int64, node BLOB NOT NULL)";
+                      "ctime int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
@@ -551,8 +551,7 @@ SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAcce
 
 }
 
-template <class T>
-bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, T &nodes)
+bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes)
 {
     assert(stmt);
     int sqlResult = SQLITE_ERROR;
@@ -563,8 +562,17 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, T &nodes)
 
         NodeSerialized node;
 
+        // Blob node counter
         const void* data = sqlite3_column_blob(stmt, 1);
         int size = sqlite3_column_bytes(stmt, 1);
+        if (data && size)
+        {
+            node.mNodeCounter = std::string(static_cast<const char*>(data), size);
+        }
+
+        // blob node
+        data = sqlite3_column_blob(stmt, 2);
+        size = sqlite3_column_bytes(stmt, 2);
         if (data && size)
         {
             node.mNode = std::string(static_cast<const char*>(data), size);
@@ -636,6 +644,38 @@ void SqliteAccountState::cancelQuery()
     sqlite3_interrupt(db);
 }
 
+void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob)
+{
+    if (!db)
+    {
+        return;
+    }
+
+    int sqlResult = SQLITE_ERROR;
+    sqlite3_stmt *stmt;
+    sqlResult = sqlite3_prepare(db, "UPDATE nodes SET counter = ?  WHERE nodehandle = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_blob(stmt, 1, nodeCounterBlob.data(), static_cast<int>(nodeCounterBlob.size()), SQLITE_STATIC)) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_bind_int64(stmt, 2, nodeHandle.as8byte())) == SQLITE_OK)
+            {
+                sqlResult = sqlite3_step(stmt);
+            }
+        }
+
+    }
+
+    sqlite3_finalize(stmt);
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to update counter in database: " << dbfile << err;
+        assert(!"Unable to update counter in database: ");
+    }
+}
+
 bool SqliteAccountState::put(Node *node)
 {
     if (!db)
@@ -647,8 +687,9 @@ bool SqliteAccountState::put(Node *node)
 
     sqlite3_stmt *stmt;
     int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                        "name, fingerprint, origFingerprint, type, size, share, fav, ctime, node) "
-                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
+                                        "name, fingerprint, origFingerprint, type, size, share, fav, ctime, counter, node) "
+                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
+
     if (sqlResult == SQLITE_OK)
     {
         string nodeSerialized;
@@ -685,7 +726,9 @@ bool SqliteAccountState::put(Node *node)
         bool fav = (favIt != node->attrs.map.end() && favIt->second == "1"); // test 'fav' attr value (only "1" is valid)
         sqlite3_bind_int(stmt, 9, fav);
         sqlite3_bind_int64(stmt, 10, node->ctime);
-        sqlite3_bind_blob(stmt, 11, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        std::string nodeCountersBlob = node->getCounter().serialize();
+        sqlite3_bind_blob(stmt, 11, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(stmt, 12, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
 
         sqlResult = sqlite3_step(stmt);
     }
@@ -714,7 +757,7 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
 
     int sqlResult = SQLITE_ERROR;
     sqlite3_stmt *stmt;
-    if ((sqlResult = sqlite3_prepare(db, "SELECT node FROM nodes  WHERE nodehandle = ?", -1, &stmt, NULL)) == SQLITE_OK)
+    if ((sqlResult = sqlite3_prepare(db, "SELECT counter, node FROM nodes  WHERE nodehandle = ?", -1, &stmt, NULL)) == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int64(stmt, 1, nodehandle.as8byte())) == SQLITE_OK)
         {
@@ -722,6 +765,13 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
             {
                 const void* data = sqlite3_column_blob(stmt, 0);
                 int size = sqlite3_column_bytes(stmt, 0);
+                if (data && size)
+                {
+                    nodeSerialized.mNodeCounter.assign(static_cast<const char*>(data), size);
+                }
+
+                data = sqlite3_column_blob(stmt, 1);
+                size = sqlite3_column_bytes(stmt, 1);
                 if (data && size)
                 {
                     nodeSerialized.mNode.assign(static_cast<const char*>(data), size);
@@ -752,7 +802,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
 
     sqlite3_stmt *stmt;
     bool result = false;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, node FROM nodes WHERE origfingerprint = ?", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, counter, node FROM nodes WHERE origfingerprint = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_blob(stmt, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
@@ -782,7 +832,7 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
 
     sqlite3_stmt *stmt;
     bool result = false;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, node FROM nodes WHERE type >= ? AND type <= ?", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, counter, node FROM nodes WHERE type >= ? AND type <= ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         // nodeHandleUndef; // By default is set as undef
@@ -815,7 +865,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
 
     sqlite3_stmt *stmt;
     bool result = false;
-    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, counter, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int(stmt, 1, static_cast<int>(shareType))) == SQLITE_OK)
@@ -836,7 +886,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     return result;
 }
 
-bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::NodeHandle, NodeSerialized> &nodes)
+bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes)
 {
     if (!db)
     {
@@ -845,7 +895,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::map<mega::
 
     // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
     // (with or without any additional char at the beginning and/or end of the name). The '%' is the wildcard in SQL
-    std::string sqlQuery = "SELECT nodehandle, node FROM nodes WHERE LOWER(name) LIKE LOWER(";
+    std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE LOWER(name) LIKE LOWER(";
     sqlQuery.append("'%")
             .append(name)
             .append("%')");
@@ -888,7 +938,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
         "SELECT COUNT(nodehandle) FROM nodesCTE where type = " + std::to_string(RUBBISHNODE);
     const std::string filenode = std::to_string(FILENODE);
 
-    std::string sqlQuery = "SELECT n1.nodehandle, n1.node, (" + isInRubbish + ") isinrubbish FROM nodes n1 "
+    std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node, (" + isInRubbish + ") isinrubbish FROM nodes n1 "
         "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle"
         " where n1.type = " + filenode + " AND n1.ctime >= ? AND n2.type != " + filenode + " AND isinrubbish = 0"
         " ORDER BY n1.ctime DESC";
@@ -971,7 +1021,7 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
     // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase
     // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
     // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
-    std::string sqlQuery = "SELECT nodehandle, node FROM nodes WHERE parenthandle = ? AND LOWER(name) LIKE LOWER(";
+    std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND LOWER(name) LIKE LOWER(";
     sqlQuery.append("'")
             .append(name)
             .append("')");
@@ -1001,6 +1051,13 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
                     node.first.set6byte(sqlite3_column_int64(stmt, 0));
                     const void* data = sqlite3_column_blob(stmt, 1);
                     int size = sqlite3_column_bytes(stmt, 1);
+                    if (data && size)
+                    {
+                        node.second.mNodeCounter.assign(static_cast<const char*>(data), size);
+                    }
+
+                    data = sqlite3_column_blob(stmt, 2);
+                    size = sqlite3_column_bytes(stmt, 2);
                     if (data && size)
                     {
                         node.second.mNode.assign(static_cast<const char*>(data), size);

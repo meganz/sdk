@@ -74,6 +74,16 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
     memset(&changed, 0, sizeof changed);
 
     mFingerPrintPosition = client->mNodeManager.getInvalidPosition();
+
+    if (type == FILENODE)
+    {
+        mCounter.files = 1;
+        mCounter.storage = size;
+    }
+    else if (type == FOLDERNODE)
+    {
+        mCounter.folders = 1;
+    }
 }
 
 Node::~Node()
@@ -275,7 +285,7 @@ bool Node::serialize(string* d)
     d->append((char*)&owner, MegaClient::USERHANDLE);
 
     // FIXME: use Serialize64
-    time_t ts = 0;  // we don't want to break backward compatibiltiy by changing the size (where m_time_t differs)
+    time_t ts = 0;  // we don't want to break backward compatibility by changing the size (where m_time_t differs)
     d->append((char*)&ts, sizeof(ts));
 
     ts = (time_t)ctime;
@@ -779,9 +789,20 @@ bool Node::applykey()
     return applied;
 }
 
-NodeCounter Node::subnodeCounts() const
+NodeCounter Node::getCounter() const
 {
-    return client->getTreeInfoFromNode(*this);
+    return mCounter;
+}
+
+void Node::setCounter(const NodeCounter &counter, bool notify)
+{
+    mCounter = counter;
+
+    if (notify)
+    {
+        changed.counter = true;
+        client->notifynode(this);
+    }
 }
 
 // returns whether node was moved
@@ -1637,5 +1658,45 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 
 #endif
 
+void NodeCounter::operator += (const NodeCounter& o)
+{
+    storage += o.storage;
+    files += o.files;
+    folders += o.folders;
+    versions += o.versions;
+    versionStorage += o.versionStorage;
+}
+
+void NodeCounter::operator -= (const NodeCounter& o)
+{
+    storage -= o.storage;
+    files -= o.files;
+    folders -= o.folders;
+    versions -= o.versions;
+    versionStorage -= o.versionStorage;
+}
+
+std::string NodeCounter::serialize() const
+{
+    std::string nodeCountersBlob;
+    CacheableWriter w(nodeCountersBlob);
+    w.serializesize_t(files);
+    w.serializesize_t(folders);
+    w.serializei64(storage);
+    w.serializesize_t(versions);
+    w.serializei64(versionStorage);
+
+    return nodeCountersBlob;
+}
+
+NodeCounter::NodeCounter(const std::string &blob)
+{
+    CacheableReader r(blob);
+    r.unserializesize_t(files);
+    r.unserializesize_t(folders);
+    r.unserializei64(storage);
+    r.unserializesize_t(versions);
+    r.unserializei64(versionStorage);
+}
 
 } // namespace

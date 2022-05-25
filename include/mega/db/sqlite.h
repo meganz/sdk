@@ -65,7 +65,7 @@ public:
     bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes) override;
     bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType) override;
-    bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, mega::NodeSerialized> &nodes) override;
+    bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
@@ -82,6 +82,7 @@ public:
     bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, std::set<NodeHandle>>& children) override;
 
     void cancelQuery() override;
+    void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
 
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
 
@@ -90,8 +91,7 @@ private:
     // Allow at least the following containers:
     //     std::map<mega::NodeHandle, NodeSerialized>
     //     std::vector<std::pair<mega::NodeHandle, NodeSerialized>>
-    template <class T>
-    bool processSqlQueryNodes(sqlite3_stmt *stmt, T &nodes);
+    bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

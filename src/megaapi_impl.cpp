@@ -475,6 +475,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_FAVOURITE;
     }
+    if (node->changed.counter)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_COUNTER;
+    }
 
     this->thumbnailAvailable = (node->hasfileattribute(0) != 0);
     this->previewAvailable = (node->hasfileattribute(1) != 0);
@@ -10778,46 +10782,20 @@ MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser, int order)
 
 MegaNodeList* MegaApiImpl::getInShares(int order)
 {
-    sdkMutex.lock();
+    SdkMutexGuard lock(sdkMutex);
 
-    node_vector nodes;
-    for (user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
-    {
-        Node *n;
-        User *user = &(it->second);
-        for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
-        {
-            if ((n = client->nodebyhandle(*sit)) && !n->parent)
-            {
-                nodes.push_back(n);
-            }
-        }
-    }
+    node_vector nodes = client->getInShares();
 
     sortByComparatorFunction(nodes, order, *client);
 
-    MegaNodeList *nodeList = new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
-    sdkMutex.unlock();
-    return nodeList;
+    return new MegaNodeListPrivate(nodes.data(), int(nodes.size()));
 }
 
 MegaShareList* MegaApiImpl::getInSharesList(int order)
 {
-    sdkMutex.lock();
+    SdkMutexGuard lock(sdkMutex);
 
-    node_vector nodes;
-    for(user_map::iterator it = client->users.begin(); it != client->users.end(); it++)
-    {
-        Node *n;
-        User *user = &(it->second);
-        for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
-        {
-            if ((n = client->nodebyhandle(*sit)) && !n->parent)
-            {
-                nodes.push_back(n);
-            }
-        }
-    }
+    node_vector nodes = client->getInShares();
 
     sortByComparatorFunction(nodes, order, *client);
 
@@ -10830,7 +10808,6 @@ MegaShareList* MegaApiImpl::getInSharesList(int order)
     }
 
     MegaShareList *shareList = new MegaShareListPrivate(shares.data(), handles.data(), int(shares.size()));
-    sdkMutex.unlock();
     return shareList;
 }
 
@@ -11955,7 +11932,7 @@ long long MegaApiImpl::getSize(MegaNode *n)
         return 0;
     }
 
-    NodeCounter nodeCounter = client->getTreeInfoFromNode(*node);
+    NodeCounter nodeCounter = node->getCounter();
     sdkMutex.unlock();
 
     return nodeCounter.storage;
@@ -22422,7 +22399,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            NodeCounter nc = client->getTreeInfoFromNode(*node);
+            NodeCounter nc = node->getCounter();
             std::unique_ptr<MegaFolderInfo> folderInfo = make_unique<MegaFolderInfoPrivate>((int)nc.files, (int)nc.folders, (int)nc.versions, nc.storage, nc.versionStorage);
             request->setMegaFolderInfo(folderInfo.get());
 

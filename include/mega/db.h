@@ -33,6 +33,7 @@ class NodeSerialized
 {
 public:
     std::string mNode;
+    std::string mNodeCounter;
 };
 
 class MEGA_API DbTable
@@ -111,7 +112,7 @@ public:
     // get nodes and queries about nodes
     virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
     virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
-    virtual bool getNodesByName(const std::string& name, std::map<mega::NodeHandle, NodeSerialized>& nodes) = 0;
+    virtual bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
 
     virtual bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
@@ -141,6 +142,8 @@ public:
     virtual nodetype_t getNodeType(NodeHandle node) = 0;
 
     virtual void cancelQuery() = 0;
+
+    virtual void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) = 0;
 
 };
 

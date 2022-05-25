@@ -282,10 +282,11 @@ public:
     // Valid values for nodeType: FILENODE, FOLDERNODE, TYPE_UNKNOWN (when unknown, it returns both files and folders)
     Node* getNodeByNameFirstLevel(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
 
-    // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE
+    // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE (In case of logged into folder link returns only ROOTNODE)
+    // Load from DB if it's necessary
     node_vector getRootNodes();
 
-    node_vector getNodesWithInShares();
+    node_vector getNodesWithInShares(); // both, top-level and nested ones
     node_vector getNodesWithOutShares();
     node_vector getNodesWithPendingOutShares();
     node_vector getNodesWithLinks();
@@ -330,41 +331,17 @@ public:
 
     // Load nodes from DB, if mKeepAllNodesInMemory is active load all nodes, in other case,
     // load rootnodes (ROOTNODE, INCOMING, RUBBISH) and children from ROOTNODE.
-    // Futhermore, calculate mNodeCounters
     // return true if success, false if error
     bool loadNodes();
-
-    // ===--- Node Counters ---===
-
-    // returns the counter for 'node', recursively, accessing to DB if it's neccesary
-private:
-    NodeCounter getNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
-public:
-    NodeCounter getNodeCounter(const Node &node);
 
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
     uint64_t getNodeCount();
 
-    // return the counter for 'h' if available in memory. Otherwise, nullptr
-    const NodeCounter* getCounter(const NodeHandle& h) const;
-
-    // return the counter for 'h' (for other than rootnodes, it requires DB query)
-    NodeCounter getCounterForSubtree(const Node& n);
-
-    // return the counter for all root nodes (cloud+inbox+rubbish), without DB query
+    // return the counter for all root nodes (cloud+inbox+rubbish)
     NodeCounter getCounterOfRootNodes();
 
-    // add the counter for 'h' (it must not exist yet)
-    void addCounter(const NodeHandle &h);
-
-    // create the counter and calculate its count recursively (it must not exist yet)
-    void calculateCounter(const Node &n);
-
-    // subtract the counter of 'n' (calculated from DB) from its first antecesor, which must be a rootnode
-    void subtractFromRootCounter(const Node& n);
-
     // update the counter of 'n' when its parent is updated (from 'oldParent' to 'n.parent')
-    void updateCounter(const Node& n, const Node *oldParent);
+    void updateCounter(Node &n, Node *oldParent);
 
     // true if 'h' is a rootnode: cloud, inbox or rubbish bin
     bool isRootNode(NodeHandle h) const;
@@ -406,6 +383,7 @@ public:
     bool hasVersion(NodeHandle nodeHandle);
 
     // Called to initialize and set values to counters
+    // If some value is set previously (setParent), this value will be removed
     void initializeCounters();
 
 private:
@@ -416,9 +394,6 @@ private:
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     node_map mNodes;
-
-    // keep track of user storage, inshare storage and file/folder/versions counts (only for root nodes and inshares)
-    NodeCounterMap mNodeCounters;
 
     // flag to force all nodes to be loaded in memory
 #ifdef ENABLE_SYNC
@@ -437,13 +412,24 @@ private:
     void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
 
-    // Increase node counters with a node type and values
-    void increaseCounter(const Node *node, NodeHandle firstAncestorHandle);
     // Load nodes recursively and update nodeCounters
     void loadTreeRecursively(const Node *node);
 
+    enum OperationType
+    {
+        INCREASE = 0,
+        DECREASE,
+    };
+
+    // Update a node counter for 'origin' and its subtree (recursively)
+    // If operationType is INCREASE, nc is added, in other case is decreased (ie. upon deletion)
+    void updateTreeCounter(Node* origin, NodeCounter nc, OperationType operation);
+
     // returns nullptr if there are unserialization errors. Also triggers a full reload (fetchnodes)
-    Node* getNodeFromBlob(const string* serializedNode);
+    Node* getNodeFromNodeSerialized(const NodeSerialized& nodeSerialized);
+
+    // returns the counter for the specified node, calculating it recursively and accessing to DB if it's neccesary
+    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
@@ -452,7 +438,7 @@ private:
     Node* getNodeFromDataBase(NodeHandle handle);
 
     // Returns root nodes without nested in-shares
-    node_vector getRootNodesWithoutNestedInshares();
+    node_vector getRootNodesAndInshares();
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
@@ -1112,9 +1098,6 @@ public:
     // Get number of children from a node
     size_t getNumberOfChildren(NodeHandle parentHandle);
 
-    // Get sub tree info from a node
-    NodeCounter getTreeInfoFromNode(const Node& node);
-
     // use HTTPS for all communications
     bool usehttps;
 
@@ -1557,6 +1540,9 @@ public:
     // merge newly received share into nodes
     void mergenewshares(bool notify, bool skipWriteInDb = false);
     void mergenewshare(NewShare *s, bool notify, bool skipWriteInDb);    // merge only the given share
+
+    // return the list of incoming shared folder (only top level, nested inshares are skipped)
+    node_vector getInShares();
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];

@@ -4176,7 +4176,7 @@ void exec_nodecounter(autocomplete::ACState &s)
         n = client->nodeByHandle(cwd);
     }
 
-    NodeCounter nc = client->getTreeInfoFromNode(*n);
+    NodeCounter nc = n->getCounter();
 
     cout << "Total storage used: " << nc.storage << endl;
     cout << "Total storage used by versions: " << nc.versionStorage << endl << endl;

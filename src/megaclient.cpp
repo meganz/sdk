@@ -430,13 +430,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
                             n->inshare->user->sharing.insert(n->nodehandle);
                             NodeHandle nodeHandle;
                             nodeHandle.set6byte(n->nodehandle);
-                            // Avoid to add nested in shares. Also when loading nodes,
-                            // since node counters are calculated at NodeManager::loadNodes()
-                            // in a more efficient way (incrementally, with all nodes in memory)
-                            if (!n->parent && !mNodeManager.isLoadingNodes())
-                            {
-                                mNodeManager.calculateCounter(*n);
-                            }
                         }
 
                         if (notify)
@@ -505,6 +498,23 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
     //else -> It will be updated at notifypurge
 }
 
+node_vector MegaClient::getInShares()
+{
+    node_vector nodes;
+    for (auto &it : users)
+    {
+        for (auto &share : it.second.sharing)
+        {
+            Node *n = nodebyhandle(share);
+            if (n && !n->parent)    // top-level inshare have parent==nullptr
+            {
+                nodes.push_back(n);
+            }
+        }
+    }
+
+    return nodes;
+}
 
 bool MegaClient::setlang(string *code)
 {
@@ -8572,7 +8582,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             }
 
             // do not wait for notifypurge() to dump to disk / DB, since
-            // some operations rely on DB queries (ie. NodeCounters)
+            // some operations rely on DB queries
             mNodeManager.saveNodeInDb(n);
             n = nullptr;    // ownership is taken by NodeManager upon addNode()
         }
@@ -12003,33 +12013,16 @@ bool MegaClient::fetchsc(DbTable* sctable)
             Node *parent = mNodeManager.getNodeByHandle(it.first);
             for (Node* child : it.second)
             {
-                child->setparent(parent, false);
+                // In DB migration we have to calculate counters as they aren't calculated previously
+                child->setparent(parent, true);
             }
         }
 
         // now that Users and PCRs are loaded, need to mergenewshare()
-        // Node counters for inshares are calculated at this method
         mergenewshares(0, true);
 
         // finally write nodes in DB
         mNodeManager.dumpNodes();
-
-        // Calculate counters for rootnodes
-        Node* rootNodeFile = mNodeManager.getNodeByHandle(rootnodes.files);
-        assert(rootNodeFile);
-        mNodeManager.calculateCounter(*rootNodeFile);
-
-        // If we are logged into folder link, inbox and rubbish nodes are undefined
-        if (!loggedIntoFolder())
-        {
-            Node* rootNodeInbox = mNodeManager.getNodeByHandle(rootnodes.inbox);
-            assert(rootNodeInbox);
-            mNodeManager.calculateCounter(*rootNodeInbox);
-
-            Node* rootNodeRubbish = mNodeManager.getNodeByHandle(rootnodes.rubbish);
-            assert(rootNodeRubbish);
-            mNodeManager.calculateCounter(*rootNodeRubbish);
-        }
 
         // and force commit, since old DB has been upgraded to new schema for NOD
         sctable->commit();
@@ -16288,11 +16281,6 @@ size_t MegaClient::getNumberOfChildren(NodeHandle parentHandle)
     return mNodeManager.getNumberOfChildrenFromNode(parentHandle);
 }
 
-NodeCounter MegaClient::getTreeInfoFromNode(const Node& node)
-{
-    return mNodeManager.getCounterForSubtree(node);
-}
-
 bool MegaClient::loggedIntoFolder() const
 {
     return !ISUNDEF(mFolderLink.mPublicHandle);
@@ -16762,7 +16750,7 @@ bool NodeManager::setrootnode(Node* node)
 bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 {
     // ownership of 'node' is taken by NodeManager::mNodes if node is kept in memory,
-    // and by NodeManager::mNodesToWriteInDB if node is only written to DB. In the latter,
+    // and by NodeManager::mNodeToWriteInDB if node is only written to DB. In the latter,
     // the 'node' is deleted upon saveNodeInDb()
 
     // 'isFetching' is true only when CommandFetchNodes is in flight and/or it has been received,
@@ -16770,12 +16758,6 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 
     // 'notify' is false when loading nodes from API or DB. True when node is received from
     // actionpackets and/or from response of CommandPutnodes
-
-    if (!mTable)
-    {
-        assert(false);
-        return false;
-    }
 
     bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE;
     if (rootNode)
@@ -16884,7 +16866,7 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
         if (!n)
         {
             const NodeSerialized& ns = nHandleSerialized.second;
-            n = getNodeFromBlob(&ns.mNode);
+            n = getNodeFromNodeSerialized(ns);
             if (!n)
             {
                 nodes.clear();
@@ -16900,15 +16882,22 @@ node_vector NodeManager::getRecentNodes(unsigned maxcount, m_time_t since)
 
 uint64_t NodeManager::getNodeCount()
 {
-    uint64_t count = 0;
-    // it assumes that node counters are only available for rootnodes and inshares
-    for (auto &counter : mNodeCounters)
+    if (mNodes.empty())
     {
-        count += counter.second.files + counter.second.folders + counter.second.versions;
+        return 0;
+    }
+
+    uint64_t count = 0;
+    node_vector rootnodes = getRootNodesAndInshares();
+
+    for (Node* node : rootnodes)
+    {
+        NodeCounter nc = node->getCounter();
+        count += nc.files + nc.folders + nc.versions;
     }
 
 #ifdef DEBUG
-    if (mNodes.size())  // --> NodeCounters are initialized
+    if (mNodes.size())
     {
         uint64_t countDb = mTable ? mTable->getNumberOfNodes() : 0;
         assert(!mTable || count == countDb);
@@ -16927,7 +16916,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         return nodes;
     }
 
-    std::map<mega::NodeHandle, NodeSerialized> nodeMap;
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodeMap;
     mTable->getNodesByName(searchString, nodeMap);
     if (!nodeHandle.isUndef())  // filter results by subtree (nodeHandle)
     {
@@ -16953,7 +16942,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         Node* n = getNodeInRAM(nodeMapIt.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nodeMapIt.second.mNode);
+            n = getNodeFromNodeSerialized(nodeMapIt.second);
             if (!n)
             {
                 nodes.clear();
@@ -17004,12 +16993,12 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByOrigFingerprint(fingerprint, nodesFromTable);
 
-    for (const auto& nHandleSerialized : nodesFromTable)
+    for (const auto& it : nodesFromTable)
     {
-        Node* n = getNodeInRAM(nHandleSerialized.first);
+        Node* n = getNodeInRAM(it.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode);
+            n = getNodeFromNodeSerialized(it.second);
             if (!n)
             {
                 nodes.clear();
@@ -17065,7 +17054,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     Node* n = getNodeInRAM(nodeSerialized.first);
     if (!n) // not loaded yet
     {
-        n = getNodeFromBlob(&nodeSerialized.second.mNode);
+        n = getNodeFromNodeSerialized(nodeSerialized.second);
     }
 
     return n;
@@ -17080,24 +17069,42 @@ node_vector NodeManager::getRootNodes()
         return nodes;
     }
 
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getRootNodes(nodesFromTable);
-
-    for (const auto& nHandleSerialized : nodesFromTable)
+    if (mNodes.size()) // nodes already loaded from DB
     {
-        Node* n = getNodeInRAM(nHandleSerialized.first);
-        if (!n)
+        Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
+        assert(rootNode);
+        nodes.push_back(rootNode);
+
+        if (!mClient.loggedIntoFolder())
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode);
+            Node* inBox = getNodeByHandle(mClient.rootnodes.inbox);
+            assert(inBox);
+            nodes.push_back(inBox);
+
+            Node* rubbish = getNodeByHandle(mClient.rootnodes.rubbish);
+            assert(rubbish);
+            nodes.push_back(rubbish);
+        }
+    }
+    else    // nodes not loaded yet
+    {
+        std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+        mTable->getRootNodes(nodesFromTable);
+
+        for (const auto& nHandleSerialized : nodesFromTable)
+        {
+            assert(!getNodeInRAM(nHandleSerialized.first));
+            Node* n = getNodeFromNodeSerialized(nHandleSerialized.second);
             if (!n)
             {
                 nodes.clear();
                 return nodes;
             }
-        }
-        nodes.push_back(n);
 
-        setrootnode(n);
+            nodes.push_back(n);
+
+            setrootnode(n);
+        }
     }
 
     return nodes;
@@ -17139,7 +17146,7 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
         Node* n = getNodeInRAM(nHandleSerialized.first);
         if (!n)
         {
-            n = getNodeFromBlob(&nHandleSerialized.second.mNode);
+            n = getNodeFromNodeSerialized(nHandleSerialized.second);
             if (!n)
             {
                 nodes.clear();
@@ -17153,59 +17160,52 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
     return nodes;
 }
 
-void NodeManager::increaseCounter(const Node *node, NodeHandle firstAncestorHandle)
-{
-    if (node->type == FILENODE)
-    {
-        if (isFileNode(node->parentHandle()))   // is a version? (returns false for unknown parents)
-        {
-            mNodeCounters[firstAncestorHandle].versions++;
-            mNodeCounters[firstAncestorHandle].versionStorage += node->size;
-        }
-        else
-        {
-            mNodeCounters[firstAncestorHandle].files++;
-            mNodeCounters[firstAncestorHandle].storage += node->size;
-        }
-    }
-    else if (node->type == FOLDERNODE)
-    {
-        mNodeCounters[firstAncestorHandle].folders++;
-    }
-}
-
 void NodeManager::loadTreeRecursively(const Node* node)
 {
     node_list children = getChildren(node);
     for (const Node* child : children)
     {
         loadTreeRecursively(child);
-
-        // Update counters, now that all ancestors are loaded
-        const Node* ancestor = child->firstancestor();
-        increaseCounter(child, ancestor->nodeHandle());
     }
 }
 
-Node *NodeManager::getNodeFromBlob(const std::string* serializedNode)
+Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialized)
 {
-    Node* node = unserializeNode(serializedNode, false);
+    Node* node = unserializeNode(&nodeSerialized.mNode, false);
     if (!node)
     {
         LOG_err << "Error unserializing a node. Reloading account";
         mClient.fetchnodes(true);
+        return nullptr;
     }
+
+    node->setCounter(NodeCounter(nodeSerialized.mNodeCounter));
 
     return node;
 }
 
-NodeCounter NodeManager::getNodeCounter(const Node &node)
+void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType operation)
 {
-    nodetype_t parentType = node.parent ? node.parent->type : mTable->getNodeType(node.parentHandle());
-    return getNodeCounter(node.nodeHandle(), parentType);
+    while (origin)
+    {
+        NodeCounter ancestorCounter = origin->getCounter();
+        switch (operation)
+        {
+        case INCREASE:
+            ancestorCounter += nc;
+            break;
+
+        case DECREASE:
+            ancestorCounter -= nc;
+            break;
+        }
+
+        origin->setCounter(ancestorCounter, true);
+        origin = origin->parent;
+    }
 }
 
-NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType)
+NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType)
 {
     NodeCounter nc;
     if (!mTable)
@@ -17226,7 +17226,7 @@ NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t
 
     for (const NodeHandle &h : children)
     {
-        nc += getNodeCounter(h, nodeType);
+        nc += calculateNodeCounter(h, nodeType);
     }
 
     if (nodeType == FILENODE)
@@ -17249,6 +17249,13 @@ NodeCounter NodeManager::getNodeCounter(const NodeHandle& nodehandle, nodetype_t
     {
         nc.folders++;
     }
+
+    if (node)
+    {
+        node->setCounter(nc);
+    }
+
+    mTable->updateCounter(nodehandle, nc.serialize());
 
     return nc;
 }
@@ -17346,7 +17353,6 @@ void NodeManager::cleanNodes()
     mNodes.clear();
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
-    mNodeCounters.clear();
     mNodesWithMissingParent.clear();
     mNodeChildren.clear();
     mLoadingNodes = false;
@@ -17512,9 +17518,9 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     assert(mNodes.find(NodeHandle().set6byte(h)) == mNodes.end());
     mNodes[n->nodeHandle()].reset(n);
 
-    // setparent() skiping update of node counters, since they are already calculated
-    // before loading specific nodes from database
-    n->setparent(getNodeByHandle(n->parentHandle()), false);
+    // setparent() skiping update of node counters, since they are already calculated in DB
+    // In DB migration we have to calculate them as they aren't calculated previously
+    n->setparent(getNodeByHandle(n->parentHandle()), fromOldCache);
 
     if (!encrypted && k)
     {
@@ -17747,21 +17753,11 @@ void NodeManager::notifyPurge()
 
         DBTableTransactionCommitter committer(mClient.tctable);
 
-        // Add counters for nested inshares if parent is going to be removed.
-        // If parent from nested inshare is removed, is due to upper inshare is removed
-        // and we have to calculate the node counter for nested inshare
-        node_vector inShares = getNodesWithInShares();
-        for (Node* node : inShares)
-        {
-            if (!node->changed.removed && node->parent && node->parent->changed.removed)
-            {
-                calculateCounter(*node);
-            }
-        }
-
         // check all notified nodes for removed status and purge
-        for (auto n : mNodeNotify)
+        for (size_t i = 0; i < mNodeNotify.size(); i++)
         {
+            Node* n = mNodeNotify[i];
+
             if (n->attrstring)
             {
                 // make this just a warning to avoid auto test failure
@@ -17799,30 +17795,32 @@ void NodeManager::notifyPurge()
 
             if (n->changed.removed)
             {
-                // remove item from related maps, etc. (mNodeCounters, mFingerprints, mNodeChildren, ...)
-                if (n->parent)  // only process node counters for subtrees not deleted already
+                NodeHandle h = n->nodeHandle();
+
+                // Decrease counters for all ancestor in the tree
+                updateTreeCounter(n->parent, n->getCounter(), DECREASE);
+
+                if (n->parent)
                 {
-                    subtractFromRootCounter(*n);
-
-                    removeChild(n->parentHandle(), n->nodeHandle());
+                    // optimization: if the parent has already been deleted, the relationship
+                    // of children with their parent has been removed by the parent already
+                    // so we can avoid lookups for non existing parent handle.
+                    removeChild(n->parentHandle(), h);
                 }
-
-                mNodeCounters.erase(n->nodeHandle());    // will apply only to rootnodes and inshares, currently
-
-                removeFingerprint(n);
-
                 node_list children = getChildren(n);
                 for (auto child : children)
                 {
                     child->parent = nullptr;
                 }
+                mNodeChildren.erase(h);
 
-                mNodeChildren.erase(n->nodeHandle());
+                removeFingerprint(n);
 
                 // effectively delete node from RAM
-                mNodesWithMissingParent.erase(n->nodeHandle());
-                mTable->remove(n->nodeHandle());
-                mNodes.erase(n->nodeHandle());
+                mNodesWithMissingParent.erase(h);
+                mNodes.erase(h);
+
+                mTable->remove(h);
             }
             else
             {
@@ -17858,19 +17856,18 @@ bool NodeManager::loadNodes()
     }
 
     mLoadingNodes = true;
-    node_vector rootnodes = getRootNodesWithoutNestedInshares();
+    node_vector rootnodes = getRootNodes();
+    // We can't base in `user.sharing` because it's set yet. We have to get from DB
+    node_vector inshares = getNodesWithInShares();  // it includes nested inshares
 
     if (mKeepAllNodesInMemory)
     {
         for (auto &node : rootnodes)
         {
-            // add counter to accumulate count recursively
-            addCounter(node->nodeHandle());
-
-            loadTreeRecursively(node);
-
-            // finally increase the count for each rootnode (only applies to folder links)
-            increaseCounter(node, node->nodeHandle());
+            if (!node->parent) // Avoid load nested in-shares (Performance improvement)
+            {
+                loadTreeRecursively(node);
+            }
         }
     }
     else // load only first level
@@ -17878,8 +17875,6 @@ bool NodeManager::loadNodes()
         for (auto &node : rootnodes)
         {
             getChildren(node);
-            // calculate node counters based on DB queries
-            calculateCounter(*node);
         }
     }
 
@@ -17927,12 +17922,6 @@ void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 
         mNodesWithMissingParent.erase(it);
     }
-}
-
-const NodeCounter* NodeManager::getCounter(const NodeHandle& h) const
-{
-    auto it = mNodeCounters.find(h);
-    return it == mNodeCounters.end() ? nullptr : &(it->second);
 }
 
 bool NodeManager::isRootNode(NodeHandle h) const
@@ -18001,11 +17990,10 @@ bool NodeManager::hasVersion(NodeHandle nodeHandle)
 
 void NodeManager::initializeCounters()
 {
-    node_vector rootNodes = getRootNodesWithoutNestedInshares();
+    node_vector rootNodes = getRootNodesAndInshares();
     for (Node* node : rootNodes)
     {
-        assert(mNodeCounters.find(node->nodeHandle()) == mNodeCounters.end());
-        mNodeCounters[node->nodeHandle()] = getNodeCounter(*node);
+        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN);
     }
 }
 
@@ -18014,7 +18002,7 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     NodeCounter c;
 
     // if not logged in yet, node counters are not available
-    if (mNodeCounters.empty())
+    if (mNodes.empty())
     {
         assert((mClient.rootnodes.files.isUndef()
                 && mClient.rootnodes.inbox.isUndef()
@@ -18024,135 +18012,36 @@ NodeCounter NodeManager::getCounterOfRootNodes()
         return c;
     }
 
-    NodeHandle h = mClient.rootnodes.files;
-    assert(mNodeCounters.find(h) != mNodeCounters.end());
-    c = mNodeCounters[h];
-
-    if (!mClient.loggedIntoFolder())
+    node_vector rootNodes = getRootNodes();
+    for (Node* node : rootNodes)
     {
-        h = mClient.rootnodes.inbox;
-        assert(mNodeCounters.find(h) != mNodeCounters.end());
-        c += mNodeCounters[h];
-
-        h = mClient.rootnodes.rubbish;
-        assert(mNodeCounters.find(h) != mNodeCounters.end());
-        c += mNodeCounters[h];
+        c += node->getCounter();
     }
 
     return c;
 }
 
-void NodeManager::addCounter(const NodeHandle &h)
+void NodeManager::updateCounter(Node& n, Node* oldParent)
 {
-    auto ret = mNodeCounters.emplace(h, NodeCounter());
-    assert(ret.second);
-}
-
-void NodeManager::calculateCounter(const Node& n)
-{
-    // while processing command f (fetchnodes), node counters for in-shares are first added
-    // at the end of fetch node proc result. Later, MegaClient::mergeNewShare call this method, but the
-    // counter is already there. Need to skip adding it again here for this case
-    if (mClient.fetchingnodes && !n.notified)
-    {
-        return;
-    }
-
-    NodeHandle h = n.nodeHandle();
-    assert(mNodeCounters.find(h) == mNodeCounters.end());
-    // this method is called only for rootnodes and inshares, where
-    // the parent node can be FOLDERNODE (for nested inshares), or TYPE_UNKNOWN
-    // (for inshares and rootnodes). The purpose of the type is to differentiate
-    // between rootnodes, folders and files, so we can pass the own node's type
-    mNodeCounters[h] = getNodeCounter(n);
-
-    // if a node counter is added for the parent of an existing one, then the
-    // counter of the child should be removed (ie. when a the parent of an
-    // existing in-share is also shared)
-    for (const auto& counter : mNodeCounters)
-    {
-        NodeHandle ancestor = getFirstAncestor(counter.first);
-        if (counter.first != ancestor && ancestor == n.nodeHandle())
-        {
-            mNodeCounters.erase(counter.first);
-            break;
-        }
-    }
-}
-
-void NodeManager::subtractFromRootCounter(const Node& n)
-{
-    NodeHandle firstValidAntecestor = getFirstAncestor(n.nodeHandle());
-    assert(firstValidAntecestor != UNDEF);
-    auto it = mNodeCounters.find(firstValidAntecestor);
-    if (it != mNodeCounters.end())
-    {
-        it->second -= getNodeCounter(n);
-    }
-}
-
-NodeCounter NodeManager::getCounterForSubtree(const Node& n)
-{
-    auto it = mNodeCounters.find(n.nodeHandle());
-    if (it != mNodeCounters.end())
-    {
-        return it->second;
-    }
-
-    return getNodeCounter(n);
-}
-
-void NodeManager::updateCounter(const Node& n, const Node* oldParent)
-{
-    const Node* oldAncestor = oldParent ? oldParent->firstancestor() : nullptr;
-    const NodeHandle& oah = oldAncestor ? oldAncestor->nodeHandle() : NodeHandle();
-
-    const Node* newAncestor = n.firstancestor();
-    const NodeHandle &nah = newAncestor->nodeHandle();
+    NodeCounter nc = n.getCounter();
+    updateTreeCounter(oldParent, nc, DECREASE);
 
     // if node is a new version
     if (n.parent && n.parent->type == FILENODE)
     {
-        // current version converted to previous version: two cases
-        // A. action by own client: response from command 1st creates the new node and later moves old version as child of new version
-        // B. action by another client: actionpacket 1st deletes the old node, later adds the new version and finally adds the old version
-        auto it = mNodeCounters.find(nah);
-        if (it != mNodeCounters.end())
+        if (nc.files > 0)
         {
-            NodeCounter &nc = it->second;
-            if (oldParent)  // case A: new version created by own client
-            {
-                assert(oldParent->type != FILENODE && oah == nah);
-                // discount the old version, previously counted as file
-                nc.files--;
-                nc.storage -= n.size;
-            }
-
+            assert(nc.files == 1);
+            // discount the old version, previously counted as file
+            nc.files--;
+            nc.storage -= n.size;
             nc.versions++;
             nc.versionStorage += n.size;
+            n.setCounter(nc);
         }
     }
-    else if (oah != nah)   // node is a new file/folder, movements of file/folder between different trees
-    {
-        bool subTreeCalculated = false; // is the subtree available in the node's counter for old root?
-        NodeCounter nc;
 
-        auto itOld = mNodeCounters.find(oah);
-        if (itOld != mNodeCounters.end())
-        {
-            // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
-            nc = getCounterForSubtree(n);
-            itOld->second -= nc;
-            subTreeCalculated = true;
-        }
-
-        auto itNew = mNodeCounters.find(nah);
-        if (itNew != mNodeCounters.end())
-        {
-            itNew->second += subTreeCalculated ? nc : getCounterForSubtree(n);
-        }
-    }
-    // else -> movement inside same subtree, nothing to update
+    updateTreeCounter(n.parent, nc, INCREASE);
 }
 
 mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
@@ -18270,36 +18159,21 @@ Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
     NodeSerialized nodeSerialized;
     if (mTable->getNode(handle, nodeSerialized))
     {
-        node = getNodeFromBlob(&nodeSerialized.mNode);
+        node = getNodeFromNodeSerialized(nodeSerialized);
     }
 
     return node;
 }
 
-node_vector NodeManager::getRootNodesWithoutNestedInshares()
+node_vector NodeManager::getRootNodesAndInshares()
 {
     node_vector rootnodes;
-    if (mClient.loggedIntoFolder())
-    {
-        Node* rootNode = getNodeByHandle(mClient.rootnodes.files);
-        assert(rootNode);
 
-        rootnodes.push_back(rootNode);
-    }
-    else    // logged into user's account: load rootnodes and incoming shared folders
+    rootnodes = getRootNodes();
+    if (!mClient.loggedIntoFolder()) // logged into user's account: incoming shared folders
     {
-        rootnodes = getRootNodes();
-
-        node_vector inSharesNodes = getNodesWithInShares();
-        for (auto& node : inSharesNodes)
-        {
-            // If parent exits => nested in-share. We don't need to add
-            // Nested in-shares aren't added to node counters
-            if (!node->parent)
-            {
-                rootnodes.push_back(node);
-            }
-        }
+        node_vector inshares = mClient.getInShares();
+        rootnodes.insert(rootnodes.end(), inshares.begin(), inshares.end());
     }
 
     return rootnodes;

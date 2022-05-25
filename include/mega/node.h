@@ -100,6 +100,20 @@ struct MEGA_API PublicLink
     bool isExpired();
 };
 
+struct NodeCounter
+{
+    m_off_t storage = 0;
+    m_off_t versionStorage = 0;
+    size_t files = 0;
+    size_t folders = 0;
+    size_t versions = 0;
+    void operator += (const NodeCounter&);
+    void operator -= (const NodeCounter&);
+    std::string serialize() const;
+    NodeCounter(const std::string& blob);
+    NodeCounter() = default;
+};
+
 typedef std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp> FingerprintMap;
 typedef FingerprintMap::iterator FingerprintMapPosition;
 
@@ -203,6 +217,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         // this field is only used internally in syncdown()
         bool syncdown_node_matched_here : 1;
 #endif
+        bool counter : 1;
 
     } changed;
 
@@ -216,7 +231,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     void faspec(string*);
 
-    NodeCounter subnodeCounts() const;
+    NodeCounter getCounter() const;
+    void setCounter(const NodeCounter &counter, bool notify = false);
 
     // parent
     Node* parent = nullptr;
@@ -271,6 +287,9 @@ private:
     // node crypto keys (raw or cooked -
     // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
     string nodekeydata;
+
+    // keeps track of counts of files, folder, versions, storage and version's storage
+    NodeCounter mCounter;
 };
 
 inline const string& Node::nodekey() const

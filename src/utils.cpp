@@ -185,6 +185,11 @@ void CacheableWriter::serializei64(int64_t field)
     dest.append((char*)&field, sizeof(field));
 }
 
+void CacheableWriter::serializesize_t(size_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializeu32(uint32_t field)
 {
     dest.append((char*)&field, sizeof(field));
@@ -651,6 +656,18 @@ bool CacheableReader::unserializei64(int64_t& field)
     }
     field = MemAccess::get<int64_t>(ptr);
     ptr += sizeof(int64_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializesize_t(size_t& field)
+{
+    if (ptr + sizeof(size_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<size_t>(ptr);
+    ptr += sizeof(size_t);
     fieldnum += 1;
     return true;
 }
@@ -2507,25 +2524,6 @@ int macOSmajorVersion()
     return -1;
 }
 #endif
-
-void NodeCounter::operator += (const NodeCounter& o)
-{
-    storage += o.storage;
-    files += o.files;
-    folders += o.folders;
-    versions += o.versions;
-    versionStorage += o.versionStorage;
-}
-
-void NodeCounter::operator -= (const NodeCounter& o)
-{
-    storage -= o.storage;
-    files -= o.files;
-    folders -= o.folders;
-    versions -= o.versions;
-    versionStorage -= o.versionStorage;
-}
-
 
 CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
     : mType(type)
