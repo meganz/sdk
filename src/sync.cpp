@@ -3858,50 +3858,38 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
             Node* n = mClient.nodebyhandle(bkpDest);
             if (!n)
             {
-                LOG_err << "Backup destination folder does not exist";
-                return API_EACCESS;
+                LOG_err << "Backup destination folder does not exist: " << Base64Str<MegaClient::NODEHANDLE>(bkpDest);
+                return API_EARGS;
             }
             else if (n->firstancestor()->nodeHandle() != mClient.rootnodes.files)
             {
                 LOG_err << "Backup destination folder must be in the Cloud";
-                return API_EACCESS;
-            }
-            else if (mClient.childnodebynametype(n, config.mName.c_str(), FOLDERNODE))
-            {
-                // generate new name when move destination already contained a folder with the same name
-                for (unsigned i = 1; i <= UINT_MAX; ++i) // at UINT_MAX there will be duplicates, but it should suffice
-                {
-                    newNameOfMovedBackup = config.mName + " (" + std::to_string(i) + ')';
-                    if (!mClient.childnodebynametype(n, newNameOfMovedBackup.c_str(), FOLDERNODE))
-                    {
-                        LOG_debug << "Former backup \"" << config.mName << "\" renamed to \"" << newNameOfMovedBackup << "\" at destination.";
-                        break;
-                    }
-                }
+                return API_EARGS;
             }
         }
 
-        if (auto& syncPtr = mSyncVec[index]->mSync)
-        {
-            syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
-            assert(!syncPtr->statecachetable);
-            syncPtr.reset(); // deletes sync
-        }
-
-        mSyncConfigStore->markDriveDirty(config.mExternalDrivePath);
-
-        // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
         NodeHandle remoteNodeHandle = config.mRemoteNode;
-        mClient.app->sync_removed(config);
+        string backupName = config.mName;
 
-        auto c = !removingBackupRemoteContents ? completion :
-        [this, remoteNodeHandle, bkpDest, newNameOfMovedBackup, completion](Error err)
+        auto afterSyncRemovalCompletion = !removingBackupRemoteContents ? completion :
+        [this, remoteNodeHandle, bkpDest, backupName, completion](Error err)
         {
-            if (error(err))
+            if (err != API_OK)
             {
-                LOG_err << "CommandBackupRemove failed";
-                if (completion)
-                    completion(err);
+                if (err == API_ENOENT)
+                {
+                    // backup was already removed, so better to not touch the backup folder
+                    // (it could have been moved to the cloud or deleted by the backup center)
+                    LOG_warn << "Backup folder was already moved/deleted by Backup Center";
+                    err = API_OK;
+                }
+                else
+                {
+                    LOG_err << "CommandBackupRemove failed";
+                }
+
+                if (completion) completion(err);
+                return;
             }
 
             // remote node may be missing, due to an incomplete earlier removal that ended in error,
@@ -3909,67 +3897,92 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
             Node* remoteNode = mClient.nodeByHandle(remoteNodeHandle);
             assert(!remoteNode || remoteNode->firstancestor()->nodeHandle() == mClient.rootnodes.vault);
 
-            if (remoteNode)
+            if (!remoteNode)
             {
-                if (bkpDest == UNDEF) // permanently delete
+                LOG_warn << "Remote node of the backup not found";
+                if (completion) completion((bkpDest == UNDEF) ? API_OK : API_EINCOMPLETE);
+                return;
+            }
+
+            if (bkpDest == UNDEF) // permanently delete
+            {
+                error e = mClient.unlink(remoteNode, false, mClient.nextreqtag(),
+                    [completion](NodeHandle, Error err)
+                    {
+                        if (err != API_OK)
+                        {
+                            LOG_err << "unlink() failed (server side)";
+                        }
+                        if (completion) completion(err);
+                    }, true);
+                if (e)
                 {
-                    error e = mClient.unlink(remoteNode, false, mClient.nextreqtag(),
+                    LOG_err << "unlink() failed (client side)";
+                    if (completion) completion(e);
+                }
+            }
+            else // move to the new destination
+            {
+                Node* destinationNode = mClient.nodebyhandle(bkpDest);
+                if (destinationNode)
+                {
+                    string newNameOfMovedBackup;
+                    NodeHandle prevParent;
+                    prevParent.set6byte(remoteNode->parenthandle);
+                    if (mClient.childnodebynametype(destinationNode, backupName.c_str(), FOLDERNODE))
+                    {
+                        // generate new name when move destination already contained a folder with the same name
+                        for (unsigned i = 1; i <= UINT_MAX; ++i) // at UINT_MAX there will be duplicates, but it should suffice
+                        {
+                            newNameOfMovedBackup = backupName + " (" + std::to_string(i) + ')';
+                            if (!mClient.childnodebynametype(destinationNode, newNameOfMovedBackup.c_str(), FOLDERNODE))
+                            {
+                                LOG_debug << "Former backup \"" << backupName << "\" renamed to \"" << newNameOfMovedBackup << "\" at destination.";
+                                break;
+                            }
+                        }
+                    }
+                    const char* newName = newNameOfMovedBackup.empty() ? nullptr : newNameOfMovedBackup.c_str();
+                    error e = mClient.rename(remoteNode, destinationNode, SYNCDEL_NONE, prevParent, newName,
                         [completion](NodeHandle, Error err)
                         {
-                            if (error(err) != API_OK)
+                            if (err != API_OK)
                             {
-                                LOG_err << "unlink() failed (server side)";
+                                LOG_err << "rename() failed (server side)";
                             }
                             if (completion) completion(err);
-                        }, true);
+                        });
                     if (e)
                     {
-                        LOG_err << "unlink() failed (client side)";
+                        LOG_err << "rename() failed (client side)";
                         if (completion) completion(e);
                     }
                 }
-                else // move to the new destination
+                else
                 {
-                    Node* destinationNode = mClient.nodebyhandle(bkpDest);
-                    if (destinationNode)
-                    {
-                        NodeHandle prevParent;
-                        prevParent.set6byte(remoteNode->parenthandle);
-                        const char* newName = newNameOfMovedBackup.empty() ? nullptr : newNameOfMovedBackup.c_str();
-                        error e = mClient.rename(remoteNode, destinationNode, SYNCDEL_NONE, prevParent, newName,
-                            [completion](NodeHandle, Error err)
-                            {
-                                if (error(err) != API_OK)
-                                {
-                                    LOG_err << "rename() failed (server side)";
-                                }
-                                if (completion) completion(err);
-                            });
-                        if (e)
-                        {
-                            LOG_err << "rename() failed (client side)";
-                            if (completion) completion(e);
-                        }
-                    }
-                    else
-                    {
-                        LOG_err << "Backup move destination upon removal does not exist";
-                        if (completion) completion(API_EINCOMPLETE);
-                    }
+                    LOG_err << "Backup move destination upon removal does not exist";
+                    if (completion) completion(API_EINCOMPLETE);
                 }
             }
-            else
-            {
-                LOG_warn << "Remote node of the backup not found";
-            }
         };
+
+        auto removeSyncConfig = [this, config, index, afterSyncRemovalCompletion](Error err)
+        {
+            if (err == API_OK || err == API_ENOENT)
+            {
+                // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
+                mClient.app->sync_removed(config);
+                mSyncConfigStore->markDriveDirty(config.mExternalDrivePath);
+                unloadSyncByIndex(index);
+            }
+
+            // continue with completion of either sync removal or backup remote data removal
+            if (afterSyncRemovalCompletion)
+                afterSyncRemovalCompletion(err);
+        };
+
         // unregister this sync/backup from API (backup center)
-        mClient.reqs.add(new CommandBackupRemove(&mClient, config.mBackupId, c));
-
-        mClient.syncactivity = true;
-        mSyncVec.erase(mSyncVec.begin() + (decltype(mSyncVec)::difference_type)index);
-
-        isEmpty = mSyncVec.empty();
+        mClient.reqs.add(new CommandBackupRemove(&mClient, config.mBackupId, removeSyncConfig));
 
         return API_OK;
     }

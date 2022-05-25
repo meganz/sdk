@@ -3332,7 +3332,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
     client->reqs.add(new CommandBackupRemove(client, backupId,
         [backupId, backupRootNode, sdsBkps, attrCompl](const Error& cbrErr) mutable
         {
-            if (cbrErr != API_OK)
+            if (cbrErr != API_OK && cbrErr != API_ENOENT)
             {
                 cout << "Backup Centre - Failed to remove sync / backup (" << error(cbrErr) << ": " << errorstring(cbrErr) << ')' << endl;
                 return;
@@ -9678,7 +9678,7 @@ void exec_syncremove(autocomplete::ACState& s)
         bkpDest, false,
             [](Error e)
         {
-            if (e == API_OK)
+            if (e == API_OK || e == API_ENOENT)
             {
                 cout << "Sync - removed" << endl;
             }
