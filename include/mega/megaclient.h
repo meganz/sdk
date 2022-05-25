@@ -793,15 +793,15 @@ public:
 #endif
 
     // delete or block an existing contact
-    error removecontact(const char*, visibility_t = HIDDEN);
+    error removecontact(const char*, visibility_t = HIDDEN, CommandRemoveContact::Completion completion = nullptr);
 
     // add/remove/update outgoing share
     void setshare(Node*, const char*, accesslevel_t, bool writable, const char*,
         int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
-    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
-    void updatepcr(handle, ipcactions_t);
+    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF, CommandSetPendingContact::Completion completion = nullptr);
+    void updatepcr(handle, ipcactions_t, CommandUpdatePendingContact::Completion completion = nullptr);
 
     // export node link or remove existing exported link for this node
     error exportnode(Node*, int, m_time_t, bool writable, bool megaHosted,
@@ -1384,6 +1384,8 @@ private:
 
     static const char PAYMENT_PUBKEY[];
 
+    void dodiscarduser(User* u, bool discardnotified);
+
 public:
     void enabletransferresumption(const char *loggedoutid = NULL);
     void disabletransferresumption(const char *loggedoutid = NULL);
@@ -1858,7 +1860,7 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node* childnodebyname(Node*, const char*, bool = false);
+    Node *childnodebyname(const Node *, const char*, bool = false);
     Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
     Node* childnodebyattribute(Node*, nameid, const char*);
     static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
