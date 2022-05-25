@@ -800,6 +800,11 @@ struct SyncStallEntry
     // activity that can occur.
     bool alertUserImmediately = false;
 
+    // Indicates if we detected the issue from a user change in the cloud
+    // otherwise, it was from a local change.
+    // Showing it in the GUI helps the user understand what happened, especially for moves.
+    bool detectionSideIsMEGA = false;
+
     struct StallCloudPath
     {
         PathProblem problem = PathProblem::NoProblem;
@@ -854,9 +859,10 @@ struct SyncStallEntry
     StallLocalPath localPath1;
     StallLocalPath localPath2;
 
-    SyncStallEntry(SyncWaitReason r, bool immediate, StallCloudPath&& cp1, StallCloudPath&& cp2, StallLocalPath&& lp1, StallLocalPath&& lp2)
+    SyncStallEntry(SyncWaitReason r, bool immediate, bool dueTocloudSideChange, StallCloudPath&& cp1, StallCloudPath&& cp2, StallLocalPath&& lp1, StallLocalPath&& lp2)
         : reason(r)
         , alertUserImmediately(immediate)
+        , detectionSideIsMEGA(dueTocloudSideChange)
         , cloudPath1(move(cp1))
         , cloudPath2(move(cp2))
         , localPath1(move(lp1))
@@ -1267,7 +1273,7 @@ private:
         void report(SyncStallInfo& stallInfo)
         {
             stallInfo.waitingLocal(mPath, SyncStallEntry(
-                SyncWaitReason::FileIssue, true,
+                SyncWaitReason::FileIssue, true, false,
                 {},
                 {},
                 {mPath, PathProblem::IgnoreFileMalformed},

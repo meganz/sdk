@@ -5623,6 +5623,13 @@ class MegaSyncStall
          * @return local path involved in the sync stall
          */
         virtual int pathProblem(bool cloudSide, int index) const = 0;
+
+        /**
+        * Use this method for move problems to indicate which side
+        * the move was detected on, and therefore the other side
+        * is where the move could not be repliated.
+        */
+        virtual bool detectedCloudSide() const = 0;
 };
 
 /**

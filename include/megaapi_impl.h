@@ -2166,6 +2166,12 @@ class MegaSyncStallPrivate : public MegaSyncStall
             return reasonDebugString(reason());
         }
 
+
+        bool detectedCloudSide() const override
+        {
+            return info.detectionSideIsMEGA;
+        }
+
         static const char*
         reasonDebugString(MegaSyncStall::SyncStallReason reason);
 
@@ -2241,6 +2247,11 @@ public:
     const char* reasonDebugString() const override
     {
         return reasonDebugString(reason());
+    }
+
+    bool detectedCloudSide() const override
+    {
+        return mCache1.size() > 1;
     }
 
     static const char*
