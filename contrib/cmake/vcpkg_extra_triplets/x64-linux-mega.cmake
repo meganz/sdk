@@ -11,7 +11,7 @@ if(PORT MATCHES "curl" OR
     set(VCPKG_LIBRARY_LINKAGE dynamic)
 else()
     # build this library statically (much simpler installation, debugging, etc)
-	set(VCPKG_LIBRARY_LINKAGE static)
+    set(VCPKG_LIBRARY_LINKAGE static)
 endif()
 
 set(VCPKG_C_FLAGS "${VCPKG_C_FLAGS}")
