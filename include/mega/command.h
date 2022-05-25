@@ -296,9 +296,16 @@ class MEGA_API CommandRemoveContact : public Command
     visibility_t v;
 
 public:
+    using Completion = std::function<void(error)>;
+
     bool procresult(Result) override;
 
-    CommandRemoveContact(MegaClient*, const char*, visibility_t);
+    CommandRemoveContact(MegaClient*, const char*, visibility_t, Completion completion = nullptr);
+
+private:
+    void doComplete(error result);
+
+    Completion mCompletion;
 };
 
 // set user attributes with version
@@ -673,9 +680,16 @@ class MEGA_API CommandSetPendingContact : public Command
     string temail;  // target email
 
 public:
+    using Completion = std::function<void(handle, error, opcactions_t)>;
+
     bool procresult(Result) override;
 
-    CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
+    CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF, Completion completion = nullptr);
+
+private:
+    void doComplete(handle handle, error result, opcactions_t actions);
+
+    Completion mCompletion;
 };
 
 class MEGA_API CommandUpdatePendingContact : public Command
@@ -683,9 +697,16 @@ class MEGA_API CommandUpdatePendingContact : public Command
     ipcactions_t action;
 
 public:
+    using Completion = std::function<void(error, ipcactions_t)>;
+
     bool procresult(Result) override;
 
-    CommandUpdatePendingContact(MegaClient*, handle, ipcactions_t);
+    CommandUpdatePendingContact(MegaClient*, handle, ipcactions_t, Completion completion = nullptr);
+
+private:
+    void doComplete(error result, ipcactions_t actions);
+
+    Completion mCompletion;
 };
 
 class MEGA_API CommandGetUserQuota : public Command
