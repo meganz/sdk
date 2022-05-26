@@ -1213,6 +1213,11 @@ bool MegaApiImpl::isSyncing()
     return client->syncs.syncBusyState;
 }
 
+bool MegaApiImpl::syncsHaveStalls()
+{
+    return client->syncs.syncStallState || client->syncs.syncConflictState;
+}
+
 MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
 {
     // syncs has its own thread safety
@@ -20215,7 +20220,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
             const char *email = request->getEmail();
-            const char *name = request->getName();            
+            const char *name = request->getName();
             if (!email || !name)
             {
                 e = API_EARGS;

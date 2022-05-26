@@ -14067,6 +14067,12 @@ class MegaApi
         bool isSyncing();
 
         /**
+        * @brief Indicates whether there is any sync problem that needs user attention
+        * @return true if any sync is stalled, or has a stall condition
+        */
+        bool syncsHaveStalls();
+
+        /**
          * @brief Inform the SDK of the exclusion names used for old syncs, in case any need to be upgraded to .megaignore
          *
          * Wildcards (* and ?) are allowed
