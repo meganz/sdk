@@ -1931,6 +1931,88 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 sourceSyncNode->resetTransfer(nullptr);
             }
 
+            // Is there something in the way at the move destination?
+            string nameOverwritten;
+
+            if (row.cloudNode)
+            {
+                SYNC_verbose << syncname
+                             << "Move detected by fsid "
+                             << toHandle(row.fsNode->fsid)
+                             << " but something else with that name ("
+                             << row.cloudNode->name
+                             << ") is already here in the cloud. Type: "
+                             << row.cloudNode->type
+                             << " new path: "
+                             << fullPath.localPath_utf8()
+                             << " old localnode: "
+                             << sourceSyncNode->getLocalPath()
+                             << logTriplet(row, fullPath);
+
+                // but, is it ok to overwrite that thing?  If that's what
+                // happened locally to a synced file, and the cloud item was
+                // also synced and is still there, then it's legit
+                // overwriting a folder like that is not possible so far as
+                // I know Note that the original algorithm would overwrite a
+                // file or folder, moving the old one to cloud debris
+
+                // Assume the overwrite is legitimate.
+                PathProblem problem = PathProblem::NoProblem;
+
+                // Does the overwrite appear legitimate?
+                if (row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
+                    problem = PathProblem::DifferentFileOrFolderIsAlreadyPresent;
+
+                // Has the engine completed all pending scans?
+                if (problem == PathProblem::NoProblem
+                    && !syncs.mSyncFlags->scanningWasComplete)
+                    problem = PathProblem::WaitingForScanningToComplete;
+
+                LocalNode* other = nullptr;
+
+                // Is the file on disk visible elsewhere?
+                if (problem == PathProblem::NoProblem
+                    && !row.syncNode->fsidSyncedReused)
+                    other = syncs.findLocalNodeByScannedFsid(row.syncNode->fsid_lastSynced,
+                                                             row.syncNode->type,
+                                                             &row.syncNode->syncedFingerprint,
+                                                             this,
+                                                             nullptr);
+
+                // Then it's probably part of another move.
+                if (other && other != row.syncNode && other != sourceSyncNode)
+                    problem = PathProblem::WaitingForAnotherMoveToComplete;
+
+                // Is the overwrite legitimate?
+                if (problem != PathProblem::NoProblem)
+                {
+                    // Make sure we revisit the source, too.
+                    sourceSyncNode->setSyncAgain(false, true, false);
+
+                    // The move source might be below the target.
+                    row.recurseBelowRemovedFsNode = true;
+
+                    // And let the engine know why we can't proceed.
+                    monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
+                        SyncWaitReason::MoveOrRenameCannotOccur, false, false,
+                        {sourceSyncNode->getCloudPath(true)},
+                        {fullPath.cloudPath},
+                        {sourceSyncNode->getLocalPath()},
+                        {fullPath.localPath, problem}));
+
+                    // Move isn't complete and this row isn't synced.
+                    return rowResult = false, true;
+                }
+
+                // Overwrite is legitimate.
+                SYNC_verbose << syncname
+                             << "Move is a legit overwrite of a synced file/folder, so we overwrite that in the cloud also."
+                             << logTriplet(row, fullPath);
+
+                // Capture the cloud node's name for anomaly detection.
+                nameOverwritten = row.cloudNode->name;
+            }
+
             // logic to detect files being updated in the local computer moving the original file
             // to another location as a temporary backup
             if (!pendingTo
@@ -1959,44 +2041,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     {fullPath.localPath}));
 
                 return rowResult = false, true;
-            }
-
-            // Is there something in the way at the move destination?
-            string nameOverwritten;
-            if (row.cloudNode)
-            {
-                SYNC_verbose << syncname << "Move detected by fsid " << toHandle(row.fsNode->fsid) << " but something else with that name (" << row.cloudNode->name << ") is already here in the cloud. Type: " << row.cloudNode->type
-                    << " new path: " << fullPath.localPath_utf8()
-                    << " old localnode: " << sourceSyncNode->getLocalPath()
-                    << logTriplet(row, fullPath);
-
-                // but, is it ok to overwrite that thing?  If that's what happened locally to a synced file, and the cloud item was also synced and is still there, then it's legit
-                // overwriting a folder like that is not possible so far as I know
-                // Note that the original algorithm would overwrite a file or folder, moving the old one to cloud debris
-                bool legitOverwrite = //row.syncNode->type == FILENODE &&
-                                      //row.syncNode->fsid_lastSynced != UNDEF &&
-                                      row.syncNode->syncedCloudNodeHandle == row.cloudNode->handle;
-
-                if (legitOverwrite)
-                {
-                    SYNC_verbose << syncname << "Move is a legit overwrite of a synced file/folder, so we overwrite that in the cloud also." << logTriplet(row, fullPath);
-                    nameOverwritten = row.cloudNode->name;
-                    // todo: record the old one as prior version?
-                }
-                else
-                {
-                    row.syncNode->setCheckMovesAgain(false, true, false);
-
-                    monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
-                        SyncWaitReason::MoveOrRenameCannotOccur, false, false,
-                        {sourceSyncNode->getCloudPath(true)},
-                        {fullPath.cloudPath},
-                        {sourceSyncNode->getLocalPath()},
-                        {fullPath.localPath, PathProblem::DifferentFileOrFolderIsAlreadyPresent}));
-
-                    rowResult = false;
-                    return true;
-                }
             }
 
             row.suppressRecursion = true;   // wait until we have moved the other LocalNodes below this one
@@ -2507,34 +2551,69 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         if (row.fsNode && !caseInsensitiveRename)
         {
             // todo: should we check if the node that is already here is in fact a match?  in which case we should allow progressing to resolve_rowMatched
+            SYNC_verbose << syncname
+                         << "Move detected by nodehandle, but something else with that name is already here locally. Type: "
+                         << row.fsNode->type
+                         << " moved node: "
+                         << fullPath.cloudPath
+                         << " old parent correspondence: "
+                         << (sourceSyncNode->parent ? sourceSyncNode->parent->getLocalPath().toPath() : "<null>")
+                         << logTriplet(row, fullPath);
 
-            SYNC_verbose << syncname << "Move detected by nodehandle, but something else with that name is already here locally. Type: " << row.fsNode->type
-                << " moved node: " << fullPath.cloudPath
-                << " old parent correspondence: " << (sourceSyncNode->parent ? sourceSyncNode->parent->getLocalPath().toPath() : "<null>")
-                << logTriplet(row, fullPath);
+            // Assume we've encountered an illegitimate overwrite.
+            PathProblem problem = PathProblem::DifferentFileOrFolderIsAlreadyPresent;
 
-            if (row.syncNode)
+            // Does the file on disk match what this node was previously synced against?
+            if (row.syncNode
+                && (row.syncNode->type == row.fsNode->type
+                    && row.syncNode->fsid_lastSynced == row.fsNode->fsid))
+                problem = PathProblem::NoProblem;
+
+            // Does the node exist elsewhere in the tree?
+            while (problem == PathProblem::NoProblem)
             {
-                overwrite |= row.syncNode->type == row.fsNode->type;
-                overwrite &= row.syncNode->fsid_lastSynced == row.fsNode->fsid;
+                CloudNode node;
+                auto active = false;
+                auto excluded = false;
+                auto trash = false;
+                auto found = syncs.lookupCloudNode(row.syncNode->syncedCloudNodeHandle,
+                                                   node,
+                                                   nullptr,
+                                                   &trash,
+                                                   &active,
+                                                   &excluded,
+                                                   nullptr,
+                                                   Syncs::EXACT_VERSION);
+
+                if (!found || !active || excluded || trash)
+                    break;
+
+                if (node.parentHandle != row.cloudNode->parentHandle
+                    || node.name != row.cloudNode->name)
+                    problem = PathProblem::WaitingForAnotherMoveToComplete;
+
+                break;
             }
 
-            if (!overwrite)
+            if (problem != PathProblem::NoProblem)
             {
                 parentRow.syncNode->setCheckMovesAgain(false, true, false);
 
                 monitor.waitingCloud(fullPath.cloudPath, SyncStallEntry(
                     SyncWaitReason::MoveOrRenameCannotOccur, false, true,
                     {sourceSyncNode->getCloudPath(true)},
-                    {fullPath.cloudPath, PathProblem::DifferentFileOrFolderIsAlreadyPresent},
+                    {fullPath.cloudPath, problem},
                     {sourceSyncNode->getLocalPath()},
                     {fullPath.localPath}));
 
-                rowResult = false;
-                return true;
+                return rowResult = false, true;
             }
 
-            SYNC_verbose << syncname << "Move is a legit overwrite of a synced file, so we overwrite that locally too." << logTriplet(row, fullPath);
+            SYNC_verbose << syncname
+                         << "Move is a legit overwrite of a synced file, so we overwrite that locally too."
+                         << logTriplet(row, fullPath);
+
+            overwrite = true;
         }
 
         if (!sourceSyncNode->moveApplyingToLocal && !belowRemovedFsNode && parentRow.cloudNode)
