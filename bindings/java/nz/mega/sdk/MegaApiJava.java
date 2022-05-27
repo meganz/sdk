@@ -3653,6 +3653,36 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the secondary color for the avatar.
+     * <p>
+     * This color should be used only when the user doesn't have an avatar, making a
+     * gradient in combination with the color returned from getUserAvatarColor.
+     * <p>
+     * You take the ownership of the returned value.
+     *
+     * @param user MegaUser to get the color of the avatar.
+     * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+     */
+    public String getUserAvatarSecondaryColor(MegaUser user) {
+        return MegaApi.getUserAvatarSecondaryColor(user);
+    }
+
+    /**
+     * Get the secondary color for the avatar.
+     * <p>
+     * This color should be used only when the user doesn't have an avatar, making a
+     * gradient in combination with the color returned from getUserAvatarColor.
+     * <p>
+     * You take the ownership of the returned value.
+     *
+     * @param userhandle User handle (Base64 encoded) to get the avatar.
+     * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+     */
+    public String getUserAvatarSecondaryColor(String userhandle) {
+        return MegaApi.getUserAvatarSecondaryColor(userhandle);
+    }
+
+    /**
      * Get an attribute of a MegaUser.
      * <p>
      * User attributes can be private or public. Private attributes are accessible only by
