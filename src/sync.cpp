@@ -3120,6 +3120,16 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
     Context::put(std::move(context));
 }
 
+void Syncs::enableBackupRestrictions(bool enable)
+{
+    mBackupRestrictionsEnabled = enable;
+}
+
+bool Syncs::backupRestrictionsEnabled() const
+{
+    return mBackupRestrictionsEnabled;
+}
+
 void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
 {
     // Internal configs only for the time being.
@@ -3853,7 +3863,7 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
         string newNameOfMovedBackup;
 
         // validate backup destination upon removal
-        if (removingBackupRemoteContents && bkpDest != UNDEF)
+        if (backupRestrictionsEnabled() && removingBackupRemoteContents && bkpDest != UNDEF)
         {
             Node* n = mClient.nodebyhandle(bkpDest);
             if (!n)
@@ -3871,7 +3881,7 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
         NodeHandle remoteNodeHandle = config.mRemoteNode;
         string backupName = config.mName;
 
-        auto afterSyncRemovalCompletion = !removingBackupRemoteContents ? completion :
+        auto afterSyncRemovalCompletion = !backupRestrictionsEnabled() || !removingBackupRemoteContents ? completion :
         [this, remoteNodeHandle, bkpDest, backupName, completion](Error err)
         {
             if (err != API_OK)

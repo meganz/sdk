@@ -13808,7 +13808,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
-    if (syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
+    if (syncs.backupRestrictionsEnabled() && syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
     {
         syncConfig.mError = INVALID_REMOTE_TYPE;
         syncConfig.mEnabled = false;
