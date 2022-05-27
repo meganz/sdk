@@ -11932,7 +11932,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 break;
 
             case CACHEDNODE:
-                LOG_info << "Loading nodes from old cache";
                 if ((n = mNodeManager.unserializeNode(&data, true)))
                 {
                     // When all nodes are loaded we force a commit
@@ -12006,6 +12005,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     if (isDbUpgraded)   // nodes loaded during migration from `statecache` to `nodes` table and kept in RAM
     {
+        LOG_info << "Upgrading cache to NOD";
         // call setparent() for the nodes whose parent was not available upon unserialization
         for (auto it : delayedParents)
         {
