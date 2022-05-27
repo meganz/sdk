@@ -764,6 +764,10 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
     {
         fsBasePath = ensureDir(workingFolder / fs::u8path(name));
     }
+
+    // SyncTests want to skip backup restrictions, so they are not
+    // restricted to the path "Vault/My backups/<device>/<backup>"
+    client.syncs.enableBackupRestrictions(false);
 }
 
 StandardClient::~StandardClient()
@@ -8915,9 +8919,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
     {
-        // do not test backup types, since they need to be placed
-        // at special location /Vault/My backups/<device-folder>
-        if (syncType == TwoWaySyncSymmetryCase::type_backupSync) continue;
+        //if (syncType != TwoWaySyncSymmetryCase::type_backupSync) continue;
 
         for (int selfChange = 0; selfChange < 2; ++selfChange)
         {
@@ -9243,7 +9245,7 @@ const auto SyncMonitoring = [](handle id) {
     };
 };
 
-TEST_F(SyncTest, DISABLED_ForeignChangesInTheCloudDisablesMonitoringBackup)
+TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -9322,7 +9324,7 @@ public:
     FileAddedCallback mOnFileAdded;
 }; // Client
 
-TEST_F(SyncTest, DISABLED_MonitoringExternalBackupRestoresInMirroringMode)
+TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -9416,7 +9418,7 @@ TEST_F(SyncTest, DISABLED_MonitoringExternalBackupRestoresInMirroringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
-TEST_F(SyncTest, DISABLED_MonitoringExternalBackupResumesInMirroringMode)
+TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -9497,7 +9499,7 @@ TEST_F(SyncTest, DISABLED_MonitoringExternalBackupResumesInMirroringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
-TEST_F(SyncTest, DISABLED_MirroringInternalBackupResumesInMirroringMode)
+TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -9671,7 +9673,7 @@ TEST_F(SyncTest, DISABLED_MirroringInternalBackupResumesInMirroringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
-TEST_F(SyncTest, DISABLED_MonitoringInternalBackupResumesInMonitoringMode)
+TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(8);
@@ -9941,7 +9943,7 @@ void BackupBehavior::doTest(const string& initialContent,
     }
 }
 
-TEST_F(BackupBehavior, DISABLED_SameMTimeSmallerCRC)
+TEST_F(BackupBehavior, SameMTimeSmallerCRC)
 {
     // File's small enough that the content is the CRC.
     auto initialContent = string("f");
@@ -9950,7 +9952,7 @@ TEST_F(BackupBehavior, DISABLED_SameMTimeSmallerCRC)
     doTest(initialContent, updatedContent);
 }
 
-TEST_F(BackupBehavior, DISABLED_SameMTimeSmallerSize)
+TEST_F(BackupBehavior, SameMTimeSmallerSize)
 {
     auto initialContent = string("ff");
     auto updatedContent = string("f");
