@@ -3357,11 +3357,13 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
 void exec_backupcentre(autocomplete::ACState& s)
 {
     bool delFlag = s.extractflag("-del");
+    bool purgeFlag = s.extractflag("-purge");
     bool stopFlag = s.extractflag("-stop");
 
     if (s.words.size() == 1)
     {
-        client->reqs.add(new CommandBackupSyncFetch([&](Error e, vector<CommandBackupSyncFetch::Data>& data){
+        client->reqs.add(new CommandBackupSyncFetch([purgeFlag](Error e, vector<CommandBackupSyncFetch::Data>& data)
+        {
             if (e)
             {
                 cout << "backupcentre failed: " << e << endl;
@@ -3370,26 +3372,47 @@ void exec_backupcentre(autocomplete::ACState& s)
             {
                 for (auto& d : data)
                 {
-                    cout << "Backup ID: " << toHandle(d.backupId) << " (" << d.backupId << ')' << endl;
-                    cout << "  backup type: " << backupTypeToStr(d.backupType) << endl;
-                    cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
-                    cout << "  local folder: " << d.localFolder << endl;
-                    cout << "  device id: " << d.deviceId << endl;
-                    cout << "  sync state: " << d.syncState << endl;
-                    cout << "  sync substate: " << d.syncSubstate << endl;
-                    cout << "  extra: " << d.extra << endl;
-                    cout << "    backup name: " << d.backupName << endl;
-                    cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
-                    cout << "  heartbeat status: " << d.hbStatus << endl;
-                    cout << "  heartbeat progress: " << d.hbProgress << endl;
-                    cout << "  heartbeat uploads: " << d.uploads << endl;
-                    cout << "  heartbeat downloads: " << d.downloads << endl;
-                    cout << "  last activity time: " << d.lastActivityTs << endl;
-                    cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl << endl;
+                    if (purgeFlag)
+                    {
+                        client->reqs.add(new CommandBackupRemove(client, d.backupId,[&](Error e)
+                        {
+                            if (e)
+                            {
+                                cout << "backup center failed to purge id: " << toHandle(d.backupId) << endl;
+                            }
+                        }));
+
+                    }
+                    else
+                    {
+                        cout << "Backup ID: " << toHandle(d.backupId) << " (" << d.backupId << ')' << endl;
+                        cout << "  backup type: " << backupTypeToStr(d.backupType) << endl;
+                        cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
+                        cout << "  local folder: " << d.localFolder << endl;
+                        cout << "  device id: " << d.deviceId << endl;
+                        cout << "  sync state: " << d.syncState << endl;
+                        cout << "  sync substate: " << d.syncSubstate << endl;
+                        cout << "  extra: " << d.extra << endl;
+                        cout << "    backup name: " << d.backupName << endl;
+                        cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
+                        cout << "  heartbeat status: " << d.hbStatus << endl;
+                        cout << "  heartbeat progress: " << d.hbProgress << endl;
+                        cout << "  heartbeat uploads: " << d.uploads << endl;
+                        cout << "  heartbeat downloads: " << d.downloads << endl;
+                        cout << "  last activity time: " << d.lastActivityTs << endl;
+                        cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl << endl;
+                    }
                 }
 
-                cout << "Backup Centre - Sync / backup count: " << data.size() << endl;
-            }
+                if (purgeFlag)
+                {
+                    cout << "Backup Center - Purging registered syncs/backups from API..." << endl;
+                }
+                else
+                {
+                    cout << "Backup Centre - Sync / backup count: " << data.size() << endl;
+                }
+             }
         }));
     }
     else if (s.words.size() >= 2 && (delFlag || stopFlag))
@@ -3623,6 +3646,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_getmybackups, sequence(text("getmybackups")));
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(either(
                                        sequence(flag("-del"), param("backup_id"), opt(param("move_to_handle"))),
+                                       sequence(flag("-purge")),
                                        sequence(flag("-stop"), param("backup_id"))))));
 
     p->Add(exec_syncadd,
