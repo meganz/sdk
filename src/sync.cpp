@@ -3881,7 +3881,7 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
         NodeHandle remoteNodeHandle = config.mRemoteNode;
         string backupName = config.mName;
 
-        auto afterSyncRemovalCompletion = !backupRestrictionsEnabled() || !removingBackupRemoteContents ? completion :
+        auto afterSyncRemovalCompletion = (!backupRestrictionsEnabled() || !removingBackupRemoteContents) ? completion :
         [this, remoteNodeHandle, bkpDest, backupName, completion](Error err)
         {
             if (err != API_OK)

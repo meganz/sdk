@@ -14061,7 +14061,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
 
 void MegaClient::cleanupFailedExtBackup(const string& remotePath)
 {
-    if (syncs.backupRestrictionsEnabled() == false)
+    if (!syncs.backupRestrictionsEnabled())
     {
         LOG_warn << "Skipping cleanup of remote dir of external backup: restrictions disabled";
         return;
