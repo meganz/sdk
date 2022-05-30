@@ -1821,13 +1821,13 @@ handle StandardClient::backupAdd_mainthread(const string& drivePath,
                 result->set_value(backupId);
                 };
 
-            client.setupSync_inthread(sp.filename().u8string(), sp, true, completion, logname);
+            client.setupSync_inthread(sp.filename().u8string(), dp, sp, true, completion, logname);
         });
 
     return result.get();
 }
 
-error StandardClient::addSync(const string& displayPath, const fs::path& localpath, handle remoteNode,
+error StandardClient::addSync(const string& displayPath, const fs::path& drivepath, const fs::path& localpath, handle remoteNode,
                               function<void(error, SyncError, handle)> addSyncCompletion, const string& logname,
                               SyncConfig::Type type)
 {
@@ -1838,7 +1838,7 @@ error StandardClient::addSync(const string& displayPath, const fs::path& localpa
             NodeHandle().set6byte(remoteNode),
             displayPath,
             0,
-            LocalPath(),
+            LocalPath::fromAbsolutePath(drivepath.u8string()),
             true,
             type);
     EXPECT_TRUE(!syncConfig.mOriginalPathOfRemoteRootNode.empty() &&
@@ -1849,7 +1849,7 @@ error StandardClient::addSync(const string& displayPath, const fs::path& localpa
     return e;
 }
 
-bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
+bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& drivepath, const fs::path& localpath, const bool isBackup,
     std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
 {
     // regular sync
@@ -1859,7 +1859,7 @@ bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::p
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                error e = addSync(m->displaypath(), localpath, m->nodehandle, addSyncCompletion, logname, SyncConfig::TYPE_TWOWAY);
+                error e = addSync(m->displaypath(), "", localpath, m->nodehandle, addSyncCompletion, logname, SyncConfig::TYPE_TWOWAY);
                 return !e;
             }
         }
@@ -1870,14 +1870,20 @@ bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::p
 
     // or backup
     auto* clientPtr = &client;
-    CommandPutNodes::Completion thenAddSync = [this, clientPtr, localpath, addSyncCompletion, logname]
-    (const Error&, targettype_t, vector<NewNode>& nn, bool)
+    CommandPutNodes::Completion thenAddSync = [this, clientPtr, drivepath, localpath, addSyncCompletion, logname]
+    (const Error& e, targettype_t, vector<NewNode>& nn, bool)
     {
+        if (e != API_OK && addSyncCompletion)
+        {
+            addSyncCompletion(error(e), PUT_NODES_ERROR, UNDEF);
+            return;
+        }
+
         handle nh = nn.back().mAddedHandle;
         if (Node* m = clientPtr->nodebyhandle(nh))
         {
             const string& displayPath = m->displaypath();
-            error err = addSync(displayPath, localpath, nh, addSyncCompletion, logname, SyncConfig::TYPE_BACKUP);
+            error err = addSync(displayPath, drivepath, localpath, nh, addSyncCompletion, logname, SyncConfig::TYPE_BACKUP);
             if (err != API_OK && addSyncCompletion)
             {
                 addSyncCompletion(err, PUT_NODES_ERROR, UNDEF);
@@ -9366,7 +9372,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
             ASSERT_EQ(result, API_OK);
 
             // Add sync.
-            id = cb.backupAdd_mainthread("", "s", "s", "");
+            id = cb.backupAdd_mainthread(drivePath, "s", "s", "");
             ASSERT_NE(id, UNDEF);
         }
 
@@ -9451,7 +9457,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
         ASSERT_EQ(result, API_OK);
 
         // Add sync.
-        id = cb.backupAdd_mainthread("", "s", "s", "");
+        id = cb.backupAdd_mainthread(drivePath, "s", "s", "");
         ASSERT_NE(id, UNDEF);
     }
 
