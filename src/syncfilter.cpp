@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cctype>
 #include <cstdint>
+#include <limits>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -192,6 +193,9 @@ static bool add(const string& text, SizeFilterPtr& filter);
 
 // Parses the string filter "text" and adds it to the "filters" vector.
 static bool add(const string& text, StringFilterPtrVector& filters);
+
+// Logs an invalid threshold error and returns false.
+static bool invalidThresholdsError(const SizeFilter& filter);
 
 // Logs a normalization error and return false.
 static FilterLoadResult normalizationError(const string& text);
@@ -502,7 +506,7 @@ FilterLoadResult FilterChain::load(FileAccess& fileAccess)
         }
 
         // Try and add the filter.
-        if (l[0] == 'm')
+        if (l[0] == 'e')
         {
             if (!add(l, sizeFilter))
             {
@@ -617,28 +621,15 @@ bool IgnoreFileName::operator==(const string& rhs) const
 
 SizeFilter::SizeFilter()
   : lower(0)
-  , upper(0)
+  , upper(std::numeric_limits<std::uint64_t>::max())
 {
 }
 
 bool SizeFilter::match(const std::uint64_t s) const
 {
-    if (!lower)
-    {
-        return s <= upper;
-    }
+    assert(lower < upper);
 
-    if (!upper)
-    {
-        return s >= lower;
-    }
-
-    if (lower < upper)
-    {
-        return s >= lower && s <= upper;
-    }
-
-    return s >= lower || s <= upper;
+    return s >= lower && s <= upper;
 }
 
 bool StringFilter::applicable(const nodetype_t type) const
@@ -769,8 +760,8 @@ const FileTarget& FileTarget::instance()
 bool add(const string& text, SizeFilterPtr& filter)
 {
     // Handy constants.
-    static const std::string maxsize = "maxsize";
-    static const std::string minsize = "minsize";
+    static const std::string excludeLarger  = "exclude-larger";
+    static const std::string excludeSmaller = "exclude-smaller";
 
     std::istringstream istream(text);
 
@@ -786,10 +777,10 @@ bool add(const string& text, SizeFilterPtr& filter)
     }
 
     // Is the user specifying the upper bound?
-    const auto upper = directive == maxsize;
+    const auto larger = directive == excludeLarger;
 
     // Are they specifying the lower bound?
-    if (!upper && directive != minsize)
+    if (!larger && directive != excludeSmaller)
     {
         // Neither lower nor upper bound.
         return syntaxError(text);
@@ -874,7 +865,7 @@ bool add(const string& text, SizeFilterPtr& filter)
     }
 
     // Update the appropriate bound.
-    if (upper)
+    if (larger)
     {
         filter->upper = limit;
     }
@@ -882,6 +873,10 @@ bool add(const string& text, SizeFilterPtr& filter)
     {
         filter->lower = limit;
     }
+
+    // Make sure the thresholds the user has set are sane.
+    if (filter->lower >= filter->upper)
+        return invalidThresholdsError(*filter);
 
     return true;
 }
@@ -1068,6 +1063,17 @@ bool add(const string& text, StringFilterPtrVector& filters)
     return true;
 }
 
+bool invalidThresholdsError(const SizeFilter& filter)
+{
+    LOG_verbose << "Invalid size thresholds: "
+                << "Lower bound ("
+                << filter.lower
+                << ") is greater than or equal to upper bound ("
+                << filter.upper
+                << ")";
+
+    return false;
+}
 
 FilterLoadResult normalizationError(const string& text)
 {
