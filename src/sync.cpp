@@ -3859,6 +3859,7 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
     if (index < mSyncVec.size())
     {
         auto& config = mSyncVec[index]->mConfig;
+        config.setEnabled(false); // avoid heartbeats
         bool removingBackupRemoteContents = config.isBackup() && !skipMoveOrDelBackup;
         string newNameOfMovedBackup;
 
