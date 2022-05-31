@@ -84,7 +84,9 @@ public:
     void cancelQuery() override;
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
 
+    void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
+    virtual ~SqliteAccountState();
 
 private:
     // Iterate over a SQL query row by row and fill the map
@@ -92,6 +94,9 @@ private:
     //     std::map<mega::NodeHandle, NodeSerialized>
     //     std::vector<std::pair<mega::NodeHandle, NodeSerialized>>
     bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
+
+    sqlite3_stmt* mStmtPutNode = nullptr;
+    sqlite3_stmt* mStmtUpdateNode = nullptr;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess
