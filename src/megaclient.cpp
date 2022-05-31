@@ -8350,7 +8350,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
         if (!warnlevel())
         {
-            if ((n = nodebyhandle(h)))
+            // notify only is false when we are processing fetch nodes command result
+            // At processing fetch nodes, all nodes are new
+            // we aren't going to find at DB (it isn't necessary to look for them)
+            if (notify && (n = nodebyhandle(h)))
             {
                 Node* p = NULL;
                 if (!ISUNDEF(ph))
