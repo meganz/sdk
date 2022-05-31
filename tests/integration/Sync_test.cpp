@@ -1553,43 +1553,102 @@ void StandardClient::loginFromSession(const string& session, PromiseBoolSP pb)
         [pb](error e) { pb->set_value(!e);  return true; });
 }
 
-bool StandardClient::cloudCopyTreeAs(Node* from, Node* to, string name)
+bool StandardClient::copy(const CloudItem& source,
+                          const CloudItem& target,
+                          const string& name,
+                          VersioningOption versioningPolicy)
 {
-    auto promise = makeSharedPromise<bool>();
-    auto future = promise->get_future();
-
-    cloudCopyTreeAs(from, to, std::move(name), std::move(promise));
-
-    return future.get();
-}
-
-
-void StandardClient::cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb)
-{
-    auto completion = BasicPutNodesCompletion([pb](const Error& e) {
-        pb->set_value(!e);
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        client.copy(source, target, name, std::move(result), versioningPolicy);
     });
 
-    resultproc.prepresult(COMPLETION, ++next_request_tag,
-        [&](){
-            TreeProcCopy tc;
-            client.proctree(n1, &tc, false, true);
-            tc.allocnodes();
-            client.proctree(n1, &tc, false, true);
-            tc.nn[0].parenthandle = UNDEF;
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return false;
 
-            SymmCipher key;
-            AttrMap attrs;
-            string attrstring;
-            key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
-            attrs = n1->attrs;
-            LocalPath::utf8_normalize(&newname);
-            attrs.map['n'] = newname;
-            attrs.getjson(&attrstring);
-            client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-            client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, 0, std::move(completion));
-        },
-        nullptr);
+    return result.get();
+}
+
+bool StandardClient::copy(const CloudItem& source,
+                          const CloudItem& target,
+                          VersioningOption versioningPolicy)
+{
+    return copy(source, target, string(), versioningPolicy);
+}
+
+void StandardClient::copy(const CloudItem& source,
+                          const CloudItem& target,
+                          string name,
+                          PromiseBoolSP result,
+                          VersioningOption versioningPolicy)
+{
+    auto* sourceNode = source.resolve(*this);
+    if (!sourceNode)
+        return result->set_value(false);
+
+    auto* targetNode = target.resolve(*this);
+    if (!targetNode || targetNode->type == FILENODE)
+        return result->set_value(false);
+
+    // Make sure name always contains something valid.
+    if (name.empty())
+        name = sourceNode->displayname();
+
+    // Make sure name is normalized.
+    LocalPath::utf8_normalize(&name);
+
+    TreeProcCopy proc;
+
+    // Figure out how many nodes we need to copy.
+    client.proctree(sourceNode, &proc, false, true);
+
+    // Allocate and populate nodes.
+    proc.allocnodes();
+
+    client.proctree(sourceNode, &proc, false, true);
+
+    // We need the original node's handle if we're using versioning.
+    Node* victimNode = nullptr;
+
+    if (versioningPolicy != NoVersioning)
+        victimNode = client.childnodebyname(targetNode, name.c_str(), true);
+
+    if (victimNode)
+        proc.nn[0].ovhandle = victimNode->nodeHandle();
+
+    proc.nn[0].parenthandle = UNDEF;
+
+    // Populate attributes of copied node.
+    {
+        SymmCipher key;
+
+        // Load key.
+        key.setkey((const ::mega::byte*)proc.nn[0].nodekey.data(), sourceNode->type);
+
+        // Copy existing attributes.
+        AttrMap attrs = sourceNode->attrs;
+
+        // Upate the node's name.
+        attrs.map['n'] = std::move(name);
+
+        // Generate attribute string.
+        string attrstring;
+
+        attrs.getjson(&attrstring);
+
+        // Update node's attribute string.
+        client.makeattr(&key, proc.nn[0].attrstring, attrstring.c_str());
+    }
+
+    auto completion = [=](const Error& error) {
+        result->set_value(error == API_OK);
+    };
+
+    client.putnodes(targetNode->nodeHandle(),
+                    versioningPolicy,
+                    std::move(proc.nn),
+                    nullptr,
+                    0,
+                    BasicPutNodesCompletion(std::move(completion)));
 }
 
 bool StandardClient::putnodes(const CloudItem& parent,
@@ -9098,7 +9157,7 @@ struct TwoWaySyncSymmetryCase
             auto* from = client.drillchildnodebyname(root, "initial");
             ASSERT_NE(from, nullptr);
 
-            ASSERT_TRUE(client.cloudCopyTreeAs(from, root, name()));
+            ASSERT_TRUE(client.copy(from, root, name()));
         }
 
         // Prepare Local Filesystem

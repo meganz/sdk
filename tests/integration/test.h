@@ -395,7 +395,6 @@ struct StandardClient : public MegaApp
     void preloginFromEnv(const string& userenv, PromiseBoolSP pb);
     void loginFromEnv(const string& userenv, const string& pwdenv, PromiseBoolSP pb);
     void loginFromSession(const string& session, PromiseBoolSP pb);
-    bool cloudCopyTreeAs(Node* from, Node* to, string name);
 
     class BasicPutNodesCompletion
     {
@@ -414,7 +413,20 @@ struct StandardClient : public MegaApp
         std::function<void(const Error&)> mCallable;
     }; // BasicPutNodesCompletion
 
-    void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb);
+    bool copy(const CloudItem& source,
+              const CloudItem& target,
+              const string& name,
+              VersioningOption versioningPolicy = NoVersioning);
+
+    bool copy(const CloudItem& source,
+              const CloudItem& target,
+              VersioningOption versioningPolicy = NoVersioning);
+
+    void copy(const CloudItem& source,
+              const CloudItem& target,
+              string name,
+              PromiseBoolSP result,
+              VersioningOption versioningPolicy);
 
     bool putnodes(const CloudItem& parent,
                   VersioningOption versioningPolicy,
