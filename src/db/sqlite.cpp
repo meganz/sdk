@@ -566,6 +566,13 @@ SqliteAccountState::~SqliteAccountState()
     }
 
     mStmtUpdateNode = nullptr;
+
+    if (mStmtTypeAndSizeNode)
+    {
+        sqlite3_finalize(mStmtTypeAndSizeNode);
+    }
+
+    mStmtTypeAndSizeNode = nullptr;
 }
 
 bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes)
@@ -712,6 +719,16 @@ void SqliteAccountState::remove()
     {
         sqlite3_finalize(mStmtUpdateNode);
     }
+
+    mStmtUpdateNode = nullptr;
+
+    if (mStmtTypeAndSizeNode)
+    {
+        sqlite3_finalize(mStmtTypeAndSizeNode);
+    }
+
+    mStmtTypeAndSizeNode = nullptr;
+
     SqliteDbTable::remove();
 }
 
@@ -1124,38 +1141,44 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
     return node.second.mNode.size() ? true : false;
 }
 
-m_off_t SqliteAccountState::getNodeSize(NodeHandle node)
+nodetype_t SqliteAccountState::getNodeTypeAndSize(NodeHandle node, m_off_t &size)
 {
-    m_off_t size = 0;
+    nodetype_t nodeType = TYPE_UNKNOWN;
     if (!db)
     {
-        return size;
+        return nodeType;
     }
 
-    sqlite3_stmt *stmt;
+    int sqlResult = SQLITE_ERROR;
+    if (mStmtTypeAndSizeNode)
+    {
+        sqlResult = sqlite3_reset(mStmtTypeAndSizeNode);
+    }
+    else
+    {
+        sqlResult = sqlite3_prepare(db, "SELECT type, size FROM nodes WHERE nodehandle = ?", -1, &mStmtTypeAndSizeNode, NULL);
+    }
 
-    int sqlResult = sqlite3_prepare(db, "SELECT size FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtTypeAndSizeNode, 1, node.as8byte())) == SQLITE_OK)
         {
-            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+            if ((sqlResult = sqlite3_step(mStmtTypeAndSizeNode)) == SQLITE_ROW)
             {
-                size = sqlite3_column_int64(stmt, 0);
+               nodeType = (nodetype_t)sqlite3_column_int(mStmtTypeAndSizeNode, 0);
+               size = sqlite3_column_int64(mStmtTypeAndSizeNode, 1);
             }
         }
     }
 
-    sqlite3_finalize(stmt);
-
     if (sqlResult == SQLITE_ERROR)
     {
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get node counter from database: " << dbfile << err;
-        assert(!"Unable to get node counter from database.");
+        LOG_err << "Unable to get node type and size from database: " << dbfile << err;
+        assert(!"Unable to get node type and size from database.");
     }
 
-    return size;
+    return nodeType;
 }
 
 bool SqliteAccountState::isNodesOnDemandDb()

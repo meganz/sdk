@@ -17219,7 +17219,8 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
     }
 
     Node* node = getNodeInRAM(nodehandle);
-    nodetype_t nodeType = node ? node->type : mTable->getNodeType(nodehandle);
+    m_off_t nodeSize = 0u;
+    nodetype_t nodeType = node ? node->type : mTable->getNodeTypeAndSize(nodehandle, nodeSize);
 
     std::set<NodeHandle> children;
     auto it = mNodeChildren.find(nodehandle);
@@ -17235,7 +17236,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
 
     if (nodeType == FILENODE)
     {
-        m_off_t nodeSize = node ? node->size : mTable->getNodeSize(nodehandle);
+        nodeSize = node ? node->size : nodeSize;
 
         bool isVersion = parentType == FILENODE;
         if (isVersion)

@@ -82,10 +82,9 @@ public:
     {
         return false;
     }
-    m_off_t getNodeSize(mega::NodeHandle) override
+    mega::nodetype_t getNodeTypeAndSize(mega::NodeHandle node, m_off_t& size) override
     {
-        return 0;
-        //throw NotImplemented(__func__);
+        return mega::TYPE_UNKNOWN;
     }
     bool isNodesOnDemandDb() override
     {

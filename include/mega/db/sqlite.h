@@ -69,7 +69,7 @@ public:
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
-    m_off_t getNodeSize(mega::NodeHandle node) override;
+    nodetype_t getNodeTypeAndSize(NodeHandle node, m_off_t& size) override;
     bool isNodesOnDemandDb() override;
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor) override;
     nodetype_t getNodeType(NodeHandle node) override;
@@ -97,6 +97,7 @@ private:
 
     sqlite3_stmt* mStmtPutNode = nullptr;
     sqlite3_stmt* mStmtUpdateNode = nullptr;
+    sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess
