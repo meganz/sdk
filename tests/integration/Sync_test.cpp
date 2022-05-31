@@ -1562,7 +1562,11 @@ bool StandardClient::copy(const CloudItem& source,
         client.copy(source, target, name, std::move(result), versioningPolicy);
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(std::chrono::minutes(2));
+
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -1582,10 +1586,14 @@ void StandardClient::copy(const CloudItem& source,
                           VersioningOption versioningPolicy)
 {
     auto* sourceNode = source.resolve(*this);
+    EXPECT_TRUE(sourceNode);
+
     if (!sourceNode)
         return result->set_value(false);
 
     auto* targetNode = target.resolve(*this);
+    EXPECT_TRUE(targetNode);
+
     if (!targetNode || targetNode->type == FILENODE)
         return result->set_value(false);
 
@@ -1640,8 +1648,14 @@ void StandardClient::copy(const CloudItem& source,
     }
 
     auto completion = [=](const Error& error) {
+        LOG_debug << "Putnodes request completed: "
+                  << error;
+
+        EXPECT_EQ(error, API_OK);
         result->set_value(error == API_OK);
     };
+
+    LOG_debug << "Scheduling putnodes request now...";
 
     client.putnodes(targetNode->nodeHandle(),
                     versioningPolicy,
@@ -1662,7 +1676,11 @@ bool StandardClient::putnodes(const CloudItem& parent,
                         std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(std::chrono::seconds(40));
+
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -1674,12 +1692,20 @@ void StandardClient::putnodes(const CloudItem& parent,
                               PromiseBoolSP result)
 {
     auto* node = parent.resolve(*this);
+    EXPECT_TRUE(node);
+
     if (!node)
         return result->set_value(false);
 
     auto completion = BasicPutNodesCompletion([result](const Error& e) {
+        LOG_debug << "Putnodes request completed: "
+                  << e;
+
+        EXPECT_EQ(e, API_OK);
         result->set_value(e == API_OK);
     });
+
+    LOG_debug << "Scheduling putnodes request now...";
 
     client.putnodes(node->nodeHandle(),
                     versioningPolicy,
@@ -1750,7 +1776,11 @@ bool StandardClient::downloadFile(const CloudItem& item, const fs::path& destina
                             client.downloadFile(item, destination, result);
                         });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -1803,7 +1833,10 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, const 
         client.uploadFile(path, name, parentNode, pb, vo);
     });
 
-    if (result.wait_for(std::chrono::seconds(timeoutSeconds)) == std::future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
     {
         LOG_warn << "Timed out waiting for uplaodFile";
         return false;
@@ -1844,7 +1877,10 @@ bool StandardClient::uploadFilesInTree(fs::path p, const CloudItem& n2, Versioni
     std::atomic_int dummy(0);
     uploadFilesInTree(p, n2, dummy, std::move(promise), vo);
 
-    if (future.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = future.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return future.get();
@@ -1889,6 +1925,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                                            targettype_t,
                                            vector<NewNode>&,
                                            bool) {
+                EXPECT_EQ(result, API_OK);
                 completion(result);
             };
 
@@ -1907,6 +1944,8 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
 
         void terminated(error result)
         {
+            EXPECT_FALSE(true);
+
             // Let the completion function know we've failed.
             mCompletion(result);
 
@@ -1995,11 +2034,15 @@ bool StandardClient::fetchnodes(bool noCache)
                             client.fetchnodes(noCache, result);
                         });
 
-    if (result.wait_for(std::chrono::seconds(180)) != std::future_status::ready)
+    auto status = result.wait_for(std::chrono::seconds(180));
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
     {
         LOG_warn << "Timed out waiting for fetchnodes";
         return false;
     }
+
     return result.get();
 }
 
@@ -2015,6 +2058,8 @@ void StandardClient::catchup(std::function<void(error)> completion)
     auto init = std::bind(&MegaClient::catchup, &client);
 
     auto fini = [completion](error e) {
+        EXPECT_EQ(e, API_OK);
+
         if (e)
             out() << "catchup reports: " << e;
 
@@ -2382,7 +2427,10 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+    
+    if (status == future_status::timeout)
         return UNDEF;
 
     return result.get();
@@ -2408,6 +2456,8 @@ void StandardClient::setupSync_inThread(const string& localPath,
     };
 
     auto* remoteNode = remoteItem.resolve(*this);
+    EXPECT_TRUE(remoteNode);
+
     if (!remoteNode)
         return result->set_value(UNDEF);
 
@@ -2416,6 +2466,7 @@ void StandardClient::setupSync_inThread(const string& localPath,
 
     // Try and create the local sync root.
     fs::create_directory(rootPath, ec);
+    EXPECT_FALSE(ec);
 
     if (ec)
         return result->set_value(UNDEF);
@@ -2427,6 +2478,15 @@ void StandardClient::setupSync_inThread(const string& localPath,
 
     // Called when it's time to actually add the sync.
     auto completion = [=](error e) {
+        LOG_debug << "Starting to add sync: "
+                  << e;
+
+        // Make sure our caller completed successfully.
+        EXPECT_EQ(e, API_OK);
+
+        if (e != API_OK)
+            return result->set_value(UNDEF);
+
         // Convenience.
         constexpr auto BACKUP = SyncConfig::TYPE_BACKUP;
         constexpr auto TWOWAY = SyncConfig::TYPE_TWOWAY;
@@ -2453,9 +2513,15 @@ void StandardClient::setupSync_inThread(const string& localPath,
             config.mScanIntervalSec = SCAN_INTERVAL_SEC;
         }
 
-        auto completion = [result](error, SyncError, handle id) {
+        auto completion = [result](error e, SyncError se, handle id) {
+            EXPECT_EQ(e, API_OK);
+            EXPECT_NE(id, UNDEF);
+            EXPECT_EQ(se, NO_SYNC_ERROR);
+
             result->set_value(id);
         };
+
+        LOG_debug << "Asking engine to add the sync...";
 
         client.addsync(config, true, std::move(completion), localPath + " ");
     };
@@ -2466,8 +2532,13 @@ void StandardClient::setupSync_inThread(const string& localPath,
         auto ignorePath = fsBasePath / ".megaignore";
 
         // Create the ignore file.
-        if (!createDataFile(ignorePath, "#"))
+        auto created = createDataFile(ignorePath, "#");
+        EXPECT_TRUE(created);
+
+        if (!created)
             return result->set_value(UNDEF);
+
+        LOG_debug << "Uploading initial megaignore file...";
 
         // Upload the ignore file.
         uploadFile(ignorePath, remoteNode, std::move(completion));
@@ -2475,6 +2546,8 @@ void StandardClient::setupSync_inThread(const string& localPath,
         // Completion function will continue the work.
         return;
     }
+
+    LOG_debug << "Making sure we've received latest cloud changes...";
 
     // Make sure the client's received all its action packets.
     catchup(std::move(completion));
@@ -3148,7 +3221,10 @@ bool StandardClient::setattr(const CloudItem& item, attr_map&& updates)
             client.setattr(std::move(item), std::move(updates), result);
         });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3228,7 +3304,10 @@ bool StandardClient::deleteremote(const CloudItem& item)
         client.deleteremote(item, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3282,7 +3361,10 @@ bool StandardClient::movenode(const CloudItem& source,
         client.movenode(source, target, newName, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3676,7 +3758,10 @@ bool StandardClient::match(NodeHandle handle, const Model::ModelNode* source)
         client.match(handle, source, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3809,8 +3894,11 @@ handle StandardClient::getNodeHandle(const CloudItem& item)
         client.getNodeHandle(item, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
-        return UNDEF;
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
 
     return result.get();
 }
@@ -3892,7 +3980,10 @@ bool StandardClient::ipcr(handle id, ipcactions_t action)
         client.ipcr(id, action, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3907,7 +3998,10 @@ bool StandardClient::ipcr(handle id)
         result->set_value(i != j && !i->second->isoutgoing);
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3933,8 +4027,11 @@ handle StandardClient::opcr(const string& email, opcactions_t action)
         client.opcr(email, action, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
-        return UNDEF;
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
 
     return result.get();
 }
@@ -3951,7 +4048,10 @@ bool StandardClient::opcr(const string& email)
         result->set_value(false);
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3969,7 +4069,10 @@ bool StandardClient::iscontact(const string& email)
         result->set_value(false);
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3988,7 +4091,10 @@ bool StandardClient::rmcontact(const string& email)
         client.rmcontact(email, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -4019,7 +4125,10 @@ bool StandardClient::share(const CloudItem& item, const string& email, accesslev
         client.share(item, email, permissions, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
