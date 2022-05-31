@@ -14663,28 +14663,26 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
 
     // Move x/a/.megaignore to x/.megaignore.
     {
-        // Get our hands on x/.megaignore.
-        auto* root = cdu->gettestbasenode();
-        auto* node = cdu->drillchildnodebyname(root, "x/.megaignore");
-
         // Move x/a/.megaignore to x/.megaignore.
-        cd->received_node_actionpackets = false;
-
-        ASSERT_TRUE(cdu->movenode("x/a/.megaignore", "x"));
-        ASSERT_TRUE(cd->waitForNodesUpdated(30));
-
-        // Delete the original x/.megaignore.
-        cd->received_node_actionpackets = false;
-
-        ASSERT_TRUE(cdu->deleteremote(node));
-        ASSERT_TRUE(cd->waitForNodesUpdated(30));
-
-        // Update the models.
         localFS.removenode(".megaignore");
-        localFS.movenode("a/.megaignore", "");
+        localFS.copynode("a/.megaignore", ".megaignore");
 
-        remoteTree.removenode(".megaignore");
-        remoteTree.movenode("a/.megaignore", "");
+        cd->received_node_actionpackets = false;
+
+        ASSERT_TRUE(cdu->copy("x/a/.megaignore", "x", ClaimOldVersion));
+        ASSERT_TRUE(cd->waitForNodesUpdated(30));
+
+        // Wait for the engine to process the change.
+        waitOnSyncs(cd.get());
+
+        // Remove x/a/.megaignore.
+        localFS.removenode("a/.megaignore");
+        remoteTree.removenode("a/.megaignore");
+
+        cd->received_node_actionpackets = false;
+
+        ASSERT_TRUE(cdu->deleteremote("x/a/.megaignore"));
+        ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
         // Wait for the engine to process the changes.
         waitOnSyncs(cd.get());
