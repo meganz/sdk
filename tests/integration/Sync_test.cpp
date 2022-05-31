@@ -1852,47 +1852,17 @@ error StandardClient::addSync(const string& displayPath, const fs::path& drivepa
 bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& drivepath, const fs::path& localpath, const bool isBackup,
     std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
 {
-    // regular sync
-    if (!isBackup)
+    if (Node* n = client.nodebyhandle(basefolderhandle))
     {
-        if (Node* n = client.nodebyhandle(basefolderhandle))
+        if (Node* m = drillchildnodebyname(n, subfoldername))
         {
-            if (Node* m = drillchildnodebyname(n, subfoldername))
-            {
-                error e = addSync(m->displaypath(), "", localpath, m->nodehandle, addSyncCompletion, logname, SyncConfig::TYPE_TWOWAY);
-                return !e;
-            }
+            error e = addSync(m->displaypath(), drivepath, localpath, m->nodehandle, addSyncCompletion, logname,
+                              isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
+            return !e;
         }
-
-        assert(false);
-        return false;
     }
-
-    // or backup
-    auto* clientPtr = &client;
-    CommandPutNodes::Completion thenAddSync = [this, clientPtr, drivepath, localpath, addSyncCompletion, logname]
-    (const Error& e, targettype_t, vector<NewNode>& nn, bool)
-    {
-        if (e != API_OK && addSyncCompletion)
-        {
-            addSyncCompletion(error(e), PUT_NODES_ERROR, UNDEF);
-            return;
-        }
-
-        handle nh = nn.back().mAddedHandle;
-        if (Node* m = clientPtr->nodebyhandle(nh))
-        {
-            const string& displayPath = m->displaypath();
-            error err = addSync(displayPath, drivepath, localpath, nh, addSyncCompletion, logname, SyncConfig::TYPE_BACKUP);
-            if (err != API_OK && addSyncCompletion)
-            {
-                addSyncCompletion(err, PUT_NODES_ERROR, UNDEF);
-            }
-        }
-    };
-
-    error e = client.registerbackup(subfoldername, "", thenAddSync);
-    return !e;
+    assert(false);
+    return false;
 }
 
 handle StandardClient::setupSync_mainthread(const string& localPath,
