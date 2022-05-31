@@ -1821,7 +1821,7 @@ handle StandardClient::backupAdd_mainthread(const string& drivePath,
                 result->set_value(backupId);
                 };
 
-            client.setupSync_inthread(sp.filename().u8string(), dp, sp, true, completion, logname);
+            client.setupSync_inthread(targetPath, dp, sp, true, completion, logname);
         });
 
     return result.get();
@@ -8153,11 +8153,21 @@ struct TwoWaySyncSymmetryCase
         string sourcePath = localSyncRootPath().u8string();
         string targetPath = remoteSyncRootPath();
 
-        drivePath.erase(0, basePath.size() + 1);
         sourcePath.erase(0, basePath.size() + 1);
 
         if (isExternalBackup())
         {
+            handle driveId = 0;
+            if (API_ENOENT == readDriveId(*client1().client.fsaccess, drivePath.c_str(), driveId))
+            {
+                // Generate drive ID.
+                driveId = generateDriveId(client1().client.rng);
+
+                // Write drive ID.
+                auto result = writeDriveId(*client1().client.fsaccess, drivePath.c_str(), driveId);
+                EXPECT_EQ(result, API_OK);
+            }
+
             backupId = BackupAdd(drivePath, sourcePath, targetPath, "");
         }
         else
