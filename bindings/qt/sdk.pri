@@ -100,7 +100,8 @@ CONFIG(USE_MEGAAPI) {
 }
 else {
     # flags synced with contrib/cmake/CMakeLists.txt
-    QMAKE_CXXFLAGS += /W4 /wd4201 /wd4100 /wd4706 /wd4458 /wd4324 /wd4456 /wd4266
+    QMAKE_CXXFLAGS_WARN_ON ~= s/-W3/-W4
+    QMAKE_CXXFLAGS += /wd4201 /wd4100 /wd4706 /wd4458 /wd4324 /wd4456 /wd4266
 }
 
 CONFIG(ENABLE_WERROR_COMPILATION) {
