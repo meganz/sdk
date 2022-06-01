@@ -553,20 +553,9 @@ SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAcce
 
 SqliteAccountState::~SqliteAccountState()
 {
-    if (mStmtPutNode)
-    {
-        sqlite3_finalize(mStmtPutNode);
-    }
-
-    if (mStmtUpdateNode)
-    {
-        sqlite3_finalize(mStmtUpdateNode);
-    }
-
-    if (mStmtTypeAndSizeNode)
-    {
-        sqlite3_finalize(mStmtTypeAndSizeNode);
-    }
+    sqlite3_finalize(mStmtPutNode);
+    sqlite3_finalize(mStmtUpdateNode);
+    sqlite3_finalize(mStmtTypeAndSizeNode);
 }
 
 bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes)
@@ -702,23 +691,14 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string&
 
 void SqliteAccountState::remove()
 {
-    if (mStmtPutNode)
-    {
-        sqlite3_finalize(mStmtPutNode);
-        mStmtPutNode = nullptr;
-    }
-
-    if (mStmtUpdateNode)
-    {
-        sqlite3_finalize(mStmtUpdateNode);
-        mStmtUpdateNode = nullptr;
-    }
-
-    if (mStmtTypeAndSizeNode)
-    {
-        sqlite3_finalize(mStmtTypeAndSizeNode);
-        mStmtTypeAndSizeNode = nullptr;
-    }
+    sqlite3_finalize(mStmtPutNode);
+    mStmtPutNode = nullptr;
+    
+    sqlite3_finalize(mStmtUpdateNode);
+    mStmtUpdateNode = nullptr;
+ 
+    sqlite3_finalize(mStmtTypeAndSizeNode);
+    mStmtTypeAndSizeNode = nullptr;
 
     SqliteDbTable::remove();
 }
