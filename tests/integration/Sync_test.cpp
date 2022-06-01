@@ -12057,7 +12057,7 @@ TEST_F(FilterFailureFixture, TriggersStall)
     Model model;
 
     // Set up the local filesystem.
-    model.addfile(".megaignore", "bad");
+    model.addfile(".megaignore", "exclude-larger:4\nexclude-smaller:8");
     model.generate(root(*cu) / "root");
 
     // Log in the client.
@@ -12264,7 +12264,7 @@ TEST_F(LocalToCloudFilterFixture, DoesntDownloadIgnoredNodes)
     // Set up local FS.
     LocalFSModel localFS;
 
-    localFS.addfile(".megaignore", "-:d\n-:f\nmaxsize:15");
+    localFS.addfile(".megaignore", "-:d\n-:f\nexclude-larger:15");
     localFS.generate(root(*cd) / "root");
 
     // Set up local and remote trees.
@@ -12457,20 +12457,15 @@ TEST_F(LocalToCloudFilterFixture, DoesntUploadIgnoredNodes)
 
     // Setup local FS.
 #ifndef NO_SIZE_FILTER
-    localFS.addfile("db/.megaignore", "minsize:8\nmaxsize:16");
+    localFS.addfile("db/.megaignore", "exclude-smaller:8\nexclude-larger:16");
     localFS.addfile("db/fe0", randomData(7));
     localFS.addfile("db/fe1", randomData(17));
     localFS.addfile("db/fi0", randomData(8));
     localFS.addfile("db/fi1", randomData(16));
-    localFS.addfile("dl/.megaignore", "minsize:16");
+    localFS.addfile("dl/.megaignore", "exclude-smaller:16");
     localFS.addfile("dl/fe", randomData(15));
     localFS.addfile("dl/fi", randomData(16));
-    localFS.addfile("dr/.megaignore", "maxsize:8\nminsize:16");
-    localFS.addfile("dr/fe0", randomData(9));
-    localFS.addfile("dr/fe1", randomData(15));
-    localFS.addfile("dr/fi0", randomData(8));
-    localFS.addfile("dr/fi1", randomData(16));
-    localFS.addfile("du/.megaignore", "maxsize:16");
+    localFS.addfile("du/.megaignore", "exclude-larger:16");
     localFS.addfile("du/fe", randomData(17));
     localFS.addfile("du/fi", randomData(16));
 #endif // ! NO_SIZE_FILTER
@@ -12645,7 +12640,7 @@ TEST_F(LocalToCloudFilterFixture, FilterChanged)
     RemoteNodeModel remoteTree;
 
     // Setup local FS.
-    localFS.addfile(".megaignore", "-:*y\nmaxsize:2\n");
+    localFS.addfile(".megaignore", "-:*y\nexclude-larger:2\n");
     localFS.addfile("fx");
     localFS.addfile("fy");
 #ifndef NO_SIZE_FILTER
@@ -13329,7 +13324,7 @@ TEST_F(LocalToCloudFilterFixture, MoveToIgnoredRubbishesRemote)
     RemoteNodeModel remoteTree;
 
     // Setup local FS.
-    localFS.addfile("1/.megaignore", "-:f\nmaxsize:1\n");
+    localFS.addfile("1/.megaignore", "-:f\nexclude-larger:1\n");
     localFS.addfile("0/f", "f");
 #ifndef NO_SIZE_FILTER
     localFS.addfile("0/g", "gg");
@@ -13683,20 +13678,15 @@ TEST_F(CloudToLocalFilterFixture, DoesntDownloadIgnoredNodes)
         remoteTree.addfile("d/f");
         remoteTree.addfile("d/g");
 #ifndef NO_SIZE_FILTER
-        remoteTree.addfile("db/.megaignore", "minsize:8\nmaxsize:16");
+        remoteTree.addfile("db/.megaignore", "exclude-smaller:8\nexclude-larger:16");
         remoteTree.addfile("db/fe0", randomData(7));
         remoteTree.addfile("db/fe1", randomData(17));
         remoteTree.addfile("db/fi0", randomData(8));
         remoteTree.addfile("db/fi1", randomData(16));
-        remoteTree.addfile("dl/.megaignore", "minsize:16");
+        remoteTree.addfile("dl/.megaignore", "exclude-smaller:16");
         remoteTree.addfile("dl/fe", randomData(15));
         remoteTree.addfile("dl/fi", randomData(16));
-        remoteTree.addfile("dr/.megaignore", "maxsize:8\nminsize:16");
-        remoteTree.addfile("dr/fe0", randomData(9));
-        remoteTree.addfile("dr/fe1", randomData(15));
-        remoteTree.addfile("dr/fi0", randomData(8));
-        remoteTree.addfile("dr/fi1", randomData(16));
-        remoteTree.addfile("du/.megaignore", "maxsize:16");
+        remoteTree.addfile("du/.megaignore", "exclude-larger:16");
         remoteTree.addfile("du/fe", randomData(17));
         remoteTree.addfile("du/fi", randomData(16));
 #endif // ! NO_SIZE_FILTER
@@ -13975,7 +13965,7 @@ TEST_F(CloudToLocalFilterFixture, DoesntRubbishIgnoredNodes)
 
 TEST_F(CloudToLocalFilterFixture, DoesntUploadIgnoredNodes)
 {
-    const string ignoreFile = "-:da\n-:f*\nminsize:2\n";
+    const string ignoreFile = "-:da\n-:f*\nexclude-smaller:2\n";
 
     // Set up cloud.
     {
@@ -14894,7 +14884,7 @@ TEST_F(CloudToLocalFilterFixture, MoveToIgnoredRubbishesRemote)
     localFS.addfile("f");
 #ifndef NO_SIZE_FILTER
     localFS.addfile("g");
-    localFS.addfile("x/.megaignore", "minsize:2\n");
+    localFS.addfile("x/.megaignore", "exclude-smaller:2\n");
 #endif // ! NO_SIZE_FILTER
     localFS.addfile(".megaignore", "-:d");
     localFS.generate(root(*cdu) / "root");
