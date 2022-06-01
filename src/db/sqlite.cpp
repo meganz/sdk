@@ -1263,39 +1263,6 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
     return result;
 }
 
-nodetype_t SqliteAccountState::getNodeType(NodeHandle node)
-{
-    nodetype_t nodeType = TYPE_UNKNOWN;
-    if (!db)
-    {
-        return nodeType;
-    }
-
-    sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "SELECT type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
-        {
-            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-            {
-               nodeType = (nodetype_t)sqlite3_column_int(stmt, 0);
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get `isFileNode` from database: " << dbfile << err;
-        assert(!"Unable to get `isFileNode` from database.");
-    }
-
-    return nodeType;
-}
-
 bool SqliteAccountState::isNodeInDB(NodeHandle node)
 {
     bool inDb = false;

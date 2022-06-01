@@ -17327,23 +17327,6 @@ bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)
     return mTable->isAncestor(nodehandle, ancestor);
 }
 
-bool NodeManager::isFileNode(NodeHandle nodehandle)
-{
-    Node* n = getNodeInRAM(nodehandle);
-    if (n)
-    {
-        return n->type == FILENODE;
-    }
-
-    if (!mTable)
-    {
-        assert(false);
-        return false;
-    }
-
-    return mTable->getNodeType(nodehandle) == FILENODE;
-}
-
 void NodeManager::removeChanges()
 {
     for (node_map::iterator it = mNodes.begin(); it != mNodes.end(); it++)

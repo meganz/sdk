@@ -105,10 +105,6 @@ public:
     {
         return false;
     }
-    mega::nodetype_t getNodeType(mega::NodeHandle) override
-    {
-        return mega::TYPE_UNKNOWN;
-    }
     uint64_t getNumberOfNodes() override
     {
         return false;

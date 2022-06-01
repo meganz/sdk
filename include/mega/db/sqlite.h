@@ -72,7 +72,6 @@ public:
     nodetype_t getNodeTypeAndSize(NodeHandle node, m_off_t& size) override;
     bool isNodesOnDemandDb() override;
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor) override;
-    nodetype_t getNodeType(NodeHandle node) override;
     mega::NodeHandle getFirstAncestor(mega::NodeHandle node) override;
     bool isNodeInDB(mega::NodeHandle node) override;
     uint64_t getNumberOfNodes() override;
