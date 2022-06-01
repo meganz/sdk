@@ -558,21 +558,15 @@ SqliteAccountState::~SqliteAccountState()
         sqlite3_finalize(mStmtPutNode);
     }
 
-    mStmtPutNode = nullptr;
-
     if (mStmtUpdateNode)
     {
         sqlite3_finalize(mStmtUpdateNode);
     }
 
-    mStmtUpdateNode = nullptr;
-
     if (mStmtTypeAndSizeNode)
     {
         sqlite3_finalize(mStmtTypeAndSizeNode);
     }
-
-    mStmtTypeAndSizeNode = nullptr;
 }
 
 bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes)
@@ -711,23 +705,20 @@ void SqliteAccountState::remove()
     if (mStmtPutNode)
     {
         sqlite3_finalize(mStmtPutNode);
+        mStmtPutNode = nullptr;
     }
-
-    mStmtPutNode = nullptr;
 
     if (mStmtUpdateNode)
     {
         sqlite3_finalize(mStmtUpdateNode);
+        mStmtUpdateNode = nullptr;
     }
-
-    mStmtUpdateNode = nullptr;
 
     if (mStmtTypeAndSizeNode)
     {
         sqlite3_finalize(mStmtTypeAndSizeNode);
+        mStmtTypeAndSizeNode = nullptr;
     }
-
-    mStmtTypeAndSizeNode = nullptr;
 
     SqliteDbTable::remove();
 }
