@@ -2427,7 +2427,7 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    auto status = result.wait_for(DEFAULTWAIT);
+    auto status = result.wait_for(std::chrono::seconds(45));
     EXPECT_NE(status, future_status::timeout);
     
     if (status == future_status::timeout)
