@@ -16769,8 +16769,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     // mClient.rootnodes.files is always set for folder links before adding any node (upon login)
     bool isFolderLink = mClient.rootnodes.files == node->nodeHandle();
 
-    bool keepNodeInMemory = mKeepAllNodesInMemory
-            || rootNode
+    bool keepNodeInMemory = rootNode
             || isFolderLink
             || !isFetching
             || notify
@@ -17866,22 +17865,9 @@ bool NodeManager::loadNodes()
     // We can't base in `user.sharing` because it's set yet. We have to get from DB
     node_vector inshares = getNodesWithInShares();  // it includes nested inshares
 
-    if (mKeepAllNodesInMemory)
+    for (auto &node : rootnodes)
     {
-        for (auto &node : rootnodes)
-        {
-            if (!node->parent) // Avoid load nested in-shares (Performance improvement)
-            {
-                loadTreeRecursively(node);
-            }
-        }
-    }
-    else // load only first level
-    {
-        for (auto &node : rootnodes)
-        {
-            getChildren(node);
-        }
+        getChildren(node);
     }
 
     mLoadingNodes = false;
@@ -18054,7 +18040,7 @@ mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
 {
     if (node->type == FILENODE)
     {
-        Node* n = (!mClient.fetchingnodes || mKeepAllNodesInMemory) ? node : nullptr;
+        Node* n = (mNodes.find(node->nodeHandle()) != mNodes.end()) ? node : nullptr;
         auto it = mFingerPrints.find(*node);
         if (it != mFingerPrints.end())
         {

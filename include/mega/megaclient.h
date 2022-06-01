@@ -397,7 +397,7 @@ private:
 
     // flag to force all nodes to be loaded in memory
 #ifdef ENABLE_SYNC
-    bool mKeepAllNodesInMemory = true;
+    bool mKeepAllNodesInMemory = false;
 #else
     bool mKeepAllNodesInMemory = false;
 #endif
