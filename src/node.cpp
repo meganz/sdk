@@ -832,25 +832,29 @@ bool Node::setparent(Node* p, bool updateNodeCounters)
     }
 
 #ifdef ENABLE_SYNC
-    // if we are moving an entire sync, don't cancel GET transfers
-    if (!localnode || localnode->parent)
+    // !updateNodeCounters means node is in DB and it can have any Sync (neither their children)
+    if (updateNodeCounters)
     {
-        // if the new location is not synced, cancel all GET transfers
-        while (p)
+        // if we are moving an entire sync, don't cancel GET transfers
+        if (!localnode || localnode->parent)
         {
-            if (p->localnode)
+            // if the new location is not synced, cancel all GET transfers
+            while (p)
             {
-                break;
+                if (p->localnode)
+                {
+                    break;
+                }
+
+                p = p->parent;
             }
 
-            p = p->parent;
-        }
-
-        if (!p || p->type == FILENODE)
-        {
-            DBTableTransactionCommitter committer(client->tctable); // potentially stopping many transfers here
-            TreeProcDelSyncGet tdsg;
-            client->proctree(this, &tdsg);
+            if (!p || p->type == FILENODE)
+            {
+                DBTableTransactionCommitter committer(client->tctable); // potentially stopping many transfers here
+                TreeProcDelSyncGet tdsg;
+                client->proctree(this, &tdsg);
+            }
         }
     }
 
