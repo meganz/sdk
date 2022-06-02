@@ -8988,8 +8988,12 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Stopping full-sync";
-    ASSERT_TRUE(clientA1Steady.delSync_mainthread(backupId1));
+    // remove syncs in reverse order, just in case removeSyncByIndex() will benefit from that
     ASSERT_TRUE(clientA1Resume.delSync_mainthread(backupId2));
+    ASSERT_TRUE(clientA1Steady.delSync_mainthread(backupId1));
+    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
+    CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
+    waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Setting up each sub-test's Two-way sync of 'f'";
     for (auto& testcase : cases)
