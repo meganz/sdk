@@ -138,7 +138,7 @@ public:
 
     // -- get node properties --
 
-    virtual nodetype_t getNodeTypeAndSize(NodeHandle node, m_off_t& size) = 0;
+    virtual bool getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType) = 0;
 
     virtual void cancelQuery() = 0;
 

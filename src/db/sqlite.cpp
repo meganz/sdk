@@ -1112,12 +1112,11 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
     return node.second.mNode.size() ? true : false;
 }
 
-nodetype_t SqliteAccountState::getNodeTypeAndSize(NodeHandle node, m_off_t &size)
+bool SqliteAccountState::getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType)
 {
-    nodetype_t nodeType = TYPE_UNKNOWN;
     if (!db)
     {
-        return nodeType;
+        return false;
     }
 
     int sqlResult = SQLITE_ERROR;
@@ -1147,9 +1146,10 @@ nodetype_t SqliteAccountState::getNodeTypeAndSize(NodeHandle node, m_off_t &size
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get node type and size from database: " << dbfile << err;
         assert(!"Unable to get node type and size from database.");
+        return false;
     }
 
-    return nodeType;
+    return true;
 }
 
 bool SqliteAccountState::isNodesOnDemandDb()

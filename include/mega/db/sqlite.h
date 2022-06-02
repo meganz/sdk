@@ -69,7 +69,7 @@ public:
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
-    nodetype_t getNodeTypeAndSize(NodeHandle node, m_off_t& size) override;
+    bool getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType) override;
     bool isNodesOnDemandDb() override;
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor) override;
     mega::NodeHandle getFirstAncestor(mega::NodeHandle node) override;
