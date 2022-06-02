@@ -61,17 +61,6 @@ public:
     void proc(MegaClient*, Node*);
 };
 
-class MEGA_API TreeProcDU : public TreeProc
-{
-public:
-    m_off_t numbytes;
-    int numfiles;
-    int numfolders;
-
-    void proc(MegaClient*, Node*);
-    TreeProcDU();
-};
-
 class MEGA_API TreeProcShareKeys : public TreeProc
 {
     ShareNodeKeys snk;

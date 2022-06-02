@@ -3239,8 +3239,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd), opt(sequence(flag("-regexchild"), param("regex")))));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
-    p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
-    p->Add(exec_nodecounter, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
+    p->Add(exec_du, sequence(text("du"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
 
 
@@ -4130,36 +4129,7 @@ void exec_cp(autocomplete::ACState& s)
     }
 }
 
-void exec_du(autocomplete::ACState& s)
-{
-    Node *n;
-    TreeProcDU du;
-
-    if (s.words.size() > 1)
-    {
-        if (!(n = nodebypath(s.words[1].s.c_str())))
-        {
-            cout << s.words[1].s << ": No such file or directory" << endl;
-
-            return;
-        }
-    }
-    else
-    {
-        n = client->nodeByHandle(cwd);
-    }
-
-    if (n)
-    {
-        client->proctree(n, &du);
-
-        cout << "Total storage used: " << (du.numbytes / 1048576) << " MB" << endl;
-        cout << "Total # of files: " << du.numfiles << endl;
-        cout << "Total # of folders: " << du.numfolders << endl;
-    }
-}
-
-void exec_nodecounter(autocomplete::ACState &s)
+void exec_du(autocomplete::ACState &s)
 {
     Node *n;
 
