@@ -1818,7 +1818,11 @@ handle StandardClient::backupAdd_mainthread(const string& drivePath,
             auto completion =
                 [=](error e, SyncError, handle backupId)
                 {
-                result->set_value(backupId);
+                    if (e != API_OK)
+                    {
+                        out() << clientname << "Setting up backup from " << sourcePath << " to " << targetPath << " failed.";
+                    }
+                    result->set_value(backupId);
                 };
 
             client.setupSync_inthread(targetPath, dp, sp, true, completion, logname);
@@ -1954,7 +1958,11 @@ void StandardClient::setupSync_inThread(const string& localPath,
         //    config.mScanIntervalSec = SCAN_INTERVAL_SEC;
         //}
 
-        auto completion = [result](error, SyncError, handle id) {
+        auto completion = [=](error e, SyncError, handle id) {
+            if (e != API_OK)
+            {
+                out() << clientname << "Failed to add sync: " << e;
+            }
             result->set_value(id);
         };
 
