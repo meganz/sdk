@@ -13772,7 +13772,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.mBackupId, &syncConfig.mError);
             if (e)
             {
-                LOG_warn << "Local path not syncable: ";
+                LOG_warn << "Local path not syncable: " << syncConfig.getLocalPath();
 
                 if (syncConfig.mError == NO_SYNC_ERROR)
                 {
@@ -13784,6 +13784,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         }
         else
         {
+            LOG_warn << "Cannot sync non-folder";
             syncConfig.mError = INVALID_LOCAL_TYPE;
             syncConfig.mEnabled = false;
             return API_EACCESS;    // cannot sync individual files
@@ -13791,7 +13792,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     }
     else
     {
-        LOG_warn << "Cannot sync non-folder";
+        LOG_warn << "Cannot open rootpath for sync: " << rootpath;
         syncConfig.mError = openedLocalFolder->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
         syncConfig.mEnabled = false;
         return openedLocalFolder->retry ? API_ETEMPUNAVAIL : API_ENOENT;
@@ -14050,6 +14051,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
 
         if (e)
         {
+            LOG_warn << "Failed to register heartbeat record for new sync. Error: " << int(e);
             completion(e, config.mError, backupId);
         }
         else

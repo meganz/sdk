@@ -1984,14 +1984,18 @@ void StandardClient::setupSync_inThread(const string& localPath,
         //    config.mScanIntervalSec = SCAN_INTERVAL_SEC;
         //}
 
-        auto completion = [result](error, SyncError, handle id) {
+        auto completion = [result](error e, SyncError, handle id) {
+            if (e != API_OK)
+            {
+                LOG_err << "Failed to addsync remotely, error " << int(e);
+            }
             result->set_value(id);
         };
 
         error ase = client.addsync(config, true, std::move(completion), localPath + " ");
         if (ase)
         {
-            LOG_err << "Failed to addsync, error " << int(ase);
+            LOG_err << "Failed to addsync locally, error " << int(ase);
         }
     };
 
