@@ -9051,11 +9051,13 @@ void MegaApiImpl::resetTotalUploads()
 MegaNode *MegaApiImpl::getRootNode()
 {
     // return without locking the main mutex if possible.
+    // (always lock for folder links, since node attributes can change)
     // Only compare fixed-location 8-byte values
     lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->rootnodes.files.isUndef()) return nullptr;
     if (!mLastKnownRootNode ||
-         mLastKnownRootNode->getHandle() != client->rootnodes.files.as8byte())
+            client->loggedIntoFolder() ||
+            mLastKnownRootNode->getHandle() != client->rootnodes.files.as8byte())
     {
         // ok now lock main mutex
         SdkMutexGuard lock(sdkMutex);
