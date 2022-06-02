@@ -69,10 +69,9 @@ public:
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
-    m_off_t getNodeSize(mega::NodeHandle node) override;
+    bool getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType) override;
     bool isNodesOnDemandDb() override;
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor) override;
-    nodetype_t getNodeType(NodeHandle node) override;
     mega::NodeHandle getFirstAncestor(mega::NodeHandle node) override;
     bool isNodeInDB(mega::NodeHandle node) override;
     uint64_t getNumberOfNodes() override;
@@ -84,7 +83,9 @@ public:
     void cancelQuery() override;
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
 
+    void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
+    virtual ~SqliteAccountState();
 
 private:
     // Iterate over a SQL query row by row and fill the map
@@ -92,6 +93,10 @@ private:
     //     std::map<mega::NodeHandle, NodeSerialized>
     //     std::vector<std::pair<mega::NodeHandle, NodeSerialized>>
     bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
+
+    sqlite3_stmt* mStmtPutNode = nullptr;
+    sqlite3_stmt* mStmtUpdateNode = nullptr;
+    sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

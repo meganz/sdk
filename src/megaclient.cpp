@@ -8350,7 +8350,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
         if (!warnlevel())
         {
-            if ((n = nodebyhandle(h)))
+            // 'notify' is false only while processing fetchnodes command
+            // In that case, we can skip the lookup, since nodes are all new ones,
+            // (they will not be found in DB)
+            if (notify && (n = nodebyhandle(h)))
             {
                 Node* p = NULL;
                 if (!ISUNDEF(ph))
@@ -17216,7 +17219,21 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
     }
 
     Node* node = getNodeInRAM(nodehandle);
-    nodetype_t nodeType = node ? node->type : mTable->getNodeType(nodehandle);
+    m_off_t nodeSize = 0u;
+    nodetype_t nodeType = TYPE_UNKNOWN;
+    if (node)
+    {
+        nodeType = node->type;
+        nodeSize = node->size;
+    }
+    else
+    {
+        if (!mTable->getNodeSizeAndType(nodehandle, nodeSize, nodeType))
+        {
+            assert(false);
+            return nc;
+        }
+    }
 
     std::set<NodeHandle> children;
     auto it = mNodeChildren.find(nodehandle);
@@ -17232,8 +17249,6 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
 
     if (nodeType == FILENODE)
     {
-        m_off_t nodeSize = node ? node->size : mTable->getNodeSize(nodehandle);
-
         bool isVersion = parentType == FILENODE;
         if (isVersion)
         {
@@ -17321,23 +17336,6 @@ bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)
     }
 
     return mTable->isAncestor(nodehandle, ancestor);
-}
-
-bool NodeManager::isFileNode(NodeHandle nodehandle)
-{
-    Node* n = getNodeInRAM(nodehandle);
-    if (n)
-    {
-        return n->type == FILENODE;
-    }
-
-    if (!mTable)
-    {
-        assert(false);
-        return false;
-    }
-
-    return mTable->getNodeType(nodehandle) == FILENODE;
 }
 
 void NodeManager::removeChanges()
