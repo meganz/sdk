@@ -17228,7 +17228,11 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
     }
     else
     {
-        mTable->getNodeSizeAndType(nodehandle, nodeSize, nodeType);
+        if (!mTable->getNodeSizeAndType(nodehandle, nodeSize, nodeType))
+        {
+            assert(false);
+            return nc;
+        }
     }
 
     std::set<NodeHandle> children;
