@@ -832,7 +832,10 @@ bool Node::setparent(Node* p, bool updateNodeCounters)
     }
 
 #ifdef ENABLE_SYNC
-    // !updateNodeCounters means node is in DB and it can have any Sync (neither their children)
+    // 'updateNodeCounters' is false when node is loaded from DB. In that case, we want to skip the
+    // processing by TreeProcDelSyncGet, since the node won't have a valid SyncFileGet yet.
+    // (this is important, since otherwise the whole tree beneath this node will be loaded in
+    // result of the proctree())
     if (updateNodeCounters)
     {
         // if we are moving an entire sync, don't cancel GET transfers
