@@ -1536,13 +1536,21 @@ void StandardClient::catchup(std::function<void(error)> completion)
     auto init = std::bind(&MegaClient::catchup, &client);
 
     auto fini = [completion](error e) {
+        LOG_debug << "catchup(...) request completed: "
+                  << e;
+
+        EXPECT_EQ(e, API_OK);
         if (e)
             out() << "catchup reports: " << e;
+
+        LOG_debug << "Calling catchup(...) completion function...";
 
         completion(e);
 
         return true;
     };
+
+    LOG_debug << "Sending catchup(...) request...";
 
     resultproc.prepresult(CATCHUP,
                           ++next_request_tag,
@@ -1958,6 +1966,11 @@ void StandardClient::setupSync_inThread(const string& localPath,
 
     // Called when it's time to actually add the sync.
     auto completion = [=](error e) {
+        EXPECT_EQ(e, API_OK);
+
+        if (e != API_OK)
+            return result->set_value(UNDEF);
+
         // Convenience.
         constexpr auto BACKUP = SyncConfig::TYPE_BACKUP;
         constexpr auto TWOWAY = SyncConfig::TYPE_TWOWAY;
