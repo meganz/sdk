@@ -18040,7 +18040,9 @@ mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
 {
     if (node->type == FILENODE)
     {
-        Node* n = (mNodes.find(node->nodeHandle()) != mNodes.end()) ? node : nullptr;
+        // if node is not to be kept in memory, don't save the pointer in the map
+        // since it will be invalid once node is written to DB
+        Node* n = (mNodeToWriteInDb.get() == node) ? nullptr : node;
         auto it = mFingerPrints.find(*node);
         if (it != mFingerPrints.end())
         {
