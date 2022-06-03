@@ -123,6 +123,8 @@ class MEGA_API LocalPath
     friend bool isPotentiallyInaccessiblePath(const FileSystemAccess&, const LocalPath&, nodetype_t);
 #endif // ! _WIN32
 
+    friend uint64_t availableDiskSpace(const LocalPath& drivePath);
+
     // helper functions to ensure proper format especially on windows
     void normalizeAbsolute();
     void removeTrailingSeparators();

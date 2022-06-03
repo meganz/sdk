@@ -1742,4 +1742,28 @@ bool isReservedName(const string& name, nodetype_t type)
     return false;
 }
 
+uint64_t availableDiskSpace(const LocalPath& drivePath)
+{
+    ULARGE_INTEGER numBytes;
+
+    if (!GetDiskFreeSpaceExW(drivePath.localpath.c_str(), &numBytes, nullptr, nullptr))
+    {
+        auto result = GetLastError();
+
+        LOG_warn << "Unable to retrieve available disk space for: "
+                 << drivePath.toPath()
+                 << ". Error code was: "
+                 << result;
+
+         return 0;
+    }
+
+    return numBytes.QuadPart;
+}
+
+bool spaceAvailable(const LocalPath& drivePath, uint64_t desiredNumBytes)
+{
+    return availableDiskSpace(drivePath) >= desiredNumBytes;
+}
+
 } // namespace
