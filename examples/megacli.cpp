@@ -245,6 +245,8 @@ const char* errorstring(error e)
             return "Business account has expired";
         case API_EPAYWALL:
             return "Over Disk Quota Paywall";
+        case API_ENOSPC:
+            return "Insufficient disk space";
         default:
             return "Unknown error";
     }

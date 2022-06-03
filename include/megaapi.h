@@ -5941,6 +5941,7 @@ public:
         API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
         API_EBUSINESSPASTDUE = -28,     ///< Business account expired
         API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+        API_ENOSPC = -30,               ///< Insufficient space.
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
