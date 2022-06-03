@@ -4722,7 +4722,7 @@ bool MegaClient::procsc()
                                 }
                                 nextreqtag();
                                 file->dbid = cachedfilesdbids.at(i);
-                                if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and restored them?
+                                if (API_OK != startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and restored them?
                                 {
                                     tctable->del(cachedfilesdbids.at(i));
                                     continue;
@@ -12380,7 +12380,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
             }
             nextreqtag();
             file->dbid = cachedfilesdbids.at(i);
-            if (!startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and reused them here?
+            if (API_OK != startxfer(type, file, committer, false, false, false, UseLocalVersioningFlag))  // TODO: should we have serialized these flags and reused them here?
             {
                 tctable->del(cachedfilesdbids.at(i));
                 continue;
@@ -14644,11 +14644,27 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                         {
                             LOG_debug << "Sync - requesting file " << localpath;
 
-                            rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
+                            // TODO: use one committer for all files in the loop, without calling syncdown() recursively
+                            DBTableTransactionCommitter committer(tctable);
+
+                            auto file = ::mega::make_unique<SyncFileGet>(l->sync, rit->second, localpath);
+
                             nextreqtag();
-                            DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                            startxfer(GET, rit->second->syncget, committer, false, false, false, UseLocalVersioningFlag);
-                            syncactivity = true;
+
+                            auto result = startxfer(GET, file.get(), committer, false, false, false, UseLocalVersioningFlag);
+
+                            if (result == API_OK)
+                            {
+                                rit->second->syncget = file.release();
+                                syncactivity = true;
+                            }
+                            else
+                            {
+                                LOG_warn << "Sync - unable to download file: "
+                                         << localpath
+                                         << ": "
+                                         << result;
+                            }
                         }
                     }
                 }
@@ -15820,9 +15836,29 @@ void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo)
+error MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo)
 {
     f->mVersioningOption = vo;
+
+    // Is caller trying to start a download?
+    if (d == GET)
+    {
+        auto targetPath = f->localname.parentPath();
+        auto size = static_cast<uint64_t>(f->size);
+
+        assert(f->size >= 0);
+
+        // Do we have enough space for the download?
+        if (!spaceAvailable(targetPath, size))
+        {
+            LOG_warn << "Insufficient space available for download: "
+                     << f->localname
+                     << ": "
+                     << f->size;
+
+            return API_ENOSPC;
+        }
+    }
 
     if (!f->transfer)
     {
@@ -15843,7 +15879,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             if (!f->isvalid)
             {
                 LOG_err << "Unable to get a fingerprint " << f->name;
-                return false;
+                return API_EREAD;
             }
 
 #ifdef USE_MEDIAINFO
@@ -15877,7 +15913,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                                 && f->name == (*fi)->name))
                     {
                         LOG_warn << "Skipping duplicated transfer";
-                        return false;
+                        return API_EEXIST;
                     }
                 }
             }
@@ -16028,7 +16064,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 || (!f->h.isUndef() && (nodeByHandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
-    return true;
+    return API_OK;
 }
 
 // remove file from transfer subsystem

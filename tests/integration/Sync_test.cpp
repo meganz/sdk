@@ -1299,7 +1299,14 @@ void StandardClient::downloadFile(const Node& node, const fs::path& destination,
     reinterpret_cast<FileFingerprint&>(*file) = node;
 
     DBTableTransactionCommitter committer(client.tctable);
-    client.startxfer(GET, file.release(), committer, false, false, false, NoVersioning);
+
+    auto r = client.startxfer(GET, file.get(), committer, false, false, false, NoVersioning);
+    EXPECT_EQ(r , API_OK);
+
+    if (r != API_OK)
+        return file->result->set_value(false);
+
+    file.release();
 }
 
 bool StandardClient::downloadFile(const Node& node, const fs::path& destination)
@@ -1331,7 +1338,8 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
     file->localname = LocalPath::fromAbsolutePath(path.u8string());
     file->name = name;
 
-    client.startxfer(PUT, file.release(), committer, false, false, false, vo);
+    auto result = client.startxfer(PUT, file.release(), committer, false, false, false, vo);
+    EXPECT_EQ(result, API_OK);
 }
 
 void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, PromiseBoolSP pb, VersioningOption vo)
@@ -1508,13 +1516,19 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
     // Kick off the upload. Client takes ownership of file.
     DBTableTransactionCommitter committer(client.tctable);
 
-    client.startxfer(PUT,
-                     file.release(),
-                     committer,
-                     false,
-                     false,
-                     false,
-                     versioningPolicy);
+    auto result = client.startxfer(PUT,
+                                   file.get(),
+                                   committer,
+                                   false,
+                                   false,
+                                   false,
+                                   versioningPolicy);
+    EXPECT_EQ(result, API_OK);
+
+    if (result != API_OK)
+        return completion(result);
+
+    file.release();
 }
 
 void StandardClient::uploadFile(const fs::path& sourcePath,

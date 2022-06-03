@@ -295,6 +295,33 @@ ConsoleLock conlock(std::ostream& o)
     return ConsoleLock(o);
 }
 
+static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
+{
+    auto result = client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning);
+
+    if (result == API_OK)
+    {
+        file->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), file.release());
+    }
+    else
+    {
+        conlock(cout) << "Unable to download file: "
+                      << path
+                      << " -> "
+                      << file->localname.toPath()
+                      << ": "
+                      << errorstring(result)
+                      << endl;
+    }
+
+    return result;
+}
+
+static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
+{
+    return startxfer(committer, std::move(file), node.displaypath());
+}
+
 
 AppFile::AppFile()
 {
@@ -362,7 +389,8 @@ void AppFilePut::terminated(error e)
 
 AppFileGet::~AppFileGet()
 {
-    appxferq[GET].erase(appxfer_it);
+    if (appxfer_it != appfile_list::iterator())
+        appxferq[GET].erase(appxfer_it);
 }
 
 AppFilePut::~AppFilePut()
@@ -3654,11 +3682,10 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
     {
         if (!folders)
         {
-            auto f = new AppFileGet(n, NodeHandle(), NULL, -1, 0, NULL, NULL, localpath.u8string());
-            f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
             DBTableTransactionCommitter committer(client->tctable);
-            client->startxfer(GET, f, committer, false, false, false, NoVersioning);
-            queued += 1;
+            auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
+            auto result = startxfer(committer, std::move(file), *n);
+            queued += result == API_OK ? 1 : 0;
         }
     }
     else if (n->type == FOLDERNODE || n->type == ROOTNODE)
@@ -3704,10 +3731,9 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                 {
                     if (regex_search(string((*it)->displayname()), re))
                     {
-                        auto f = new AppFileGet(*it);
-                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                        client->startxfer(GET, f, committer, false, false, false, NoVersioning);
-                        queued += 1;
+                        auto file = ::mega::make_unique<AppFileGet>(*it);
+                        auto result = startxfer(committer, std::move(file), **it);
+                        queued += result == API_OK ? 1 : 0;
                     }
                 }
             }
@@ -4466,9 +4492,8 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         DBTableTransactionCommitter committer(client->tctable);
-                        AppFileGet* f = new AppFileGet(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
-                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                        client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        startxfer(committer, std::move(file), *filename);
                     }
 
                     return true;
@@ -4516,7 +4541,7 @@ void exec_get(autocomplete::ACState& s)
                 // queue specified file...
                 if (n->type == FILENODE)
                 {
-                    auto f = new AppFileGet(n);
+                    auto f = ::mega::make_unique<AppFileGet>(n);
 
                     string::size_type index = s.words[1].s.find(":");
                     // node from public folder link
@@ -4531,8 +4556,7 @@ void exec_get(autocomplete::ACState& s)
                         memcpy(f->filekey, n->nodekey().data(), FILENODEKEYLENGTH);
                     }
 
-                    f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                    client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+                    startxfer(committer, std::move(f), *n);
                 }
                 else
                 {
@@ -4541,9 +4565,8 @@ void exec_get(autocomplete::ACState& s)
                     {
                         if ((*it)->type == FILENODE)
                         {
-                            auto f = new AppFileGet(*it);
-                            f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                            client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+                            auto f = ::mega::make_unique<AppFileGet>(*it);
+                            startxfer(committer, std::move(f), **it);
                         }
                     }
                 }
