@@ -708,9 +708,34 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
 FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
 #endif
 
-
 // True if type denotes a network filesystem.
 bool isNetworkFilesystem(FileSystemType type);
+
+// @brief
+// Retrieves the number of bytes available on the specified filesystem.
+//
+// @param drivePath
+// The path to the filesystem you'd like to query.
+//
+// @return
+// On success, the number of free bytes available to the caller.
+// On failure, zero.
+uint64_t availableDiskSpace(const LocalPath& drivePath);
+
+// @brief
+// Checks if there's enough space on a specified filesystem to store some
+// number of bytes.
+//
+// @param drivePath
+// The drive we want to query.
+//
+// @param desiredNumBytes
+// How many bytes we want to store.
+//
+// @return
+// True if we can query the filesystem and there's enough space.
+// False otherwise.
+bool spaceAvailable(const LocalPath& drivePath, uint64_t desiredNumBytes);
 
 } // namespace
 

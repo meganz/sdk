@@ -26,6 +26,8 @@
 #include "mega.h"
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
+#include <sys/statvfs.h>
+#include <sys/resource.h>
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
 #endif
@@ -1926,4 +1928,53 @@ bool isReservedName(const string&, nodetype_t)
     return false;
 }
 
+// A more robust implementation would check whether the device has storage
+// quotas enabled and if so, return the amount of space available before
+// saturating that quota.
+uint64_t availableDiskSpace(const LocalPath& drivePath)
+{
+    struct statfs buffer;
+
+    if (statfs(adjustBasePath(drivePath).c_str(), &buffer) >= 0)
+        return buffer.f_bavail * (uint64_t)buffer.f_bsize;
+
+    auto result = errno;
+
+    LOG_warn << "Unable to determine available disk space on volume: "
+             << drivePath.toPath()
+             << ". Error code was: "
+             << result;
+
+    return 0;
+}
+
+bool spaceAvailable(const LocalPath& drivePath, uint64_t desiredNumBytes)
+{
+    struct rlimit limit;
+
+    // Retrieve the user's file size limit.
+    if (getrlimit(RLIMIT_FSIZE, &limit) < 0)
+    {
+        auto result = errno;
+
+        LOG_warn << "Unable to retrieve user's file size limit. "
+                 << "Error code was: "
+                 << result;
+
+        // Can't retrieve limit so can't know if we're under it.
+        return false;
+    }
+
+    // Are we beyond the user's limit?
+    if (limit.rlim_max != RLIM_INFINITY
+        && limit.rlim_max <= desiredNumBytes)
+    {
+        return false;
+    }
+
+    // Ask the filesystem.
+    return availableDiskSpace(drivePath) >= desiredNumBytes;
+}
+
 } // namespace
+
