@@ -1916,7 +1916,7 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    if (result.wait_for(std::chrono::seconds(45)) == future_status::timeout)
     {
         LOG_err << "timed out waiting for thread_do of setupSync_inThread 3";
         return UNDEF;
@@ -2054,7 +2054,7 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    if (result.wait_for(std::chrono::seconds(45)) == future_status::timeout)
     {
         LOG_err << "timed out waiting for thread_do of setupSync_inThread";
         return UNDEF;
@@ -2084,7 +2084,7 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    if (result.wait_for(std::chrono::seconds(45)) == future_status::timeout)
     {
         LOG_err << "timed out waiting for thread_do of setupSync_inThread 2";
         return UNDEF;
