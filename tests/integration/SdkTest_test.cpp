@@ -4979,6 +4979,7 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
 }
 
+#ifdef USE_FREEIMAGE
 TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 {
     LOG_info << "___TEST SdkHttpReqCommandPutFATest___";
@@ -5015,6 +5016,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
     ASSERT_EQ(API_OK, doGetPreviewUploadURL(0, previewURL, n1->getHandle(), fileSize_preview, true)) << "Cannot request preview upload URL";
     ASSERT_FALSE(previewURL.empty()) << "Got empty preview upload URL";
 }
+#endif
 
 #ifdef __linux__
 
