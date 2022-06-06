@@ -1430,7 +1430,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             return "Business account has expired";
         case API_EPAYWALL:
             return "Storage Quota Exceeded. Upgrade now";
-        case API_ENOSPC:
+        case LOCAL_ENOSPC:
             return "Insufficient disk space";
         case PAYMENT_ECARD:
             return "Credit card rejected";

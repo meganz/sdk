@@ -15856,7 +15856,7 @@ error MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter&
                      << ": "
                      << f->size;
 
-            return API_ENOSPC;
+            return LOCAL_ENOSPC;
         }
     }
 
