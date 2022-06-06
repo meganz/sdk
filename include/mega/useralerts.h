@@ -170,11 +170,11 @@ namespace UserAlert
 
     struct NewSharedNodes : public Base
     {
-        unsigned fileCount, folderCount;
+        std::vector<handle> items;
         handle parentHandle;
 
         NewSharedNodes(UserAlertRaw& un, unsigned int id);
-        NewSharedNodes(int nfolders, int nfiles, handle uh, handle ph, m_time_t timestamp, unsigned int id);
+        NewSharedNodes(const std::vector<handle>& iitems, handle uh, handle ph, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -183,7 +183,7 @@ namespace UserAlert
         size_t itemsNumber;
 
         RemovedSharedNode(UserAlertRaw& un, unsigned int id);
-        RemovedSharedNode(int nitems, handle uh, m_time_t timestamp, unsigned int id);
+        RemovedSharedNode(size_t nitems, handle uh, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -261,10 +261,9 @@ private:
     std::vector<UserAlert::Base*> provisionals;
 
     struct ff {
-        int files;
-        int folders;
+        vector<handle> items;
         m_time_t timestamp;
-        ff() : files(0), folders(0), timestamp(0) {}
+        ff() : timestamp(0) {}
     };
     map<pair<handle, handle>, ff> notedSharedNodes;
     bool notingSharedNodes;
