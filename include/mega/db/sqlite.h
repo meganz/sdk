@@ -98,6 +98,7 @@ private:
     sqlite3_stmt* mStmtPutNode = nullptr;
     sqlite3_stmt* mStmtUpdateNode = nullptr;
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
+    sqlite3_stmt* mStmtGetNode = nullptr;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess
