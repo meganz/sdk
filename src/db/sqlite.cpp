@@ -432,14 +432,28 @@ bool SqliteDbTable::del(uint32_t index)
 
     checkTransaction();
 
-    char buf[64];
-
-    sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
-
-    int rc = sqlite3_exec(db, buf, 0, 0, nullptr);
-    if (rc != SQLITE_OK)
+    int sqlResult = SQLITE_ERROR;
+    if (mDelStmt)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        sqlResult = sqlite3_reset(mDelStmt);
+    }
+    else
+    {
+        sqlResult = sqlite3_prepare(db, "DELETE FROM statecache WHERE id = ?", -1, &mDelStmt, NULL);
+    }
+
+    if (sqlResult == SQLITE_OK)
+    {
+        sqlResult = sqlite3_bind_int(mDelStmt, 1, index);
+        if (sqlResult == SQLITE_OK)
+        {
+            sqlResult = sqlite3_step(mDelStmt);
+        }
+    }
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to delete record from database: " << dbfile << err;
         assert(!"Unable to delete record from database.");
 
@@ -532,6 +546,9 @@ void SqliteDbTable::remove()
     }
 
     sqlite3_finalize(pStmt);
+    pStmt = nullptr;
+    sqlite3_finalize(mDelStmt);
+    mDelStmt = nullptr;
 
     if (inTransaction())
     {
