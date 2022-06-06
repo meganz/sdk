@@ -326,9 +326,8 @@ public:
     // Returns if cache has been loaded
     bool hasCacheLoaded();
 
-    // Load nodes from DB, if mKeepAllNodesInMemory is active load all nodes, in other case,
-    // load rootnodes (ROOTNODE, INCOMING, RUBBISH) and children from ROOTNODE.
-    // return true if success, false if error
+    // Load rootnodes (ROOTNODE, INCOMING, RUBBISH), its first-level children
+    // and root of incoming shares. Return true if success, false if error
     bool loadNodes();
 
     // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
@@ -346,8 +345,8 @@ public:
     // Set values to mClient.rootnodes for ROOTNODE, INBOX and RUBBISH
     bool setrootnode(Node* node);
 
-    // Add fingerprint to mFingerprint map, in case !fetchingNodes or
-    // keep all nodes in memory, a reference to node will be stored too
+    // Add fingerprint to mFingerprint map. If Node is loaded in RAM,
+    // a pointer to it is also stored in the map
     FingerprintMapPosition insertFingerprint(Node* node);
     // Remove fingerprint from mFingerprint map
     void removeFingerprint(Node* node);
@@ -391,13 +390,6 @@ private:
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     node_map mNodes;
-
-    // flag to force all nodes to be loaded in memory
-#ifdef ENABLE_SYNC
-    bool mKeepAllNodesInMemory = true;
-#else
-    bool mKeepAllNodesInMemory = false;
-#endif
 
     // nodes that have changed and are pending to notify to app and dump to DB
     node_vector mNodeNotify;
