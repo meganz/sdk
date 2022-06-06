@@ -292,6 +292,12 @@ struct StandardClient : public MegaApp
     bool waitForNodesUpdated(unsigned numSeconds);
     void syncupdate_stateconfig(const SyncConfig& config) override;
 
+    bool received_user_alerts = false;
+    std::condition_variable user_alerts_updated_cv;
+
+    void useralerts_updated(UserAlert::Base**, int) override;
+    bool waitForUserAlertsUpdated(unsigned numSeconds);
+
     std::function<void(const SyncConfig&)> mOnSyncStateConfig;
 
     void syncupdate_scanning(bool b) override;

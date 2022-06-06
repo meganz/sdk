@@ -1277,6 +1277,33 @@ void StandardClient::syncupdate_stateconfig(const SyncConfig& config)
         mOnSyncStateConfig(config);
 }
 
+void StandardClient::useralerts_updated(UserAlert::Base** alerts, int numAlerts)
+{
+    if (logcb)
+    {
+        lock_guard<mutex> guard(om);
+
+        out() << clientname
+              << "useralerts_updated: received "
+              << numAlerts;
+    }
+
+    received_user_alerts = true;
+    user_alerts_updated_cv.notify_all();
+}
+
+bool StandardClient::waitForUserAlertsUpdated(unsigned numSeconds)
+{
+    std::mutex mutex;
+    std::unique_lock<std::mutex> guard(mutex);
+
+    user_alerts_updated_cv.wait_for(guard, std::chrono::seconds(numSeconds), [&] {
+        return received_user_alerts;
+    });
+
+    return received_user_alerts;
+}
+
 #ifdef DEBUG
 void StandardClient::syncdebug_notification(const SyncConfig& config,
                             int queue,
@@ -3505,6 +3532,10 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
         out() << "fetchnodes failed";
         return false;
     }
+
+    received_user_alerts = false;
+    EXPECT_TRUE(waitForUserAlertsUpdated(30));
+
     if (resetBaseCloudFolder)
     {
         if (deleteTestBaseFolder(true) == 0)
@@ -3697,6 +3728,10 @@ bool StandardClient::login_fetchnodes(const string& user, const string& pw, bool
     if (!waitonresults(&p2)) return false;
     p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); });
     if (!waitonresults(&p2)) return false;
+
+    received_user_alerts = false;
+    EXPECT_TRUE(waitForUserAlertsUpdated(30));
+
     p2 = thread_do<bool>([makeBaseFolder](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); });
     if (!waitonresults(&p2)) return false;
     return true;
@@ -3709,6 +3744,10 @@ bool StandardClient::login_fetchnodes(const string& session)
     if (!waitonresults(&p2)) return false;
     p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, pb); });
     if (!waitonresults(&p2)) return false;
+
+    received_user_alerts = false;
+    EXPECT_TRUE(waitForUserAlertsUpdated(30));
+
     p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); });
     if (!waitonresults(&p2)) return false;
     return true;
