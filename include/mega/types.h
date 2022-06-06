@@ -1086,6 +1086,8 @@ enum class PathProblem : unsigned short {
     FilesystemErrorListingFolder,
     FilesystemErrorIdentifyingFolderContent,
     UndecryptedCloudNode,
+    WaitingForScanningToComplete,
+    WaitingForAnotherMoveToComplete,
 
     PathProblem_LastPlusOne
 };

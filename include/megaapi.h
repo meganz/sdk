@@ -5570,6 +5570,8 @@ class MegaSyncStall
             FilesystemErrorListingFolder,
             FilesystemErrorIdentifyingFolderContent,
             UndecryptedCloudNode,
+            WaitingForScanningToComplete,
+            WaitingForAnotherMoveToComplete,
 
             SyncPathProblem_LastPlusOne
         };

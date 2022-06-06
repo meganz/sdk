@@ -985,6 +985,56 @@ void ClientManager::shutdown()
     clients.clear();
 }
 
+CloudItem::CloudItem(const Node* node)
+  : CloudItem(*node)
+{
+}
+
+CloudItem::CloudItem(const Node& node)
+  : mNodeHandle(node.nodeHandle())
+  , mPath()
+  , mFromRoot(false)
+{
+}
+
+CloudItem::CloudItem(const string& path, bool fromRoot)
+  : CloudItem(path.c_str(), fromRoot)
+{
+}
+
+CloudItem::CloudItem(const char* path, bool fromRoot)
+  : mNodeHandle()
+  , mPath(path)
+  , mFromRoot(fromRoot)
+{
+    if (mFromRoot && path && *path == '/')
+        mPath.erase(0, 1);
+}
+
+CloudItem::CloudItem(const NodeHandle& nodeHandle)
+  : mNodeHandle(nodeHandle)
+  , mPath()
+  , mFromRoot()
+{
+}
+
+CloudItem::CloudItem(handle nodeHandle)
+  : CloudItem(NodeHandle().set6byte(nodeHandle))
+{
+}
+
+Node* CloudItem::resolve(StandardClient& client) const
+{
+    if (!mNodeHandle.isUndef())
+        return client.client.nodeByHandle(mNodeHandle, true);
+
+    auto* root = client.gettestbasenode();
+
+    if (mFromRoot)
+        root = client.getcloudrootnode();
+
+    return client.drillchildnodebyname(root, mPath);
+}
 
 void StandardClient::ResultProc::prepresult(StandardClient::resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h)
 {
@@ -1225,6 +1275,33 @@ void StandardClient::syncupdate_stateconfig(const SyncConfig& config)
 
     if (mOnSyncStateConfig)
         mOnSyncStateConfig(config);
+}
+
+void StandardClient::useralerts_updated(UserAlert::Base** alerts, int numAlerts)
+{
+    if (logcb)
+    {
+        lock_guard<mutex> guard(om);
+
+        out() << clientname
+              << "useralerts_updated: received "
+              << numAlerts;
+    }
+
+    received_user_alerts = true;
+    user_alerts_updated_cv.notify_all();
+}
+
+bool StandardClient::waitForUserAlertsUpdated(unsigned numSeconds)
+{
+    std::mutex mutex;
+    std::unique_lock<std::mutex> guard(mutex);
+
+    user_alerts_updated_cv.wait_for(guard, std::chrono::seconds(numSeconds), [&] {
+        return received_user_alerts;
+    });
+
+    return received_user_alerts;
 }
 
 #ifdef DEBUG
@@ -1503,90 +1580,166 @@ void StandardClient::loginFromSession(const string& session, PromiseBoolSP pb)
         [pb](error e) { pb->set_value(!e);  return true; });
 }
 
-bool StandardClient::cloudCopyTreeAs(Node* from, Node* to, string name)
-{
-    auto promise = makeSharedPromise<bool>();
-    auto future = promise->get_future();
-
-    cloudCopyTreeAs(from, to, std::move(name), std::move(promise));
-
-    return future.get();
-}
-
-
-void StandardClient::cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb)
-{
-    auto completion = BasicPutNodesCompletion([pb](const Error& e) {
-        pb->set_value(!e);
-    });
-
-    resultproc.prepresult(COMPLETION, ++next_request_tag,
-        [&](){
-            TreeProcCopy tc;
-            client.proctree(n1, &tc, false, true);
-            tc.allocnodes();
-            client.proctree(n1, &tc, false, true);
-            tc.nn[0].parenthandle = UNDEF;
-
-            SymmCipher key;
-            AttrMap attrs;
-            string attrstring;
-            key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
-            attrs = n1->attrs;
-            LocalPath::utf8_normalize(&newname);
-            attrs.map['n'] = newname;
-            attrs.getjson(&attrstring);
-            client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-            client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, 0, std::move(completion));
-        },
-        nullptr);
-}
-
-void StandardClient::putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP pb)
-{
-    auto completion = BasicPutNodesCompletion([pb](const Error& e) {
-        pb->set_value(!e);
-    });
-
-    resultproc.prepresult(COMPLETION,
-                            ++next_request_tag,
-                            [&]()
-                            {
-                                client.putnodes(parentHandle, vo, std::move(nodes), nullptr, 0, std::move(completion));
-                            },
-                            nullptr);
-}
-
-bool StandardClient::putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes)
-{
-    auto result =
-        thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
-                {
-                    client.putnodes(parentHandle, vo, std::move(nodes), pb);
-                });
-
-    return result.get();
-}
-
-void StandardClient::putnodes(const string& parentPath, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP result)
-{
-    if (auto* parent = drillchildnodebyname(gettestbasenode(), parentPath))
-    {
-        putnodes(parent->nodeHandle(), vo, std::move(nodes), std::move(result));
-    }
-    else
-    {
-        result->set_value(false);
-    }
-}
-
-bool StandardClient::putnodes(const string &parentPath, VersioningOption vo, std::vector<NewNode>&& nodes)
+bool StandardClient::copy(const CloudItem& source,
+                          const CloudItem& target,
+                          const string& name,
+                          VersioningOption versioningPolicy)
 {
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
-        client.putnodes(parentPath, vo, std::move(nodes), std::move(result));
+        client.copy(source, target, name, std::move(result), versioningPolicy);
     });
 
+    auto status = result.wait_for(std::chrono::minutes(2));
+
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
     return result.get();
+}
+
+bool StandardClient::copy(const CloudItem& source,
+                          const CloudItem& target,
+                          VersioningOption versioningPolicy)
+{
+    return copy(source, target, string(), versioningPolicy);
+}
+
+void StandardClient::copy(const CloudItem& source,
+                          const CloudItem& target,
+                          string name,
+                          PromiseBoolSP result,
+                          VersioningOption versioningPolicy)
+{
+    auto* sourceNode = source.resolve(*this);
+    EXPECT_TRUE(sourceNode);
+
+    if (!sourceNode)
+        return result->set_value(false);
+
+    auto* targetNode = target.resolve(*this);
+    EXPECT_TRUE(targetNode);
+
+    if (!targetNode || targetNode->type == FILENODE)
+        return result->set_value(false);
+
+    // Make sure name always contains something valid.
+    if (name.empty())
+        name = sourceNode->displayname();
+
+    // Make sure name is normalized.
+    LocalPath::utf8_normalize(&name);
+
+    TreeProcCopy proc;
+
+    // Figure out how many nodes we need to copy.
+    client.proctree(sourceNode, &proc, false, true);
+
+    // Allocate and populate nodes.
+    proc.allocnodes();
+
+    client.proctree(sourceNode, &proc, false, true);
+
+    // We need the original node's handle if we're using versioning.
+    Node* victimNode = nullptr;
+
+    if (versioningPolicy != NoVersioning)
+        victimNode = client.childnodebyname(targetNode, name.c_str(), true);
+
+    if (victimNode)
+        proc.nn[0].ovhandle = victimNode->nodeHandle();
+
+    proc.nn[0].parenthandle = UNDEF;
+
+    // Populate attributes of copied node.
+    {
+        SymmCipher key;
+
+        // Load key.
+        key.setkey((const ::mega::byte*)proc.nn[0].nodekey.data(), sourceNode->type);
+
+        // Copy existing attributes.
+        AttrMap attrs = sourceNode->attrs;
+
+        // Upate the node's name.
+        attrs.map['n'] = std::move(name);
+
+        // Generate attribute string.
+        string attrstring;
+
+        attrs.getjson(&attrstring);
+
+        // Update node's attribute string.
+        client.makeattr(&key, proc.nn[0].attrstring, attrstring.c_str());
+    }
+
+    auto completion = [=](const Error& error) {
+        LOG_debug << "Putnodes request completed: "
+                  << error;
+
+        EXPECT_EQ(error, API_OK);
+        result->set_value(error == API_OK);
+    };
+
+    LOG_debug << "Scheduling putnodes request now...";
+
+    client.putnodes(targetNode->nodeHandle(),
+                    versioningPolicy,
+                    std::move(proc.nn),
+                    nullptr,
+                    0,
+                    BasicPutNodesCompletion(std::move(completion)));
+}
+
+bool StandardClient::putnodes(const CloudItem& parent,
+                              VersioningOption versioningPolicy,
+                              std::vector<NewNode>&& nodes)
+{
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        client.putnodes(parent,
+                        versioningPolicy,
+                        std::move(nodes),
+                        std::move(result));
+    });
+
+    auto status = result.wait_for(std::chrono::seconds(40));
+
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
+void StandardClient::putnodes(const CloudItem& parent,
+                              VersioningOption versioningPolicy,
+                              std::vector<NewNode>&& nodes,
+                              PromiseBoolSP result)
+{
+    auto* node = parent.resolve(*this);
+    EXPECT_TRUE(node);
+
+    if (!node)
+        return result->set_value(false);
+
+    auto completion = BasicPutNodesCompletion([result](const Error& e) {
+        LOG_debug << "Putnodes request completed: "
+                  << e;
+
+        EXPECT_EQ(e, API_OK);
+        result->set_value(e == API_OK);
+    });
+
+    LOG_debug << "Scheduling putnodes request now...";
+
+    client.putnodes(node->nodeHandle(),
+                    versioningPolicy,
+                    std::move(nodes),
+                    nullptr,
+                    0,
+                    std::move(completion));
 }
 
 void StandardClient::uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes)
@@ -1622,29 +1775,40 @@ void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
         nullptr);
 }
 
-void StandardClient::downloadFile(const Node& node, const fs::path& destination, PromiseBoolSP result)
+void StandardClient::downloadFile(const CloudItem& item, const fs::path& destination, PromiseBoolSP result)
 {
+    auto* node = item.resolve(*this);
+    if (!node)
+        return result->set_value(false);
+
     unique_ptr<FileGet> file(new FileGet());
 
-    file->h = node.nodeHandle();
+    file->h = node->nodeHandle();
     file->hprivate = true;
     file->setLocalname(LocalPath::fromAbsolutePath(destination.u8string()));
-    file->name = node.displayname();
+    file->name = node->displayname();
     file->result = std::move(result);
 
-    reinterpret_cast<FileFingerprint&>(*file) = node;
+    reinterpret_cast<FileFingerprint&>(*file) = *node;
 
     DBTableTransactionCommitter committer(client.tctable);
     client.startxfer(GET, file.release(), committer, false, false, false, NoVersioning);
 }
 
-bool StandardClient::downloadFile(const Node& node, const fs::path& destination)
+bool StandardClient::downloadFile(const CloudItem& item, const fs::path& destination)
 {
     auto result =
         thread_do<bool>([&](StandardClient& client, PromiseBoolSP result)
                         {
-                            client.downloadFile(node, destination, result);
+                            client.downloadFile(item, destination, result);
                         });
+
+    auto status = result.wait_for(DEFAULTWAIT);
+
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
 
     return result.get();
 }
@@ -1686,52 +1850,31 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
                             });
 }
 
-bool StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, int timeoutSeconds, VersioningOption vo)
+bool StandardClient::uploadFile(const fs::path& path, const string& name, const CloudItem& parent, int timeoutSeconds, VersioningOption vo)
 {
-    auto result =
-        thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
-            {
-                client.uploadFile(path, name, parent, pb, vo);
-            });
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb) {
+        auto* parentNode = parent.resolve(client);
+        if (!parentNode)
+            return pb->set_value(false);
 
-    if (result.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+        client.uploadFile(path, name, parentNode, pb, vo);
+    });
+
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
     {
         LOG_warn << "Timed out waiting for uplaodFile";
         return false;
     }
+
     return result.get();
 }
 
-bool StandardClient::uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds, VersioningOption vo)
-{
-    auto result =
-        thread_do<bool>([&](StandardClient& client, PromiseBoolSP pb)
-            {
-                const Node* parent = client.client.nodeByPath(parentPath.c_str(), nullptr);
-                if (!parent)
-                {
-                    LOG_warn << "nodeByPath found no node for parentPath " << parentPath << ", cannot call uploadFile";
-                    return pb->set_value(false);
-                }
-                client.uploadFile(path, name, parent, pb, vo);
-            });
-
-    if (result.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
-    {
-        LOG_warn << "Timed out waiting for uploadFile";
-        return false;
-    }
-    return result.get();
-}
-
-bool StandardClient::uploadFile(const fs::path& path, const Node* parent, int timeoutSeconds, VersioningOption vo)
+bool StandardClient::uploadFile(const fs::path& path, const CloudItem& parent, int timeoutSeconds, VersioningOption vo)
 {
     return uploadFile(path, path.filename().u8string(), parent, timeoutSeconds, vo);
-}
-
-bool StandardClient::uploadFile(const fs::path& path, const string& parentPath, int timeoutSeconds, VersioningOption vo)
-{
-    return uploadFile(path, path.filename().u8string(), parentPath, timeoutSeconds, vo);
 }
 
 void StandardClient::uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo)
@@ -1753,7 +1896,7 @@ void StandardClient::uploadFilesInTree_recurse(const Node* target, const fs::pat
     }
 }
 
-bool StandardClient::uploadFilesInTree(fs::path p, const Node* n2, VersioningOption vo)
+bool StandardClient::uploadFilesInTree(fs::path p, const CloudItem& n2, VersioningOption vo)
 {
     auto promise = makeSharedPromise<bool>();
     auto future = promise->get_future();
@@ -1761,15 +1904,25 @@ bool StandardClient::uploadFilesInTree(fs::path p, const Node* n2, VersioningOpt
     std::atomic_int dummy(0);
     uploadFilesInTree(p, n2, dummy, std::move(promise), vo);
 
+    auto status = future.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
     return future.get();
 }
 
-void StandardClient::uploadFilesInTree(fs::path p, const Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo)
+void StandardClient::uploadFilesInTree(fs::path p, const CloudItem& n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo)
 {
     resultproc.prepresult(PUTNODES, ++next_request_tag,
         [&](){
+            auto* t = n2.resolve(*this);
+            if (!t)
+                return pb->set_value(false);
+
             DBTableTransactionCommitter committer(client.tctable);
-            uploadFilesInTree_recurse(n2, p, inprogress, committer, vo);
+            uploadFilesInTree_recurse(t, p, inprogress, committer, vo);
         },
         [pb, &inprogress](error e)
         {
@@ -1781,7 +1934,7 @@ void StandardClient::uploadFilesInTree(fs::path p, const Node* n2, std::atomic<i
 
 void StandardClient::uploadFile(const fs::path& sourcePath,
                                 const string& targetName,
-                                const Node& parent,
+                                const CloudItem& parent,
                                 std::function<void(error)> completion,
                                 const VersioningOption versioningPolicy)
 {
@@ -1799,6 +1952,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                                            targettype_t,
                                            vector<NewNode>&,
                                            bool) {
+                EXPECT_EQ(result, API_OK);
                 completion(result);
             };
 
@@ -1817,6 +1971,8 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
 
         void terminated(error result)
         {
+            EXPECT_FALSE(true);
+
             // Let the completion function know we've failed.
             mCompletion(result);
 
@@ -1828,17 +1984,21 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
         std::function<void(error)> mCompletion;
     }; // Put
 
+    // Make sure we have exclusive access to the client.
+    lock_guard<recursive_mutex> guard(clientMutex);
+
+    auto* parentNode = parent.resolve(*this);
+    if (!parentNode)
+        return completion(API_ENOENT);
+
     // Create a file to represent and track our upload.
     auto file = ::mega::make_unique<Put>();
 
     // Populate necessary fields.
-    file->h = parent.nodeHandle();
+    file->h = parentNode->nodeHandle();
     file->mCompletion = std::move(completion);
     file->name = targetName;
     file->setLocalname(LocalPath::fromAbsolutePath(sourcePath.u8string()));
-
-    // Make sure we have exclusive access to the client.
-    lock_guard<recursive_mutex> guard(clientMutex);
 
     // Kick off the upload. Client takes ownership of file.
     DBTableTransactionCommitter committer(client.tctable);
@@ -1853,7 +2013,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
 }
 
 void StandardClient::uploadFile(const fs::path& sourcePath,
-                                const Node& parent,
+                                const CloudItem& parent,
                                 std::function<void(error)> completion,
                                 const VersioningOption versioningPolicy)
 {
@@ -1901,11 +2061,15 @@ bool StandardClient::fetchnodes(bool noCache)
                             client.fetchnodes(noCache, result);
                         });
 
-    if (result.wait_for(std::chrono::seconds(180)) != std::future_status::ready)
+    auto status = result.wait_for(std::chrono::seconds(180));
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
     {
         LOG_warn << "Timed out waiting for fetchnodes";
         return false;
     }
+
     return result.get();
 }
 
@@ -1921,6 +2085,8 @@ void StandardClient::catchup(std::function<void(error)> completion)
     auto init = std::bind(&MegaClient::catchup, &client);
 
     auto fini = [completion](error e) {
+        EXPECT_EQ(e, API_OK);
+
         if (e)
             out() << "catchup reports: " << e;
 
@@ -2276,32 +2442,29 @@ handle StandardClient::backupAdd_mainthread(const string& drivePath,
 }
 
 handle StandardClient::setupSync_mainthread(const string& localPath,
-                                            const Node& remoteNode,
+                                            const CloudItem& remoteItem,
                                             const bool isBackup,
                                             const bool uploadIgnoreFile)
 {
-    if (remoteNode.client != &client)
-        return setupSync_mainthread(localPath,
-                                    remoteNode.nodehandle,
-                                    isBackup,
-                                    uploadIgnoreFile);
-
     auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
         client.setupSync_inThread(localPath,
-                                  remoteNode,
+                                  remoteItem,
                                   isBackup,
                                   uploadIgnoreFile,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(std::chrono::seconds(45));
+    EXPECT_NE(status, future_status::timeout);
+    
+    if (status == future_status::timeout)
         return UNDEF;
 
     return result.get();
 }
 
 void StandardClient::setupSync_inThread(const string& localPath,
-                                        const Node& remoteNode,
+                                        const CloudItem& remoteItem,
                                         const bool isBackup,
                                         const bool uploadIgnoreFile,
                                         PromiseHandleSP result)
@@ -2319,25 +2482,38 @@ void StandardClient::setupSync_inThread(const string& localPath,
         return false;
     };
 
-    // Sanity.
-    assert(remoteNode.client == &client);
+    auto* remoteNode = remoteItem.resolve(*this);
+    EXPECT_TRUE(remoteNode);
+
+    if (!remoteNode)
+        return result->set_value(UNDEF);
 
     auto ec = std::error_code();
     auto rootPath = fsBasePath / fs::u8path(localPath);
 
     // Try and create the local sync root.
     fs::create_directory(rootPath, ec);
+    EXPECT_FALSE(ec);
 
     if (ec)
         return result->set_value(UNDEF);
 
     // For purposes of capturing.
-    auto remoteHandle = remoteNode.nodeHandle();
-    auto remoteIsShare = isShare(&remoteNode);
-    auto remotePath = string(remoteNode.displaypath());
+    auto remoteHandle = remoteNode->nodeHandle();
+    auto remoteIsShare = isShare(remoteNode);
+    auto remotePath = string(remoteNode->displaypath());
 
     // Called when it's time to actually add the sync.
     auto completion = [=](error e) {
+        LOG_debug << "Starting to add sync: "
+                  << e;
+
+        // Make sure our caller completed successfully.
+        EXPECT_EQ(e, API_OK);
+
+        if (e != API_OK)
+            return result->set_value(UNDEF);
+
         // Convenience.
         constexpr auto BACKUP = SyncConfig::TYPE_BACKUP;
         constexpr auto TWOWAY = SyncConfig::TYPE_TWOWAY;
@@ -2364,9 +2540,15 @@ void StandardClient::setupSync_inThread(const string& localPath,
             config.mScanIntervalSec = SCAN_INTERVAL_SEC;
         }
 
-        auto completion = [result](error, SyncError, handle id) {
+        auto completion = [result](error e, SyncError se, handle id) {
+            EXPECT_EQ(e, API_OK);
+            EXPECT_NE(id, UNDEF);
+            EXPECT_EQ(se, NO_SYNC_ERROR);
+
             result->set_value(id);
         };
+
+        LOG_debug << "Asking engine to add the sync...";
 
         client.addsync(config, true, std::move(completion), localPath + " ");
     };
@@ -2377,8 +2559,13 @@ void StandardClient::setupSync_inThread(const string& localPath,
         auto ignorePath = fsBasePath / ".megaignore";
 
         // Create the ignore file.
-        if (!createDataFile(ignorePath, "#"))
+        auto created = createDataFile(ignorePath, "#");
+        EXPECT_TRUE(created);
+
+        if (!created)
             return result->set_value(UNDEF);
+
+        LOG_debug << "Uploading initial megaignore file...";
 
         // Upload the ignore file.
         uploadFile(ignorePath, remoteNode, std::move(completion));
@@ -2387,57 +2574,10 @@ void StandardClient::setupSync_inThread(const string& localPath,
         return;
     }
 
+    LOG_debug << "Making sure we've received latest cloud changes...";
+
     // Make sure the client's received all its action packets.
     catchup(std::move(completion));
-}
-
-handle StandardClient::setupSync_mainthread(const string& localPath,
-                                            const string& remotePath,
-                                            const bool isBackup,
-                                            const bool uploadIgnoreFile)
-{
-    auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
-        auto* root = client.gettestbasenode();
-        auto* node = client.drillchildnodebyname(root, remotePath);
-
-        if (!node)
-            return result->set_value(UNDEF);
-
-        client.setupSync_inThread(localPath,
-                                  *node,
-                                  isBackup,
-                                  uploadIgnoreFile,
-                                  std::move(result));
-    });
-
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
-        return UNDEF;
-
-    return result.get();
-}
-
-handle StandardClient::setupSync_mainthread(const string& localPath,
-                                            const handle remoteHandle,
-                                            const bool isBackup,
-                                            const bool uploadIgnoreFile)
-{
-    auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
-        auto* node = client.client.nodebyhandle(remoteHandle);
-
-        if (!node)
-            return result->set_value(UNDEF);
-
-        client.setupSync_inThread(localPath,
-                                  *node,
-                                  isBackup,
-                                  uploadIgnoreFile,
-                                  std::move(result));
-    });
-
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
-        return UNDEF;
-
-    return result.get();
 }
 
 void StandardClient::importSyncConfigs(string configs, PromiseBoolSP result)
@@ -3100,40 +3240,41 @@ void StandardClient::fetchnodes_result(const Error& e)
     resultproc.processresult(FETCHNODES, e, UNDEF);
 }
 
-bool StandardClient::setattr(Node* node, attr_map&& updates)
+bool StandardClient::setattr(const CloudItem& item, attr_map&& updates)
 {
     auto result =
-        thread_do<bool>(
-        [=](StandardClient& client, PromiseBoolSP result) mutable
+        thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) mutable
         {
-            client.setattr(node, std::move(updates), result);
+            client.setattr(std::move(item), std::move(updates), result);
         });
+
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
 
     return result.get();
 }
 
-void StandardClient::setattr(Node* node, attr_map&& updates, PromiseBoolSP result)
+void StandardClient::setattr(const CloudItem& item, attr_map&& updates, PromiseBoolSP result)
 {
     resultproc.prepresult(COMPLETION,
                             ++next_request_tag,
                             [=]()
                             {
+                                auto* node = item.resolve(*this);
+                                if (!node)
+                                    return result->set_value(false);
+
                                 client.setattr(node, attr_map(updates),
                                     [result](NodeHandle, error e) { result->set_value(!e); });
                             }, nullptr);
 }
 
-bool StandardClient::rename(const string& path, const string& newName)
+bool StandardClient::rename(const CloudItem& item, const string& newName)
 {
-    // Locate the node corresponding to the specified path.
-    auto* node = drillchildnodebyname(gettestbasenode(), path);
-
-    // Can't rename a node that doesn't exist.
-    if (!node)
-        return false;
-
-    // Rename the node.
-    return setattr(node, attr_map('n', newName));
+    return setattr(item, attr_map('n', newName));
 }
 
 void StandardClient::unlink_result(handle h, error e)
@@ -3173,45 +3314,30 @@ bool StandardClient::disableSync(handle id, SyncError error, bool enabled, bool 
     return result.get();
 }
 
-
-void StandardClient::deleteremote(string path, bool fromroot, PromiseBoolSP pb)
+void StandardClient::deleteremote(const CloudItem& item, PromiseBoolSP result)
 {
-    if (fromroot && !path.empty() && path[0] == '/') path.erase(0, 1);
-    if (Node* n = drillchildnodebyname(fromroot ? getcloudrootnode() : gettestbasenode(), path))
-    {
-        auto completion = [pb](NodeHandle, Error e) {
-            if (e) LOG_debug << "deleteremote received failure code from unlink: " << e;
-            pb->set_value(!e);
-        };
+    auto* node = item.resolve(*this);
+    if (!node)
+        return result->set_value(false);
 
-        resultproc.prepresult(COMPLETION, ++next_request_tag,
-            [&](){ client.unlink(n, false, 0, std::move(completion)); },
-            nullptr);
-    }
-    else
-    {
-        LOG_debug << "Node not found for deleteremote, at path " << path << " (fromroot: " << fromroot << ")";
-        pb->set_value(false);
-    }
-}
-
-bool StandardClient::deleteremote(string path, bool fromroot)
-{
-    return withWait<bool>([&](PromiseBoolSP result) {
-        deleteremote(path, fromroot, std::move(result));
+    client.unlink(node, false, 0, [result](NodeHandle, Error e) {
+        result->set_value(e == API_OK);
     });
 }
 
-bool StandardClient::deleteremote(Node* node)
+bool StandardClient::deleteremote(const CloudItem& item)
 {
-    return withWait<bool>([=](PromiseBoolSP result) {
-        deleteremote(node, std::move(result));
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        client.deleteremote(item, std::move(result));
     });
-}
 
-void StandardClient::deleteremote(Node* node, PromiseBoolSP result)
-{
-    deleteremotenodes({node}, std::move(result));
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
+    return result.get();
 }
 
 bool StandardClient::deleteremotedebris()
@@ -3231,13 +3357,6 @@ void StandardClient::deleteremotedebris(PromiseBoolSP result)
     {
         result->set_value(true);
     }
-}
-
-bool StandardClient::deleteremotenode(Node* node)
-{
-    return withWait<bool>([&](PromiseBoolSP result) {
-        deleteremotenodes({node}, std::move(result));
-    });
 }
 
 void StandardClient::deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
@@ -3261,72 +3380,46 @@ void StandardClient::deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
     }
 }
 
-bool StandardClient::movenode(string path, string newParentPath, string newName)
+bool StandardClient::movenode(const CloudItem& source,
+                              const CloudItem& target,
+                              const string& newName)
 {
-    auto promise = makeSharedPromise<bool>();
-    auto future = promise->get_future();
+    auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
+        client.movenode(source, target, newName, std::move(result));
+    });
 
-    movenode(std::move(path),
-                std::move(newName),
-                std::move(newParentPath),
-                std::move(promise));
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
 
-    auto status = future.wait_for(DEFAULTWAIT);
-
-    if (status != future_status::ready)
-    {
-        LOG_warn << "Timed out waiting for movenode";
+    if (status == future_status::timeout)
         return false;
-    }
 
-    return future.get();
+    return result.get();
 }
 
-void StandardClient::movenode(string path, string newname, string newparentpath, PromiseBoolSP pb)
+void StandardClient::movenode(const CloudItem& source,
+                              const CloudItem& target,
+                              const string& newName,
+                              PromiseBoolSP result)
 {
-    Node* n = drillchildnodebyname(gettestbasenode(), path);
-    Node* p = drillchildnodebyname(gettestbasenode(), newparentpath);
-    if (n && p)
-    {
-        resultproc.prepresult(COMPLETION, ++next_request_tag,
-            [pb, n, newname, p, this]()
-            {
-                const auto* name = newname.empty() ? nullptr : newname.c_str();
+    auto* sourceNode = source.resolve(*this);
+    if (!sourceNode)
+        return result->set_value(false);
 
-                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), name,
-                    [pb](NodeHandle h, Error e) { pb->set_value(!e); });
-            },
-            nullptr);
-        return;
-    }
-    out() << "node or new parent not found";
-    pb->set_value(false);
-}
+    auto* targetNode = target.resolve(*this);
+    if (!targetNode)
+        return result->set_value(false);
 
-void StandardClient::movenode(handle h1, handle h2, PromiseBoolSP pb)
-{
-    Node* n = client.nodebyhandle(h1);
-    Node* p = client.nodebyhandle(h2);
-    if (n && p)
-    {
-        resultproc.prepresult(COMPLETION, ++next_request_tag,
-            [pb, n, p, this]()
-            {
-                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
-                    [pb](NodeHandle h, Error e) { pb->set_value(!e); });
-            },
-            nullptr);
-        return;
-    }
-    out() << "node or new parent not found by handle";
-    pb->set_value(false);
-}
+    auto completion = [result](NodeHandle, Error e) {
+        result->set_value(e == API_OK);
+    };
 
-bool StandardClient::movenode(handle h1, handle h2)
-{
-    return withWait([=](PromiseBoolSP result) {
-        movenode(h1, h2, std::move(result));
-    }, false);
+    client.rename(sourceNode,
+                  targetNode,
+                  SYNCDEL_NONE,
+                  NodeHandle(),
+                  newName.empty() ? nullptr : newName.c_str(),
+                  std::move(completion));
 }
 
 void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
@@ -3439,6 +3532,10 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
         out() << "fetchnodes failed";
         return false;
     }
+
+    received_user_alerts = false;
+    EXPECT_TRUE(waitForUserAlertsUpdated(30));
+
     if (resetBaseCloudFolder)
     {
         if (deleteTestBaseFolder(true) == 0)
@@ -3631,6 +3728,10 @@ bool StandardClient::login_fetchnodes(const string& user, const string& pw, bool
     if (!waitonresults(&p2)) return false;
     p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); });
     if (!waitonresults(&p2)) return false;
+
+    received_user_alerts = false;
+    EXPECT_TRUE(waitForUserAlertsUpdated(30));
+
     p2 = thread_do<bool>([makeBaseFolder](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); });
     if (!waitonresults(&p2)) return false;
     return true;
@@ -3643,6 +3744,10 @@ bool StandardClient::login_fetchnodes(const string& session)
     if (!waitonresults(&p2)) return false;
     p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, pb); });
     if (!waitonresults(&p2)) return false;
+
+    received_user_alerts = false;
+    EXPECT_TRUE(waitForUserAlertsUpdated(30));
+
     p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); });
     if (!waitonresults(&p2)) return false;
     return true;
@@ -3692,7 +3797,10 @@ bool StandardClient::match(NodeHandle handle, const Model::ModelNode* source)
         client.match(handle, source, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3819,6 +3927,29 @@ void StandardClient::triggerPeriodicScanEarly(handle backupID)
     client.syncs.triggerPeriodicScanEarly(backupID).get();
 }
 
+handle StandardClient::getNodeHandle(const CloudItem& item)
+{
+    auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
+        client.getNodeHandle(item, std::move(result));
+    });
+
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
+    return result.get();
+}
+
+void StandardClient::getNodeHandle(const CloudItem& item, PromiseHandleSP result)
+{
+    if (auto* node = item.resolve(*this))
+        return result->set_value(node->nodehandle);
+
+    result->set_value(UNDEF);
+}
+
 FileFingerprint StandardClient::fingerprint(const fs::path& fsPath)
 {
     // Convenience.
@@ -3888,7 +4019,10 @@ bool StandardClient::ipcr(handle id, ipcactions_t action)
         client.ipcr(id, action, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3903,7 +4037,10 @@ bool StandardClient::ipcr(handle id)
         result->set_value(i != j && !i->second->isoutgoing);
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3929,8 +4066,11 @@ handle StandardClient::opcr(const string& email, opcactions_t action)
         client.opcr(email, action, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
-        return UNDEF;
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
 
     return result.get();
 }
@@ -3947,7 +4087,10 @@ bool StandardClient::opcr(const string& email)
         result->set_value(false);
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3965,7 +4108,10 @@ bool StandardClient::iscontact(const string& email)
         result->set_value(false);
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -3984,19 +4130,26 @@ bool StandardClient::rmcontact(const string& email)
         client.rmcontact(email, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
 }
 
-void StandardClient::share(Node& node, const string& email, accesslevel_t permissions, PromiseBoolSP result)
+void StandardClient::share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result)
 {
+    auto* node = item.resolve(*this);
+    if (!node)
+        return result->set_value(false);
+
     auto completion = [=](Error e, bool) {
         result->set_value(!e);
     };
 
-    client.setshare(&node,
+    client.setshare(node,
                     email.c_str(),
                     permissions,
                     false,
@@ -4005,13 +4158,16 @@ void StandardClient::share(Node& node, const string& email, accesslevel_t permis
                     std::move(completion));
 }
 
-bool StandardClient::share(Node& node, const string& email, accesslevel_t permissions)
+bool StandardClient::share(const CloudItem& item, const string& email, accesslevel_t permissions)
 {
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
-        client.share(node, email, permissions, std::move(result));
+        client.share(item, email, permissions, std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
         return false;
 
     return result.get();
@@ -4049,39 +4205,27 @@ SyncWaitPredicate SyncConflictState(bool state)
     };
 }
 
-SyncWaitPredicate SyncRemoteMatch(NodeHandle handle, const Model::ModelNode* source)
+SyncWaitPredicate SyncRemoteMatch(const CloudItem& item, const Model::ModelNode* source)
 {
     return [=](StandardClient& client) {
-        return client.match(handle, source);
-    };
-}
-
-SyncWaitPredicate SyncRemoteMatch(const Node& node, const Model::ModelNode* source)
-{
-    return SyncRemoteMatch(node.nodeHandle(), source);
-}
-
-SyncWaitPredicate SyncRemoteNodePresent(handle handle)
-{
-    return [handle](StandardClient& client) {
         return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
-            result->set_value(client.client.nodebyhandle(handle));
+            if (auto* node = item.resolve(client))
+                return client.match(node->nodeHandle(), source, std::move(result));
+            result->set_value(false);
         }).get();
     };
 }
 
-SyncWaitPredicate SyncRemoteNodePresent(const Node& node)
+SyncWaitPredicate SyncRemoteMatch(const CloudItem& item, const Model& source)
 {
-    return SyncRemoteNodePresent(node.nodehandle);
+    return SyncRemoteMatch(item, source.root.get());
 }
 
-SyncWaitPredicate SyncRemoteNodePresent(const string& path)
+SyncWaitPredicate SyncRemoteNodePresent(const CloudItem& item)
 {
-    return [path](StandardClient& client) {
+    return [item](StandardClient& client) {
         return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
-            auto root = client.gettestbasenode();
-            auto node = client.drillchildnodebyname(root, path);
-            result->set_value(!!node);
+            result->set_value(item.resolve(client));
         }).get();
     };
 }
@@ -4591,8 +4735,7 @@ TEST_F(SyncTest, BasicSync_DelRemoteFolder)
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // delete something remotely and let sync catch up
-    future<bool> fb = clientA1->thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_2/f_2_1", false, pb); });
-    ASSERT_TRUE(waitonresults(&fb));
+    ASSERT_TRUE(clientA1->deleteremote("f/f_2/f_2_1"));
     waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
 
     // check everything matches in both syncs (model has expected state of remote and local)
@@ -4724,9 +4867,9 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
         ASSERT_TRUE(createDataFile(path, "#"));
 
         // Upload ignore file to each sync root.
-        ASSERT_TRUE(clientA1.uploadFile(path, "/mega_test_sync/f"));
-        ASSERT_TRUE(clientA1.uploadFile(path, "/mega_test_sync/f/f_0"));
-        ASSERT_TRUE(clientA1.uploadFile(path, "/mega_test_sync/f/f_2"));
+        ASSERT_TRUE(clientA1.uploadFile(path, "f"));
+        ASSERT_TRUE(clientA1.uploadFile(path, "f/f_0"));
+        ASSERT_TRUE(clientA1.uploadFile(path, "f/f_2"));
     }
 
     // set up sync for A1 and A2, it should build matching local folders
@@ -5382,10 +5525,9 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_TRUE(waitonresults(&p1));
 
     out() << "*********************  remove remote folders via A2";
-    p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_0", false, pb); });
+    ASSERT_TRUE(clientA2.deleteremote("f/f_0"));
     model1.movetosynctrash("f/f_0", "f");
     model2.movetosynctrash("f/f_0", "f");
-    ASSERT_TRUE(waitonresults(&p1));
 
     out() << "*********************  add local folders in A1";
     ASSERT_TRUE(buildLocalFolders(sync1path / "f_1/f_1_2", "newlocal", 2, 2, 2));
@@ -5452,8 +5594,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     pclientA1->localLogout();
 
     // remove remote folder via A2
-    future<bool> p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremote("f/f_1", false, pb); });
-    ASSERT_TRUE(waitonresults(&p1));
+    ASSERT_TRUE(clientA2.deleteremote("f/f_1"));
 
     // add local folders in A1 on disk folder
     ASSERT_TRUE(buildLocalFolders(sync1path / "f_1/f_1_2", "newlocal", 2, 2, 2));
@@ -5594,12 +5735,7 @@ TEST_F(SyncTest, CmdChecks_RRAttributeAfterMoveNode)
     ASSERT_EQ(f->attrs.map[rrname], string(Base64Str<MegaClient::NODEHANDLE>(pclientA1->gettestbasenode()->nodehandle)));
 
     // move it back
-
-    p1 = pclientA1->thread_do<bool>([&](StandardClient& sc, PromiseBoolSP pb)
-    {
-        sc.movenode(f->nodehandle, pclientA1->basefolderhandle, pb);
-    });
-    ASSERT_TRUE(waitonresults(&p1));
+    ASSERT_TRUE(pclientA1->movenode(f->nodehandle, pclientA1->basefolderhandle));
 
     WaitMillisec(3000);  // allow for attribute delivery too
 
@@ -7272,14 +7408,13 @@ TEST_F(SyncTest, AnomalousSyncDownload)
         // Upload the files f and f/0.
         {
             auto filePath = cu.fsBasePath / "f";
-            auto rootPath = string("/mega_test_sync/s");
 
             // Create a dummy for us to upload.
             ASSERT_TRUE(createDataFile(filePath, "f"));
 
             // Upload the files.
-            ASSERT_TRUE(cu.uploadFile(filePath, string("f"), rootPath));
-            ASSERT_TRUE(cu.uploadFile(filePath, string("f/0"), rootPath));
+            ASSERT_TRUE(cu.uploadFile(filePath, string("f"), "s"));
+            ASSERT_TRUE(cu.uploadFile(filePath, string("f/0"), "s"));
 
             // Update the model.
             model.addfile("f", "f");
@@ -8237,13 +8372,13 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     std::ofstream fstream1(SYNC1.localpath / "d" / "file0_d", ios_base::app);
     fstream1 << " plus local change";
     fstream1.close();
-    ASSERT_TRUE(c.uploadFile("remoteFile", "file0_d", SYNC1.remotepath + "/d"));
+    ASSERT_TRUE(c.uploadFile("remoteFile", "file0_d", "x/x_1/d"));
 
     // case 2: update the local and remote file differently while paused (to resolve locally)
     std::ofstream fstream2(SYNC2.localpath / "d" / "file0_d", ios_base::app);
     fstream2 << " plus local change";
     fstream2.close();
-    ASSERT_TRUE(c.uploadFile("remoteFile", "file0_d", SYNC2.remotepath + "/d", 30, UseLocalVersioningFlag));
+    ASSERT_TRUE(c.uploadFile("remoteFile", "file0_d", "x/x_2/d", 30, UseLocalVersioningFlag));
 
     c.setSyncPausedByBackupId(id0, false);
     c.setSyncPausedByBackupId(id1, false);
@@ -8263,7 +8398,7 @@ TEST_F(SyncTest, SyncIncompatibleMoveStallsAndResolutions)
     model0.movenode("d/d_1", "d/d_0");
 
     // resolve case 1: remove remote, local should replace it
-    c.deleteremote(SYNC1.remotepath + "/d/file0_d", true);
+    c.deleteremote("x/x_1/d/file0_d");
     model1.findnode("d/file0_d")->content = "file0_d plus local change";
 
     // resolve case 2: remove local, remote should replace it
@@ -9170,7 +9305,7 @@ struct TwoWaySyncSymmetryCase
             auto* from = client.drillchildnodebyname(root, "initial");
             ASSERT_NE(from, nullptr);
 
-            ASSERT_TRUE(client.cloudCopyTreeAs(from, root, name()));
+            ASSERT_TRUE(client.copy(from, root, name()));
         }
 
         // Prepare Local Filesystem
@@ -12139,8 +12274,8 @@ TEST_F(LocalToCloudFilterFixture, AcceptableFilterNameClash)
         ASSERT_TRUE(createDataFile(ignoreFilePath, "#"));
 
         // Upload the ignore file twice so to create a remote name clash.
-        ASSERT_TRUE(cu->uploadFile(ignoreFilePath, "/mega_test_sync/s"));
-        ASSERT_TRUE(cu->uploadFile(ignoreFilePath, "/mega_test_sync/s"));
+        ASSERT_TRUE(cu->uploadFile(ignoreFilePath, "s"));
+        ASSERT_TRUE(cu->uploadFile(ignoreFilePath, "s"));
     }
 
     // Add and start a sync.
@@ -14132,7 +14267,7 @@ TEST_F(CloudToLocalFilterFixture, FilterAdded)
     // Upload the initial ignore file.
     //
     // This is to avoid a race between clients.
-    ASSERT_TRUE(cu->uploadFile(root(*cu) / ".megaignore", "/mega_test_sync/x"));
+    ASSERT_TRUE(cu->uploadFile(root(*cu) / ".megaignore", "x"));
 
     // Log in "download" client.
     ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
@@ -14214,7 +14349,7 @@ TEST_F(CloudToLocalFilterFixture, FilterChanged)
     // Upload the initial ignore file.
     //
     // This is to avoid a race between clients.
-    ASSERT_TRUE(cu->uploadFile(root(*cu) / ".megaignore", "/mega_test_sync/x"));
+    ASSERT_TRUE(cu->uploadFile(root(*cu) / ".megaignore", "x"));
 
     // Log in the "download" client.
     ASSERT_TRUE(cd->login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
@@ -14676,28 +14811,26 @@ TEST_F(CloudToLocalFilterFixture, FilterMovedUpHierarchy)
 
     // Move x/a/.megaignore to x/.megaignore.
     {
-        // Get our hands on x/.megaignore.
-        auto* root = cdu->gettestbasenode();
-        auto* node = cdu->drillchildnodebyname(root, "x/.megaignore");
-
         // Move x/a/.megaignore to x/.megaignore.
-        cd->received_node_actionpackets = false;
-
-        ASSERT_TRUE(cdu->movenode("x/a/.megaignore", "x"));
-        ASSERT_TRUE(cd->waitForNodesUpdated(30));
-
-        // Delete the original x/.megaignore.
-        cd->received_node_actionpackets = false;
-
-        ASSERT_TRUE(cdu->deleteremote(node));
-        ASSERT_TRUE(cd->waitForNodesUpdated(30));
-
-        // Update the models.
         localFS.removenode(".megaignore");
-        localFS.movenode("a/.megaignore", "");
+        localFS.copynode("a/.megaignore", ".megaignore");
 
-        remoteTree.removenode(".megaignore");
-        remoteTree.movenode("a/.megaignore", "");
+        cd->received_node_actionpackets = false;
+
+        ASSERT_TRUE(cdu->copy("x/a/.megaignore", "x", ClaimOldVersion));
+        ASSERT_TRUE(cd->waitForNodesUpdated(30));
+
+        // Wait for the engine to process the change.
+        waitOnSyncs(cd.get());
+
+        // Remove x/a/.megaignore.
+        localFS.removenode("a/.megaignore");
+        remoteTree.removenode("a/.megaignore");
+
+        cd->received_node_actionpackets = false;
+
+        ASSERT_TRUE(cdu->deleteremote("x/a/.megaignore"));
+        ASSERT_TRUE(cd->waitForNodesUpdated(30));
 
         // Wait for the engine to process the changes.
         waitOnSyncs(cd.get());
@@ -14757,8 +14890,8 @@ TEST_F(CloudToLocalFilterFixture, FilterNameClash)
 
         // Upload the ignore file, twice.
         // This is so we have a cloud name clash.
-        ASSERT_TRUE(cdu->uploadFile(ignoreFilePath, "/mega_test_sync/s"));
-        ASSERT_TRUE(cdu->uploadFile(ignoreFilePath, "/mega_test_sync/s"));
+        ASSERT_TRUE(cdu->uploadFile(ignoreFilePath, "s"));
+        ASSERT_TRUE(cdu->uploadFile(ignoreFilePath, "s"));
     }
 
     // Make sure local root exists.
@@ -15012,7 +15145,7 @@ TEST_F(CloudToLocalFilterFixture, OverwriteExcluded)
         ASSERT_TRUE(cd->movenode("x/d/f", "x"));
 
         // Remove original x/f.
-        ASSERT_TRUE(cd->deleteremotenode(node));
+        ASSERT_TRUE(cd->deleteremote(node));
 
         cd.reset();
     }
@@ -15178,9 +15311,7 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
     waitonsyncs(TIMEOUT, &c);
 
     // Upload a file for the engine to synchronize.
-    ASSERT_TRUE(c.uploadFile(c.fsBasePath / "s" / ".megaignore",
-                             string(FILE_NAME),
-                             string("/mega_test_sync/s")));
+    ASSERT_TRUE(c.uploadFile(c.fsBasePath / "s" / ".megaignore", string(FILE_NAME), "s"));
 
     // Give the engine some time to synchronize the file.
     waitonsyncs(TIMEOUT, &c);
@@ -16181,7 +16312,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         ASSERT_TRUE(createDataFile(path, data));
 
         // Upload the file.
-        ASSERT_TRUE(client->uploadFile(path, "/mega_test_sync/s", 30, ClaimOldVersion));
+        ASSERT_TRUE(client->uploadFile(path, "s", 30, ClaimOldVersion));
 
         // Update model.
         model.findnode("f")->content = data;
@@ -16236,7 +16367,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         ASSERT_TRUE(createDataFile(path, data));
 
         // Upload the file.
-        ASSERT_TRUE(client->uploadFile(path, "/mega_test_sync/s/d", 30, ClaimOldVersion));
+        ASSERT_TRUE(client->uploadFile(path, "s/d", 30, ClaimOldVersion));
 
         // Update model.
         model.findnode("d/f")->content = data;
@@ -16291,7 +16422,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
         ASSERT_TRUE(createDataFile(path, data));
 
         // Upload the file.
-        ASSERT_TRUE(client->uploadFile(path, "/mega_test_sync/s", 30, ClaimOldVersion));
+        ASSERT_TRUE(client->uploadFile(path, "s", 30, ClaimOldVersion));
 
         // Update model.
         model.findnode("f")->content = data;
@@ -16743,6 +16874,685 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
     // Make sure client 1 hasn't changed anything!
     ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
+}
+
+TEST_F(SyncTest, CloudHorizontalMoveChain)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("q.txt");
+    model.addfile("r.txt");
+    model.addfile("s.txt");
+    model.addfile(".megaignore", "#");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s", false, false);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto qh = client->getNodeHandle("s/q.txt");
+    ASSERT_NE(qh, UNDEF);
+    auto rh = client->getNodeHandle("s/r.txt");
+    ASSERT_NE(rh, UNDEF);
+    auto sh = client->getNodeHandle("s/s.txt");
+    ASSERT_NE(sh, UNDEF);
+
+    // Rotate the cloud files: x -> y -> z -> x
+    {
+        ScopedSyncPauser pauser(*client, id);
+        auto root = client->fsBasePath / "s";
+
+        model.findnode("s.txt")->name = "t.txt";
+        ASSERT_TRUE(client->rename(sh, "t.txt"));
+
+        model.findnode("r.txt")->name = "s.txt";
+        ASSERT_TRUE(client->rename(rh, "s.txt"));
+
+        model.findnode("q.txt")->name = "r.txt";
+        ASSERT_TRUE(client->rename(qh, "r.txt"));
+
+        // Wait for our changes to hit the cloud.
+        ASSERT_TRUE(client->waitFor(SyncRemoteMatch("s", model), DEFAULTWAIT));
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was synchronized correctly.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Make sure the nodes were truly moved.
+    EXPECT_EQ(qh, client->getNodeHandle("s/r.txt"));
+    EXPECT_EQ(rh, client->getNodeHandle("s/s.txt"));
+    EXPECT_EQ(sh, client->getNodeHandle("s/t.txt"));
+}
+
+TEST_F(SyncTest, CloudHorizontalMoveCycle)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("x.txt");
+    model.addfile("y.txt");
+    model.addfile("z.txt");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto xh = client->getNodeHandle("s/x.txt");
+    ASSERT_NE(xh, UNDEF);
+    auto yh = client->getNodeHandle("s/y.txt");
+    ASSERT_NE(yh, UNDEF);
+    auto zh = client->getNodeHandle("s/z.txt");
+    ASSERT_NE(zh, UNDEF);
+
+    // Rotate the cloud files: x -> y -> z -> x
+    {
+        ScopedSyncPauser pauser(*client, id);
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->rename(zh, "x.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->rename(yh, "z.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->rename(xh, "y.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), DEFAULTWAIT));
+
+    // Make sure we've stalled for the right reasons.
+    {
+        SyncStallInfo stalls;
+
+        ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+        ASSERT_EQ(stalls.cloud.size(), 3u);
+
+        std::set<PathProblem> problems;
+        std::set<SyncWaitReason> reasons;
+
+        for (auto& i : stalls.cloud)
+        {
+            reasons.emplace(i.second.reason);
+            problems.emplace(i.second.cloudPath1.problem);
+            problems.emplace(i.second.cloudPath2.problem);
+            problems.emplace(i.second.localPath1.problem);
+            problems.emplace(i.second.localPath2.problem);
+        }
+
+        problems.erase(PathProblem::NoProblem);
+
+        ASSERT_EQ(problems.size(), 1u);
+        ASSERT_EQ(*problems.begin(), PathProblem::WaitingForAnotherMoveToComplete);
+
+        ASSERT_EQ(reasons.size(), 1u);
+        ASSERT_EQ(*reasons.begin(), SyncWaitReason::MoveOrRenameCannotOccur);
+    }
+
+    // Make sure nothing's changed on disk.
+    EXPECT_TRUE(client->confirmModel_mainthread(
+                  model.root.get(),
+                  id,
+                  false,
+                  StandardClient::CONFIRM_LOCALFS));
+
+    // Make sure the nodes haven't been moved in the cloud.
+    EXPECT_EQ(xh, client->getNodeHandle("s/y.txt"));
+    EXPECT_EQ(yh, client->getNodeHandle("s/z.txt"));
+    EXPECT_EQ(zh, client->getNodeHandle("s/x.txt"));
+}
+
+TEST_F(SyncTest, CloudVerticalMoveChain)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("q.txt");
+    model.addfile("0/r.txt");
+    model.addfile("0/1/s.txt");
+    model.addfolder("0/1/2");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto qh = client->getNodeHandle("s/q.txt");
+    ASSERT_NE(qh, UNDEF);
+    auto rh = client->getNodeHandle("s/0/r.txt");
+    ASSERT_NE(rh, UNDEF);
+    auto sh = client->getNodeHandle("s/0/1/s.txt");
+    ASSERT_NE(sh, UNDEF);
+
+    // Rotate the local files: q -> 0/r -> 0/1/s -> 0/1/2/t
+    {
+        ScopedSyncPauser pauser(*client, id);
+
+        auto node = model.removenode("0/1/s.txt");
+        node->name = "t.txt";
+        model.findnode("0/1/2")->addkid(std::move(node));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(sh, "s/0/1/2", "t.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        node = model.removenode("0/r.txt");
+        node->name = "s.txt";
+        model.findnode("0/1")->addkid(std::move(node));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(rh, "s/0/1", "s.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        node = model.removenode("q.txt");
+        node->name = "r.txt";
+        model.findnode("0")->addkid(std::move(node));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(qh, "s/0", "r.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure the moves were synchronized correctly.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Make sure the nodes have actually been moved.
+    EXPECT_EQ(qh, client->getNodeHandle("s/0/r.txt"));
+    EXPECT_EQ(rh, client->getNodeHandle("s/0/1/s.txt"));
+    EXPECT_EQ(sh, client->getNodeHandle("s/0/1/2/t.txt"));
+}
+
+TEST_F(SyncTest, CloudVerticalMoveCycle)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("x.txt", "x");
+    model.addfile("0/y.txt", "y");
+    model.addfile("0/1/z.txt", "z");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto xh = client->getNodeHandle("s/x.txt");
+    ASSERT_NE(xh, UNDEF);
+    auto yh = client->getNodeHandle("s/0/y.txt");
+    ASSERT_NE(yh, UNDEF);
+    auto zh = client->getNodeHandle("s/0/1/z.txt");
+    ASSERT_NE(zh, UNDEF);
+
+    // Rotate the local files: x -> 0/y -> 0/1/z -> x
+    {
+        ScopedSyncPauser pauser(*client, id);
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(yh, "s/0/1", "z.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(xh, "s/0", "y.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+
+        client->received_node_actionpackets = false;
+        ASSERT_TRUE(client->movenode(zh, "s", "x.txt"));
+        ASSERT_TRUE(client->waitForNodesUpdated(16));
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), DEFAULTWAIT));
+
+    // Make sure we've stalled for the right reasons.
+    {
+        SyncStallInfo stalls;
+
+        ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+        ASSERT_EQ(stalls.cloud.size(), 3u);
+
+        std::set<PathProblem> problems;
+        std::set<SyncWaitReason> reasons;
+
+        for (auto& i : stalls.cloud)
+        {
+            reasons.emplace(i.second.reason);
+            problems.emplace(i.second.cloudPath1.problem);
+            problems.emplace(i.second.cloudPath2.problem);
+            problems.emplace(i.second.localPath1.problem);
+            problems.emplace(i.second.localPath2.problem);
+        }
+
+        problems.erase(PathProblem::NoProblem);
+
+        ASSERT_EQ(problems.size(), 1u);
+        ASSERT_EQ(*problems.begin(), PathProblem::WaitingForAnotherMoveToComplete);
+
+        ASSERT_EQ(reasons.size(), 1u);
+        ASSERT_EQ(*reasons.begin(), SyncWaitReason::MoveOrRenameCannotOccur);
+    }
+
+    // Make sure nothing's changed on the local filesystem.
+    ASSERT_TRUE(client->confirmModel_mainthread(
+                  model.root.get(),
+                  id,
+                  false,
+                  StandardClient::CONFIRM_LOCALFS));
+
+    // Make sure the cloud remains the way we made it.
+    EXPECT_EQ(xh, client->getNodeHandle("s/0/y.txt"));
+    EXPECT_EQ(yh, client->getNodeHandle("s/0/1/z.txt"));
+    EXPECT_EQ(zh, client->getNodeHandle("s/x.txt"));
+}
+
+TEST_F(SyncTest, LocalHorizontalMoveChain)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("q.txt");
+    model.addfile("r.txt");
+    model.addfile("s.txt");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto qh = client->getNodeHandle("s/q.txt");
+    ASSERT_NE(qh, UNDEF);
+    auto rh = client->getNodeHandle("s/r.txt");
+    ASSERT_NE(rh, UNDEF);
+    auto sh = client->getNodeHandle("s/s.txt");
+    ASSERT_NE(sh, UNDEF);
+
+    // Rotate the local files: x -> y -> z -> x
+    {
+        ScopedSyncPauser pauser(*client, id);
+        auto root = client->fsBasePath / "s";
+
+        model.findnode("s.txt")->name = "t.txt";
+        fs::rename(root / "s.txt", root / "t.txt");
+
+        model.findnode("r.txt")->name = "s.txt";
+        fs::rename(root / "r.txt", root / "s.txt");
+
+        model.findnode("q.txt")->name = "r.txt";
+        fs::rename(root / "q.txt", root / "r.txt");
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure the engine correctly performed the moves.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Nothing should've moved in the cloud.
+    EXPECT_EQ(qh, client->getNodeHandle("s/r.txt"));
+    EXPECT_EQ(rh, client->getNodeHandle("s/s.txt"));
+    EXPECT_EQ(sh, client->getNodeHandle("s/t.txt"));
+}
+
+TEST_F(SyncTest, LocalHorizontalMoveCycle)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("x.txt");
+    model.addfile("y.txt");
+    model.addfile("z.txt");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto xh = client->getNodeHandle("s/x.txt");
+    ASSERT_NE(xh, UNDEF);
+    auto yh = client->getNodeHandle("s/y.txt");
+    ASSERT_NE(yh, UNDEF);
+    auto zh = client->getNodeHandle("s/z.txt");
+    ASSERT_NE(zh, UNDEF);
+
+    // Rotate the local files: x -> y -> z -> x
+    {
+        ScopedSyncPauser pauser(*client, id);
+        auto root = client->fsBasePath / "s";
+
+        model.findnode("z.txt")->name = "w.txt";
+        fs::rename(root / "z.txt", root / "w.txt");
+
+        model.findnode("y.txt")->name = "z.txt";
+        fs::rename(root / "y.txt", root / "z.txt");
+
+        model.findnode("x.txt")->name = "y.txt";
+        fs::rename(root / "x.txt", root / "y.txt");
+
+        model.findnode("w.txt")->name = "x.txt";
+        fs::rename(root / "w.txt", root / "x.txt");
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), DEFAULTWAIT));
+
+    // Make sure we've stalled for the right reasons.
+    {
+        SyncStallInfo stalls;
+
+        ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+        ASSERT_EQ(stalls.local.size(), 3u);
+
+        std::set<PathProblem> problems;
+        std::set<SyncWaitReason> reasons;
+
+        for (auto& i : stalls.local)
+        {
+            reasons.emplace(i.second.reason);
+            problems.emplace(i.second.cloudPath1.problem);
+            problems.emplace(i.second.cloudPath2.problem);
+            problems.emplace(i.second.localPath1.problem);
+            problems.emplace(i.second.localPath2.problem);
+        }
+
+        problems.erase(PathProblem::NoProblem);
+
+        ASSERT_EQ(problems.size(), 1u);
+        ASSERT_EQ(*problems.begin(), PathProblem::WaitingForAnotherMoveToComplete);
+
+        ASSERT_EQ(reasons.size(), 1u);
+        ASSERT_EQ(*reasons.begin(), SyncWaitReason::MoveOrRenameCannotOccur);
+    }
+
+    // Nothing should've moved in the cloud.
+    EXPECT_EQ(xh, client->getNodeHandle("s/x.txt"));
+    EXPECT_EQ(yh, client->getNodeHandle("s/y.txt"));
+    EXPECT_EQ(zh, client->getNodeHandle("s/z.txt"));
+}
+
+TEST_F(SyncTest, LocalVerticalMoveChain)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("q.txt");
+    model.addfile("0/r.txt");
+    model.addfile("0/1/s.txt");
+    model.addfolder("0/1/2");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto qh = client->getNodeHandle("s/q.txt");
+    ASSERT_NE(qh, UNDEF);
+    auto rh = client->getNodeHandle("s/0/r.txt");
+    ASSERT_NE(rh, UNDEF);
+    auto sh = client->getNodeHandle("s/0/1/s.txt");
+    ASSERT_NE(sh, UNDEF);
+
+    // Rotate the local files: q -> 0/r -> 0/1/s -> 0/1/2/t.
+    {
+        ScopedSyncPauser pauser(*client, id);
+        auto root = client->fsBasePath / "s";
+
+        auto node = model.removenode("0/1/s.txt");
+        node->name = "t.txt";
+        model.findnode("0/1/2")->addkid(std::move(node));
+
+        fs::rename(root / "0" / "1" / "s.txt",
+                   root / "0" / "1" / "2" / "t.txt");
+
+        node = model.removenode("0/r.txt");
+        node->name = "s.txt";
+        model.findnode("0/1")->addkid(std::move(node));
+
+        fs::rename(root / "0" / "r.txt",
+                   root / "0" / "1" / "s.txt");
+
+        node = model.removenode("q.txt");
+        node->name = "r.txt";
+        model.findnode("0")->addkid(std::move(node));
+
+        fs::rename(root / "q.txt",
+                   root / "0" / "r.txt");
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was synchronized correctly.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Make sure the nodes were truly moved.
+    EXPECT_EQ(qh, client->getNodeHandle("s/0/r.txt"));
+    EXPECT_EQ(rh, client->getNodeHandle("s/0/1/s.txt"));
+    EXPECT_EQ(sh, client->getNodeHandle("s/0/1/2/t.txt"));
+}
+
+TEST_F(SyncTest, LocalVerticalMoveCycle)
+{
+    // Get our hands on a client.
+    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+
+    // Make sure the cloud's clean.
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    // Create a directory for us to sync against.
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    // Populate the local filesystem.
+    Model model;
+
+    model.addfile("x.txt", "x");
+    model.addfile("0/y.txt", "y");
+    model.addfile("0/1/z.txt", "z");
+    model.generate(client->fsBasePath / "s");
+
+    // Synchronize the files to the cloud.
+    auto id = client->setupSync_mainthread("s", "s");
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Make sure everything was uploaded successfully.
+    ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+    // Get our hands on the handles of the files we uploaded.
+    auto xh = client->getNodeHandle("s/x.txt");
+    ASSERT_NE(xh, UNDEF);
+    auto yh = client->getNodeHandle("s/0/y.txt");
+    ASSERT_NE(yh, UNDEF);
+    auto zh = client->getNodeHandle("s/0/1/z.txt");
+    ASSERT_NE(zh, UNDEF);
+
+    // Rotate the local files: x -> 0/y -> 0/1/z -> x
+    {
+        ScopedSyncPauser pauser(*client, id);
+        auto root = client->fsBasePath / "s";
+
+        fs::rename(root / "0" / "1" / "z.txt", root / "z.txt");
+
+        model.findnode("0/1/z.txt")->content = "y";
+        fs::rename(root / "0" / "y.txt", root / "0" / "1" / "z.txt");
+
+        model.findnode("0/y.txt")->content = "x";
+        fs::rename(root / "x.txt", root / "0" / "y.txt");
+
+        model.findnode("x.txt")->content = "z";
+        fs::rename(root / "z.txt", root / "x.txt");
+    }
+
+    // Wait for the engine to process our changes.
+    waitonsyncs(DEFAULTWAIT, client);
+
+    // Wait for the engine to stall.
+    ASSERT_TRUE(client->waitFor(SyncStallState(true), DEFAULTWAIT));
+
+    // Make sure we've stalled for the right reasons.
+    {
+        SyncStallInfo stalls;
+
+        ASSERT_TRUE(client->client.syncs.syncStallDetected(stalls));
+        ASSERT_EQ(stalls.local.size(), 3u);
+
+        std::set<PathProblem> problems;
+        std::set<SyncWaitReason> reasons;
+
+        for (auto& i : stalls.local)
+        {
+            reasons.emplace(i.second.reason);
+            problems.emplace(i.second.cloudPath1.problem);
+            problems.emplace(i.second.cloudPath2.problem);
+            problems.emplace(i.second.localPath1.problem);
+            problems.emplace(i.second.localPath2.problem);
+        }
+
+        problems.erase(PathProblem::NoProblem);
+
+        ASSERT_EQ(problems.size(), 1u);
+        ASSERT_EQ(*problems.begin(), PathProblem::WaitingForAnotherMoveToComplete);
+
+        ASSERT_EQ(reasons.size(), 1u);
+        ASSERT_EQ(*reasons.begin(), SyncWaitReason::MoveOrRenameCannotOccur);
+    }
+
+    // Make sure nothign changed in the cloud.
+    EXPECT_EQ(xh, client->getNodeHandle("s/x.txt"));
+    EXPECT_EQ(yh, client->getNodeHandle("s/0/y.txt"));
+    EXPECT_EQ(zh, client->getNodeHandle("s/0/1/z.txt"));
 }
 
 #endif
