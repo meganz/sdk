@@ -446,10 +446,9 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
 }
 
 UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
-    : Base(un, id)
+    : Base(un, id), folderCount(0), fileCount(0)
 {
-    folderCount = 0;
-    fileCount = 0;
+    
     std::vector<UserAlertRaw::handletype> f;
     un.gethandletypearray('f', f);
     parentHandle = un.gethandle('n', MegaClient::NODEHANDLE, UNDEF);
