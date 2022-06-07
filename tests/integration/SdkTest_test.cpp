@@ -2563,9 +2563,13 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int64_t n,
                 EXPECT_STREQ(a->getTitle(), title.c_str());
                 EXPECT_EQ(a->getNodeHandle(), h);
                 if (n != -1)
+                {
                     EXPECT_EQ(a->getNumber(0), n);
+                }
                 if (mh != INVALID_HANDLE)
+                {
                     EXPECT_EQ(a->getHandle(0), mh);
+                }
             }
         }
         delete list;
