@@ -173,7 +173,6 @@ namespace UserAlert
         unsigned fileCount, folderCount;
 
         std::vector<handle> items;
-           // never includes UNDEF
 
         handle parentHandle;
 
