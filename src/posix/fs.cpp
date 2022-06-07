@@ -1948,33 +1948,5 @@ uint64_t availableDiskSpace(const LocalPath& drivePath)
     return 0;
 }
 
-bool spaceAvailable(const LocalPath& drivePath, uint64_t desiredNumBytes)
-{
-    struct rlimit limit;
-
-    // Retrieve the user's file size limit.
-    if (getrlimit(RLIMIT_FSIZE, &limit) < 0)
-    {
-        auto result = errno;
-
-        LOG_warn << "Unable to retrieve user's file size limit. "
-                 << "Error code was: "
-                 << result;
-
-        // Can't retrieve limit so can't know if we're under it.
-        return false;
-    }
-
-    // Are we beyond the user's limit?
-    if (limit.rlim_max != RLIM_INFINITY
-        && limit.rlim_max <= desiredNumBytes)
-    {
-        return false;
-    }
-
-    // Ask the filesystem.
-    return availableDiskSpace(drivePath) >= desiredNumBytes;
-}
-
 } // namespace
 

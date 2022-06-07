@@ -724,21 +724,6 @@ bool isNetworkFilesystem(FileSystemType type);
 // On failure, zero.
 uint64_t availableDiskSpace(const LocalPath& drivePath);
 
-// @brief
-// Checks if there's enough space on a specified filesystem to store some
-// number of bytes.
-//
-// @param drivePath
-// The drive we want to query.
-//
-// @param desiredNumBytes
-// How many bytes we want to store.
-//
-// @return
-// True if we can query the filesystem and there's enough space.
-// False otherwise.
-bool spaceAvailable(const LocalPath& drivePath, uint64_t desiredNumBytes);
-
 } // namespace
 
 #endif

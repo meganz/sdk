@@ -1761,9 +1761,4 @@ uint64_t availableDiskSpace(const LocalPath& drivePath)
     return numBytes.QuadPart;
 }
 
-bool spaceAvailable(const LocalPath& drivePath, uint64_t desiredNumBytes)
-{
-    return availableDiskSpace(drivePath) >= desiredNumBytes;
-}
-
 } // namespace
