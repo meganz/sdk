@@ -2496,7 +2496,10 @@ void StandardClient::setupSync_inThread(const string& localPath,
     EXPECT_FALSE(ec);
 
     if (ec)
+    {
+        LOG_info << "setupSync_inThread failed to create directory for sync: " << rootPath.u8string() << " " << ec.message();
         return result->set_value(UNDEF);
+    }
 
     // For purposes of capturing.
     auto remoteHandle = remoteNode->nodeHandle();

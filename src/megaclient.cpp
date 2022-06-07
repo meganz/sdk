@@ -12981,6 +12981,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         // Currently only possible for backup syncs.
         if (!syncConfig.isBackup())
         {
+            LOG_warn << "Only Backups can be external";
             return API_EARGS;
         }
 
@@ -13042,6 +13043,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     }
     else
     {
+        LOG_warn << "Cannot sync non-folder";
         syncConfig.mError = openedLocalFolder->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
         syncConfig.mEnabled = false;
         return openedLocalFolder->retry ? API_ETEMPUNAVAIL : API_ENOENT;
@@ -13234,6 +13236,7 @@ void MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(
 
     if (e)
     {
+        // the cause is already logged in checkSyncConfig
         completion(e, config.mError, UNDEF);
         return;
     }
