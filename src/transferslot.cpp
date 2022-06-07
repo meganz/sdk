@@ -682,7 +682,8 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                         (reqs[j]->status == REQ_INFLIGHT
                                     || reqs[j]->status == REQ_SUCCESS
                                     || reqs[j]->status == REQ_FAILURE  // could be a network error getting the result, even though it succeeded server side
-                                    || reqs[j]->status == REQ_PREPARED))
+                                    || reqs[j]->status == REQ_PREPARED
+                                    || reqs[j]->status == REQ_UPLOAD_PREPARED_BUT_WAIT))
                                 {
                                     LOG_debug << "Including chunk MACs from incomplete/unprocessed (at this end) connection " << j;
                                     transfer->progresscompleted += reqs[j]->size;

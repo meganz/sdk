@@ -4703,7 +4703,7 @@ void exec_put(autocomplete::ACState& s)
     string targetuser;
     string newname;
     int total = 0;
-    Node* n =  NULL;
+    Node* n = NULL;
 
     VersioningOption vo = UseLocalVersioningFlag;
     if (s.extractflag("-noversion")) vo = NoVersioning;
