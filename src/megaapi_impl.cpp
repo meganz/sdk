@@ -2034,8 +2034,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         nodeHandle = p->parentHandle;
         numbers.push_back(p->folderCount);
         numbers.push_back(p->fileCount);
-        for (handle h: p->items)
-            handles.push_back(h);
+        handles.assign(p->items.begin(), p->items.end());
     }
     break;
     case UserAlert::type_d:
