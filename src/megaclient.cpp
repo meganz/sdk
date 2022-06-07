@@ -14225,22 +14225,12 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
     {
         LOG_err << "Add backup: \"My Backups\" folder was not set";
-        if (completion)
-        {
-            vector<NewNode> dummyNodes;
-            completion(API_EACCESS, NODE_HANDLE, dummyNodes, false);
-        }
         return API_EACCESS;
     }
     const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
     if (!handleContainerStr)
     {
         LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute had null value";
-        if (completion)
-        {
-            vector<NewNode> dummyNodes;
-            completion(API_EACCESS, NODE_HANDLE, dummyNodes, false);
-        }
         return API_EACCESS;
     }
 
@@ -14249,11 +14239,6 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     if (!h || h == UNDEF)
     {
         LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute contained invalid handler value";
-        if (completion)
-        {
-            vector<NewNode> dummyNodes;
-            completion(API_ENOENT, NODE_HANDLE, dummyNodes, false);
-        }
         return API_ENOENT;
     }
 
@@ -14262,11 +14247,6 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     if (!myBackupsNode)
     {
         LOG_err << "Add backup: \"My Backups\" folder could not be found using the stored handle";
-        if (completion)
-        {
-            vector<NewNode> dummyNodes;
-            completion(API_ENOENT, NODE_HANDLE, dummyNodes, false);
-        }
         return API_ENOENT;
     }
 
@@ -14285,11 +14265,6 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (e != API_OK)
         {
             LOG_err << "Add backup (external): failed to read drive id";
-            if (completion)
-            {
-                vector<NewNode> dummyNodes;
-                completion(e, NODE_HANDLE, dummyNodes, false);
-            }
             return e;
         }
 
@@ -14300,11 +14275,6 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     if (deviceId.empty())
     {
         LOG_err << "Add backup: invalid device id";
-        if (completion)
-        {
-            vector<NewNode> dummyNodes;
-            completion(API_EINCOMPLETE, NODE_HANDLE, dummyNodes, false);
-        }
         return API_EINCOMPLETE;
     }
 
@@ -14325,11 +14295,6 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (deviceNameNode->type != FOLDERNODE)
         {
             LOG_err << "Add backup: device-name node did not have FOLDERNODE type";
-            if (completion)
-            {
-                vector<NewNode> dummyNodes;
-                completion(API_EACCESS, NODE_HANDLE, dummyNodes, false);
-            }
             return API_EACCESS;
         }
 
@@ -14338,11 +14303,6 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (backupNameNode)
         {
             LOG_err << "Add backup: a backup with the same name (" << backupName << ") already existed";
-            if (completion)
-            {
-                vector<NewNode> dummyNodes;
-                completion(API_EACCESS, NODE_HANDLE, dummyNodes, false);
-            }
             return API_EACCESS;
         }
     }
@@ -14353,22 +14313,12 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (!u->isattrvalid(attrType))
         {
             LOG_err << "Add backup: device/drive name not set";
-            if (completion)
-            {
-                vector<NewNode> dummyNodes;
-                completion(API_EINCOMPLETE, NODE_HANDLE, dummyNodes, false);
-            }
             return API_EINCOMPLETE;
         }
         const string* deviceNameContainerStr = u->getattr(attrType);
         if (!deviceNameContainerStr)
         {
             LOG_err << "Add backup: null attribute value for device/drive name";
-            if (completion)
-            {
-                vector<NewNode> dummyNodes;
-                completion(API_EINCOMPLETE, NODE_HANDLE, dummyNodes, false);
-            }
             return API_EINCOMPLETE;
         }
 
@@ -14377,11 +14327,6 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty())
         {
             LOG_err << "Add backup: device/drive name not found";
-            if (completion)
-            {
-                vector<NewNode> dummyNodes;
-                completion(API_EINCOMPLETE, NODE_HANDLE, dummyNodes, false);
-            }
             return API_EINCOMPLETE;
         }
 
@@ -14390,11 +14335,6 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (deviceNameNode)
         {
             LOG_err << "Add backup: new device, but a folder with the same device-name (" << deviceName << ") already existed";
-            if (completion)
-            {
-                vector<NewNode> dummyNodes;
-                completion(API_EEXIST, NODE_HANDLE, dummyNodes, false);
-            }
             return API_EEXIST;
         }
 
