@@ -1742,7 +1742,7 @@ bool isReservedName(const string& name, nodetype_t type)
     return false;
 }
 
-uint64_t availableDiskSpace(const LocalPath& drivePath)
+uint64_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
 {
     ULARGE_INTEGER numBytes;
 

@@ -123,8 +123,6 @@ class MEGA_API LocalPath
     friend bool isPotentiallyInaccessiblePath(const FileSystemAccess&, const LocalPath&, nodetype_t);
 #endif // ! _WIN32
 
-    friend uint64_t availableDiskSpace(const LocalPath& drivePath);
-
     // helper functions to ensure proper format especially on windows
     void normalizeAbsolute();
     void removeTrailingSeparators();
@@ -652,6 +650,17 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // Create a hard link from source to target.
     // Returns false if the link could not be created.
     virtual bool hardLink(const LocalPath& source, const LocalPath& target) = 0;
+
+    // @brief
+    // Retrieves the number of bytes available on the specified filesystem.
+    //
+    // @param drivePath
+    // The path to the filesystem you'd like to query.
+    //
+    // @return
+    // On success, the number of free bytes available to the caller.
+    // On failure, zero.
+    virtual uint64_t availableDiskSpace(const LocalPath& drivePath) = 0;
 };
 
 enum FilenameAnomalyType
@@ -712,17 +721,6 @@ FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
 
 // True if type denotes a network filesystem.
 bool isNetworkFilesystem(FileSystemType type);
-
-// @brief
-// Retrieves the number of bytes available on the specified filesystem.
-//
-// @param drivePath
-// The path to the filesystem you'd like to query.
-//
-// @return
-// On success, the number of free bytes available to the caller.
-// On failure, zero.
-uint64_t availableDiskSpace(const LocalPath& drivePath);
 
 } // namespace
 

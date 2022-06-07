@@ -15849,7 +15849,7 @@ error MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter&
         assert(f->size >= 0);
 
         // Do we have enough space for the download?
-        if (availableDiskSpace(targetPath) <= size)
+        if (fsaccess->availableDiskSpace(targetPath) <= size)
         {
             LOG_warn << "Insufficient space available for download: "
                      << f->localname

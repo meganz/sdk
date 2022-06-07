@@ -1931,7 +1931,7 @@ bool isReservedName(const string&, nodetype_t)
 // A more robust implementation would check whether the device has storage
 // quotas enabled and if so, return the amount of space available before
 // saturating that quota.
-uint64_t availableDiskSpace(const LocalPath& drivePath)
+uint64_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
 {
     struct statfs buffer;
 
