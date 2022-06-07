@@ -466,9 +466,9 @@ UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, const std::v
     , items(iitems)
     , parentHandle(ph)
 {
+    assert(!ISUNDEF(uh));
     folderCount = nfolders;
     fileCount = nfiles;
-    assert(!ISUNDEF(uh));
 }
 
 void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* mc)
