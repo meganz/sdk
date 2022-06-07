@@ -464,8 +464,8 @@ UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
 
 UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, const std::vector<handle> &iitems, handle uh, handle ph, m_time_t timestamp, unsigned int id)
     : Base(UserAlert::type_put, uh, string(), timestamp, id)
-    , parentHandle(ph)
     , items(iitems)
+    , parentHandle(ph)
 {
     folderCount = nfolders;
     fileCount = nfiles;
