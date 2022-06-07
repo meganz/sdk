@@ -448,6 +448,8 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
 UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
+    folderCount = 0;
+    fileCount = 0;
     std::vector<UserAlertRaw::handletype> f;
     un.gethandletypearray('f', f);
     parentHandle = un.gethandle('n', MegaClient::NODEHANDLE, UNDEF);
@@ -455,40 +457,66 @@ UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
     // Count the number of new files and folders
     for (UserAlertRaw::handletype ht: f)
     {
+        ++(ht.t > 0 ? folderCount : fileCount);
         items.push_back(ht.h);
     }
 }
 
-UserAlert::NewSharedNodes::NewSharedNodes(const std::vector<handle> &iitems, handle uh, handle ph, m_time_t timestamp, unsigned int id)
+UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, const std::vector<handle> &iitems, handle uh, handle ph, m_time_t timestamp, unsigned int id)
     : Base(UserAlert::type_put, uh, string(), timestamp, id)
     , parentHandle(ph)
     , items(iitems)
-
 {
+    folderCount = nfolders;
+    fileCount = nfiles;
     assert(!ISUNDEF(uh));
 }
 
 void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* mc)
 {
     updateEmail(mc);
+    ostringstream notificationText;
 
-    ostringstream s;
-    if (items.size() > 1)
-    {
-        s << items.size() << " items from a share";
+    // Get wording for the number of files and folders added
+    if ((folderCount > 1) && (fileCount > 1)) {
+        notificationText << folderCount << " folders and " << fileCount << " files";
     }
-    else
-    {
-        s << "one item from shared folder";
+    else if ((folderCount > 1) && (fileCount == 1)) {
+        notificationText << folderCount << " folders and 1 file";
     }
+    else if ((folderCount == 1) && (fileCount > 1)) {
+        notificationText << "1 folder and " << fileCount << " files";
+    }
+    else if ((folderCount == 1) && (fileCount == 1)) {
+        notificationText << "1 folder and 1 file";
+    }
+    else if (folderCount > 1) {
+        notificationText << folderCount << " folders";
+    }
+    else if (fileCount > 1) {
+        notificationText << fileCount << " files";
+    }
+    else if (folderCount == 1) {
+        notificationText << "1 folder";
+    }
+    else if (fileCount == 1) {
+        notificationText << "1 file";
+    }
+    else {
+        notificationText << "nothing";
+    }
+
     // Set wording of the title
     if (!userEmail.empty())
     {
-        title = userEmail + " added " + s.str();
+        title = userEmail + " added " + notificationText.str();
     }
-    else
+    else if ((fileCount + folderCount) > 1)
     {
-        title = "Added " + s.str();
+        title = notificationText.str() + " have been added";
+    }
+    else {
+        title = notificationText.str() + " has been added";
     }
     header = userEmail;
 }
@@ -812,6 +840,8 @@ void UserAlerts::add(UserAlert::Base* unb)
             if (np->userHandle == op->userHandle && np->timestamp - op->timestamp < 300 &&
                 np->parentHandle == op->parentHandle && !ISUNDEF(np->parentHandle))
             {
+                op->folderCount += np->folderCount;
+                op->fileCount += np->fileCount;
                 op->items.insert(op->items.end(), np->items.begin(), np->items.end());
                 LOG_debug << "Merged user alert, type " << np->type << " ts " << np->timestamp;
 
@@ -927,8 +957,15 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n)
         }
 
         ff& f = notedSharedNodes[std::make_pair(user, n ? n->parenthandle : UNDEF)];
-        handle h = n ? n->nodehandle : UNDEF;
-        f.items.push_back(h); 
+        if (n == nullptr) {
+            // no UNDEFs in items
+        }
+        else 
+        {
+            handle h = n->nodehandle;
+            ++(type == FOLDERNODE ? f.folders : f.files);
+            f.items.push_back(h);
+        }
         if (!f.timestamp || (ts && ts < f.timestamp))
         {
             f.timestamp = ts;
@@ -944,7 +981,7 @@ void UserAlerts::convertNotedSharedNodes(bool added, handle originatingUser)
         using namespace UserAlert;
         for (map<pair<handle, handle>, ff>::iterator i = notedSharedNodes.begin(); i != notedSharedNodes.end(); ++i)
         {
-            add(added ? (Base*) new NewSharedNodes(i->second.items, i->first.first, i->first.second, i->second.timestamp, nextId())
+            add(added ? (Base*) new NewSharedNodes(i->second.folders, i->second.files, i->second.items, i->first.first, i->first.second, i->second.timestamp, nextId())
                 : (Base*) new RemovedSharedNode(i->second.items.size(), i->first.first, m_time(), nextId()));
         }
     }
