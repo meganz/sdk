@@ -432,14 +432,28 @@ bool SqliteDbTable::del(uint32_t index)
 
     checkTransaction();
 
-    char buf[64];
-
-    sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
-
-    int rc = sqlite3_exec(db, buf, 0, 0, nullptr);
-    if (rc != SQLITE_OK)
+    int sqlResult = SQLITE_ERROR;
+    if (mDelStmt)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        sqlResult = sqlite3_reset(mDelStmt);
+    }
+    else
+    {
+        sqlResult = sqlite3_prepare(db, "DELETE FROM statecache WHERE id = ?", -1, &mDelStmt, NULL);
+    }
+
+    if (sqlResult == SQLITE_OK)
+    {
+        sqlResult = sqlite3_bind_int(mDelStmt, 1, index);
+        if (sqlResult == SQLITE_OK)
+        {
+            sqlResult = sqlite3_step(mDelStmt);
+        }
+    }
+
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to delete record from database: " << dbfile << err;
         assert(!"Unable to delete record from database.");
 
@@ -532,6 +546,9 @@ void SqliteDbTable::remove()
     }
 
     sqlite3_finalize(pStmt);
+    pStmt = nullptr;
+    sqlite3_finalize(mDelStmt);
+    mDelStmt = nullptr;
 
     if (inTransaction())
     {
@@ -556,6 +573,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtPutNode);
     sqlite3_finalize(mStmtUpdateNode);
     sqlite3_finalize(mStmtTypeAndSizeNode);
+    sqlite3_finalize(mDelStmt);
 }
 
 bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes)
@@ -700,6 +718,9 @@ void SqliteAccountState::remove()
     sqlite3_finalize(mStmtTypeAndSizeNode);
     mStmtTypeAndSizeNode = nullptr;
 
+    sqlite3_finalize(mStmtGetNode);
+    mStmtGetNode = nullptr;
+
     SqliteDbTable::remove();
 }
 
@@ -788,22 +809,30 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
     nodeSerialized.mNode.clear();
 
     int sqlResult = SQLITE_ERROR;
-    sqlite3_stmt *stmt;
-    if ((sqlResult = sqlite3_prepare(db, "SELECT counter, node FROM nodes  WHERE nodehandle = ?", -1, &stmt, NULL)) == SQLITE_OK)
+    if (mStmtGetNode)
     {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, nodehandle.as8byte())) == SQLITE_OK)
+        sqlResult = sqlite3_reset(mStmtGetNode);
+    }
+    else
+    {
+        sqlResult = sqlite3_prepare(db, "SELECT counter, node FROM nodes  WHERE nodehandle = ?", -1, &mStmtGetNode, NULL);
+    }
+
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(mStmtGetNode, 1, nodehandle.as8byte())) == SQLITE_OK)
         {
-            if((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+            if((sqlResult = sqlite3_step(mStmtGetNode)) == SQLITE_ROW)
             {
-                const void* data = sqlite3_column_blob(stmt, 0);
-                int size = sqlite3_column_bytes(stmt, 0);
+                const void* data = sqlite3_column_blob(mStmtGetNode, 0);
+                int size = sqlite3_column_bytes(mStmtGetNode, 0);
                 if (data && size)
                 {
                     nodeSerialized.mNodeCounter.assign(static_cast<const char*>(data), size);
                 }
 
-                data = sqlite3_column_blob(stmt, 1);
-                size = sqlite3_column_bytes(stmt, 1);
+                data = sqlite3_column_blob(mStmtGetNode, 1);
+                size = sqlite3_column_bytes(mStmtGetNode, 1);
                 if (data && size)
                 {
                     nodeSerialized.mNode.assign(static_cast<const char*>(data), size);
@@ -811,8 +840,6 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
             }
         }
     }
-
-    sqlite3_finalize(stmt);
 
     if (sqlResult == SQLITE_ERROR)
     {

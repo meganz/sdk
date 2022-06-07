@@ -401,9 +401,6 @@ private:
     void saveNodeInRAM(Node* node, bool isRootnode);    // takes ownership
     node_vector getNodesWithSharesOrLink(ShareType_t shareType);
 
-    // Load nodes recursively and update nodeCounters
-    void loadTreeRecursively(const Node *node);
-
     enum OperationType
     {
         INCREASE = 0,

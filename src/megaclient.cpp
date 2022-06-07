@@ -17166,15 +17166,6 @@ node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)
     return nodes;
 }
 
-void NodeManager::loadTreeRecursively(const Node* node)
-{
-    node_list children = getChildren(node);
-    for (const Node* child : children)
-    {
-        loadTreeRecursively(child);
-    }
-}
-
 Node *NodeManager::getNodeFromNodeSerialized(const NodeSerialized &nodeSerialized)
 {
     Node* node = unserializeNode(&nodeSerialized.mNode, false);
