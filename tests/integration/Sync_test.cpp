@@ -1300,7 +1300,7 @@ void StandardClient::downloadFile(const Node& node, const fs::path& destination,
 
     DBTableTransactionCommitter committer(client.tctable);
 
-    auto r = client.startxfer(GET, file.get(), committer, false, false, false, NoVersioning);
+    error r = client.startxfer(GET, file.get(), committer, false, false, false, NoVersioning);
     EXPECT_EQ(r , API_OK);
 
     if (r != API_OK)
@@ -1338,7 +1338,7 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
     file->localname = LocalPath::fromAbsolutePath(path.u8string());
     file->name = name;
 
-    auto result = client.startxfer(PUT, file.release(), committer, false, false, false, vo);
+    error result = client.startxfer(PUT, file.release(), committer, false, false, false, vo);
     EXPECT_EQ(result, API_OK);
 }
 
@@ -1516,13 +1516,13 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
     // Kick off the upload. Client takes ownership of file.
     DBTableTransactionCommitter committer(client.tctable);
 
-    auto result = client.startxfer(PUT,
-                                   file.get(),
-                                   committer,
-                                   false,
-                                   false,
-                                   false,
-                                   versioningPolicy);
+    error result = client.startxfer(PUT,
+                                    file.get(),
+                                    committer,
+                                    false,
+                                    false,
+                                    false,
+                                    versioningPolicy);
     EXPECT_EQ(result, API_OK);
 
     if (result != API_OK)

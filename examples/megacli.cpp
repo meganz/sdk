@@ -297,7 +297,7 @@ ConsoleLock conlock(std::ostream& o)
 
 static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
 {
-    auto result = client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning);
+    error result = client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning);
 
     if (result == API_OK)
     {
@@ -3684,7 +3684,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
         {
             DBTableTransactionCommitter committer(client->tctable);
             auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
-            auto result = startxfer(committer, std::move(file), *n);
+            error result = startxfer(committer, std::move(file), *n);
             queued += result == API_OK ? 1 : 0;
         }
     }
@@ -3732,7 +3732,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                     if (regex_search(string((*it)->displayname()), re))
                     {
                         auto file = ::mega::make_unique<AppFileGet>(*it);
-                        auto result = startxfer(committer, std::move(file), **it);
+                        error result = startxfer(committer, std::move(file), **it);
                         queued += result == API_OK ? 1 : 0;
                     }
                 }

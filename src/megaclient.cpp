@@ -14651,7 +14651,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
                             nextreqtag();
 
-                            auto result = startxfer(GET, file.get(), committer, false, false, false, UseLocalVersioningFlag);
+                            error result = startxfer(GET, file.get(), committer, false, false, false, UseLocalVersioningFlag);
 
                             if (result == API_OK)
                             {
