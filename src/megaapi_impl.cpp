@@ -22820,10 +22820,15 @@ error MegaApiImpl::addBackupByRequest(MegaRequestPrivate* request, const string&
                                       const LocalPath& localPath, const LocalPath& drivePath)
 {
     CommandPutNodes::Completion thenAddSync = [request, syncName, localPath, drivePath, this]
-    (const Error&, targettype_t, vector<NewNode>& nn, bool /*targetOverride*/)
+    (const Error& e, targettype_t, vector<NewNode>& nn, bool /*targetOverride*/)
     {
-        request->setNodeHandle(nn.back().mAddedHandle);
-        error err = addSyncByRequest(request, syncName, localPath, drivePath, SyncConfig::TYPE_BACKUP);
+        error err = e;
+        if (err == API_OK)
+        {
+            request->setNodeHandle(nn.back().mAddedHandle);
+            err = addSyncByRequest(request, syncName, localPath, drivePath, SyncConfig::TYPE_BACKUP);
+        }
+
         if (err != API_OK)
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err));

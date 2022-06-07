@@ -764,6 +764,10 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
     {
         fsBasePath = ensureDir(workingFolder / fs::u8path(name));
     }
+
+    // SyncTests want to skip backup restrictions, so they are not
+    // restricted to the path "Vault/My backups/<device>/<backup>"
+    client.syncs.enableBackupRestrictions(false);
 }
 
 StandardClient::~StandardClient()
@@ -1814,16 +1818,20 @@ handle StandardClient::backupAdd_mainthread(const string& drivePath,
             auto completion =
                 [=](error e, SyncError, handle backupId)
                 {
-                result->set_value(backupId);
+                    if (e != API_OK)
+                    {
+                        out() << clientname << "Setting up backup from " << sourcePath << " to " << targetPath << " failed.";
+                    }
+                    result->set_value(backupId);
                 };
 
-            client.setupSync_inthread(sp.filename().u8string(), sp, true, completion, logname);
+            client.setupSync_inthread(targetPath, dp, sp, true, completion, logname);
         });
 
     return result.get();
 }
 
-error StandardClient::addSync(const string& displayPath, const fs::path& localpath, handle remoteNode,
+error StandardClient::addSync(const string& displayPath, const fs::path& drivepath, const fs::path& localpath, handle remoteNode,
                               function<void(error, SyncError, handle)> addSyncCompletion, const string& logname,
                               SyncConfig::Type type)
 {
@@ -1834,7 +1842,7 @@ error StandardClient::addSync(const string& displayPath, const fs::path& localpa
             NodeHandle().set6byte(remoteNode),
             displayPath,
             0,
-            LocalPath(),
+            LocalPath::fromAbsolutePath(drivepath.u8string()),
             true,
             type);
     EXPECT_TRUE(!syncConfig.mOriginalPathOfRemoteRootNode.empty() &&
@@ -1845,44 +1853,20 @@ error StandardClient::addSync(const string& displayPath, const fs::path& localpa
     return e;
 }
 
-bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
+bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& drivepath, const fs::path& localpath, const bool isBackup,
     std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
 {
-    // regular sync
-    if (!isBackup)
+    if (Node* n = client.nodebyhandle(basefolderhandle))
     {
-        if (Node* n = client.nodebyhandle(basefolderhandle))
+        if (Node* m = drillchildnodebyname(n, subfoldername))
         {
-            if (Node* m = drillchildnodebyname(n, subfoldername))
-            {
-                error e = addSync(m->displaypath(), localpath, m->nodehandle, addSyncCompletion, logname, SyncConfig::TYPE_TWOWAY);
-                return !e;
-            }
+            error e = addSync(m->displaypath(), drivepath, localpath, m->nodehandle, addSyncCompletion, logname,
+                              isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
+            return !e;
         }
-
-        assert(false);
-        return false;
     }
-
-    // or backup
-    auto* clientPtr = &client;
-    CommandPutNodes::Completion thenAddSync = [this, clientPtr, localpath, addSyncCompletion, logname]
-    (const Error&, targettype_t, vector<NewNode>& nn, bool)
-    {
-        handle nh = nn.back().mAddedHandle;
-        if (Node* m = clientPtr->nodebyhandle(nh))
-        {
-            const string& displayPath = m->displaypath();
-            error err = addSync(displayPath, localpath, nh, addSyncCompletion, logname, SyncConfig::TYPE_BACKUP);
-            if (err != API_OK && addSyncCompletion)
-            {
-                addSyncCompletion(err, PUT_NODES_ERROR, UNDEF);
-            }
-        }
-    };
-
-    error e = client.registerbackup(subfoldername, "", thenAddSync);
-    return !e;
+    assert(false);
+    return false;
 }
 
 handle StandardClient::setupSync_mainthread(const string& localPath,
@@ -1974,7 +1958,11 @@ void StandardClient::setupSync_inThread(const string& localPath,
         //    config.mScanIntervalSec = SCAN_INTERVAL_SEC;
         //}
 
-        auto completion = [result](error, SyncError, handle id) {
+        auto completion = [=](error e, SyncError, handle id) {
+            if (e != API_OK)
+            {
+                out() << clientname << "Failed to add sync: " << e;
+            }
             result->set_value(id);
         };
 
@@ -8173,11 +8161,21 @@ struct TwoWaySyncSymmetryCase
         string sourcePath = localSyncRootPath().u8string();
         string targetPath = remoteSyncRootPath();
 
-        drivePath.erase(0, basePath.size() + 1);
         sourcePath.erase(0, basePath.size() + 1);
 
         if (isExternalBackup())
         {
+            handle driveId = 0;
+            if (API_ENOENT == readDriveId(*client1().client.fsaccess, drivePath.c_str(), driveId))
+            {
+                // Generate drive ID.
+                driveId = generateDriveId(client1().client.rng);
+
+                // Write drive ID.
+                auto result = writeDriveId(*client1().client.fsaccess, drivePath.c_str(), driveId);
+                EXPECT_EQ(result, API_OK);
+            }
+
             backupId = BackupAdd(drivePath, sourcePath, targetPath, "");
         }
         else
@@ -8915,8 +8913,6 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
     {
-        // do not test backup types, since they need to be placed
-        // at special location /Vault/My backups/<device-folder>
         if (syncType == TwoWaySyncSymmetryCase::type_backupSync) continue;
 
         for (int selfChange = 0; selfChange < 2; ++selfChange)
@@ -8992,8 +8988,12 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Stopping full-sync";
-    ASSERT_TRUE(clientA1Steady.delSync_mainthread(backupId1));
+    // remove syncs in reverse order, just in case removeSyncByIndex() will benefit from that
     ASSERT_TRUE(clientA1Resume.delSync_mainthread(backupId2));
+    ASSERT_TRUE(clientA1Steady.delSync_mainthread(backupId1));
+    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
+    CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
+    waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Setting up each sub-test's Two-way sync of 'f'";
     for (auto& testcase : cases)
@@ -9243,7 +9243,7 @@ const auto SyncMonitoring = [](handle id) {
     };
 };
 
-TEST_F(SyncTest, DISABLED_ForeignChangesInTheCloudDisablesMonitoringBackup)
+TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -9322,7 +9322,7 @@ public:
     FileAddedCallback mOnFileAdded;
 }; // Client
 
-TEST_F(SyncTest, DISABLED_MonitoringExternalBackupRestoresInMirroringMode)
+TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -9364,7 +9364,7 @@ TEST_F(SyncTest, DISABLED_MonitoringExternalBackupRestoresInMirroringMode)
             ASSERT_EQ(result, API_OK);
 
             // Add sync.
-            id = cb.backupAdd_mainthread("", "s", "s", "");
+            id = cb.backupAdd_mainthread(drivePath, "s", "s", "");
             ASSERT_NE(id, UNDEF);
         }
 
@@ -9416,7 +9416,7 @@ TEST_F(SyncTest, DISABLED_MonitoringExternalBackupRestoresInMirroringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
-TEST_F(SyncTest, DISABLED_MonitoringExternalBackupResumesInMirroringMode)
+TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -9449,7 +9449,7 @@ TEST_F(SyncTest, DISABLED_MonitoringExternalBackupResumesInMirroringMode)
         ASSERT_EQ(result, API_OK);
 
         // Add sync.
-        id = cb.backupAdd_mainthread("", "s", "s", "");
+        id = cb.backupAdd_mainthread(drivePath, "s", "s", "");
         ASSERT_NE(id, UNDEF);
     }
 
@@ -9497,7 +9497,7 @@ TEST_F(SyncTest, DISABLED_MonitoringExternalBackupResumesInMirroringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
-TEST_F(SyncTest, DISABLED_MirroringInternalBackupResumesInMirroringMode)
+TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT  = chrono::seconds(4);
@@ -9671,7 +9671,7 @@ TEST_F(SyncTest, DISABLED_MirroringInternalBackupResumesInMirroringMode)
     ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 }
 
-TEST_F(SyncTest, DISABLED_MonitoringInternalBackupResumesInMonitoringMode)
+TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(8);
@@ -9941,7 +9941,7 @@ void BackupBehavior::doTest(const string& initialContent,
     }
 }
 
-TEST_F(BackupBehavior, DISABLED_SameMTimeSmallerCRC)
+TEST_F(BackupBehavior, SameMTimeSmallerCRC)
 {
     // File's small enough that the content is the CRC.
     auto initialContent = string("f");
@@ -9950,7 +9950,7 @@ TEST_F(BackupBehavior, DISABLED_SameMTimeSmallerCRC)
     doTest(initialContent, updatedContent);
 }
 
-TEST_F(BackupBehavior, DISABLED_SameMTimeSmallerSize)
+TEST_F(BackupBehavior, SameMTimeSmallerSize)
 {
     auto initialContent = string("ff");
     auto updatedContent = string("f");

@@ -492,11 +492,11 @@ struct StandardClient : public MegaApp
         const string& targetPath,
         const string& logname);
 
-    error addSync(const string& displayPath, const fs::path& localpath, handle remoteNode,
+    error addSync(const string& displayPath, const fs::path& drivepath, const fs::path& localpath, handle remoteNode,
                   function<void(error, SyncError, handle)> addSyncCompletion, const string& logname,
                   SyncConfig::Type type);
 
-    bool setupSync_inthread(const string& subfoldername, const fs::path& localpath, const bool isBackup,
+    bool setupSync_inthread(const string& subfoldername, const fs::path& drivepath, const fs::path& localpath, const bool isBackup,
         std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);
 
     handle setupSync_mainthread(const string& localPath,

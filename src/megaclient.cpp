@@ -13808,7 +13808,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
-    if (syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
+    if (syncs.backupRestrictionsEnabled() && syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
     {
         syncConfig.mError = INVALID_REMOTE_TYPE;
         syncConfig.mEnabled = false;
@@ -14061,6 +14061,12 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
 
 void MegaClient::cleanupFailedExtBackup(const string& remotePath)
 {
+    if (!syncs.backupRestrictionsEnabled())
+    {
+        LOG_warn << "Skipping cleanup of remote dir of external backup: restrictions disabled";
+        return;
+    }
+
     Node* n = nodeByPath(remotePath.c_str());
     if (!n)
     {

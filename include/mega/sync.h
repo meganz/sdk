@@ -711,6 +711,8 @@ struct Syncs
 
     void importSyncConfigs(const char* data, std::function<void(error)> completion);
 
+    void enableBackupRestrictions(bool enable);
+    bool backupRestrictionsEnabled() const;
 private:
     friend class Sync;
     friend struct UnifiedSync;
@@ -756,6 +758,9 @@ private:
     bool mDownloadsPaused = false;
     bool mUploadsPaused = false;
 
+    // backup rework implies certain restrictions that can be skipped
+    // by setting this flag (see enableBackupRestrictions())
+    bool mBackupRestrictionsEnabled = true;
 };
 
 } // namespace
