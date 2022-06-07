@@ -29331,7 +29331,7 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
     uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
     httpctx->size += headers->size();
     httpctx->lastBuffer = resbuf.base;
-    httpctx->lastBufferLen = resbuf.len;
+    httpctx->lastBufferLen = (int)resbuf.len;
 
     if (httpctx->transfer)
     {
@@ -29343,7 +29343,7 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
     if (httpctx->server->useTLS)
     {
         assert (resbuf.len);
-        int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        int err = evt_tls_write(httpctx->evt_tls, resbuf.base, (int)resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
             LOG_warn << "Finishing due to an error sending the response: " << err;
@@ -29458,13 +29458,13 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
     LOG_verbose << "Writing " << resbuf.len << " bytes";
     httpctx->rangeWritten += resbuf.len;
     httpctx->lastBuffer = resbuf.base;
-    httpctx->lastBufferLen = resbuf.len;
+    httpctx->lastBufferLen = (int)resbuf.len;
 
 #ifdef ENABLE_EVT_TLS
     if (httpctx->server->useTLS)
     {
         //notice this, contrary to !useTLS is synchronous
-        int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        int err = evt_tls_write(httpctx->evt_tls, resbuf.base, (int)resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
             LOG_warn << "Finishing due to an error sending the response: " << err;
@@ -31289,7 +31289,7 @@ void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, size_t rlen)
     if (tcpctx->server->useTLS)
     {
         // we are sending the response as a whole
-        int err = evt_tls_write(tcpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        int err = evt_tls_write(tcpctx->evt_tls, resbuf.base, (int)resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
             LOG_warn << "Finishing due to an error sending the response: " << err;
@@ -31988,13 +31988,13 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
     LOG_verbose << "Writing " << resbuf.len << " bytes" << " buffered = " << ftpdatactx->streamingBuffer.availableData();
     ftpdatactx->rangeWritten += resbuf.len;
     ftpdatactx->lastBuffer = resbuf.base;
-    ftpdatactx->lastBufferLen = resbuf.len;
+    ftpdatactx->lastBufferLen = (int)resbuf.len;
 
 #ifdef ENABLE_EVT_TLS
     if (ftpdatactx->server->useTLS)
     {
         //notice this, contrary to !useTLS is synchronous
-        int err = evt_tls_write(ftpdatactx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        int err = evt_tls_write(ftpdatactx->evt_tls, resbuf.base, (int)resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
             LOG_warn << "Finishing due to an error sending the response: " << err;
