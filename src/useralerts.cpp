@@ -957,10 +957,8 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n)
         }
 
         ff& f = notedSharedNodes[std::make_pair(user, n ? n->parenthandle : UNDEF)];
-        if (n == nullptr) {
-            // no UNDEFs in items
-        }
-        else 
+        // no UNDEFs in items
+        if (n != nullptr)
         {
             handle h = n->nodehandle;
             ++(type == FOLDERNODE ? f.folders : f.files);
