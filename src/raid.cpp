@@ -317,20 +317,26 @@ std::shared_ptr<RaidBufferManager::FilePiece> RaidBufferManager::getAsyncOutputB
 
 void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum, bool success)
 {
+    std::cout << "[RaidBufferManager::bufferWriteCompleted] connectionNum = " << connectionNum << ", success = " << success << "" << std::endl;
     auto aob = asyncoutputbuffers.find(connectionNum);
     if (aob != asyncoutputbuffers.end())
     {
+        std::cout << "[RaidBufferManager::bufferWriteCompleted] asyncoutputbuffers.find(connectionNum=" << connectionNum << ") != asyncoutputbuffers.end()" << std::endl;
         assert(aob->second);
         if (aob->second)
         {
             if (success)
             {
+                std::cout << "[RaidBufferManager::bufferWriteCompleted] asyncoutputBuffers.find(connectionNum=" << connectionNum << ") && success -> bufferWriteCompletedAction(FilePiece*r *aob->second)" << std::endl;
                 bufferWriteCompletedAction(*aob->second);
             }
+            else std::cout << "[RaidBufferManager::bufferWriteCompleted] asyncoutputBuffers.find(connectionNum=" << connectionNum << ") && NOT success -> DON'T CALL bufferWriteCompletedAction(FilePiece*r *aob->second)" << std::endl;
 
+            std::cout << "[RaidBufferManager::bufferWriteCompleted] asyncoutputBuffers.find(connectionNum=" << connectionNum << ") -> aob->second.reset()" << std::endl;
             aob->second.reset();
         }
     }
+    else std::cout << "[RaidBufferManager::bufferWriteCompleted] asyncoutputbuffers.find(connectionNum=" << connectionNum << ") == asyncoutputbuffers.end() -> do nothing" << std::endl;
 }
 
 void RaidBufferManager::bufferWriteCompletedAction(FilePiece&)
@@ -590,6 +596,7 @@ void RaidBufferManager::recoverSectorFromParity(byte* dest, byte* inputbufs[], u
 
 void RaidBufferManager::combineLastRaidLine(byte* dest, size_t remainingbytes)
 {
+    std::cout << "[RaidBufferManager::combineLastRaidLine] dest=" << dest << ", remainingbytes=" << remainingbytes << "" << std::endl;
     // we have to be careful to use the right number of bytes from each sector
     for (unsigned i = 1; i < RAIDPARTS && remainingbytes > 0; ++i)
     {
@@ -649,24 +656,29 @@ m_off_t TransferBufferManager::calcOutputChunkPos(m_off_t acquiredpos)
 // decrypt, mac downloaded chunk
 bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int64_t ctriv, SymmCipher *cipher, chunkmac_map* source_chunkmacs)
 {
+    std::cout << "[RaidBufferManager::FilePiece::finalize] BEGIN [parallel=" << parallel << ", filesize=" << filesize << ", ctriv=" << ctriv << ", source_chunkmacs=" << source_chunkmacs << ", source_chunkmacs.size=" << (source_chunkmacs ? source_chunkmacs->size() : 0) << "]" << std::endl;
     assert(!finalized);
     bool queueParallel = false;
 
     byte *chunkstart = buf.datastart();
     m_off_t startpos = pos;
     m_off_t finalpos = startpos + buf.datalen();
+    std::cout << "[RaidBufferManager::FilePiece::finalize] startpos = " << startpos << ", finalpos = " << finalpos << " [filesize = " << filesize << "]" << std::endl;
     assert(finalpos <= filesize);
     if (finalpos != filesize)
     {
         finalpos &= -SymmCipher::BLOCKSIZE;
+        std::cout << "[RaidBufferManager::FilePiece::finalize] (finalpos != filesize) -> finalpos &= -SymmCipher::BLOCKSIZE -> finalpos = " << finalpos << " [filesize = " << filesize << "]" << std::endl;
     }
 
     m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
     unsigned chunksize = static_cast<unsigned>(endpos - startpos);
+    std::cout << "[RaidBufferManager::FilePiece::finalize] chunksize = (endpos-startpos) = " << chunksize << ", endpos =  chunkceil(startpos="<<startpos<<", finalpos="<<finalpos<<") = " << endpos << "" << std::endl;
 
     while (chunksize)
     {
         m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
+        std::cout << "[RaidBufferManager::FilePiece::finalize] while(chunksize="<<chunksize<<") -> chunkid = ChunkedHash::chunkfloor(startpos="<<startpos<<") = " << chunkid << "" << std::endl;
         if (!chunkmacs.finishedAt(chunkid))
         {
             if (source_chunkmacs)
@@ -675,25 +687,31 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
             }
             if (endpos == ChunkedHash::chunkceil(chunkid, filesize))
             {
+                std::cout << "[RaidBufferManager::FilePiece::finalize] [while] endpos == ChunkedHash::chunkceil(chunkid="<<chunkid<<", filesize="<<filesize<<") = " << endpos << std::endl;
                 if (parallel)
                 {
                     // executing on a worker thread (or synchronously on transferslot destruction)
                     // these are independent chunks, or the earlier part of the chunk is already done.
                     chunkmacs.ctr_decrypt(chunkid, cipher, chunkstart, chunksize, startpos, ctriv, true);
+                    std::cout << "[RaidBufferManager::FilePiece::finalize] [while]  (parallel) -> [worker thread] Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize << std::endl;
                     LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
                 }
                 else
                 {
+                    std::cout << "[RaidBufferManager::FilePiece::finalize] [while] (!parallel) -> queueParallel = true" << std::endl;
                     queueParallel = true;
                 }
             }
             else if (!parallel)
             {
+                std::cout << "[RaidBufferManager::FilePiece::finalize] [while] endpos != ChunkedHash::chunkceil(chunkid="<<chunkid<<", filesize="<<filesize<<") = " << endpos << std::endl;
                 // these part chunks must be done serially (and first), since later parts of a chunk need the mac of earlier parts as input.
                 chunkmacs.ctr_decrypt(chunkid, cipher, chunkstart, chunksize, startpos, ctriv, false);
+                std::cout << "[RaidBufferManager::FilePiece::finalize] [while] (!parallel) -> Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize << std::endl;
                 LOG_debug << "Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
             }
         }
+        std::cout << "[RaidBufferManager::FilePiece::finalize] [while] chunkstart += chunksize -> " << (void*)chunkstart << " += " << chunksize << " -> " << (void*)(chunkstart+chunksize) << ", startpos = endpos -> " << startpos << " = " << endpos << ", endpos = ChunkedHash::chunkceil(startpos=" << endpos << ", finalpos=" << finalpos << ") = " << ChunkedHash::chunkceil(startpos, finalpos) << ", chunksize = " << static_cast<unsigned>(ChunkedHash::chunkceil(endpos, finalpos) - endpos) << std::endl;
         chunkstart += chunksize;
         startpos = endpos;
         endpos = ChunkedHash::chunkceil(startpos, finalpos);
@@ -704,6 +722,7 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
     if (finalized)
         finalizedCV.notify_one();
 
+    std::cout << "[RaidBufferManager::FilePiece::finalize] return queueParallel [finalized = !queueParallel = " << finalized << "]" << std::endl;
     return queueParallel;
 }
 
@@ -813,6 +832,7 @@ TransferBufferManager::TransferBufferManager()
 
 void TransferBufferManager::setIsRaid(Transfer* t, const std::vector<std::string>& tempUrls,m_off_t resumepos, m_off_t maxRequestSize)
 {
+    std::cout << "[TransferBufferManager::setIsRaid] call RaidBufferManager::setIsRaid(tempUrls, resumepos=" << resumepos << ", readtopos=t->size,=" << t->size << ", filesize=t->size=" << t->size << ", maxRequestSize=" << maxRequestSize << ")" << std::endl;
     RaidBufferManager::setIsRaid(tempUrls, resumepos, t->size, t->size, maxRequestSize);
 
     transfer = t;
@@ -897,9 +917,11 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
 
 void TransferBufferManager::bufferWriteCompletedAction(FilePiece& r)
 {
+    std::cout << "[TransferBufferManager::bufferWriteCompletedAction] call r.chunkmacs.copyEntriesTo(transfer->chunkmacs); r.chunkmacs.clear(); transfer->progresscompleted(=" << transfer->progresscompleted << ") += r.buf.datalen()(=" << r.buf.datalen() << ")" << std::endl;
     r.chunkmacs.copyEntriesTo(transfer->chunkmacs);
     r.chunkmacs.clear();
     transfer->progresscompleted += r.buf.datalen();
+    std::cout << "[TransferBufferManager::bufferWriteCompletedAction] Cached data at r.pos = " << r.pos << ".  Size: r.buf.datalen() = " << r.buf.datalen() << std::endl;
     LOG_debug << "Cached data at: " << r.pos << "   Size: " << r.buf.datalen();
 }
 

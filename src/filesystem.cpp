@@ -840,9 +840,11 @@ void FileAccess::closef()
 
 void FileAccess::asyncopfinished(void *param)
 {
+    std::cout << "[FileAccess::asyncopfinished] BEGIN [param = " << param << " (waiter)]" << std::endl;
     Waiter *waiter = (Waiter *)param;
     if (waiter)
     {
+        std::cout << "[FileAccess::asyncopfinished] (waiter) -> waiter->notify [waiter = " << waiter << "]" << std::endl;
         waiter->notify();
     }
 }
@@ -998,8 +1000,10 @@ void FileAccess::asyncsysread(AsyncIOContext *context)
 
 AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t pos)
 {
+    std::cout << "[syncIOContext *FileAccess::asyncfwrite] BEGIN (const byte* data, unsigned len="<<len<<", m_off_t pos="<<pos<<")" << std::endl;
     LOG_verbose << "Async write start";
 
+    std::cout << "[syncIOContext *FileAccess::asyncfwrite] AsyncIOContext *context = newasynccontext(); context->waiter = waiter = " << waiter << ", context->userCallback = asyncopfinished" << std::endl;
     AsyncIOContext *context = newasynccontext();
     context->op = AsyncIOContext::WRITE;
     context->posOfBuffer = pos;
@@ -1010,23 +1014,28 @@ AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t 
     context->userData = waiter;
     context->fa = this;
 
+    std::cout << "[syncIOContext *FileAccess::asyncfwrite] call asyncsyswrite(context=" << context << ")" << std::endl;
     asyncsyswrite(context);
+    std::cout << "[syncIOContext *FileAccess::asyncfwrite] END -> return AsyncIOContext *context=" << context << "" << std::endl;
     return context;
 }
 
 void FileAccess::asyncsyswrite(AsyncIOContext *context)
 {
+    std::cout << "[FileAccess::asyncsyswrite] context->failed = true; context->retry = false, context->finished = true; [context = " << context << "]" << std::endl;
     context->failed = true;
     context->retry = false;
     context->finished = true;
     if (context->userCallback)
     {
+        std::cout << "[FileAccess::asyncsyswrite] (context->userCallback) -> context->userCallback(context->userData=" << waiter << " [waiter])" << std::endl;
         context->userCallback(context->userData);
     }
 }
 
 AsyncIOContext *FileAccess::newasynccontext()
 {
+    std::cout << "[AsyncIOContext *FileAccess::newasynccontext] return new AsyncIOContext()" << std::endl;
     return new AsyncIOContext();
 }
 

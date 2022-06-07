@@ -669,6 +669,7 @@ HttpReqDL::HttpReqDL()
     : dlpos(0)
     , buffer_released(false)
 {
+    std::cout << "[HttpReqDL::HttpReqDL] new HttpReqDL (Constructor) [this=" << this << "]" << std::endl;
 }
 
 // prepare file chunk download
@@ -679,11 +680,13 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
     char urlbuf[512];
 
     snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos ? npos - 1 : 0);
+    std::cout << "[HttpReqDL::prepare] setreq(urlbuf, REQ_BINARY) [req=" << this << "]" << std::endl;
     setreq(urlbuf, REQ_BINARY);
 
     dlpos = pos;
     size = (unsigned)(npos - pos);
     buffer_released = false;
+    std::cout << "[HttpReqDL::prepare] pos=" << pos << ", npos=" << npos << ", size=" << size << ", [req=" << this << "]" << std::endl;
 
     if (!buf || buflen != size)
     {

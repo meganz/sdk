@@ -115,6 +115,9 @@ struct MEGA_API TransferSlot
     // disconnect and reconnect all open connections for this transfer
     void disconnect();
 
+    // disconnect and reconnect one connection for this transfer
+    void disconnect(unsigned connectionNum);
+
     // indicate progress
     void progress();
 

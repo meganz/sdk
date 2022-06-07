@@ -138,6 +138,7 @@ Transfer::~Transfer()
 
 bool Transfer::serialize(string *d)
 {
+    std::cout << "[Transfer::serialize] BEGIN" << std::endl;
     unsigned short ll;
 
     d->append((const char*)&type, sizeof(type));
@@ -209,12 +210,13 @@ bool Transfer::serialize(string *d)
     assert(t->fingerprint() == fingerprint());
 #endif
 
-
+    std::cout << "[Transfer::serialize] END" << std::endl;
     return true;
 }
 
 Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* transfers)
 {
+    std::cout << "[Transfer::unserialize] BEGIN" << std::endl;
     unsigned short ll;
     const char* ptr = d->data();
     const char* end = ptr + d->size();
@@ -374,6 +376,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
         // duplicate transfer
         t.reset();
     }
+    std::cout << "[Transfer::unserialize] END" << std::endl;
     return t.release();
 }
 
@@ -673,6 +676,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             fingerprint.genfingerprint(fa.get());
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
+                std::cout << "[Transfer::complete] Fingerprint mismatch" << std::endl;
                 LOG_err << "Fingerprint mismatch";
 
                 // enforce the verification of the fingerprint for sync transfers only
@@ -697,6 +701,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     }
                     else
                     {
+                        std::cout << "[Transfer::complete] Silent failure in setmtimelocal" << std::endl;
                         LOG_warn << "Silent failure in setmtimelocal";
                     }
                 }
@@ -707,6 +712,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             if (syncxfer && !fixedfingerprint && success)
             {
                 transient_error = fa->retry;
+                std::cout << "[Transfer::complete] Unable to validate fingerprint " << transient_error << std::endl;
                 LOG_debug << "Unable to validate fingerprint " << transient_error;
             }
         }
@@ -789,6 +795,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                             if (!foundOne)
                             {
+                                std::cout << "[Transfer::complete] LocalNode for destination file not found" << std::endl;
                                 LOG_err << "LocalNode for destination file not found";
 
                                 if(client->syncs.hasRunningSyncs())
@@ -804,6 +811,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         else
         #endif
                         {
+                            std::cout << "[Transfer::complete] The destination file exist (not synced). Saving with a different name" << std::endl;
                             LOG_debug << "The destination file exist (not synced). Saving with a different name";
 
                             // the destination path isn't synced, save with a (x) suffix

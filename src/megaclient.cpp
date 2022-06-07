@@ -4030,17 +4030,21 @@ void MegaClient::dispatchTransfers()
                                 std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] filename = " << *filename << ", m_off_t s = " << s << ", tslot->transfer->size = " << tslot->transfer->size << ", tslot->maxRequestSize = " << tslot->maxRequestSize << "" << std::endl;
                                 if (s >= 0 && s != tslot->transfer->size)
                                 {
+                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] s=" << s <<" >= 0 && s != tslot->transfer->size=" << tslot->transfer->size << " -> tslot->transfer->size = s, iterate over transfer's files and change their size" << std::endl;
                                     tslot->transfer->size = s;
                                     for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
                                     {
+                                        std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] [if...] [iterating over transfer files] (*it)->name = " << (*it)->name << ", (*it)->size = " << (*it)->size << " (now (*it)->size = s = " << s << ")" << std::endl;
                                         (*it)->size = s;
                                     }
 
                                     if (priv)
                                     {
+                                        std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] [if...] if(priv)==true -> Node*n = nodebyhandle(ph)" << std::endl;
                                         Node *n = nodebyhandle(ph);
                                         if (n)
                                         {
+                                            std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] [if...] if(n) -> n->size(=" << n->size << ") = s = " << s << "; notifynode(n)" << std::endl;
                                             n->size = s;
                                             notifynode(n);
                                         }
@@ -4050,14 +4054,17 @@ void MegaClient::dispatchTransfers()
                                 }
 
                                 tslot->starttime = tslot->lastdata = waiter->ds;
-
+                                std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] tslot->starttime = tslot->lastdata = waiter->ds = " << tslot->starttime << "" << std::endl;
                                 if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
                                 {
                                     std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile]  RAID! tslot->transfer = " << tslot->transfer << ", tslot->transfer->pos = " << tslot->transfer->pos << ", tslot->maxRequestSize = " << tslot->maxRequestSize << "" << std::endl;
                                     tslot->transfer->tempurls = tempurls;
+                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] tempurls:" << std::endl;
+                                    for (auto& turl : tempurls) {std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] tempURL: '" << turl << "'" << std::endl; }
+                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile]  tslot->transfer->tempurls = tempurls, tslot->transferbuf.setisRaid, tslot->progress()" << std::endl;
                                     tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                                     tslot->progress();
-                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile]  tslot->transfer->tempurls = tempurls, tslot->transferbuf.setisRaid, tslot->progress()" << std::endl;
+                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] return true;" << std::endl;
                                     return true;
                                 }
 
@@ -4070,6 +4077,7 @@ void MegaClient::dispatchTransfers()
 
                                 std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile]  tslot->transfer->failed()" << std::endl;
                                 tslot->transfer->failed(e, *mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
+                                std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile]  return true;" << std::endl;
                                 return true;
 
                             })));

@@ -355,6 +355,7 @@ bool chunkmac_map::unserialize(const char*& ptr, const char* end)
 
 void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* sumOfPartialChunks)
 {
+    std::cout << "[chunkmac_map::calcprogress] BEGIN [size = " << size << ", chunkpos = " << chunkpos << ", progresscompleted = " << progresscompleted << ", sumOfPartialChunks = " << (sumOfPartialChunks ? *sumOfPartialChunks : 0) << "]" << std::endl;
     chunkpos = 0;
     progresscompleted = 0;
 
@@ -390,6 +391,7 @@ void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progre
         }
     }
 
+    std::cout << "[chunkmac_map::calcprogress] BEGIN [progresscompleted = " << progresscompleted << ", chunkpos = progresscontiguous = " << chunkpos << ", progresscompleted = " << progresscompleted << ", sumOfPartialChunks = " << (sumOfPartialChunks ? *sumOfPartialChunks : 0) << "]" << std::endl;
     progresscontiguous = chunkpos;
 }
 

@@ -753,6 +753,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
                                    | (write ? CURL_CSELECT_OUT : 0), &dummy);
         }
 #else
+        std::cout << "[CurlHttpIO::processcurlevents -> TYPE " << ((info.mode & SockInfo::READ) ? "READ" : (info.mode & SockInfo::WRITE) ? "WRITE" : "WTF") << std::endl;
         if (((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)))
         {
             curl_multi_socket_action(curlm[d], info.fd,
@@ -1463,7 +1464,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     auto len = httpctx->len;
     const char* data = httpctx->data;
 
-    std::cout << "[CurlHttpIO::send_request] len = " << len << ", [" << httpctx->req->logname << "POST target URL: " << getSafeUrl(req->posturl) << "]" << std::endl;
+    std::cout << "[CurlHttpIO::send_request] req=" << req << ", len=" << len << ", [" << httpctx->req->logname << "POST target URL: " << getSafeUrl(req->posturl) << "]" << std::endl;
     LOG_debug << httpctx->req->logname << "POST target URL: " << getSafeUrl(req->posturl);
 
     if (req->binary)
@@ -1522,6 +1523,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         switch (req->method)
         {
         case METHOD_POST:
+            std::cout << "[CurlHttpIO::send_request] case METHOD_POST [req=" << req << ", len=" << len << "]" << std::endl;
             curl_easy_setopt(curl, CURLOPT_POST, 1L);
             curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
             break;
@@ -1884,11 +1886,11 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->headers = NULL;
     httpctx->isIPv6 = false;
     httpctx->isCachedIp = false;
-    std::cout << "[CurlHttpIO::post] BEGIN [len = " << len << "]" << std::endl;
 #ifdef MEGA_USE_C_ARES
     httpctx->ares_pending = 0;
 #endif
     httpctx->d = (req->type == REQ_JSON || req->method == METHOD_NONE) ? API : ((data ? len : req->out->size()) ? PUT : GET);
+    std::cout << "[CurlHttpIO::post] BEGIN [req=" << req << ", data=" << (void*)data << ", len=" << len << ", direction=" << ((req->type == REQ_JSON || req->method == METHOD_NONE) ? API : ((data ? len : req->out->size()) ? PUT : GET)) << " ("<< string((req->type == REQ_JSON || req->method == METHOD_NONE) ? "API" : ((data ? len : req->out->size()) ? "PUT" : "GET")) << "), this="<<this<<"]" << std::endl;
     req->httpiohandle = (void*)httpctx;
 
     bool validrequest = true;
@@ -1980,6 +1982,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         lastdnspurge = Waiter::ds;
     }
 
+    std::cout << "[CurlHttpIO::post] req->in.clear(), req->status = REQ_INFLIGHT [req=" << req << ", this=" << this << "]" << std::endl;
     req->in.clear();
     req->status = REQ_INFLIGHT;
 
@@ -1987,6 +1990,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         // we are using a proxy, don't resolve the IP
         LOG_debug << "Sending the request through the proxy";
+        std::cout << "[CurlHttpIO::post] Sending the request through the proxy -> send_request(httpctx) [req=" << req << ", this=" << this << "]" << std::endl;
         send_request(httpctx);
         return;
     }
@@ -1996,6 +2000,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         // we are waiting for a proxy, queue the request
         pendingrequests.push(httpctx);
         LOG_debug << "Queueing request for the proxy";
+        std::cout << "[CurlHttpIO::post] Queueing the request through the proxy [req=" << req << ", this=" << this << "]" << std::endl;
         return;
     }
 
@@ -2018,6 +2023,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         if (dnsEntry && dnsEntry->ipv6.size() && !dnsEntry->isIPv6Expired())
         {
+            std::cout << "[CurlHttpIO::post] DNS cache hit for " << httpctx->hostname << " (IPv6) " << dnsEntry->ipv6 << " -> send_request(httpctx) [req=" << req << ", this=" << this << "]" << std::endl;
             LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv6) " << dnsEntry->ipv6;
             std::ostringstream oss;
             httpctx->isIPv6 = true;
@@ -2034,6 +2040,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
     {
+        std::cout << "[CurlHttpIO::post] DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4 << " -> send_request(httpctx) [req=" << req << ", this=" << this << "]" << std::endl;
         LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
         httpctx->isIPv6 = false;
         httpctx->isCachedIp = true;
@@ -2230,6 +2237,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
             if (msg->msg == CURLMSG_DONE)
             {
+                std::cout << "[CurlHttpIO::multidoio] CURLMSG_DONE !!!!! [req=" << req << "]" << std::endl;
                 CURLcode errorCode = msg->data.result;
                 if (errorCode != CURLE_OK)
                 {
@@ -2345,6 +2353,11 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                                    || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
                         ? REQ_SUCCESS : REQ_FAILURE;
 
+                std::cout << "[CurlHttpIO::multidoio] req=" << req << ", req->status = " << string((req->httpstatus == 200
+                               && errorCode != CURLE_PARTIAL_FILE
+                               && (req->contentlength < 0
+                                   || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
+                        ? "REQ_SUCCESS" : "REQ_FAILURE") << " [req->contentlength=" << req->contentlength << "]" << std::endl;
                 if (req->status == REQ_SUCCESS)
                 {
                     dnsok = true;

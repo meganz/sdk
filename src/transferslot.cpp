@@ -335,10 +335,16 @@ void TransferSlot::disconnect()
 {
     for (int i = connections; i--;)
     {
-        if (reqs[i])
-        {
-            reqs[i]->disconnect();
-        }
+        disconnect(i);
+    }
+}
+
+// abort one HTTP connection
+void TransferSlot::disconnect(unsigned connectionNum)
+{
+    if (reqs[connectionNum])
+    {
+        reqs[connectionNum]->disconnect();
     }
 }
 
@@ -565,6 +571,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             unsigned slowestStartConnection;
             if (transfer->type == GET && reqs[i]->contentlength == reqs[i]->size && transferbuf.detectSlowestRaidConnection(i, slowestStartConnection))
             {
+                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" Connection " << slowestStartConnection << " is the slowest to reply, using the other 5." << std::endl;
                 LOG_debug << "Connection " << slowestStartConnection << " is the slowest to reply, using the other 5.";
                 reqs[slowestStartConnection].reset();
                 transferbuf.resetPart(slowestStartConnection);
@@ -576,6 +583,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             {
                 // check if we got some data and the failure occured partway through the part chunk.  If so, best not to waste it, convert to success case with less data
                 HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
+                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_FAILURE && httpstatus = 200 -> Connection " << i << " received " << downloadRequest->bufpos << " before failing, processing data." << std::endl;
                 LOG_debug << "Connection " << i << " received " << downloadRequest->bufpos << " before failing, processing data.";
                 if (downloadRequest->contentlength == downloadRequest->size && downloadRequest->bufpos >= RAIDSECTOR)
                 {
@@ -603,6 +611,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         // switch to 5 channel raid to avoid the slow/delayed connection. (or if already switched, try a different 5).  If we already tried too many times then let the usual timeout occur
                         if (tryRaidRecoveryFromHttpGetError(i, incrementErrors))
                         {
+                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_INFLIGHT && testForSlowRaidConnection -> Connection " << i << " is slow or stalled, trying the other 5 cloudraid connections [reqs[i]->disconnect && status = REQ_READY]" << std::endl;
                             LOG_warn << "Connection " << i << " is slow or stalled, trying the other 5 cloudraid connections";
                             reqs[i]->disconnect();
                             reqs[i]->status = REQ_READY;
@@ -619,7 +628,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                 case REQ_SUCCESS:
                 {
-                    std::cout << "[TransferSlot::doio] REQ_SUCCESS" << std::endl;
+                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_SUCCESS" << std::endl;
                     m_off_t delta = mReqSpeeds[i].requestProgressed(reqs[i]->size);
                     mTransferSpeed.calculateSpeed(delta);
 
@@ -640,7 +649,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     }
                     else
                     {
-                        std::cout << "[TransferSlot::doio] Transfer request finished (" << transfer->type << ") " << " on connection " << i << " part pos: " << transferbuf.transferPos(i) << " of part size " << transferbuf.raidPartSize(i, transfer->size)
+                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" Transfer request finished (" << transfer->type << ") " << " on connection " << i << " part pos: " << transferbuf.transferPos(i) << " of part size " << transferbuf.raidPartSize(i, transfer->size)
                             << " Overall Completed: " << (transfer->progresscompleted) << " of " << transfer->size << " speed " << mReqSpeeds[i].lastRequestSpeed() << std::endl;
                         LOG_debug << "Transfer request finished (" << transfer->type << ") " << " on connection " << i << " part pos: " << transferbuf.transferPos(i) << " of part size " << transferbuf.raidPartSize(i, transfer->size)
                             << " Overall Completed: " << (transfer->progresscompleted) << " of " << transfer->size << " speed " << mReqSpeeds[i].lastRequestSpeed();
@@ -664,7 +673,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             for (int j = connections; j--; )
                             {
                                 if (j != i && reqs[j] &&
-                                        (reqs[j]->status == REQ_INFLIGHT
+                                    (reqs[j]->status == REQ_INFLIGHT
                                     || reqs[j]->status == REQ_SUCCESS
                                     || reqs[j]->status == REQ_FAILURE)) // could be a network error getting the result
                                 {
@@ -777,12 +786,13 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     else   // GET
                     {
                         HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
-                        std::cout << "[TransferSlot::doio] REQ_SUCCESS GET [downloadRequest = " << downloadRequest << ", reqs[i=" << i << "]->size = " << reqs[i]->size << ", reqs[i]->bufpos = " << reqs[i]->bufpos << "]" << std::endl; 
+                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_SUCCESS GET [downloadRequest = " << downloadRequest << ", reqs[i=" << i << "]->size = " << reqs[i]->size << ", reqs[i]->bufpos = " << reqs[i]->bufpos << "]" << std::endl; 
                         if (reqs[i]->size == reqs[i]->bufpos || downloadRequest->buffer_released)   // downloadRequest->buffer_released being true indicates we're retrying this asyncIO
                         {
 
                             if (!downloadRequest->buffer_released)
                             {
+                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_SUCCESS GET] !downloadRequest->buffer_released -> call transferbuf.submitBuffer(i="<<i<<", new TransferBufferManager::FilePiece(downloadRequest->dlpos="<<downloadRequest->dlpos<<", downloadRequest->release_buf())); downloadRequest->buffer_released = true" << std::endl;
                                 transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, downloadRequest->release_buf())); // resets size & bufpos.  finalize() is taken care of in the transferbuf
                                 downloadRequest->buffer_released = true;
                             }
@@ -791,10 +801,12 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             if (outputPiece)
                             {
                                 mRaidChannelSwapsForSlowness = 0;
+                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_SUCCESS GET] outputPiece! (transferbuf.getAsyncOutputBufferPointer(i)) mAsyncQueue func: outputPiece->finalize(false, transfer->size=" << transfer->size << ", transfer->ctriv=" << transfer->ctriv << ", transfer->transfercipher(), &transfer->chunkmacs);" << std::endl;
                                 bool parallelNeeded = outputPiece->finalize(false, transfer->size, transfer->ctriv, transfer->transfercipher(), &transfer->chunkmacs);
 
                                 if (parallelNeeded)
                                 {
+                                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_SUCCESS GET] [outputPiece] parallelNeeded -> status = REQ_DECRYPTING -> do full chunk (and chunk-remainder) decryption on a thread for throughput and to minimize mutex lock times." << std::endl;
                                     // do full chunk (and chunk-remainder) decryption on a thread for throughput and to minimize mutex lock times.
                                     auto req = reqs[i];   // shared_ptr for shutdown safety
                                     auto transferkey = transfer->transferkey;
@@ -802,20 +814,24 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     auto filesize = transfer->size;
                                     req->status = REQ_DECRYPTING;
 
-                                    client->mAsyncQueue.push([req, outputPiece, transferkey, ctriv, filesize](SymmCipher& sc)
+                                    client->mAsyncQueue.push([req, i, outputPiece, transferkey, ctriv, filesize](SymmCipher& sc)
                                     {
                                         sc.setkey(transferkey.data());
+                                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<req<<" [REQ_SUCCESS GET][Completion for REQ_DECRYPTING] mAsyncQueue func: outputPiece->finalize(true, filesize=" << filesize << ", ctriv=" << ctriv << ", &sc (SymmCypher), nullptr);" << std::endl;
                                         outputPiece->finalize(true, filesize, ctriv, &sc, nullptr);
+                                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<req<<" [REQ_SUCCESS GET][Completion for REQ_DECRYPTING] mAsyncQueue func: req->status = REQ_DECRYPTED" << std::endl;
                                         req->status = REQ_DECRYPTED;
                                     }, false);  // not discardable:  if we downloaded the data, don't waste it - decrypt and write as much as we can to file
                                 }
                                 else
                                 {
+                                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_SUCCESS GET] [outputPiece] !parallelNeeded -> status = REQ_DECRYPTED" << std::endl;
                                     reqs[i]->status = REQ_DECRYPTED;
                                 }
                             }
                             else if (transferbuf.isRaid())
                             {
+                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_SUCCESS GET] [!outputPiece] -> reqs[i]->status = REQ_READY -> this connection has retrieved a part of the file, but we don't have enough to combine yet for full file output.   This connection can start fetching the next piece of that part." << std::endl;
                                 reqs[i]->status = REQ_READY;  // this connection has retrieved a part of the file, but we don't have enough to combine yet for full file output.   This connection can start fetching the next piece of that part.
                             }
                             else
@@ -828,6 +844,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             if (reqs[i]->contenttype.find("text/html") != string::npos
                                     && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                             {
+                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_SUCCESS GET -> Invalid Content-Type detected during download: " << reqs[i]->contenttype << " -> transfer->failed(API_EAGAIN)" << std::endl;
                                 LOG_warn << "Invalid Content-Type detected during download: " << reqs[i]->contenttype;
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
@@ -839,6 +856,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                             client->sendevent(99430, "Invalid chunk size", 0);
 
+                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_SUCCESS GET -> Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos << " -> lasterror = APIEREAD && REQ_PREPARED" << std::endl;
                             LOG_warn << "Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
                             lasterror = API_EREAD;
                             errorcount++;
@@ -855,7 +873,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
                 case REQ_DECRYPTED:
                 {
-                    std::cout << "[TransferSlot::doio] REQ_DECRYPTED" << std::endl;
+                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED" << std::endl;
                         assert(transfer->type == GET);
 
                         // this must return the same piece we just decrypted, since we have not asked the transferbuf to discard it yet.
@@ -872,18 +890,18 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                             p += outputPiece->buf.datalen();
 
-                            std::cout << "[TransferSlot::doio] REQ_DECRYPTED [fa->asyncavailable] Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen()) << std::endl;
+                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [fa->asyncavailable] Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen()) << std::endl;
                             LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
                             asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos);
                             reqs[i]->status = REQ_ASYNCIO;
-                            std::cout << "[TransferSlot::doio] REQ_DECRYPTED -> reqs[i=" << i << "]->status = REQ_ASYNCIO" << std::endl;
+                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED -> reqs[i=" << i << "]->status = REQ_ASYNCIO" << std::endl;
                         }
                         else
                         {
-                            std::cout << "[TransferSlot::doio] REQ_DECRYPTED [!fa->asyncavailable]" << std::endl;
+                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [!fa->asyncavailable]" << std::endl;
                             if (fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
                             {
-                                std::cout << "[TransferSlot::doio] REQ_DECRYPTED [!fa->asyncavailable] Sync write succeeded (call updatecontiguous progress)" << std::endl;
+                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [!fa->asyncavailable] Sync write succeeded (call updatecontiguousprogress())" << std::endl;
                                 LOG_verbose << "Sync write succeeded";
                                 transferbuf.bufferWriteCompleted(i, true);
                                 errorcount = 0;
@@ -892,7 +910,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             }
                             else
                             {
-                                std::cout << "[TransferSlot::doio] REQ_DECRYPTED [!fa->asyncavailable] Error saving finished chunk" << std::endl;
+                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [!fa->asyncavailable] Error saving finished chunk" << std::endl;
                                 LOG_err << "Error saving finished chunk";
                                 if (!fa->retry)
                                 {
@@ -904,24 +922,25 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 break;
                             }
 
-                            std::cout << "[TransferSlot::doio] REQ_DECRYPTED [!fa->asyncavailable] checkDownloadTransferFinished(commiter, client)" << std::endl;
+                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [!fa->asyncavailable] checkDownloadTransferFinished(commiter, client)" << std::endl;
                             if (checkDownloadTransferFinished(committer, client))
                             {
-                                std::cout << "[TransferSlot::doio] REQ_DECRYPTED [!fa->asyncavailable] CHECKDOWNLOADTRANSFERFINISHED = TRUE!!!!" << std::endl;
+                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [!fa->asyncavailable] CHECKDOWNLOADTRANSFERFINISHED = TRUE!!!!" << std::endl;
                                 return;
                             }
 
                             client->transfercacheadd(transfer, &committer);
                             reqs[i]->status = REQ_READY;
-                            std::cout << "[TransferSlot::doio] REQ_DECRYPTED client->transfercacheadd(transfer=" << transfer << ", &committer), reqs[i=" << i << "]->status = REQ_READY" << std::endl; 
+                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED client->transfercacheadd(transfer=" << transfer << ", &committer), reqs[i=" << i << "]->status = REQ_READY" << std::endl; 
                         }
                     }
                     break;
 
                 case REQ_ASYNCIO:
-                    std::cout << "[TransferSlot::doio] REQ_ASYNCIO" << std::endl;
+                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO" << std::endl;
                     if (asyncIO[i]->finished)
                     {
+                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO [asyncIO[" << i << "]->finished -> Processing finished async fs operation" << std::endl;
                         LOG_verbose << "Processing finished async fs operation";
                         if (!asyncIO[i]->failed)
                         {
@@ -955,7 +974,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             }
                             else
                             {
-                                std::cout << "[TransferSlot::doio] REQ_ASYNCIO -> Async write succeeded [updatecontiguousprogress]" << std::endl;
+                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO -> Async write succeeded -> call transferbuf.bufferWriteCompleted(i="<<i<<", true), updatecontiguousprogress()" << std::endl;
                                 LOG_verbose << "Async write succeeded";
                                 transferbuf.bufferWriteCompleted(i, true);
                                 errorcount = 0;
@@ -963,16 +982,16 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                                 updatecontiguousprogress();
 
-                                std::cout << "[TransferSlot::doio] REQ_ASYNCIO -> checkDownloadTransferFinished(committer, client)" << std::endl;
+                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO -> checkDownloadTransferFinished(committer, client)" << std::endl;
                                 if (checkDownloadTransferFinished(committer, client))
                                 {
-                                    std::cout << "[TransferSlot::doio] REQ_ASYNCIO -> checkDownloadTransferFinished = TRUE!!!!!!" << std::endl;
+                                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO -> checkDownloadTransferFinished = TRUE!!!!!!" << std::endl;
                                     return;
                                 }
 
                                 client->transfercacheadd(transfer, &committer);
                                 reqs[i]->status = REQ_READY;
-                                std::cout << "[TransferSlot::doio] REQ_ASYNCIO client->transfercacheadd(transfer=" << transfer << ", &committer), reqs[i=" << i << "]->status = REQ_READY" << std::endl; 
+                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO client->transfercacheadd(transfer=" << transfer << ", &committer), reqs[i=" << i << "]->status = REQ_READY" << std::endl; 
 
                                 if (client->orderdownloadedchunks && !transferbuf.isRaid())
                                 {
@@ -988,6 +1007,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         }
                         else
                         {
+                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO [asyncIO[" << i << "]->finished && [asyncIO[" << i << "]->failed -> Async operation failed: asyncIO[i]->retry = " << asyncIO[i]->retry << std::endl;
                             LOG_warn << "Async operation failed: " << asyncIO[i]->retry;
                             if (!asyncIO[i]->retry)
                             {
@@ -1013,15 +1033,18 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     }
                     else if (transfer->type == GET)
                     {
+                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO -> p += asyncIO[i]->dataBufferLen" << std::endl;
                         p += asyncIO[i]->dataBufferLen;
                     }
                     break;
 
                 case REQ_FAILURE:
+                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_FAILURE: Failed chunk. HTTP status: " << reqs[i]->httpstatus << " on channel " << i << std::endl;
                     LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus << " on channel " << i;
                     if (reqs[i]->httpstatus && reqs[i]->contenttype.find("text/html") != string::npos
                             && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                     {
+                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_FAILURE] Invalid Content-Type detected on failed chunk: " << reqs[i]->contenttype << " (transfer->failed(API_EAGAIN)" << std::endl;
                         LOG_warn << "Invalid Content-Type detected on failed chunk: " << reqs[i]->contenttype;
                         client->usehttps = true;
                         client->app->notify_change_to_https();
@@ -1033,6 +1056,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     if (reqs[i]->httpstatus == 509)
                     {
+                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_FAILURE] Bandwidth overquota from storage server (transfer->failed(API_EOVERQUOTA)" << std::endl;
                         LOG_warn << "Bandwidth overquota from storage server";
 
                         dstime backoff = client->overTransferQuotaBackoff(reqs[i].get());
@@ -1095,6 +1119,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 toggleport(reqs[i].get());
                             }
                         }
+                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_FAILURE] -> REQ_PREPARED" << std::endl;
                         reqs[i]->status = REQ_PREPARED;
                     }
 
@@ -1107,6 +1132,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         {
             if (!reqs[i] || (reqs[i]->status == REQ_READY))
             {
+                std::cout << "[TransferSlot::doio] [!failure] [!reqs["<<i<<"]="<<reqs[i]<<" || (reqs[i]->status == REQ_READY) [reqs[i] ? " << (reqs[i]!=nullptr) << "]" << std::endl;
                 bool newInputBufferSupplied = false;
                 bool pauseConnectionInputForRaid = false;
                 std::pair<m_off_t, m_off_t> posrange = transferbuf.nextNPosForConnection(i, maxRequestSize, connections, newInputBufferSupplied, pauseConnectionInputForRaid, client->httpio->uploadSpeed);
@@ -1116,6 +1142,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                 if (outputPiece && reqs[i])
                 {
+                    std::cout << "[TransferSlot::doio] [!failure] [reqs["<<i<<"]="<<reqs[i]<<" (outputPiece && reqs[i]) -> status = REQ_SUCCESS (et up to do the actual write on the next loop, as if it was a retry)" << std::endl;
                     // set up to do the actual write on the next loop, as if it was a retry
                     reqs[i]->status = REQ_SUCCESS;
                     static_cast<HttpReqDL*>(reqs[i].get())->buffer_released = true;
@@ -1203,6 +1230,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             }
                         }
 
+                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" (prepare) -> reqs[i]->prepare(finaltempurl='" << finaltempurl.c_str() << "', ...), reqs[i]->pos = posrange.first = " << posrange.first << ", status = REQ_PREPARED"  << std::endl;
                         reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
                                                                transfer->ctriv,
                                                                posrange.first, posrange.second);
@@ -1214,6 +1242,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
                 else if (reqs[i])
                 {
+                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" -> reqs[i]->status = REQ_DONE" << std::endl;
                     reqs[i]->status = REQ_DONE;
 
                     if (transfer->type == GET)
@@ -1222,6 +1251,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                         if (outputPiece)
                         {
+                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_DONE] outpiece! (getAsyncOutputBufferPointer) -> status = REQ_SUCCESS (actual write on next loop)" << std::endl;
                             // set up to do the actual write on the next loop, as if it was a retry
                             reqs[i]->status = REQ_SUCCESS;
                             static_cast<HttpReqDL*>(reqs[i].get())->buffer_released = true;
@@ -1258,12 +1288,14 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     (numInflight && !earliestUploadCompleted &&
                     earliestPosInFlight + MAX_GAP_SIZE < (reqs[i]->pos + reqs[i]->size)))
                 {
+                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_PREPARED] Connection " << i << " delaying until earliest completes. pos=" << reqs[i]->pos << ", status = REQ_UPLOAD_PREPARED_BUT_WAIT" << std::endl;
                     LOG_debug << "Connection " << i << " delaying until earliest completes. pos=" << reqs[i]->pos;
                     reqs[i]->status = REQ_UPLOAD_PREPARED_BUT_WAIT;
                 }
                 else if (reqs[i]->status == REQ_UPLOAD_PREPARED_BUT_WAIT &&
                     (!numInflight || earliestUploadCompleted))
                 {
+                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_UPLOAD_PREPARED_BUT_WAIT] Connection " << i << " resumes. pos=" << reqs[i]->pos << ", status = REQ_PREPARED" << std::endl;
                     LOG_debug << "Connection " << i << " resumes. pos=" << reqs[i]->pos;
                     reqs[i]->status = REQ_PREPARED;
                 }
@@ -1277,6 +1309,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         {
             if ((reqs[i]->status == REQ_PREPARED) && !backoff)
             {
+                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_PREPARED] [!backoff] CONNECTION FIT TO POST! (requestStarted) -> reqs[i]->post(client)" << std::endl;
                 mReqSpeeds[i].requestStarted();
                 reqs[i]->minspeed = true;
                 reqs[i]->post(client);
@@ -1414,6 +1447,7 @@ void TransferSlot::progress()
 
 m_off_t TransferSlot::updatecontiguousprogress()
 {
+    std::cout << "[TransferSlot::updatecontiguousprogress()] BEGIN -> contiguousProgress = transfer->chunkmacs.updateContiguousProgress(transfer->size="<<transfer->size<<"), call transfer->chunkmacs.updateMacsmacProgress(transfer->transfercipher())" << std::endl;
     m_off_t contiguousProgress = transfer->chunkmacs.updateContiguousProgress(transfer->size);
 
     // Since that is updated, we may have a chance to consolidate the macsmac calculation so far also
@@ -1421,13 +1455,16 @@ m_off_t TransferSlot::updatecontiguousprogress()
 
     if (!transferbuf.tempUrlVector().empty() && transferbuf.isRaid())
     {
+        std::cout << "[TransferSlot::updatecontiguousprogress()] (!transferbuf.tempUrlVector().empty() && transferbuf.isRaid()) -> LOG_DEBUG Contiguous progress: " << contiguousProgress << "" << std::endl;
         LOG_debug << "Contiguous progress: " << contiguousProgress;
     }
     else
     {
+        std::cout << "[TransferSlot::updatecontiguousprogress()] (transferbuf.tempUrlVector().empty() || !transferbuf.isRaid()) -> Contiguous progress: " << contiguousProgress << " (" << (transfer->pos - contiguousProgress) << ")" << std::endl;
         LOG_debug << "Contiguous progress: " << contiguousProgress << " (" << (transfer->pos - contiguousProgress) << ")";
     }
 
+    std::cout << "[TransferSlot::updatecontiguousprogress()] END -> return contiguousProgress=" << contiguousProgress << "" << std::endl;
     return contiguousProgress;
 }
 
