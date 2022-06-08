@@ -4287,15 +4287,25 @@ void MegaClient::logout(bool keepSyncConfigsFile)
 
     loggingout++;
 
+    auto completion = [&]()
+    {
+        reqs.add(new CommandLogout(this, keepSyncConfigsFile));
+    };
+
 #ifdef ENABLE_SYNC
     // if logging out and syncs won't be kept...
     if (!keepSyncConfigsFile)
     {
-        syncs.purgeSyncs();    // unregister from API and clean up backup-names
+        // logout should wait until all syncs have been unregistered and removed
+        syncs.purgeSyncs(completion);
     }
+    else
+    {
+        completion();
+    }
+#elif
+    completion();
 #endif
-
-    reqs.add(new CommandLogout(this, keepSyncConfigsFile));
 }
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
@@ -4498,7 +4508,11 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     }
     else
     {
-        syncs.purgeSyncs();
+        // this call cannot wait for network ops, it must complete immediately, since
+        // it's called from locallogout(). In consequence, heartbeat records won't be
+        // unregistered from API, backup folders will stay in Vault... but it should
+        // still remove syncs config file(s)
+        syncs.purgeSyncsLocal();
     }
 #endif
 
@@ -7289,8 +7303,6 @@ void MegaClient::notifypurge(void)
 
 #ifdef ENABLE_SYNC
 
-        //update sync root node location and trigger failing cases
-        NodeHandle rubbishHandle = rootnodes.rubbish;
         // check for renamed/moved sync root folders
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
@@ -7298,12 +7310,16 @@ void MegaClient::notifypurge(void)
             if (!n)
                 return;
 
+            // check if the node has been tagged with 'sds' attribute for the backup-id related to this node
+            // if so, the sync/backup should transition to the desired state and the pair backup-id:state should
+            // be removed from node's attribute
             auto sdsBkps = n->getSdsBackups();
             if (!sdsBkps.empty())
             {
-                bool removed = false;
+                bool found = false;
+                handle backupId = UNDEF;
                 syncs.removeSelectedSyncs(
-                    [&sdsBkps, &removed](SyncConfig& c, Sync*)
+                    [&sdsBkps, &found, &backupId](SyncConfig& c, Sync*)
                     {
                         auto it = find_if(sdsBkps.begin(), sdsBkps.end(),
                             [&c](const pair<handle, int>& e)
@@ -7313,23 +7329,42 @@ void MegaClient::notifypurge(void)
 
                         if (it != sdsBkps.end())
                         {
-                            sdsBkps.erase(it);
-                            removed = true;
+                            sdsBkps.erase(it);                            
+                            backupId = c.mBackupId;
+                            found = true;
                             return true;
                         }
 
                         return false;
-                    }, UNDEF, true);
+                    },
+                    [&](Error e)
+                    {
+                        if (e != API_OK)
+                        {
+                            if (e == API_ENOENT)
+                            {
+                                LOG_debug << "'sds' attribute changed, but no sync/backup related to the node";
+                            }
+                            else
+                            {
+                                LOG_err << "Failed to remove the backup " << Base64Str<MegaClient::BACKUPHANDLE>(backupId) << " in result of 'sds' attribute";
+                            }
+                            return;
+                        }
 
-                if (removed)
-                {
-                    // update node attrs
-                    const string& value = Node::toSdsString(sdsBkps);
-                    setattr(n, attr_map(Node::sdsId(), value), 0, nullptr, nullptr, true);
+                        assert(found);
 
-                    return; // already removed, no need for further checks
-                }
+                        if (!n->changed.removed)   // avoid to update attributes if node was already removed (by BackupCenter)
+                        {
+                            const string& value = Node::toSdsString(sdsBkps);
+                            setattr(n, attr_map(Node::sdsId(), value), 0, nullptr, nullptr, true);
+                        }
+                    },
+                    UNDEF, true);
             }
+
+            //update sync root node location and trigger failing cases
+            NodeHandle rubbishHandle = rootnodes.rubbish;
 
             // check if moved
             bool movedToRubbish = n->firstancestor()->nodehandle == rubbishHandle.as8byte();

@@ -613,10 +613,10 @@ struct Syncs
     void disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered, and backup syncs in Vault are permanently deleted (if request came from SDK) or moved
-    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false, std::function<void(Error)> lastCompletion = nullptr);
+    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, std::function<void(Error)> lastCompletion, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false);
 
     // remove at most one sync
-    error removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false, std::function<void(Error)> completion = nullptr);
+    error removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector, std::function<void(Error)> completion, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false);
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -624,8 +624,11 @@ struct Syncs
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
-    // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
-    void purgeSyncs();
+    // removes all configured backups from cache and API (BackupCenter)
+    void purgeSyncs(std::function<void()> completion);
+
+    // remove all configured backups from cache, not from API
+    void purgeSyncsLocal();
 
     void resetSyncConfigStore();
     void clear();

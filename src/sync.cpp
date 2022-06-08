@@ -3733,17 +3733,14 @@ void Syncs::disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError
     if (completion) completion();
 }
 
-void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest, bool skipMoveOrDelBackup, std::function<void(Error)> lastCompletion)
+void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, std::function<void(Error)> lastCompletion, handle bkpDest, bool skipMoveOrDelBackup)
 {
     const vector<size_t>& syncsToRemove = selectedSyncs(selector);
 
     if (syncsToRemove.empty())
     {
         // not finding any syncs is fine
-        if (lastCompletion)
-        {
-            lastCompletion(API_OK);
-        }
+        lastCompletion(API_OK);
         return;
     }
 
@@ -3793,7 +3790,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
-error Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector, handle bkpDest, bool skipMoveOrDelBackup, std::function<void(Error)> completion)
+error Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector, std::function<void(Error)> completion, handle bkpDest, bool skipMoveOrDelBackup)
 {
     const vector<size_t>& syncsToRemove = selectedSyncs(selector, 1);
 
@@ -3832,13 +3829,27 @@ void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
-void Syncs::purgeSyncs()
+void Syncs::purgeSyncs(std::function<void()> completion)
 {
     if (!mSyncConfigStore) return;
 
     // Remove all syncs.
-    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; }, UNDEF, true, nullptr);
+    removeSelectedSyncs(
+        [](SyncConfig&, Sync*) { return true; },    // selector: all syncs
+        [&](Error e)
+        {
+            if (e != API_OK) LOG_err << "Failed to purge syncs. Error: " << e;
 
+            // finally, remove local syncs config files (internal and external, if any)
+            purgeSyncsLocal();
+
+            completion();
+        },
+        UNDEF, true);
+}
+
+void Syncs::purgeSyncsLocal()
+{
     // Truncate internal sync config database.
     mSyncConfigStore->write(LocalPath(), SyncConfigVector());
 
@@ -3856,6 +3867,8 @@ void Syncs::purgeSyncs()
 
 error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelBackup, std::function<void(Error)> completion)
 {
+    assert(completion);
+
     if (index < mSyncVec.size())
     {
         auto& config = mSyncVec[index]->mConfig;
@@ -3899,7 +3912,7 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
                     LOG_err << "CommandBackupRemove failed";
                 }
 
-                if (completion) completion(err);
+                completion(err);
                 return;
             }
 
@@ -3911,7 +3924,7 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
             if (!remoteNode)
             {
                 LOG_warn << "Remote node of the backup not found";
-                if (completion) completion((bkpDest == UNDEF) ? API_OK : API_EINCOMPLETE);
+                completion((bkpDest == UNDEF) ? API_OK : API_EINCOMPLETE);
                 return;
             }
 
@@ -3924,12 +3937,12 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
                         {
                             LOG_err << "unlink() failed (server side)";
                         }
-                        if (completion) completion(err);
+                        completion(err);
                     }, true);
                 if (e)
                 {
                     LOG_err << "unlink() failed (client side)";
-                    if (completion) completion(e);
+                    completion(e);
                 }
             }
             else // move to the new destination
@@ -3961,18 +3974,18 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
                             {
                                 LOG_err << "rename() failed (server side)";
                             }
-                            if (completion) completion(err);
+                            completion(err);
                         });
                     if (e)
                     {
                         LOG_err << "rename() failed (client side)";
-                        if (completion) completion(e);
+                        completion(e);
                     }
                 }
                 else
                 {
                     LOG_err << "Backup move destination upon removal does not exist";
-                    if (completion) completion(API_EINCOMPLETE);
+                    completion(API_EINCOMPLETE);
                 }
             }
         };
