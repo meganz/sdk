@@ -14647,7 +14647,10 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
                             nextreqtag();
                             DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                            syncactivity |= startxfer(GET, rit->second->syncget, committer, false, false, false, UseLocalVersioningFlag);
+                            error result = API_OK;
+
+                            startxfer(GET, rit->second->syncget, committer, false, false, false, UseLocalVersioningFlag, &result);
+                            syncactivity |= result != LOCAL_ENOSPC;
                         }
                     }
                 }
