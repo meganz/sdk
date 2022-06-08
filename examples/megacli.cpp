@@ -2630,6 +2630,7 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count)
     };
 }
 
+std::deque<std::function<void()>> mainloopActions;
 
 #ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
@@ -2793,8 +2794,6 @@ void cycleDownload(LocalPath lp, int count)
     lp.append(LocalPath::fromRelativePath("_" + std::to_string(count)));
     client->fsaccess->unlinklocal(lp);
 }
-
-std::deque<std::function<void()>> mainloopActions;
 
 int gap_resumed_uploads = 0;
 
