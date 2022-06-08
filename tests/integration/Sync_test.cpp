@@ -6945,7 +6945,7 @@ TEST_F(SyncTest, AnomalousSyncDownload)
         // Upload the files f and f/0.
         {
             auto filePath = cu.fsBasePath / "f";
-            auto rootPath = string("/mega_test_sync/s");
+            auto rootPath = string("s");
 
             // Create a dummy for us to upload.
             ASSERT_TRUE(createDataFile(filePath, "f"));
