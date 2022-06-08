@@ -3850,6 +3850,8 @@ void Syncs::purgeSyncs(std::function<void()> completion)
 
 void Syncs::purgeSyncsLocal()
 {
+    if (!mSyncConfigStore) return;
+
     // Truncate internal sync config database.
     mSyncConfigStore->write(LocalPath(), SyncConfigVector());
 
