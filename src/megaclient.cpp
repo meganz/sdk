@@ -12288,7 +12288,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
     {
-        DBTableTransactionCommitter committer(tctable);
+        DBTableTransactionCommitter committer(tctable); // needed in case of tctable->del()
         while (tctable->next(&id, &data, &tckey))
         {
             switch (id & 15)
@@ -12451,6 +12451,9 @@ void MegaClient::fetchnodes(bool nocache)
             scsn.setScsn(cachedscsn);
             LOG_info << "Session loaded from local cache. SCSN: " << scsn.text()
                      << " node count: " << nodes.size() << " user count: " << users.size();
+
+            assert(nodes.size() > 0);   // sometimes this is not true; if you see it, please investigate why (before we alter the db)
+            assert(!rootnodes.files.isUndef());  // we should know this by now - if not, why not, please investigate (before we alter the db)
 
             if (loggedIntoWritableFolder())
             {
