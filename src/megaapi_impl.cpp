@@ -2034,6 +2034,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         nodeHandle = p->parentHandle;
         numbers.push_back(p->folderCount);
         numbers.push_back(p->fileCount);
+        handles.assign(p->items.begin(), p->items.end());
     }
     break;
     case UserAlert::type_d:
@@ -2184,6 +2185,11 @@ int64_t MegaUserAlertPrivate::getTimestamp(unsigned index) const
 const char* MegaUserAlertPrivate::getString(unsigned index) const
 {
     return index < extraStrings.size() ? extraStrings[index].c_str() : NULL;
+}
+
+MegaHandle MegaUserAlertPrivate::getHandle(unsigned index) const
+{
+    return index < handles.size() ? handles[index] : INVALID_HANDLE;
 }
 
 bool MegaUserAlertPrivate::isOwnChange() const

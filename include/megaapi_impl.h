@@ -580,6 +580,7 @@ public:
     virtual int64_t getNumber(unsigned index) const;
     virtual int64_t getTimestamp(unsigned index) const;
     virtual const char* getString(unsigned index) const;
+    virtual MegaHandle getHandle(unsigned index) const;
     virtual bool isOwnChange() const;
 
 protected:
@@ -598,6 +599,7 @@ protected:
     vector<int64_t> numbers;
     vector<int64_t> timestamps;
     vector<string> extraStrings;
+    vector<MegaHandle> handles;
 };
 
 class MegaHandleListPrivate : public MegaHandleList
