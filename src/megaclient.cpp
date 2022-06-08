@@ -15844,12 +15844,11 @@ error MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter&
     if (d == GET)
     {
         auto targetPath = f->localname.parentPath();
-        auto size = static_cast<uint64_t>(f->size);
 
         assert(f->size >= 0);
 
         // Do we have enough space for the download?
-        if (fsaccess->availableDiskSpace(targetPath) <= size)
+        if (fsaccess->availableDiskSpace(targetPath) <= f->size)
         {
             LOG_warn << "Insufficient space available for download: "
                      << f->localname

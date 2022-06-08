@@ -23,6 +23,7 @@
 #include <cwctype>
 
 #include "mega.h"
+#include <limits>
 #include <wow64apiset.h>
 
 #if defined(_WIN32)
@@ -1742,8 +1743,9 @@ bool isReservedName(const string& name, nodetype_t type)
     return false;
 }
 
-uint64_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
+m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
 {
+    m_off_t constexpr maximumBytes = std::numeric_limits<m_off_t>::max();
     ULARGE_INTEGER numBytes;
 
     if (!GetDiskFreeSpaceExW(drivePath.localpath.c_str(), &numBytes, nullptr, nullptr))
@@ -1755,10 +1757,13 @@ uint64_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
                  << ". Error code was: "
                  << result;
 
-         return 0;
+         return maximumBytes;
     }
 
-    return numBytes.QuadPart;
+    if (numBytes.QuadPart >= (uint64_t)maximumBytes)
+        return maximumBytes;
+
+    return (m_off_t)numBytes.QuadPart;
 }
 
 } // namespace

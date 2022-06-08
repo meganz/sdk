@@ -140,7 +140,7 @@ public:
 
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
 
-    uint64_t availableDiskSpace(const LocalPath& drivePath) override;
+    m_off_t availableDiskSpace(const LocalPath& drivePath) override;
 };
 
 #ifdef HAVE_AIO_RT

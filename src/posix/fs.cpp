@@ -1931,21 +1931,29 @@ bool isReservedName(const string&, nodetype_t)
 // A more robust implementation would check whether the device has storage
 // quotas enabled and if so, return the amount of space available before
 // saturating that quota.
-uint64_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
+m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
 {
     struct statfs buffer;
+    m_off_t constexpr maximumBytes = std::numeric_limits<m_off_t>::max();
 
-    if (statfs(adjustBasePath(drivePath).c_str(), &buffer) >= 0)
-        return buffer.f_bavail * (uint64_t)buffer.f_bsize;
+    if (statfs(adjustBasePath(drivePath).c_str(), &buffer) < 0)
+    {
+        auto result = errno;
 
-    auto result = errno;
+        LOG_warn << "Unable to determine available disk space on volume: "
+                 << drivePath.toPath()
+                 << ". Error code was: "
+                 << result;
 
-    LOG_warn << "Unable to determine available disk space on volume: "
-             << drivePath.toPath()
-             << ". Error code was: "
-             << result;
+        return maximumBytes;
+    }
 
-    return 0;
+    uint64_t availableBytes = buffer.f_bavail * (uint64_t)buffer.f_bsize;
+
+    if (availableBytes >= (uint64_t)maximumBytes)
+        return maximumBytes;
+
+    return (m_off_t)availableBytes;
 }
 
 } // namespace

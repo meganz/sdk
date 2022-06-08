@@ -660,7 +660,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // @return
     // On success, the number of free bytes available to the caller.
     // On failure, zero.
-    virtual uint64_t availableDiskSpace(const LocalPath& drivePath) = 0;
+    virtual m_off_t availableDiskSpace(const LocalPath& drivePath) = 0;
 };
 
 enum FilenameAnomalyType
