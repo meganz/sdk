@@ -8908,7 +8908,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
     {
-        if (syncType == TwoWaySyncSymmetryCase::type_backupSync) continue;
+        //if (syncType != TwoWaySyncSymmetryCase::type_backupSync) continue;
 
         for (int selfChange = 0; selfChange < 2; ++selfChange)
         {
