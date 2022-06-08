@@ -297,9 +297,9 @@ ConsoleLock conlock(std::ostream& o)
 
 static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
 {
-    error result = client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning);
+    error result = API_OK;
 
-    if (result == API_OK)
+    if (client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &result))
     {
         file->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), file.release());
     }
