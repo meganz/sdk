@@ -44,7 +44,8 @@ struct MEGA_API File: public FileFingerprint
     // transfer terminated before completion (cancelled, failed too many times)
     virtual void terminated(error e);
 
-    // transfer failed
+    // return true if the transfer should keep trying (limited to 16)
+    // return false to delete the transfer
     virtual bool failed(error, MegaClient*);
 
     // update localname

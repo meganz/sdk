@@ -2578,7 +2578,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
     return ok;
 }
 
-bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
+bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int64_t n, MegaHandle mh)
 {
     bool ok = false;
     for (int i = 0; !ok && i < 10; ++i)
@@ -2588,13 +2588,24 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
         if (list->size() > 0)
         {
             MegaUserAlert* a = list->get(list->size() - 1);
-            ok = !strcasecmp(title.c_str(), a->getTitle()) && a->getNodeHandle() == h && a->getNumber(0) == n;
+            ok = title == a->getTitle() && a->getNodeHandle() == h;
+            if (n != -1)
+                ok = ok && a->getNumber(0) == n;
+            if (mh != INVALID_HANDLE)
+                ok = ok && a->getHandle(0) == mh;
 
             if (!ok && i == 9)
             {
                 EXPECT_STRCASEEQ(a->getTitle(), title.c_str());
                 EXPECT_EQ(a->getNodeHandle(), h);
-                EXPECT_EQ(a->getNumber(0), n); // 0 for number of folders
+                if (n != -1)
+                {
+                    EXPECT_EQ(a->getNumber(0), n);
+                }
+                if (mh != INVALID_HANDLE)
+                {
+                    EXPECT_EQ(a->getHandle(0), mh);
+                }
             }
         }
         delete list;
@@ -3021,8 +3032,9 @@ TEST_F(SdkTest, SdkTestShares)
     long long nodeCountAfterInSharesAddedDummyFolders = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFolders);
 
+
     // check the corresponding user alert
-    ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2));
+    ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2, dummyhandle1));
 
     // add 2 more files to the share
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;

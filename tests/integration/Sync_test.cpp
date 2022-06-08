@@ -1536,13 +1536,21 @@ void StandardClient::catchup(std::function<void(error)> completion)
     auto init = std::bind(&MegaClient::catchup, &client);
 
     auto fini = [completion](error e) {
+        LOG_debug << "catchup(...) request completed: "
+                  << e;
+
+        EXPECT_EQ(e, API_OK);
         if (e)
             out() << "catchup reports: " << e;
+
+        LOG_debug << "Calling catchup(...) completion function...";
 
         completion(e);
 
         return true;
     };
+
+    LOG_debug << "Sending catchup(...) request...";
 
     resultproc.prepresult(CATCHUP,
                           ++next_request_tag,
@@ -1908,7 +1916,7 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    if (result.wait_for(std::chrono::seconds(45)) == future_status::timeout)
     {
         LOG_err << "timed out waiting for thread_do of setupSync_inThread 3";
         return UNDEF;
@@ -1958,6 +1966,11 @@ void StandardClient::setupSync_inThread(const string& localPath,
 
     // Called when it's time to actually add the sync.
     auto completion = [=](error e) {
+        EXPECT_EQ(e, API_OK);
+
+        if (e != API_OK)
+            return result->set_value(UNDEF);
+
         // Convenience.
         constexpr auto BACKUP = SyncConfig::TYPE_BACKUP;
         constexpr auto TWOWAY = SyncConfig::TYPE_TWOWAY;
@@ -1984,14 +1997,18 @@ void StandardClient::setupSync_inThread(const string& localPath,
         //    config.mScanIntervalSec = SCAN_INTERVAL_SEC;
         //}
 
-        auto completion = [result](error, SyncError, handle id) {
+        auto completion = [result](error e, SyncError, handle id) {
+            if (e != API_OK)
+            {
+                LOG_err << "Failed to addsync remotely, error " << int(e);
+            }
             result->set_value(id);
         };
 
         error ase = client.addsync(config, true, std::move(completion), localPath + " ");
         if (ase)
         {
-            LOG_err << "Failed to addsync, error " << int(ase);
+            LOG_err << "Failed to addsync locally, error " << int(ase);
         }
     };
 
@@ -2037,7 +2054,7 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    if (result.wait_for(std::chrono::seconds(45)) == future_status::timeout)
     {
         LOG_err << "timed out waiting for thread_do of setupSync_inThread";
         return UNDEF;
@@ -2067,7 +2084,7 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    if (result.wait_for(std::chrono::seconds(45)) == future_status::timeout)
     {
         LOG_err << "timed out waiting for thread_do of setupSync_inThread 2";
         return UNDEF;

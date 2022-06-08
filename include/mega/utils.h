@@ -511,12 +511,14 @@ public:
     void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* sumOfPartialChunks = nullptr);
     m_off_t nextUnprocessedPosFrom(m_off_t pos);
     m_off_t expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize);
+    m_off_t hasUnfinishedGap(m_off_t fileSize);
     void finishedUploadChunks(chunkmac_map& macs);
     bool finishedAt(m_off_t pos);
     m_off_t updateContiguousProgress(m_off_t fileSize);
     void updateMacsmacProgress(SymmCipher *cipher);
     void copyEntriesTo(chunkmac_map& other);
     void copyEntryTo(m_off_t pos, chunkmac_map& other);
+    void debugLogOuputMacs();
 
     void ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
     void ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);
@@ -868,7 +870,10 @@ public:
 
         if (mCurrent < mEnd)
         {
-            ptrdiff_t nConsumed = traits_type::get(result, mCurrent, mEnd);
+            #ifndef NDEBUG
+            ptrdiff_t nConsumed =
+            #endif
+                traits_type::get(result, mCurrent, mEnd);
             assert(nConsumed > 0);
         }
 
