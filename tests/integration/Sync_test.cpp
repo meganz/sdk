@@ -2456,7 +2456,7 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
 
     auto status = result.wait_for(std::chrono::seconds(45));
     EXPECT_NE(status, future_status::timeout);
-    
+
     if (status == future_status::timeout)
         return UNDEF;
 
@@ -7661,7 +7661,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     waitonsyncs(TIMEOUT, &cx);
 
     // Verify rename.
-    ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
+    ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id, true));
 
     // There should be no anomalies.
     ASSERT_TRUE(reporter->mAnomalies.empty());
@@ -16820,7 +16820,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
         // Be certain that client 1 can see w.
         ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*xw), DEFAULTWAIT));
-        
+
         // Let the engine try and process the change.
         waitonsyncs(DEFAULTWAIT, &client1);
 

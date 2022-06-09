@@ -2424,8 +2424,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 return false;
             }
         }
-
-        if (sourcePath == fullPath.localPath)
+        else if (sourcePath == fullPath.localPath)
         {
             // This case was seen in a log, possibly due to duplicate LocalNodes.
             // We don't want to move the target out of the way to the .debris, then find it's not present for move/rename
