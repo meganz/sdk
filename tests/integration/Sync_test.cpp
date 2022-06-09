@@ -3378,7 +3378,7 @@ void StandardClient::match(NodeHandle handle, const Model::ModelNode* source, Pr
     result->set_value(node && match(*node, *source));
 }
 
-bool StandardClient::waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout)
+bool StandardClient::waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout)
 {
     auto total = std::chrono::milliseconds(0);
     auto sleepIncrement = std::chrono::milliseconds(500);
@@ -4059,6 +4059,16 @@ public:
         model0.root->addkid(model0.buildModelSubdirs("d", 2, 1, 0));
         model1.root->addkid(model1.buildModelSubdirs("d", 2, 1, 0));
 
+        // Make sure the client's agree on the cloud's state before proceeding.
+        {
+            auto* root = client0->gettestbasenode();
+            ASSERT_NE(root, nullptr);
+
+            auto predicate = SyncRemoteMatch(*root, model0.root.get());
+            ASSERT_TRUE(client0->waitFor(predicate, DEFAULTWAIT));
+            ASSERT_TRUE(client1->waitFor(predicate, DEFAULTWAIT));
+        }
+
         startSyncs();
         waitOnSyncs();
         confirmModels();
@@ -4096,12 +4106,24 @@ public:
         return client1->syncSet(backupId1).localpath;
     }
 
+    void prepareForNodeUpdates()
+    {
+        client0->received_node_actionpackets = false;
+        client1->received_node_actionpackets = false;
+    }
+
     void startSyncs()
     {
         backupId0 = client0->setupSync_mainthread("s0", "d", false, true);
         ASSERT_NE(backupId0, UNDEF);
         backupId1 = client1->setupSync_mainthread("s1", "d", false, false);
         ASSERT_NE(backupId1, UNDEF);
+    }
+
+    void waitForNodeUpdates()
+    {
+        ASSERT_TRUE(client0->waitForNodesUpdated(30));
+        ASSERT_TRUE(client1->waitForNodesUpdated(30));
     }
 
     void waitOnSyncs()
@@ -4126,7 +4148,11 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_1" / "a";
 
+    prepareForNodeUpdates();
     ASSERT_TRUE(createDataFile(path0, data0));
+    waitForNodeUpdates();
+
+    // Wait for the engine to process any further changes.
     waitOnSyncs();
 
     // Alter MAC but leave fingerprint untouched.
@@ -4137,8 +4163,9 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
 
     ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, stamp));
 
-    // Move the file into place.
+    prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
+    waitForNodeUpdates();
 
     // Wait for the engine to process changes.
     waitOnSyncs();
@@ -4159,7 +4186,11 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_0" / "b";
 
+    prepareForNodeUpdates();
     ASSERT_TRUE(createDataFile(path0, data0));
+    waitForNodeUpdates();
+
+    // Process any further changes.
     waitOnSyncs();
 
     // Alter MAC but leave fingerprint untouched.
@@ -4170,8 +4201,9 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
 
     ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, stamp));
 
-    // Move the file into place.
+    prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
+    waitForNodeUpdates();
 
     // Wait for the engine to process our change.
     waitOnSyncs();
@@ -4191,7 +4223,10 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_0" / "b";
 
+    prepareForNodeUpdates();
     ASSERT_TRUE(createDataFile(path0, data0));
+    waitForNodeUpdates();
+
     waitOnSyncs();
 
     // Build the file somewhere the sync won't notice.
@@ -4200,7 +4235,9 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "b", data0, stamp));
 
     // Move file into place.
+    prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "b", path1);
+    waitForNodeUpdates();
 
     // Wait for the engine to process our changes.
     waitOnSyncs();
@@ -7813,6 +7850,18 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
 
     // Wait for initial sync to complete.
     waitonsyncs(TIMEOUT, &c);
+
+    // Wait for everything to reach the cloud.
+    {
+        auto *root = c.gettestbasenode();
+        ASSERT_NE(root, nullptr);
+
+        root = c.drillchildnodebyname(root, "s");
+        ASSERT_NE(root, nullptr);
+
+        auto predicate = SyncRemoteMatch(*root, model.root.get());
+        ASSERT_TRUE(c.waitFor(std::move(predicate), DEFAULTWAIT));
+    }
 
     // Confirm directories have hit the cloud.
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
