@@ -330,7 +330,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
     newnode->uploadtoken = ultoken;
 
     // file's crypto key
-    static_assert(sizeof(filekey) == FILENODEKEYLENGTH);
+    static_assert(sizeof(filekey) == FILENODEKEYLENGTH, "sizeof(filekey) == FILENODEKEYLENGTH");
     newnode->nodekey.assign((char*)&filekey, FILENODEKEYLENGTH);
     newnode->type = FILENODE;
     newnode->parenthandle = UNDEF;
