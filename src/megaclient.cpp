@@ -516,6 +516,11 @@ handle MegaClient::getFolderLinkPublicHandle()
     return mFolderLink.mPublicHandle;
 }
 
+bool MegaClient::isValidEndCallReason(int reason)
+{
+   return reason == END_CALL_REASON_REJECTED || reason == END_CALL_REASON_BY_MODERATOR;
+}
+
 bool MegaClient::isValidFolderLink()
 {
     if (!ISUNDEF(mFolderLink.mPublicHandle))
