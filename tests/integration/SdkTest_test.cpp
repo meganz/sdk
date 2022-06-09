@@ -3032,7 +3032,6 @@ TEST_F(SdkTest, SdkTestShares)
     long long nodeCountAfterInSharesAddedDummyFolders = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInSharesAddedDummyFolders);
 
-
     // check the corresponding user alert
     ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2, dummyhandle1));
 
