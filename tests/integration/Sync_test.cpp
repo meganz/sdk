@@ -7140,6 +7140,18 @@ TEST_F(SyncTest, AnomalousSyncUpload)
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &cu);
 
+    // Wait for the files to appear in the cloud.
+    {
+        auto* root = cu.gettestbasenode();
+        ASSERT_NE(root, nullptr);
+
+        root = cu.drillchildnodebyname(root, "s");
+        ASSERT_NE(root, nullptr);
+
+        auto predicate = SyncRemoteMatch(*root, model.root.get());
+        ASSERT_TRUE(cu.waitFor(std::move(predicate), TIMEOUT));
+    }
+
     // Ensure everything uploaded okay.
     ASSERT_TRUE(cu.confirmModel_mainthread(model.root.get(), id));
 
