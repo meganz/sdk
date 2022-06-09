@@ -8950,24 +8950,6 @@ void Syncs::triggerSync(NodeHandle h, bool recurse)
     if (recurse) entry = true;
 }
 
-std::future<bool> Syncs::moveToLocalDebris(LocalPath path)
-{
-    assert(!onSyncThread());
-
-    auto notifier = std::make_shared<std::promise<bool>>();
-    auto result = notifier->get_future();
-
-    queueSync([notifier, path = std::move(path), this]() mutable {
-        // What sync contains this path?
-        auto* sync = syncContainingPath(path, true);
-
-        // Move file to local debris if a suitable sync was located.
-        notifier->set_value(sync && sync->movetolocaldebris(path));
-    });
-
-    return result;
-}
-
 void Syncs::processTriggerHandles()
 {
     assert(onSyncThread());

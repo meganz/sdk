@@ -1090,9 +1090,6 @@ public:
     // mark nodes as needing to be checked for sync actions
     void triggerSync(NodeHandle, bool recurse = false);
 
-    // Move a file into the nearest suitable local debris.
-    std::future<bool> moveToLocalDebris(LocalPath path);
-
     // ------ public data members (thread safe)
 
     // waiter for sync loop on thread
