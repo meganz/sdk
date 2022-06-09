@@ -17099,22 +17099,38 @@ node_vector NodeManager::getRootNodes()
     }
     else    // nodes not loaded yet
     {
-        std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-        mTable->getRootNodes(nodesFromTable);
-
-        for (const auto& nHandleSerialized : nodesFromTable)
+        if (mClient.loggedIntoFolder())
         {
-            assert(!getNodeInRAM(nHandleSerialized.first));
-            Node* n = getNodeFromNodeSerialized(nHandleSerialized.second);
+            NodeSerialized nodeSerialized;
+            mTable->getNode(mClient.rootnodes.files, nodeSerialized);
+            Node* n = getNodeFromNodeSerialized(nodeSerialized);
             if (!n)
             {
-                nodes.clear();
                 return nodes;
             }
 
             nodes.push_back(n);
+            //It isn't necessary call to setrootnode(n) because mClient.rootnodes.files is set correctly for folder link at login commnad
+        }
+        else
+        {
+            std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+            mTable->getRootNodes(nodesFromTable);
 
-            setrootnode(n);
+            for (const auto& nHandleSerialized : nodesFromTable)
+            {
+                assert(!getNodeInRAM(nHandleSerialized.first));
+                Node* n = getNodeFromNodeSerialized(nHandleSerialized.second);
+                if (!n)
+                {
+                    nodes.clear();
+                    return nodes;
+                }
+
+                nodes.push_back(n);
+
+                setrootnode(n);
+            }
         }
     }
 
