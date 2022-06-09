@@ -16907,10 +16907,17 @@ uint64_t NodeManager::getNodeCount()
         count += nc.files + nc.folders + nc.versions;
     }
 
+    if (!mClient.loggedIntoFolder())
+    {
+        // Root nodes aren't taken in cosideration and we have to add it
+        count += 3;
+        assert(!mClient.rootnodes.files.isUndef() && !mClient.rootnodes.inbox.isUndef() && !mClient.rootnodes.rubbish.isUndef());
+    }
+
 #ifdef DEBUG
     if (mNodes.size())
     {
-        uint64_t countDb = mTable ? mTable->getNumberOfNodes() : 0;
+        uint64_t countDb = mTable ? mTable->getNumberOfNodes(): 0;
         assert(!mTable || count == countDb);
     }
 #endif

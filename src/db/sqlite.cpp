@@ -1332,18 +1332,12 @@ uint64_t SqliteAccountState::getNumberOfNodes()
     }
 
     sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE type = ? OR type = ?", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int(stmt, 1, FILENODE)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
         {
-            if ((sqlResult = sqlite3_bind_int(stmt, 2, FOLDERNODE)) == SQLITE_OK)
-            {
-                if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-                {
-                    nodeNumber = sqlite3_column_int64(stmt, 0);
-                }
-            }
+            nodeNumber = sqlite3_column_int64(stmt, 0);
         }
     }
 
