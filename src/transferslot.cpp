@@ -30,6 +30,7 @@
 #include "mega/logging.h"
 #include "mega/raid.h"
 #include "mega/sccloudraid/mega.h"
+#include "mega/testhooks.h"
 
 namespace mega {
 
@@ -668,6 +669,26 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             errorcount = 0;
                             transfer->failcount = 0;
 
+                            // Before we perform the next loop, check we are not still thread-encrypting some other chunk.
+                            // The case where this is relevant is quite obscure: a chunk A was uploaded and processed server
+                            // side, but the program exited before receiving and committing those chunk macs.  Now we are
+                            // running again and processing the resumed transfer.  There isn't much of the file left to upload
+                            // and we have uploaded a small chunk and received the result before even finishing (re-)encrypting
+                            // chunk A.  But we do need to include its chunkmacs in the mac-of-macs or we'll assign a wrong mac
+                            // to the Node, and think the file is corrupt on download.
+                            for (int j = connections; j--; )
+                            {
+                                if (j != i && reqs[j] &&
+                                    reqs[j]->status == REQ_ENCRYPTING)
+                                {
+                                    LOG_debug << "Waiting for encryption of chunk so we know all chunk macs " << j;
+                                    while (reqs[j]->status == REQ_ENCRYPTING)
+                                    {
+                                        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                                    }
+                                }
+                            }
+
                             // any other connections that have not reported back yet, or we haven't processed yet,
                             // must have completed also - make sure to include their chunk MACs in the mac-of-macs
                             for (int j = connections; j--; )
@@ -675,7 +696,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 if (j != i && reqs[j] &&
                                     (reqs[j]->status == REQ_INFLIGHT
                                     || reqs[j]->status == REQ_SUCCESS
-                                    || reqs[j]->status == REQ_FAILURE)) // could be a network error getting the result
+                                    || reqs[j]->status == REQ_FAILURE  // could be a network error getting the result, even though it succeeded server side
+                                    || reqs[j]->status == REQ_PREPARED
+                                    || reqs[j]->status == REQ_UPLOAD_PREPARED_BUT_WAIT))
                                 {
                                     LOG_debug << "Including chunk MACs from incomplete/unprocessed (at this end) connection " << j;
                                     transfer->progresscompleted += reqs[j]->size;
@@ -711,6 +734,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         {
                             LOG_debug << "Error uploading chunk: " << reqs[i]->in;
                             error e = (error)atoi(reqs[i]->in.c_str());
+
+                            DEBUG_TEST_HOOK_UPLOADCHUNK_FAILED(e);
+
                             if (e == API_EKEY)
                             {
                                 client->sendevent(99429, "Integrity check failed in upload", 0);
@@ -764,7 +790,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         client->transfercacheadd(transfer, &committer);
                         reqs[i]->status = REQ_READY;
 
-                        // If this upload is the earliest (lowest pos), then release the ones that were waiting
+                        DEBUG_TEST_HOOK_UPLOADCHUNK_SUCCEEDED(transfer, committer);  // this will return if the hook returns false
+
+                        // If this upload chunk is the earliest (lowest pos), then release the ones that were waiting
                         // This scheme prevents us from too big a gap between earlierst and latest (which could cause a -4 reply)
                         bool earliestInFlight = true;
                         for (int j = connections; j--; )
@@ -1312,7 +1340,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_PREPARED] [!backoff] CONNECTION FIT TO POST! (requestStarted) -> reqs[i]->post(client)" << std::endl;
                 mReqSpeeds[i].requestStarted();
                 reqs[i]->minspeed = true;
-                reqs[i]->post(client);
+                reqs[i]->post(client); // status becomes either REQ_INFLIGHT or REQ_FAILED
             }
         }
     }

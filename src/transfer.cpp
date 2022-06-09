@@ -29,6 +29,7 @@
 #include "mega/mediafileattribute.h"
 #include "megawaiter.h"
 #include "mega/utils.h"
+#include "mega/testhooks.h"
 
 namespace mega {
 
@@ -403,6 +404,8 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
     bool defer = false;
 
     LOG_debug << "Transfer failed with error " << e;
+
+    DEBUG_TEST_HOOK_DOWNLOAD_FAILED(e);
 
     if (e == API_EOVERQUOTA || e == API_EPAYWALL)
     {

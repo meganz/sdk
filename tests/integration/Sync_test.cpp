@@ -1536,13 +1536,21 @@ void StandardClient::catchup(std::function<void(error)> completion)
     auto init = std::bind(&MegaClient::catchup, &client);
 
     auto fini = [completion](error e) {
+        LOG_debug << "catchup(...) request completed: "
+                  << e;
+
+        EXPECT_EQ(e, API_OK);
         if (e)
             out() << "catchup reports: " << e;
+
+        LOG_debug << "Calling catchup(...) completion function...";
 
         completion(e);
 
         return true;
     };
+
+    LOG_debug << "Sending catchup(...) request...";
 
     resultproc.prepresult(CATCHUP,
                           ++next_request_tag,
@@ -1891,11 +1899,15 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                             const bool uploadIgnoreFile)
 {
     if (remoteNode.client != &client)
+    {
+        LOG_info << "taking different-client path";
         return setupSync_mainthread(localPath,
                                     remoteNode.nodehandle,
                                     isBackup,
                                     uploadIgnoreFile);
+    }
 
+    LOG_info << "taking same-client path";
     auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
         client.setupSync_inThread(localPath,
                                   remoteNode,
@@ -1904,8 +1916,11 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    if (result.wait_for(std::chrono::seconds(45)) == future_status::timeout)
+    {
+        LOG_err << "timed out waiting for thread_do of setupSync_inThread 3";
         return UNDEF;
+    }
 
     return result.get();
 }
@@ -1939,7 +1954,10 @@ void StandardClient::setupSync_inThread(const string& localPath,
     fs::create_directory(rootPath, ec);
 
     if (ec)
+    {
+        LOG_info << "setupSync_inThread failed to create directory for sync: " << rootPath.u8string() << " " << ec.message();
         return result->set_value(UNDEF);
+    }
 
     // For purposes of capturing.
     auto remoteHandle = remoteNode.nodeHandle();
@@ -1948,6 +1966,11 @@ void StandardClient::setupSync_inThread(const string& localPath,
 
     // Called when it's time to actually add the sync.
     auto completion = [=](error e) {
+        EXPECT_EQ(e, API_OK);
+
+        if (e != API_OK)
+            return result->set_value(UNDEF);
+
         // Convenience.
         constexpr auto BACKUP = SyncConfig::TYPE_BACKUP;
         constexpr auto TWOWAY = SyncConfig::TYPE_TWOWAY;
@@ -1974,11 +1997,19 @@ void StandardClient::setupSync_inThread(const string& localPath,
         //    config.mScanIntervalSec = SCAN_INTERVAL_SEC;
         //}
 
-        auto completion = [result](error, SyncError, handle id) {
+        auto completion = [result](error e, SyncError, handle id) {
+            if (e != API_OK)
+            {
+                LOG_err << "Failed to addsync remotely, error " << int(e);
+            }
             result->set_value(id);
         };
 
-        client.addsync(config, true, std::move(completion), localPath + " ");
+        error ase = client.addsync(config, true, std::move(completion), localPath + " ");
+        if (ase)
+        {
+            LOG_err << "Failed to addsync locally, error " << int(ase);
+        }
     };
 
     // Do we need to upload an ignore file?
@@ -2011,7 +2042,10 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
         auto* node = client.drillchildnodebyname(root, remotePath);
 
         if (!node)
+        {
+            LOG_err << "node not found for setupSync_inThread";
             return result->set_value(UNDEF);
+        }
 
         client.setupSync_inThread(localPath,
                                   *node,
@@ -2020,8 +2054,11 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    if (result.wait_for(std::chrono::seconds(45)) == future_status::timeout)
+    {
+        LOG_err << "timed out waiting for thread_do of setupSync_inThread";
         return UNDEF;
+    }
 
     return result.get();
 }
@@ -2035,7 +2072,10 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
         auto* node = client.client.nodebyhandle(remoteHandle);
 
         if (!node)
+        {
+            LOG_err << "node not found for setupSync_inThread 2";
             return result->set_value(UNDEF);
+        }
 
         client.setupSync_inThread(localPath,
                                   *node,
@@ -2044,8 +2084,11 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
                                   std::move(result));
     });
 
-    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    if (result.wait_for(std::chrono::seconds(45)) == future_status::timeout)
+    {
+        LOG_err << "timed out waiting for thread_do of setupSync_inThread 2";
         return UNDEF;
+    }
 
     return result.get();
 }
@@ -10105,7 +10148,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
         // Be certain that client 1 can see w.
         ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*xw), DEFAULTWAIT));
-        
+
         // Let the engine try and process the change.
         waitonsyncs(DEFAULTWAIT, &client1);
 
