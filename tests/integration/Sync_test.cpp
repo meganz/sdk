@@ -3835,7 +3835,7 @@ bool StandardClient::waitFor(std::function<bool(StandardClient&)>&& predicate, c
             return true;
         }
 
-        if (total < timeout)
+        if (total >= timeout)
         {
             out() << "Timed out waiting for predicate to match.";
             return false;
