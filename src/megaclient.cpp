@@ -16907,7 +16907,7 @@ uint64_t NodeManager::getNodeCount()
         count += nc.files + nc.folders + nc.versions;
     }
 
-    if (!mClient.loggedIntoFolder())
+    if (!mClient.loggedIntoFolder() && mNodes.size() >= 3)
     {
         // Root nodes aren't taken in cosideration and we have to add it
         count += 3;
