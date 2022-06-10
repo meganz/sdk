@@ -3826,7 +3826,7 @@ bool StandardClient::waitFor(std::function<bool(StandardClient&)>&& predicate, c
 
     out() << "Waiting for predicate to match...";
 
-    do
+    for (;;)
     {
         if (predicate(*this))
         {
@@ -3835,14 +3835,15 @@ bool StandardClient::waitFor(std::function<bool(StandardClient&)>&& predicate, c
             return true;
         }
 
+        if (total < timeout)
+        {
+            out() << "Timed out waiting for predicate to match.";
+            return false;
+        }
+
         std::this_thread::sleep_for(sleepIncrement);
         total += sleepIncrement;
     }
-    while (total < timeout);
-
-    out() << "Timed out waiting for predicate to match.";
-
-    return false;
 }
 
 bool StandardClient::match(const Node& destination, const Model::ModelNode& source) const
@@ -11224,7 +11225,6 @@ TEST_F(BackupBehavior, SameMTimeSmallerSize)
 TEST_F(SyncTest, RemoteReplaceDirectory)
 {
     auto TESTROOT = makeNewTestRoot();
-    auto TIMEOUT  = chrono::seconds(4);
 
     // Sync client.
     StandardClient c(TESTROOT, "c");
@@ -11252,7 +11252,7 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
     c.triggerPeriodicScanEarly(id);
 
     // Wait for initial sync to complete.
-    waitonsyncs(TIMEOUT, &c);
+    waitonsyncs(chrono::seconds(4), &c);
 
     // Make sure everything made it to the cloud.
     ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
@@ -11276,13 +11276,13 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
             ASSERT_TRUE(cr.movenode("s/d", "s/x"));
 
             // Wait for c to stall.
-            ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+            ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(8)));
 
             // Remove the original x/d.
             ASSERT_TRUE(cr.deleteremote(node));
 
             // Wait for c to recover from the stall.
-            ASSERT_TRUE(c.waitFor(SyncStallState(false), TIMEOUT));
+            ASSERT_TRUE(c.waitFor(SyncStallState(false), chrono::seconds(8)));
         }
 
         // Update model.
@@ -11291,7 +11291,7 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
     }
 
     // Wait for sync to complete.
-    waitonsyncs(TIMEOUT, &c);
+    waitonsyncs(chrono::seconds(4), &c);
 
     // Did the sync complete successfully?
     ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
@@ -11300,7 +11300,6 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
 TEST_F(SyncTest, RemoteReplaceFile)
 {
     auto TESTROOT = makeNewTestRoot();
-    auto TIMEOUT  = chrono::seconds(4);
 
     // Sync client.
     StandardClient c(TESTROOT, "c");
@@ -11325,7 +11324,7 @@ TEST_F(SyncTest, RemoteReplaceFile)
     c.triggerPeriodicScanEarly(id);
 
     // Wait for initial sync to complete.
-    waitonsyncs(TIMEOUT, &c);
+    waitonsyncs(chrono::seconds(4), &c);
 
     // Make sure everything made it to the cloud.
     ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
@@ -11351,13 +11350,13 @@ TEST_F(SyncTest, RemoteReplaceFile)
             ASSERT_TRUE(cr.movenode("s/f", "s/d"));
 
             // Wait for c to stall.
-            ASSERT_TRUE(c.waitFor(SyncStallState(true), TIMEOUT));
+            ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(8)));
 
             // Remove the original /d/f.
             ASSERT_TRUE(cr.deleteremote(node));
 
             // Wait for c to recover from the stall.
-            ASSERT_TRUE(c.waitFor(SyncStallState(false), TIMEOUT));
+            ASSERT_TRUE(c.waitFor(SyncStallState(false), chrono::seconds(8)));
         }
 
         // Update model.
@@ -11368,7 +11367,7 @@ TEST_F(SyncTest, RemoteReplaceFile)
     ASSERT_TRUE(c.waitForNodesUpdated(30)) << " no actionpacket received in c";
 
     // Wait for sync to complete.
-    waitonsyncs(TIMEOUT, &c);
+    waitonsyncs(chrono::seconds(4), &c);
 
     // Did the sync complete successfully?
     ASSERT_TRUE(c.confirmModel_mainthread(m.root.get(), id));
