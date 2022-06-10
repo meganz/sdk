@@ -1725,6 +1725,15 @@ public:
     virtual int64_t getTimestamp(unsigned index) const;
 
     /**
+    * @brief Returns a handle related to this alert
+    *
+    * TYPE_NEWSHAREDNODES (folder and files)
+    *
+    * @return MegaHandle related to this request, or INVALID_HANDLE if the index is invalid
+    */
+    virtual MegaHandle getHandle(unsigned index) const;
+
+    /**
     * @brief Returns an additional string, related to the alert
     *
     * The SDK retains the ownership of the returned value. It will be valid until

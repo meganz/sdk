@@ -1166,6 +1166,8 @@ private:
 
     static const char PAYMENT_PUBKEY[];
 
+    void dodiscarduser(User* u, bool discardnotified);
+
 public:
     void enabletransferresumption(const char *loggedoutid = NULL);
     void disabletransferresumption(const char *loggedoutid = NULL);
@@ -1759,6 +1761,9 @@ public:
 
     // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
     handle getFolderLinkPublicHandle();
+
+    // check if end call reason is valid
+    bool isValidEndCallReason(int reason);
 
     // check if there is a valid folder link (rootnode received and the valid key)
     bool isValidFolderLink();

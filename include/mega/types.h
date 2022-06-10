@@ -793,7 +793,8 @@ enum SmsVerificationState {
 
 typedef enum
 {
-    END_CALL_REASON_REJECTED    = 0x02,    /// 1on1 call was rejected while ringing
+    END_CALL_REASON_REJECTED     = 0x02,    /// 1on1 call was rejected while ringing
+    END_CALL_REASON_BY_MODERATOR = 0x06,    /// group or meeting call has been ended by moderator
 } endCall_t;
 
 typedef unsigned int achievement_class_id;

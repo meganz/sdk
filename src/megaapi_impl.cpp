@@ -2034,6 +2034,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         nodeHandle = p->parentHandle;
         numbers.push_back(p->folderCount);
         numbers.push_back(p->fileCount);
+        handles.assign(p->items.begin(), p->items.end());
     }
     break;
     case UserAlert::type_d:
@@ -2184,6 +2185,11 @@ int64_t MegaUserAlertPrivate::getTimestamp(unsigned index) const
 const char* MegaUserAlertPrivate::getString(unsigned index) const
 {
     return index < extraStrings.size() ? extraStrings[index].c_str() : NULL;
+}
+
+MegaHandle MegaUserAlertPrivate::getHandle(unsigned index) const
+{
+    return index < handles.size() ? handles[index] : INVALID_HANDLE;
 }
 
 bool MegaUserAlertPrivate::isOwnChange() const
@@ -7634,21 +7640,18 @@ void MegaApiImpl::setUserAttr(int type, const char *value, MegaRequestListener *
 char *MegaApiImpl::getAvatarColor(handle userhandle)
 {
     string colors[] = {
-        "#4ADC95",
-        "#10CC37",
-        "#31B500",
-        "#00897B",
-        "#00ACC1",
-        "#61D2FF",
-        "#2BA6DE",
-        "#FFD300",
-        "#FFA500",
-        "#FF6F00",
-        "#D84D02",
-        "#FF5252",
-        "#FF333A",
-        "#C51162",
-        "#880E4F"
+        "#55D2F0", // Blue
+        "#BC2086", // Eggplant
+        "#FFD200", // Gold
+        "#5FDB00", // Green
+        "#00BDB2", // Jade
+        "#FFA700", // Orange
+        "#E4269B", // Purple
+        "#FF626C", // Red
+        "#FF8989", // Salmon
+        "#9AEAFF", // Sky
+        "#00D5E2", // Teal
+        "#FFEB00"  // Yellow
     };
 
     auto index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
@@ -7659,21 +7662,18 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
 char *MegaApiImpl::getAvatarSecondaryColor(handle userhandle)
 {
     string colors[] = {
-        "#64FFB3",
-        "#13F241",
-        "#5FDB00",
-        "#00BDB2",
-        "#00D5E2",
-        "#9AEAFF",
-        "#55D2F0",
-        "#FFEB00",
-        "#FFD200",
-        "#FFA700",
-        "#FF8700",
-        "#FF8989",
-        "#FF626C",
-        "#E4269B",
-        "#BC2086"
+        "#2BA6DE", // Blue
+        "#880E4F", // Eggplant
+        "#FFA500", // Gold
+        "#31B500", // Green
+        "#00897B", // Jade
+        "#FF6F00", // Orange
+        "#C51162", // Purple
+        "#FF333A", // Red
+        "#FF5252", // Salmon
+        "#61D2FF", // Sky
+        "#00ACC1", // Teal
+        "#FFD300"  // Yellow
     };
 
     auto index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
@@ -9145,11 +9145,13 @@ void MegaApiImpl::resetTotalUploads()
 MegaNode *MegaApiImpl::getRootNode()
 {
     // return without locking the main mutex if possible.
+    // (always lock for folder links, since node attributes can change)
     // Only compare fixed-location 8-byte values
     lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->rootnodes.files.isUndef()) return nullptr;
     if (!mLastKnownRootNode ||
-         mLastKnownRootNode->getHandle() != client->rootnodes.files.as8byte())
+            client->loggedIntoFolder() ||
+            mLastKnownRootNode->getHandle() != client->rootnodes.files.as8byte())
     {
         // ok now lock main mutex
         SdkMutexGuard lock(sdkMutex);
@@ -23092,10 +23094,25 @@ void MegaApiImpl::sendPendingRequests()
             handle chatid = request->getNodeHandle();
             handle callid = request->getParentHandle();
             int reason = request->getAccess();
-            if (chatid == INVALID_HANDLE || callid == INVALID_HANDLE || reason != END_CALL_REASON_REJECTED)
+            if (chatid == INVALID_HANDLE
+                    || callid == INVALID_HANDLE
+                    || !client->isValidEndCallReason(reason))
             {
-                // for the moment just REJECTED(0x02) reason is valid
                 e = API_EARGS;
+                break;
+            }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            TextChat* chat = it->second;
+            if (reason == END_CALL_REASON_BY_MODERATOR && !chat->group)
+            {
+                e = API_EACCESS;
                 break;
             }
 
