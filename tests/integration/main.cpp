@@ -23,6 +23,11 @@ std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
 string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
 
+#ifdef ENABLE_SYNC
+
+ClientManager g_clientManager;
+
+#endif // ENABLE_SYNC
 
 void WaitMillisec(unsigned n)
 {
@@ -448,3 +453,20 @@ std::unique_ptr<::mega::FileSystemAccess> makeFsAccess()
     return ::mega::make_unique<FSACCESS_CLASS>();
 }
 
+fs::path makeReusableClientFolder(const string& subfolder)
+{
+#ifdef WIN32
+    auto pid = GetCurrentProcessId();
+#else
+    auto pid = getpid();
+#endif
+
+    fs::path p = TestFS::GetTestBaseFolder() / ("clients_" + std::to_string(pid)) / subfolder;
+
+#ifndef NDEBUG
+    bool b =
+#endif
+    fs::create_directories(p);
+    assert(b);
+    return p;
+}
