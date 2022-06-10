@@ -217,15 +217,10 @@ public:
 
 std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
-class SyncdownContext
+struct SyncdownContext
 {
-public:
-    SyncdownContext()
-      : mActionsPerformed(false)
-    {
-    }
-
-    bool mActionsPerformed;
+    bool mActionsPerformed = false;
+    bool mForeignChangeDetected = false;
 }; // SyncdownContext
 
 class MEGA_API MegaClient

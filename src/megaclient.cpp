@@ -14183,11 +14183,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
 
     SyncdownContext cxt;
 
-    cxt.mActionsPerformed = false;
-
     if (!syncdown(l, localpath, cxt))
     {
         return false;
+    }
+
+    if (cxt.mForeignChangeDetected)
+    {
+        return true;
     }
 
     if (!l->sync->isBackupAndMirroring())
@@ -14318,8 +14321,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
                 else if (l->sync->isBackupMonitoring())
                 {
-                    // Disable the sync and tell our caller we've failed.
-                    return l->sync->backupModified();
+                    // Let the caller know we've detected a foreign change.
+                    cxt.mForeignChangeDetected = true;
+
+                    // Disable the sync and return to our caller.
+                    l->sync->backupModified();
+
+                    // Don't forget to signal any other error conditions.
+                    return success;
                 }
             }
             else if (ll->type == FILENODE)
@@ -14393,9 +14402,12 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
 
                 // recurse into directories of equal name
-                if (!syncdown(ll, localpath, cxt) && success)
+                success &= syncdown(ll, localpath, cxt);
+
+                // Bail if the callee detected a foreign change.
+                if (cxt.mForeignChangeDetected)
                 {
-                    success = false;
+                    return success;
                 }
 
                 nchildren.erase(rit);
@@ -14434,8 +14446,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             }
             else if (l->sync->isBackupMonitoring())
             {
-                // Disable the sync and tell our caller we've failed.
-                return l->sync->backupModified();
+                // Let our caller know there's been a foreign change.
+                cxt.mForeignChangeDetected = true;
+
+                // Disable the sync and return to the caller.
+                l->sync->backupModified();
+
+                // Make sure we persist any (other) error condition.
+                return success;
             }
 
             if (ll->deleted)
@@ -14501,8 +14519,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             }
             else if (l->sync->isBackupMonitoring())
             {
-                // Disable the sync and tell our caller we've failed.
-                return l->sync->backupModified();
+                // Let the caller know we've detected a foreign change.
+                cxt.mForeignChangeDetected = true;
+
+                // Disable the sync and return to our caller.
+                l->sync->backupModified();
+
+                // Make sure to signal any other error conditions.
+                return success;
             }
             else if (rit->second->localnode->parent)
             {
@@ -14592,8 +14616,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                         }
                         else if (l->sync->isBackupMonitoring())
                         {
-                            // Disable sync and let the caller know we've failed.
-                            return l->sync->backupModified();
+                            // Let the caller know we've detected a foreign change.
+                            cxt.mForeignChangeDetected = true;
+
+                            // Disable the sync and return to the caller.
+                            l->sync->backupModified();
+
+                            // Make sure to signal any other error conditions.
+                            return success;
                         }
                         else
                         {
@@ -14625,8 +14655,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
                 else if (l->sync->isBackupMonitoring())
                 {
-                    // Disable the sync as we have a mismatch.
-                    return l->sync->backupModified();
+                    // Let the caller know we've detected a foreign change.
+                    cxt.mForeignChangeDetected = true;
+
+                    // Disable the sync and return the caller.
+                    l->sync->backupModified();
+
+                    // Don't forget to signal other error conditions.
+                    return success;
                 }
                 else
                 {
@@ -14655,10 +14691,18 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             ll->setnode(rit->second);
                             ll->sync->statecacheadd(ll);
 
-                            if (!syncdown(ll, localpath, cxt) && success)
+                            auto result = syncdown(ll, localpath, cxt);
+
+                            if ((!result && success) || cxt.mForeignChangeDetected)
                             {
                                 LOG_debug << "Syncdown not finished";
-                                success = false;
+                            }
+
+                            success &= result;
+
+                            if (cxt.mForeignChangeDetected)
+                            {
+                                return success;
                             }
                         }
                         else
