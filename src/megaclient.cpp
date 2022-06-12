@@ -14190,6 +14190,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
 
     if (cxt.mBackupForeignChangeDetected)
     {
+        assert(l->sync->isBackup());
+
         return true;
     }
 
@@ -14199,6 +14201,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
     }
 
     bool mirrorStable = true;
+
+    assert(l->sync->isBackup());
 
     // SCs must have been processed.
     mirrorStable &= statecurrent;
@@ -14407,6 +14411,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 // Bail if the callee detected a foreign change.
                 if (cxt.mBackupForeignChangeDetected)
                 {
+                    assert(l->sync->isBackup());
+
                     return success;
                 }
 
