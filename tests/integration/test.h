@@ -151,8 +151,8 @@ struct Model
         ModelNode& cloudName(const string& name);
         const string& cloudName() const;
         void generate(const fs::path& path, bool force);
-        string path();
-        string fsPath();
+        string path() const;
+        string fsPath() const;
         ModelNode* addkid();
         ModelNode* addkid(unique_ptr<ModelNode>&& p);
         bool typematchesnodetype(nodetype_t nodetype) const;

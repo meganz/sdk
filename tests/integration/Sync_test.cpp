@@ -228,7 +228,7 @@ void Model::ModelNode::generate(const fs::path& path, bool force)
     }
 }
 
-string Model::ModelNode::path()
+string Model::ModelNode::path() const
 {
     string s;
     for (auto p = this; p; p = p->parent)
@@ -236,7 +236,7 @@ string Model::ModelNode::path()
     return s;
 }
 
-string Model::ModelNode::fsPath()
+string Model::ModelNode::fsPath() const
 {
     string s;
     for (auto p = this; p; p = p->parent)
@@ -1771,7 +1771,13 @@ SyncConfig StandardClient::syncConfigByBackupID(handle backupID) const
 bool StandardClient::syncSet(handle backupId, SyncInfo& info) const
 {
     SyncConfig c;
-    if (client.syncs.syncConfigByBackupId(backupId, c))
+
+    auto found = client.syncs.syncConfigByBackupId(backupId, c);
+    EXPECT_TRUE(found)
+      << "Unable to find sync with backup ID: "
+      << toHandle(backupId);
+
+    if (found)
     {
         info.h = c.mRemoteNode;
         info.localpath = c.getLocalPath().toPath();
@@ -3322,6 +3328,13 @@ bool StandardClient::match(handle id, const Model::ModelNode* source)
         client.match(id, source, std::move(result));
     });
 
+    auto status = result.wait_for(DEFAULTWAIT);
+
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
     return result.get();
 }
 
@@ -3329,13 +3342,15 @@ void StandardClient::match(handle id, const Model::ModelNode* source, PromiseBoo
 {
     SyncInfo info;
 
-    if (!syncSet(id, info))
-    {
-        result->set_value(false);
-        return;
-    }
+    auto found = syncSet(id, info);
+    EXPECT_TRUE(found);
+
+    if (!found)
+        return result->set_value(false);
 
     const auto* destination = client.nodeByHandle(info.h);
+    EXPECT_TRUE(destination);
+
     result->set_value(destination && match(*destination, *source));
 }
 
@@ -3353,10 +3368,12 @@ bool StandardClient::match(NodeHandle handle, const Model::ModelNode* source)
 
 void StandardClient::match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result)
 {
+    EXPECT_TRUE(source);
     if (!source)
         return result->set_value(false);
 
     auto node = client.nodeByHandle(handle);
+    EXPECT_TRUE(node);
 
     result->set_value(node && match(*node, *source));
 }
@@ -3390,6 +3407,7 @@ bool StandardClient::waitFor(std::function<bool(StandardClient&)>&& predicate, c
 bool StandardClient::match(const Node& destination, const Model::ModelNode& source) const
 {
     list<pair<const Node*, decltype(&source)>> pending;
+    auto matched = true;
 
     pending.emplace_back(&destination, &source);
 
@@ -3399,27 +3417,94 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
         const auto& sn = *pending.front().second;
 
         // Nodes must have matching types.
-        if (!sn.typematchesnodetype(dn.type)) return false;
+        if (!sn.typematchesnodetype(dn.type))
+        {
+            EXPECT_TRUE(sn.typematchesnodetype(dn.type))
+              << "Cloud model/type mismatch: "
+              << dn.displaypath()
+              << "("
+              << dn.type
+              << ")"
+              << " vs. "
+              << sn.path()
+              << "("
+              << sn.type
+              << ")";
+
+            matched = false;
+            continue;
+        }
 
         // Files require no further processing.
         if (dn.type == FILENODE) continue;
 
         map<string, decltype(&dn), CloudNameLess> dc;
         map<string, decltype(&sn), CloudNameLess> sc;
+        set<string, CloudNameLess> dd;
+        set<string, CloudNameLess> sd;
 
         // Index children for pairing.
         for (const auto* child : dn.children)
         {
+            string name = child->displayname();
+
+            // Duplicate already reported?
+            EXPECT_EQ(dd.find(name), dd.end())
+              << "Cloud name conflict: "
+              << child->displaypath();
+
+            if (dd.count(name))
+                continue;
+
             auto result = dc.emplace(child->displayname(), child);
 
-            // For simplicity, duplicates consistute a match failure.
-            if (!result.second) return false;
+            // Didn't exist? No duplicate.
+            EXPECT_TRUE(result.second)
+             << "Cloud name conflict: "
+             << child->displaypath();
+
+            if (result.second)
+                continue;
+
+            // Remmber the duplicate (name conflict.)
+            dc.erase(result.first);
+            dd.emplace(name);
+
+            matched = false;
         }
 
         for (const auto& child : sn.kids)
         {
+            auto name = child->cloudName();
+
+            // Duplicate already reported?
+            EXPECT_EQ(dd.find(name), dd.end())
+              << "Model node excluded due to cloud duplicates: "
+              << child->path();
+
+            EXPECT_EQ(sd.find(name), sd.end())
+              << "Model name conflict: "
+              << child->path();
+
+            if (dd.count(name) || sd.count(name))
+                continue;
+
             auto result = sc.emplace(child->cloudName(), child.get());
-            if (!result.second) return false;
+
+            // Didn't exist? No duplicate.
+            EXPECT_TRUE(result.second)
+              << "Model name conflict: "
+              << child->path();
+
+            if (result.second)
+                continue;
+
+            // Remember the duplicate.
+            dc.erase(name);
+            sc.erase(result.first);
+            sd.emplace(name);
+
+            matched = false;
         }
 
         // Pair children.
@@ -3437,8 +3522,15 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
             // Does this node have a pair in the destination?
             auto d = dc.find(s.first);
 
+            EXPECT_NE(d, dc.end())
+              << "Model node has no pair in cloud: "
+              << s.second->path();
+
+            matched &= d != dc.end();
+
             // If not then there can be no match.
-            if (d == dc.end()) return false;
+            if (d == dc.end())
+                continue;
 
             // Queue pair for more detailed matching.
             pending.emplace_back(d->second, s.second);
@@ -3448,10 +3540,20 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
         }
 
         // Can't have a match if we couldn't pair all destination nodes.
-        if (!dc.empty()) return false;
+        EXPECT_TRUE(dc.empty())
+         << "Cloud nodes exist with no pair in the model.";
+
+        for (const auto& d : dc)
+        {
+            EXPECT_TRUE(false)
+              << "Cloud node has no pair in the model: "
+              << d.second->displaypath();
+        }
+
+        matched &= dc.empty();
     }
 
-    return true;
+    return matched;
 }
 
 bool StandardClient::backupOpenDrive(const fs::path& drivePath)
