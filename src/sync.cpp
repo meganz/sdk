@@ -9048,7 +9048,7 @@ std::future<bool> Syncs::moveToLocalDebris(LocalPath path)
     auto notifier = std::make_shared<std::promise<bool>>();
     auto result = notifier->get_future();
 
-    queueSync([notifier, path = std::move(path), this]() mutable {
+    queueSync([notifier, path, this]() mutable {
         // What sync contains this path?
         auto* sync = syncContainingPath(path, true);
 
