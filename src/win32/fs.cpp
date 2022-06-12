@@ -2019,4 +2019,27 @@ bool isReservedName(const FileSystemAccess& fsAccess,
     return isReservedName(name.toName(fsAccess), type);
 }
 
+m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
+{
+    m_off_t constexpr maximumBytes = std::numeric_limits<m_off_t>::max();
+    ULARGE_INTEGER numBytes;
+
+    if (!GetDiskFreeSpaceExW(drivePath.localpath.c_str(), &numBytes, nullptr, nullptr))
+    {
+        auto result = GetLastError();
+
+        LOG_warn << "Unable to retrieve available disk space for: "
+                 << drivePath.toPath()
+                 << ". Error code was: "
+                 << result;
+
+         return maximumBytes;
+    }
+
+    if (numBytes.QuadPart >= (uint64_t)maximumBytes)
+        return maximumBytes;
+
+    return (m_off_t)numBytes.QuadPart;
+}
+
 } // namespace

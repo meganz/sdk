@@ -17871,7 +17871,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
-                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag);
+                    error result = API_OK;
+                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag, &result);
                     if (!started)
                     {
                         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -17919,7 +17920,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_CANCELLED);
-                            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EEXIST), committer);
+                            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(result), committer);
                         }
                     }
                     currentTransfer = NULL;
@@ -18106,7 +18107,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
                     f->setTransfer(transfer);
 
                     bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
-                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag);
+                    error result = API_OK;
+                    bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag, &result);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -18124,7 +18126,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         transfer->setStartTime(Waiter::ds);
                         transfer->setUpdateTime(Waiter::ds);
                         transfer->setState(MegaTransfer::STATE_CANCELLED);
-                        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EEXIST), committer);
+                        fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(result), committer);
                     }
                 }
                 else
