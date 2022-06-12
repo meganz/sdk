@@ -9095,11 +9095,7 @@ void PrepareForSync(StandardClient& client)
 bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
                         chrono::seconds timeout)
 {
-    auto total = std::chrono::milliseconds(0);
-    constexpr auto sleepIncrement = std::chrono::milliseconds(500);
-
-    do
-    {
+    auto check = [&]() {
         auto i = testcases.begin();
         auto j = testcases.end();
 
@@ -9115,12 +9111,24 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
 
             if (!client.match(id, model.findnode("f")))
             {
-                out() << "Cloud/model misatch: " << testcase.name();
-                break;
+                out() << "Cloud/model misatch: "
+                      << client.client.clientname
+                      << ": "
+                      << testcase.name();
+
+                return false;
             }
         }
 
-        if (i == j)
+        return true;
+    };
+
+    auto total = std::chrono::milliseconds(0);
+    constexpr auto sleepIncrement = std::chrono::milliseconds(500);
+
+    do
+    {
+        if (check())
         {
             out() << "Cloud/model matched.";
             return true;
@@ -9133,9 +9141,13 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
     }
     while (total < timeout);
 
-    out() << "Timed out waiting for cloud/model match.";
+    if (!check())
+    {
+        out() << "Timed out waiting for cloud/model match.";
+        return false;
+    }
 
-    return false;
+    return true;
 }
 
 TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
