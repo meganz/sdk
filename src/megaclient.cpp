@@ -9472,7 +9472,7 @@ void MegaClient::login(string session)
         }
         else
         {
-            mNodeManager.setRootNodeFiles(NodeHandle().set6byte(rootnode));
+            mNodeManager.setRootNodeFiles(NodeHandle(rootnode));
             restag = reqtag;
 
             if (mNodeManager.getRootNodeFiles().isUndef())

@@ -270,6 +270,13 @@ class NodeHandle
     // This class helps avoid issues when we don't save/restore the top 2 bytes when using an 8 byte uint64 to represent it
     uint64_t h = 0xFFFFFFFFFFFFFFFF;
 public:
+    NodeHandle() 
+    {
+    }
+    explicit NodeHandle(uint64_t n)
+    {
+        set6byte(n);
+    }
     bool isUndef() const { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
     void setUndef() { h = 0xFFFFFFFFFFFFFFFF; }
     NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0 || n == 0xFFFFFFFFFFFFFFFF); return *this; }
