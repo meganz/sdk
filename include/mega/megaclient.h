@@ -219,8 +219,8 @@ std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
 struct SyncdownContext
 {
-    bool mActionsPerformed = false;
-    bool mForeignChangeDetected = false;
+    bool mBackupActionsPerformed = false;
+    bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
 
 class MEGA_API MegaClient

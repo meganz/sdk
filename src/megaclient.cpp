@@ -14188,7 +14188,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
         return false;
     }
 
-    if (cxt.mForeignChangeDetected)
+    if (cxt.mBackupForeignChangeDetected)
     {
         return true;
     }
@@ -14204,7 +14204,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
     mirrorStable &= statecurrent;
 
     // Syncdown must not have performed any actions.
-    mirrorStable &= !cxt.mActionsPerformed;
+    mirrorStable &= !cxt.mBackupActionsPerformed;
 
     // Scan queue must be empty.
     mirrorStable &= l->sync->dirnotify->empty();
@@ -14311,7 +14311,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 if (l->sync->isBackupAndMirroring())
                 {
                     // Mirror hasn't stabilized yet.
-                    cxt.mActionsPerformed = true;
+                    cxt.mBackupActionsPerformed = true;
 
                     // Detach the remote, re-upload if necessary.
                     ll->detach(true);
@@ -14322,7 +14322,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 else if (l->sync->isBackupMonitoring())
                 {
                     // Let the caller know we've detected a foreign change.
-                    cxt.mForeignChangeDetected = true;
+                    cxt.mBackupForeignChangeDetected = true;
 
                     // Disable the sync and return to our caller.
                     l->sync->backupModified();
@@ -14405,7 +14405,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 success &= syncdown(ll, localpath, cxt);
 
                 // Bail if the callee detected a foreign change.
-                if (cxt.mForeignChangeDetected)
+                if (cxt.mBackupForeignChangeDetected)
                 {
                     return success;
                 }
@@ -14438,7 +14438,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             if (l->sync->isBackupAndMirroring())
             {
                 // Mirror hasn't stabilized.
-                cxt.mActionsPerformed = true;
+                cxt.mBackupActionsPerformed = true;
 
                 // Re-upload the node.
                 ll->created = false;
@@ -14447,7 +14447,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             else if (l->sync->isBackupMonitoring())
             {
                 // Let our caller know there's been a foreign change.
-                cxt.mForeignChangeDetected = true;
+                cxt.mBackupForeignChangeDetected = true;
 
                 // Disable the sync and return to the caller.
                 l->sync->backupModified();
@@ -14480,7 +14480,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             if (l->sync->isBackupAndMirroring())
             {
                 // Local node needs to be uploaded.
-                cxt.mActionsPerformed |= !ll->node;
+                cxt.mBackupActionsPerformed |= !ll->node;
             }
 
             lit++;
@@ -14509,7 +14509,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             if (l->sync->isBackupAndMirroring())
             {
                 // Mirror hasn't stabilized.
-                cxt.mActionsPerformed = true;
+                cxt.mBackupActionsPerformed = true;
 
                 // Detach the remote, re-upload the local if necessary.
                 rit->second->detach(true);
@@ -14520,7 +14520,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             else if (l->sync->isBackupMonitoring())
             {
                 // Let the caller know we've detected a foreign change.
-                cxt.mForeignChangeDetected = true;
+                cxt.mBackupForeignChangeDetected = true;
 
                 // Disable the sync and return to our caller.
                 l->sync->backupModified();
@@ -14609,7 +14609,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                         if (l->sync->isBackupAndMirroring())
                         {
                             // Mirror hasn't stabilized.
-                            cxt.mActionsPerformed = true;
+                            cxt.mBackupActionsPerformed = true;
 
                             // Debris the remote.
                             movetosyncdebris(rit->second, l->sync->inshare);
@@ -14617,7 +14617,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                         else if (l->sync->isBackupMonitoring())
                         {
                             // Let the caller know we've detected a foreign change.
-                            cxt.mForeignChangeDetected = true;
+                            cxt.mBackupForeignChangeDetected = true;
 
                             // Disable the sync and return to the caller.
                             l->sync->backupModified();
@@ -14648,7 +14648,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 else if (l->sync->isBackupAndMirroring())
                 {
                     // Mirror hasn't stabilized.
-                    cxt.mActionsPerformed = true;
+                    cxt.mBackupActionsPerformed = true;
 
                     // Remove the remote.
                     movetosyncdebris(rit->second, l->sync->inshare);
@@ -14656,7 +14656,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 else if (l->sync->isBackupMonitoring())
                 {
                     // Let the caller know we've detected a foreign change.
-                    cxt.mForeignChangeDetected = true;
+                    cxt.mBackupForeignChangeDetected = true;
 
                     // Disable the sync and return the caller.
                     l->sync->backupModified();
@@ -14691,18 +14691,10 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             ll->setnode(rit->second);
                             ll->sync->statecacheadd(ll);
 
-                            auto result = syncdown(ll, localpath, cxt);
-
-                            if ((!result && success) || cxt.mForeignChangeDetected)
+                            if (!syncdown(ll, localpath, cxt) && success)
                             {
                                 LOG_debug << "Syncdown not finished";
-                            }
-
-                            success &= result;
-
-                            if (cxt.mForeignChangeDetected)
-                            {
-                                return success;
+                                success = false;
                             }
                         }
                         else
