@@ -382,11 +382,38 @@ public:
     // If some value is set previously (setParent), this value will be removed
     void initializeCounters();
 
+    NodeHandle getRootNodeFiles() {
+        return rootnodes.files;
+    }
+    NodeHandle getRootNodeInbox() {
+        return rootnodes.inbox;
+    }
+    NodeHandle getRootNodeRubbish() {
+        return rootnodes.rubbish;
+    }
+    void setRootNodeFiles(NodeHandle h) {
+        rootnodes.files = h;
+    }
+    void setRootNodeInbox(NodeHandle h) {
+        rootnodes.inbox = h;
+    }
+    void setRootNodeRubbish(NodeHandle h) {
+        rootnodes.rubbish = h;
+    }
+
 private:
     MegaClient& mClient;
 
     // interface to handle accesses to "nodes" table
     DBTableNodes* mTable = nullptr;
+
+    // root nodes (files, incoming, rubbish)
+    struct Rootnodes
+    {
+        NodeHandle files;
+        NodeHandle inbox;
+        NodeHandle rubbish;
+    } rootnodes;
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     node_map mNodes;
@@ -442,14 +469,6 @@ public:
     // own identity
     handle me;
     string uid;
-
-    // root nodes (files, incoming, rubbish)
-    struct Rootnodes
-    {
-        NodeHandle files;
-        NodeHandle inbox;
-        NodeHandle rubbish;
-    } rootnodes;
 
     // all users
     user_map users;

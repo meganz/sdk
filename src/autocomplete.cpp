@@ -741,12 +741,12 @@ bool MegaFS::addCompletions(ACState& s)
                     if (s.word().s.size() >= 5 && !strncmp(s.word().s.c_str(), "//in/", 5))
                     {
                         pathprefix = "//in/";
-                        n = client->nodeByHandle(client->rootnodes.inbox);
+                        n = client->nodeByHandle(client->mNodeManager.getRootNodeInbox());
                     }
                     else if (s.word().s.size() >= 6 && !strncmp(s.word().s.c_str(), "//bin/", 6))
                     {
                         pathprefix = "//bin/";
-                        n = client->nodeByHandle(client->rootnodes.rubbish);
+                        n = client->nodeByHandle(client->mNodeManager.getRootNodeInbox());
                     }
                     else
                     {
@@ -758,7 +758,7 @@ bool MegaFS::addCompletions(ACState& s)
                 else
                 {
                     pathprefix = "/";
-                    n = client->nodeByHandle(client->rootnodes.files);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
                 }
             }
             else

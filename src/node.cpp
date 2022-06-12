@@ -701,7 +701,7 @@ bool Node::applykey()
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
-    handle me = client->loggedin() ? client->me : client->rootnodes.files.as8byte();
+    handle me = client->loggedin() ? client->me : client->mNodeManager.getRootNodeFiles().as8byte();
 
     while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {
@@ -1533,7 +1533,7 @@ void LocalNode::completed(Transfer* t, putsource_t source)
     // exist or is newer
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
-        h = t->client->rootnodes.rubbish;
+        h = t->client->mNodeManager.getRootNodeRubbish();
     }
     else
     {

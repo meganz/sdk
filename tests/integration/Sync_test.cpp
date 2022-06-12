@@ -1492,7 +1492,7 @@ void StandardClient::fetchnodes(bool noCache, PromiseBoolSP pb)
             else
             {
                 TreeProcPrintTree tppt;
-                client.proctree(client.nodeByHandle(client.rootnodes.files), &tppt);
+                client.proctree(client.nodeByHandle(client.mNodeManager.getRootNodeFiles()), &tppt);
 
                 if (onFetchNodes)
                 {
@@ -1574,7 +1574,7 @@ unsigned StandardClient::deleteTestBaseFolder(bool mayNeedDeleting)
 
 void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, PromiseUnsignedSP result)
 {
-    if (Node* root = client.nodeByHandle(client.rootnodes.files))
+    if (Node* root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
     {
         if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
         {
@@ -1607,7 +1607,7 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
 
 void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
 {
-    if (Node* root = client.nodeByHandle(client.rootnodes.files))
+    if (Node* root = client.nodeByHandle(client.mNodeManager.getRootNodeFiles()))
     {
         if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
         {
@@ -1752,7 +1752,7 @@ StandardClient::SyncInfo StandardClient::syncSet(handle backupId) const
 
 Node* StandardClient::getcloudrootnode()
 {
-    return client.nodeByHandle(client.rootnodes.files);
+    return client.nodeByHandle(client.mNodeManager.getRootNodeFiles());
 }
 
 Node* StandardClient::gettestbasenode()
@@ -1762,7 +1762,7 @@ Node* StandardClient::gettestbasenode()
 
 Node* StandardClient::getcloudrubbishnode()
 {
-    return client.nodeByHandle(client.rootnodes.rubbish);
+    return client.nodeByHandle(client.mNodeManager.getRootNodeRubbish());
 }
 
 Node* StandardClient::getsyncdebrisnode()
@@ -5077,7 +5077,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
 
-    auto targethandle = standardclient.client.rootnodes.files;
+    auto targethandle = standardclient.client.mNodeManager.getRootNodeFiles();
 
     std::atomic<bool> putnodesDone{false};
     standardclient.resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
