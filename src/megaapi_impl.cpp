@@ -1310,7 +1310,7 @@ MegaSyncStallPrivate::reasonDebugString(MegaSyncStall::SyncStallReason reason)
 const char*
 MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reason)
 {
-    static_assert((int)PathProblem::NoProblem == (int)MegaSyncStall::SyncPathProblem::NoProblem);
+    static_assert((int)PathProblem::NoProblem == (int)MegaSyncStall::SyncPathProblem::NoProblem, "");
 
     static_assert((int)PathProblem::FileChangingFrequently == (int)MegaSyncStall::SyncPathProblem::FileChangingFrequently, "");
     static_assert((int)PathProblem::IgnoreRulesUnknown == (int)MegaSyncStall::SyncPathProblem::IgnoreRulesUnknown, "");
