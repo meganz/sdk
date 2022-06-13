@@ -4740,7 +4740,7 @@ TEST_F(SyncTest, BasicSync_DelRemoteFolder)
 
     // delete something remotely and let sync catch up
     ASSERT_TRUE(clientA1->deleteremote("f/f_2/f_2_1"));
-    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
+    waitonsyncs(std::chrono::seconds(30), clientA1, clientA2);
 
     // check everything matches in both syncs (model has expected state of remote and local)
     ASSERT_TRUE(model.movetosynctrash("f/f_2/f_2_1", "f"));
@@ -4788,7 +4788,7 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
+    waitonsyncs(std::chrono::seconds(20), clientA1, clientA2);
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(model.movetosynctrash("f/f_2/f_2_1", "f"));
