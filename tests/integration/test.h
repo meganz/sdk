@@ -772,7 +772,7 @@ public:
 
     StandardClientInUse getCleanStandardClient(int loginIndex, fs::path workingFolder);
 
-    void shutdown();
+    ~ClientManager();
 };
 
 extern ClientManager g_clientManager;

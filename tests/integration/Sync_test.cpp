@@ -670,9 +670,14 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
     return StandardClientInUse(--clients[loginIndex].end());
 }
 
-void ClientManager::shutdown()
+ClientManager::~ClientManager()
 {
-    clients.clear();
+    while (clients.size())
+    {
+        LOG_debug << "Shutting down ClientManager, remaining: " << clients.size();
+        clients.erase(clients.begin());
+    }
+    LOG_debug << "ClientManager shutdown complete";
 }
 
 void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h)
@@ -802,6 +807,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
 
 StandardClient::~StandardClient()
 {
+    LOG_debug << "StandardClient exiting";
     // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
     auto result =
         thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
@@ -812,10 +818,12 @@ StandardClient::~StandardClient()
 
     // Make sure logout completes before we escape.
     result.get();
+    LOG_debug << "~StandardClient final locallogout complete";
 
     clientthreadexit = true;
     waiter.notify();
     clientthread.join();
+    LOG_debug << "~StandardClient end of function (work thread joined)";
 }
 
 void StandardClient::localLogout()
@@ -10265,11 +10273,11 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
     // Share the test root with client 1.
     ASSERT_TRUE(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL));
-    ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), DEFAULTWAIT));
+    ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), std::chrono::seconds(90)));
 
     // Share the sync root with client 2.
     ASSERT_TRUE(client0.share(*s, getenv("MEGA_EMAIL_AUX2"), FULL));
-    ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(*s), DEFAULTWAIT));
+    ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(*s), std::chrono::seconds(90)));
 
     // Add and start a new sync.
     auto id = UNDEF;
