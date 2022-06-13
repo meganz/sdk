@@ -4354,16 +4354,19 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
 
 vector<SyncWaitResult> waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
 {
-    auto endCondition = [d](int64_t millisecNoActivity, int64_t millisecNoSyncing) {
-        return std::chrono::duration_cast<chrono::milliseconds>(d).count() < millisecNoActivity
-            && std::chrono::duration_cast<chrono::milliseconds>(d).count() < millisecNoSyncing;
+    auto endCondition = [d](int64_t millisecNoActivity, int64_t millisecNoSyncing)
+    {
+        auto n = std::chrono::duration_cast<chrono::milliseconds>(d).count();
+        bool result = millisecNoActivity > n &&  millisecNoSyncing > n;
+        if (result)
+        {
+            LOG_debug << "waitonsyncs complete after " << millisecNoActivity << " ms of no activity and " << millisecNoSyncing << " ms of no syncing";
+        }
+        return result;
     };
 
     return waitonsyncs(endCondition, c1, c2, c3, c4);
 }
-
-
-
 
 
 mutex StandardClient::om;

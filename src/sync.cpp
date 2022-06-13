@@ -7976,7 +7976,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                         return false;
                     }
                 }
-                
+
                 // FIXME: to cover renames that occur during the
                 // download, reconstruct localname in complete()
                 LOG_debug << syncname << "Start sync download: " << row.syncNode << logTriplet(row, fullPath);
@@ -10078,7 +10078,8 @@ void Syncs::syncLoop()
         if (syncStallState &&
             (waiter.ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
             (waiter.ds > mSyncFlags->recursiveSyncLastCompletedDs) &&
-            !lastLoopEarlyExit)
+            !lastLoopEarlyExit &&
+            !mSyncVec.empty())
         {
             LOG_debug << "Don't process syncs too often in stall state";
             continue;
