@@ -812,13 +812,21 @@ StandardClient::~StandardClient()
     auto result =
         thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
                         {
-                            mc.logout(false);
-                            result->set_value(true);
+                            if (mc.loggedin() == FULLACCOUNT)
+                            {
+                                mc.logout(false);
+                                result->set_value(true);
+                            }
+                            else result->set_value(false);
                         });
 
     // Make sure logout completes before we escape.
-    result.get();
-    LOG_debug << "~StandardClient final locallogout complete";
+    if (result.get())
+    {
+        // Give it 1 second to send out the logout request, and maybe get a reply
+        WaitMillisec(1000);
+    }
+    LOG_debug << "~StandardClient final logout complete";
 
     clientthreadexit = true;
     waiter.notify();
@@ -4129,8 +4137,8 @@ TEST_F(SyncTest, BasicSync_DelRemoteFolder)
 {
     // delete a remote folder and confirm the client sending the request and another also synced both correctly update the disk
     fs::path localtestroot = makeNewTestRoot();
-    auto clientA1 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 1
-    auto clientA2 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 2
+    auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
+    auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2));
 
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
@@ -4171,8 +4179,8 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
-    auto clientA1 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 1
-    auto clientA2 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 2
+    auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
+    auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2));
 
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
@@ -4218,8 +4226,8 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
-    auto clientA1 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 1
-    auto clientA2 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 2
+    auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
+    auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2));
 
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));

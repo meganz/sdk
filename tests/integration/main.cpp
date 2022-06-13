@@ -228,10 +228,9 @@ public:
 TestMegaLogger megaLogger;
 
 #ifdef ENABLE_SYNC
-    // destroy g_clientManager while the logging is still active
-    ClientManager g_clientManager;
+// destroy g_clientManager while the logging is still active
+ClientManager* g_clientManager = nullptr;
 #endif // ENABLE_SYNC
-
 
 int main (int argc, char *argv[])
 {
@@ -240,6 +239,13 @@ int main (int argc, char *argv[])
         std::cout << "please set username and password env variables for test" << std::endl;
         return 1;
     }
+
+#ifdef ENABLE_SYNC
+    // destroy g_clientManager while the logging is still active, and before global destructors (for things like mutexes) run
+    ClientManager clientManager;
+    g_clientManager = &clientManager;
+#endif // ENABLE_SYNC
+
 
     std::vector<char*> myargv1(argv, argv + argc);
     std::vector<char*> myargv2;

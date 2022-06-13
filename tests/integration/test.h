@@ -775,7 +775,7 @@ public:
     ~ClientManager();
 };
 
-extern ClientManager g_clientManager;
+extern ClientManager* g_clientManager;
 
 #endif // ENABLE_SYNC
 
