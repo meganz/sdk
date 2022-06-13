@@ -122,6 +122,8 @@ public:
 #endif // ENABLE_SYNC
 
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
+
+    m_off_t availableDiskSpace(const LocalPath& drivePath) override;
 };
 
 #ifdef HAVE_AIO_RT

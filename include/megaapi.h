@@ -5256,6 +5256,7 @@ public:
         UNABLE_TO_ADD_WATCH = 38,               // Unable to add a filesystem watch.
         UNABLE_TO_RETRIEVE_ROOT_FSID = 39,      // Unable to retrieve a sync root's FSID.
         UNABLE_TO_OPEN_DATABASE = 40,           // Unable to open state cache database.
+        INSUFFICIENT_DISK_SPACE = 41,           // Insufficient disk space for download.
     };
 
     enum Warning
@@ -6024,7 +6025,9 @@ public:
         PAYMENT_EFRAUD = -103,
         PAYMENT_ETOOMANY = -104,
         PAYMENT_EBALANCE = -105,
-        PAYMENT_EGENERIC = -106
+        PAYMENT_EGENERIC = -106,
+
+        LOCAL_ENOSPC = -1000, ///< Insufficient space.
     };
 
 

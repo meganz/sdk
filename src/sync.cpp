@@ -748,6 +748,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Unable to retrieve sync root FSID.";
     case UNABLE_TO_OPEN_DATABASE:
         return "Unable to open state cache database.";
+    case INSUFFICIENT_DISK_SPACE:
+        return "Insufficient disk space.";
     default:
         return "Undefined error";
     }
@@ -7957,6 +7959,24 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
             {
                 LOG_debug << syncname << "Sync - remote file addition detected: " << row.cloudNode->handle << " " << fullPath.cloudPath;
 
+                // Do we have enough space on disk for this file?
+                {
+                    auto size = row.cloudNode->fingerprint.size;
+
+                    assert(size > 0);
+
+                    if (syncs.fsaccess->availableDiskSpace(mLocalPath) <= size)
+                    {
+                        LOG_debug << syncname
+                                  << "Insufficient space available for download: "
+                                  << logTriplet(row, fullPath);
+
+                        changestate(INSUFFICIENT_DISK_SPACE, false, true, true);
+
+                        return false;
+                    }
+                }
+                
                 // FIXME: to cover renames that occur during the
                 // download, reconstruct localname in complete()
                 LOG_debug << syncname << "Start sync download: " << row.syncNode << logTriplet(row, fullPath);
