@@ -107,6 +107,8 @@ public:
 
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
 
+    m_off_t availableDiskSpace(const LocalPath& drivePath) override;
+
 private:
     bool CheckForSymlink(const LocalPath& lp);
 };

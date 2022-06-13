@@ -214,6 +214,7 @@ typedef enum ErrorCodes : int
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    LOCAL_ENOSPC = -1000,           ///< Insufficient space
 } error;
 
 class Error
@@ -478,6 +479,7 @@ enum SyncError {
     UNABLE_TO_ADD_WATCH = 38,               // Unable to add a filesystem watch.
     UNABLE_TO_RETRIEVE_ROOT_FSID = 39,      // Unable to retrieve a sync root's FSID.
     UNABLE_TO_OPEN_DATABASE = 40,           // Unable to open state cache database.
+    INSUFFICIENT_DISK_SPACE = 41,           // Insufficient space for download.
 };
 
 enum SyncWarning {
