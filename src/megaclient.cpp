@@ -1116,7 +1116,11 @@ Node* MegaClient::childNodeTypeByName(Node *p, const char *name, nodetype_t type
     Node *found = nullptr;
     string nname = name;
     LocalPath::utf8_normalize(&nname);
-    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+
+    // TODO: a DB query could return the matching child nodes directly, avoiding to load all
+    // children
+    node_list nodeList = getChildren(p);
+    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         // if name and node type matches
         if (((*it)->type == type) && !strcmp(nname.c_str(), (*it)->displayname()))
