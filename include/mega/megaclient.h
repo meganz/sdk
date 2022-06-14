@@ -1965,6 +1965,9 @@ public:
     // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
     handle getFolderLinkPublicHandle();
 
+    // check if end call reason is valid
+    bool isValidEndCallReason(int reason);
+
     // check if there is a valid folder link (rootnode received and the valid key)
     bool isValidFolderLink();
 
