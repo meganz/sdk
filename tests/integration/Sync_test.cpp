@@ -3524,10 +3524,13 @@ vector<FileFingerprint> StandardClient::fingerprints(const string& path)
     // Extract the fingerprints from the version chain.
     results.emplace_back(*node);
 
-    while (!node->children.empty())
+    auto nodes = client.mNodeManager.getChildren(node);
+
+    while (!nodes.empty())
     {
-        node = node->children.front();
+        node = nodes.front();
         results.emplace_back(*node);
+        nodes = client.mNodeManager.getChildren(node);
     }
 
     // Pass fingerprints to caller.
