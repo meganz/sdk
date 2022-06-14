@@ -3753,7 +3753,8 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     for (auto i = syncCount; i--;)
     {
         // prepare to handle the result of (intermediary) removal
-        const auto& syncName = mSyncVec[i]->mConfig.mName;
+        size_t idxToRemove = syncsToRemove[i];
+        const auto& syncName = mSyncVec[idxToRemove]->mConfig.mName;
         std::function<void(Error)> nextCompl = i ? nullptr : lastCompletion;
         std::function<void(Error)> completion = [ok, syncName, syncCount, nextCompl](Error e)
         {
@@ -3771,7 +3772,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
         };
 
         // remove current sync
-        error err = removeSyncByIndex(i, bkpDest, skipMoveOrDelBackup, completion);
+        error err = removeSyncByIndex(idxToRemove, bkpDest, skipMoveOrDelBackup, completion);
         if (err != API_OK)
         {
             if (err == API_ENOENT)
