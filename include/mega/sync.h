@@ -305,9 +305,6 @@ struct syncRow
     ExclusionState exclusionState(const FSNode& node) const;
     ExclusionState exclusionState(const LocalPath& name, nodetype_t type) const;
 
-    // Does this row have a reserved name?
-    bool hasReservedName(const FileSystemAccess& fsAccess) const;
-
     bool hasCaseInsensitiveLocalNameChange() const;
     bool hasCaseInsensitiveCloudNameChange() const;
 
@@ -1092,9 +1089,6 @@ public:
 
     // mark nodes as needing to be checked for sync actions
     void triggerSync(NodeHandle, bool recurse = false);
-
-    // Move a file into the nearest suitable local debris.
-    std::future<bool> moveToLocalDebris(LocalPath path);
 
     // ------ public data members (thread safe)
 

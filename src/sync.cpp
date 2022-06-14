@@ -1814,35 +1814,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 return false;
             };
 
-            // It turns out that after LocalPath implicitly uses \\?\ and
-            // absolute paths, we don't need to worry about reserved names.
-
-            //// Does the move target have a reserved name?
-            //if (row.hasReservedName(*syncs.fsaccess))
-            //{
-            //    // Make sure we don't try and synchronize the source.
-            //    // This is meaningful for straight renames.
-            //    markSiblingSourceRow();
-
-            //    // Let the engine know why we can't action the move.
-            //    monitor.waitingLocal(sourceSyncNode->getLocalPath(),
-            //                         fullPath.localPath,
-            //                         fullPath.cloudPath,
-            //                         SyncWaitReason::MoveTargetHasReservedName);
-
-            //    // Let the engine know that we've detected a move.
-            //    parentRow.syncNode->setCheckMovesAgain(false, true, false);
-
-            //    // Don't recurse if the row's a directory.
-            //    row.suppressRecursion = true;
-
-            //    // Row isn't synchronized.
-            //    rowResult = false;
-
-            //    // Escape immediately from syncItemCheckMove(...).
-            //    return true;
-            //}
-
             if (!row.syncNode)
             {
                 resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
@@ -2442,9 +2413,24 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
     if (LocalNode* sourceSyncNode = syncs.findLocalNodeByNodeHandle(row.cloudNode->handle))
     {
-        if (sourceSyncNode == row.syncNode &&
-            !(mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange()))
+        LocalPath sourcePath = sourceSyncNode->getLocalPath();
+
+        if (sourceSyncNode == row.syncNode)
         {
+            if (mCaseInsensitive && row.hasCaseInsensitiveCloudNameChange())
+            {
+                LOG_debug << "Move is the same node but is also a case insensitive name change: " << sourcePath;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else if (sourcePath == fullPath.localPath)
+        {
+            // This case was seen in a log, possibly due to duplicate LocalNodes.
+            // We don't want to move the target out of the way to the .debris, then find it's not present for move/rename
+            LOG_debug << "Move would be to self: " << sourcePath;
             return false;
         }
 
@@ -2510,36 +2496,6 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 }
             }
         };
-
-        //sourceSyncNode->treestate(TREESTATE_SYNCING);
-        //if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
-
-        // It turns out that after LocalPath implicitly uses \\?\ and
-        // absolute paths, we don't need to worry about reserved names.
-
-        //// Does the move target have a reserved name?
-        //if (row.hasReservedName(*syncs.fsaccess))
-        //{
-        //    // Make sure we don't try and synchronize the source.
-        //    markSiblingSourceRow();
-
-        //    // Let the engine know why we can't action the move.
-        //    monitor.waitingLocal(fullPath.localPath,
-        //                         sourceSyncNode->getLocalPath(),
-        //                         fullPath.cloudPath,
-        //                         SyncWaitReason::MoveTargetHasReservedName);
-
-        //    // Don't recurse if the row's a directory.
-        //    row.suppressRecursion = true;
-
-        //    // Row isn't synchronized.
-        //    rowResult = false;
-
-        //    // Escape immediately from syncItemCheckMove(...).
-        //    return true;
-        //}
-
-        LocalPath sourcePath = sourceSyncNode->getLocalPath();
 
         // True if the move-target exists and we're free to "overwrite" it.
         auto overwrite = false;
@@ -5754,34 +5710,6 @@ bool syncRow::hasCaseInsensitiveLocalNameChange() const
         0 != compareUtf(cloudNode->name, true, fsNode->localname, true, false);
 }
 
-bool syncRow::hasReservedName(const FileSystemAccess& fsAccess) const
-{
-    if (auto* c = cloudNode)
-        return isReservedName(c->name, c->type);
-
-    if (!cloudClashingNames.empty())
-    {
-        auto* c = cloudClashingNames.front();
-
-        return isReservedName(c->name, c->type);
-    }
-
-    if (auto* s = syncNode)
-        return isReservedName(fsAccess, s->localname, s->type);
-
-    if (auto* f = fsNode)
-        return isReservedName(fsAccess, f->localname, f->type);
-
-    if (!fsClashingNames.empty())
-    {
-        auto* f = fsClashingNames.front();
-
-        return isReservedName(fsAccess, f->localname, f->type);
-    }
-
-    return false;
-}
-
 bool syncRow::isIgnoreFile() const
 {
     struct Predicate
@@ -8048,7 +7976,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                         return false;
                     }
                 }
-                
+
                 // FIXME: to cover renames that occur during the
                 // download, reconstruct localname in complete()
                 LOG_debug << syncname << "Start sync download: " << row.syncNode << logTriplet(row, fullPath);
@@ -9039,24 +8967,6 @@ void Syncs::triggerSync(NodeHandle h, bool recurse)
     lock_guard<mutex> g(triggerMutex);
     auto& entry = triggerHandles[h];
     if (recurse) entry = true;
-}
-
-std::future<bool> Syncs::moveToLocalDebris(LocalPath path)
-{
-    assert(!onSyncThread());
-
-    auto notifier = std::make_shared<std::promise<bool>>();
-    auto result = notifier->get_future();
-
-    queueSync([notifier, path, this]() mutable {
-        // What sync contains this path?
-        auto* sync = syncContainingPath(path, true);
-
-        // Move file to local debris if a suitable sync was located.
-        notifier->set_value(sync && sync->movetolocaldebris(path));
-    });
-
-    return result;
 }
 
 void Syncs::processTriggerHandles()
@@ -10168,7 +10078,8 @@ void Syncs::syncLoop()
         if (syncStallState &&
             (waiter.ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
             (waiter.ds > mSyncFlags->recursiveSyncLastCompletedDs) &&
-            !lastLoopEarlyExit)
+            !lastLoopEarlyExit &&
+            !mSyncVec.empty())
         {
             LOG_debug << "Don't process syncs too often in stall state";
             continue;
