@@ -14253,7 +14253,10 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
     remotenode_map nchildren;
     remotenode_map::iterator rit;
 
-    bool success = true;
+    // Set to false if we encounter any transient errors while trying to
+    // perform an operation on the local filesystem such as creating a
+    // directory or moving a file.
+    bool noTransientErrors = true;
 
     // build array of sync-relevant (in case of clashes, the newest alias wins)
     // remote children by name
@@ -14338,7 +14341,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     l->sync->backupModified();
 
                     // Don't forget to signal any other error conditions.
-                    return success;
+                    return noTransientErrors;
                 }
             }
             else if (ll->type == FILENODE)
@@ -14412,14 +14415,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
 
                 // recurse into directories of equal name
-                success &= syncdown(ll, localpath, cxt);
+                noTransientErrors &= syncdown(ll, localpath, cxt);
 
                 // Bail if the callee detected a foreign change.
                 if (cxt.mBackupForeignChangeDetected)
                 {
                     assert(l->sync->isBackup());
 
-                    return success;
+                    return noTransientErrors;
                 }
 
                 nchildren.erase(rit);
@@ -14465,7 +14468,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 l->sync->backupModified();
 
                 // Make sure we persist any (other) error condition.
-                return success;
+                return noTransientErrors;
             }
 
             if (ll->deleted)
@@ -14482,7 +14485,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 {
                     blockedfile = localpath;
                     LOG_warn << "Transient error deleting " << blockedfile;
-                    success = false;
+                    noTransientErrors = false;
                     lit++;
                 }
             }
@@ -14538,7 +14541,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 l->sync->backupModified();
 
                 // Make sure to signal any other error conditions.
-                return success;
+                return noTransientErrors;
             }
             else if (rit->second->localnode->parent)
             {
@@ -14574,12 +14577,12 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
                     rit->second->localnode->treestate(TREESTATE_SYNCED);
                 }
-                else if (success && fsaccess->transient_error)
+                else if (noTransientErrors && fsaccess->transient_error)
                 {
                     // schedule retry
                     blockedfile = curpath;
                     LOG_debug << "Transient error moving localnode " << blockedfile;
-                    success = false;
+                    noTransientErrors = false;
                 }
             }
             else
@@ -14635,7 +14638,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             l->sync->backupModified();
 
                             // Make sure to signal any other error conditions.
-                            return success;
+                            return noTransientErrors;
                         }
                         else
                         {
@@ -14674,7 +14677,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     l->sync->backupModified();
 
                     // Don't forget to signal other error conditions.
-                    return success;
+                    return noTransientErrors;
                 }
                 else
                 {
@@ -14703,10 +14706,10 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             ll->setnode(rit->second);
                             ll->sync->statecacheadd(ll);
 
-                            if (!syncdown(ll, localpath, cxt) && success)
+                            if (!syncdown(ll, localpath, cxt) && noTransientErrors)
                             {
                                 LOG_debug << "Syncdown not finished";
-                                success = false;
+                                noTransientErrors = false;
                             }
                         }
                         else
@@ -14714,11 +14717,11 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             LOG_debug << "Checkpath() failed " << (ll == NULL);
                         }
                     }
-                    else if (success && fsaccess->transient_error)
+                    else if (noTransientErrors && fsaccess->transient_error)
                     {
                         blockedfile = localpath;
                         LOG_debug << "Transient error creating folder " << blockedfile;
-                        success = false;
+                        noTransientErrors = false;
                     }
                     else if (!fsaccess->transient_error)
                     {
@@ -14729,7 +14732,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
         }
     }
 
-    return success;
+    return noTransientErrors;
 }
 
 // recursively traverse tree of LocalNodes and match with remote Nodes
