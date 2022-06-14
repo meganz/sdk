@@ -7629,7 +7629,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
 TEST_F(SyncTest, AnomalousSyncRemoteRename)
 {
     auto TESTROOT = makeNewTestRoot();
-    auto TIMEOUT = chrono::seconds(4);
+    auto TIMEOUT = chrono::seconds(8);
 
     // Sync client.
     StandardClient cx(TESTROOT, "cx");
@@ -7657,6 +7657,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     model.addfile("d/f");
     model.addfile("f");
     model.addfile("g", "g");
+    model.addfile(".megaignore", "#");
     model.generate(root);
 
     cx.triggerPeriodicScanEarly(id);
@@ -7667,35 +7668,23 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     // Verify upload.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
-    auto* s = cr.client.nodeByHandle(cx.syncSet(id).h);
-    ASSERT_TRUE(s);
+    // Make sure cr sees all of cx's changes.
+    ASSERT_TRUE(cr.waitFor(SyncRemoteMatch("s", model.root.get()), TIMEOUT));
 
     // Rename d/f -> d/g.
-    auto* d = cr.drillchildnodebyname(s, "d");
-    ASSERT_TRUE(d);
-
     {
-        auto* f = cr.drillchildnodebyname(d, "f");
-        ASSERT_TRUE(f);
-
-        ASSERT_TRUE(cr.setattr(f, attr_map('n', "g")));
-
+        ASSERT_TRUE(cr.setattr("s/d/f", attr_map('n', "g")));
         model.findnode("d/f")->name = "g";
     }
 
     // Rename g -> G.
     {
-        auto* g = cr.drillchildnodebyname(s, "g");
-        ASSERT_NE(g, nullptr);
-
-        ASSERT_TRUE(cr.setattr(g, attr_map('n', "G")));
-
-//#if defined(_WIN32) || defined(__APPLE__)
-//        model.findnode("g")->mCloudName = "G";
-//#else // _WIN32 || __APPLE__
+        ASSERT_TRUE(cr.setattr("s/g", attr_map('n', "G")));
         model.findnode("g")->name = "G";
-//#endif // !(_WIN32 || __APPLE__)
     }
+
+    // Make sure cx sees cr's changes.
+    ASSERT_TRUE(cx.waitFor(SyncRemoteMatch("s", model.root.get()), TIMEOUT));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cx);
@@ -7707,11 +7696,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     ASSERT_TRUE(reporter->mAnomalies.empty());
 
     // Update g's content.
-//#if defined(_WIN32) || defined(__APPLE__)
-//    model.findnode("g")->content = "G";
-//#else // _WIN32 || __APPLE__
     model.findnode("G")->content = "G";
-//#endif // ! (_WIN32 || __APPLE__)
     ASSERT_TRUE(createDataFile(root / "G", "G"));
 
     // Wait for sync to complete.
@@ -7725,13 +7710,12 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
 
     // Rename d/g -> d/g:0.
     {
-        auto* g = cr.drillchildnodebyname(d, "g");
-        ASSERT_TRUE(g);
-
-        ASSERT_TRUE(cr.setattr(g, attr_map('n', "g/0")));
-
+        ASSERT_TRUE(cr.setattr("s/d/g", attr_map('n', "g/0")));
         model.findnode("d/g")->fsName("g%2f0").name = "g/0";
     }
+
+    // Wait for cx to observe cr's changes.
+    ASSERT_TRUE(cx.waitFor(SyncRemoteMatch("s", model.root.get()), TIMEOUT));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cx);
