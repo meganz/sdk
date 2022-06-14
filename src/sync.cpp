@@ -3758,6 +3758,11 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
         std::function<void(Error)> nextCompl = i ? nullptr : lastCompletion;
         std::function<void(Error)> completion = [ok, syncName, syncCount, nextCompl](Error e)
         {
+            if (e == API_ENOENT) // in case the sync was removed in BC
+            {
+                e = API_OK;
+            }
+
             if (e != API_OK)
             {
                 LOG_err << "API failed to remove sync " << syncName << " (error: " << error(e) << ')';
