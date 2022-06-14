@@ -2737,7 +2737,9 @@ void MegaClient::exec()
                                         LOG_debug << "Pending MEGA nodes: " << synccreate.size();
                                         if (!syncadding)
                                         {
-                                            LOG_debug << "Running syncup to create missing folders";
+                                            LOG_debug << "Running syncup to create missing folders: "
+                                                      << toHandle(sync->getConfig().mBackupId);
+
                                             syncup(sync->localroot.get(), &nds);
                                             sync->cachenodes();
                                         }
@@ -2905,7 +2907,9 @@ void MegaClient::exec()
                                 if ((sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN)
                                  && !syncadding && syncuprequired && !syncnagleretry)
                                 {
-                                    LOG_debug << "Running syncup on demand";
+                                    LOG_debug << "Running syncup on demand: "
+                                              << toHandle(sync->getConfig().mBackupId);
+
                                     repeatsyncup |= !syncup(sync->localroot.get(), &nds);
                                     syncupdone = true;
                                     sync->cachenodes();
@@ -3050,7 +3054,9 @@ void MegaClient::exec()
                             LocalPath localpath = sync->localroot->localname;
                             if (sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN)
                             {
-                                LOG_debug << "Running syncdown on demand";
+                                LOG_debug << "Running syncdown on demand: "
+                                          << toHandle(sync->getConfig().mBackupId);
+
                                 if (!syncdown(sync->localroot.get(), localpath))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
@@ -15251,7 +15257,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             }
 
             // create remote folder or send file
-            LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
+            LOG_debug << "Adding local file to synccreate: "
+                      << ll->getLocalPath()
+                      << " "
+                      << synccreate.size();
             synccreate.push_back(ll);
             syncactivity = true;
 
@@ -15384,7 +15393,9 @@ void MegaClient::syncupdate()
                         tattrs.map.erase(it);
                     }
 
-                    LOG_debug << "Sync - creating remote file " << l->name << " by copying existing remote file";
+                    LOG_debug << "Sync - creating remote file "
+                              << l->getLocalPath()
+                              << " by copying existing remote file";
                 }
                 else
                 {
