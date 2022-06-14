@@ -987,7 +987,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
-
     cmd("p");
     notself(client);
 
@@ -3853,6 +3852,11 @@ bool CommandPubKeyRequest::procresult(Result r)
         }
     }
 
+    if (!u) // user has cancelled the account, or HIDDEN user was removed
+    {
+        return true;
+    }
+
     // satisfy all pending PubKeyAction requests for this user
     while (u->pkrs.size())
     {
@@ -5393,7 +5397,6 @@ bool CommandGetPH::procresult(Result r)
                         newnode->parenthandle = UNDEF;
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
-
                         client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0);
                     }
                     else if (havekey)

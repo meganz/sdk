@@ -1726,6 +1726,15 @@ public:
     virtual int64_t getTimestamp(unsigned index) const;
 
     /**
+    * @brief Returns a handle related to this alert
+    *
+    * TYPE_NEWSHAREDNODES (folder and files)
+    *
+    * @return MegaHandle related to this request, or INVALID_HANDLE if the index is invalid
+    */
+    virtual MegaHandle getHandle(unsigned index) const;
+
+    /**
     * @brief Returns an additional string, related to the alert
     *
     * The SDK retains the ownership of the returned value. It will be valid until
@@ -3179,8 +3188,9 @@ class MegaRequest
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_FA_UPLOAD_URL                                          = 145,
-            TYPE_SET_MY_BACKUPS                                             = 146,
-            TOTAL_OF_REQUEST_TYPES                                          = 147,
+            TYPE_EXECUTE_ON_THREAD                                          = 146,
+            TYPE_SET_MY_BACKUPS                                             = 147,
+            TOTAL_OF_REQUEST_TYPES                                          = 148,
         };
 
         virtual ~MegaRequest();
@@ -4093,6 +4103,16 @@ class MegaTransfer
             MOVE_TYPE_BOTTOM
         };
 
+        enum {
+            STAGE_NONE = 0,
+            STAGE_SCAN,
+            STAGE_CREATE_TREE,
+            STAGE_GEN_TRANSFERS,
+            STAGE_PROCESS_TRANSFER_QUEUE,
+            STAGE_TRANSFERRING_FILES,
+            STAGE_MAX = STAGE_TRANSFERRING_FILES,
+        };
+
         virtual ~MegaTransfer();
 
         /**
@@ -4280,6 +4300,25 @@ class MegaTransfer
 		 * @return Mmximum number of times that the transfer will be retried
 		 */
 		virtual int getMaxRetries() const;
+
+        /**
+         * @brief Returns the current stage in case this transfer represents a folder upload/download operation.
+         * This method can return the following values:
+         *  - MegaTransfer::STAGE_SCAN                      = 1
+         *  - MegaTransfer::STAGE_CREATE_TREE               = 2
+         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
+         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         * Any other returned value, must be ignored.
+         *
+         * The value returned by this method, can only be considered as valid, when we receive MegaTransferListener::onTransferUpdate
+         * or MegaListener::onTransferUpdate, and the returned value is in between the range specified above.
+         *
+         * Note: any specific stage can only be notified once at most.
+         *
+         * @return The current stage for a folder upload/download operation
+         */
+        virtual unsigned getStage() const;
 
 		/**
 		 * @brief Returns an integer that identifies this transfer
@@ -4509,6 +4548,38 @@ class MegaTransfer
          * @return True if target folder was overriden (apps can check the final parent)
          */
         virtual bool getTargetOverride() const;
+
+        /**
+         * @brief Returns a pointer to the cancel token associated to a MegaTransfer in case it exists.
+         *
+         * CancelToken can be used to cancel a batch of transfers (upload or download) that contains at least one folder.
+         *
+         * When user wants to upload/download a batch of items that at least contains one folder, SDK mutex will be partially
+         * locked until:
+         *  - we have received onTransferStart for every file in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+         *    for every folder in the batch
+         *
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+         * This method will cancel all transfers(not finished yet).
+         *
+         * Important considerations:
+         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+         *    of those transfers.
+         *
+         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
+         *    that shares the same cancel token instance.
+         *
+         * @return A pointer to the cancelToken instance associated to the transfer in case it exists
+         */
+        virtual MegaCancelToken* getCancelToken() const;
+
+        /**
+         * @brief Returns a string that identify the recursive operation stage
+         *
+         * @return A string that identify the recursive operation stage
+         */
+        static const char* stageToString(unsigned stage);
 };
 
 /**
@@ -6333,10 +6404,22 @@ class MegaTransferListener
          * The api object is the one created by the application, it will be valid until
          * the application deletes it.
          *
+         * In case this transfer represents a recursive operation (folder upload/download) SDK will
+         * notify apps about the stages transition.
+         *
+         * Current recursive operation stage can be retrieved with method MegaTransfer::getStage.
+         * This method returns the following values:
+         *  - MegaTransfer::STAGE_SCAN                      = 1
+         *  - MegaTransfer::STAGE_CREATE_TREE               = 2
+         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
+         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         * For more information about stages refer to MegaTransfer::getStage
+         *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          *
-         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed
+         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
          */
         virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
 
@@ -6869,7 +6952,19 @@ class MegaListener
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          *
-         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed
+         * In case this transfer represents a recursive operation (folder upload/download) SDK will
+         * notify apps about the stages transition.
+         *
+         * Current recursive operation stage can be retrieved with method MegaTransfer::getStage.
+         * This method returns the following values:
+         *  - MegaTransfer::STAGE_SCAN                      = 1
+         *  - MegaTransfer::STAGE_CREATE_TREE               = 2
+         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
+         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         * For more information about stages refer to MegaTransfer::getStage
+         *
+         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
          */
         virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
 
@@ -7775,6 +7870,8 @@ class MegaApi
             CREATE_EPLUSPLUS_ACCOUNT    = 3,
             RESUME_EPLUSPLUS_ACCOUNT    = 4,
         };
+
+        static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
 
         /**
          * @brief Constructor suitable for most applications
@@ -12518,7 +12615,6 @@ class MegaApi
          */
         void startUploadForSupport(const char* localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
 
-
         /**
          * @brief Upload a file or a folder
          *
@@ -12526,176 +12622,35 @@ class MegaApi
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
          *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder, saving custom app data during the transfer
+         * When user wants to upload a batch of items that at least contains one folder, SDK mutex will be partially
+         * locked until:
+         *  - we have received onTransferStart for every file in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+         *    for every folder in the batch
          *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+         * This method will cancel all transfers(not finished yet).
          *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer. If a transfer is started with exactly the same data
-         * (local path and target parent) as another one in the transfer queue, the new transfer
-         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-         * the appData of the old transfer, using a '!' separator if the old transfer had already
-         * appData.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder, saving custom app data during the transfer
+         * Important considerations:
+         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+         *    of those transfers.
          *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
+         *    that shares the same cancel token instance.
          *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer. If a transfer is started with exactly the same data
-         * (local path and target parent) as another one in the transfer queue, the new transfer
-         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-         * the appData of the old transfer, using a '!' separator if the old transfer had already
-         * appData.
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+         * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
+         * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
+         * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
+         * instead of that, use MegaCancelToken::cancel(true) calling through MegaCancelToken instance associated to this transfer.
          *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer. If a transfer is started with exactly the same data
-         * (local path and target parent) as another one in the transfer queue, the new transfer
-         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-         * the appData of the old transfer, using a '!' separator if the old transfer had already
-         * appData.
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUploadWithTopPriority(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder, putting the transfer on top of the upload queue
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer. If a transfer is started with exactly the same data
-         * (local path and target parent) as another one in the transfer queue, the new transfer
-         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-         * the appData of the old transfer, using a '!' separator if the old transfer had already
-         * appData.
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-         * @param fileName Custom file name for the file or folder in MEGA
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUploadWithTopPriority(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder with a custom modification time
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
-         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-         * @param listener MegaTransferListener to track this transfer
-         *
-         * @note The custom modification time will be only applied for file transfers. If a folder
-         * is transferred using this function, the custom modification time won't have any effect,
-         */
-        void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder with a custom modification time
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
-         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or folder with a custom name
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param fileName Custom file name for the file or folder in MEGA
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-
-        /**
-         * @brief Upload a file or a folder with a custom name and a custom modification time
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
-         * @param fileName Custom file name for the file in MEGA
+         *  + If you don't need this param provide NULL as value
          * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-         * @param listener MegaTransferListener to track this transfer
-         *
-         * The custom modification time will be only applied for file transfers. If a folder
-         * is transferred using this function, the custom modification time won't have any effect
-         */
-        void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
-
-        /**
-         * @brief Upload a file or a folder with a custom name and a custom modification time
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
+         *  + If you don't need this param provide MegaApi::INVALID_CUSTOM_MOD_TIME as value
          * @param appData Custom app data to save in the MegaTransfer object
          * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
          * related to the transfer. If a transfer is started with exactly the same data
@@ -12703,42 +12658,19 @@ class MegaApi
          * fails with the error API_EEXISTS and the appData of the new transfer is appended to
          * the appData of the old transfer, using a '!' separator if the old transfer had already
          * appData.
-         * @param fileName Custom file name for the file in MEGA
-         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-         * @param listener MegaTransferListener to track this transfer
-         *
-         * The custom modification time will be only applied for file transfers. If a folder
-         * is transferred using this function, the custom modification time won't have any effect
-         */
-        void startUpload(const char* localPath, MegaNode* parent, const char* appData, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
-
-        /**
-         * @brief Upload a file or a folder
-         *
-         * This method should be used ONLY to share by chat a local file. In case the file
-         * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
-         * this method will force a new upload from the scratch (ensuring the file attributes are set),
-         * instead of doing a remote copy.
-         *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer. If a transfer is started with exactly the same data
-         * (local path and target parent) as another one in the transfer queue, the new transfer
-         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-         * the appData of the old transfer, using a '!' separator if the old transfer had already
-         * appData.
+         *  + If you don't need this param provide NULL as value
          * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
          * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
          * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         *  + If you don't need this param provide false as value
+         * @param startFirst puts the transfer on top of the upload queue
+         *  + If you don't need this param provide false as value
+         * @param cancelToken MegaCancelToken to be able to cancel a folder/file upload process.
+         * This param is required to be able to cancel the transfer safely.
+         * App retains the ownership of this param.
          * @param listener MegaTransferListener to track this transfer
          */
-        void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener = nullptr);
+        void startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData, bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder
@@ -12767,24 +12699,7 @@ class MegaApi
          * @param fileName Custom file name for the file or folder in MEGA
          * @param listener MegaTransferListener to track this transfer
          */
-        void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = nullptr);
-
-        /**
-         * @brief Download a file or a folder from MEGA
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param node MegaNode that identifies the file or folder
-         * @param localPath Destination path for the file or folder
-         * If this path is a local folder, it must end with a '\' or '/' character and the file name
-         * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-         * one of these characters, the file will be downloaded to a file in that path.
-         *
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
+        void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
@@ -12793,36 +12708,48 @@ class MegaApi
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
          *
+         * When user wants to download a batch of items that at least contains one folder, SDK mutex will be partially
+         * locked until:
+         *  - we have received onTransferStart for every file in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+         *    for every folder in the batch
+         *
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+         * This method will cancel all transfers(not finished yet).
+         *
+         * Important considerations:
+         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+         *    of those transfers.
+         *
+         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
+         *    that shares the same cancel token instance.
+         *
+         * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
+         * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
+         * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
+         * instead of that, use MegaCancelToken::cancel(true) calling through MegaCancelToken instance associated to this transfer.
+         *
+         * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
+         *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
          * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
          * one of these characters, the file will be downloaded to a file in that path.
+         * @param customName Custom file name for the file or folder in local destination
+         *  + If you don't need this param provide NULL as value
          * @param appData Custom app data to save in the MegaTransfer object
          * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
          * related to the transfer.
+         *  + If you don't need this param provide NULL as value
+         * @param startFirst puts the transfer on top of the download queue
+         *  + If you don't need this param provide false as value
+         * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
+         * This param is required to be able to cancel transfers safely.
+         * App retains the ownership of this param.
          * @param listener MegaTransferListener to track this transfer
          */
-        void startDownloadWithData(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
-
-        /**
-         * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
-         *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param node MegaNode that identifies the file or folder
-         * @param localPath Destination path for the file or folder
-         * If this path is a local folder, it must end with a '\' or '/' character and the file name
-         * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-         * one of these characters, the file will be downloaded to a file in that path.
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startDownloadWithTopPriority(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
+        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA
@@ -14722,9 +14649,11 @@ class MegaApi
         bool hasChildren(MegaNode *parent);
 
         /**
-         * @brief Get the child node with the provided name
+         * @brief Get the first child node with the provided name
          *
          * If the node doesn't exist, this function returns NULL
+         * It's possible to have multiple nodes with the same name.
+         * This function will return one of them.
          *
          * You take the ownership of the returned value
          *
@@ -14733,6 +14662,24 @@ class MegaApi
          * @return The MegaNode that has the selected parent and name
          */
         MegaNode *getChildNode(MegaNode *parent, const char* name);
+
+        /**
+         * @brief Get the first child node with the name and type provided
+         *
+         * Allowed types for type parameter: MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER
+         *
+         * If the node doesn't exist, this function returns nullptr
+         * It's possible to have multiple nodes with the same name.
+         * This function will return one of them.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param parent Parent node
+         * @param name Name of the node
+         * @param type Type of the node.
+         * @return The MegaNode that has the selected parent, name and type
+         */
+        MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type);
 
         /**
          * @brief Get the parent node of a MegaNode
