@@ -7139,7 +7139,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param email Email address to check.
  * @return MEGAUser that has the email address, otherwise nil.
  */
-- (nullable MEGAUser *)contactForEmail:(NSString *)email;
+- (nullable MEGAUser *)contactForEmail:(nullable NSString *)email;
 
 /**
  * @brief Get all MEGAUserAlerts for the logged in user

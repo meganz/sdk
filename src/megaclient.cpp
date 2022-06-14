@@ -516,6 +516,11 @@ handle MegaClient::getFolderLinkPublicHandle()
     return mFolderLink.mPublicHandle;
 }
 
+bool MegaClient::isValidEndCallReason(int reason)
+{
+   return reason == END_CALL_REASON_REJECTED || reason == END_CALL_REASON_BY_MODERATOR;
+}
+
 bool MegaClient::isValidFolderLink()
 {
     if (!ISUNDEF(mFolderLink.mPublicHandle))
@@ -11546,7 +11551,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
     {
-        DBTableTransactionCommitter committer(tctable);
+        DBTableTransactionCommitter committer(tctable); // needed in case of tctable->del()
         while (tctable->next(&id, &data, &tckey))
         {
             switch (id & 15)
@@ -11712,6 +11717,9 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs)
             scsn.setScsn(cachedscsn);
             LOG_info << "Session loaded from local cache. SCSN: " << scsn.text()
                      << " node count: " << nodes.size() << " user count: " << users.size();
+
+            assert(nodes.size() > 0);   // sometimes this is not true; if you see it, please investigate why (before we alter the db)
+            assert(!rootnodes.files.isUndef());  // we should know this by now - if not, why not, please investigate (before we alter the db)
 
             if (loggedIntoWritableFolder())
             {
@@ -13024,7 +13032,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.mBackupId, &syncConfig.mError);
             if (e)
             {
-                LOG_warn << "Local path not syncable: ";
+                LOG_warn << "Local path not syncable: " << syncConfig.getLocalPath();
 
                 if (syncConfig.mError == NO_SYNC_ERROR)
                 {
@@ -13036,6 +13044,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         }
         else
         {
+            LOG_warn << "Cannot sync non-folder";
             syncConfig.mError = INVALID_LOCAL_TYPE;
             syncConfig.mEnabled = false;
             return API_EACCESS;    // cannot sync individual files
@@ -13043,7 +13052,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     }
     else
     {
-        LOG_warn << "Cannot sync non-folder";
+        LOG_warn << "Cannot open rootpath for sync: " << rootpath;
         syncConfig.mError = openedLocalFolder->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
         syncConfig.mEnabled = false;
         return openedLocalFolder->retry ? API_ETEMPUNAVAIL : API_ENOENT;
@@ -13269,6 +13278,7 @@ void MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(
 
         if (e)
         {
+            LOG_warn << "Failed to register heartbeat record for new sync. Error: " << int(e);
             completion(e, config.mError, backupId);
         }
         else
