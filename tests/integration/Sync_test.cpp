@@ -9139,8 +9139,7 @@ struct TwoWaySyncSymmetryCase
     {
         Sync* sync = client1().syncByBackupId(backupId);
 
-        if (printTreesBeforeAndAfter)
-        {
+        std::function<void()> printTrees = [&]() {
             out() << " ---- local filesystem after sync of change ----";
             PrintLocalTree(fs::path(localTestBasePath()));
 
@@ -9158,9 +9157,19 @@ struct TwoWaySyncSymmetryCase
             }
             out() << " ---- expected sync destination (model) ----";
             PrintModelTree(destinationModel().findnode("f"));
+        };
+
+        if (printTreesBeforeAndAfter)
+        {
+            printTrees();
+
+            // Don't saturate the logs if we're already displaying the trees.
+            printTrees = nullptr;
         }
 
         out() << "Checking twoway sync "<< name();
+
+        auto confirmedOk = true;
 
         if (shouldDisableSync())
         {
@@ -9171,9 +9180,10 @@ struct TwoWaySyncSymmetryCase
             EXPECT_TRUE(lfs) << "Couldn't confirm LFS: " << name();
             EXPECT_TRUE(rnt) << "Couldn't confirm RNT: " << name();
 
+            confirmedOk &= lfs && rnt;
+
             finalResult = sync == nullptr;
-            finalResult &= lfs;
-            finalResult &= rnt;
+            finalResult &= confirmedOk;
         }
         else
         {
@@ -9187,9 +9197,17 @@ struct TwoWaySyncSymmetryCase
             EXPECT_EQ(localnode, remote);
             EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
 
-            finalResult = localfs && localnode && remote && sync && sync->state() == SYNC_ACTIVE;
+            confirmedOk &= localfs && localnode && remote;
+
+            finalResult = sync && sync->state() == SYNC_ACTIVE;
+            finalResult &= confirmedOk;
         }
 
+        // Show the trees if there's been a mismatch.
+        if (printTrees && !confirmedOk)
+        {
+            printTrees();
+        }
     }
 };
 
