@@ -2612,7 +2612,6 @@ class MegaApiImpl : public MegaApp
         void setLegacyExcludedPaths(vector<string> *excludedPaths);
         void setLegacyExclusionLowerSizeLimit(unsigned long long limit);
         void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
-        bool moveToLocalDebris(const char *path);
         long long getNumLocalNodes();
         int isNodeSyncable(MegaNode *megaNode);
         bool isScanning();
