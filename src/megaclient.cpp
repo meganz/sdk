@@ -16907,6 +16907,14 @@ uint64_t NodeManager::getNodeCount()
         count += nc.files + nc.folders + nc.versions;
     }
 
+    // add rootnodes to the count if logged into account (and fetchnodes is done <- rootnodes are ready)
+    if (!mClient.loggedIntoFolder() && rootnodes.size())
+    {
+        // Root nodes aren't taken into consideration as part of node counters
+        count += 3;
+        assert(!mClient.rootnodes.files.isUndef() && !mClient.rootnodes.inbox.isUndef() && !mClient.rootnodes.rubbish.isUndef());
+    }
+
 #ifdef DEBUG
     if (mNodes.size())
     {
@@ -17099,22 +17107,38 @@ node_vector NodeManager::getRootNodes()
     }
     else    // nodes not loaded yet
     {
-        std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-        mTable->getRootNodes(nodesFromTable);
-
-        for (const auto& nHandleSerialized : nodesFromTable)
+        if (mClient.loggedIntoFolder())
         {
-            assert(!getNodeInRAM(nHandleSerialized.first));
-            Node* n = getNodeFromNodeSerialized(nHandleSerialized.second);
+            NodeSerialized nodeSerialized;
+            mTable->getNode(mClient.rootnodes.files, nodeSerialized);
+            Node* n = getNodeFromNodeSerialized(nodeSerialized);
             if (!n)
             {
-                nodes.clear();
                 return nodes;
             }
 
             nodes.push_back(n);
+            //It isn't necessary call to setrootnode(n) because mClient.rootnodes.files is set correctly for folder link at login commnad
+        }
+        else
+        {
+            std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+            mTable->getRootNodes(nodesFromTable);
 
-            setrootnode(n);
+            for (const auto& nHandleSerialized : nodesFromTable)
+            {
+                assert(!getNodeInRAM(nHandleSerialized.first));
+                Node* n = getNodeFromNodeSerialized(nHandleSerialized.second);
+                if (!n)
+                {
+                    nodes.clear();
+                    return nodes;
+                }
+
+                nodes.push_back(n);
+
+                setrootnode(n);
+            }
         }
     }
 

@@ -330,7 +330,7 @@ public:
     // and root of incoming shares. Return true if success, false if error
     bool loadNodes();
 
-    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
+    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), including versions
     uint64_t getNodeCount();
 
     // return the counter for all root nodes (cloud+inbox+rubbish)
