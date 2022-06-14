@@ -2734,10 +2734,22 @@ TEST_F(SdkTest, SdkTestShares2)
     createFile(PUBLICFILE.c_str(), false);   // not a large file since don't need to test transfers here
 
     MegaHandle hfile1 = 0;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &hfile1, PUBLICFILE.c_str(), n1.get())) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &hfile1, PUBLICFILE.c_str(), n1.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
 
     MegaHandle hfile2 = 0;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &hfile2, PUBLICFILE.c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get())) << "Cannot upload a second test file";
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &hfile2, PUBLICFILE.c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a second test file";
 
 
     // --- Create a new contact to share to ---
@@ -2845,7 +2857,14 @@ TEST_F(SdkTest, SdkTestShares2)
     createFile(fileByUser2, false);   // not a large file since don't need to test transfers here
     MegaHandle hfile2U2 = 0;
     mApi[1].nodeUpdated = false;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(1, &hfile2U2, fileByUser2, std::unique_ptr<MegaNode>{megaApi[1]->getNodeByHandle(hfolder2)}.get())) << "Cannot upload a second test file";
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(1, &hfile2U2, fileByUser2, std::unique_ptr<MegaNode>{megaApi[1]->getNodeByHandle(hfolder2)}.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a second test file";
+
     ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
 
 
@@ -3040,7 +3059,14 @@ TEST_F(SdkTest, SdkTestShares)
 
     // upload a file, just to test node counters
     mApi[1].nodeUpdated = false;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(1, nullptr, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[1]->getRootNode()}.get())) << "Cannot upload a second test file";
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(1, nullptr, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[1]->getRootNode()}.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a second test file";
+
     ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated)) << "Node update not received after " << maxTimeout << " seconds";
     long long nodeCountAfterNewOwnedFile = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + 1, nodeCountAfterNewOwnedFile);
@@ -3135,14 +3161,28 @@ TEST_F(SdkTest, SdkTestShares)
 
     // add 2 more files to the share
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, nullptr, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(dummyhandle1)}.get())) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, nullptr, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(dummyhandle1)}.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
     ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
         << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
         << "Node update not received after " << maxTimeout << " seconds";
     ++inSharedNodeCount;
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, nullptr, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(dummyhandle2)}.get())) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, nullptr, PUBLICFILE.data(), std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(dummyhandle2)}.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
     ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))   // at the target side (main account)
         << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))   // at the target side (auxiliar account)
@@ -3475,8 +3515,13 @@ TEST_F(SdkTest, DISABLED_SdkTestShares3)
 
     static constexpr char file1[] = "File1.txt";
     createFile(file1, false);   // not a large file since don't need to test transfers here
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(2, nullptr, file1, n1_1.get())) << "Cannot upload test file";
-
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(2, nullptr, file1, n1_1.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload test file";
 
     // --- Check that UserB sees File1 as NO_KEY ---
 
@@ -5640,7 +5685,14 @@ TEST_F(SdkTest, SdkRecentsTest)
     const string filename1bkp1 = filename1 + ".bkp1";
     deleteFile(filename1bkp1);
     createFile(filename1bkp1, false);
-    err = doStartUpload(0, nullptr, filename1bkp1.c_str(), rootnode.get());
+    err = doStartUpload(0, nullptr, filename1bkp1.c_str(), rootnode.get(),
+                        nullptr /*fileName*/,
+                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                        nullptr /*appData*/,
+                        false   /*isSourceTemporary*/,
+                        false   /*startFirst*/,
+                        nullptr /*cancelToken*/);
+
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload test file " + filename1bkp1 + ", (error: " << err << ")";
     deleteFile(filename1bkp1);
 
@@ -5648,7 +5700,14 @@ TEST_F(SdkTest, SdkRecentsTest)
     const string filename1bkp2 = filename1 + ".bkp2";
     deleteFile(filename1bkp2);
     createFile(filename1bkp2, false);
-    err = doStartUpload(0, nullptr, filename1bkp2.c_str(), rootnode.get());
+    err = doStartUpload(0, nullptr, filename1bkp2.c_str(), rootnode.get(),
+                        nullptr /*fileName*/,
+                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                        nullptr /*appData*/,
+                        false   /*isSourceTemporary*/,
+                        false   /*startFirst*/,
+                        nullptr /*cancelToken*/);
+
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot upload test file " + filename1bkp2 + ", (error: " << err << ")";
     deleteFile(filename1bkp2);
 
@@ -8454,7 +8513,14 @@ TEST_F(SdkTest, SdkNodesOnDemand)
                 string content = "test_" + std::to_string(i) + "_" + std::to_string(j) + "_" + std::to_string(k);
                 createFile(filename2, false, content);
                 MegaHandle mh = 0;
-                ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &mh, filename2.data(), subFolderSecondLevel.get())) << "Cannot upload a test file";
+                ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &mh, filename2.data(), subFolderSecondLevel.get(),
+                                                           nullptr /*fileName*/,
+                                                           ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                                           nullptr /*appData*/,
+                                                           false   /*isSourceTemporary*/,
+                                                           false   /*startFirst*/,
+                                                           nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
                 unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(mh));
                 ASSERT_NE(nodeFile, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
                 waitForResponse(&mApi[1].nodeUpdated); // Wait until receive nodes updated at client 2
@@ -8721,7 +8787,14 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     string content1 = "test_1";
     createFile(fileName, false, content1);
     MegaHandle fh = 0;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh, fileName.data(), rootnodeA.get())) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh, fileName.data(), rootnodeA.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
     unique_ptr<MegaNode> nodeFile(megaApi[0]->getNodeByHandle(fh));
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
     long long size1 = nodeFile->getSize();
@@ -8734,7 +8807,14 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     string content2 = "test_2";
     createFile(fileName, false, content2);
     fh = 0;
-    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh, fileName.data(), rootnodeA.get())) << "Cannot upload a test file";
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &fh, fileName.data(), rootnodeA.get(),
+                                               nullptr /*fileName*/,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false   /*isSourceTemporary*/,
+                                               false   /*startFirst*/,
+                                               nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
     nodeFile.reset(megaApi[0]->getNodeByHandle(fh));
     long long size2 = nodeFile->getSize();
     ASSERT_NE(nodeFile, nullptr) << "Cannot initialize second node for scenario (error: " << mApi[0].lastError << ")";
