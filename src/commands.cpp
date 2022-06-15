@@ -1882,8 +1882,13 @@ bool CommandLogin::procresult(Result r)
                             return true;
                         }
 
+                        byte buf[sizeof me];
+
                         // decrypt and set session ID for subsequent API communication
-                        if (!client->asymkey.decrypt(sidbuf, len_csid, sidbuf, MegaClient::SIDLEN))
+                        if (!client->asymkey.decrypt(sidbuf, len_csid, sidbuf, MegaClient::SIDLEN)
+                                // additionally, check that the user's handle included in the session matches the own user's handle (me)
+                                || (Base64::atob((char*)sidbuf + SymmCipher::KEYLENGTH, buf, sizeof buf) != sizeof buf)
+                                || (me != MemAccess::get<handle>((const char*)buf)))
                         {
                             client->app->login_result(API_EINTERNAL);
                             return true;
