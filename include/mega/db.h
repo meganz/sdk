@@ -120,10 +120,6 @@ public:
     virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
     virtual bool getNodeByNameAtFirstLevel(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) = 0;
 
-
-    // true if 'nodes' table is already populated -> legacy DB has been migrated to new schema for NOD
-    virtual bool isNodesOnDemandDb() = 0;
-
     virtual bool isNodeInDB(NodeHandle node) = 0;
 
     virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;

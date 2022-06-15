@@ -17317,17 +17317,6 @@ size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     return (it != mNodeChildren.end()) ? it->second.size() : 0;
 }
 
-bool NodeManager::isNodesOnDemandReady()
-{
-    if (!mTable)
-    {
-        assert(false);
-        return false;
-    }
-
-    return mTable->isNodesOnDemandDb();
-}
-
 bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)
 {
     if (!mTable)

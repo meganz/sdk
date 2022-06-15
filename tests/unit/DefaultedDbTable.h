@@ -86,11 +86,6 @@ public:
     {
         return false;
     }
-    bool isNodesOnDemandDb() override
-    {
-        return false;
-        //throw NotImplemented{__func__};
-    }
     bool isNodeInDB(mega::NodeHandle) override
     {
         return false;

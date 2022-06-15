@@ -1179,36 +1179,6 @@ bool SqliteAccountState::getNodeSizeAndType(NodeHandle node, m_off_t& size, node
     return true;
 }
 
-bool SqliteAccountState::isNodesOnDemandDb()
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    int numRows = -1;
-    sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-        {
-           numRows = sqlite3_column_int(stmt, 0);
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to know if data base is nodes on demand: " << dbfile << err;
-        assert(!"Unable to know if data base is nodes on demand.");
-    }
-
-    return numRows > 0 ? true : false;
-}
-
 bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
 {
     bool result = false;

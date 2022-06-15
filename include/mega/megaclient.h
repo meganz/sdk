@@ -294,9 +294,6 @@ public:
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
 
-    // Returns true when nodes on demand is ready to operate after load a session with old cache
-    bool isNodesOnDemandReady();
-
     // true if 'node' is a child node of 'ancestor', false otherwise.
     bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor);
 
