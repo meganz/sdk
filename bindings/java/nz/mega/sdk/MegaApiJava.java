@@ -6314,6 +6314,25 @@ public class MegaApiJava {
     //****************************************************************************************************/
 
     /**
+     * Upload a file to support
+     * <p>
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     * <p>
+     * For folders, onTransferFinish will be called with error MegaError:API_EARGS;
+     *
+     * @param localPath         Local path of the file
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     *                          This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     *                          Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param listener          MegaTransferListener to track this transfer
+     */
+    public void startUploadForSupport(String localPath, boolean isSourceTemporary, MegaTransferListenerInterface listener) {
+        megaApi.startUploadForSupport(localPath, isSourceTemporary, createDelegateTransferListener(listener));
+    }
+
+    /**
      * Upload a file or a folder
      * <p>
      * If the status of the business account is expired, onTransferFinish will be called with the error
