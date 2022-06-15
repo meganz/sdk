@@ -17939,25 +17939,7 @@ int NodeManager::getNumVersions(NodeHandle nodeHandle)
         return 0;
     }
 
-    int numVersions = 1;
-    bool looking = true;
-    NodeHandle current = nodeHandle;
-    while (looking)
-    {
-        auto it = mNodeChildren.find(current);
-        if (it == mNodeChildren.end())
-        {
-            looking = false;
-            break;
-        }
-
-        assert(it->second.size());
-
-        current = *it->second.begin();
-        numVersions++;
-    }
-
-    return numVersions;
+    return static_cast<int>(node->getCounter().versions);
 }
 
 bool NodeManager::hasVersion(NodeHandle nodeHandle)
@@ -17968,13 +17950,7 @@ bool NodeManager::hasVersion(NodeHandle nodeHandle)
         return false;
     }
 
-    auto it = mNodeChildren.find(nodeHandle);
-    if (it != mNodeChildren.end() && it->second.size())
-    {
-        return true;
-    }
-
-    return false;
+    return node->getCounter().versions;
 }
 
 void NodeManager::initializeCounters()
