@@ -126,7 +126,6 @@ public:
 
     virtual bool isNodeInDB(NodeHandle node) = 0;
 
-    virtual NodeHandle getFirstAncestor(NodeHandle node) = 0;
     virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
 
     // Get all fingerprints with their asociated NodeHandle

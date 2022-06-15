@@ -297,9 +297,6 @@ public:
     // Returns true when nodes on demand is ready to operate after load a session with old cache
     bool isNodesOnDemandReady();
 
-    // Returns first ancestor available in cache
-    NodeHandle getFirstAncestor(NodeHandle nodehandle);
-
     // true if 'node' is a child node of 'ancestor', false otherwise.
     bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor);
 
@@ -369,9 +366,6 @@ public:
     // Cancel all DB queries in progress in same sql connection
     void cancelDbQuery();
 
-    // true when loading nodes (at startup, not node per node afterwards)
-    bool isLoadingNodes() { return mLoadingNodes; }
-
     // Returns the number of versions for a node (including the current version)
     int getNumVersions(NodeHandle nodeHandle);
 
@@ -431,9 +425,6 @@ private:
 
     // store relationship between nodes and their children (nodes without children are not in the map)
     std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
-
-    // true while loading nodes, false otherwise
-    bool mLoadingNodes = false;
 };
 
 class MEGA_API MegaClient

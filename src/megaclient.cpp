@@ -17328,27 +17328,6 @@ bool NodeManager::isNodesOnDemandReady()
     return mTable->isNodesOnDemandDb();
 }
 
-NodeHandle NodeManager::getFirstAncestor(NodeHandle nodehandle)
-{
-    if (!mTable)
-    {
-        assert(false);
-        return NodeHandle();  // It's initialized to undef
-    }
-
-    Node* n = getNodeInRAM(nodehandle);
-    if (n)
-    {
-        const Node* ancestor = n->firstancestor();
-        if (ancestor)
-        {
-            return ancestor->nodeHandle();
-        }
-    }
-
-    return mTable->getFirstAncestor(nodehandle);
-}
-
 bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)
 {
     if (!mTable)
@@ -17376,7 +17355,6 @@ void NodeManager::cleanNodes()
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
     mNodeChildren.clear();
-    mLoadingNodes = false;
 
     if (mTable)
         mTable->removeNodes();
@@ -17881,7 +17859,6 @@ bool NodeManager::loadNodes()
         return false;
     }
 
-    mLoadingNodes = true;
     node_vector rootnodes = getRootNodes();
     // We can't base in `user.sharing` because it's set yet. We have to get from DB
     node_vector inshares = getNodesWithInShares();  // it includes nested inshares
@@ -17891,7 +17868,6 @@ bool NodeManager::loadNodes()
         getChildren(node);
     }
 
-    mLoadingNodes = false;
     return true;
 }
 

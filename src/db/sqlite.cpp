@@ -1209,45 +1209,6 @@ bool SqliteAccountState::isNodesOnDemandDb()
     return numRows > 0 ? true : false;
 }
 
-NodeHandle SqliteAccountState::getFirstAncestor(NodeHandle node)
-{
-    NodeHandle ancestor;
-    if (!db)
-    {
-        return ancestor;
-    }
-
-    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) "
-            "AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? "
-            "UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE "
-            "AS E ON (A.nodehandle = E.parenthandle)) "
-            "SELECT * FROM nodesCTE";
-
-    sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
-        {
-            while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-            {
-                ancestor.set6byte(sqlite3_column_int64(stmt, 0));
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get first ancestor from database: " << dbfile << err;
-        assert(!"Unable to get first ancestor from database.");
-    }
-
-    return ancestor;
-}
-
 bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
 {
     bool result = false;
