@@ -10860,7 +10860,7 @@ bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
 
 MegaShareList *MegaApiImpl::getOutShares(int order)
 {
-    SdkMutexGuard m;
+    SdkMutexGuard guard(sdkMutex);
 
     node_vector outshares = client->mNodeManager.getNodesWithOutShares();
 
@@ -10975,7 +10975,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
 
 MegaShareList *MegaApiImpl::getPendingOutShares()
 {
-    SdkMutexGuard m;
+    SdkMutexGuard guard(sdkMutex);
 
     node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
     vector<handle> handles;
