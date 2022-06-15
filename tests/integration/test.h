@@ -113,8 +113,9 @@ private:
 
 void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
-fs::path makeReusableClientFolder(const string& subfolder);
 
+std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
+fs::path makeReusableClientFolder(const string& subfolder);
 #ifdef ENABLE_SYNC
 
 template<typename T>
@@ -736,6 +737,7 @@ struct StandardClient : public MegaApp
     std::function<void(const LocalPath&)> mOnPutnodesBegin;
 #endif // ! NDEBUG
 
+
     void ipcr(handle id, ipcactions_t action, PromiseBoolSP result);
     bool ipcr(handle id, ipcactions_t action);
     bool ipcr(handle id);
@@ -839,10 +841,10 @@ public:
 
     StandardClientInUse getCleanStandardClient(int loginIndex, fs::path workingFolder);
 
-    void shutdown();
+    ~ClientManager();
 };
 
-extern ClientManager g_clientManager;
+extern ClientManager* g_clientManager;
 
 #endif // ENABLE_SYNC
 

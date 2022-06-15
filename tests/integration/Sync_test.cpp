@@ -980,9 +980,14 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
     return StandardClientInUse(--clients[loginIndex].end());
 }
 
-void ClientManager::shutdown()
+ClientManager::~ClientManager()
 {
-    clients.clear();
+    while (clients.size())
+    {
+        LOG_debug << "Shutting down ClientManager, remaining: " << clients.size();
+        clients.erase(clients.begin());
+    }
+    LOG_debug << "ClientManager shutdown complete";
 }
 
 CloudItem::CloudItem(const Node* node)
@@ -1163,20 +1168,31 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
 
 StandardClient::~StandardClient()
 {
+    LOG_debug << "StandardClient exiting";
     // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
     auto result =
         thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
                         {
-                            mc.logout(false);
-                            result->set_value(true);
+                            if (mc.loggedin() == FULLACCOUNT)
+                            {
+                                mc.logout(false);
+                                result->set_value(true);
+                            }
+                            else result->set_value(false);
                         });
 
     // Make sure logout completes before we escape.
-    result.get();
+    if (result.get())
+    {
+        // Give it 1 second to send out the logout request, and maybe get a reply
+        WaitMillisec(1000);
+    }
+    LOG_debug << "~StandardClient final logout complete";
 
     clientthreadexit = true;
     waiter.notify();
     clientthread.join();
+    LOG_debug << "~StandardClient end of function (work thread joined)";
 }
 
 void StandardClient::localLogout()
@@ -2085,15 +2101,21 @@ void StandardClient::catchup(std::function<void(error)> completion)
     auto init = std::bind(&MegaClient::catchup, &client);
 
     auto fini = [completion](error e) {
-        EXPECT_EQ(e, API_OK);
+        LOG_debug << "catchup(...) request completed: "
+                  << e;
 
+        EXPECT_EQ(e, API_OK);
         if (e)
             out() << "catchup reports: " << e;
+
+        LOG_debug << "Calling catchup(...) completion function...";
 
         completion(e);
 
         return true;
     };
+
+    LOG_debug << "Sending catchup(...) request...";
 
     resultproc.prepresult(CATCHUP,
                           ++next_request_tag,
@@ -2457,8 +2479,11 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
     auto status = result.wait_for(std::chrono::seconds(45));
     EXPECT_NE(status, future_status::timeout);
 
-    if (status == future_status::timeout)
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+    {
+        LOG_err << "timed out waiting for thread_do of setupSync_inThread 3";
         return UNDEF;
+    }
 
     return result.get();
 }
@@ -2548,6 +2573,10 @@ void StandardClient::setupSync_inThread(const string& localPath,
             EXPECT_NE(id, UNDEF);
             EXPECT_EQ(se, NO_SYNC_ERROR);
 
+            if (e != API_OK)
+            {
+                LOG_err << "Failed to addsync remotely, error " << int(e);
+            }
             result->set_value(id);
         };
 
@@ -4720,8 +4749,8 @@ TEST_F(SyncTest, BasicSync_DelRemoteFolder)
 {
     // delete a remote folder and confirm the client sending the request and another also synced both correctly update the disk
     fs::path localtestroot = makeNewTestRoot();
-    auto clientA1 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 1
-    auto clientA2 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 2
+    auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
+    auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2));
 
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
@@ -4742,7 +4771,14 @@ TEST_F(SyncTest, BasicSync_DelRemoteFolder)
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // delete something remotely and let sync catch up
+    clientA1->received_node_actionpackets = false;
+    clientA2->received_node_actionpackets = false;
+
     ASSERT_TRUE(clientA1->deleteremote("f/f_2/f_2_1"));
+
+    ASSERT_TRUE(clientA1->waitForNodesUpdated(60));
+    ASSERT_TRUE(clientA2->waitForNodesUpdated(60));
+
     waitonsyncs(std::chrono::seconds(30), clientA1, clientA2);
 
     // check everything matches in both syncs (model has expected state of remote and local)
@@ -4755,8 +4791,8 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
-    auto clientA1 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 1
-    auto clientA2 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 2
+    auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
+    auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2));
 
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
@@ -4804,8 +4840,8 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderPlain)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
-    auto clientA1 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 1
-    auto clientA2 = g_clientManager.getCleanStandardClient(0, localtestroot); // user 1 client 2
+    auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 1
+    auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2));
 
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
@@ -7593,7 +7629,7 @@ TEST_F(SyncTest, AnomalousSyncLocalRename)
 TEST_F(SyncTest, AnomalousSyncRemoteRename)
 {
     auto TESTROOT = makeNewTestRoot();
-    auto TIMEOUT = chrono::seconds(4);
+    auto TIMEOUT = chrono::seconds(8);
 
     // Sync client.
     StandardClient cx(TESTROOT, "cx");
@@ -7621,6 +7657,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     model.addfile("d/f");
     model.addfile("f");
     model.addfile("g", "g");
+    model.addfile(".megaignore", "#");
     model.generate(root);
 
     cx.triggerPeriodicScanEarly(id);
@@ -7631,35 +7668,23 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     // Verify upload.
     ASSERT_TRUE(cx.confirmModel_mainthread(model.root.get(), id));
 
-    auto* s = cr.client.nodeByHandle(cx.syncSet(id).h);
-    ASSERT_TRUE(s);
+    // Make sure cr sees all of cx's changes.
+    ASSERT_TRUE(cr.waitFor(SyncRemoteMatch("s", model.root.get()), TIMEOUT));
 
     // Rename d/f -> d/g.
-    auto* d = cr.drillchildnodebyname(s, "d");
-    ASSERT_TRUE(d);
-
     {
-        auto* f = cr.drillchildnodebyname(d, "f");
-        ASSERT_TRUE(f);
-
-        ASSERT_TRUE(cr.setattr(f, attr_map('n', "g")));
-
+        ASSERT_TRUE(cr.setattr("s/d/f", attr_map('n', "g")));
         model.findnode("d/f")->name = "g";
     }
 
     // Rename g -> G.
     {
-        auto* g = cr.drillchildnodebyname(s, "g");
-        ASSERT_NE(g, nullptr);
-
-        ASSERT_TRUE(cr.setattr(g, attr_map('n', "G")));
-
-//#if defined(_WIN32) || defined(__APPLE__)
-//        model.findnode("g")->mCloudName = "G";
-//#else // _WIN32 || __APPLE__
+        ASSERT_TRUE(cr.setattr("s/g", attr_map('n', "G")));
         model.findnode("g")->name = "G";
-//#endif // !(_WIN32 || __APPLE__)
     }
+
+    // Make sure cx sees cr's changes.
+    ASSERT_TRUE(cx.waitFor(SyncRemoteMatch("s", model.root.get()), TIMEOUT));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cx);
@@ -7671,11 +7696,7 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
     ASSERT_TRUE(reporter->mAnomalies.empty());
 
     // Update g's content.
-//#if defined(_WIN32) || defined(__APPLE__)
-//    model.findnode("g")->content = "G";
-//#else // _WIN32 || __APPLE__
     model.findnode("G")->content = "G";
-//#endif // ! (_WIN32 || __APPLE__)
     ASSERT_TRUE(createDataFile(root / "G", "G"));
 
     // Wait for sync to complete.
@@ -7689,13 +7710,12 @@ TEST_F(SyncTest, AnomalousSyncRemoteRename)
 
     // Rename d/g -> d/g:0.
     {
-        auto* g = cr.drillchildnodebyname(d, "g");
-        ASSERT_TRUE(g);
-
-        ASSERT_TRUE(cr.setattr(g, attr_map('n', "g/0")));
-
+        ASSERT_TRUE(cr.setattr("s/d/g", attr_map('n', "g/0")));
         model.findnode("d/g")->fsName("g%2f0").name = "g/0";
     }
+
+    // Wait for cx to observe cr's changes.
+    ASSERT_TRUE(cx.waitFor(SyncRemoteMatch("s", model.root.get()), TIMEOUT));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &cx);
@@ -8011,7 +8031,7 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
     auto TIMEOUT = std::chrono::seconds(8);
 
     // Allocate (recycle) a client for our use.
-    auto c = g_clientManager.getCleanStandardClient(0, TESTROOT);
+    auto c = g_clientManager->getCleanStandardClient(0, TESTROOT);
 
     // Make sure the cloud's in a pristine state.
     ASSERT_TRUE(c->resetBaseFolderMulticlient());
@@ -10498,7 +10518,6 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
     // Were the changes propagated?
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 }
-
 TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
 {
     const auto TESTROOT = makeNewTestRoot();
@@ -11571,7 +11590,7 @@ TEST_F(FilterFixture, AlreadySyncedFilterIsLoaded)
     LocalFSModel localFS;
     RemoteNodeModel remoteTree;
 
-    auto cdu = g_clientManager.getCleanStandardClient(0, filterFixureTestRoot); // user 1 client 1
+    auto cdu = g_clientManager->getCleanStandardClient(0, filterFixureTestRoot); // user 1 client 1
     ASSERT_TRUE(cdu->resetBaseFolderMulticlient());
 
     ASSERT_TRUE(cdu->makeCloudSubdirs("x", 0, 0));
@@ -11635,7 +11654,7 @@ TEST_F(FilterFixture, CaseSensitiveFilter)
     remoteTree.removenode("b/G");
 
     // Log in client.
-    auto cu = g_clientManager.getCleanStandardClient(0, filterFixureTestRoot); // user 1 client 1
+    auto cu = g_clientManager->getCleanStandardClient(0, filterFixureTestRoot); // user 1 client 1
     ASSERT_TRUE(cu->resetBaseFolderMulticlient());
 
     ASSERT_TRUE(cu->makeCloudSubdirs("cu", 0, 0));
@@ -15644,7 +15663,7 @@ TEST_F(SyncTest, BasicSync_RapidLocalChangesWhenUploadCompletes)
     auto TESTROOT = makeNewTestRoot();
     auto TIMEOUT  = std::chrono::seconds(8);
 
-    auto c = g_clientManager.getCleanStandardClient(0, TESTROOT);
+    auto c = g_clientManager->getCleanStandardClient(0, TESTROOT);
     ASSERT_TRUE(c->resetBaseFolderMulticlient());
 
     ASSERT_TRUE(c->makeCloudSubdirs("s", 0, 0));
@@ -15716,7 +15735,7 @@ TEST_F(SyncTest, MaximumTreeDepthBehavior)
     auto TIMEOUT = std::chrono::seconds(16);
 
     // Allocate a new client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud is clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -15797,7 +15816,7 @@ TEST_F(SyncTest, StallsWhenEncounteringHardLink)
     auto TIMEOUT = std::chrono::seconds(16);
 
     // Get our hands on a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the client's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -15879,7 +15898,7 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     auto TIMEOUT = chrono::seconds(16);
 
     // Get our hands on a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -15963,7 +15982,7 @@ TEST_F(SyncTest, StallsOnSpecialFile)
     auto TIMEOUT = chrono::seconds(16);
 
     // Allocate a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -16248,7 +16267,7 @@ TEST_F(SyncTest, MovedSyncedFileWhileDownloadInProgress)
     auto TIMEOUT = std::chrono::seconds(16);
 
     // Get ourselves a shiny new client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -16506,7 +16525,7 @@ TEST_F(SyncTest, MoveJustAsPutNodesSent)
     auto TIMEOUT = std::chrono::seconds(16);
 
     // Get our hands on a clean client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud is clear.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -16598,7 +16617,7 @@ TEST_F(SyncTest, RemovedJustAsPutNodesSent)
     auto TIMEOUT = std::chrono::seconds(16);
 
     // Get our hands on a clean client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud is clear.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -16884,7 +16903,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 TEST_F(SyncTest, CloudHorizontalMoveChain)
 {
     // Get our hands on a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -16952,7 +16971,7 @@ TEST_F(SyncTest, CloudHorizontalMoveChain)
 TEST_F(SyncTest, CloudHorizontalMoveCycle)
 {
     // Get our hands on a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -17053,7 +17072,7 @@ TEST_F(SyncTest, CloudHorizontalMoveCycle)
 TEST_F(SyncTest, CloudVerticalMoveChain)
 {
     // Get our hands on a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -17132,7 +17151,7 @@ TEST_F(SyncTest, CloudVerticalMoveChain)
 TEST_F(SyncTest, CloudVerticalMoveCycle)
 {
     // Get our hands on a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -17233,7 +17252,7 @@ TEST_F(SyncTest, CloudVerticalMoveCycle)
 TEST_F(SyncTest, LocalHorizontalMoveChain)
 {
     // Get our hands on a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -17297,7 +17316,7 @@ TEST_F(SyncTest, LocalHorizontalMoveChain)
 TEST_F(SyncTest, LocalHorizontalMoveCycle)
 {
     // Get our hands on a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -17392,7 +17411,7 @@ TEST_F(SyncTest, LocalHorizontalMoveCycle)
 TEST_F(SyncTest, LocalVerticalMoveChain)
 {
     // Get our hands on a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());
@@ -17469,7 +17488,7 @@ TEST_F(SyncTest, LocalVerticalMoveChain)
 TEST_F(SyncTest, LocalVerticalMoveCycle)
 {
     // Get our hands on a client.
-    auto client = g_clientManager.getCleanStandardClient(0, makeNewTestRoot());
+    auto client = g_clientManager->getCleanStandardClient(0, makeNewTestRoot());
 
     // Make sure the cloud's clean.
     ASSERT_TRUE(client->resetBaseFolderMulticlient());

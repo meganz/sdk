@@ -790,6 +790,11 @@ const char* MegaUserAlert::getString(unsigned) const
     return NULL;
 }
 
+MegaHandle MegaUserAlert::getHandle(unsigned) const
+{
+    return INVALID_HANDLE;
+}
+
 bool MegaUserAlert::isOwnChange() const
 {
     return false;
