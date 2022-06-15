@@ -558,6 +558,11 @@ handle MegaClient::getFolderLinkPublicHandle()
     return mFolderLink.mPublicHandle;
 }
 
+bool MegaClient::isValidEndCallReason(int reason)
+{
+   return reason == END_CALL_REASON_REJECTED || reason == END_CALL_REASON_BY_MODERATOR;
+}
+
 bool MegaClient::isValidFolderLink()
 {
     if (!ISUNDEF(mFolderLink.mPublicHandle))
@@ -1132,6 +1137,28 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
         }
     }
 
+    return found;
+}
+
+Node* MegaClient::childNodeTypeByName(Node *p, const char *name, nodetype_t type)
+{
+    if (!name || !p || p->type == FILENODE)   // parent't can't be a file (or we're looking at versions), but could be FOLDERNODE, ROOTNODE, etc
+    {
+        return nullptr;
+    }
+
+    Node *found = nullptr;
+    string nname = name;
+    LocalPath::utf8_normalize(&nname);
+    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+    {
+        // if name and node type matches
+        if (((*it)->type == type) && !strcmp(nname.c_str(), (*it)->displayname()))
+        {
+            found = *it;
+            break;
+        }
+    }
     return found;
 }
 
@@ -1907,6 +1934,8 @@ void MegaClient::exec()
                         {
                             if (*pendingcs->in.c_str() == '[')
                             {
+                                CodeCounter::ScopeTimer ccst(performanceStats.csSuccessProcessingTime);
+
                                 if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
                                 {
                                     WAIT_CLASS::bumpds();
@@ -3191,11 +3220,12 @@ void MegaClient::exec()
     }
 
 #ifdef MEGA_MEASURE_CODE
+    ccst.complete();
     performanceStats.transfersActiveTime.start(!tslots.empty() && !performanceStats.transfersActiveTime.inprogress());
     performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
 
     static auto lasttime = Waiter::ds;
-    if (Waiter::ds > lasttime + 1200)
+    if (Waiter::ds > lasttime + 30)
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
@@ -7971,6 +8001,11 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
 
 void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
 {
+    MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, addAttrs);
+}
+
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, std::function<void(AttrMap&)> addAttrs)
+{
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
 
@@ -10155,59 +10190,57 @@ void MegaClient::mapuser(handle uh, const char* email)
     }
 }
 
-void MegaClient::discarduser(handle uh, bool discardnotified)
+void MegaClient::dodiscarduser(User* u, bool discardnotified)
 {
-    User *u = finduser(uh);
     if (!u)
     {
         return;
     }
 
-    while (u->pkrs.size())  // protect any pending pubKey request
-    {
-        auto& pka = u->pkrs.front();
-        if(pka->cmd)
-        {
-            pka->cmd->invalidateUser();
-        }
-        pka->proc(this, u);
-        u->pkrs.pop_front();
-    }
+    u->removepkrs(this);
 
     if (discardnotified)
     {
         discardnotifieduser(u);
     }
 
-    umindex.erase(u->email);
-    users.erase(uhindex[uh]);
-    uhindex.erase(uh);
+    int uidx = -1;
+
+    if (!u->email.empty())
+    {
+        auto it = umindex.find(u->email);
+        if (it != umindex.end())
+        {
+            uidx = it->second;
+            umindex.erase(it);
+        }
+    }
+
+    if (u->userhandle != UNDEF)
+    {
+        auto it = uhindex.find(u->userhandle);
+        if (it != uhindex.end())
+        {
+            assert(uidx == -1 || uidx == it->second);
+            uidx = it->second;
+            uhindex.erase(it);
+        }
+    }
+
+    assert(uidx != -1);
+    users.erase(uidx);
+}
+
+void MegaClient::discarduser(handle uh, bool discardnotified)
+{
+    User *u = finduser(uh);
+    dodiscarduser(u, discardnotified);
 }
 
 void MegaClient::discarduser(const char *email)
 {
     User *u = finduser(email);
-    if (!u)
-    {
-        return;
-    }
-
-    while (u->pkrs.size())  // protect any pending pubKey request
-    {
-        auto& pka = u->pkrs.front();
-        if(pka->cmd)
-        {
-            pka->cmd->invalidateUser();
-        }
-        pka->proc(this, u);
-        u->pkrs.pop_front();
-    }
-
-    discardnotifieduser(u);
-
-    uhindex.erase(u->userhandle);
-    users.erase(umindex[email]);
-    umindex.erase(email);
+    dodiscarduser(u, true);
 }
 
 PendingContactRequest* MegaClient::findpcr(handle p)
@@ -12408,7 +12441,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
     {
-        DBTableTransactionCommitter committer(tctable);
+        DBTableTransactionCommitter committer(tctable); // needed in case of tctable->del()
         while (tctable->next(&id, &data, &tckey))
         {
             switch (id & 15)
@@ -12571,6 +12604,9 @@ void MegaClient::fetchnodes(bool nocache)
             scsn.setScsn(cachedscsn);
             LOG_info << "Session loaded from local cache. SCSN: " << scsn.text()
                      << " node count: " << nodes.size() << " user count: " << users.size();
+
+            assert(nodes.size() > 0);   // sometimes this is not true; if you see it, please investigate why (before we alter the db)
+            assert(!rootnodes.files.isUndef());  // we should know this by now - if not, why not, please investigate (before we alter the db)
 
             if (loggedIntoWritableFolder())
             {
@@ -13447,9 +13483,8 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
         User *u = &(it->second);
         if ((!keepOwnUser || u->userhandle != me) || u->userhandle == UNDEF)
         {
-            umindex.erase(u->email);
-            uhindex.erase(u->userhandle);
-            users.erase(it++);
+            ++it;
+            dodiscarduser(u, true);
         }
         else
         {
@@ -13855,6 +13890,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         // Currently only possible for backup syncs.
         if (!syncConfig.isBackup())
         {
+            LOG_warn << "Only Backups can be external";
             return API_EARGS;
         }
 
@@ -13899,7 +13935,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.mBackupId, &syncConfig.mError);
             if (e)
             {
-                LOG_warn << "Local path not syncable: ";
+                LOG_warn << "Local path not syncable: " << syncConfig.getLocalPath();
 
                 if (syncConfig.mError == NO_SYNC_ERROR)
                 {
@@ -13911,6 +13947,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         }
         else
         {
+            LOG_warn << "Cannot sync non-folder";
             syncConfig.mError = INVALID_LOCAL_TYPE;
             syncConfig.mEnabled = false;
             return API_EACCESS;    // cannot sync individual files
@@ -13918,6 +13955,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     }
     else
     {
+        LOG_warn << "Cannot open rootpath for sync: " << rootpath;
         syncConfig.mError = openedLocalFolder->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
         syncConfig.mEnabled = false;
         return openedLocalFolder->retry ? API_ETEMPUNAVAIL : API_ENOENT;
@@ -14153,6 +14191,7 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
 
     if (e)
     {
+        // the cause is already logged in checkSyncConfig
         completion(e, config.mError, UNDEF);
 
         // A new external backup will have its dir created in Vault by now. Let's clean that up.
@@ -17093,6 +17132,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << doWait.report(reset) << "\n"
         << checkEvents.report(reset) << "\n"
         << execFunction.report(reset) << "\n"
+        << megaapiSendPendingTransfers.report(reset) << "\n"
         << transferslotDoio.report(reset) << "\n"
         << execdirectreads.report(reset) << "\n"
         << transferComplete.report(reset) << "\n"
@@ -17100,6 +17140,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << applyKeys.report(reset) << "\n"
         << scProcessingTime.report(reset) << "\n"
         << csResponseProcessingTime.report(reset) << "\n"
+        << csSuccessProcessingTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
         << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"

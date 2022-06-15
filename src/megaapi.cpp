@@ -790,6 +790,11 @@ const char* MegaUserAlert::getString(unsigned) const
     return NULL;
 }
 
+MegaHandle MegaUserAlert::getHandle(unsigned) const
+{
+    return INVALID_HANDLE;
+}
+
 bool MegaUserAlert::isOwnChange() const
 {
     return false;
@@ -1158,6 +1163,11 @@ int MegaTransfer::getMaxRetries() const
 	return 0;
 }
 
+unsigned MegaTransfer::getStage() const
+{
+    return 0;
+}
+
 int MegaTransfer::getTag() const
 {
 	return 0;
@@ -1266,6 +1276,25 @@ long long MegaTransfer::getNotificationNumber() const
 bool MegaTransfer::getTargetOverride() const
 {
     return false;
+}
+
+MegaCancelToken* MegaTransfer::getCancelToken() const
+{
+    return NULL;
+}
+
+const char* MegaTransfer::stageToString(unsigned stage)
+{
+    switch (stage)
+    {
+        case MegaTransfer::STAGE_NONE:                      return "Not initialized stage";
+        case MegaTransfer::STAGE_SCAN:                      return "Scan stage";
+        case MegaTransfer::STAGE_CREATE_TREE:               return "Create tree stage";
+        case MegaTransfer::STAGE_GEN_TRANSFERS:             return "Generating file transfers stage";
+        case MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE:    return "Processing transfers queue stage";
+        case MegaTransfer::STAGE_TRANSFERRING_FILES:        return "Transferring files stage";
+        default:                                            return "Invalid stage";
+    }
 }
 
 MegaError::MegaError(int e)
@@ -3120,11 +3149,6 @@ MegaTransferList *MegaApi::getChildTransfers(int transferTag)
     return pImpl->getChildTransfers(transferTag);
 }
 
-void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
-{
-    pImpl->startUpload(localPath, parent, FS_UNKNOWN, listener);
-}
-
 void MegaApi::startUploadForSupport(const char* localPath, bool isSourceTemporary, MegaTransferListener *listener)
 {
     pImpl->startUploadForSupport(localPath, isSourceTemporary, FS_UNKNOWN, listener);
@@ -3155,74 +3179,23 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
     pImpl->startTimer(period, listener);
 }
 
-void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
+void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData,  bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, appData, false, false, FS_UNKNOWN, listener);
-}
-
-void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
-{
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, false, FS_UNKNOWN, listener);
-}
-
-void MegaApi::startUploadWithTopPriority(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
-{
-    pImpl->startUpload(true, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, false, FS_UNKNOWN, listener);
-}
-
-void MegaApi::startUploadWithTopPriority(const char* localPath, MegaNode* parent, const char* appData, bool isSourceTemporary, const char* fileName, MegaTransferListener* listener)
-{
-    pImpl->startUpload(true, localPath, parent, fileName, -1, 0, false, appData, isSourceTemporary, false, FS_UNKNOWN, listener);
-}
-
-void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
-{
-    pImpl->startUpload(localPath, parent, mtime, FS_UNKNOWN, listener);
-}
-
-void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener)
-{
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, false, NULL, isSourceTemporary, false, FS_UNKNOWN, listener);
-}
-
-void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
-{
-    pImpl->startUpload(localPath, parent, fileName, FS_UNKNOWN, listener);
-}
-
-void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
-{
-    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, NULL, false, false, FS_UNKNOWN, listener);
-}
-
-void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *appData, const char *fileName, int64_t mtime, MegaTransferListener *listener)
-{
-    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, appData, false, false, FS_UNKNOWN, listener);
-}
-
-void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
-{
-    pImpl->startUpload(false, localPath, parent, nullptr, -1, 0, false, appData, isSourceTemporary, true, FS_UNKNOWN, listener);
+    pImpl->startUpload(startFirst, localPath, parent, fileName, NULL /*targetUser*/, mtime,
+                       0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
+                       false /*forceNewUpload*/, FS_UNKNOWN, cancelToken, listener);
 }
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, fileName, -1, 0, false, appData, isSourceTemporary, true, FS_UNKNOWN, listener);
+    pImpl->startUpload(false /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
+                       0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
+                       true /*forceNewUpload*/, FS_UNKNOWN, nullptr /*cancelToken*/, listener);
 }
 
-void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
+void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    pImpl->startDownload(node, localFolder, listener);
-}
-
-void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
-{
-    pImpl->startDownload(false, node, localPath, 0, appData, listener);
-}
-
-void MegaApi::startDownloadWithTopPriority(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
-{
-    pImpl->startDownload(true, node, localPath, 0, appData, listener);
+    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, cancelToken, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -4198,6 +4171,11 @@ bool MegaApi::hasChildren(MegaNode *parent)
 MegaNode *MegaApi::getChildNode(MegaNode *parent, const char* name)
 {
     return pImpl->getChildNode(parent, name);
+}
+
+MegaNode* MegaApi::getChildNodeOfType(MegaNode *parent, const char *name, int type)
+{
+    return pImpl->getChildNodeOfType(parent, name, type);
 }
 
 MegaNode* MegaApi::getParentNode(MegaNode* n)

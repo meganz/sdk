@@ -14,10 +14,10 @@ pushd webrtc
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 DEPOT_TOOLS_PATH=$PWD/depot_tools/
 $DEPOT_TOOLS_PATH/fetch --nohooks webrtc_ios
-$DEPOT_TOOLS_PATH/gclient sync
 pushd src
 
 git checkout $COMMIT
+$DEPOT_TOOLS_PATH/gclient sync
 
 mkdir lib
 pushd lib
