@@ -3172,12 +3172,10 @@ void StandardClient::cleanupForTestReuse()
     future<bool> p1;
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
 
-        // currently synchronous
         sc.client.syncs.removeSelectedSyncs(
-            [](SyncConfig&, Sync*){ return true; }
-            );
-
-        pb->set_value(true);
+            [](SyncConfig&, Sync*){ return true; },
+            [&](Error e) { pb->set_value(e == API_OK); },
+            UNDEF, false);
     });
     if (!waitonresults(&p1))
     {
