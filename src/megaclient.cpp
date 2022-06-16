@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <functional>
 #include <future>
-#include <stack>
 #include "mega/heartbeats.h"
 
 #undef min // avoid issues with std::min and std::max
