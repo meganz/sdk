@@ -11659,7 +11659,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int order, int type)
+node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int type)
 {
     node_vector nodeVector;
     if (!searchString)
@@ -11682,7 +11682,6 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
         }
     }
 
-    sortByComparatorFunction(nodeVector, order, *client);
     return nodeVector;
 
 }
@@ -11785,7 +11784,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         node_vector nodeVector;
         if (recursive)
         {
-            nodeVector = searchInNodeManager(n->getHandle(), searchString, order, type);
+            nodeVector = searchInNodeManager(n->getHandle(), searchString, type);
         }
         else
         {
@@ -11821,7 +11820,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             node = client->nodeByHandle(client->rootnodes.files);
             if (recursive)
             {
-                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
             else
@@ -11842,7 +11841,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -11872,7 +11871,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -11892,7 +11891,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {
-                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, type);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
