@@ -16934,41 +16934,9 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         return nodes;
     }
 
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodeMap;
-    mTable->getNodesByName(searchString, nodeMap);
-    if (!nodeHandle.isUndef())  // filter results by subtree (nodeHandle)
-    {
-        // TODO possible improvement is to pass to SQL the 'nodeHandle', so the 'nodeMap'
-        // only contains matches inside the corresponding tree. However, it might result
-        // in worst performance, since it needs to check every parent upwards
-        for (auto it = nodeMap.begin(); it != nodeMap.end(); )
-        {
-            if (!isAncestor(it->first, nodeHandle))
-            {
-                it = nodeMap.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
-    }
-
-    for (const auto& nodeMapIt : nodeMap)
-    {
-        Node* n = getNodeInRAM(nodeMapIt.first);
-        if (!n)
-        {
-            n = getNodeFromNodeSerialized(nodeMapIt.second);
-            if (!n)
-            {
-                nodes.clear();
-                return nodes;
-            }
-        }
-
-        nodes.push_back(n);
-    }
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesByName(searchString, nodesFromTable);
+    nodes = filterByAncestor(nodesFromTable, nodeHandle);
 
     return nodes;
 }
@@ -17010,25 +16978,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByOrigFingerprint(fingerprint, nodesFromTable);
 
-    for (const auto& it : nodesFromTable)
-    {
-        if (!parent || (parent && isAncestor(it.first, parent->nodeHandle())))
-        {
-            Node* n = getNodeInRAM(it.first);
-            if (!n)
-            {
-                n = getNodeFromNodeSerialized(it.second);
-                if (!n)
-                {
-                    nodes.clear();
-                    return nodes;
-                }
-            }
-
-            nodes.push_back(n);
-        }
-    }
-
+    nodes = filterByAncestor(nodesFromTable, parent ? parent->nodeHandle() : NodeHandle());
     return nodes;
 }
 
@@ -18131,6 +18081,38 @@ node_vector NodeManager::getRootNodesAndInshares()
     }
 
     return rootnodes;
+}
+
+node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized> > &nodesFromTable, NodeHandle ancestorHandle)
+{
+    node_vector nodes;
+
+    for (const auto& nodeIt : nodesFromTable)
+    {
+        Node* n = getNodeInRAM(nodeIt.first);
+
+        if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)
+        {
+            bool skip = n ? !n->isAncestor(ancestorHandle)
+                          : !isAncestor(nodeIt.first, ancestorHandle);
+
+            if (skip) continue;
+        }
+
+        if (!n)
+        {
+            n = getNodeFromNodeSerialized(nodeIt.second);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+        }
+
+        nodes.push_back(n);
+    }
+
+    return nodes;
 }
 
 size_t NodeManager::nodeNotifySize() const

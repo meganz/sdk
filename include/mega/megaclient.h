@@ -417,6 +417,9 @@ private:
     // Returns root nodes without nested in-shares
     node_vector getRootNodesAndInshares();
 
+    //Avoid loading nodes whose ancestor is not ancestorHandle. If ancestorHandle is undef load all nodes
+    node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle);
+
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
 

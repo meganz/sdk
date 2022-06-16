@@ -183,6 +183,22 @@ int Node::getShareType() const
     return shareType;
 }
 
+bool Node::isAncestor(NodeHandle ancestorHandle) const
+{
+    Node* ancestor = parent;
+    while (ancestor)
+    {
+        if (ancestor->nodeHandle() == ancestorHandle)
+        {
+            return true;
+        }
+
+        ancestor = ancestor->parent;
+    }
+
+    return false;
+}
+
 #ifdef ENABLE_SYNC
 
 void Node::detach(const bool recreate)
