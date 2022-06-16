@@ -16953,7 +16953,7 @@ uint64_t NodeManager::getNodeCount()
     {
         // Root nodes aren't taken into consideration as part of node counters
         count += 3;
-        assert(!mClient.rootnodes.files.isUndef() && !mClient.rootnodes.inbox.isUndef() && !mClient.rootnodes.rubbish.isUndef());
+        assert(!mClient.mNodeManager.getRootNodeFiles().isUndef() && !mClient.mNodeManager.getRootNodeInbox().isUndef() && !mClient.mNodeManager.getRootNodeRubbish().isUndef());
     }
 
 #ifdef DEBUG
@@ -17151,7 +17151,7 @@ node_vector NodeManager::getRootNodes()
         if (mClient.loggedIntoFolder())
         {
             NodeSerialized nodeSerialized;
-            mTable->getNode(mClient.rootnodes.files, nodeSerialized);
+            mTable->getNode(mClient.mNodeManager.getRootNodeFiles(), nodeSerialized);
             Node* n = getNodeFromNodeSerialized(nodeSerialized);
             if (!n)
             {
