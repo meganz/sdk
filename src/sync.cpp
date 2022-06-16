@@ -593,6 +593,7 @@ bool SyncConfig::operator!=(const SyncConfig& rhs) const
     return !(*this == rhs);
 }
 
+
 bool SyncConfig::getEnabled() const
 {
     return mEnabled;

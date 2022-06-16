@@ -171,6 +171,10 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeFetchGoogleAds,
     MEGARequestTypeQueryGoogleAds,
     MEGARequestTypeGetAttrNode,
+    MEGARequestTypeLoadExternalDriveBackups,
+    MEGARequestTypeCloseExternalDriveBackups,
+    MEGARequestTypeGetDownloadUrls,
+    MEGARequestTypeExecuteOnThread,
     TotalOfRequestTypes
 };
 
