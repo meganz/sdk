@@ -11925,7 +11925,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     std::map<NodeHandle, std::vector<Node*>> delayedParents;
     while (hasNext)
     {
-        switch (id & 15)
+        switch (id & (DbTable::IDSPACING - 1))
         {
             case CACHEDSCSN:
                 if (data.size() != sizeof cachedscsn)

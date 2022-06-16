@@ -38,7 +38,6 @@ public:
 
 class MEGA_API DbTable
 {
-    static const int IDSPACING = 16;
     PrnGen &rng;
 
 protected:
@@ -50,6 +49,7 @@ protected:
     void resetCommitter();
 
 public:
+    static const int IDSPACING = 16;
     // for a full sequential get: rewind to first record
     virtual void rewind() = 0;
 

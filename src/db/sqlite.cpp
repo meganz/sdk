@@ -385,6 +385,9 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
         return false;
     }
 
+    // First bits at index are reserved for the type
+    assert((index & (DbTable::IDSPACING - 1)) != MegaClient::CACHEDNODE); // nodes must be stored in DbTableNodes ('nodes' table, not 'statecache' table)
+
     checkTransaction();
 
     sqlite3_stmt *stmt;
