@@ -7679,17 +7679,19 @@ void MegaApiImpl::abortPendingActions(error preverror)
             MegaTransferPrivate* transfer = transferMap.begin()->second;
             if (transfer->isRecursive())
             {
-                if (!transfer->getCancelToken())
+                if (transfer->getCancelToken() && transfer->getCancelToken()->isCancelled())
                 {
+                    // remove transfer and subtransfers as cancel token was cancelled
+                    transferMap.erase(transfer->getTag());
+                    transfer->completeRecursiveOperation(API_EINCOMPLETE);
+                }
+                else // no cancel token, or it exists but not cancelled
+                {
+                    // fire onTransferFinished without stopping subTransfers to preserve subtransfers in cache
                     LOG_debug << "abortPendingActions: Folder transfer with tag (" << transfer->getTag() <<") doesn't have a valid cancel token";
                     transfer->setState(MegaTransfer::STATE_FAILED);
                     transfer->setDoNotStopSubTransfers(true);
                     fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
-                }
-                else if (!transfer->getCancelToken()->isCancelled())
-                {
-                    transferMap.erase(transfer->getTag());
-                    transfer->completeRecursiveOperation(API_EINCOMPLETE);
                 }
             }
             else
