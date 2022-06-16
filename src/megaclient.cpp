@@ -16951,7 +16951,6 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
             {
                 ++it;
             }
-
         }
     }
 
