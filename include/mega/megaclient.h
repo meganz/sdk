@@ -330,7 +330,7 @@ public:
     // and root of incoming shares. Return true if success, false if error
     bool loadNodes();
 
-    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), excluding versions
+    // Returns total of nodes in the account (cloud+inbox+rubbish AND inshares), including versions
     uint64_t getNodeCount();
 
     // return the counter for all root nodes (cloud+inbox+rubbish)
@@ -756,6 +756,9 @@ public:
 
     // helper function for preparing a putnodes call for new folders
     void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
+
+    // static version to be used from worker threads, which cannot rely on the MegaClient::tmpnodecipher as SymCipher (not thread-safe))
+    static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher &tmpnodecipher, std::function<void(AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
@@ -1870,6 +1873,7 @@ public:
     Node* childnodebyattribute(Node*, nameid, const char*);
     static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
+    Node* childNodeTypeByName(Node *p, const char *name, nodetype_t type);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc(bool keepOwnUser);
@@ -1983,6 +1987,9 @@ public:
 
     // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
     handle getFolderLinkPublicHandle();
+
+    // check if end call reason is valid
+    bool isValidEndCallReason(int reason);
 
     // check if there is a valid folder link (rootnode received and the valid key)
     bool isValidFolderLink();
@@ -2109,12 +2116,14 @@ public:
         CodeCounter::ScopeStats transferslotDoio = { "TransferSlot_doio" };
         CodeCounter::ScopeStats execdirectreads = { "execdirectreads" };
         CodeCounter::ScopeStats transferComplete = { "transfer_complete" };
+        CodeCounter::ScopeStats megaapiSendPendingTransfers = { "megaapi_sendtransfers" };
         CodeCounter::ScopeStats prepareWait = { "MegaClient_prepareWait" };
         CodeCounter::ScopeStats doWait = { "MegaClient_doWait" };
         CodeCounter::ScopeStats checkEvents = { "MegaClient_checkEvents" };
         CodeCounter::ScopeStats applyKeys = { "MegaClient_applyKeys" };
         CodeCounter::ScopeStats dispatchTransfers = { "dispatchTransfers" };
         CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
+        CodeCounter::ScopeStats csSuccessProcessingTime = { "cs batch received processing" };
         CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
         uint64_t transferStarts = 0, transferFinishes = 0;
         uint64_t transferTempErrors = 0, transferFails = 0;

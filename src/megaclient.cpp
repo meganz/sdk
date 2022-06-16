@@ -547,6 +547,11 @@ handle MegaClient::getFolderLinkPublicHandle()
     return mFolderLink.mPublicHandle;
 }
 
+bool MegaClient::isValidEndCallReason(int reason)
+{
+   return reason == END_CALL_REASON_REJECTED || reason == END_CALL_REASON_BY_MODERATOR;
+}
+
 bool MegaClient::isValidFolderLink()
 {
     if (!ISUNDEF(mFolderLink.mPublicHandle))
@@ -1098,6 +1103,32 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
         }
     }
 
+    return found;
+}
+
+Node* MegaClient::childNodeTypeByName(Node *p, const char *name, nodetype_t type)
+{
+    if (!name || !p || p->type == FILENODE)   // parent't can't be a file (or we're looking at versions), but could be FOLDERNODE, ROOTNODE, etc
+    {
+        return nullptr;
+    }
+
+    Node *found = nullptr;
+    string nname = name;
+    LocalPath::utf8_normalize(&nname);
+
+    // TODO: a DB query could return the matching child nodes directly, avoiding to load all
+    // children
+    node_list nodeList = getChildren(p);
+    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
+    {
+        // if name and node type matches
+        if (((*it)->type == type) && !strcmp(nname.c_str(), (*it)->displayname()))
+        {
+            found = *it;
+            break;
+        }
+    }
     return found;
 }
 
@@ -1873,6 +1904,8 @@ void MegaClient::exec()
                         {
                             if (*pendingcs->in.c_str() == '[')
                             {
+                                CodeCounter::ScopeTimer ccst(performanceStats.csSuccessProcessingTime);
+
                                 if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
                                 {
                                     WAIT_CLASS::bumpds();
@@ -3151,11 +3184,12 @@ void MegaClient::exec()
     }
 
 #ifdef MEGA_MEASURE_CODE
+    ccst.complete();
     performanceStats.transfersActiveTime.start(!tslots.empty() && !performanceStats.transfersActiveTime.inprogress());
     performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
 
     static auto lasttime = Waiter::ds;
-    if (Waiter::ds > lasttime + 1200)
+    if (Waiter::ds > lasttime + 30)
     {
         lasttime = Waiter::ds;
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
@@ -7702,6 +7736,11 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
 }
 
 void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
+{
+    MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, addAttrs);
+}
+
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
@@ -16596,6 +16635,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << doWait.report(reset) << "\n"
         << checkEvents.report(reset) << "\n"
         << execFunction.report(reset) << "\n"
+        << megaapiSendPendingTransfers.report(reset) << "\n"
         << transferslotDoio.report(reset) << "\n"
         << execdirectreads.report(reset) << "\n"
         << transferComplete.report(reset) << "\n"
@@ -16603,6 +16643,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << applyKeys.report(reset) << "\n"
         << scProcessingTime.report(reset) << "\n"
         << csResponseProcessingTime.report(reset) << "\n"
+        << csSuccessProcessingTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
         << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
@@ -16907,6 +16948,14 @@ uint64_t NodeManager::getNodeCount()
         count += nc.files + nc.folders + nc.versions;
     }
 
+    // add rootnodes to the count if logged into account (and fetchnodes is done <- rootnodes are ready)
+    if (!mClient.loggedIntoFolder() && rootnodes.size())
+    {
+        // Root nodes aren't taken into consideration as part of node counters
+        count += 3;
+        assert(!mClient.rootnodes.files.isUndef() && !mClient.rootnodes.inbox.isUndef() && !mClient.rootnodes.rubbish.isUndef());
+    }
+
 #ifdef DEBUG
     if (mNodes.size())
     {
@@ -17099,22 +17148,38 @@ node_vector NodeManager::getRootNodes()
     }
     else    // nodes not loaded yet
     {
-        std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-        mTable->getRootNodes(nodesFromTable);
-
-        for (const auto& nHandleSerialized : nodesFromTable)
+        if (mClient.loggedIntoFolder())
         {
-            assert(!getNodeInRAM(nHandleSerialized.first));
-            Node* n = getNodeFromNodeSerialized(nHandleSerialized.second);
+            NodeSerialized nodeSerialized;
+            mTable->getNode(mClient.rootnodes.files, nodeSerialized);
+            Node* n = getNodeFromNodeSerialized(nodeSerialized);
             if (!n)
             {
-                nodes.clear();
                 return nodes;
             }
 
             nodes.push_back(n);
+            //It isn't necessary call to setrootnode(n) because mClient.rootnodes.files is set correctly for folder link at login commnad
+        }
+        else
+        {
+            std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+            mTable->getRootNodes(nodesFromTable);
 
-            setrootnode(n);
+            for (const auto& nHandleSerialized : nodesFromTable)
+            {
+                assert(!getNodeInRAM(nHandleSerialized.first));
+                Node* n = getNodeFromNodeSerialized(nHandleSerialized.second);
+                if (!n)
+                {
+                    nodes.clear();
+                    return nodes;
+                }
+
+                nodes.push_back(n);
+
+                setrootnode(n);
+            }
         }
     }
 
