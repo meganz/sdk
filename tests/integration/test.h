@@ -151,8 +151,8 @@ struct Model
         ModelNode& cloudName(const string& name);
         const string& cloudName() const;
         void generate(const fs::path& path, bool force);
-        string path();
-        string fsPath();
+        string path() const;
+        string fsPath() const;
         ModelNode* addkid();
         ModelNode* addkid(unique_ptr<ModelNode>&& p);
         bool typematchesnodetype(nodetype_t nodetype) const;
@@ -657,7 +657,7 @@ struct StandardClient : public MegaApp
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);
     bool match(NodeHandle handle, const Model::ModelNode* source);
     void match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result);
-    bool waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout);
+    bool waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);

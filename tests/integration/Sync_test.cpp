@@ -228,7 +228,7 @@ void Model::ModelNode::generate(const fs::path& path, bool force)
     }
 }
 
-string Model::ModelNode::path()
+string Model::ModelNode::path() const
 {
     string s;
     for (auto p = this; p; p = p->parent)
@@ -236,7 +236,7 @@ string Model::ModelNode::path()
     return s;
 }
 
-string Model::ModelNode::fsPath()
+string Model::ModelNode::fsPath() const
 {
     string s;
     for (auto p = this; p; p = p->parent)
@@ -1771,7 +1771,13 @@ SyncConfig StandardClient::syncConfigByBackupID(handle backupID) const
 bool StandardClient::syncSet(handle backupId, SyncInfo& info) const
 {
     SyncConfig c;
-    if (client.syncs.syncConfigByBackupId(backupId, c))
+
+    auto found = client.syncs.syncConfigByBackupId(backupId, c);
+    EXPECT_TRUE(found)
+      << "Unable to find sync with backup ID: "
+      << toHandle(backupId);
+
+    if (found)
     {
         info.h = c.mRemoteNode;
         info.localpath = c.getLocalPath().toPath();
@@ -3322,6 +3328,13 @@ bool StandardClient::match(handle id, const Model::ModelNode* source)
         client.match(id, source, std::move(result));
     });
 
+    auto status = result.wait_for(DEFAULTWAIT);
+
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
     return result.get();
 }
 
@@ -3329,13 +3342,15 @@ void StandardClient::match(handle id, const Model::ModelNode* source, PromiseBoo
 {
     SyncInfo info;
 
-    if (!syncSet(id, info))
-    {
-        result->set_value(false);
-        return;
-    }
+    auto found = syncSet(id, info);
+    EXPECT_TRUE(found);
+
+    if (!found)
+        return result->set_value(false);
 
     const auto* destination = client.nodeByHandle(info.h);
+    EXPECT_TRUE(destination);
+
     result->set_value(destination && match(*destination, *source));
 }
 
@@ -3353,15 +3368,17 @@ bool StandardClient::match(NodeHandle handle, const Model::ModelNode* source)
 
 void StandardClient::match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result)
 {
+    EXPECT_TRUE(source);
     if (!source)
         return result->set_value(false);
 
     auto node = client.nodeByHandle(handle);
+    EXPECT_TRUE(node);
 
     result->set_value(node && match(*node, *source));
 }
 
-bool StandardClient::waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout)
+bool StandardClient::waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout)
 {
     auto total = std::chrono::milliseconds(0);
     auto sleepIncrement = std::chrono::milliseconds(500);
@@ -3390,6 +3407,7 @@ bool StandardClient::waitFor(std::function<bool(StandardClient&)>&& predicate, c
 bool StandardClient::match(const Node& destination, const Model::ModelNode& source) const
 {
     list<pair<const Node*, decltype(&source)>> pending;
+    auto matched = true;
 
     pending.emplace_back(&destination, &source);
 
@@ -3399,27 +3417,94 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
         const auto& sn = *pending.front().second;
 
         // Nodes must have matching types.
-        if (!sn.typematchesnodetype(dn.type)) return false;
+        if (!sn.typematchesnodetype(dn.type))
+        {
+            EXPECT_TRUE(sn.typematchesnodetype(dn.type))
+              << "Cloud model/type mismatch: "
+              << dn.displaypath()
+              << "("
+              << dn.type
+              << ")"
+              << " vs. "
+              << sn.path()
+              << "("
+              << sn.type
+              << ")";
+
+            matched = false;
+            continue;
+        }
 
         // Files require no further processing.
         if (dn.type == FILENODE) continue;
 
         map<string, decltype(&dn), CloudNameLess> dc;
         map<string, decltype(&sn), CloudNameLess> sc;
+        set<string, CloudNameLess> dd;
+        set<string, CloudNameLess> sd;
 
         // Index children for pairing.
         for (const auto* child : dn.children)
         {
+            string name = child->displayname();
+
+            // Duplicate already reported?
+            EXPECT_EQ(dd.find(name), dd.end())
+              << "Cloud name conflict: "
+              << child->displaypath();
+
+            if (dd.count(name))
+                continue;
+
             auto result = dc.emplace(child->displayname(), child);
 
-            // For simplicity, duplicates consistute a match failure.
-            if (!result.second) return false;
+            // Didn't exist? No duplicate.
+            EXPECT_TRUE(result.second)
+             << "Cloud name conflict: "
+             << child->displaypath();
+
+            if (result.second)
+                continue;
+
+            // Remmber the duplicate (name conflict.)
+            dc.erase(result.first);
+            dd.emplace(name);
+
+            matched = false;
         }
 
         for (const auto& child : sn.kids)
         {
+            auto name = child->cloudName();
+
+            // Duplicate already reported?
+            EXPECT_EQ(dd.find(name), dd.end())
+              << "Model node excluded due to cloud duplicates: "
+              << child->path();
+
+            EXPECT_EQ(sd.find(name), sd.end())
+              << "Model name conflict: "
+              << child->path();
+
+            if (dd.count(name) || sd.count(name))
+                continue;
+
             auto result = sc.emplace(child->cloudName(), child.get());
-            if (!result.second) return false;
+
+            // Didn't exist? No duplicate.
+            EXPECT_TRUE(result.second)
+              << "Model name conflict: "
+              << child->path();
+
+            if (result.second)
+                continue;
+
+            // Remember the duplicate.
+            dc.erase(name);
+            sc.erase(result.first);
+            sd.emplace(name);
+
+            matched = false;
         }
 
         // Pair children.
@@ -3437,8 +3522,15 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
             // Does this node have a pair in the destination?
             auto d = dc.find(s.first);
 
+            EXPECT_NE(d, dc.end())
+              << "Model node has no pair in cloud: "
+              << s.second->path();
+
+            matched &= d != dc.end();
+
             // If not then there can be no match.
-            if (d == dc.end()) return false;
+            if (d == dc.end())
+                continue;
 
             // Queue pair for more detailed matching.
             pending.emplace_back(d->second, s.second);
@@ -3448,10 +3540,20 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
         }
 
         // Can't have a match if we couldn't pair all destination nodes.
-        if (!dc.empty()) return false;
+        EXPECT_TRUE(dc.empty())
+         << "Cloud nodes exist with no pair in the model.";
+
+        for (const auto& d : dc)
+        {
+            EXPECT_TRUE(false)
+              << "Cloud node has no pair in the model: "
+              << d.second->displaypath();
+        }
+
+        matched &= dc.empty();
     }
 
-    return true;
+    return matched;
 }
 
 bool StandardClient::backupOpenDrive(const fs::path& drivePath)
@@ -3957,6 +4059,16 @@ public:
         model0.root->addkid(model0.buildModelSubdirs("d", 2, 1, 0));
         model1.root->addkid(model1.buildModelSubdirs("d", 2, 1, 0));
 
+        // Make sure the client's agree on the cloud's state before proceeding.
+        {
+            auto* root = client0->gettestbasenode();
+            ASSERT_NE(root, nullptr);
+
+            auto predicate = SyncRemoteMatch(*root, model0.root.get());
+            ASSERT_TRUE(client0->waitFor(predicate, DEFAULTWAIT));
+            ASSERT_TRUE(client1->waitFor(predicate, DEFAULTWAIT));
+        }
+
         startSyncs();
         waitOnSyncs();
         confirmModels();
@@ -3994,12 +4106,24 @@ public:
         return client1->syncSet(backupId1).localpath;
     }
 
+    void prepareForNodeUpdates()
+    {
+        client0->received_node_actionpackets = false;
+        client1->received_node_actionpackets = false;
+    }
+
     void startSyncs()
     {
         backupId0 = client0->setupSync_mainthread("s0", "d", false, true);
         ASSERT_NE(backupId0, UNDEF);
         backupId1 = client1->setupSync_mainthread("s1", "d", false, false);
         ASSERT_NE(backupId1, UNDEF);
+    }
+
+    void waitForNodeUpdates()
+    {
+        ASSERT_TRUE(client0->waitForNodesUpdated(30));
+        ASSERT_TRUE(client1->waitForNodesUpdated(30));
     }
 
     void waitOnSyncs()
@@ -4024,7 +4148,11 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_1" / "a";
 
+    prepareForNodeUpdates();
     ASSERT_TRUE(createDataFile(path0, data0));
+    waitForNodeUpdates();
+
+    // Wait for the engine to process any further changes.
     waitOnSyncs();
 
     // Alter MAC but leave fingerprint untouched.
@@ -4035,8 +4163,9 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
 
     ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, stamp));
 
-    // Move the file into place.
+    prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
+    waitForNodeUpdates();
 
     // Wait for the engine to process changes.
     waitOnSyncs();
@@ -4057,7 +4186,11 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_0" / "b";
 
+    prepareForNodeUpdates();
     ASSERT_TRUE(createDataFile(path0, data0));
+    waitForNodeUpdates();
+
+    // Process any further changes.
     waitOnSyncs();
 
     // Alter MAC but leave fingerprint untouched.
@@ -4068,8 +4201,9 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
 
     ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "a", data1, stamp));
 
-    // Move the file into place.
+    prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
+    waitForNodeUpdates();
 
     // Wait for the engine to process our change.
     waitOnSyncs();
@@ -4089,7 +4223,10 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     const auto path0 = localRoot0() / "d_0" / "a";
     const auto path1 = localRoot0() / "d_0" / "b";
 
+    prepareForNodeUpdates();
     ASSERT_TRUE(createDataFile(path0, data0));
+    waitForNodeUpdates();
+
     waitOnSyncs();
 
     // Build the file somewhere the sync won't notice.
@@ -4098,7 +4235,9 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     ASSERT_TRUE(createDataFileWithTimestamp(client0->fsBasePath / "b", data0, stamp));
 
     // Move file into place.
+    prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "b", path1);
+    waitForNodeUpdates();
 
     // Wait for the engine to process our changes.
     waitOnSyncs();
@@ -7712,6 +7851,18 @@ TEST_F(SyncTest, MoveTargetHasFilesystemWatch)
     // Wait for initial sync to complete.
     waitonsyncs(TIMEOUT, &c);
 
+    // Wait for everything to reach the cloud.
+    {
+        auto *root = c.gettestbasenode();
+        ASSERT_NE(root, nullptr);
+
+        root = c.drillchildnodebyname(root, "s");
+        ASSERT_NE(root, nullptr);
+
+        auto predicate = SyncRemoteMatch(*root, model.root.get());
+        ASSERT_TRUE(c.waitFor(std::move(predicate), DEFAULTWAIT));
+    }
+
     // Confirm directories have hit the cloud.
     ASSERT_TRUE(c.confirmModel_mainthread(model.root.get(), id));
 
@@ -8988,8 +9139,7 @@ struct TwoWaySyncSymmetryCase
     {
         Sync* sync = client1().syncByBackupId(backupId);
 
-        if (printTreesBeforeAndAfter)
-        {
+        std::function<void()> printTrees = [&]() {
             out() << " ---- local filesystem after sync of change ----";
             PrintLocalTree(fs::path(localTestBasePath()));
 
@@ -9007,9 +9157,19 @@ struct TwoWaySyncSymmetryCase
             }
             out() << " ---- expected sync destination (model) ----";
             PrintModelTree(destinationModel().findnode("f"));
+        };
+
+        if (printTreesBeforeAndAfter)
+        {
+            printTrees();
+
+            // Don't saturate the logs if we're already displaying the trees.
+            printTrees = nullptr;
         }
 
         out() << "Checking twoway sync "<< name();
+
+        auto confirmedOk = true;
 
         if (shouldDisableSync())
         {
@@ -9020,9 +9180,10 @@ struct TwoWaySyncSymmetryCase
             EXPECT_TRUE(lfs) << "Couldn't confirm LFS: " << name();
             EXPECT_TRUE(rnt) << "Couldn't confirm RNT: " << name();
 
+            confirmedOk &= lfs && rnt;
+
             finalResult = sync == nullptr;
-            finalResult &= lfs;
-            finalResult &= rnt;
+            finalResult &= confirmedOk;
         }
         else
         {
@@ -9036,9 +9197,17 @@ struct TwoWaySyncSymmetryCase
             EXPECT_EQ(localnode, remote);
             EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
 
-            finalResult = localfs && localnode && remote && sync && sync->state() == SYNC_ACTIVE;
+            confirmedOk &= localfs && localnode && remote;
+
+            finalResult = sync && sync->state() == SYNC_ACTIVE;
+            finalResult &= confirmedOk;
         }
 
+        // Show the trees if there's been a mismatch.
+        if (printTrees && !confirmedOk)
+        {
+            printTrees();
+        }
     }
 };
 
@@ -9095,11 +9264,7 @@ void PrepareForSync(StandardClient& client)
 bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
                         chrono::seconds timeout)
 {
-    auto total = std::chrono::milliseconds(0);
-    constexpr auto sleepIncrement = std::chrono::milliseconds(500);
-
-    do
-    {
+    auto check = [&]() {
         auto i = testcases.begin();
         auto j = testcases.end();
 
@@ -9115,12 +9280,24 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
 
             if (!client.match(id, model.findnode("f")))
             {
-                out() << "Cloud/model misatch: " << testcase.name();
-                break;
+                out() << "Cloud/model misatch: "
+                      << client.client.clientname
+                      << ": "
+                      << testcase.name();
+
+                return false;
             }
         }
 
-        if (i == j)
+        return true;
+    };
+
+    auto total = std::chrono::milliseconds(0);
+    constexpr auto sleepIncrement = std::chrono::milliseconds(500);
+
+    do
+    {
+        if (check())
         {
             out() << "Cloud/model matched.";
             return true;
@@ -9133,9 +9310,13 @@ bool WaitForRemoteMatch(map<string, TwoWaySyncSymmetryCase>& testcases,
     }
     while (total < timeout);
 
-    out() << "Timed out waiting for cloud/model match.";
+    if (!check())
+    {
+        out() << "Timed out waiting for cloud/model match.";
+        return false;
+    }
 
-    return false;
+    return true;
 }
 
 TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
