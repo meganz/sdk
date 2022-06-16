@@ -11920,7 +11920,6 @@ long long MegaApiImpl::getSize(MegaNode *n)
 
     if (n->isForeign())
     {
-        // TODO Nodes on Demand: how we can improve calculation
         MegaSizeProcessor megaSizeProcessor;
         processMegaTree(n, &megaSizeProcessor);
         return megaSizeProcessor.getTotalBytes();
@@ -17540,7 +17539,6 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
 
     node_vector files;
     node_vector folders;
-    // TODO Nodes on Demand: it can be implemented with a query to DB
     node_list nodeList = client->getChildren(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
     {
@@ -20046,7 +20044,6 @@ void MegaApiImpl::sendPendingRequests()
                     // update file versions if any
                     if (current->type == FILENODE)
                     {
-
                         node_list childrens = client->getChildren(current);
                         while (childrens.size())
                         {
