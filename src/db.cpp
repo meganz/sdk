@@ -22,8 +22,6 @@
 #include "mega/db.h"
 #include "mega/utils.h"
 #include "mega/logging.h"
-#include "mega/node.h"
-#include "mega/share.h"
 
 namespace mega {
 DbTable::DbTable(PrnGen &rng, bool checkAlwaysTransacted)
@@ -41,8 +39,6 @@ bool DbTable::put(uint32_t index, string* data)
 // add or update record with padding and encryption
 bool DbTable::put(uint32_t type, Cacheable* record, SymmCipher* key)
 {
-    assert(type != MegaClient::CACHEDNODE); // nodes must be stored in DbTableNodes ('nodes' table, not 'statecache' table)
-
     string data;
 
     if (!record->serialize(&data))
