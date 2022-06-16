@@ -1052,7 +1052,7 @@ Node* MegaClient::childnodebyattribute(Node* p, nameid attrId, const char* attrV
     // child nodes) will require to have dedicated columns for each attribute ID.
     // On top of that, this method is used exclusively upon creation of a new backup,
     // which implies ENABLE_SYNC.
-    // (syncing always have all nodes in memory, so the DB query won't be faster)
+    // (syncing always have all sync tree nodes in memory, so the DB query won't be faster)
     node_list childrenNodeList = getChildren(p);
     for (Node* child : childrenNodeList)
     {
