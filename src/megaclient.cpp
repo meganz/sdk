@@ -17013,19 +17013,19 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
 
     for (const auto& it : nodesFromTable)
     {
-        Node* n = getNodeInRAM(it.first);
-        if (!n)
+        if (!parent || (parent && isAncestor(it.first, parent->nodeHandle())))
         {
-            n = getNodeFromNodeSerialized(it.second);
+            Node* n = getNodeInRAM(it.first);
             if (!n)
             {
-                nodes.clear();
-                return nodes;
+                n = getNodeFromNodeSerialized(it.second);
+                if (!n)
+                {
+                    nodes.clear();
+                    return nodes;
+                }
             }
-        }
 
-        if (n && (!parent || (parent && isAncestor(n->nodeHandle(), parent->nodeHandle()))))
-        {
             nodes.push_back(n);
         }
     }
