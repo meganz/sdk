@@ -1743,7 +1743,6 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expe
 
                 FSNode result;
                 result.localname = LocalPath::fromPlatformEncodedRelative(wstring(info->FileName, info->FileNameLength/2));
-                result.name = result.localname.toName(*this);
                 assert(result.localname.localpath.back() != 0);
 
                 if (result.localname.localpath == L"." ||

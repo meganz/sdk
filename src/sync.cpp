@@ -46,10 +46,6 @@ const unsigned Sync::MAX_CLOUD_DEPTH = 64;
 
 #define SYNC_verbose if (syncs.mDetailedSyncLogging) LOG_verbose
 
-std::atomic<size_t> ScanService::mNumServices(0);
-std::unique_ptr<ScanService::Worker> ScanService::mWorker;
-std::mutex ScanService::mWorkerLock;
-
 ChangeDetectionMethod changeDetectionMethodFromString(const string& method)
 {
     static const auto notifications =
@@ -79,300 +75,27 @@ string changeDetectionMethodToString(const ChangeDetectionMethod method)
     }
 }
 
-ScanService::ScanService(Waiter& waiter)
-  : mWaiter(waiter)
-{
-    // Locking here, rather than in the if statement, ensures that the
-    // worker is fully constructed when control leaves the constructor.
-    std::lock_guard<std::mutex> lock(mWorkerLock);
+class ScopedSyncPathRestore {
+    SyncPath& path;
+    size_t length1, length2, length3;
+public:
 
-    if (++mNumServices == 1)
+    // On destruction, puts the LocalPath length back to what it was on construction of this class
+
+    ScopedSyncPathRestore(SyncPath& p)
+        : path(p)
+        , length1(p.localPath.localpath.size())
+        , length2(p.syncPath.size())
+        , length3(p.cloudPath.size())
     {
-        mWorker.reset(new Worker());
-    }
-}
-
-ScanService::~ScanService()
-{
-    if (--mNumServices == 0)
-    {
-        std::lock_guard<std::mutex> lock(mWorkerLock);
-        mWorker.reset();
-    }
-}
-
-auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren) -> RequestPtr
-{
-    // Create a request to represent the scan.
-    auto request = std::make_shared<ScanRequest>(mWaiter, followSymlinks, targetPath, expectedFsid, move(priorScanChildren));
-
-    // Queue request for processing.
-    mWorker->queue(request);
-
-    return request;
-}
-
-ScanService::ScanRequest::ScanRequest(Waiter& waiter,
-                                      bool followSymLinks,
-                                      LocalPath targetPath,
-                                      handle expectedFsid,
-                                      map<LocalPath, FSNode>&& priorScanChildren)
-  : mWaiter(waiter)
-  , mScanResult(SCAN_INPROGRESS)
-  , mFollowSymLinks(followSymLinks)
-  , mKnown(move(priorScanChildren))
-  , mResults()
-  , mTargetPath(std::move(targetPath))
-  , mExpectedFsid(expectedFsid)
-{
-}
-
-ScanService::Worker::Worker(size_t numThreads)
-  : mFsAccess(new FSACCESS_CLASS())
-  , mPending()
-  , mPendingLock()
-  , mPendingNotifier()
-  , mThreads()
-{
-    // Always at least one thread.
-    assert(numThreads > 0);
-
-    LOG_debug << "Starting ScanService worker...";
-
-    // Start the threads.
-    while (numThreads--)
-    {
-        try
-        {
-            mThreads.emplace_back([this]() { loop(); });
-        }
-        catch (std::system_error& e)
-        {
-            LOG_err << "Failed to start worker thread: " << e.what();
-        }
     }
 
-    LOG_debug << mThreads.size() << " worker thread(s) started.";
-    LOG_debug << "ScanService worker started.";
-}
-
-ScanService::Worker::~Worker()
-{
-    LOG_debug << "Stopping ScanService worker...";
-
-    // Queue the 'terminate' sentinel.
+    ~ScopedSyncPathRestore()
     {
-        std::unique_lock<std::mutex> lock(mPendingLock);
-        mPending.emplace_back();
-    }
-
-    // Wake any sleeping threads.
-    mPendingNotifier.notify_all();
-
-    LOG_debug << "Waiting for worker thread(s) to terminate...";
-
-    // Wait for the threads to terminate.
-    for (auto& thread : mThreads)
-    {
-        thread.join();
-    }
-
-    LOG_debug << "ScanService worker stopped.";
-}
-
-void ScanService::Worker::queue(ScanRequestPtr request)
-{
-    // Queue the request.
-    {
-        std::unique_lock<std::mutex> lock(mPendingLock);
-        mPending.emplace_back(std::move(request));
-    }
-
-    // Tell the lucky thread it has something to do.
-    mPendingNotifier.notify_one();
-}
-
-void ScanService::Worker::loop()
-{
-    // We're ready when we have some work to do.
-    auto ready = [this]() { return mPending.size(); };
-
-    for ( ; ; )
-    {
-        ScanRequestPtr request;
-
-        {
-            // Wait for something to do.
-            std::unique_lock<std::mutex> lock(mPendingLock);
-            mPendingNotifier.wait(lock, ready);
-
-            // Are we being told to terminate?
-            if (!mPending.front())
-            {
-                // Bail, don't deque the sentinel.
-                return;
-            }
-
-            request = std::move(mPending.front());
-            mPending.pop_front();
-        }
-
-        const auto targetPath =
-          request->mTargetPath.toPath();
-
-        LOG_verbose << "Directory scan begins: " << targetPath;
-        using namespace std::chrono;
-        auto scanStart = high_resolution_clock::now();
-
-        // Process the request.
-        unsigned nFingerprinted = 0;
-        auto result = scan(request, nFingerprinted);
-        auto scanEnd = high_resolution_clock::now();
-
-        if (result == SCAN_SUCCESS)
-        {
-            LOG_verbose << "Directory scan complete for: " << targetPath
-                        << " entries: " << request->mResults.size()
-                        << " taking " << duration_cast<milliseconds>(scanEnd - scanStart).count() << "ms"
-                        << " fingerprinted: " << nFingerprinted;
-        }
-        else
-        {
-            LOG_verbose << "Directory scan FAILED (" << result << "): " << targetPath;
-        }
-
-        request->mScanResult = result;
-        request->mWaiter.notify();
-    }
-}
-
-FSNode ScanService::Worker::interrogate(DirAccess& iterator,
-                                        const LocalPath& name,
-                                        LocalPath& path,
-                                        ScanRequest& request,
-                                        unsigned& nFingerprinted)
-{
-    auto reuseFingerprint =
-      [](const FSNode& lhs, const FSNode& rhs)
-      {
-          // it might look like fingerprint.crc comparison has been missed out here
-          // but that is intentional.  The point is to avoid re-fingerprinting files
-          // when we rescan a folder, if we already have good info about them and
-          // nothing we can see from outside the file had changed,
-          // mtime is the same, and no notifications arrived
-          // for this particular file.
-          return lhs.type == rhs.type
-                 && lhs.fsid == rhs.fsid
-                 && lhs.fingerprint.mtime == rhs.fingerprint.mtime
-                 && lhs.fingerprint.size == rhs.fingerprint.size;
-      };
-
-    FSNode result;
-    auto& known = request.mKnown;
-
-    // Always record the name.
-    result.localname = name;
-    result.name = name.toName(*mFsAccess);
-
-    // Can we open the file?
-    auto fileAccess = mFsAccess->newfileaccess(false);
-
-    if (fileAccess->fopen(path, true, false, &iterator))
-    {
-        // Populate result.
-        result.fsid = fileAccess->fsidvalid ? fileAccess->fsid : UNDEF;
-        result.isSymlink = fileAccess->mIsSymLink;
-        result.fingerprint.mtime = fileAccess->mtime;
-        result.fingerprint.size = fileAccess->size;
-        result.shortname = mFsAccess->fsShortname(path);
-        result.type = fileAccess->type;
-
-        if (result.shortname &&
-           *result.shortname == result.localname)
-        {
-            result.shortname.reset();
-        }
-
-        // Warn about symlinks.
-        if (result.isSymlink)
-        {
-            LOG_debug << "Interrogated path is a symlink: "
-                      << path.toPath();
-        }
-
-        // No need to fingerprint directories.
-        if (result.type == FOLDERNODE)
-        {
-            return result;
-        }
-
-        // Do we already know about this child?
-        auto it = known.find(name);
-
-        // Can we reuse an existing fingerprint?
-        if (it != known.end() && reuseFingerprint(it->second, result))
-        {
-            // Yep as fsid/mtime/size/type match.
-            result.fingerprint = std::move(it->second.fingerprint);
-        }
-        else
-        {
-            // Child has changed, need a new fingerprint.
-            result.fingerprint.genfingerprint(fileAccess.get());
-            nFingerprinted += 1;
-        }
-
-        return result;
-    }
-
-    // Couldn't open the file.
-    LOG_warn << "Error opening directory scan entry: " << path.toPath();
-
-    // File's blocked if the error is transient.
-    result.isBlocked = fileAccess->retry;
-
-    // Warn about the blocked file.
-    if (result.isBlocked)
-    {
-        LOG_warn << "File/Folder blocked during directory scan: " << path.toPath();
-    }
-
-    return result;
-}
-
-// Really we only have one worker despite the vector of threads - maybe we should just have one
-// regardless of multiple clients too - there is only one filesystem after all (but not singleton!!)
-CodeCounter::ScopeStats ScanService::syncScanTime = { "folderScan" };
-
-auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted) -> ScanResult
-{
-    CodeCounter::ScopeTimer rst(syncScanTime);
-
-    auto result = mFsAccess->directoryScan(request->mTargetPath,
-                                           request->mExpectedFsid,
-                                           request->mKnown,
-                                           request->mResults,
-                                           request->mFollowSymLinks,
-                                           nFingerprinted);
-
-    // No need to keep this data around anymore.
-    request->mKnown.clear();
-
-    return result;
-}
-
-ScopedSyncPathRestore::ScopedSyncPathRestore(SyncPath& p)
-    : path(p)
-    , length1(p.localPath.localpath.size())
-    , length2(p.syncPath.size())
-    , length3(p.cloudPath.size())
-{
-}
-ScopedSyncPathRestore::~ScopedSyncPathRestore()
-{
-    path.localPath.localpath.resize(length1);
-    path.syncPath.resize(length2);
-    path.cloudPath.resize(length3);
+        path.localPath.localpath.resize(length1);
+        path.syncPath.resize(length2);
+        path.cloudPath.resize(length3);
+    };
 };
 
 string SyncPath::localPath_utf8() const
@@ -440,7 +163,7 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     }
     else if (row.fsNode)
     {
-        cloudPath += row.fsNode->name;
+        cloudPath += row.fsNode->localname.toName(*syncs.fsaccess);
     }
     else if (!row.cloudClashingNames.empty() || !row.fsClashingNames.empty())
     {
@@ -465,7 +188,7 @@ bool SyncPath::appendRowNames(const syncRow& row, FileSystemType filesystemType)
     }
     else if (row.fsNode)
     {
-        syncPath += row.fsNode->name;
+        syncPath += row.fsNode->localname.toName(*syncs.fsaccess);
     }
     else if (!row.cloudClashingNames.empty() || !row.fsClashingNames.empty())
     {
@@ -2131,7 +1854,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                     movePtr->sourceFingerprint = row.fsNode->fingerprint;
                     movePtr->sourcePtr = sourceSyncNode;
 
-                    string newName = row.fsNode->name;
+                    string newName = row.fsNode->localname.toName(*syncs.fsaccess);
                     if (newName == sourceCloudNode.name ||
                         sourceSyncNode->localname == row.fsNode->localname)
                     {
@@ -5962,7 +5685,7 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->name, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->localname, true, caseInsensitive);
             }
         }
         else if (lhs.syncNode)
@@ -5977,22 +5700,22 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.fsNode->name, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.fsNode->localname, true, caseInsensitive);
             }
         }
         else // lhs.fsNode
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.fsNode->name, true, rhs.cloudNode->name, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->localname, true, rhs.cloudNode->name, true, caseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.fsNode->name, true, rhs.syncNode->toName_of_localname, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->localname, true, rhs.syncNode->toName_of_localname, true, caseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.fsNode->name, true, rhs.fsNode->name, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->localname, true, rhs.fsNode->localname, true, caseInsensitive);
             }
         }
     };
@@ -7629,7 +7352,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
             // if we were already matched with a name that is not exactly the same as toName(), keep using it
             string nodeName = !row.cloudNode || onlyCaseChanged
-                                ? row.fsNode->name
+                                ? row.fsNode->localname.toName(*syncs.fsaccess)
                                 : row.cloudNode->name;
 
             if (nodeName != existingUpload->name)
@@ -7696,7 +7419,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
 
                 // if we were already matched with a name that is not exactly the same as toName(), keep using it
                 string nodeName = !row.cloudNode || onlyCaseChanged
-                    ? row.fsNode->name
+                    ? row.fsNode->localname.toName(*syncs.fsaccess)
                     : row.cloudNode->name;
 
                 auto upload = std::make_shared<SyncUpload_inClient>(parentRow.cloudNode->handle,

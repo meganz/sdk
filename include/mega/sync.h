@@ -338,16 +338,6 @@ private:
     Syncs& syncs;
 };
 
-
-class ScopedSyncPathRestore {
-    SyncPath& path;
-    size_t length1, length2, length3;
-public:
-    // On destruction, puts the LocalPath length back to what it was on construction of this class
-    ScopedSyncPathRestore(SyncPath&);
-    ~ScopedSyncPathRestore();
-};
-
 struct SyncStatusInfo
 {
     handle mBackupID = UNDEF;

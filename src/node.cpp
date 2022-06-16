@@ -347,7 +347,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     auto encrypted = *ptr && ptr[1];
 
     ptr += (unsigned)*ptr + 1;
-    
+
     for (i = 4; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
@@ -2325,7 +2325,6 @@ FSNode LocalNode::getLastSyncedFSDetails() const
 
     FSNode n;
     n.localname = localname;
-    n.name = toName_of_localname;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_lastSynced;
@@ -2340,7 +2339,6 @@ FSNode LocalNode::getScannedFSDetails() const
 {
     FSNode n;
     n.localname = localname;
-    n.name = toName_of_localname;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.fsid = fsid_asScanned;
@@ -3269,7 +3267,6 @@ unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath
     result->fingerprint.size = fa.size;
 
     result->localname = fullPath.leafName();
-    result->name = result->localname.toName(fsa);
 
     if (auto sn = fsa.fsShortname(fullPath))
     {

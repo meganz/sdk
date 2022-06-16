@@ -4736,6 +4736,48 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
 {
+#ifndef DONT_USE_SCAN_SERVICE
+
+    auto fa = client->fsaccess->newfileaccess();
+    fa->fopen(localname);
+    if (fa->type != FOLDERNODE)
+    {
+        cout << "Path is not a folder: " << localname.toPath();
+        return;
+    }
+
+    ScanService s(*client->waiter);
+    ScanService::RequestPtr r = s.queueScan(localname, fa->fsid, false, {});
+
+    while (!r->completed())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (r->completionResult() != SCAN_SUCCESS)
+    {
+        cout << "Scan failed: " << r->completionResult() << " for path: " << localname.toPath();
+        return;
+    }
+
+    std::vector<FSNode> results = r->resultNodes();
+
+    DBTableTransactionCommitter committer(client->tctable);
+    int total = 0;
+
+    for (auto& rr : results)
+    {
+        auto newpath = localname;
+        newpath.appendWithSeparator(rr.localname, true);
+        uploadLocalPath(rr.type, rr.localname.toPath(), newpath, cloudFolder, "", committer, total, true, vo, nullptr, false);
+    }
+
+    if (gVerboseMode)
+    {
+        cout << "Queued " << total << " more uploads from folder " << localname.toPath() << endl;
+    }
+
+#else
+
     auto da = client->fsaccess->newdiraccess();
 
     LocalPath lp(localname);
@@ -4763,6 +4805,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
             cout << "Queued " << total << " more uploads from folder " << localpathToUtf8Leaf(localname) << endl;
         }
     }
+#endif
 }
 
 void exec_put(autocomplete::ACState& s)
@@ -4808,6 +4851,7 @@ void exec_put(autocomplete::ACState& s)
 
     auto da = client->fsaccess->newdiraccess();
 
+    // search with glob, eg *.txt
     if (da->dopen(&localname, NULL, true))
     {
         DBTableTransactionCommitter committer(client->tctable);
