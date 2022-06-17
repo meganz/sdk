@@ -3524,17 +3524,16 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
         // Nodes must have matching types.
         if (!sn.typematchesnodetype(dn.type))
         {
-            EXPECT_TRUE(sn.typematchesnodetype(dn.type))
-              << "Cloud model/type mismatch: "
-              << dn.displaypath()
-              << "("
-              << dn.type
-              << ")"
-              << " vs. "
-              << sn.path()
-              << "("
-              << sn.type
-              << ")";
+            LOG_debug << "Cloud model/type mismatch: "
+                      << dn.displaypath()
+                      << "("
+                      << dn.type
+                      << ")"
+                      << " vs. "
+                      << sn.path()
+                      << "("
+                      << sn.type
+                      << ")";
 
             matched = false;
             continue;
@@ -3554,22 +3553,21 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
             string name = child->displayname();
 
             // Duplicate already reported?
-            EXPECT_EQ(dd.find(name), dd.end())
-              << "Cloud name conflict: "
-              << child->displaypath();
-
             if (dd.count(name))
+            {
+                LOG_debug << "Cloud name conflict: "
+                          << child->displaypath();
                 continue;
+            }
 
             auto result = dc.emplace(child->displayname(), child);
 
             // Didn't exist? No duplicate.
-            EXPECT_TRUE(result.second)
-             << "Cloud name conflict: "
-             << child->displaypath();
-
             if (result.second)
                 continue;
+
+            LOG_debug << "Cloud name conflict: "
+                      << child->displaypath();
 
             // Remmber the duplicate (name conflict.)
             dc.erase(result.first);
@@ -3583,26 +3581,28 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
             auto name = child->cloudName();
 
             // Duplicate already reported?
-            EXPECT_EQ(dd.find(name), dd.end())
-              << "Model node excluded due to cloud duplicates: "
-              << child->path();
-
-            EXPECT_EQ(sd.find(name), sd.end())
-              << "Model name conflict: "
-              << child->path();
-
-            if (dd.count(name) || sd.count(name))
+            if (dd.count(name))
+            {
+                LOG_debug << "Model node excluded due to cloud duplicates: "
+                          << child->path();
                 continue;
+            }
+
+            if (sd.count(name))
+            {
+                LOG_debug << "Model name conflict: "
+                          << child->path();
+                continue;
+            }
 
             auto result = sc.emplace(child->cloudName(), child.get());
 
             // Didn't exist? No duplicate.
-            EXPECT_TRUE(result.second)
-              << "Model name conflict: "
-              << child->path();
-
             if (result.second)
                 continue;
+
+            LOG_debug << "Model name conflict: "
+                      << child->path();
 
             // Remember the duplicate.
             dc.erase(name);
@@ -3627,15 +3627,15 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
             // Does this node have a pair in the destination?
             auto d = dc.find(s.first);
 
-            EXPECT_NE(d, dc.end())
-              << "Model node has no pair in cloud: "
-              << s.second->path();
-
             matched &= d != dc.end();
 
             // If not then there can be no match.
             if (d == dc.end())
+            {
+                LOG_debug << "Model node has no pair in cloud: "
+                          << s.second->path();
                 continue;
+            }
 
             // Queue pair for more detailed matching.
             pending.emplace_back(d->second, s.second);
@@ -3645,17 +3645,15 @@ bool StandardClient::match(const Node& destination, const Model::ModelNode& sour
         }
 
         // Can't have a match if we couldn't pair all destination nodes.
-        EXPECT_TRUE(dc.empty())
-         << "Cloud nodes exist with no pair in the model.";
+        matched &= dc.empty();
 
+        // Log which nodes we couldn't match.
         for (const auto& d : dc)
         {
-            EXPECT_TRUE(false)
-              << "Cloud node has no pair in the model: "
-              << d.second->displaypath();
+            LOG_debug << "Cloud node has no pair in the model: "
+                      << d.second->displaypath();
         }
 
-        matched &= dc.empty();
     }
 
     return matched;
