@@ -3926,40 +3926,27 @@ SyncWaitPredicate SyncMonitoring(handle id)
     };
 }
 
-
-SyncWaitPredicate SyncRemoteMatch(NodeHandle handle, const Model::ModelNode* source)
+SyncWaitPredicate SyncRemoteMatch(const CloudItem& item, const Model::ModelNode* source)
 {
     return [=](StandardClient& client) {
-        return client.match(handle, source);
-    };
-}
-
-SyncWaitPredicate SyncRemoteMatch(const Node& node, const Model::ModelNode* source)
-{
-    return SyncRemoteMatch(node.nodeHandle(), source);
-}
-
-SyncWaitPredicate SyncRemoteNodePresent(handle handle)
-{
-    return [handle](StandardClient& client) {
         return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
-            result->set_value(client.client.nodebyhandle(handle));
+            if (auto* node = item.resolve(client))
+                return client.match(node->nodeHandle(), source, std::move(result));
+            result->set_value(false);
         }).get();
     };
 }
 
-SyncWaitPredicate SyncRemoteNodePresent(const Node& node)
+SyncWaitPredicate SyncRemoteMatch(const CloudItem& item, const Model& source)
 {
-    return SyncRemoteNodePresent(node.nodehandle);
+    return SyncRemoteMatch(item, source.root.get());
 }
 
-SyncWaitPredicate SyncRemoteNodePresent(const string& path)
+SyncWaitPredicate SyncRemoteNodePresent(const CloudItem& item)
 {
-    return [path](StandardClient& client) {
+    return [item](StandardClient& client) {
         return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
-            auto root = client.gettestbasenode();
-            auto node = client.drillchildnodebyname(root, path);
-            result->set_value(!!node);
+            result->set_value(item.resolve(client));
         }).get();
     };
 }
