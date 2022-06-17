@@ -214,6 +214,7 @@ typedef enum ErrorCodes : int
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    LOCAL_ENOSPC = -1000,           ///< Insufficient space
 } error;
 
 class Error

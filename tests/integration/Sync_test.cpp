@@ -1299,7 +1299,16 @@ void StandardClient::downloadFile(const Node& node, const fs::path& destination,
     reinterpret_cast<FileFingerprint&>(*file) = node;
 
     DBTableTransactionCommitter committer(client.tctable);
-    client.startxfer(GET, file.release(), committer, false, false, false, NoVersioning);
+
+    error r = API_OK;
+
+    client.startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &r);
+    EXPECT_EQ(r , API_OK);
+
+    if (r != API_OK)
+        return file->result->set_value(false);
+
+    file.release();
 }
 
 bool StandardClient::downloadFile(const Node& node, const fs::path& destination)
@@ -1331,7 +1340,9 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
     file->localname = LocalPath::fromAbsolutePath(path.u8string());
     file->name = name;
 
-    client.startxfer(PUT, file.release(), committer, false, false, false, vo);
+    error result = API_OK;
+    client.startxfer(PUT, file.release(), committer, false, false, false, vo, &result);
+    EXPECT_EQ(result, API_OK);
 }
 
 void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, PromiseBoolSP pb, VersioningOption vo)
@@ -1508,13 +1519,23 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
     // Kick off the upload. Client takes ownership of file.
     DBTableTransactionCommitter committer(client.tctable);
 
+    error result = API_OK;
+
     client.startxfer(PUT,
-                     file.release(),
+                     file.get(),
                      committer,
                      false,
                      false,
                      false,
-                     versioningPolicy);
+                     versioningPolicy,
+                     &result);
+
+    EXPECT_EQ(result, API_OK);
+
+    if (result != API_OK)
+        return file->mCompletion(result);
+
+    file.release();
 }
 
 void StandardClient::uploadFile(const fs::path& sourcePath,
@@ -7118,6 +7139,18 @@ TEST_F(SyncTest, AnomalousSyncUpload)
 
     // Wait for synchronization to complete.
     waitonsyncs(TIMEOUT, &cu);
+
+    // Wait for the files to appear in the cloud.
+    {
+        auto* root = cu.gettestbasenode();
+        ASSERT_NE(root, nullptr);
+
+        root = cu.drillchildnodebyname(root, "s");
+        ASSERT_NE(root, nullptr);
+
+        auto predicate = SyncRemoteMatch(*root, model.root.get());
+        ASSERT_TRUE(cu.waitFor(std::move(predicate), TIMEOUT));
+    }
 
     // Ensure everything uploaded okay.
     ASSERT_TRUE(cu.confirmModel_mainthread(model.root.get(), id));
