@@ -385,6 +385,9 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
         return false;
     }
 
+    // First bits at index are reserved for the type
+    assert((index & (DbTable::IDSPACING - 1)) != MegaClient::CACHEDNODE); // nodes must be stored in DbTableNodes ('nodes' table, not 'statecache' table)
+
     checkTransaction();
 
     sqlite3_stmt *stmt;
@@ -1177,75 +1180,6 @@ bool SqliteAccountState::getNodeSizeAndType(NodeHandle node, m_off_t& size, node
     }
 
     return true;
-}
-
-bool SqliteAccountState::isNodesOnDemandDb()
-{
-    if (!db)
-    {
-        return false;
-    }
-
-    int numRows = -1;
-    sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-        {
-           numRows = sqlite3_column_int(stmt, 0);
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to know if data base is nodes on demand: " << dbfile << err;
-        assert(!"Unable to know if data base is nodes on demand.");
-    }
-
-    return numRows > 0 ? true : false;
-}
-
-NodeHandle SqliteAccountState::getFirstAncestor(NodeHandle node)
-{
-    NodeHandle ancestor;
-    if (!db)
-    {
-        return ancestor;
-    }
-
-    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) "
-            "AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? "
-            "UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE "
-            "AS E ON (A.nodehandle = E.parenthandle)) "
-            "SELECT * FROM nodesCTE";
-
-    sqlite3_stmt *stmt;
-    int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
-        {
-            while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-            {
-                ancestor.set6byte(sqlite3_column_int64(stmt, 0));
-            }
-        }
-    }
-
-    sqlite3_finalize(stmt);
-
-    if (sqlResult == SQLITE_ERROR)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get first ancestor from database: " << dbfile << err;
-        assert(!"Unable to get first ancestor from database.");
-    }
-
-    return ancestor;
 }
 
 bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)

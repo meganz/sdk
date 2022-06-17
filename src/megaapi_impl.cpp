@@ -10956,7 +10956,7 @@ bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
 
 MegaShareList *MegaApiImpl::getOutShares(int order)
 {
-    SdkMutexGuard m;
+    SdkMutexGuard guard(sdkMutex);
 
     node_vector outshares = client->mNodeManager.getNodesWithOutShares();
 
@@ -11071,7 +11071,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
 
 MegaShareList *MegaApiImpl::getPendingOutShares()
 {
-    SdkMutexGuard m;
+    SdkMutexGuard guard(sdkMutex);
 
     node_vector nodes = client->mNodeManager.getNodesWithPendingOutShares();
     vector<handle> handles;
@@ -11755,7 +11755,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int order, int type)
+node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int type)
 {
     node_vector nodeVector;
     if (!searchString)
@@ -11778,7 +11778,6 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
         }
     }
 
-    sortByComparatorFunction(nodeVector, order, *client);
     return nodeVector;
 
 }
@@ -11881,7 +11880,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         node_vector nodeVector;
         if (recursive)
         {
-            nodeVector = searchInNodeManager(n->getHandle(), searchString, order, type);
+            nodeVector = searchInNodeManager(n->getHandle(), searchString, type);
         }
         else
         {
@@ -11917,7 +11916,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             node = client->nodeByHandle(client->rootnodes.files);
             if (recursive)
             {
-                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
             else
@@ -11938,7 +11937,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -11968,7 +11967,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -11988,7 +11987,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {
-                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, MegaApi::ORDER_NONE, type);
+                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, type);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
@@ -12016,7 +12015,6 @@ long long MegaApiImpl::getSize(MegaNode *n)
 
     if (n->isForeign())
     {
-        // TODO Nodes on Demand: how we can improve calculation
         MegaSizeProcessor megaSizeProcessor;
         processMegaTree(n, &megaSizeProcessor);
         return megaSizeProcessor.getTotalBytes();
@@ -17670,7 +17668,6 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
 
     node_vector files;
     node_vector folders;
-    // TODO Nodes on Demand: it can be implemented with a query to DB
     node_list nodeList = client->getChildren(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
     {
@@ -20224,7 +20221,6 @@ void MegaApiImpl::sendPendingRequests()
                     // update file versions if any
                     if (current->type == FILENODE)
                     {
-
                         node_list childrens = client->getChildren(current);
                         while (childrens.size())
                         {

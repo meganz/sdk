@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <functional>
 #include <future>
-#include <stack>
 #include "mega/heartbeats.h"
 
 #undef min // avoid issues with std::min and std::max
@@ -1058,7 +1057,7 @@ Node* MegaClient::childnodebyattribute(Node* p, nameid attrId, const char* attrV
     // child nodes) will require to have dedicated columns for each attribute ID.
     // On top of that, this method is used exclusively upon creation of a new backup,
     // which implies ENABLE_SYNC.
-    // (syncing always have all nodes in memory, so the DB query won't be faster)
+    // (syncing always have all sync tree nodes in memory, so the DB query won't be faster)
     node_list childrenNodeList = getChildren(p);
     for (Node* child : childrenNodeList)
     {
@@ -11964,7 +11963,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     std::map<NodeHandle, std::vector<Node*>> delayedParents;
     while (hasNext)
     {
-        switch (id & 15)
+        switch (id & (DbTable::IDSPACING - 1))
         {
             case CACHEDSCSN:
                 if (data.size() != sizeof cachedscsn)
@@ -16976,42 +16975,9 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
         return nodes;
     }
 
-    std::vector<std::pair<NodeHandle, NodeSerialized>> nodeMap;
-    mTable->getNodesByName(searchString, nodeMap);
-    if (!nodeHandle.isUndef())  // filter results by subtree (nodeHandle)
-    {
-        // TODO possible improvement is to pass to SQL the 'nodeHandle', so the 'nodeMap'
-        // only contains matches inside the corresponding tree. However, it might result
-        // in worst performance, since it needs to check every parent upwards
-        for (auto it = nodeMap.begin(); it != nodeMap.end(); )
-        {
-            if (!isAncestor(it->first, nodeHandle))
-            {
-                it = nodeMap.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-
-        }
-    }
-
-    for (const auto& nodeMapIt : nodeMap)
-    {
-        Node* n = getNodeInRAM(nodeMapIt.first);
-        if (!n)
-        {
-            n = getNodeFromNodeSerialized(nodeMapIt.second);
-            if (!n)
-            {
-                nodes.clear();
-                return nodes;
-            }
-        }
-
-        nodes.push_back(n);
-    }
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesByName(searchString, nodesFromTable);
+    nodes = filterByAncestor(nodesFromTable, nodeHandle);
 
     return nodes;
 }
@@ -17053,25 +17019,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByOrigFingerprint(fingerprint, nodesFromTable);
 
-    for (const auto& it : nodesFromTable)
-    {
-        Node* n = getNodeInRAM(it.first);
-        if (!n)
-        {
-            n = getNodeFromNodeSerialized(it.second);
-            if (!n)
-            {
-                nodes.clear();
-                return nodes;
-            }
-        }
-
-        if (n && (!parent || (parent && isAncestor(n->nodeHandle(), parent->nodeHandle()))))
-        {
-            nodes.push_back(n);
-        }
-    }
-
+    nodes = filterByAncestor(nodesFromTable, parent ? parent->nodeHandle() : NodeHandle());
     return nodes;
 }
 
@@ -17358,38 +17306,6 @@ size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     return (it != mNodeChildren.end()) ? it->second.size() : 0;
 }
 
-bool NodeManager::isNodesOnDemandReady()
-{
-    if (!mTable)
-    {
-        assert(false);
-        return false;
-    }
-
-    return mTable->isNodesOnDemandDb();
-}
-
-NodeHandle NodeManager::getFirstAncestor(NodeHandle nodehandle)
-{
-    if (!mTable)
-    {
-        assert(false);
-        return NodeHandle();  // It's initialized to undef
-    }
-
-    Node* n = getNodeInRAM(nodehandle);
-    if (n)
-    {
-        const Node* ancestor = n->firstancestor();
-        if (ancestor)
-        {
-            return ancestor->nodeHandle();
-        }
-    }
-
-    return mTable->getFirstAncestor(nodehandle);
-}
-
 bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)
 {
     if (!mTable)
@@ -17417,7 +17333,6 @@ void NodeManager::cleanNodes()
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
     mNodeChildren.clear();
-    mLoadingNodes = false;
 
     if (mTable)
         mTable->removeNodes();
@@ -17922,7 +17837,6 @@ bool NodeManager::loadNodes()
         return false;
     }
 
-    mLoadingNodes = true;
     node_vector rootnodes = getRootNodes();
     // We can't base in `user.sharing` because it's set yet. We have to get from DB
     node_vector inshares = getNodesWithInShares();  // it includes nested inshares
@@ -17932,7 +17846,6 @@ bool NodeManager::loadNodes()
         getChildren(node);
     }
 
-    mLoadingNodes = false;
     return true;
 }
 
@@ -18004,25 +17917,7 @@ int NodeManager::getNumVersions(NodeHandle nodeHandle)
         return 0;
     }
 
-    int numVersions = 1;
-    bool looking = true;
-    NodeHandle current = nodeHandle;
-    while (looking)
-    {
-        auto it = mNodeChildren.find(current);
-        if (it == mNodeChildren.end())
-        {
-            looking = false;
-            break;
-        }
-
-        assert(it->second.size());
-
-        current = *it->second.begin();
-        numVersions++;
-    }
-
-    return numVersions;
+    return static_cast<int>(node->getCounter().versions);
 }
 
 bool NodeManager::hasVersion(NodeHandle nodeHandle)
@@ -18033,13 +17928,7 @@ bool NodeManager::hasVersion(NodeHandle nodeHandle)
         return false;
     }
 
-    auto it = mNodeChildren.find(nodeHandle);
-    if (it != mNodeChildren.end() && it->second.size())
-    {
-        return true;
-    }
-
-    return false;
+    return node->getCounter().versions;
 }
 
 void NodeManager::initializeCounters()
@@ -18233,6 +18122,38 @@ node_vector NodeManager::getRootNodesAndInshares()
     }
 
     return rootnodes;
+}
+
+node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized> > &nodesFromTable, NodeHandle ancestorHandle)
+{
+    node_vector nodes;
+
+    for (const auto& nodeIt : nodesFromTable)
+    {
+        Node* n = getNodeInRAM(nodeIt.first);
+
+        if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)
+        {
+            bool skip = n ? !n->isAncestor(ancestorHandle)
+                          : !isAncestor(nodeIt.first, ancestorHandle);
+
+            if (skip) continue;
+        }
+
+        if (!n)
+        {
+            n = getNodeFromNodeSerialized(nodeIt.second);
+            if (!n)
+            {
+                nodes.clear();
+                return nodes;
+            }
+        }
+
+        nodes.push_back(n);
+    }
+
+    return nodes;
 }
 
 size_t NodeManager::nodeNotifySize() const

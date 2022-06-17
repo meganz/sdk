@@ -294,12 +294,6 @@ public:
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
 
-    // Returns true when nodes on demand is ready to operate after load a session with old cache
-    bool isNodesOnDemandReady();
-
-    // Returns first ancestor available in cache
-    NodeHandle getFirstAncestor(NodeHandle nodehandle);
-
     // true if 'node' is a child node of 'ancestor', false otherwise.
     bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor);
 
@@ -369,9 +363,6 @@ public:
     // Cancel all DB queries in progress in same sql connection
     void cancelDbQuery();
 
-    // true when loading nodes (at startup, not node per node afterwards)
-    bool isLoadingNodes() { return mLoadingNodes; }
-
     // Returns the number of versions for a node (including the current version)
     int getNumVersions(NodeHandle nodeHandle);
 
@@ -426,14 +417,14 @@ private:
     // Returns root nodes without nested in-shares
     node_vector getRootNodesAndInshares();
 
+    //Avoid loading nodes whose ancestor is not ancestorHandle. If ancestorHandle is undef load all nodes
+    node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle);
+
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
 
     // store relationship between nodes and their children (nodes without children are not in the map)
     std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
-
-    // true while loading nodes, false otherwise
-    bool mLoadingNodes = false;
 };
 
 class MEGA_API MegaClient
