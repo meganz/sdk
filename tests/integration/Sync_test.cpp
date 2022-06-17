@@ -9862,7 +9862,7 @@ public:
 TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
 {
     const auto TESTROOT = makeNewTestRoot();
-    const auto TIMEOUT  = chrono::seconds(4);
+    const auto TIMEOUT  = chrono::seconds(8);
 
     // Model.
     Model m;
@@ -9907,6 +9907,9 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
 
         // Wait for sync to complete.
         waitonsyncs(TIMEOUT, &cb);
+
+        // Give the engine some time to actually upload the files.
+        ASSERT_TRUE(cb.waitFor(SyncRemoteMatch("s", m.root.get()), TIMEOUT));
 
         // Make sure everything made it to the cloud.
         ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
