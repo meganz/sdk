@@ -1533,7 +1533,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
     EXPECT_EQ(result, API_OK);
 
     if (result != API_OK)
-        return completion(result);
+        return file->mCompletion(result);
 
     file.release();
 }
