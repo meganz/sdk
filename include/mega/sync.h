@@ -1071,6 +1071,8 @@ public:
     void queueSync(std::function<void()>&&);
     void queueClient(QueuedClientFunc&&);
 
+    bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
+
     // Update remote location
     bool checkSyncRemoteLocationChange(UnifiedSync&, bool exists, string cloudPath);
 
@@ -1161,8 +1163,6 @@ private:
     error backupCloseDrive_inThread(LocalPath drivePath);
 
     void syncLoop();
-
-    bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
     enum WhichCloudVersion
     {
