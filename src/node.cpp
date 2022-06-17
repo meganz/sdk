@@ -1337,7 +1337,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             if (!newnode && node)
             {
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
-                LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
+                LOG_debug << "Moving node: " << node->displaypath() << " to " << parent->node->displaypath();
                 if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, nullptr) == API_EACCESS
                         && sync != parent->sync)
                 {

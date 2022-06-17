@@ -966,10 +966,9 @@ Sync::~Sync()
     }
 }
 
-bool Sync::backupModified()
+void Sync::backupModified()
 {
     changestate(SYNC_DISABLED, BACKUP_MODIFIED, false, true);
-    return false;
 }
 
 bool Sync::isBackup() const

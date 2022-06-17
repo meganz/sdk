@@ -5949,7 +5949,9 @@ public:
         PAYMENT_EFRAUD = -103,
         PAYMENT_ETOOMANY = -104,
         PAYMENT_EBALANCE = -105,
-        PAYMENT_EGENERIC = -106
+        PAYMENT_EGENERIC = -106,
+
+        LOCAL_ENOSPC = -1000, ///< Insufficient space.
     };
 
 

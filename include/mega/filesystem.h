@@ -650,6 +650,17 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // Create a hard link from source to target.
     // Returns false if the link could not be created.
     virtual bool hardLink(const LocalPath& source, const LocalPath& target) = 0;
+
+    // @brief
+    // Retrieves the number of bytes available on the specified filesystem.
+    //
+    // @param drivePath
+    // The path to the filesystem you'd like to query.
+    //
+    // @return
+    // On success, the number of free bytes available to the caller.
+    // On failure, zero.
+    virtual m_off_t availableDiskSpace(const LocalPath& drivePath) = 0;
 };
 
 enum FilenameAnomalyType
@@ -707,7 +718,6 @@ FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const Node* no
 #ifdef ENABLE_SYNC
 FilenameAnomalyType isFilenameAnomaly(const LocalNode& node);
 #endif
-
 
 // True if type denotes a network filesystem.
 bool isNetworkFilesystem(FileSystemType type);

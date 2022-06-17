@@ -217,15 +217,10 @@ public:
 
 std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
-class SyncdownContext
+struct SyncdownContext
 {
-public:
-    SyncdownContext()
-      : mActionsPerformed(false)
-    {
-    }
-
-    bool mActionsPerformed;
+    bool mBackupActionsPerformed = false;
+    bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
 
 class MEGA_API MegaClient
@@ -498,7 +493,7 @@ public:
     void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption);
+    bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause = nullptr);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
     void pausexfers(direction_t, bool pause, bool hard, DBTableTransactionCommitter& committer);
 
