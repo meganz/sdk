@@ -270,7 +270,7 @@ struct StandardClient : public MegaApp
     StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder = fs::path());
     ~StandardClient();
     void localLogout();
-    void logout(bool keepSyncsConfigFile);
+    bool logout(bool keepSyncsConfigFile);
 
     static mutex om;
     bool logcb = false;

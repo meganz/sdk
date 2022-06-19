@@ -858,24 +858,10 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
 StandardClient::~StandardClient()
 {
     LOG_debug << "StandardClient exiting";
-    // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
-    auto result =
-        thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
-                        {
-                            if (mc.loggedin() == FULLACCOUNT)
-                            {
-                                mc.logout(false);
-                                result->set_value(true);
-                            }
-                            else result->set_value(false);
-                        });
 
     // Make sure logout completes before we escape.
-    if (result.get())
-    {
-        // Give it 1 second to send out the logout request, and maybe get a reply
-        WaitMillisec(1000);
-    }
+    logout(false);
+
     LOG_debug << "~StandardClient final logout complete";
 
     clientthreadexit = true;
@@ -897,15 +883,18 @@ void StandardClient::localLogout()
     result.get();
 }
 
-void StandardClient::logout(bool keepSyncsConfigFile)
+bool StandardClient::logout(bool keepSyncsConfigFile)
 {
     auto result = thread_do<bool>([=](MegaClient& client, PromiseBoolSP result) {
-        client.logout(keepSyncsConfigFile);
-        result->set_value(true);
+        client.logout(keepSyncsConfigFile, [=](error e) {
+            result->set_value(e == API_OK);
+        });
     });
 
-    // Wait for the logout to complete before escaping.
-    result.get();
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return false;
+
+    return result.get();
 }
 
 string StandardClient::lp(LocalNode* ln) { return ln->getLocalPath().toName(*client.fsaccess); }
@@ -10612,7 +10601,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     ASSERT_TRUE(client2.waitFor(SyncRemoteMatch(*s, model.root.get()), DEFAULTWAIT));
 
     // Log out the sharing client so that it doesn't maintain keys.
-    client0.logout(false);
+    ASSERT_TRUE(client0.logout(false));
 
     // Make a couple changes to client1's sync via client2.
     {

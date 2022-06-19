@@ -19745,10 +19745,13 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if(request->getFlag())
+            if (request->getFlag())
             {
                 bool keepSyncConfigsFile = request->getTransferTag();
-                client->logout(keepSyncConfigsFile);
+
+                client->logout(keepSyncConfigsFile, [this](error result) {
+                    logout_result(result);
+                });
             }
             else
             {
