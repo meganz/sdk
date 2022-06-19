@@ -2770,21 +2770,21 @@ UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
 }
 
 
-void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError)> completion, const string& logname)
+void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
 
     auto clientCompletion = [=](error e, SyncError se, handle)
         {
-            queueClient([completion, e, se](MegaClient&, DBTableTransactionCommitter&)
+            queueClient([completion, e, se, backupId](MegaClient&, DBTableTransactionCommitter&)
                 {
-                    if (completion) completion(e, se);
+                    if (completion) completion(e, se, backupId);
                 });
         };
 
     queueSync([=]()
         {
-            enableSyncByBackupId_inThread(backupId, paused, resetFingerprint, notifyApp, setOriginalPath, clientCompletion, logname);
+            enableSyncByBackupId_inThread(backupId, paused, resetFingerprint, notifyApp, setOriginalPath, completionInClient ? clientCompletion : completion, logname);
         });
 }
 
