@@ -302,3 +302,56 @@ TEST(Crypto, Ed25519_Signing)
 }
 
 #endif
+
+TEST(Crypto, SymmCipher_xorblock_bytes)
+{
+    byte src[10] = { (byte)0, (byte)1, (byte)2, (byte)3, (byte)4, (byte)5, (byte)6, (byte)7, (byte)8, (byte)9 };
+    byte dest[10] = { (byte)20, (byte)30, (byte)40, (byte)50, (byte)60, (byte)70, (byte)80, (byte)90, (byte)100, (byte)110 };
+    SymmCipher::xorblock(src, dest, sizeof(dest));
+    byte result[10] = { (byte)(0 ^ 20), (byte)(1 ^ 30), (byte)(2 ^ 40), (byte)(3 ^ 50), (byte)(4 ^ 60), (byte)(5 ^ 70), (byte)(6 ^ 80), (byte)(7 ^ 90), (byte)(8 ^ 100), (byte)(9 ^ 110) };
+    ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
+}
+
+TEST(Crypto, SymmCipher_xorblock_block_aligned)
+{
+    size_t alignSrc = 0; // force dest to be word aligned on all platforms
+    byte src[SymmCipher::BLOCKSIZE];
+    byte n = 0;
+    std::generate(src, src + sizeof(src), [&n]() {return n++; });
+    size_t alignDest = 0; // force dest to be word aligned on all platforms
+    alignDest += alignSrc; // force use of vars only existing for alignment
+    ASSERT_EQ((ptrdiff_t)src % sizeof(ptrdiff_t), 0);
+
+    byte dest[SymmCipher::BLOCKSIZE];
+    n = 100;
+    std::generate(dest, dest + sizeof(src), [&n]() {return n += 3; });
+    ASSERT_EQ((ptrdiff_t)dest % sizeof(ptrdiff_t), 0);
+
+    byte result[SymmCipher::BLOCKSIZE];
+    byte* output = result;
+    std::transform(src, src + sizeof(src), dest, output, [](byte a, byte b) { return (byte)(a ^ b); });
+    SymmCipher::xorblock(src, dest); // aligned case
+
+    ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
+}
+
+TEST(Crypto, SymmCipher_xorblock_block_unaligned)
+{
+    size_t alignSrc = 0; // force dest to be word aligned on all platforms
+    byte src[SymmCipher::BLOCKSIZE + 1];
+    byte n = 0;
+    std::generate(src, src + sizeof(src), [&n]() {return n++; });
+
+    size_t alignDest = 0; // force dest to be word aligned on all platforms
+    alignDest += alignSrc; // force use of vars only existing for alignment
+    byte dest[SymmCipher::BLOCKSIZE];
+    n = 100;
+    std::generate(dest, dest + sizeof(dest), [&n]() {return n += 3; });
+
+    byte result[SymmCipher::BLOCKSIZE];
+    byte* output = result;
+    std::transform(src + 1, src + sizeof(src), dest, output, [](byte a, byte b) { return (byte)(a ^ b); });
+    SymmCipher::xorblock(src + 1, dest); // un-aligned case
+    
+    ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
+}
