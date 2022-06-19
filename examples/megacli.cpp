@@ -9934,7 +9934,7 @@ void exec_syncxable(autocomplete::ACState& s)
     {
         // sync enable id
         bool pause = targetState == SyncRunState::Pause;
-        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError serr)
+        client->syncs.enableSyncByBackupId(backupId, pause, false, true, true, [pause](error err, SyncError serr, handle)
             {
                 if (err)
                 {
@@ -9946,7 +9946,7 @@ void exec_syncxable(autocomplete::ACState& s)
                 {
                     cout << (pause ? "Sync Paused." : "Sync Running.") << endl;
                 }
-            }, "");
+            }, true, "");
 
         break;
     }
