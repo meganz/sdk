@@ -320,12 +320,12 @@ TEST(Crypto, SymmCipher_xorblock_block_aligned)
     std::generate(src, src + sizeof(src), [&n]() {return n++; });
     size_t alignDest = 0; // force dest to be word aligned on all platforms
     alignDest += alignSrc; // force use of vars only existing for alignment
-    ASSERT_EQ((ptrdiff_t)src % sizeof(ptrdiff_t), (ptrdiff_t)0);
+    ASSERT_EQ(ptrdiff_t((ptrdiff_t)src % sizeof(ptrdiff_t)), (ptrdiff_t)0);
 
     byte dest[SymmCipher::BLOCKSIZE];
     n = 100;
     std::generate(dest, dest + sizeof(src), [&n]() {return n += 3; });
-    ASSERT_EQ((ptrdiff_t)dest % sizeof(ptrdiff_t), (ptrdiff_t)0);
+    ASSERT_EQ(ptrdiff_t((ptrdiff_t)dest % sizeof(ptrdiff_t)), (ptrdiff_t)0);
 
     byte result[SymmCipher::BLOCKSIZE];
     byte* output = result;
