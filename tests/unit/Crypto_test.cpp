@@ -308,7 +308,7 @@ TEST(Crypto, SymmCipher_xorblock_bytes)
     byte src[10] = { (byte)0, (byte)1, (byte)2, (byte)3, (byte)4, (byte)5, (byte)6, (byte)7, (byte)8, (byte)9 };
     byte dest[10] = { (byte)20, (byte)30, (byte)40, (byte)50, (byte)60, (byte)70, (byte)80, (byte)90, (byte)100, (byte)110 };
     SymmCipher::xorblock(src, dest, sizeof(dest));
-    byte result[10] = { (byte)(0 ^ 20), (byte)(1 ^ 30), (byte)(2 ^ 40), (byte)(3 ^ 50), (byte)(4 ^ 60), (byte)(5 ^ 70), (byte)(6 ^ 80), (byte)(7 ^ 90), (byte)(8 ^ 100), (byte)(9 ^ 110) };
+    byte result[10] = { (byte)(0 ^ (byte)20), (byte)(1 ^ (byte)30), (byte)(2 ^ (byte)40), (byte)(3 ^ (byte)50), (byte)(4 ^ (byte)60), (byte)(5 ^ (byte)70), (byte)(6 ^ (byte)80), (byte)(7 ^ (byte)90), (byte)(8 ^ (byte)100), (byte)(9 ^ (byte)110) };
     ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
 }
 
