@@ -415,19 +415,12 @@ void SymmCipher::setint64(int64_t value, byte* data)
 
 void SymmCipher::xorblock(const byte* src, byte* dst)
 {
-    if (((ptrdiff_t)src & (sizeof(long)-1)) == 0 && ((ptrdiff_t)dst & (sizeof(long)-1)) == 0) 
+    long* lsrc = (long*)src;
+    long* ldst = (long*)dst;
+
+    for (int i = BLOCKSIZE / sizeof(long); i--;)
     {
-        // src and dst aligned to machine word
-        long* lsrc = (long*)src;
-        long* ldst = (long*)dst;
-        for (int i = BLOCKSIZE / sizeof(long); i--;)
-        {
-            ldst[i] ^= lsrc[i];
-        }
-    }
-    else 
-    {
-        xorblock(src, dst, BLOCKSIZE);
+        ldst[i] ^= lsrc[i];
     }
 }
 

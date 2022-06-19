@@ -94,8 +94,6 @@ void FileAttributeFetchChannel::dispatch()
 void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
 {
 #pragma pack(push,1)
-    // structure of data on the wire
-    // do not read fields directly
     struct FaHeader
     {
         handle h;
@@ -128,10 +126,7 @@ void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
             break;
         }
 
-        // read aligned properly
-        handle h;
-        memcpy(&h, &((FaHeader*)ptr)->h, sizeof(h));
-        it = fafs[1].find(h);
+        it = fafs[1].find(((FaHeader*)ptr)->h);
 
         ptr += sizeof(FaHeader);
 
