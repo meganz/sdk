@@ -2033,102 +2033,15 @@ vector<Node*> StandardClient::drillchildnodesbyname(Node* n, const string& path)
     }
 }
 
-void StandardClient::backupAdd_inthread(const string& drivePath,
-                        string sourcePath,
-                        const string& targetPath,
-                        std::function<void(error, SyncError, handle)> completion,
-                        const string& logname)
-{
-    auto* rootNode = client.nodebyhandle(basefolderhandle);
-
-    // Root isn't in the cloud.
-    if (!rootNode)
-    {
-        return;
-    }
-
-    auto* targetNode = drillchildnodebyname(rootNode, targetPath);
-
-    // Target path doesn't exist.
-    if (!targetNode)
-    {
-        return;
-    }
-
-    // Generate drive ID if necessary.
-    auto id = UNDEF;
-    auto result = readDriveId(*client.fsaccess, drivePath.c_str(), id);
-
-    if (result == API_ENOENT)
-    {
-        id = generateDriveId(client.rng);
-        result = writeDriveId(*client.fsaccess, drivePath.c_str(), id);
-    }
-
-    if (result != API_OK)
-    {
-        completion(result, NO_SYNC_ERROR, UNDEF);
-        return;
-    }
-
-    auto config =
-        SyncConfig(LocalPath::fromAbsolutePath(sourcePath),
-                    sourcePath,
-                    targetNode->nodeHandle(),
-                    targetNode->displaypath(),
-                    0,
-                    LocalPath::fromAbsolutePath(drivePath),
-                    //string_vector(),
-                    true,
-                    SyncConfig::TYPE_BACKUP);
-
-    EXPECT_TRUE(!config.mOriginalPathOfRemoteRootNode.empty() &&
-        config.mOriginalPathOfRemoteRootNode.front() == '/')
-        << "config.mOriginalPathOfRemoteRootNode: " << config.mOriginalPathOfRemoteRootNode.c_str();
-
-
-    // Try and add the backup.  Result via completion
-    client.addsync(config, true, completion, logname);
-}
-
-handle StandardClient::backupAdd_mainthread(const string& drivePath,
-                            const string& sourcePath,
-                            const string& targetPath,
-                            const string& logname)
-{
-    const fs::path dp = fsBasePath / fs::u8path(drivePath);
-    const fs::path sp = fsBasePath / fs::u8path(sourcePath);
-
-    fs::create_directories(dp);
-    fs::create_directories(sp);
-
-    auto result =
-        thread_do<handle>(
-        [&](StandardClient& client, PromiseHandleSP result)
-        {
-            auto completion =
-                [=](error e, SyncError, handle backupId)
-                {
-                result->set_value(backupId);
-                };
-
-                client.backupAdd_inthread(dp.u8string(),
-                                        sp.u8string(),
-                                        targetPath,
-                                        std::move(completion),
-                                        logname);
-        });
-
-    return result.get();
-}
-
-handle StandardClient::setupSync_mainthread(const string& localPath,
+handle StandardClient::setupSync_mainthread(const string& rootPath,
                                             const CloudItem& remoteItem,
                                             const bool isBackup,
-                                            const bool uploadIgnoreFile)
+                                            const bool uploadIgnoreFile,
+                                            const string& drivePath)
 {
     auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
-        client.setupSync_inThread(localPath,
+        client.setupSync_inThread(drivePath,
+                                  rootPath,
                                   remoteItem,
                                   isBackup,
                                   uploadIgnoreFile,
@@ -2144,12 +2057,16 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
     return result.get();
 }
 
-void StandardClient::setupSync_inThread(const string& localPath,
+void StandardClient::setupSync_inThread(const string& drivePath,
+                                        const string& rootPath,
                                         const CloudItem& remoteItem,
                                         const bool isBackup,
                                         const bool,
                                         PromiseHandleSP result)
 {
+    // Helpful sentinel.
+    static const string internalDrive(1, '\0');
+
     // Check if node is (or is contained by) an in-share.
     auto isShare = [](const Node* node) {
         for ( ; node; node = node->parent) {
@@ -2170,14 +2087,38 @@ void StandardClient::setupSync_inThread(const string& localPath,
         return result->set_value(UNDEF);
 
     auto ec = std::error_code();
-    auto rootPath = fsBasePath / fs::u8path(localPath);
+    auto rootPath_ = fsBasePath / fs::u8path(rootPath);
 
     // Try and create the local sync root.
-    fs::create_directory(rootPath, ec);
+    fs::create_directories(rootPath_, ec);
     EXPECT_FALSE(ec);
 
     if (ec)
         return result->set_value(UNDEF);
+
+    fs::path drivePath_;
+
+    // Populate drive root if necessary.
+    if (drivePath != internalDrive)
+    {
+        // Path should be valid as syncs must be contained by their drive.
+        drivePath_ = fsBasePath / fs::u8path(drivePath);
+
+        // Read drive ID if present...
+        auto fsAccess = client.fsaccess.get();
+        auto id = UNDEF;
+        auto path = drivePath_.u8string();
+        auto result_ = readDriveId(*fsAccess, path.c_str(), id);
+
+        // Generate one if not...
+        if (result_ == API_ENOENT)
+        {
+            id = generateDriveId(client.rng);
+            result_ = writeDriveId(*fsAccess, path.c_str(), id);
+        }
+
+        EXPECT_EQ(result_, API_OK);
+    }
 
     // For purposes of capturing.
     auto remoteHandle = remoteNode->nodeHandle();
@@ -2201,8 +2142,8 @@ void StandardClient::setupSync_inThread(const string& localPath,
 
         // Generate config for the new sync.
         auto config =
-          SyncConfig(LocalPath::fromAbsolutePath(rootPath.u8string()),
-                     rootPath.u8string(),
+          SyncConfig(LocalPath::fromAbsolutePath(rootPath_.u8string()),
+                     rootPath_.u8string(),
                      remoteHandle,
                      remotePath,
                      0,
@@ -2214,6 +2155,14 @@ void StandardClient::setupSync_inThread(const string& localPath,
         EXPECT_TRUE(remoteIsShare || remotePath.substr(0, 1) == "/")
             << "config.mOriginalPathOfRemoteRootNode: "
             << remotePath;
+
+        // Are we dealing with an external backup sync?
+        if (!drivePath_.empty())
+        {
+            // Then make sure we specify where the external drive can be found.
+            config.mExternalDrivePath =
+              LocalPath::fromAbsolutePath(drivePath_.u8string());
+        }
 
         //if (gScanOnly)
         //{
@@ -2231,7 +2180,7 @@ void StandardClient::setupSync_inThread(const string& localPath,
 
         LOG_debug << "Asking engine to add the sync...";
 
-        auto result = client.addsync(config, true, std::move(completion), localPath + " ");
+        auto result = client.addsync(config, true, std::move(completion), rootPath + " ");
         EXPECT_EQ(result, API_OK);
     };
 
@@ -8667,37 +8616,24 @@ struct TwoWaySyncSymmetryCase
         return nullptr;
     }
 
-    handle BackupAdd(const string& drivePath, const string& sourcePath, const string& targetPath, const string& logname)
-    {
-        return client1().backupAdd_mainthread(drivePath, sourcePath, targetPath, logname);
-    }
-
-    handle SetupSync(const string& sourcePath, const string& targetPath, bool uploadIgnoreFirst = true)
-    {
-        return client1().setupSync_mainthread(sourcePath, targetPath, isBackup(), uploadIgnoreFirst);
-    }
-
     void SetupTwoWaySync()
     {
         ASSERT_NE(remoteSyncRoot(), nullptr);
 
         string basePath   = client1().fsBasePath.u8string();
-        string drivePath  = localTestBasePath().u8string();
+        string drivePath  = string(1, '\0');
         string sourcePath = localSyncRootPath().u8string();
         string targetPath = remoteSyncRootPath();
 
-        drivePath.erase(0, basePath.size() + 1);
-        sourcePath.erase(0, basePath.size() + 1);
-
         if (isExternalBackup())
         {
-            backupId = BackupAdd(drivePath, sourcePath, targetPath, "");
-        }
-        else
-        {
-            backupId = SetupSync(sourcePath, targetPath, false);
+            drivePath = localTestBasePath().u8string();
+            drivePath.erase(0, basePath.size() + 1);
         }
 
+        sourcePath.erase(0, basePath.size() + 1);
+
+        backupId = client1().setupSync_mainthread(sourcePath, targetPath, isBackup(), false, drivePath);
         ASSERT_NE(backupId, UNDEF);
 
         if (Sync* sync = client1().syncByBackupId(backupId))
@@ -9881,19 +9817,8 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Add and start sync.
-        {
-            // Generate drive ID.
-            auto driveID = generateDriveId(cb.client.rng);
-
-            // Write drive ID.
-            auto drivePath = cb.fsBasePath.u8string();
-            auto result = writeDriveId(*cb.client.fsaccess, drivePath.c_str(), driveID);
-            ASSERT_EQ(result, API_OK);
-
-            // Add sync.
-            id = cb.backupAdd_mainthread("", "s", "s", "");
-            ASSERT_NE(id, UNDEF);
-        }
+        id = cb.setupSync_mainthread("s", "s", true, true, ""); 
+        ASSERT_NE(id, UNDEF);
 
         // Wait for sync to complete.
         waitonsyncs(TIMEOUT, &cb);
@@ -9967,21 +9892,8 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
     m.generate(cb.fsBasePath / "s");
 
     // Add and start sync.
-    auto id = UNDEF;
-
-    {
-        // Generate drive ID.
-        auto driveID = generateDriveId(cb.client.rng);
-
-        // Write drive ID.
-        auto drivePath = cb.fsBasePath.u8string();
-        auto result = writeDriveId(*cb.client.fsaccess, drivePath.c_str(), driveID);
-        ASSERT_EQ(result, API_OK);
-
-        // Add sync.
-        id = cb.backupAdd_mainthread("", "s", "s", "");
-        ASSERT_NE(id, UNDEF);
-    }
+    auto id = cb.setupSync_mainthread("s", "s", true, true, "");
+    ASSERT_NE(id, UNDEF);
 
     // Wait for the mirror to complete.
     waitonsyncs(TIMEOUT, &cb);
@@ -10390,7 +10302,7 @@ void BackupBehavior::doTest(const string& initialContent,
     ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start a backup sync.
-    const auto idU = cu.setupSync_mainthread("su", "s", true);
+    const auto idU = cu.setupSync_mainthread("su", "s", true, true);
     ASSERT_NE(idU, UNDEF);
 
     // Add a file for the engine to synchronize.
@@ -10454,7 +10366,7 @@ void BackupBehavior::doTest(const string& initialContent,
         ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
         // Add and start a new sync.
-        auto idD = cd.setupSync_mainthread("sd", "s");
+        auto idD = cd.setupSync_mainthread("sd", "s", false, true);
         ASSERT_NE(idD, UNDEF);
 
         // Wait for the sync to complete.

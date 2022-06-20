@@ -549,23 +549,14 @@ struct StandardClient : public MegaApp
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
 
-    void backupAdd_inthread(const string& drivePath,
-        string sourcePath,
-        const string& targetPath,
-        std::function<void(error, SyncError, handle)> completion,
-        const string& logname);
-
-    handle backupAdd_mainthread(const string& drivePath,
-        const string& sourcePath,
-        const string& targetPath,
-        const string& logname);
-
-    handle setupSync_mainthread(const string& localPath,
+    handle setupSync_mainthread(const string& rootPath,
                                 const CloudItem& remoteItem,
-                                const bool isBackup = false,
-                                const bool uploadIgnoreFile = true);
+                                const bool isBackup,
+                                const bool uploadIgnoreFile,
+                                const string& drivePath = string(1, '\0'));
 
-    void setupSync_inThread(const string& localPath,
+    void setupSync_inThread(const string& drivePath,
+                            const string& rootPath,
                             const CloudItem& remoteItem,
                             const bool isBackup,
                             const bool uploadIgnoreFile,
