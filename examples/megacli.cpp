@@ -3676,6 +3676,20 @@ autocomplete::ACN autocompleteSyntax()
                     localFSPath("outputPath"),
                     opt(param("lengthKB"))));
 
+    p->Add(exec_album,
+        sequence(text("album"),
+                 either(text("list"),
+                        sequence(text("new"), opt(param("attrs"))),
+                        sequence(text("update"), param("id"), param("attrs")),
+                        sequence(text("remove"), param("id")),
+                        sequence(text("fetch"), param("id")),
+                        sequence(text("newelement"), param("albumid"), param("nodehandle"),
+                                 opt(sequence(flag("-a"), param("attrs"))), opt(sequence(flag("-o"), param("order")))),
+                        sequence(text("updateelement"), param("id"),
+                                 opt(sequence(flag("-a"), param("attrs"))), opt(sequence(flag("-o"), param("order")))),
+                        sequence(text("removeelement"), param("id"))
+                        )));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -9695,6 +9709,199 @@ void exec_syncxable(autocomplete::ACState& s)
           false, nullptr);
 
         cout << "disablement complete." << endl;
+    }
+}
+
+void printAlbum(const Album* a)
+{
+    if (!a)
+    {
+        cout << "Album not found" << endl;
+        return;
+    }
+
+    cout << "Album " << toHandle(a->id()) << endl;
+    cout << "\tkey: " << Base64::btoa(a->key()) << endl;
+    cout << "\tuser: " << toHandle(a->user()) << endl;
+    cout << "\tts: " << a->ts() << endl;
+    cout << "\tattrs: " << a->attrs() << endl;
+
+    const auto& elems = a->elements();
+    for (const auto& p : elems)
+    {
+        const AlbumElement& el = p.second;
+        cout << "\t\telement " << toHandle(el.id()) << endl;
+        cout << "\t\t\tnode: " << Base64Str<MegaClient::NODEHANDLE>(el.node()) << endl;
+        cout << "\t\t\tattrs: " << el.attrs() << endl;
+        cout << "\t\t\torder: " << el.order() << endl;
+        cout << "\t\t\tkey: " << (el.key().empty() ? "(no key)" : Base64::btoa(el.key())) << endl;
+        cout << "\t\t\tts: " << el.ts() << endl;
+    }
+    cout << endl;
+}
+
+void exec_album(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate albums."
+             << endl;
+        return;
+    }
+
+    const auto command = s.words[1].s;
+
+    if (command == "list")
+    {
+        const auto& albs = client->albums();
+        for (auto& a : albs)
+        {
+            printAlbum(&a.second);
+        }
+    }
+
+    else if (command == "new")
+    {
+        string attrs = (s.words.size() == 3) ? s.words[2].s : string();
+
+        client->putAlbum(UNDEF, move(attrs), [](Error e, handle id)
+            {
+                if (e == API_OK)
+                {
+                    cout << "Created album with id " << toHandle(id) << endl;
+                    printAlbum(client->album(id));
+                }
+                else
+                {
+                    cout << "Error creating new album " << e << endl;
+                }
+            });
+    }
+
+    else if (command == "update")
+    {
+        handle id = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::ALBUMHANDLE);
+        string attrs = (s.words.size() == 4) ? s.words[3].s : string();
+
+        client->putAlbum(id, move(attrs), [id](Error e, handle albumId)
+            {
+                if (e == API_OK)
+                {
+                    cout << "Updated album " << toHandle(id) << endl;
+                    assert(id == albumId);
+                    printAlbum(client->album(id));
+                }
+                else
+                {
+                    cout << "Error updating album " << toHandle(id) << ' ' << e << endl;
+                }
+            });
+    }
+
+    else if (command == "remove")
+    {
+        handle id = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::ALBUMHANDLE);
+
+        client->removeAlbum(id, [id](Error e)
+            {
+                if (e == API_OK)
+                    cout << "Removed album " << toHandle(id) << endl;
+                else
+                    cout << "Error removing album " << toHandle(id) << ' ' << e << endl;
+            });
+    }
+
+    else if (command == "fetch")
+    {
+        handle id = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::ALBUMHANDLE);
+
+        client->fetchAlbum(id, [id](Error e)
+            {
+                if (e == API_OK)
+                {
+                    cout << "Fetched album " << toHandle(id) << endl;
+                    printAlbum(client->album(id));
+                }
+                else
+                {
+                    cout << "Error fetching album " << toHandle(id) << ' ' << e << endl;
+                }
+            });
+    }
+
+    else if (command == "removeelement")
+    {
+        handle id = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::ALBUMELEMENTHANDLE);
+
+        client->removeAlbumElement(id, [id](Error e)
+            {
+                if (e == API_OK)
+                    cout << "Removed album element " << toHandle(id) << endl;
+                else
+                    cout << "Error removing album element " << toHandle(id) << ' ' << e << endl;
+            });
+    }
+
+    else // create or update element
+    {
+        handle albumId = 0; // must have remaining bits set to 0
+        handle node = 0;    // must have remaining bits set to 0
+        handle elemId = 0;  // must have remaining bits set to 0
+        bool createNew = command == "newelement";
+        if (createNew)
+        {
+            Base64::atob(s.words[2].s.c_str(), (byte*)&albumId, MegaClient::ALBUMHANDLE);
+            Base64::atob(s.words[3].s.c_str(), (byte*)&node, MegaClient::NODEHANDLE);
+            elemId = UNDEF;
+        }
+
+        else // "updateelement"
+        {
+            albumId = UNDEF;
+            node = UNDEF;
+            Base64::atob(s.words[2].s.c_str(), (byte*)&elemId, MegaClient::ALBUMELEMENTHANDLE);
+        }
+
+        AlbumElement el(node, elemId);
+
+        string param;
+        if (s.extractflagparam("-a", param))
+        {
+            el.setAttrs(param);
+        }
+
+        if (s.extractflagparam("-o", param))
+        {
+            el.setOrder(atoll(param.c_str()));
+        }
+
+        client->putAlbumElement(move(el), albumId, [createNew, elemId](Error e, handle receivedElementId)
+            {
+                if (createNew)
+                {
+                    if (e == API_OK)
+                        cout << "Created album element " << toHandle(receivedElementId) << endl;
+                    else
+                        cout << "Error creating new album element " << e << endl;
+                }
+                else
+                {
+                    if (e == API_OK)
+                    {
+                        cout << "Updated album element " << toHandle(elemId) << endl;
+                        assert(receivedElementId == elemId);
+                    }
+                    else
+                    {
+                        cout << "Error updating album element " << toHandle(elemId) << ' ' << e << endl;
+                    }
+                }
+            });
     }
 }
 
