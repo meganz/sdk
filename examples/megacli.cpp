@@ -3671,6 +3671,11 @@ autocomplete::ACN autocompleteSyntax()
                     either(sequence(text("get"), localFSFolder()),
                            sequence(text("set"), localFSFolder(), opt(text("force"))))));
 
+    p->Add(exec_randomfile,
+           sequence(text("randomfile"),
+                    localFSPath("outputPath"),
+                    opt(param("lengthKB"))));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -4692,6 +4697,48 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
 {
+#ifndef DONT_USE_SCAN_SERVICE
+
+    auto fa = client->fsaccess->newfileaccess();
+    fa->fopen(localname);
+    if (fa->type != FOLDERNODE)
+    {
+        cout << "Path is not a folder: " << localname.toPath();
+        return;
+    }
+
+    ScanService s(*client->waiter);
+    ScanService::RequestPtr r = s.queueScan(localname, fa->fsid, false, {});
+
+    while (!r->completed())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (r->completionResult() != SCAN_SUCCESS)
+    {
+        cout << "Scan failed: " << r->completionResult() << " for path: " << localname.toPath();
+        return;
+    }
+
+    std::vector<FSNode> results = r->resultNodes();
+
+    DBTableTransactionCommitter committer(client->tctable);
+    int total = 0;
+
+    for (auto& rr : results)
+    {
+        auto newpath = localname;
+        newpath.appendWithSeparator(rr.localname, true);
+        uploadLocalPath(rr.type, rr.localname.toPath(), newpath, cloudFolder, "", committer, total, true, vo, nullptr, false);
+    }
+
+    if (gVerboseMode)
+    {
+        cout << "Queued " << total << " more uploads from folder " << localname.toPath() << endl;
+    }
+
+#else
+
     auto da = client->fsaccess->newdiraccess();
 
     LocalPath lp(localname);
@@ -4719,6 +4766,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
             cout << "Queued " << total << " more uploads from folder " << localpathToUtf8Leaf(localname) << endl;
         }
     }
+#endif
 }
 
 void exec_put(autocomplete::ACState& s)
@@ -4764,6 +4812,7 @@ void exec_put(autocomplete::ACState& s)
 
     auto da = client->fsaccess->newdiraccess();
 
+    // search with glob, eg *.txt
     if (da->dopen(&localname, NULL, true))
     {
         DBTableTransactionCommitter committer(client->tctable);
@@ -7359,6 +7408,54 @@ void exec_driveid(autocomplete::ACState& s)
          << " has been written to "
          << drivePath
          << endl;
+}
+
+void exec_randomfile(autocomplete::ACState& s)
+{
+    // randomfile path [length]
+    auto length = 2l;
+
+    if (s.words.size() > 2)
+        length = std::atol(s.words[2].s.c_str());
+
+    if (length <= 0)
+    {
+        std::cerr << "Invalid length specified: "
+                  << s.words[2].s
+                  << std::endl;
+        return;
+    }
+
+    constexpr auto flags =
+      std::ios::binary | std::ios::out | std::ios::trunc;
+
+    std::ofstream ostream(s.words[1].s, flags);
+
+    if (!ostream)
+    {
+        std::cerr << "Unable to open file for writing: "
+                  << s.words[1].s
+                  << std::endl;
+        return;
+    }
+
+    std::generate_n(std::ostream_iterator<char>(ostream),
+                    length << 10,
+                    []() { return (char)std::rand(); });
+
+    if (!ostream.flush())
+    {
+        std::cerr << "Encountered an error while writing: "
+                  << s.words[1].s
+                  << std::endl;
+        return;
+    }
+
+    std::cout << "Successfully wrote "
+              << length
+              << " kilobytes of random binary data to: "
+              << s.words[1].s
+              << std::endl;
 }
 
 #ifdef USE_DRIVE_NOTIFICATIONS
