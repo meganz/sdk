@@ -2091,6 +2091,11 @@ private:
     string decryptKey(const string& k, SymmCipher& cipher) const;
     string decryptAttrs(const string& attrs, const string& encryptionKey) const;
 
+    void sc_asp(); // AP after new or updated Album
+    void sc_asr(); // AP after removed Album
+    void sc_aep(); // AP after new or updated Album Element
+    void sc_aer(); // AP after removed Album Element
+
     map<handle, Album> mAlbums; // indexed by Album id
 
 // -------- end of Albums
