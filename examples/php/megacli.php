@@ -462,7 +462,13 @@ class GetCommand extends Command
 			return;
 		}
 			
-		$megaapi->startDownload($node, "./");
+		$megaapi->startDownload($node
+		, "./"	 /*local path*/
+		, null 	 /*custom name*/
+		, null	 /*app data*/
+		, false	 /*start first*/
+		, null	 /*cancel token*/
+		, null); /*listener*/
     }
 }
 
@@ -487,7 +493,14 @@ class PutCommand extends Command
 		}
 		
 		$path = $input->getArgument('path');
-		$megaapi->startUpload($path, $cwd);
+		$megaapi->startUpload($path
+		, null  	/*filename*/
+		, 0     	/*mtime*/
+		, null  	/*appData*/
+		, false 	/*isSourceTemporary*/
+		, false 	/*startFirst*/
+		, null		/*cancelToken*/
+		, null);  	/*listener*/
     }
 }
 
