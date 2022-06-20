@@ -8876,6 +8876,274 @@ bool CommandDismissBanner::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
+
+//
+// Albums
+//
+
+bool CommandAlbum::procresultid(const Result& r, handle& id, m_time_t& ts, int64_t* order) const
+{
+    if (r.hasJsonObject())
+    {
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+            case MAKENAMEID2('i', 'd'):
+                id = client->json.gethandle(MegaClient::ALBUMHANDLE);
+                break;
+
+            case MAKENAMEID2('t', 's'):
+                ts = client->json.getint();
+                break;
+
+            case EOO:
+                return true;
+
+            case MAKENAMEID1('o'):
+                if (order)
+                {
+                    *order = client->json.getint();
+                    break;
+                }
+                // fallthrough
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return false;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+bool CommandAlbum::procerrorcode(const Result& r, Error& e) const
+{
+    if (r.wasErrorOrOK())
+    {
+        e = r.errorOrOK();
+        return true;
+    }
+
+    return false;
+}
+
+CommandPutAlbum::CommandPutAlbum(MegaClient* cl, handle albumId, string&& decrKey, string&& encrKey, string&& decrAttrs, string&& encrAttrs,
+                                 std::function<void(Error, handle)> completion)
+    : mId(albumId), mDecrKey(move(decrKey)), mDecrAttrs(move(decrAttrs)), mCompletion(completion)
+{
+    cmd("asp");
+
+    if (albumId == UNDEF) // create new
+    {
+        arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
+        if (!encrAttrs.empty())
+        {
+            arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
+        }
+    }
+
+    else // update
+    {
+        arg("id", (byte*)&albumId, MegaClient::ALBUMHANDLE);
+        arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
+    }
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandPutAlbum::procresult(Result r)
+{
+    handle albumId = 0;
+    m_time_t ts = 0;
+    Error e = API_OK;
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, albumId, ts);
+
+    if (!parsedOk)
+    {
+        e = API_EINTERNAL;
+    }
+    else if (e == API_OK)
+    {
+        if (mId == UNDEF) // add new
+        {
+            Album a(albumId, move(mDecrKey), UNDEF, ts, move(mDecrAttrs));
+            client->addAlbum(move(a));
+        }
+        else // update existing
+        {
+            client->updateAlbum(albumId, move(mDecrAttrs), ts);
+            assert(mId == albumId);
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e, albumId);
+    }
+
+    return parsedOk;
+}
+
+CommandRemoveAlbum::CommandRemoveAlbum(MegaClient* cl, handle id, std::function<void(Error)> completion)
+    : mAlbumId(id), mCompletion(completion)
+{
+    cmd("asr");
+    arg("id", (byte*)&id, MegaClient::ALBUMHANDLE);
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandRemoveAlbum::procresult(Result r)
+{
+    Error e = API_OK;
+    bool parsedOk = procerrorcode(r, e);
+
+    if (parsedOk && e == API_OK)
+    {
+        client->deleteAlbum(mAlbumId);
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e);
+    }
+
+    return parsedOk;
+}
+
+CommandFetchAlbum::CommandFetchAlbum(MegaClient* client, handle id, std::function<void(Error)> completion)
+    : mCompletion(completion)
+{
+    cmd("aft");
+    arg("id", (byte*)&id, MegaClient::ALBUMHANDLE);
+}
+
+bool CommandFetchAlbum::procresult(Result r)
+{
+    Error e = API_OK;
+    if (procerrorcode(r, e))
+    {
+        if (mCompletion)
+        {
+            mCompletion(e);
+        }
+        return true;
+    }
+
+    e = client->readAlbumsAndElements(client->json);
+    if (e != API_OK)
+    {
+        LOG_err << "Albums: Failed to parse \"aft\" response";
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e);
+    }
+
+    return e == API_OK;
+}
+
+CommandPutAlbumElement::CommandPutAlbumElement(MegaClient* cl, AlbumElement&& el, string&& encrAttrs, string&& encrKey, handle albumId,
+                                               std::function<void(Error, handle)> completion)
+    : mElement(new AlbumElement(move(el))), mAlbumId(albumId), mCompletion(completion)
+{
+    cmd("aep");
+
+    if (mElement->id() == UNDEF) // create new
+    {
+        arg("s", (byte*)&mAlbumId, MegaClient::ALBUMHANDLE);
+        arg("h", (byte*)&mElement->node(), MegaClient::NODEHANDLE);
+    }
+
+    else // update
+    {
+        arg("id", (byte*)&mElement->id(), MegaClient::ALBUMELEMENTHANDLE);
+    }
+
+    // optionals
+    if (mElement->hasOrder())
+    {
+        arg("o", mElement->order());
+    }
+
+    if (mElement->hasAttrs())
+    {
+        arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
+    }
+
+    if (mElement->hasKey())
+    {
+        arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
+    }
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandPutAlbumElement::procresult(Result r)
+{
+    handle elementId = 0;
+    m_time_t ts = 0;
+    int64_t order = 0;
+    Error e = API_OK;
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, &order);
+
+    if (!parsedOk)
+    {
+        e = API_EINTERNAL;
+    }
+    else if (e == API_OK)
+    {
+        assert(mElement->id() == UNDEF || mElement->id() == elementId);
+        mElement->setId(elementId);
+        mElement->setTs(ts);
+        mElement->setOrder(order);
+
+        client->addOrUpdateAlbumElement(move(*mElement), mAlbumId);
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e, elementId);
+    }
+
+    return parsedOk;
+}
+
+CommandRemoveAlbumElement::CommandRemoveAlbumElement(MegaClient* cl, handle id, std::function<void(Error)> completion)
+    : mElementId(id), mCompletion(completion)
+{
+    cmd("aer");
+    arg("id", (byte*)&id, MegaClient::ALBUMELEMENTHANDLE);
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandRemoveAlbumElement::procresult(Result r)
+{
+    Error e = API_OK;
+    bool parsedOk = procerrorcode(r, e);
+
+    if (parsedOk && e == API_OK)
+    {
+        client->deleteAlbumElement(mElementId);
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e);
+    }
+
+    return parsedOk;
+}
+
+// -------- end of Albums
+
+
 #ifdef ENABLE_CHAT
 
 bool CommandMeetingStart::procresult(Command::Result r)

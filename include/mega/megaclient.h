@@ -41,6 +41,8 @@
 #include "sync.h"
 #include "drivenotify.h"
 
+#include <bitset>
+
 namespace mega {
 
 class Logger;
@@ -222,6 +224,85 @@ struct SyncdownContext
     bool mBackupActionsPerformed = false;
     bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
+
+class AlbumElement
+{
+public:
+    AlbumElement() = default;
+    AlbumElement(handle node, handle elemId = UNDEF) // create new element or update existing one
+        : mId(elemId), mNodeHandle(node) {}
+
+    const handle& id() const                { return mId; }
+    const handle& node() const              { return mNodeHandle; }
+    const string& attrs() const             { return mAttrs; }
+    const int64_t& order() const            { return mOrder; }
+    const m_time_t& ts() const              { return mTs; }
+    const string& key() const               { return mKey; }
+
+    void setId(handle id)                   { mId = id; }
+    void setNode(handle nh)                 { mNodeHandle = nh; }
+    void setAttrs(string&& attrs)           { mAttrs = move(attrs); mOpts[AE_ATTRS] = 1; }
+    void setAttrs(const string& attrs)      { mAttrs = attrs; mOpts[AE_ATTRS] = 1; }
+    void setOrder(int64_t order)            { mOrder = order; mOpts[AE_ORDER] = 1; }
+    void setTs(m_time_t ts)                 { mTs = ts; }
+    void setKey(string&& key)               { mKey = move(key); mOpts[AE_KEY] = 1; }
+    void setKey(const string& key)          { mKey = key; mOpts[AE_KEY] = 1; }
+
+    bool hasAttrs() const                   { return mOpts[AE_ATTRS]; }
+    bool hasOrder() const                   { return mOpts[AE_ORDER]; }
+    bool hasKey() const                     { return mOpts[AE_KEY]; }
+
+private:
+    handle mId = UNDEF;
+    handle mNodeHandle = UNDEF;
+    string mAttrs;
+    int64_t mOrder = 0;
+    m_time_t mTs = 0;
+    string mKey;
+
+    enum
+    {
+        AE_ATTRS,
+        AE_ORDER,
+        AE_KEY,
+        AE_SIZE
+    };
+    std::bitset<AE_SIZE> mOpts;
+};
+
+class Album
+{
+public:
+    Album() = default;
+    Album(handle id, string&& key, handle user, m_time_t ts, string&& attrs = string()) :
+        mId(id), mKey(move(key)), mUser(user), mTs(ts), mAttrs(move(attrs)) {}
+
+    const handle& id() const { return mId; }
+    const string& key() const { return mKey; }
+    const handle& user() const { return mUser; }
+    const m_time_t& ts() const { return mTs; }
+    const string& attrs() const { return mAttrs; }
+    const map<handle, AlbumElement>& elements() const { return mElements; }
+
+    void setId(handle id) { mId = id; }
+    void setKey(string&& key) { mKey = move(key); }
+    void setUser(handle uh) { mUser = uh; }
+    void setTs(m_time_t ts) { mTs = ts; }
+    void setAttrs(string&& attrs) { mAttrs = move(attrs); }
+
+    bool hasElement(handle elemId) const;
+    void addOrUpdateElement(AlbumElement&& el);
+    bool removeElement(handle elemId) { return mElements.erase(elemId); }
+
+private:
+    handle mId = UNDEF;
+    string mKey;        // new AES-128 key per set
+    handle mUser = UNDEF;
+    m_time_t mTs = 0;
+    string mAttrs;      // up to 65535 bytes of miscellaneous data, as b64, encrypted with mKey
+    map<handle, AlbumElement> mElements;
+
+};
 
 class MEGA_API MegaClient
 {
@@ -1657,6 +1738,8 @@ public:
     static const int DRIVEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
+    static const int ALBUMHANDLE = 8;
+    static const int ALBUMELEMENTHANDLE = 8;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -1949,6 +2032,69 @@ private:
 
     // creates a new id filling `id` with random bytes, up to `length`
     void resetId(char *id, size_t length);
+
+
+//
+// Albums
+//
+
+public:
+    // generate "asp" command
+    void putAlbum(handle id, string&& attrs, std::function<void(Error, handle)> completion);
+
+    // generate "asr" command
+    void removeAlbum(handle id, std::function<void(Error)> completion);
+
+    // generate "aft" command
+    void fetchAlbum(handle id, std::function<void(Error)> completion);
+
+    // generate "aep" command
+    void putAlbumElement(AlbumElement&& el, handle albumId, std::function<void(Error, handle)> completion);
+
+    // generate "aer" command
+    void removeAlbumElement(handle id, std::function<void(Error)> completion);
+
+    // load Albums and Elements from json
+    error readAlbumsAndElements(JSON& j);
+
+    // return Album with given id or nullptr if it was not found
+    const Album* album(handle id) const;
+
+    // return all available Albums, indexed by id
+    const map<handle, Album>& albums() const { return mAlbums; }
+
+    // return Album with given id or nullptr if it was not found
+    vector<handle> albumIds() const;
+
+    // add new Album or replace exisiting one
+    void addAlbum(Album&& a);
+
+    // search for album with the same id, and update its members
+    void updateAlbum(handle id, string&& attrs, m_time_t ts);
+
+    // delete Album with given id from local memory, if found
+    void deleteAlbum(handle albumId);
+
+    // add new element or update existing one with the same id
+    void addOrUpdateAlbumElement(AlbumElement&& el, handle albumId);
+
+    // search through all Albums and remove Element with given id from local memory, if found
+    void deleteAlbumElement(handle elemId, handle albumId = UNDEF);
+
+private:
+    error readAlbums(JSON& j, map<handle, Album>& albums);
+    error readAlbum(JSON& j, Album& al);
+    error readElements(JSON& j, multimap<handle, AlbumElement>& elements);
+    error readElement(JSON& j, AlbumElement& el, handle& albumId);
+    error decryptAlbumData(Album& al);
+    error decryptAlbumElementData(AlbumElement& el, const string& albumKey);
+    string decryptKey(const string& k, SymmCipher& cipher) const;
+    string decryptAttrs(const string& attrs, const string& encryptionKey) const;
+
+    map<handle, Album> mAlbums; // indexed by Album id
+
+// -------- end of Albums
+
 };
 } // namespace
 

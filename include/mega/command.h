@@ -1473,6 +1473,82 @@ public:
     CommandDismissBanner(MegaClient*, int id, m_time_t ts);
 };
 
+
+//
+// Albums
+//
+
+class CommandAlbum : public Command // intermediary class to avoid code duplication
+{
+protected:
+    bool procresultid(const Result& r, handle& id, m_time_t& ts, int64_t* order = nullptr) const;
+    bool procerrorcode(const Result& r, Error& e) const;
+};
+
+class MEGA_API CommandPutAlbum : public CommandAlbum
+{
+public:
+    CommandPutAlbum(MegaClient*, handle albumId, string&& decrKey, string&& encrKey, string&& decrAttrs, string&& encrAttrs,
+                    std::function<void(Error, handle)> completion);
+    bool procresult(Result) override;
+
+private:
+    handle mId = UNDEF;
+    string mDecrKey;   // decrypted Album key
+    string mDecrAttrs; // decrypted attrs
+    std::function<void(Error, handle)> mCompletion;
+};
+
+class MEGA_API CommandRemoveAlbum : public CommandAlbum
+{
+public:
+    CommandRemoveAlbum(MegaClient*, handle id, std::function<void(Error)> completion);
+    bool procresult(Result) override;
+
+private:
+    handle mAlbumId = UNDEF;
+    std::function<void(Error)> mCompletion;
+};
+
+class MEGA_API CommandFetchAlbum : public CommandAlbum
+{
+public:
+    CommandFetchAlbum(MegaClient*, handle id, std::function<void(Error)> completion);
+    bool procresult(Result) override;
+
+private:
+    std::function<void(Error)> mCompletion;
+};
+
+class AlbumElement;
+
+class MEGA_API CommandPutAlbumElement : public CommandAlbum
+{
+public:
+    CommandPutAlbumElement(MegaClient*, AlbumElement&& e, string&& encrAttrs, string&& encrKey, handle albumId,
+                           std::function<void(Error, handle)> completion);
+    bool procresult(Result) override;
+
+private:
+    unique_ptr<AlbumElement> mElement; // use a pointer to avoid defining AlbumElement in this header
+    handle mAlbumId = UNDEF;
+    std::function<void(Error, handle)> mCompletion;
+};
+
+class MEGA_API CommandRemoveAlbumElement : public CommandAlbum
+{
+public:
+    CommandRemoveAlbumElement(MegaClient*, handle id, std::function<void(Error)> completion);
+    bool procresult(Result) override;
+
+private:
+    handle mElementId = UNDEF;
+    std::function<void(Error)> mCompletion;
+};
+
+// -------- end of Albums
+
+
 #ifdef ENABLE_CHAT
 typedef std::function<void(Error, std::string, handle)> CommandMeetingStartCompletion;
 class MEGA_API CommandMeetingStart : public Command

@@ -4333,6 +4333,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
+    mAlbums.clear();
 
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
     purgeOrphanTransfers();
@@ -5002,6 +5003,22 @@ bool MegaClient::procsc()
                             case MAKENAMEID4('s', 'q', 'a', 'c'):
                                 // storage quota allowance changed
                                 sc_sqac();
+                                break;
+
+                            case MAKENAMEID3('a', 's', 'p'):
+                                sc_asp();
+                                break;
+
+                            case MAKENAMEID3('a', 's', 'r'):
+                                sc_asr();
+                                break;
+
+                            case MAKENAMEID3('a', 'e', 'p'):
+                                sc_aep();
+                                break;
+
+                            case MAKENAMEID3('a', 'e', 'r'):
+                                sc_aer();
                                 break;
                         }
                     }
@@ -16977,6 +16994,705 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
 
     return backoff;
 }
+
+
+//
+// Albums
+//
+
+void MegaClient::putAlbum(handle id, string&& attrs, std::function<void(Error, handle)> completion)
+{
+    // album key
+    byte albumKey[SymmCipher::KEYLENGTH];
+    if (id == UNDEF) // new album
+    {
+        // generate AES-128 key
+        rng.genblock(albumKey, sizeof(albumKey));
+    }
+    else // updating
+    {
+        auto it = mAlbums.find(id);
+        if (it == mAlbums.end())
+        {
+            LOG_err << "Albums: Failed to update Album (not found).";
+            if (completion)
+                completion(API_EARGS, id);
+            return;
+        }
+
+        copy_n(it->second.key().begin(), it->second.key().size(), albumKey);
+    }
+
+    // encrypt attrs with album key
+    string encrAttrs;
+    if (!attrs.empty())
+    {
+        encrAttrs = attrs;
+        SymmCipher cipher(albumKey);
+        PaddedCBC::encrypt(rng, &encrAttrs, &cipher);
+    }
+
+    // encrypt album key with master key (for new album only)
+    string decrAlbumKey, encrAlbumKey;
+    if (id == UNDEF)
+    {
+        decrAlbumKey.assign((char*)albumKey, sizeof(albumKey));
+        key.cbc_encrypt(albumKey, sizeof(albumKey));
+        encrAlbumKey.assign((char*)albumKey, sizeof(albumKey));
+    }
+
+    reqs.add(new CommandPutAlbum(this, id, move(decrAlbumKey), move(encrAlbumKey), move(attrs), move(encrAttrs), completion));
+}
+
+void MegaClient::removeAlbum(handle id, std::function<void(Error)> completion)
+{
+    reqs.add(new CommandRemoveAlbum(this, id, completion));
+}
+
+void MegaClient::fetchAlbum(handle id, std::function<void(Error)> completion)
+{
+    reqs.add(new CommandFetchAlbum(this, id, completion));
+}
+
+void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::function<void(Error, handle)> completion)
+{
+    assert(el.id() != UNDEF || albumId != UNDEF);
+
+    // find album
+    const Album* existingAlbum = albumId == UNDEF ? nullptr : album(albumId);
+    if (!existingAlbum)
+    {
+        for (const auto& a : mAlbums)
+        {
+            auto itE = a.second.elements().find(el.id());
+            if (itE != a.second.elements().end())
+            {
+                existingAlbum = &a.second;
+                break;
+            }
+        }
+    }
+    if (!existingAlbum)
+    {
+        LOG_err << "Albums: Album not found when adding or updating Element";
+        if (completion)
+            completion(API_EARGS, el.id());
+        return;
+    }
+
+    // get key (only for new Element)
+    string encrKey;
+    if (el.id() == UNDEF)
+    {
+        Node* n = nodebyhandle(el.node());
+        if (!n || n->nodekey().empty() || !n->nodecipher())
+        {
+            LOG_err << "Albums: Invalid node for Element";
+            if (completion)
+                completion(API_EARGS, el.id());
+            return;
+        }
+
+        el.setKey(n->nodekey());
+
+        // encrypt key
+        byte encryptBuffer[SymmCipher::KEYLENGTH];
+        std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
+        SymmCipher cipher((byte*)existingAlbum->key().c_str());
+        cipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
+        encrKey.assign((char*)encryptBuffer, sizeof(encryptBuffer));
+    }
+
+    // encrypt attributes
+    string encrAttrs;
+    if (el.hasAttrs() && !el.attrs().empty())
+    {
+        encrAttrs = el.attrs();
+        SymmCipher cipher((byte*)el.key().c_str());
+        PaddedCBC::encrypt(rng, &encrAttrs, &cipher);
+    }
+
+    reqs.add(new CommandPutAlbumElement(this, move(el), move(encrAttrs), move(encrKey), existingAlbum->id(), completion));
+}
+
+void MegaClient::removeAlbumElement(handle id, std::function<void(Error)> completion)
+{
+    reqs.add(new CommandRemoveAlbumElement(this, id, completion));
+}
+
+error MegaClient::readAlbumsAndElements(JSON& j)
+{
+    map<handle, Album> newAlbums;
+    multimap<handle, AlbumElement> newElements;
+    bool replaceAllAlbums = false;
+    bool loopAgain = true;
+
+    while (loopAgain)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID1('s'):
+        {
+            // reuse this in "aft" (fetch-album command) and "aesp" (in gettree/fetchnodes/"f" command):
+            // "aft" will return a single Album for "s", while "aesp" will return an array of Albums
+            replaceAllAlbums = j.enterarray();
+
+            error e = readAlbums(j, newAlbums);
+            if (e != API_OK)
+                return e;
+
+            if (replaceAllAlbums)
+                j.leavearray();
+
+            break;
+        }
+
+        case MAKENAMEID1('e'):
+        {
+            error e = readElements(j, newElements);
+            if (e != API_OK)
+                return e;
+            break;
+        }
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            loopAgain = false;
+            break;
+        }
+    }
+
+    // decrypt album data
+    for (auto& al : newAlbums)
+    {
+        error e = decryptAlbumData(al.second);
+        if (e != API_OK)
+        {
+            return e;
+        }
+    }
+
+    // match elements and albums
+    auto itA = newAlbums.end();
+    for (auto& newEl : newElements)
+    {
+        // get corresponding album
+        if (itA == newAlbums.end() || itA->second.id() != newEl.first)
+        {
+            itA = newAlbums.find(newEl.first);
+            if (itA == newAlbums.end())
+            {
+                continue; // should never happen
+            }
+        }
+
+        // decrypt element key and attrs
+        error e = decryptAlbumElementData(newEl.second, itA->second.key());
+        if (e != API_OK)
+        {
+            return e;
+        }
+
+        itA->second.addOrUpdateElement(move(newEl.second));
+    }
+
+    // apply changes
+    if (replaceAllAlbums) // "aesp"
+    {
+        mAlbums.swap(newAlbums);
+    }
+    else if (!newAlbums.empty()) // "aft" command (will contain only 1 Album)
+    {
+        auto& a = newAlbums.begin()->second;
+        mAlbums[a.id()] = move(a);
+    }
+
+    return API_OK;
+}
+
+error MegaClient::decryptAlbumData(Album& al)
+{
+    if (!al.id() || al.id() == UNDEF || al.key().empty())
+    {
+        LOG_err << "Albums: Missing mandatory Album data";
+        return API_EINTERNAL;
+    }
+
+    // decrypt album key using the master key
+    al.setKey(decryptKey(al.key(), key));
+
+    if (!al.attrs().empty())
+    {
+        // decrypt album attributes using the album key
+        al.setAttrs(decryptAttrs(al.attrs(), al.key()));
+    }
+
+    return API_OK;
+}
+
+error MegaClient::decryptAlbumElementData(AlbumElement& el, const string& albumKey)
+{
+    if (!el.id() || el.id() == UNDEF || !el.node() || el.node() == UNDEF)
+    {
+        LOG_err << "Albums: Missing mandatory Element data";
+        return API_EINTERNAL;
+    }
+
+    if (!el.key().empty())
+    {
+        SymmCipher cipher((byte*)albumKey.c_str());
+        el.setKey(decryptKey(el.key(), cipher));
+    }
+
+    if (!el.attrs().empty())
+    {
+        el.setAttrs(decryptAttrs(el.attrs(), el.key()));
+    }
+
+    return API_OK;
+}
+
+string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
+{
+    byte decrKey[SymmCipher::KEYLENGTH] = { 0 };
+    std::copy_n(k.begin(), std::min(k.size(), sizeof(decrKey)), decrKey);
+    cipher.cbc_decrypt(decrKey, sizeof(decrKey));
+    return string((char*)decrKey, sizeof(decrKey));
+}
+
+string MegaClient::decryptAttrs(const string& attrs, const string& encryptionKey) const
+{
+    string tmp = attrs;
+    SymmCipher cipher((byte*)encryptionKey.c_str());
+    PaddedCBC::decrypt(&tmp, &cipher);
+    return tmp;
+}
+
+error MegaClient::readAlbums(JSON& j, map<handle, Album>& albums)
+{
+    while (j.enterobject())
+    {
+        Album al;
+        error e = readAlbum(j, al);
+        if (e)
+        {
+            return e;
+        }
+        albums[al.id()] = move(al);
+
+        j.leaveobject();
+    }
+
+    return API_OK;
+}
+
+error MegaClient::readAlbum(JSON& j, Album& al)
+{
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+            al.setId(j.gethandle(MegaClient::ALBUMHANDLE));
+            break;
+
+        case MAKENAMEID2('a', 't'):
+        {
+            string attrs;
+            j.storeobject(&attrs); // B64 encoded
+            if (!attrs.empty())
+            {
+                attrs = Base64::atob(attrs);
+            }
+            al.setAttrs(move(attrs));
+            break;
+        }
+
+        case MAKENAMEID1('u'):
+            al.setUser(j.gethandle(MegaClient::USERHANDLE));
+            break;
+
+        case MAKENAMEID1('k'): // used to encrypt attrs; encrypted itself with owner's key
+        {
+            string albumKey;
+            j.storeobject(&albumKey); // B64 encoded
+            al.setKey(Base64::atob(albumKey));
+            break;
+        }
+
+        case MAKENAMEID2('t', 's'):
+            al.setTs(j.getint());
+            break;
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                LOG_err << "Albums: Failed to parse Album";
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            return API_OK;
+        }
+    }
+}
+
+error MegaClient::readElements(JSON& j, multimap<handle, AlbumElement>& elements)
+{
+    if (!j.enterarray())
+    {
+        return API_EINTERNAL;
+    }
+
+    while (j.enterobject())
+    {
+        handle albumId = 0;
+        AlbumElement el;
+        error e = readElement(j, el, albumId);
+        if (e)
+        {
+            return e;
+        }
+        elements.emplace(albumId, el);
+
+        j.leaveobject();
+    }
+
+    j.leavearray();
+    return API_OK;
+}
+
+error MegaClient::readElement(JSON& j, AlbumElement& el, handle& albumId)
+{
+    albumId = 0;
+
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+            el.setId(j.gethandle(MegaClient::ALBUMELEMENTHANDLE));
+            break;
+
+        case MAKENAMEID1('s'):
+            albumId = j.gethandle(MegaClient::ALBUMHANDLE);
+            break;
+
+        case MAKENAMEID1('h'):
+            el.setNode(j.gethandle(MegaClient::NODEHANDLE));
+            break;
+
+        case MAKENAMEID2('a', 't'):
+        {
+            string elementAttrs;
+            j.storeobject(&elementAttrs);
+            if (!elementAttrs.empty())
+            {
+                elementAttrs = Base64::atob(elementAttrs);
+            }
+            el.setAttrs(move(elementAttrs));
+            break;
+        }
+
+        case MAKENAMEID1('o'):
+            el.setOrder(j.getint());
+            break;
+
+        case MAKENAMEID2('t', 's'):
+            el.setTs(j.getint());
+            break;
+
+        case MAKENAMEID1('k'):
+        {
+            string elementKey;
+            j.storeobject(&elementKey);
+            if (!elementKey.empty())
+            {
+                elementKey = Base64::atob(elementKey);
+            }
+            el.setKey(move(elementKey));
+            break;
+        }
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                LOG_err << "Albums: Failed to parse Element";
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            return API_OK;
+        }
+    }
+}
+
+const Album* MegaClient::album(handle id) const
+{
+    auto it = mAlbums.find(id);
+    return it == mAlbums.end() ? nullptr : &it->second;
+}
+
+vector<handle> MegaClient::albumIds() const
+{
+    vector<handle> v;
+    v.reserve(mAlbums.size());
+    for (auto& a : mAlbums)
+        v.push_back(a.first);
+    return v;
+}
+
+void MegaClient::addAlbum(Album&& a)
+{
+    mAlbums[a.id()] = move(a);
+}
+
+void MegaClient::updateAlbum(handle id, string&& attrs, m_time_t ts)
+{
+    for (auto& it : mAlbums)
+    {
+        if (it.second.id() == id)
+        {
+            it.second.setAttrs(move(attrs));
+            it.second.setTs(ts);
+        }
+    }
+}
+
+void MegaClient::deleteAlbum(handle albumId)
+{
+    mAlbums.erase(albumId);
+}
+
+void MegaClient::addOrUpdateAlbumElement(AlbumElement&& el, handle albumId)
+{
+    auto itAl = mAlbums.find(albumId);
+    if (itAl == mAlbums.end())
+    {
+        return;
+    }
+
+    itAl->second.addOrUpdateElement(move(el));
+}
+
+void MegaClient::deleteAlbumElement(handle elemId, handle albumId)
+{
+    auto it = mAlbums.find(albumId);
+    if (it != mAlbums.end())
+    {
+        it->second.removeElement(elemId);
+    }
+
+    else if (albumId == UNDEF)
+    {
+        for (auto& a : mAlbums)
+        {
+            if (a.second.removeElement(elemId))
+                break;
+        }
+    }
+}
+
+void MegaClient::sc_asp()
+{
+    Album al;
+    error e = readAlbum(jsonsc, al);
+    if (e != API_OK)
+    {
+        LOG_err << "Albums: Failed to parse `asp` action packet";
+        return;
+    }
+
+    auto it = mAlbums.find(al.id());
+    if (it == mAlbums.end()) // add new
+    {
+        decryptAlbumData(al);
+        addAlbum(move(al));
+    }
+    else // update existing Album
+    {
+        Album& existing = it->second;
+        existing.setAttrs(decryptAttrs(al.attrs(), existing.key()));
+        existing.setTs(al.ts());
+        // "u" is currently missing from this actionpacket. API should probably add it, but until it is,
+        // don't overwrite existing value with an invalid one
+        if (al.user() != UNDEF)
+        {
+            existing.setUser(al.user());
+        }
+    }
+}
+
+void MegaClient::sc_asr()
+{
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+        {
+            handle albumId = jsonsc.gethandle(MegaClient::ALBUMHANDLE);
+            deleteAlbum(albumId);
+            // failing to remove a local album here would be fine in case the client that sent the command
+            // applied the change after receiving the OK from the API, but processed the action packet too
+            break;
+        }
+
+        case EOO:
+            return;
+
+        default:
+            if (!jsonsc.storeobject())
+            {
+                LOG_warn << "Albums: Failed to parse `asr` action packet";
+                return;
+            }
+        }
+    }
+}
+
+void MegaClient::sc_aep()
+{
+    AlbumElement el;
+    handle albumId = 0;
+    error e = readElement(jsonsc, el, albumId);
+    if (e != API_OK)
+    {
+        LOG_err << "Albums: `aep` action packet: failed to parse data";
+        return;
+    }
+
+    // find the Album for this Element
+    Album* al = nullptr;
+
+    if (albumId) // insert new or update existing
+    {
+        auto it = mAlbums.find(albumId);
+        if (it != mAlbums.end())
+        {
+            al = &it->second;
+        }
+    }
+    else // must be an update, find its album
+    {
+        for (auto& a : mAlbums)
+        {
+            if (a.second.hasElement(el.id()))
+            {
+                al = &a.second;
+                break;
+            }
+        }
+    }
+
+    if (!al)
+    {
+        e = API_EINTERNAL;
+        LOG_err << "Albums: `aep` action packet: failed to find Album for Element";
+        return;
+    }
+
+    if (el.hasKey())
+    {
+        decryptAlbumElementData(el, al->key());
+    }
+
+    else if (!el.attrs().empty()) // attrs have been updated; find the key to decrypt them
+    {
+        auto itE = al->elements().find(el.id());
+        if (itE == al->elements().end())
+        {
+            e = API_EINTERNAL;
+            LOG_err << "Albums: `aep` action packet: failed to find Element to update";
+            return;
+        }
+        el.setAttrs(decryptAttrs(el.attrs(), itE->second.key()));
+    }
+
+    al->addOrUpdateElement(move(el));
+}
+
+void MegaClient::sc_aer()
+{
+    handle elemId = 0;
+    handle albumId = 0;
+
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+            elemId = jsonsc.gethandle(MegaClient::ALBUMELEMENTHANDLE);
+            break;
+
+        case MAKENAMEID1('s'):
+            albumId = jsonsc.gethandle(MegaClient::ALBUMHANDLE);
+            break;
+
+        case EOO:
+            deleteAlbumElement(elemId, albumId);
+            // failing to remove a local element here would be fine in case the client that sent the command
+            // applied the change after receiving the OK from the API, but processed the action packet too
+            return;
+
+        default:
+            if (!jsonsc.storeobject())
+            {
+                LOG_warn << "Albums: Failed to parse `aer` action packet";
+                return;
+            }
+        }
+    }
+}
+
+bool Album::hasElement(handle elemId) const
+{
+    auto it = mElements.find(elemId);
+    return it != mElements.end();
+}
+
+void Album::addOrUpdateElement(AlbumElement&& el)
+{
+    auto it = mElements.find(el.id());
+
+    // add
+    if (it == mElements.end())
+    {
+        auto id = el.id(); // before move()-ing from it
+        mElements[id] = move(el);
+        return;
+    }
+
+    // update
+    AlbumElement& existing = it->second;
+    if (el.hasAttrs())
+    {
+        existing.setAttrs(el.attrs());
+    }
+    if (el.hasOrder())
+    {
+        existing.setOrder(el.order());
+    }
+    if (el.ts())
+    {
+        existing.setTs(el.ts());
+    }
+    if (el.hasKey())
+    {
+        existing.setKey(el.key());
+    }
+}
+
+// -------- end of Albums
+
 
 FetchNodesStats::FetchNodesStats()
 {
