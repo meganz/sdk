@@ -335,9 +335,9 @@ protected:
 
     // Gathers up enough (but not too many) newnode records that are all descendants of a single folder
     // and can be created in a single operation.
-    // Called from the main thread just before we send the next set of folder creation commands.  
+    // Called from the main thread just before we send the next set of folder creation commands.
     bool createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel);
-    
+
     // Iterate through all pending files of each uploaded folder, and start all upload transfers
     void genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue);
 };
@@ -3160,7 +3160,7 @@ protected:
         MegaTransferPrivate* getMegaTransferPrivate(int tag);
 
         void fireOnRequestStart(MegaRequestPrivate *request);
-        void fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e);
+        void fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e, bool callbackIsFromSyncThread = false);
         void fireOnRequestUpdate(MegaRequestPrivate *request);
         void fireOnRequestTemporaryError(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e);
         bool fireOnTransferData(MegaTransferPrivate *transfer);

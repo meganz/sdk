@@ -1829,7 +1829,6 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
         result.fsid = (handle)entry->d_ino;
         result.localname = LocalPath::fromPlatformEncodedRelative(entry->d_name);
-        result.name = result.localname.toName(*this);
 
         // Compute this entry's absolute name.
         ScopedLengthRestore restorer(path);

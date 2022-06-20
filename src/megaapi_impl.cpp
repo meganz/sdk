@@ -8838,11 +8838,11 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
             case MegaSync::RUNSTATE_RUNNING:
             case MegaSync::RUNSTATE_PAUSED:
             {
-                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, false, true, true, [this, request](error err, SyncError serr)
+                client->syncs.enableSyncByBackupId(backupId, targetState == MegaSync::RUNSTATE_PAUSED, false, true, true, [this, request](error err, SyncError serr, handle)
                     {
                         request->setNumDetails(serr);
-                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err));
-                    }, "");
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err), true);
+                    }, false, "");
 
                 break;
             }
@@ -8857,7 +8857,7 @@ void MegaApiImpl::setSyncRunState(MegaHandle backupId, MegaSync::SyncRunningStat
                     false,
                     keepSyncDb,
                     [this, request](){
-                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK), true);
                     });
                 break;
             }
@@ -15934,9 +15934,10 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 }
 
 
-void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e)
+void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e, bool callbackIsFromSyncThread)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(callbackIsFromSyncThread || threadId == std::this_thread::get_id());
+    assert(!callbackIsFromSyncThread || client->syncs.onSyncThread());
     activeRequest = request;
     activeError = e.get();
 
@@ -16299,6 +16300,7 @@ void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 {
     assert(sync->getBackupId() != INVALID_HANDLE);
+    assert(client->syncs.onSyncThread());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncStateChanged(api, sync);
@@ -16308,6 +16310,7 @@ void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync)
 {
     assert(sync->getBackupId() != INVALID_HANDLE);
+    assert(client->syncs.onSyncThread());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncAdded(api, sync);
@@ -16317,6 +16320,7 @@ void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync)
 void MegaApiImpl::fireOnSyncDeleted(MegaSyncPrivate *sync)
 {
     assert(sync->getBackupId() != INVALID_HANDLE);
+    assert(client->syncs.onSyncThread());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDeleted(api, sync);
@@ -16325,7 +16329,7 @@ void MegaApiImpl::fireOnSyncDeleted(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireOnGlobalSyncStateChanged()
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(client->syncs.onSyncThread());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onGlobalSyncStateChanged(api);
@@ -16340,6 +16344,7 @@ void MegaApiImpl::fireOnGlobalSyncStateChanged()
 void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState)
 {
     assert(sync->getBackupId() != INVALID_HANDLE);
+    assert(client->syncs.onSyncThread());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
@@ -21243,7 +21248,7 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 client->syncs.backupOpenDrive(LocalPath::fromAbsolutePath(externalDrive), [this, request](Error e){
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e), true);
                 });
             }
             break;
@@ -21259,7 +21264,7 @@ void MegaApiImpl::sendPendingRequests()
             else
             {
                 client->syncs.backupCloseDrive(LocalPath::fromAbsolutePath(externalDrive), [this, request](Error e){
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e), true);
                 });
             }
             break;

@@ -107,14 +107,14 @@ public:
     static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
 
-#ifdef ENABLE_SYNC
     ScanResult directoryScan(const LocalPath& path,
                              handle expectedFsid,
                              map<LocalPath, FSNode>& known,
                              std::vector<FSNode>& results,
                              bool followSymLinks,
                              unsigned& nFingerprinted) override;
-
+							 
+#ifdef ENABLE_SYNC
     fsfp_t fsFingerprint(const LocalPath& path) const override;
 
     bool fsStableIDs(const LocalPath& path) const override;

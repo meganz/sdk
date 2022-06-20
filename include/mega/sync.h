@@ -338,16 +338,6 @@ private:
     Syncs& syncs;
 };
 
-
-class ScopedSyncPathRestore {
-    SyncPath& path;
-    size_t length1, length2, length3;
-public:
-    // On destruction, puts the LocalPath length back to what it was on construction of this class
-    ScopedSyncPathRestore(SyncPath&);
-    ~ScopedSyncPathRestore();
-};
-
 struct SyncStatusInfo
 {
     handle mBackupID = UNDEF;
@@ -948,7 +938,7 @@ struct Syncs
     void loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent();
 
-    void enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError)> completion, const string& logname);
+    void enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname);
     void disableSyncByBackupId(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
 
     // disable all active syncs.  Cache is kept
@@ -1081,6 +1071,8 @@ public:
     void queueSync(std::function<void()>&&);
     void queueClient(QueuedClientFunc&&);
 
+    bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
+
     // Update remote location
     bool checkSyncRemoteLocationChange(UnifiedSync&, bool exists, string cloudPath);
 
@@ -1171,8 +1163,6 @@ private:
     error backupCloseDrive_inThread(LocalPath drivePath);
 
     void syncLoop();
-
-    bool onSyncThread() const { return std::this_thread::get_id() == syncThreadId; }
 
     enum WhichCloudVersion
     {

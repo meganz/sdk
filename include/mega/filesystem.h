@@ -759,6 +759,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // True if the filesystem indicated by the specified path has stable FSIDs.
     virtual bool fsStableIDs(const LocalPath& path) const = 0;
 
+    virtual bool initFilesystemNotificationSystem();
+#endif // ENABLE_SYNC
+
     virtual ScanResult directoryScan(const LocalPath& path,
                                      handle expectedFsid,
                                      map<LocalPath, FSNode>& known,
@@ -766,8 +769,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
                                      bool followSymLinks,
                                      unsigned& nFingerprinted) = 0;
 
-    virtual bool initFilesystemNotificationSystem();
-#endif // ENABLE_SYNC
 
     // Retrieve the FSID of the item at the specified path.
     // UNDEF is returned if we cannot determine the item's FSID.
@@ -856,7 +857,6 @@ struct MEGA_API FSNode
 {
     // A structure convenient for containing just the attributes of one item from the filesystem
     LocalPath localname;
-    string name;
     unique_ptr<LocalPath> shortname;
     nodetype_t type = TYPE_UNKNOWN;
     mega::handle fsid = mega::UNDEF;
@@ -876,8 +876,6 @@ struct MEGA_API FSNode
 
         if (localname != n.localname) return false;
 
-        if (name != n.name) return false;
-
         return (!shortname && (!n.shortname || localname == *n.shortname))
                || (shortname && n.shortname && *shortname == *n.shortname);
     }
@@ -894,7 +892,6 @@ struct MEGA_API FSNode
     {
         FSNode f;
         f.localname = localname;
-        f.name = name;
         f.shortname = cloneShortname();
         f.type = type;
         f.fsid = fsid;
@@ -1003,13 +1000,6 @@ private:
     private:
         // Thread entry point.
         void loop();
-
-        // Learn everything we can about the specified path.
-        FSNode interrogate(DirAccess& iterator,
-            const LocalPath& name,
-            LocalPath& path,
-            ScanRequest& request,
-            unsigned& nFingerprinted);
 
         // Processes a scan request.
         ScanResult scan(ScanRequestPtr request, unsigned& nFingerprinted);
