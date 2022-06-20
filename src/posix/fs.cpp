@@ -26,6 +26,8 @@
 #include "mega.h"
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
+#include <sys/statvfs.h>
+#include <sys/resource.h>
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
 #endif
@@ -1926,4 +1928,33 @@ bool isReservedName(const string&, nodetype_t)
     return false;
 }
 
+// A more robust implementation would check whether the device has storage
+// quotas enabled and if so, return the amount of space available before
+// saturating that quota.
+m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
+{
+    struct statfs buffer;
+    m_off_t constexpr maximumBytes = std::numeric_limits<m_off_t>::max();
+
+    if (statfs(adjustBasePath(drivePath).c_str(), &buffer) < 0)
+    {
+        auto result = errno;
+
+        LOG_warn << "Unable to determine available disk space on volume: "
+                 << drivePath.toPath()
+                 << ". Error code was: "
+                 << result;
+
+        return maximumBytes;
+    }
+
+    uint64_t availableBytes = buffer.f_bavail * (uint64_t)buffer.f_bsize;
+
+    if (availableBytes >= (uint64_t)maximumBytes)
+        return maximumBytes;
+
+    return (m_off_t)availableBytes;
+}
+
 } // namespace
+

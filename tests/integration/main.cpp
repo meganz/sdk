@@ -23,7 +23,6 @@ std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
 string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
 
-
 void WaitMillisec(unsigned n)
 {
 #ifdef _WIN32
@@ -225,6 +224,14 @@ public:
     }
 }; // GTestLogger
 
+// Let us log even during post-test shutdown
+TestMegaLogger megaLogger;
+
+#ifdef ENABLE_SYNC
+// destroy g_clientManager while the logging is still active
+ClientManager* g_clientManager = nullptr;
+#endif // ENABLE_SYNC
+
 int main (int argc, char *argv[])
 {
     if (!getenv("MEGA_EMAIL") || !getenv("MEGA_PWD") || !getenv("MEGA_EMAIL_AUX") || !getenv("MEGA_PWD_AUX"))
@@ -232,6 +239,13 @@ int main (int argc, char *argv[])
         std::cout << "please set username and password env variables for test" << std::endl;
         return 1;
     }
+
+#ifdef ENABLE_SYNC
+    // destroy g_clientManager while the logging is still active, and before global destructors (for things like mutexes) run
+    ClientManager clientManager;
+    g_clientManager = &clientManager;
+#endif // ENABLE_SYNC
+
 
     std::vector<char*> myargv1(argv, argv + argc);
     std::vector<char*> myargv2;
@@ -281,8 +295,6 @@ int main (int argc, char *argv[])
         }
     }
 
-    TestMegaLogger megaLogger;
-
     SimpleLogger::setLogLevel(logMax);
     SimpleLogger::setOutputClass(&megaLogger);
 
@@ -329,7 +341,7 @@ int main (int argc, char *argv[])
     exitFlag = true;
     if (startOneSecLogger) one_sec_logger.join();
 
-    SimpleLogger::setOutputClass(nullptr);
+    //SimpleLogger::setOutputClass(nullptr);
 
     return ret;
 }
@@ -448,3 +460,20 @@ std::unique_ptr<::mega::FileSystemAccess> makeFsAccess()
     return ::mega::make_unique<FSACCESS_CLASS>();
 }
 
+fs::path makeReusableClientFolder(const string& subfolder)
+{
+#ifdef WIN32
+    auto pid = GetCurrentProcessId();
+#else
+    auto pid = getpid();
+#endif
+
+    fs::path p = TestFS::GetTestBaseFolder() / ("clients_" + std::to_string(pid)) / subfolder;
+
+#ifndef NDEBUG
+    bool b =
+#endif
+    fs::create_directories(p);
+    assert(b);
+    return p;
+}
