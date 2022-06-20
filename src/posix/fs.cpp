@@ -1601,6 +1601,8 @@ void PosixDirNotify::delnotify(LocalNode* l)
     }
 #endif
 }
+#endif // ENABLE_SYNC
+
 
 #ifndef O_NOATIME
 #define O_NOATIME 0x0
@@ -1869,6 +1871,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
     return SCAN_SUCCESS;
 }
 
+#ifdef ENABLE_SYNC
 fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
     struct statfs statfsbuf;
