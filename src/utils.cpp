@@ -3039,7 +3039,7 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
     auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
 
     if (!pending)
-        return 1.0;
+        return 0.0; // 0% completed
 
     auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes + inflightProgress;
     auto progress = static_cast<double>(completed) / static_cast<double>(pending);
