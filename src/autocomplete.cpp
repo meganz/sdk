@@ -746,7 +746,7 @@ bool MegaFS::addCompletions(ACState& s)
                     else if (s.word().s.size() >= 6 && !strncmp(s.word().s.c_str(), "//bin/", 6))
                     {
                         pathprefix = "//bin/";
-                        n = client->nodeByHandle(client->mNodeManager.getRootNodeInbox());
+                        n = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
                     }
                     else
                     {
