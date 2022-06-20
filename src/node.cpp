@@ -1803,7 +1803,7 @@ void LocalNode::terminated(error e)
 // would have been caused by a race condition)
 void LocalNode::completed(Transfer* t, putsource_t source)
 {
-    sync->threadSafeState->transferFailed(PUT, size);
+    sync->threadSafeState->transferComplete(PUT, size);
 
     // complete to rubbish for later retrieval if the parent node does not
     // exist or is newer
