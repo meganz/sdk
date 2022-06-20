@@ -97,46 +97,46 @@ public:
         Error mError = API_OK;
         Result(Outcome o, Error e = API_OK) : mOutcome(o), mError(e) {}
 
-        bool succeeded()
+        bool succeeded() const
         {
             return mOutcome != CmdError || error(mError) == API_OK;
         }
 
-        bool hasJsonArray()
+        bool hasJsonArray() const
         {
             // true if there is JSON Array to process (and we have already entered it) (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
             return mOutcome == CmdArray;
         }
 
-        bool hasJsonObject()
+        bool hasJsonObject() const
         {
             // true if there is JSON Object to process (and we have already entered it) (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
             return mOutcome == CmdObject;
         }
 
-        bool hasJsonItem()
+        bool hasJsonItem() const
         {
             // true if there is JSON to process but it's not an object or array (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
             return mOutcome == CmdItem;
         }
 
-        Error errorOrOK()
+        Error errorOrOK() const
         {
             assert(mOutcome == CmdError);
             return mOutcome == CmdError ? mError : Error(API_EINTERNAL);
         }
 
-        bool wasErrorOrOK()
+        bool wasErrorOrOK() const
         {
             return mOutcome == CmdError;
         }
 
-        bool wasError(error e)
+        bool wasError(error e) const
         {
             return mOutcome == CmdError && error(mError) == e;
         }
 
-        bool wasStrictlyError()
+        bool wasStrictlyError() const
         {
             return mOutcome == CmdError && error(mError) != API_OK;
         }
