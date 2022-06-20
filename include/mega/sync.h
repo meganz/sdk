@@ -369,8 +369,7 @@ public:
     static const dstime RECENT_VERSION_INTERVAL_SECS;
 
     // Change state to (DISABLED, BACKUP_MODIFIED).
-    // Always returns false.
-    bool backupModified();
+    void backupModified();
 
     // Whether this is a backup sync.
     bool isBackup() const;

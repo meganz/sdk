@@ -7679,17 +7679,19 @@ void MegaApiImpl::abortPendingActions(error preverror)
             MegaTransferPrivate* transfer = transferMap.begin()->second;
             if (transfer->isRecursive())
             {
-                if (!transfer->getCancelToken())
+                if (transfer->getCancelToken() && transfer->getCancelToken()->isCancelled())
                 {
+                    // remove transfer and subtransfers as cancel token was cancelled
+                    transferMap.erase(transfer->getTag());
+                    transfer->completeRecursiveOperation(API_EINCOMPLETE);
+                }
+                else // no cancel token, or it exists but not cancelled
+                {
+                    // fire onTransferFinished without stopping subTransfers to preserve subtransfers in cache
                     LOG_debug << "abortPendingActions: Folder transfer with tag (" << transfer->getTag() <<") doesn't have a valid cancel token";
                     transfer->setState(MegaTransfer::STATE_FAILED);
                     transfer->setDoNotStopSubTransfers(true);
                     fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
-                }
-                else if (!transfer->getCancelToken()->isCancelled())
-                {
-                    transferMap.erase(transfer->getTag());
-                    transfer->completeRecursiveOperation(API_EINCOMPLETE);
                 }
             }
             else
@@ -18139,7 +18141,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
-                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag);
+                    error result = API_OK;
+                    bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag, &result);
                     if (!started)
                     {
                         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -18187,7 +18190,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             transfer->setState(MegaTransfer::STATE_CANCELLED);
-                            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EEXIST), committer);
+                            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(result), committer);
                         }
                     }
                     currentTransfer = NULL;
