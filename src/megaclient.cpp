@@ -8510,7 +8510,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     // (this code used to be in Node::Node but is not suitable for session resume)
                     if (mNodeManager.getRootNodeFiles().isUndef())
                     {
-                        mNodeManager.getRootNodeFiles().set6byte(h);
+                        mNodeManager.setRootNodeFiles(NodeHandle(h));
                     }
 
                     if (loggedIntoWritableFolder())
@@ -16783,15 +16783,15 @@ bool NodeManager::setrootnode(Node* node)
     switch (node->type)
     {
         case ROOTNODE:
-            mClient.mNodeManager.setRootNodeFiles(node->nodeHandle());
+            setRootNodeFiles(node->nodeHandle());
             return true;
 
         case INCOMINGNODE:
-            mClient.mNodeManager.setRootNodeInbox(node->nodeHandle());
+            setRootNodeInbox(node->nodeHandle());
             return true;
 
         case RUBBISHNODE:
-            mClient.mNodeManager.setRootNodeRubbish(node->nodeHandle());
+            setRootNodeRubbish(node->nodeHandle());
             return true;
 
         default:
