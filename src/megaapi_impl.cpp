@@ -5255,7 +5255,10 @@ MegaFilePut *MegaFilePut::unserialize(string *d)
 void MegaFilePut::completed(Transfer* t, putsource_t source)
 {
     if(customMtime >= 0)
+    {
         t->mtime = customMtime;
+        mtime = customMtime;
+    }
 
     File::completed(t, source);
     delete this;
