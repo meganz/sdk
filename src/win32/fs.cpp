@@ -23,6 +23,7 @@
 #include <cwctype>
 
 #include "mega.h"
+#include <limits>
 #include <wow64apiset.h>
 
 #if defined(_WIN32)
@@ -2020,7 +2021,7 @@ bool isReservedName(const FileSystemAccess& fsAccess,
 
 m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
 {
-    m_off_t constexpr maximumBytes = std::numeric_limits<m_off_t>::max();
+    m_off_t maximumBytes = std::numeric_limits<m_off_t>::max();
     ULARGE_INTEGER numBytes;
 
     if (!GetDiskFreeSpaceExW(drivePath.localpath.c_str(), &numBytes, nullptr, nullptr))
