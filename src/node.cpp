@@ -860,6 +860,8 @@ string Node::displaypath() const
             path.insert(0, "//bin");
             return path;
 
+        case TYPE_DONOTSYNC:
+        case TYPE_SPECIAL:
         case TYPE_UNKNOWN:
         case FILENODE:
             path.insert(0, n->displayname());
