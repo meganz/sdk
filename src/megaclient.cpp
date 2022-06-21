@@ -8510,7 +8510,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     // (this code used to be in Node::Node but is not suitable for session resume)
                     if (mNodeManager.getRootNodeFiles().isUndef())
                     {
-                        mNodeManager.setRootNodeFiles(NodeHandle(h));
+                        mNodeManager.setRootNodeFiles(NodeHandle().set6byte(h));
                     }
 
                     if (loggedIntoWritableFolder())
@@ -9511,7 +9511,7 @@ void MegaClient::login(string session)
         }
         else
         {
-            mNodeManager.setRootNodeFiles(NodeHandle(rootnode));
+            mNodeManager.setRootNodeFiles(NodeHandle().set6byte(rootnode));
             restag = reqtag;
 
             if (mNodeManager.getRootNodeFiles().isUndef())
