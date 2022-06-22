@@ -84,6 +84,7 @@ class MegaBackgroundMediaUpload;
 class MegaCancelToken;
 class MegaApi;
 class MegaSemaphore;
+class Album;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -3188,7 +3189,12 @@ class MegaRequest
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_FA_UPLOAD_URL                                          = 145,
             TYPE_EXECUTE_ON_THREAD                                          = 146,
-            TOTAL_OF_REQUEST_TYPES                                          = 147,
+            TYPE_PUT_ALBUM                                                  = 147,
+            TYPE_REMOVE_ALBUM                                               = 148,
+            TYPE_FETCH_ALBUM                                                = 149,
+            TYPE_PUT_ALBUM_ELEMENT                                          = 150,
+            TYPE_REMOVE_ALBUM_ELEMENT                                       = 151,
+            TOTAL_OF_REQUEST_TYPES                                          = 152,
         };
 
         virtual ~MegaRequest();
@@ -18884,6 +18890,14 @@ class MegaApi
          * @return True if it is running, false otherwise.
          */
         bool driveMonitorEnabled();
+
+        void putAlbum(MegaHandle id = INVALID_HANDLE, const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
+        void removeAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void fetchAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void putAlbumElement(MegaHandle id, MegaHandle albumId, MegaHandle node, int optionFlags, int64_t order, const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
+        void removeAlbumElement(MegaHandle id, MegaRequestListener* listener = nullptr);
+        Album getAlbum(MegaHandle id);
+        std::vector<MegaHandle> getAlbumIds();
 
  private:
         MegaApiImpl *pImpl = nullptr;

@@ -5513,6 +5513,41 @@ bool MegaApi::driveMonitorEnabled()
     return pImpl->driveMonitorEnabled();
 }
 
+void MegaApi::putAlbum(MegaHandle id, const char* attrs, MegaRequestListener* listener)
+{
+    pImpl->putAlbum(id, attrs, listener);
+}
+
+void MegaApi::removeAlbum(MegaHandle id, MegaRequestListener* listener)
+{
+    pImpl->removeAlbum(id, listener);
+}
+
+void MegaApi::fetchAlbum(MegaHandle id, MegaRequestListener* listener)
+{
+    pImpl->fetchAlbum(id, listener);
+}
+
+void MegaApi::putAlbumElement(MegaHandle id, MegaHandle albumId, MegaHandle node, int optionMask, int64_t order, const char* attrs, MegaRequestListener* listener)
+{
+    pImpl->putAlbumElement(id, albumId, node, optionMask, order, attrs, listener);
+}
+
+void MegaApi::removeAlbumElement(MegaHandle id, MegaRequestListener* listener)
+{
+    pImpl->removeAlbumElement(id, listener);
+}
+
+Album MegaApi::getAlbum(MegaHandle id)
+{
+    return pImpl->getAlbum(id);
+}
+
+vector<MegaHandle> MegaApi::getAlbumIds()
+{
+    return pImpl->getAlbumIds();
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);

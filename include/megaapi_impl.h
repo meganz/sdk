@@ -2509,6 +2509,14 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getChildTransfers(int transferTag);
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
+        //Albums
+        void putAlbum(MegaHandle id, const char* attrs, MegaRequestListener* listener = nullptr);
+        void removeAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void fetchAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void putAlbumElement(MegaHandle id, MegaHandle albumId, MegaHandle node, int optionFlags, int64_t order, const char* attrs, MegaRequestListener* listener = nullptr);
+        void removeAlbumElement(MegaHandle id, MegaRequestListener* listener = nullptr);
+        Album getAlbum(MegaHandle id);
+        vector<MegaHandle> getAlbumIds();
 
 #ifdef ENABLE_SYNC
         //Sync

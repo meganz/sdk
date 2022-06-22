@@ -18840,6 +18840,60 @@ void MegaApiImpl::sendPendingRequests()
         error e = API_OK;
         switch (request->getType())
         {
+        case MegaRequest::TYPE_PUT_ALBUM:
+        {
+            string attrs(request->getText() ? request->getText() : string());
+            client->putAlbum(request->getParentHandle(), move(attrs),
+                [this, request](Error e, handle id)
+                {
+                    if (request->getParentHandle() == UNDEF)
+                        request->setParentHandle(id);
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+        }
+
+        case MegaRequest::TYPE_REMOVE_ALBUM:
+            client->removeAlbum(request->getParentHandle(),
+                [this, request](Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+
+        case MegaRequest::TYPE_FETCH_ALBUM:
+            client->fetchAlbum(request->getParentHandle(),
+                [this, request](Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+
+        case MegaRequest::TYPE_PUT_ALBUM_ELEMENT:
+        {
+            AlbumElement el(request->getNodeHandle(), request->getParentHandle());
+            if (request->getParamType() & 1)
+                el.setOrder(request->getNumber());
+            if (request->getParamType() & 2)
+                el.setAttrs(request->getText() ? request->getText() : string());
+            client->putAlbumElement(move(el), request->getTotalBytes(),
+                [this, request](Error e, handle id)
+                {
+                    if (request->getParentHandle() == UNDEF)
+                        request->setParentHandle(id);
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+        }
+
+        case MegaRequest::TYPE_REMOVE_ALBUM_ELEMENT:
+            client->removeAlbumElement(request->getParentHandle(),
+                [this, request](Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+
         case MegaRequest::TYPE_EXECUTE_ON_THREAD:
             request->functionToExecute->exec();
             //requestMap.erase(request->getTag());  // per the test for TYPE_EXECUTE_ON_THREAD above, we didn't add it to the map or assign it a tag
@@ -23463,6 +23517,70 @@ void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRo
     }
 }
 #endif
+
+//
+// Albums
+//
+
+void MegaApiImpl::putAlbum(MegaHandle id, const char* attrs, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_ALBUM, listener);
+    request->setParentHandle(id);
+    request->setText(attrs);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeAlbum(MegaHandle id, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_ALBUM, listener);
+    request->setParentHandle(id);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchAlbum(MegaHandle id, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_ALBUM, listener);
+    request->setParentHandle(id);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::putAlbumElement(MegaHandle id, MegaHandle albumId, MegaHandle node, int optionMask, int64_t order, const char* attrs, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_ALBUM_ELEMENT, listener);
+    request->setParentHandle(id);
+    request->setTotalBytes(albumId);
+    request->setNodeHandle(node);
+    request->setParamType(optionMask);
+    request->setNumber(order);
+    request->setText(attrs);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeAlbumElement(MegaHandle id, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_ALBUM_ELEMENT, listener);
+    request->setParentHandle(id);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+Album MegaApiImpl::getAlbum(MegaHandle id)
+{
+    SdkMutexGuard g(sdkMutex);
+    const Album* a = client->album(id);
+    return a ? *a : Album();
+}
+
+vector<MegaHandle> MegaApiImpl::getAlbumIds()
+{
+    SdkMutexGuard g(sdkMutex);
+    return client->albumIds();
+}
+
 
 void TreeProcCopy::allocnodes()
 {
