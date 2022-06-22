@@ -9170,6 +9170,31 @@ bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
     return 0;
 }
 
+m_off_t MegaApiImpl::sizeDifference(Node *i, Node *j)
+{
+    m_off_t iSize = 0;
+    if (i->type == FILENODE)
+    {
+        iSize = i->size;
+    }
+    else
+    {
+        iSize = i->getCounter().storage + i->getCounter().versionStorage;
+    }
+
+    m_off_t jSize = 0;
+    if (i->type == FILENODE)
+    {
+        jSize = j->size;
+    }
+    else
+    {
+        jSize = j->getCounter().storage + j->getCounter().versionStorage;
+    }
+
+    return iSize - jSize;
+}
+
 char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPath)
 {
     if(!filename)
@@ -16902,13 +16927,7 @@ bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
         return t;
     }
 
-    if (i->type != FILENODE) // Only file nodes have size
-    {
-        // If node doesn't have size, order alphabetically ascending
-        return nodeNaturalComparatorASC(i, j);
-    }
-
-    m_off_t r = i->size - j->size;
+    m_off_t r = sizeDifference(i, j);
     if (r < 0)
     {
         return 1;
@@ -16928,13 +16947,7 @@ bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
         return t;
     }
 
-    if (i->type != FILENODE) // Only file nodes have size
-    {
-        // If node doesn't have size, order alphabetically ascending
-        return nodeNaturalComparatorASC(i, j);
-    }
-
-    m_off_t r = i->size - j->size;
+    m_off_t r = sizeDifference(i, j);
     if (r < 0)
     {
         return 0;
