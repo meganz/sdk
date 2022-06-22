@@ -1637,6 +1637,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                          source,
                          NodeHandle(),
                          std::move(trampoline),
+                         nullptr,
                          nullptr);
 
             // Destroy ourselves.
@@ -2147,7 +2148,7 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
 
     auto status = result.wait_for(std::chrono::seconds(45));
     EXPECT_NE(status, future_status::timeout);
-    
+
     if (status == future_status::timeout)
         return UNDEF;
 

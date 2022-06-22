@@ -376,7 +376,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
             else if (onCompleted_foward) onCompleted_foward();
 
         },
-        nullptr);
+        nullptr, nullptr);
 
     delete this;
 }

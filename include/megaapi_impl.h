@@ -335,9 +335,9 @@ protected:
 
     // Gathers up enough (but not too many) newnode records that are all descendants of a single folder
     // and can be created in a single operation.
-    // Called from the main thread just before we send the next set of folder creation commands.  
+    // Called from the main thread just before we send the next set of folder creation commands.
     bool createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel);
-    
+
     // Iterate through all pending files of each uploaded folder, and start all upload transfers
     void genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue);
 };
