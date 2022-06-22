@@ -1170,13 +1170,13 @@ std::string exec(const char* cmd) {
     for (std::array<char, 128> buffer; ; )
     {
         // Read from the pipe.
-        auto nRead = fread(buffer.c_str(), 1, buffer.size(), pipe.get());
+        auto nRead = fread(buffer.data(), 1, buffer.size(), pipe.get());
 
         // Were we able to extract any data?
         if (nRead > 0)
         {
             // If so, add it to our result buffer.
-            result.append(buffer.c_str(), nRead);
+            result.append(buffer.data(), nRead);
         }
 
         // Have we extracted as much as we can?
@@ -1233,7 +1233,7 @@ void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, co
     command.append(fileEncrypted).append(" ").append(url.get());
     if (suffix) command.append(suffix.get());
     auto uploadToken = exec(command.c_str());
-    std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(uploadToken.c_str(), uploadToken.length()));
+    std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(uploadToken.data(), uploadToken.length()));
 
     err = synchronousMediaUploadComplete(apiIndex, req.get(), fileOutput, rootnode.get(), fingreprint.get(), fingreprintOrig.get(), base64UploadToken.get(), nullptr);
 
