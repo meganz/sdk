@@ -1577,14 +1577,23 @@ bool StandardClient::uploadFilesInTree(fs::path p, const CloudItem& n2, Versioni
 
 void StandardClient::uploadFilesInTree(fs::path p, const CloudItem& n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo)
 {
+    Node* targetNode = nullptr;
+
+    {
+        lock_guard<recursive_mutex> guard(clientMutex);
+        targetNode = n2.resolve(*this);
+    }
+
+    // The target node should always exist.
+    EXPECT_TRUE(targetNode);
+
+    if (!targetNode && !inprogress)
+        return pb->set_value(false);
+
     resultproc.prepresult(PUTNODES, ++next_request_tag,
         [&](){
-            auto* t = n2.resolve(*this);
-            if (!t)
-                return pb->set_value(false);
-
             DBTableTransactionCommitter committer(client.tctable);
-            uploadFilesInTree_recurse(t, p, inprogress, committer, vo);
+            uploadFilesInTree_recurse(targetNode, p, inprogress, committer, vo);
         },
         [pb, &inprogress](error e)
         {
