@@ -9145,14 +9145,14 @@ MegaNode *MegaApiImpl::getRootNode()
     // (always lock for folder links, since node attributes can change)
     // Only compare fixed-location 8-byte values
     lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
-    if (client->rootnodes.files.isUndef()) return nullptr;
+    if (client->mNodeManager.getRootNodeFiles().isUndef()) return nullptr;
     if (!mLastKnownRootNode ||
             client->loggedIntoFolder() ||
-            mLastKnownRootNode->getHandle() != client->rootnodes.files.as8byte())
+            mLastKnownRootNode->getHandle() != client->mNodeManager.getRootNodeFiles().as8byte())
     {
         // ok now lock main mutex
         SdkMutexGuard lock(sdkMutex);
-        mLastKnownRootNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.files)));
+        mLastKnownRootNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeFiles())));
     }
 
     return mLastKnownRootNode ? mLastKnownRootNode->copy() : nullptr;
@@ -9163,13 +9163,13 @@ MegaNode* MegaApiImpl::getInboxNode()
     // return without locking the main mutex if possible.
     // Only compare fixed-location 8-byte values
     lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
-    if (client->rootnodes.inbox.isUndef()) return nullptr;
+    if (client->mNodeManager.getRootNodeInbox().isUndef()) return nullptr;
     if (!mLastKnownInboxNode ||
-        mLastKnownInboxNode->getHandle() != client->rootnodes.inbox.as8byte())
+        mLastKnownInboxNode->getHandle() != client->mNodeManager.getRootNodeInbox().as8byte())
     {
         // ok now lock main mutex
         SdkMutexGuard lock(sdkMutex);
-        mLastKnownInboxNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.inbox)));
+        mLastKnownInboxNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeInbox())));
     }
 
     return mLastKnownInboxNode ? mLastKnownInboxNode->copy() : nullptr;
@@ -9180,13 +9180,13 @@ MegaNode* MegaApiImpl::getRubbishNode()
     // return without locking the main mutex if possible.
     // Only compare fixed-location 8-byte values
     lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
-    if (client->rootnodes.rubbish.isUndef()) return nullptr;
+    if (client->mNodeManager.getRootNodeRubbish().isUndef()) return nullptr;
     if (!mLastKnownRubbishNode ||
-        mLastKnownRubbishNode->getHandle() != client->rootnodes.rubbish.as8byte())
+        mLastKnownRubbishNode->getHandle() != client->mNodeManager.getRootNodeRubbish().as8byte())
     {
         // ok now lock main mutex
         SdkMutexGuard lock(sdkMutex);
-        mLastKnownRubbishNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.rubbish)));
+        mLastKnownRubbishNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->mNodeManager.getRootNodeRubbish())));
     }
 
     return mLastKnownRubbishNode ? mLastKnownRubbishNode->copy() : nullptr;
@@ -9219,9 +9219,9 @@ bool MegaApiImpl::isInRootnode(MegaNode *node, int index)
 
     if (MegaNode *rootnode = getRootNode(node))
     {
-        ret = (index == 0 && rootnode->getHandle() == client->rootnodes.files.as8byte()) ||
-              (index == 1 && rootnode->getHandle() == client->rootnodes.inbox.as8byte()) ||
-              (index == 2 && rootnode->getHandle() == client->rootnodes.rubbish.as8byte());
+        ret = (index == 0 && rootnode->getHandle() == client->mNodeManager.getRootNodeFiles().as8byte()) ||
+              (index == 1 && rootnode->getHandle() == client->mNodeManager.getRootNodeInbox().as8byte()) ||
+              (index == 2 && rootnode->getHandle() == client->mNodeManager.getRootNodeRubbish().as8byte());
         delete rootnode;
     }
 
@@ -11380,7 +11380,7 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
         }
         else
         {
-            h = MegaApiImpl::handleToBase64(client->rootnodes.files.as8byte());
+            h = MegaApiImpl::handleToBase64(client->mNodeManager.getRootNodeFiles().as8byte());
             node->setPublicAuth(h);
         }
         delete [] h;
@@ -11913,7 +11913,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         if (target == MegaApi::SEARCH_TARGET_ROOTNODE || target == MegaApi::SEARCH_TARGET_ALL)
         {
             // Search on rootnode (cloud, excludes Inbox and Rubbish)
-            node = client->nodeByHandle(client->rootnodes.files);
+            node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
             if (recursive)
             {
                 node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type);
@@ -13554,7 +13554,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
 
         if (e == API_OK)
         {
-            assert(!client->rootnodes.files.isUndef());    // is folder link fetched properly?
+            assert(!client->mNodeManager.getRootNodeFiles().isUndef());    // is folder link fetched properly?
 
             request->setNodeHandle(client->getFolderLinkPublicHandle());
             if (!client->isValidFolderLink())    // is the key for the folder link invalid?
@@ -13588,7 +13588,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     {
         if (e == API_OK)
         {
-            assert(!client->rootnodes.files.isUndef());    // is folder link fetched properly?
+            assert(!client->mNodeManager.getRootNodeFiles().isUndef());    // is folder link fetched properly?
 
             request->setNodeHandle(client->getFolderLinkPublicHandle());
             if (!client->isValidFolderLink())    // is the key for the folder link invalid?
@@ -16829,7 +16829,7 @@ MegaError *MegaApiImpl::checkMoveErrorExtended(MegaNode *megaNode, MegaNode *tar
 bool MegaApiImpl::isFilesystemAvailable()
 {
     sdkMutex.lock();
-    bool result = client->nodeByHandle(client->rootnodes.files) != NULL;
+    bool result = client->nodeByHandle(client->mNodeManager.getRootNodeFiles()) != NULL;
     sdkMutex.unlock();
     return result;
 }
@@ -20312,7 +20312,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
-                    node = client->nodeByHandle(client->rootnodes.files);
+                    node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
                 }
 
                 // Check if 'node' is favourite, DB query starts at 'node' children

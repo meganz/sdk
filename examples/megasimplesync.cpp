@@ -260,11 +260,11 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodeByHandle(client->rootnodes.inbox);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeInbox());
                 }
                 else if (c[2] == "bin")
                 {
-                    n = client->nodeByHandle(client->rootnodes.rubbish);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
                 }
                 else
                 {
@@ -275,7 +275,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
             }
             else
             {
-                n = client->nodeByHandle(client->rootnodes.files);
+                n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
 
                 l = 1;
             }
@@ -411,7 +411,7 @@ void SyncApp::fetchnodes_result(const Error &e)
         initial_fetch = false;
         if (ISUNDEF(cwd))
         {
-            cwd = client->rootnodes.files.as8byte();
+            cwd = client->mNodeManager.getRootNodeFiles().as8byte();
         }
 
         Node* n = nodebypath(remote_folder.c_str());
