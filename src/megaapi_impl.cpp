@@ -7805,10 +7805,12 @@ void MegaApiImpl::abortPendingActions(error preverror)
             {
                 auto auxit = it++;
                 MegaTransferPrivate* transfer = auxit->second;
-                if (!transfer->isRecursive() || !transfer->hasSubTransfers())
+                if (!transfer->isRecursive()         // not a folder transfer, but file transfer
+                    || !transfer->hasSubTransfers()) // file transfer or folder transfer without sub-transfers
                 {
-                    // in case of file transfer, leave last sub-transfer to remove parent folder transfer
-                    // in case of folder transfer without subtransfers, just remove it
+                    // the very last file transfer of folder transfers (or the folder transfer without sub-transfers itself)
+                    // will receive the onRequestFinish() at the MegaFolderController and will proceed to complete the folder
+                    // transfer by calling the corresponding onRequestFinish()
                     transfer->setState(MegaTransfer::STATE_FAILED);
                     transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
                     fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
