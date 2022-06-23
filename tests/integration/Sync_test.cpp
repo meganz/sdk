@@ -747,7 +747,7 @@ void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::fu
     client.client.reqtag = tag;
     requestfunc();
     client.client.reqtag = oldtag;
-    Log_debug << "tag-result prepared for operation " << rpe << " tag " << tag;
+    LOG_debug << "tag-result prepared for operation " << rpe << " tag " << tag;
 
     client.client.waiter->notify();
 }
