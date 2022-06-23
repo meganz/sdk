@@ -84,7 +84,6 @@
 		A81790151EFADDDE00110E91 /* MEGAEvent.mm in Sources */ = {isa = PBXBuildFile; fileRef = A81790141EFADDDE00110E91 /* MEGAEvent.mm */; };
 		A820A30A2155111C00C8B6A5 /* MEGATimeZoneDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = A820A3092155111C00C8B6A5 /* MEGATimeZoneDetails.mm */; };
 		A827F4DD204D3D14006A1962 /* MEGAFolderInfo.mm in Sources */ = {isa = PBXBuildFile; fileRef = A827F4DC204D3D14006A1962 /* MEGAFolderInfo.mm */; };
-		A8464B201F25F53A00102C75 /* MEGAChildrenLists.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8464B1F1F25F53A00102C75 /* MEGAChildrenLists.mm */; };
 		A873E86626E23AF000CBB174 /* MEGACurrency.mm in Sources */ = {isa = PBXBuildFile; fileRef = A873E86526E23AF000CBB174 /* MEGACurrency.mm */; };
 		A87843F5215D078700E809EB /* useralerts.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A87843F4215D078700E809EB /* useralerts.cpp */; };
 		A87D979F1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = A87D979E1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm */; };
@@ -301,9 +300,6 @@
 		A827F4DB204D3D14006A1962 /* MEGAFolderInfo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGAFolderInfo.h; sourceTree = "<group>"; };
 		A827F4DC204D3D14006A1962 /* MEGAFolderInfo.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAFolderInfo.mm; sourceTree = "<group>"; };
 		A827F4DE204D450E006A1962 /* MEGAFolderInfo+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGAFolderInfo+init.h"; sourceTree = "<group>"; };
-		A8464B1E1F25F53A00102C75 /* MEGAChildrenLists.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAChildrenLists.h; sourceTree = "<group>"; };
-		A8464B1F1F25F53A00102C75 /* MEGAChildrenLists.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAChildrenLists.mm; sourceTree = "<group>"; };
-		A8464B211F25F68C00102C75 /* MEGAChildrenLists+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAChildrenLists+init.h"; sourceTree = "<group>"; };
 		A873E86426E23AF000CBB174 /* MEGACurrency.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGACurrency.h; sourceTree = "<group>"; };
 		A873E86526E23AF000CBB174 /* MEGACurrency.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGACurrency.mm; sourceTree = "<group>"; };
 		A873E86726E23CB800CBB174 /* MEGACurrency+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGACurrency+init.h"; sourceTree = "<group>"; };
@@ -514,8 +510,6 @@
 				A817900F1EFACE6400110E91 /* MEGAHandleList.mm */,
 				A81790131EFADDDE00110E91 /* MEGAEvent.h */,
 				A81790141EFADDDE00110E91 /* MEGAEvent.mm */,
-				A8464B1E1F25F53A00102C75 /* MEGAChildrenLists.h */,
-				A8464B1F1F25F53A00102C75 /* MEGAChildrenLists.mm */,
 				A87D979D1F4ACF5100A98C0E /* MEGAAchievementsDetails.h */,
 				A87D979E1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm */,
 				A87D97A01F4AD49B00A98C0E /* MEGAStringList.h */,
@@ -696,7 +690,6 @@
 				41D98D081BD5679C00764370 /* MEGAContactRequestList+init.h */,
 				A81790121EFAD24F00110E91 /* MEGAHandleList+init.h */,
 				A8EBFDD21EFAE14C00DF89DA /* MEGAEvent+init.h */,
-				A8464B211F25F68C00102C75 /* MEGAChildrenLists+init.h */,
 				A87D97A31F4AD5FD00A98C0E /* MEGAStringList+init.h */,
 				A87D97A61F4AD9C300A98C0E /* MEGAAchievementsDetails+init.h */,
 				A827F4DE204D450E006A1962 /* MEGAFolderInfo+init.h */,
@@ -870,7 +863,6 @@
 				41AD7A7E1A1E10F900D66856 /* DelegateMEGALoggerListener.mm in Sources */,
 				41A990731A5D305700B2094A /* mega_utf8proc.cpp in Sources */,
 				A81790101EFACE6400110E91 /* MEGAHandleList.mm in Sources */,
-				A8464B201F25F53A00102C75 /* MEGAChildrenLists.mm in Sources */,
 				A8827A5C1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm in Sources */,
 				41B2AEDC1A0A859C006C40FB /* DelegateMEGATransferListener.mm in Sources */,
 				41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */,
