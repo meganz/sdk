@@ -17536,46 +17536,9 @@ void MegaApiImpl::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
-MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
+MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *, int )
 {
-    if (!p || p->getType() == MegaNode::TYPE_FILE)
-    {
-        return new MegaChildrenListsPrivate();
-    }
-
-    SdkMutexGuard guard(sdkMutex);
-
-    Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent || parent->type == FILENODE)
-    {
-        return new MegaChildrenListsPrivate();
-    }
-
-    node_vector files;
-    node_vector folders;
-    // TODO Nodes on Demand: it can be implemented with a query to DB
-    node_list nodeList = client->getChildren(parent);
-    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
-    {
-        Node *n = *it++;
-        if (n->type == FILENODE)
-        {
-            files.push_back(n);
-        }
-        else // if (n->type == FOLDERNODE)
-        {
-            folders.push_back(n);
-        }
-    }
-    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
-    {
-        std::sort(files.begin(), files.end(), comparatorFunction);
-        std::sort(folders.begin(), folders.end(), comparatorFunction);
-    }
-
-    auto fileList = make_unique<MegaNodeListPrivate>(files.data(), int(files.size()));
-    auto folderList = make_unique<MegaNodeListPrivate>(folders.data(), int(folders.size()));
-    return new MegaChildrenListsPrivate(move(folderList), move(fileList));
+    return new MegaChildrenListsPrivate();
 }
 
 bool MegaApiImpl::hasChildren(MegaNode *parent)

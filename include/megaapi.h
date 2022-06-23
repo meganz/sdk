@@ -2532,6 +2532,8 @@ class MegaNodeList
 /**
  * @brief Lists of file and folder children MegaNode objects
  *
+ * @obsolete This method is unused by app
+ *
  * A MegaChildrenLists object has the ownership of the MegaNodeList objects that it contains,
  * so they will be only valid until the MegaChildrenLists is deleted. If you want to retain
  * a MegaNodeList returned by a MegaChildrenLists, use MegaNodeList::copy.
@@ -14684,6 +14686,8 @@ class MegaApi
 
         /**
          * @brief Get file and folder children of a MegaNode separatedly
+         *
+         * @obsolete This method is unused by app
          *
          * If the parent node doesn't exist or it isn't a folder, this function
          * returns NULL
