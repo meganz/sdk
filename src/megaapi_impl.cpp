@@ -11945,7 +11945,6 @@ long long MegaApiImpl::getSize(MegaNode *n)
 
     if (n->isForeign())
     {
-        // TODO Nodes on Demand: how we can improve calculation
         MegaSizeProcessor megaSizeProcessor;
         processMegaTree(n, &megaSizeProcessor);
         return megaSizeProcessor.getTotalBytes();
