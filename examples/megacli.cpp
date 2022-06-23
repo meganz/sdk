@@ -245,6 +245,8 @@ const char* errorstring(error e)
             return "Business account has expired";
         case API_EPAYWALL:
             return "Over Disk Quota Paywall";
+        case LOCAL_ENOSPC:
+            return "Insufficient disk space";
         default:
             return "Unknown error";
     }
@@ -291,6 +293,33 @@ ConsoleLock conlock(std::ostream& o)
     // Or, move-assign the temporary to an lvalue to control when the destructor runs (to lock output over several statements).
     // Be careful not to have cout locked across a g_megaApi member function call, as any callbacks that also log could then deadlock.
     return ConsoleLock(o);
+}
+
+static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
+{
+    error result = API_OK;
+
+    if (client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &result))
+    {
+        file->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), file.release());
+    }
+    else
+    {
+        conlock(cout) << "Unable to download file: "
+                      << path
+                      << " -> "
+                      << file->localname.toPath()
+                      << ": "
+                      << errorstring(result)
+                      << endl;
+    }
+
+    return result;
+}
+
+static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
+{
+    return startxfer(committer, std::move(file), node.displaypath());
 }
 
 
@@ -347,7 +376,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
             else if (onCompleted_foward) onCompleted_foward();
 
         },
-        nullptr);
+        nullptr, nullptr);
 
     delete this;
 }
@@ -360,7 +389,8 @@ void AppFilePut::terminated(error e)
 
 AppFileGet::~AppFileGet()
 {
-    appxferq[GET].erase(appxfer_it);
+    if (appxfer_it != appfile_list::iterator())
+        appxferq[GET].erase(appxfer_it);
 }
 
 AppFilePut::~AppFilePut()
@@ -1061,7 +1091,7 @@ void DemoApp::fetchnodes_result(const Error& e)
             }
             else
             {
-                assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
+                assert(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()));   // node is there, but cannot be decrypted
                 cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
@@ -1383,15 +1413,15 @@ static unique_ptr<LocalPath> startDir(new LocalPath);
 // list available top-level nodes and contacts/incoming shares
 static void listtrees()
 {
-    if (!client->rootnodes.files.isUndef())
+    if (!client->mNodeManager.getRootNodeFiles().isUndef())
     {
         cout << "ROOT on /" << endl;
     }
-    if (!client->rootnodes.inbox.isUndef())
+    if (!client->mNodeManager.getRootNodeInbox().isUndef())
     {
         cout << "INBOX on //in" << endl;
     }
-    if (!client->rootnodes.rubbish.isUndef())
+    if (!client->mNodeManager.getRootNodeRubbish().isUndef())
     {
         cout << "RUBBISH on //bin" << endl;
     }
@@ -1414,9 +1444,9 @@ static void listtrees()
         }
     }
 
-    if (clientFolder && !clientFolder->rootnodes.files.isUndef())
+    if (clientFolder && !clientFolder->mNodeManager.getRootNodeFiles().isUndef())
     {
-        Node *n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
+        Node *n = clientFolder->nodeByHandle(clientFolder->mNodeManager.getRootNodeFiles());
         if (n)
         {
             cout << "FOLDERLINK on " << n->displayname() << ":" << endl;
@@ -1557,7 +1587,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
                 return NULL;
             }
 
-            n = clientFolder->nodeByHandle(clientFolder->rootnodes.files);
+            n = clientFolder->nodeByHandle(clientFolder->mNodeManager.getRootNodeFiles());
             if (c.size() == 2 && c[1].empty())
             {
                 return n;
@@ -1607,11 +1637,11 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodeByHandle(client->rootnodes.inbox);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeInbox());
                 }
                 else if (c[2] == "bin")
                 {
-                    n = client->nodeByHandle(client->rootnodes.rubbish);
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
                 }
                 else
                 {
@@ -1622,7 +1652,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             }
             else
             {
-                n = client->nodeByHandle(client->rootnodes.files);
+                n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
 
                 l = 1;
             }
@@ -2414,7 +2444,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 
     std::vector<Node*> emptyFolders;
     bool empty = true;
-    Node* trash = client->nodeByHandle(client->rootnodes.rubbish);
+    Node* trash = client->nodeByHandle(client->mNodeManager.getRootNodeRubbish());
     for (auto c : client->getChildren(n))
     {
         bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
@@ -3637,6 +3667,11 @@ autocomplete::ACN autocompleteSyntax()
                     either(sequence(text("get"), localFSFolder()),
                            sequence(text("set"), localFSFolder(), opt(text("force"))))));
 
+    p->Add(exec_randomfile,
+           sequence(text("randomfile"),
+                    localFSPath("outputPath"),
+                    opt(param("lengthKB"))));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -3648,11 +3683,10 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
     {
         if (!folders)
         {
-            auto f = new AppFileGet(n, NodeHandle(), NULL, -1, 0, NULL, NULL, localpath.u8string());
-            f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
             DBTableTransactionCommitter committer(client->tctable);
-            client->startxfer(GET, f, committer, false, false, false, NoVersioning);
-            queued += 1;
+            auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
+            error result = startxfer(committer, std::move(file), *n);
+            queued += result == API_OK ? 1 : 0;
         }
     }
     else if (n->type == FOLDERNODE || n->type == ROOTNODE)
@@ -3698,10 +3732,9 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                 {
                     if (regex_search(string(node->displayname()), re))
                     {
-                        auto f = new AppFileGet(node);
-                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                        client->startxfer(GET, f, committer, false, false, false, NoVersioning);
-                        queued += 1;
+                        auto file = ::mega::make_unique<AppFileGet>(node);
+                        error result = startxfer(committer, std::move(file), *node);
+                        queued += result == API_OK ? 1 : 0;
                     }
                 }
             }
@@ -3980,7 +4013,7 @@ void exec_cd(autocomplete::ACState& s)
     }
     else
     {
-        cwd = client->rootnodes.files;
+        cwd = client->mNodeManager.getRootNodeFiles();
     }
 }
 
@@ -4458,9 +4491,8 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         DBTableTransactionCommitter committer(client->tctable);
-                        AppFileGet* f = new AppFileGet(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
-                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                        client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        startxfer(committer, std::move(file), *filename);
                     }
 
                     return true;
@@ -4508,13 +4540,13 @@ void exec_get(autocomplete::ACState& s)
                 // queue specified file...
                 if (n->type == FILENODE)
                 {
-                    auto f = new AppFileGet(n);
+                    auto f = ::mega::make_unique<AppFileGet>(n);
 
                     string::size_type index = s.words[1].s.find(":");
                     // node from public folder link
                     if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
                     {
-                        handle h = clientFolder->rootnodes.files.as8byte();
+                        handle h = clientFolder->mNodeManager.getRootNodeFiles().as8byte();
                         char *pubauth = new char[12];
                         Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
                         f->pubauth = pubauth;
@@ -4523,8 +4555,7 @@ void exec_get(autocomplete::ACState& s)
                         memcpy(f->filekey, n->nodekey().data(), FILENODEKEYLENGTH);
                     }
 
-                    f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                    client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+                    startxfer(committer, std::move(f), *n);
                 }
                 else
                 {
@@ -4533,9 +4564,8 @@ void exec_get(autocomplete::ACState& s)
                     {
                         if (node->type == FILENODE)
                         {
-                            auto f = new AppFileGet(node);
-                            f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                            client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+                            auto f = ::mega::make_unique<AppFileGet>(node);
+                            startxfer(committer, std::move(f), *node);
                         }
                     }
                 }
@@ -4661,6 +4691,48 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
 {
+#ifndef DONT_USE_SCAN_SERVICE
+
+    auto fa = client->fsaccess->newfileaccess();
+    fa->fopen(localname);
+    if (fa->type != FOLDERNODE)
+    {
+        cout << "Path is not a folder: " << localname.toPath();
+        return;
+    }
+
+    ScanService s(*client->waiter);
+    ScanService::RequestPtr r = s.queueScan(localname, fa->fsid, false, {});
+
+    while (!r->completed())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (r->completionResult() != SCAN_SUCCESS)
+    {
+        cout << "Scan failed: " << r->completionResult() << " for path: " << localname.toPath();
+        return;
+    }
+
+    std::vector<FSNode> results = r->resultNodes();
+
+    DBTableTransactionCommitter committer(client->tctable);
+    int total = 0;
+
+    for (auto& rr : results)
+    {
+        auto newpath = localname;
+        newpath.appendWithSeparator(rr.localname, true);
+        uploadLocalPath(rr.type, rr.localname.toPath(), newpath, cloudFolder, "", committer, total, true, vo, nullptr, false);
+    }
+
+    if (gVerboseMode)
+    {
+        cout << "Queued " << total << " more uploads from folder " << localname.toPath() << endl;
+    }
+
+#else
+
     auto da = client->fsaccess->newdiraccess();
 
     LocalPath lp(localname);
@@ -4688,6 +4760,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
             cout << "Queued " << total << " more uploads from folder " << localpathToUtf8Leaf(localname) << endl;
         }
     }
+#endif
 }
 
 void exec_put(autocomplete::ACState& s)
@@ -4733,6 +4806,7 @@ void exec_put(autocomplete::ACState& s)
 
     auto da = client->fsaccess->newdiraccess();
 
+    // search with glob, eg *.txt
     if (da->dopen(&localname, NULL, true))
     {
         DBTableTransactionCommitter committer(client->tctable);
@@ -5145,9 +5219,9 @@ void exec_share(autocomplete::ACState& s)
 
         cout << "Shared folders:" << endl;
 
-        client->proctree(client->nodeByHandle(client->rootnodes.files), &listoutshares);
-        client->proctree(client->nodeByHandle(client->rootnodes.inbox), &listoutshares);
-        client->proctree(client->nodeByHandle(client->rootnodes.rubbish), &listoutshares);
+        client->proctree(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()), &listoutshares);
+        client->proctree(client->nodeByHandle(client->mNodeManager.getRootNodeInbox()), &listoutshares);
+        client->proctree(client->nodeByHandle(client->mNodeManager.getRootNodeRubbish()), &listoutshares);
 
         for (user_map::iterator uit = client->users.begin();
             uit != client->users.end(); uit++)
@@ -7109,7 +7183,11 @@ void exec_mediainfo(autocomplete::ACState& s)
                 }
                 break;
             }
-            case TYPE_UNKNOWN: break;
+            case TYPE_DONOTSYNC:
+            case TYPE_SPECIAL:
+            case TYPE_UNKNOWN:
+                cout << "node type is inappropriate for mediainfo: " << n->type << endl;
+                break;
             }
         }
         else
@@ -7330,6 +7408,54 @@ void exec_driveid(autocomplete::ACState& s)
          << " has been written to "
          << drivePath
          << endl;
+}
+
+void exec_randomfile(autocomplete::ACState& s)
+{
+    // randomfile path [length]
+    auto length = 2l;
+
+    if (s.words.size() > 2)
+        length = std::atol(s.words[2].s.c_str());
+
+    if (length <= 0)
+    {
+        std::cerr << "Invalid length specified: "
+                  << s.words[2].s
+                  << std::endl;
+        return;
+    }
+
+    constexpr auto flags =
+      std::ios::binary | std::ios::out | std::ios::trunc;
+
+    std::ofstream ostream(s.words[1].s, flags);
+
+    if (!ostream)
+    {
+        std::cerr << "Unable to open file for writing: "
+                  << s.words[1].s
+                  << std::endl;
+        return;
+    }
+
+    std::generate_n(std::ostream_iterator<char>(ostream),
+                    length << 10,
+                    []() { return (char)std::rand(); });
+
+    if (!ostream.flush())
+    {
+        std::cerr << "Encountered an error while writing: "
+                  << s.words[1].s
+                  << std::endl;
+        return;
+    }
+
+    std::cout << "Successfully wrote "
+              << length
+              << " kilobytes of random binary data to: "
+              << s.words[1].s
+              << std::endl;
 }
 
 #ifdef USE_DRIVE_NOTIFICATIONS
@@ -7914,7 +8040,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     {
         if (pdf_to_import)
         {
-            n = client->nodeByHandle(client->rootnodes.files);
+            n = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
         }
         else
         {
@@ -8140,7 +8266,7 @@ void DemoApp::nodes_updated(Node** /*n*/, int /*count*/)
 {
     if (cwd.isUndef())
     {
-        cwd = client->rootnodes.files;
+        cwd = client->mNodeManager.getRootNodeFiles();
     }
 }
 
@@ -8279,9 +8405,9 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
     {
         cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
-        reportNodeStorage(&ad->storage[client->rootnodes.files.as8byte()], "/");
-        reportNodeStorage(&ad->storage[client->rootnodes.inbox.as8byte()], "//in");
-        reportNodeStorage(&ad->storage[client->rootnodes.rubbish.as8byte()], "//bin");
+        reportNodeStorage(&ad->storage[client->mNodeManager.getRootNodeFiles().as8byte()], "/");
+        reportNodeStorage(&ad->storage[client->mNodeManager.getRootNodeInbox().as8byte()], "//in");
+        reportNodeStorage(&ad->storage[client->mNodeManager.getRootNodeRubbish().as8byte()], "//bin");
     }
 
     if (transfer)
@@ -8980,7 +9106,7 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
         }
         else
         {
-            assert(client->nodeByHandle(client->rootnodes.files));   // node is there, but cannot be decrypted
+            assert(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()));   // node is there, but cannot be decrypted
             cout << "Folder retrieval succeed, but encryption key is wrong." << endl;
         }
     }

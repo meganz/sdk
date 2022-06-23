@@ -80,7 +80,14 @@ public:
 				delete list;
 
 				std::cout << "***** Uploading the image MEGA.png" << std::endl;
-				api->startUpload("MEGA.png", root);
+				api->startUpload("MEGA.png", 
+								 root,
+								 nullptr /*fileName*/,
+								 ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+								 nullptr /*appData*/,
+								 false   /*isSourceTemporary*/,
+								 false   /*startFirst*/,
+								 nullptr /*cancelToken*/);
 				delete root;
 
 				break;

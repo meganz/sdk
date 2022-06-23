@@ -215,6 +215,7 @@ typedef enum ErrorCodes : int
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    LOCAL_ENOSPC = -1000,           ///< Insufficient space
 } error;
 
 class Error
@@ -337,12 +338,19 @@ typedef uint16_t fatype;
 typedef list<struct File*> file_list;
 
 // node types:
-// FILE - regular file nodes
-// FOLDER - regular folder nodes
-// ROOT - the cloud drive root node
-// INCOMING - inbox
-// RUBBISH - rubbish bin
-typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
+typedef enum {
+
+    // these first two are for sync rework, and should not be used before that branch is merged (directoyScan is from sync rework)
+    TYPE_DONOTSYNC = -3,
+    TYPE_SPECIAL = -2,
+
+    TYPE_UNKNOWN = -1,
+    FILENODE = 0,    // FILE - regular file nodes
+    FOLDERNODE,      // FOLDER - regular folder nodes
+    ROOTNODE,        // ROOT - the cloud drive root node
+    INCOMINGNODE,    // INCOMING - inbox
+    RUBBISHNODE      // RUBBISH - rubbish bin
+} nodetype_t;
 
 typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
 
@@ -353,6 +361,8 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
 
+// Max nodes per putnodes command
+const unsigned MAXNODESUPLOAD = 1000;
 typedef union {
     std::array<byte, FILENODEKEYLENGTH> bytes;
     struct {
@@ -430,6 +440,14 @@ typedef enum
     SYNC_BACKUP_MONITOR = 2
 }
 SyncBackupState;
+
+enum ScanResult
+{
+    SCAN_INPROGRESS,
+    SCAN_SUCCESS,
+    SCAN_FSID_MISMATCH,
+    SCAN_INACCESSIBLE
+}; // ScanResult
 
 enum SyncError {
     NO_SYNC_ERROR = 0,
@@ -781,7 +799,8 @@ enum SmsVerificationState {
 
 typedef enum
 {
-    END_CALL_REASON_REJECTED    = 0x02,    /// 1on1 call was rejected while ringing
+    END_CALL_REASON_REJECTED     = 0x02,    /// 1on1 call was rejected while ringing
+    END_CALL_REASON_BY_MODERATOR = 0x06,    /// group or meeting call has been ended by moderator
 } endCall_t;
 
 typedef unsigned int achievement_class_id;
@@ -856,18 +875,22 @@ namespace CodeCounter
         uint64_t starts = 0;
         uint64_t finishes = 0;
         high_resolution_clock::duration timeSpent{};
+        high_resolution_clock::duration longest{};
         std::string name;
         ScopeStats(std::string s) : name(std::move(s)) {}
 
         inline string report(bool reset = false)
         {
-            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count());
+            string s = " " + name + ": " + std::to_string(count) + " " +
+                    std::to_string(duration_cast<milliseconds>(timeSpent).count()) + " " +
+                    std::to_string(duration_cast<milliseconds>(longest).count());
             if (reset)
             {
                 count = 0;
                 starts -= finishes;
                 finishes = 0;
                 timeSpent = high_resolution_clock::duration{};
+                longest = high_resolution_clock::duration{};
             }
             return s;
         }
@@ -902,6 +925,7 @@ namespace CodeCounter
 #ifdef MEGA_MEASURE_CODE
         ScopeStats& scope;
         high_resolution_clock::time_point blockStart;
+        high_resolution_clock::duration diff{};
         bool done = false;
 
         ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
@@ -910,7 +934,7 @@ namespace CodeCounter
         }
         ~ScopeTimer()
         {
-            if (!done) complete();
+            complete();
         }
         high_resolution_clock::duration timeSpent()
         {
@@ -918,10 +942,16 @@ namespace CodeCounter
         }
         void complete()
         {
-            ++scope.count;
-            ++scope.finishes;
-            scope.timeSpent += timeSpent();
-            done = true;
+            // can be called early in which case the destructor's call is ignored
+            if (!done)
+            {
+                ++scope.count;
+                ++scope.finishes;
+                diff = high_resolution_clock::now() - blockStart;
+                scope.timeSpent += diff;
+                if (diff > scope.longest) scope.longest = diff;
+                done = true;
+            }
         }
 #else
         ScopeTimer(ScopeStats& sm) {}

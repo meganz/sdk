@@ -183,6 +183,22 @@ int Node::getShareType() const
     return shareType;
 }
 
+bool Node::isAncestor(NodeHandle ancestorHandle) const
+{
+    Node* ancestor = parent;
+    while (ancestor)
+    {
+        if (ancestor->nodeHandle() == ancestorHandle)
+        {
+            return true;
+        }
+
+        ancestor = ancestor->parent;
+    }
+
+    return false;
+}
+
 #ifdef ENABLE_SYNC
 
 void Node::detach(const bool recreate)
@@ -659,6 +675,8 @@ string Node::displaypath() const
             path.insert(0, "//bin");
             return path;
 
+        case TYPE_DONOTSYNC:
+        case TYPE_SPECIAL:
         case TYPE_UNKNOWN:
         case FILENODE:
             path.insert(0, n->displayname());
@@ -701,7 +719,7 @@ bool Node::applykey()
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
-    handle me = client->loggedin() ? client->me : client->rootnodes.files.as8byte();
+    handle me = client->loggedin() ? client->me : client->mNodeManager.getRootNodeFiles().as8byte();
 
     while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {
@@ -1061,7 +1079,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             if (!newnode && node)
             {
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
-                LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
+                LOG_debug << "Moving node: " << node->displaypath() << " to " << parent->node->displaypath();
                 if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, nullptr) == API_EACCESS
                         && sync != parent->sync)
                 {
@@ -1533,7 +1551,7 @@ void LocalNode::completed(Transfer* t, putsource_t source)
     // exist or is newer
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
-        h = t->client->rootnodes.rubbish;
+        h = t->client->mNodeManager.getRootNodeRubbish();
     }
     else
     {
@@ -1544,7 +1562,7 @@ void LocalNode::completed(Transfer* t, putsource_t source)
 
     // we are overriding completed() for sync upload, we don't use the File::completed version at all.
     assert(t->type == PUT);
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this);
+    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr);
 }
 
 // serialize/unserialize the following LocalNode properties:

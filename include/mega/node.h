@@ -278,6 +278,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     int getShareType() const;
 
+    bool isAncestor(NodeHandle ancestorHandle) const;
+
 #ifdef ENABLE_SYNC
     void detach(const bool recreate = false);
 #endif // ENABLE_SYNC

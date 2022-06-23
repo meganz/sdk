@@ -217,15 +217,10 @@ public:
 
 std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
-class SyncdownContext
+struct SyncdownContext
 {
-public:
-    SyncdownContext()
-      : mActionsPerformed(false)
-    {
-    }
-
-    bool mActionsPerformed;
+    bool mBackupActionsPerformed = false;
+    bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
 
 class MegaClient;
@@ -293,12 +288,6 @@ public:
 
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
-
-    // Returns true when nodes on demand is ready to operate after load a session with old cache
-    bool isNodesOnDemandReady();
-
-    // Returns first ancestor available in cache
-    NodeHandle getFirstAncestor(NodeHandle nodehandle);
 
     // true if 'node' is a child node of 'ancestor', false otherwise.
     bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor);
@@ -369,9 +358,6 @@ public:
     // Cancel all DB queries in progress in same sql connection
     void cancelDbQuery();
 
-    // true when loading nodes (at startup, not node per node afterwards)
-    bool isLoadingNodes() { return mLoadingNodes; }
-
     // Returns the number of versions for a node (including the current version)
     int getNumVersions(NodeHandle nodeHandle);
 
@@ -382,11 +368,38 @@ public:
     // If some value is set previously (setParent), this value will be removed
     void initializeCounters();
 
+    NodeHandle getRootNodeFiles() {
+        return rootnodes.files;
+    }
+    NodeHandle getRootNodeInbox() {
+        return rootnodes.inbox;
+    }
+    NodeHandle getRootNodeRubbish() {
+        return rootnodes.rubbish;
+    }
+    void setRootNodeFiles(NodeHandle h) {
+        rootnodes.files = h;
+    }
+    void setRootNodeInbox(NodeHandle h) {
+        rootnodes.inbox = h;
+    }
+    void setRootNodeRubbish(NodeHandle h) {
+        rootnodes.rubbish = h;
+    }
+
 private:
     MegaClient& mClient;
 
     // interface to handle accesses to "nodes" table
     DBTableNodes* mTable = nullptr;
+
+    // root nodes (files, incoming, rubbish)
+    struct Rootnodes
+    {
+        NodeHandle files;
+        NodeHandle inbox;
+        NodeHandle rubbish;
+    } rootnodes;
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     node_map mNodes;
@@ -426,14 +439,14 @@ private:
     // Returns root nodes without nested in-shares
     node_vector getRootNodesAndInshares();
 
+    //Avoid loading nodes whose ancestor is not ancestorHandle. If ancestorHandle is undef load all nodes
+    node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle);
+
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
 
     // store relationship between nodes and their children (nodes without children are not in the map)
     std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
-
-    // true while loading nodes, false otherwise
-    bool mLoadingNodes = false;
 };
 
 class MEGA_API MegaClient
@@ -442,14 +455,6 @@ public:
     // own identity
     handle me;
     string uid;
-
-    // root nodes (files, incoming, rubbish)
-    struct Rootnodes
-    {
-        NodeHandle files;
-        NodeHandle inbox;
-        NodeHandle rubbish;
-    } rootnodes;
 
     // all users
     user_map users;
@@ -699,7 +704,7 @@ public:
     void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption);
+    bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause = nullptr);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
     void pausexfers(direction_t, bool pause, bool hard, DBTableTransactionCommitter& committer);
 
@@ -737,6 +742,9 @@ public:
 
     // helper function for preparing a putnodes call for new folders
     void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
+
+    // static version to be used from worker threads, which cannot rely on the MegaClient::tmpnodecipher as SymCipher (not thread-safe))
+    static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher &tmpnodecipher, std::function<void(AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
@@ -1851,6 +1859,7 @@ public:
     Node* childnodebyattribute(Node*, nameid, const char*);
     static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
+    Node* childNodeTypeByName(Node *p, const char *name, nodetype_t type);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc(bool keepOwnUser);
@@ -1964,6 +1973,9 @@ public:
 
     // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
     handle getFolderLinkPublicHandle();
+
+    // check if end call reason is valid
+    bool isValidEndCallReason(int reason);
 
     // check if there is a valid folder link (rootnode received and the valid key)
     bool isValidFolderLink();
@@ -2090,12 +2102,14 @@ public:
         CodeCounter::ScopeStats transferslotDoio = { "TransferSlot_doio" };
         CodeCounter::ScopeStats execdirectreads = { "execdirectreads" };
         CodeCounter::ScopeStats transferComplete = { "transfer_complete" };
+        CodeCounter::ScopeStats megaapiSendPendingTransfers = { "megaapi_sendtransfers" };
         CodeCounter::ScopeStats prepareWait = { "MegaClient_prepareWait" };
         CodeCounter::ScopeStats doWait = { "MegaClient_doWait" };
         CodeCounter::ScopeStats checkEvents = { "MegaClient_checkEvents" };
         CodeCounter::ScopeStats applyKeys = { "MegaClient_applyKeys" };
         CodeCounter::ScopeStats dispatchTransfers = { "dispatchTransfers" };
         CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
+        CodeCounter::ScopeStats csSuccessProcessingTime = { "cs batch received processing" };
         CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
         uint64_t transferStarts = 0, transferFinishes = 0;
         uint64_t transferTempErrors = 0, transferFails = 0;
