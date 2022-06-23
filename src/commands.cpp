@@ -5726,8 +5726,6 @@ bool CommandFetchNodes::procresult(Result r)
         return true;
     }
 
-    const char* aespJsonPos = nullptr;
-
     for (;;)
     {
         switch (client->json.getnameid())
@@ -5811,8 +5809,9 @@ bool CommandFetchNodes::procresult(Result r)
 
             case MAKENAMEID4('a', 'e', 's', 'p'):
                 // Albums
-                aespJsonPos = client->json.pos; // parse this last, after node keys have been set
-                if (!client->json.storeobject())
+                if (!client->json.enterobject() ||
+                    client->readAlbumsAndElements(client->json) != API_OK ||
+                    !client->json.leaveobject())
                 {
                     return false;
                 }
@@ -5848,18 +5847,6 @@ bool CommandFetchNodes::procresult(Result r)
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
                 client->fnstats.nodesCached = client->nodes.size();
-
-                // process aesp data
-                if (aespJsonPos)
-                {
-                    JSON aespJson(aespJsonPos);
-                    if (!aespJson.enterobject() ||
-                        client->readAlbumsAndElements(aespJson) != API_OK ||
-                        !aespJson.leaveobject())
-                    {
-                        return false;
-                    }
-                }
 
                 return true;
             }
