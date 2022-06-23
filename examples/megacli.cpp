@@ -385,7 +385,8 @@ void AppFilePut::terminated(error e)
 
 AppFileGet::~AppFileGet()
 {
-    appxferq[GET].erase(appxfer_it);
+    if (appxfer_it != appfile_list::iterator())
+        appxferq[GET].erase(appxfer_it);
 }
 
 AppFilePut::~AppFilePut()
