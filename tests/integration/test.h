@@ -253,10 +253,11 @@ struct StandardClient : public MegaApp
             handle h = UNDEF;
             std::function<bool(error)> f;
             id_callback(std::function<bool(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
+            id_callback(id_callback&&) = default;
         };
 
         recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
-        map<resultprocenum, deque<id_callback>> m;
+        map<resultprocenum, map<int, id_callback>> m;
 
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF);
         void processresult(resultprocenum rpe, error e, handle h = UNDEF);
