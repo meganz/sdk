@@ -18891,10 +18891,12 @@ class MegaApi
          */
         bool driveMonitorEnabled();
 
-        void putAlbum(MegaHandle id = INVALID_HANDLE, const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
+        void createAlbum(const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
+        void updateAlbum(MegaHandle id, const char* attrs, MegaRequestListener* listener = nullptr);
         void removeAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
         void fetchAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void putAlbumElement(MegaHandle id, MegaHandle albumId, MegaHandle node, int optionFlags, int64_t order, const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
+        void createAlbumElement(MegaHandle albumId, MegaHandle node, int optionFlags, int64_t order = 0, const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
+        void updateAlbumElement(MegaHandle id, int optionFlags, int64_t order, const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
         void removeAlbumElement(MegaHandle id, MegaRequestListener* listener = nullptr);
         Album getAlbum(MegaHandle id);
         std::vector<MegaHandle> getAlbumIds();
