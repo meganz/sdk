@@ -7821,9 +7821,11 @@ TEST_F(SdkTest, SdkTestAlbums)
     // 1. Create Album
     string attrs = "first album";
     MegaHandle ah = INVALID_HANDLE;
-    int err = doPutAlbum(0, &ah, INVALID_HANDLE, attrs.c_str());
+    int err = doCreateAlbum(0, &ah, attrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(ah, INVALID_HANDLE);
+
+    WaitMillisec(3000);
 
     Album a1 = megaApi[0]->getAlbum(ah);
     ASSERT_EQ(a1.id(), ah);
@@ -7836,8 +7838,10 @@ TEST_F(SdkTest, SdkTestAlbums)
     // 2. Update Album
     MegaHandle mhu = INVALID_HANDLE;
     attrs += " updated";
-    err = doPutAlbum(0, &mhu, ah, attrs.c_str());
+    err = doUpdateAlbum(0, &mhu, ah, attrs.c_str());
     ASSERT_EQ(err, API_OK);
+
+    WaitMillisec(3000);
 
     const Album a1u = megaApi[0]->getAlbum(mhu);
     ASSERT_EQ(a1u.id(), ah);
@@ -7874,9 +7878,11 @@ TEST_F(SdkTest, SdkTestAlbums)
     int optionFlags = 0;
     char elattrs[] = "element attributes";
     optionFlags |= 2; // set attributes
-    err = doPutAlbumElement(0, &eh, INVALID_HANDLE, ah, uploadedNode, optionFlags, 0, elattrs);
+    err = doCreateAlbumElement(0, &eh, ah, uploadedNode, optionFlags, 0, elattrs);
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(eh, INVALID_HANDLE);
+
+    WaitMillisec(3000);
 
     a1 = megaApi[0]->getAlbum(ah);
     auto ite = a1.elements().find(eh);
@@ -7894,8 +7900,10 @@ TEST_F(SdkTest, SdkTestAlbums)
     int64_t order = 222;
     optionFlags |= 1; // update order
     optionFlags |= 2; // update attributes
-    err = doPutAlbumElement(0, &ehu, eh, INVALID_HANDLE, INVALID_HANDLE, optionFlags, order, nullptr);
+    err = doUpdateAlbumElement(0, &ehu, eh, optionFlags, order, nullptr);
     ASSERT_EQ(err, API_OK);
+
+    WaitMillisec(3000);
 
     a1 = megaApi[0]->getAlbum(ah);
     ite = a1.elements().find(eh);
@@ -7923,6 +7931,9 @@ TEST_F(SdkTest, SdkTestAlbums)
     // 7. Remove Element
     err = doRemoveAlbumElement(0, eh);
     ASSERT_EQ(err, API_OK);
+
+
+    WaitMillisec(3000);
 
     a1 = megaApi[0]->getAlbum(ah);
     ite = a1.elements().find(eh);
@@ -7959,4 +7970,7 @@ TEST_F(SdkTest, SdkTestAlbums)
         ASSERT_EQ(a1.attrs(), "");
         ASSERT_EQ(a1.key(), "");
     }
+
+    WaitMillisec(3000);
+
 }
