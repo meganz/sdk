@@ -17020,7 +17020,7 @@ void MegaClient::putAlbum(handle id, string&& attrs, std::function<void(Error, h
         {
             LOG_err << "Albums: Failed to update Album (not found).";
             if (completion)
-                completion(API_EARGS, id);
+                completion(API_ENOENT, id);
             return;
         }
 
@@ -17060,6 +17060,7 @@ void MegaClient::fetchAlbum(handle id, std::function<void(Error)> completion)
 
 void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::function<void(Error, handle)> completion)
 {
+    // albumId is required to create a new element, but not to update one
     assert(el.id() != UNDEF || albumId != UNDEF);
 
     // find album
@@ -17080,7 +17081,7 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
     {
         LOG_err << "Albums: Album not found when adding or updating Element";
         if (completion)
-            completion(API_EARGS, el.id());
+            completion(API_ENOENT, el.id());
         return;
     }
 
