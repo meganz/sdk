@@ -2060,23 +2060,21 @@ public:
     // return all available Albums, indexed by id
     const map<handle, Album>& albums() const { return mAlbums; }
 
-    // return Album with given id or nullptr if it was not found
-    vector<handle> albumIds() const;
-
     // add new Album or replace exisiting one
     void addAlbum(Album&& a);
 
     // search for album with the same id, and update its members
     void updateAlbum(handle id, string&& attrs, m_time_t ts);
 
-    // delete Album with given id from local memory, if found
-    void deleteAlbum(handle albumId);
+    // delete Album with given id from local memory, if found; return true if found and deleted
+    bool deleteAlbum(handle albumId);
 
     // add new element or update existing one with the same id
     void addOrUpdateAlbumElement(AlbumElement&& el, handle albumId);
 
-    // search through all Albums and remove Element with given id from local memory, if found
-    void deleteAlbumElement(handle elemId, handle albumId = UNDEF);
+    // delete Element with given id from local memory, if found (if albumId == UNDEF search through all Albums);
+    // return true if found and deleted
+    bool deleteAlbumElement(handle elemId, handle albumId = UNDEF);
 
 private:
     error readAlbums(JSON& j, map<handle, Album>& albums);

@@ -17050,7 +17050,14 @@ void MegaClient::putAlbum(handle id, string&& attrs, std::function<void(Error, h
 
 void MegaClient::removeAlbum(handle id, std::function<void(Error)> completion)
 {
-    reqs.add(new CommandRemoveAlbum(this, id, completion));
+    if (album(id))
+    {
+        reqs.add(new CommandRemoveAlbum(this, id, completion));
+    }
+    else if (completion)
+    {
+        completion(API_ENOENT);
+    }
 }
 
 void MegaClient::fetchAlbum(handle id, std::function<void(Error)> completion)
@@ -17137,7 +17144,19 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
 
 void MegaClient::removeAlbumElement(handle id, std::function<void(Error)> completion)
 {
-    reqs.add(new CommandRemoveAlbumElement(this, id, completion));
+    for (const auto& a : mAlbums)
+    {
+        if (a.second.elements().find(id) != a.second.elements().end())
+        {
+            reqs.add(new CommandRemoveAlbumElement(this, id, completion));
+            return;
+        }
+    }
+
+    if (completion)
+    {
+        completion(API_ENOENT);
+    }
 }
 
 error MegaClient::readAlbumsAndElements(JSON& j)
@@ -17458,15 +17477,6 @@ const Album* MegaClient::album(handle id) const
     return it == mAlbums.end() ? nullptr : &it->second;
 }
 
-vector<handle> MegaClient::albumIds() const
-{
-    vector<handle> v;
-    v.reserve(mAlbums.size());
-    for (auto& a : mAlbums)
-        v.push_back(a.first);
-    return v;
-}
-
 void MegaClient::addAlbum(Album&& a)
 {
     mAlbums[a.id()] = move(a);
@@ -17484,9 +17494,9 @@ void MegaClient::updateAlbum(handle id, string&& attrs, m_time_t ts)
     }
 }
 
-void MegaClient::deleteAlbum(handle albumId)
+bool MegaClient::deleteAlbum(handle albumId)
 {
-    mAlbums.erase(albumId);
+    return mAlbums.erase(albumId);
 }
 
 void MegaClient::addOrUpdateAlbumElement(AlbumElement&& el, handle albumId)
@@ -17500,12 +17510,12 @@ void MegaClient::addOrUpdateAlbumElement(AlbumElement&& el, handle albumId)
     itAl->second.addOrUpdateElement(move(el));
 }
 
-void MegaClient::deleteAlbumElement(handle elemId, handle albumId)
+bool MegaClient::deleteAlbumElement(handle elemId, handle albumId)
 {
     auto it = mAlbums.find(albumId);
     if (it != mAlbums.end())
     {
-        it->second.removeElement(elemId);
+        return it->second.removeElement(elemId);
     }
 
     else if (albumId == UNDEF)
@@ -17513,9 +17523,11 @@ void MegaClient::deleteAlbumElement(handle elemId, handle albumId)
         for (auto& a : mAlbums)
         {
             if (a.second.removeElement(elemId))
-                break;
+                return true;
         }
     }
+
+    return false;
 }
 
 void MegaClient::sc_asp()
