@@ -5513,14 +5513,14 @@ bool MegaApi::driveMonitorEnabled()
     return pImpl->driveMonitorEnabled();
 }
 
-void MegaApi::createAlbum(const char* attrs, MegaRequestListener* listener)
+void MegaApi::createAlbum(const char* name, MegaRequestListener* listener)
 {
-    pImpl->putAlbum(INVALID_HANDLE, attrs, listener);
+    pImpl->putAlbum(INVALID_HANDLE, name, listener);
 }
 
-void MegaApi::updateAlbum(MegaHandle id, const char* attrs, MegaRequestListener* listener)
+void MegaApi::updateAlbum(MegaHandle id, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putAlbum(id, attrs, listener);
+    pImpl->putAlbum(id, name, listener);
 }
 
 void MegaApi::removeAlbum(MegaHandle id, MegaRequestListener* listener)
@@ -5553,7 +5553,7 @@ Album MegaApi::getAlbum(MegaHandle id)
     return pImpl->getAlbum(id);
 }
 
-vector<MegaHandle> MegaApi::getAlbumIds()
+MegaHandleList* MegaApi::getAlbumIds()
 {
     return pImpl->getAlbumIds();
 }

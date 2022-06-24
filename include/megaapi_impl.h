@@ -2516,7 +2516,7 @@ class MegaApiImpl : public MegaApp
         void putAlbumElement(MegaHandle id, MegaHandle albumId, MegaHandle node, int optionFlags, int64_t order, const char* attrs, MegaRequestListener* listener = nullptr);
         void removeAlbumElement(MegaHandle id, MegaRequestListener* listener = nullptr);
         Album getAlbum(MegaHandle id);
-        vector<MegaHandle> getAlbumIds();
+        MegaHandleList* getAlbumIds();
 
 #ifdef ENABLE_SYNC
         //Sync

@@ -23575,10 +23575,17 @@ Album MegaApiImpl::getAlbum(MegaHandle id)
     return a ? *a : Album();
 }
 
-vector<MegaHandle> MegaApiImpl::getAlbumIds()
+MegaHandleList* MegaApiImpl::getAlbumIds()
 {
     SdkMutexGuard g(sdkMutex);
-    return client->albumIds();
+
+    MegaHandleList* aidList = new MegaHandleListPrivate();
+    for (const auto& a : client->albums())
+    {
+        aidList->addMegaHandle(a.second.id());
+    }
+
+    return aidList;
 }
 
 
