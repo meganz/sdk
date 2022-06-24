@@ -7876,9 +7876,9 @@ TEST_F(SdkTest, SdkTestAlbums)
     // 5. Add Element
     MegaHandle eh = INVALID_HANDLE;
     int optionFlags = 0;
-    char elattrs[] = "element attributes";
+    string elattrs = "element attributes";
     optionFlags |= 2; // set attributes
-    err = doCreateAlbumElement(0, &eh, ah, uploadedNode, optionFlags, 0, elattrs);
+    err = doCreateAlbumElement(0, &eh, ah, uploadedNode, optionFlags, 0, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(eh, INVALID_HANDLE);
 
@@ -7898,9 +7898,10 @@ TEST_F(SdkTest, SdkTestAlbums)
     MegaHandle ehu = INVALID_HANDLE;
     optionFlags = 0;
     int64_t order = 222;
+    elattrs += " updated";
     optionFlags |= 1; // update order
     optionFlags |= 2; // update attributes
-    err = doUpdateAlbumElement(0, &ehu, eh, optionFlags, order, nullptr);
+    err = doUpdateAlbumElement(0, &ehu, eh, optionFlags, order, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
 
     WaitMillisec(3000);
@@ -7911,7 +7912,7 @@ TEST_F(SdkTest, SdkTestAlbums)
     const AlbumElement elu = ite->second;
     ASSERT_EQ(elu.id(), eh);
     ASSERT_EQ(elu.node(), uploadedNode);
-    ASSERT_EQ(elu.attrs(), "");
+    ASSERT_EQ(elu.attrs(), elattrs);
     //ASSERT_NE(elu.ts(), el.ts()); // apparently this is not always updated
     ASSERT_EQ(elu.order(), order);
 
@@ -7924,7 +7925,7 @@ TEST_F(SdkTest, SdkTestAlbums)
     const AlbumElement eluf = ite->second;
     ASSERT_EQ(eluf.id(), eh);
     ASSERT_EQ(eluf.node(), uploadedNode);
-    ASSERT_EQ(eluf.attrs(), "");
+    ASSERT_EQ(eluf.attrs(), elattrs);
     ASSERT_EQ(eluf.ts(), elu.ts());
     ASSERT_EQ(eluf.order(), order);
 
@@ -7960,8 +7961,10 @@ TEST_F(SdkTest, SdkTestAlbums)
 #endif
 
     // 9. Remove all Albums
-    for (handle& albumId : megaApi[0]->getAlbumIds())
+    unique_ptr<MegaHandleList> albumIds(megaApi[0]->getAlbumIds());
+    for (unsigned i = 0; i < albumIds->size(); ++i)
     {
+        handle albumId = albumIds->get(i);
         err = doRemoveAlbum(0, albumId);
         ASSERT_EQ(err, API_OK);
 
