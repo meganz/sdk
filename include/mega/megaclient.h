@@ -245,12 +245,11 @@ public:
     void setAttrs(const string& attrs)      { mAttrs = attrs; mOpts[AE_ATTRS] = 1; }
     void setOrder(int64_t order)            { mOrder = order; mOpts[AE_ORDER] = 1; }
     void setTs(m_time_t ts)                 { mTs = ts; }
-    void setKey(string&& key)               { mKey = move(key); mOpts[AE_KEY] = 1; }
-    void setKey(const string& key)          { mKey = key; mOpts[AE_KEY] = 1; }
+    void setKey(string&& key)               { mKey = move(key); }
+    void setKey(const string& key)          { mKey = key; }
 
     bool hasAttrs() const                   { return mOpts[AE_ATTRS]; }
     bool hasOrder() const                   { return mOpts[AE_ORDER]; }
-    bool hasKey() const                     { return mOpts[AE_KEY]; }
 
 private:
     handle mId = UNDEF;
@@ -264,7 +263,6 @@ private:
     {
         AE_ATTRS,
         AE_ORDER,
-        AE_KEY,
         AE_SIZE
     };
     std::bitset<AE_SIZE> mOpts;
@@ -301,7 +299,6 @@ private:
     m_time_t mTs = 0;
     string mAttrs;      // up to 65535 bytes of miscellaneous data, as b64, encrypted with mKey
     map<handle, AlbumElement> mElements;
-
 };
 
 class MEGA_API MegaClient

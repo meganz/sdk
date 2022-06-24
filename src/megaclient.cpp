@@ -17085,7 +17085,7 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
         return;
     }
 
-    // get key (only for new Element)
+    // copy element.key from nodekey (only for new Element)
     string encrKey;
     if (el.id() == UNDEF)
     {
@@ -17101,15 +17101,29 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
 
         el.setKey(n->nodekey());
 
-        // encrypt key
+        // encrypt element.key with set.key
         byte encryptBuffer[SymmCipher::KEYLENGTH];
         std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
         SymmCipher cipher((byte*)existingAlbum->key().c_str());
         cipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
         encrKey.assign((char*)encryptBuffer, sizeof(encryptBuffer));
     }
+    // get element.key from existing element (only when updating attributes)
+    else if (el.hasAttrs() && !el.attrs().empty())
+    {
+        auto elIt = existingAlbum->elements().find(el.id());
+        if (elIt == existingAlbum->elements().end())
+        {
+            LOG_err << "Albums: Invalid node for Element";
+            if (completion)
+                completion(API_ENOENT, el.id());
+            return;
+        }
 
-    // encrypt attributes
+        el.setKey(elIt->second.key());
+    }
+
+    // encrypt element.attrs with element.key (copied from nodekey)
     string encrAttrs;
     if (el.hasAttrs() && !el.attrs().empty())
     {
@@ -17250,11 +17264,8 @@ error MegaClient::decryptAlbumElementData(AlbumElement& el, const string& albumK
         return API_EINTERNAL;
     }
 
-    if (!el.key().empty())
-    {
-        SymmCipher cipher((byte*)albumKey.c_str());
-        el.setKey(decryptKey(el.key(), cipher));
-    }
+    SymmCipher cipher((byte*)albumKey.c_str());
+    el.setKey(decryptKey(el.key(), cipher));
 
     if (!el.attrs().empty())
     {
@@ -17311,7 +17322,7 @@ error MegaClient::readAlbum(JSON& j, Album& al)
         case MAKENAMEID2('a', 't'):
         {
             string attrs;
-            j.storeobject(&attrs); // B64 encoded
+            j.copystring(&attrs, j.getvalue()); // B64 encoded
             if (!attrs.empty())
             {
                 attrs = Base64::atob(attrs);
@@ -17327,7 +17338,7 @@ error MegaClient::readAlbum(JSON& j, Album& al)
         case MAKENAMEID1('k'): // used to encrypt attrs; encrypted itself with owner's key
         {
             string albumKey;
-            j.storeobject(&albumKey); // B64 encoded
+            j.copystring(&albumKey, j.getvalue()); // B64 encoded
             al.setKey(Base64::atob(albumKey));
             break;
         }
@@ -17398,7 +17409,7 @@ error MegaClient::readElement(JSON& j, AlbumElement& el, handle& albumId)
         case MAKENAMEID2('a', 't'):
         {
             string elementAttrs;
-            j.storeobject(&elementAttrs);
+            j.copystring(&elementAttrs, j.getvalue());
             if (!elementAttrs.empty())
             {
                 elementAttrs = Base64::atob(elementAttrs);
@@ -17418,7 +17429,7 @@ error MegaClient::readElement(JSON& j, AlbumElement& el, handle& albumId)
         case MAKENAMEID1('k'):
         {
             string elementKey;
-            j.storeobject(&elementKey);
+            j.copystring(&elementKey, j.getvalue());
             if (!elementKey.empty())
             {
                 elementKey = Base64::atob(elementKey);
@@ -17690,10 +17701,6 @@ void Album::addOrUpdateElement(AlbumElement&& el)
     if (el.ts())
     {
         existing.setTs(el.ts());
-    }
-    if (el.hasKey())
-    {
-        existing.setKey(el.key());
     }
 }
 

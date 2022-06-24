@@ -9065,10 +9065,13 @@ CommandPutAlbumElement::CommandPutAlbumElement(MegaClient* cl, AlbumElement&& el
 {
     cmd("aep");
 
-    if (mElement->id() == UNDEF) // create new
+    bool createNew = mElement->id() == UNDEF;
+
+    if (createNew)
     {
         arg("s", (byte*)&mAlbumId, MegaClient::ALBUMHANDLE);
         arg("h", (byte*)&mElement->node(), MegaClient::NODEHANDLE);
+        arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
     }
 
     else // update
@@ -9085,11 +9088,6 @@ CommandPutAlbumElement::CommandPutAlbumElement(MegaClient* cl, AlbumElement&& el
     if (mElement->hasAttrs())
     {
         arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
-    }
-
-    if (mElement->hasKey())
-    {
-        arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
     }
 
     notself(cl); // don't process its Action Packet after sending this
