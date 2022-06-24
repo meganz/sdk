@@ -5006,18 +5006,22 @@ bool MegaClient::procsc()
                                 break;
 
                             case MAKENAMEID3('a', 's', 'p'):
+                                // new/update of a Set
                                 sc_asp();
                                 break;
 
                             case MAKENAMEID3('a', 's', 'r'):
+                                // removal of a Set
                                 sc_asr();
                                 break;
 
                             case MAKENAMEID3('a', 'e', 'p'):
+                                // new/update of a Set Element
                                 sc_aep();
                                 break;
 
                             case MAKENAMEID3('a', 'e', 'r'):
+                                // removal of a Set Element
                                 sc_aer();
                                 break;
                         }
