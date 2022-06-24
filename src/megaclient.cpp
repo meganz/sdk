@@ -17090,11 +17090,12 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
     if (el.id() == UNDEF)
     {
         Node* n = nodebyhandle(el.node());
-        if (!n || n->nodekey().empty() || !n->nodecipher())
+        error e = !n ? API_EARGS : (n->nodekey().empty() || !n->nodecipher() || n->attrstring ? API_EKEY : API_OK);
+        if (e != API_OK)
         {
             LOG_err << "Albums: Invalid node for Element";
             if (completion)
-                completion(API_EARGS, el.id());
+                completion(e, el.id());
             return;
         }
 
