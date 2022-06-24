@@ -17543,7 +17543,10 @@ void MegaClient::sc_asp()
     auto it = mAlbums.find(al.id());
     if (it == mAlbums.end()) // add new
     {
-        decryptAlbumData(al);
+        if (decryptAlbumData(al) != API_OK)
+        {
+            return;
+        }
         addAlbum(move(al));
     }
     else // update existing Album
@@ -17569,9 +17572,11 @@ void MegaClient::sc_asr()
         case MAKENAMEID2('i', 'd'):
         {
             handle albumId = jsonsc.gethandle(MegaClient::ALBUMHANDLE);
-            deleteAlbum(albumId);
-            // failing to remove a local album here would be fine in case the client that sent the command
-            // applied the change after receiving the OK from the API, but processed the action packet too
+            if (!deleteAlbum(albumId))
+            {
+                LOG_err << "Albums: Failed to remove Album in `asr` action packet";
+                return;
+            }
             break;
         }
 
@@ -17629,7 +17634,7 @@ void MegaClient::sc_aep()
         return;
     }
 
-    if (el.hasKey())
+    if (!el.key().empty()) // new Element
     {
         decryptAlbumElementData(el, al->key());
     }
@@ -17667,9 +17672,11 @@ void MegaClient::sc_aer()
             break;
 
         case EOO:
-            deleteAlbumElement(elemId, albumId);
-            // failing to remove a local element here would be fine in case the client that sent the command
-            // applied the change after receiving the OK from the API, but processed the action packet too
+            if (!deleteAlbumElement(elemId, albumId))
+            {
+                LOG_err << "Albums: Failed to remove Element in `aer` action packet";
+                return;
+            }
             return;
 
         default:
