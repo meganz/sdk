@@ -9838,10 +9838,10 @@ void exec_album(autocomplete::ACState& s)
         handle id = 0; // must have remaining bits set to 0
         Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::ALBUMELEMENTHANDLE);
 
-        client->removeAlbumElement(id, [id](Error e)
+        client->removeAlbumElement(id, [id](Error e, handle albumId)
             {
                 if (e == API_OK)
-                    cout << "Removed album element " << toHandle(id) << endl;
+                    cout << "Removed album element " << toHandle(id) << " from album " << toHandle(albumId) << endl;
                 else
                     cout << "Error removing album element " << toHandle(id) << ' ' << e << endl;
             });
@@ -9880,12 +9880,12 @@ void exec_album(autocomplete::ACState& s)
             el.setOrder(atoll(param.c_str()));
         }
 
-        client->putAlbumElement(move(el), albumId, [createNew, elemId](Error e, handle receivedElementId)
+        client->putAlbumElement(move(el), albumId, [createNew, elemId](Error e, handle receivedElementId, handle aId)
             {
                 if (createNew)
                 {
                     if (e == API_OK)
-                        cout << "Created album element " << toHandle(receivedElementId) << endl;
+                        cout << "Created album element " << toHandle(receivedElementId) << " in album " << toHandle(aId) << endl;
                     else
                         cout << "Error creating new album element " << e << endl;
                 }
@@ -9893,7 +9893,7 @@ void exec_album(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        cout << "Updated album element " << toHandle(elemId) << endl;
+                        cout << "Updated album element " << toHandle(elemId) << " in album " << toHandle(aId) << endl;
                         assert(receivedElementId == elemId);
                     }
                     else
