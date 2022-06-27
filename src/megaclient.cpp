@@ -17545,9 +17545,7 @@ void MegaClient::sc_asp()
         Album& existing = it->second;
         existing.setAttrs(decryptAttrs(al.attrs(), existing.key()));
         existing.setTs(al.ts());
-        // "u" is currently missing from this actionpacket. API should probably add it, but until it is,
-        // don't overwrite existing value with an invalid one
-        if (al.user() != UNDEF)
+        if (al.user() != UNDEF) // this might not be received for an update
         {
             existing.setUser(al.user());
         }
@@ -17588,8 +17586,7 @@ void MegaClient::sc_aep()
 {
     AlbumElement el;
     handle albumId = 0;
-    error e = readElement(jsonsc, el, albumId);
-    if (e != API_OK)
+    if (readElement(jsonsc, el, albumId) != API_OK)
     {
         LOG_err << "Albums: `aep` action packet: failed to parse data";
         return;
@@ -17598,7 +17595,7 @@ void MegaClient::sc_aep()
     // find the Album for this Element
     Album* al = nullptr;
 
-    if (albumId) // insert new or update existing
+    if (albumId)
     {
         auto it = mAlbums.find(albumId);
         if (it != mAlbums.end())
@@ -17606,40 +17603,17 @@ void MegaClient::sc_aep()
             al = &it->second;
         }
     }
-    else // must be an update, find its album
-    {
-        for (auto& a : mAlbums)
-        {
-            if (a.second.hasElement(el.id()))
-            {
-                al = &a.second;
-                break;
-            }
-        }
-    }
 
     if (!al)
     {
-        e = API_EINTERNAL;
         LOG_err << "Albums: `aep` action packet: failed to find Album for Element";
         return;
     }
 
-    if (!el.key().empty()) // new Element
+    if (decryptAlbumElementData(el, al->key()) != API_OK)
     {
-        decryptAlbumElementData(el, al->key());
-    }
-
-    else if (!el.attrs().empty()) // attrs have been updated; find the key to decrypt them
-    {
-        auto itE = al->elements().find(el.id());
-        if (itE == al->elements().end())
-        {
-            e = API_EINTERNAL;
-            LOG_err << "Albums: `aep` action packet: failed to find Element to update";
-            return;
-        }
-        el.setAttrs(decryptAttrs(el.attrs(), itE->second.key()));
+        LOG_err << "Albums: `aep` action packet: failed to decrypt Element data";
+        return;
     }
 
     al->addOrUpdateElement(move(el));
