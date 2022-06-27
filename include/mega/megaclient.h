@@ -2046,10 +2046,10 @@ public:
     void fetchAlbum(handle id, std::function<void(Error)> completion);
 
     // generate "aep" command
-    void putAlbumElement(AlbumElement&& el, handle albumId, std::function<void(Error, handle)> completion);
+    void putAlbumElement(AlbumElement&& el, handle albumId, std::function<void(Error, handle, handle)> completion);
 
     // generate "aer" command
-    void removeAlbumElement(handle id, std::function<void(Error)> completion);
+    void removeAlbumElement(handle id, std::function<void(Error, handle)> completion);
 
     // load Albums and Elements from json
     error readAlbumsAndElements(JSON& j);
@@ -2066,15 +2066,14 @@ public:
     // search for album with the same id, and update its members
     void updateAlbum(handle id, string&& attrs, m_time_t ts);
 
-    // delete Album with given id from local memory, if found; return true if found and deleted
+    // delete Album with elemId from local memory; return true if found and deleted
     bool deleteAlbum(handle albumId);
 
     // add new element or update existing one with the same id
     void addOrUpdateAlbumElement(AlbumElement&& el, handle albumId);
 
-    // delete Element with given id from local memory, if found (if albumId == UNDEF search through all Albums);
-    // return true if found and deleted
-    bool deleteAlbumElement(handle elemId, handle albumId = UNDEF);
+    // delete Element with elemId from Album with albumId in local memory; return true if found and deleted
+    bool deleteAlbumElement(handle elemId, handle albumId);
 
 private:
     error readAlbums(JSON& j, map<handle, Album>& albums);

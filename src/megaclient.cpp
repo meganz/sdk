@@ -17065,7 +17065,7 @@ void MegaClient::fetchAlbum(handle id, std::function<void(Error)> completion)
     reqs.add(new CommandFetchAlbum(this, id, completion));
 }
 
-void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::function<void(Error, handle)> completion)
+void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::function<void(Error, handle, handle)> completion)
 {
     // albumId is required to create a new element, but not to update one
     assert(el.id() != UNDEF || albumId != UNDEF);
@@ -17088,7 +17088,7 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
     {
         LOG_err << "Albums: Album not found when adding or updating Element";
         if (completion)
-            completion(API_ENOENT, el.id());
+            completion(API_ENOENT, el.id(), UNDEF);
         return;
     }
 
@@ -17102,7 +17102,7 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
         {
             LOG_err << "Albums: Invalid node for Element";
             if (completion)
-                completion(e, el.id());
+                completion(e, el.id(), UNDEF);
             return;
         }
 
@@ -17123,7 +17123,7 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
         {
             LOG_err << "Albums: Invalid node for Element";
             if (completion)
-                completion(API_ENOENT, el.id());
+                completion(API_ENOENT, el.id(), UNDEF);
             return;
         }
 
@@ -17142,7 +17142,7 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
     reqs.add(new CommandPutAlbumElement(this, move(el), move(encrAttrs), move(encrKey), existingAlbum->id(), completion));
 }
 
-void MegaClient::removeAlbumElement(handle id, std::function<void(Error)> completion)
+void MegaClient::removeAlbumElement(handle id, std::function<void(Error, handle)> completion)
 {
     for (const auto& a : mAlbums)
     {
@@ -17155,7 +17155,7 @@ void MegaClient::removeAlbumElement(handle id, std::function<void(Error)> comple
 
     if (completion)
     {
-        completion(API_ENOENT);
+        completion(API_ENOENT, UNDEF);
     }
 }
 
@@ -17277,7 +17277,7 @@ error MegaClient::decryptAlbumData(Album& al)
 
 error MegaClient::decryptAlbumElementData(AlbumElement& el, const string& albumKey)
 {
-    if (!el.id() || el.id() == UNDEF || !el.node() || el.node() == UNDEF)
+    if (!el.id() || el.id() == UNDEF || !el.node() || el.node() == UNDEF || el.key().empty())
     {
         LOG_err << "Albums: Missing mandatory Element data";
         return API_EINTERNAL;
@@ -17516,15 +17516,6 @@ bool MegaClient::deleteAlbumElement(handle elemId, handle albumId)
     if (it != mAlbums.end())
     {
         return it->second.removeElement(elemId);
-    }
-
-    else if (albumId == UNDEF)
-    {
-        for (auto& a : mAlbums)
-        {
-            if (a.second.removeElement(elemId))
-                return true;
-        }
     }
 
     return false;

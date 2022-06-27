@@ -8892,7 +8892,7 @@ bool CommandDismissBanner::procresult(Result r)
 // Albums
 //
 
-bool CommandAlbum::procresultid(const Result& r, handle& id, m_time_t& ts, int64_t* order) const
+bool CommandAlbum::procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o) const
 {
     if (r.hasJsonObject())
     {
@@ -8904,26 +8904,52 @@ bool CommandAlbum::procresultid(const Result& r, handle& id, m_time_t& ts, int64
                 id = client->json.gethandle(MegaClient::ALBUMHANDLE);
                 break;
 
+            case MAKENAMEID1('u'):
+                if (u)
+                {
+                    *u = client->json.gethandle(MegaClient::USERHANDLE);
+                }
+                else if(!client->json.storeobject())
+                {
+                    return false;
+                }
+                break;
+
+            case MAKENAMEID1('s'):
+                if (s)
+                {
+                    *s = client->json.gethandle(MegaClient::ALBUMHANDLE);
+                }
+                else if(!client->json.storeobject())
+                {
+                    return false;
+                }
+                break;
+
             case MAKENAMEID2('t', 's'):
                 ts = client->json.getint();
                 break;
 
-            case EOO:
-                return true;
-
             case MAKENAMEID1('o'):
-                if (order)
+                if (o)
                 {
-                    *order = client->json.getint();
-                    break;
+                    *o = client->json.getint();
                 }
-                // fallthrough
+                else if (!client->json.storeobject())
+                {
+                    return false;
+                }
+                break;
 
             default:
                 if (!client->json.storeobject())
                 {
                     return false;
                 }
+                break;
+
+            case EOO:
+                return true;
             }
         }
     }
@@ -8969,11 +8995,12 @@ CommandPutAlbum::CommandPutAlbum(MegaClient* cl, handle albumId, string&& decrKe
 bool CommandPutAlbum::procresult(Result r)
 {
     handle albumId = 0;
+    handle user = 0;
     m_time_t ts = 0;
     Error e = API_OK;
-    bool parsedOk = procerrorcode(r, e) || procresultid(r, albumId, ts);
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, albumId, ts, &user);
 
-    if (!parsedOk)
+    if (!parsedOk || (mId == UNDEF && !user))
     {
         e = API_EINTERNAL;
     }
@@ -8981,7 +9008,7 @@ bool CommandPutAlbum::procresult(Result r)
     {
         if (mId == UNDEF) // add new
         {
-            Album a(albumId, move(mDecrKey), UNDEF, ts, move(mDecrAttrs));
+            Album a(albumId, move(mDecrKey), user, ts, move(mDecrAttrs));
             client->addAlbum(move(a));
         }
         else // update existing
@@ -9015,7 +9042,11 @@ bool CommandRemoveAlbum::procresult(Result r)
 
     if (parsedOk && e == API_OK)
     {
-        client->deleteAlbum(mAlbumId);
+        if (!client->deleteAlbum(mAlbumId))
+        {
+            LOG_err << "Albums: Failed to remove Album in `asr` command response";
+            e = API_ENOENT;
+        }
     }
 
     if (mCompletion)
@@ -9060,7 +9091,7 @@ bool CommandFetchAlbum::procresult(Result r)
 }
 
 CommandPutAlbumElement::CommandPutAlbumElement(MegaClient* cl, AlbumElement&& el, string&& encrAttrs, string&& encrKey, handle albumId,
-                                               std::function<void(Error, handle)> completion)
+                                               std::function<void(Error, handle, handle)> completion)
     : mElement(new AlbumElement(move(el))), mAlbumId(albumId), mCompletion(completion)
 {
     cmd("aep");
@@ -9099,7 +9130,7 @@ bool CommandPutAlbumElement::procresult(Result r)
     m_time_t ts = 0;
     int64_t order = 0;
     Error e = API_OK;
-    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, &order);
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, &order); // 'aep' does not return 's'
 
     if (!parsedOk)
     {
@@ -9110,20 +9141,20 @@ bool CommandPutAlbumElement::procresult(Result r)
         assert(mElement->id() == UNDEF || mElement->id() == elementId);
         mElement->setId(elementId);
         mElement->setTs(ts);
-        mElement->setOrder(order);
+        mElement->setOrder(order); // this is now present in all 'aep' responses
 
         client->addOrUpdateAlbumElement(move(*mElement), mAlbumId);
     }
 
     if (mCompletion)
     {
-        mCompletion(e, elementId);
+        mCompletion(e, elementId, mAlbumId);
     }
 
     return parsedOk;
 }
 
-CommandRemoveAlbumElement::CommandRemoveAlbumElement(MegaClient* cl, handle id, std::function<void(Error)> completion)
+CommandRemoveAlbumElement::CommandRemoveAlbumElement(MegaClient* cl, handle id, std::function<void(Error, handle)> completion)
     : mElementId(id), mCompletion(completion)
 {
     cmd("aer");
@@ -9134,17 +9165,24 @@ CommandRemoveAlbumElement::CommandRemoveAlbumElement(MegaClient* cl, handle id, 
 
 bool CommandRemoveAlbumElement::procresult(Result r)
 {
+    handle elementId = 0;
+    m_time_t ts = 0;
+    handle albumId = 0;
     Error e = API_OK;
-    bool parsedOk = procerrorcode(r, e);
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, &albumId);
 
     if (parsedOk && e == API_OK)
     {
-        client->deleteAlbumElement(mElementId);
+        if (!albumId || !client->deleteAlbumElement(mElementId, albumId))
+        {
+            LOG_err << "Albums: Failed to remove Element in `aer` command response";
+            e = API_ENOENT;
+        }
     }
 
     if (mCompletion)
     {
-        mCompletion(e);
+        mCompletion(e, (albumId ? albumId : UNDEF));
     }
 
     return parsedOk;

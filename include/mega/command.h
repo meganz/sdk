@@ -1481,7 +1481,7 @@ public:
 class CommandAlbum : public Command // intermediary class to avoid code duplication
 {
 protected:
-    bool procresultid(const Result& r, handle& id, m_time_t& ts, int64_t* order = nullptr) const;
+    bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr) const;
     bool procerrorcode(const Result& r, Error& e) const;
 };
 
@@ -1526,24 +1526,24 @@ class MEGA_API CommandPutAlbumElement : public CommandAlbum
 {
 public:
     CommandPutAlbumElement(MegaClient*, AlbumElement&& e, string&& encrAttrs, string&& encrKey, handle albumId,
-                           std::function<void(Error, handle)> completion);
+                           std::function<void(Error, handle, handle)> completion);
     bool procresult(Result) override;
 
 private:
     unique_ptr<AlbumElement> mElement; // use a pointer to avoid defining AlbumElement in this header
     handle mAlbumId = UNDEF;
-    std::function<void(Error, handle)> mCompletion;
+    std::function<void(Error, handle, handle)> mCompletion;
 };
 
 class MEGA_API CommandRemoveAlbumElement : public CommandAlbum
 {
 public:
-    CommandRemoveAlbumElement(MegaClient*, handle id, std::function<void(Error)> completion);
+    CommandRemoveAlbumElement(MegaClient*, handle id, std::function<void(Error, handle)> completion);
     bool procresult(Result) override;
 
 private:
     handle mElementId = UNDEF;
-    std::function<void(Error)> mCompletion;
+    std::function<void(Error, handle)> mCompletion;
 };
 
 // -------- end of Albums
