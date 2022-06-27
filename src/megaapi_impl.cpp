@@ -18877,10 +18877,11 @@ void MegaApiImpl::sendPendingRequests()
             if (request->getParamType() & 2)
                 el.setAttrs(request->getText() ? request->getText() : string());
             client->putAlbumElement(move(el), request->getTotalBytes(),
-                [this, request](Error e, handle id)
+                [this, request](Error e, handle id, handle albumId)
                 {
                     if (request->getParentHandle() == UNDEF)
                         request->setParentHandle(id);
+                    request->setTotalBytes(albumId);
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             break;
@@ -18888,8 +18889,9 @@ void MegaApiImpl::sendPendingRequests()
 
         case MegaRequest::TYPE_REMOVE_ALBUM_ELEMENT:
             client->removeAlbumElement(request->getParentHandle(),
-                [this, request](Error e)
+                [this, request](Error e, handle albumId)
                 {
+                    request->setTotalBytes(albumId);
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             break;
