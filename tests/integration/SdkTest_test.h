@@ -406,8 +406,8 @@ public:
     template<typename ... requestArgs> int doFetchAlbum(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchAlbum(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int doRemoveAlbum(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeAlbum(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int doCreateAlbumElement(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createAlbumElement(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
-    template<typename ... requestArgs> int doUpdateAlbumElement(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateAlbumElement(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
-    template<typename ... requestArgs> int doRemoveAlbumElement(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeAlbumElement(args..., &rt); rt.waitForResult(); return rt.result; }
+    template<typename ... requestArgs> int doUpdateAlbumElement(unsigned apiIndex, MegaHandle* aid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateAlbumElement(args..., &rt); rt.waitForResult(); if (aid) *aid = rt.request->getTotalBytes(); return rt.result; }
+    template<typename ... requestArgs> int doRemoveAlbumElement(unsigned apiIndex, MegaHandle* aid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeAlbumElement(args..., &rt); rt.waitForResult(); if (aid) *aid = rt.request->getTotalBytes(); return rt.result; }
 
     bool createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);

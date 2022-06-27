@@ -7812,10 +7812,11 @@ TEST_F(SdkTest, SdkTestAlbums)
     // 3. Fetch Album
     // 4. Upload test file
     // 5. Add Element
-    // 6. Update Element
-    // 7. Remove Element
-    // 8. logout / login  (DISABLED)
-    // 9. Remove all Albums
+    // 6. Update Element order
+    // 7. Update Element attrs
+    // 8. Remove Element
+    // 9. logout / login  (DISABLED)
+    // 10. Remove all Albums
 
 
     // 1. Create Album
@@ -7825,40 +7826,26 @@ TEST_F(SdkTest, SdkTestAlbums)
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(ah, INVALID_HANDLE);
 
-    WaitMillisec(3000);
-
     Album a1 = megaApi[0]->getAlbum(ah);
     ASSERT_EQ(a1.id(), ah);
     ASSERT_EQ(a1.attrs(), attrs);
     ASSERT_NE(a1.key(), "");
     ASSERT_NE(a1.ts(), 0);
-    // TODO: user id set by API is not received in `asp` response
-    //ASSERT_NE(a1.user(), INVALID_HANDLE);
+    ASSERT_NE(a1.user(), INVALID_HANDLE);
 
-    // 2. Update Album
-    MegaHandle mhu = INVALID_HANDLE;
+    // 2. Update Album attributes
+    MegaHandle ahu = INVALID_HANDLE;
     attrs += " updated";
-    err = doUpdateAlbum(0, &mhu, ah, attrs.c_str());
+    err = doUpdateAlbum(0, &ahu, ah, attrs.c_str());
     ASSERT_EQ(err, API_OK);
+    ASSERT_EQ(ahu, ah);
 
-    WaitMillisec(3000);
-
-    const Album a1u = megaApi[0]->getAlbum(mhu);
+    const Album a1u = megaApi[0]->getAlbum(ahu);
     ASSERT_EQ(a1u.id(), ah);
     ASSERT_EQ(a1u.attrs(), attrs);
     ASSERT_EQ(a1u.key(), a1.key());
+    ASSERT_EQ(a1u.user(), a1.user());
     //ASSERT_NE(a1u.ts(), a1.ts()); // apparently this is not always updated
-
-    // 3. Fetch Album
-    err = doFetchAlbum(0, ah); // will replace the one stored in memory
-    ASSERT_EQ(err, API_OK);
-
-    const Album a1f = megaApi[0]->getAlbum(ah);
-    ASSERT_EQ(a1f.id(), ah);
-    ASSERT_EQ(a1f.attrs(), attrs);
-    ASSERT_EQ(a1f.key(), a1u.key());
-    ASSERT_EQ(a1f.ts(), a1u.ts());
-    ASSERT_NE(a1f.user(), INVALID_HANDLE);
 
     // 4. Create test node
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
@@ -7882,8 +7869,6 @@ TEST_F(SdkTest, SdkTestAlbums)
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(eh, INVALID_HANDLE);
 
-    WaitMillisec(3000);
-
     a1 = megaApi[0]->getAlbum(ah);
     auto ite = a1.elements().find(eh);
     ASSERT_NE(ite, a1.elements().end());
@@ -7894,47 +7879,68 @@ TEST_F(SdkTest, SdkTestAlbums)
     ASSERT_NE(el.ts(), 0);
     ASSERT_EQ(el.order(), 1000); // first default value, accroding to specs
 
-    // 6. Update Element
-    MegaHandle ehu = INVALID_HANDLE;
-    optionFlags = 0;
-    int64_t order = 222;
-    elattrs += " updated";
-    optionFlags |= 1; // update order
-    optionFlags |= 2; // update attributes
-    err = doUpdateAlbumElement(0, &ehu, eh, optionFlags, order, elattrs.c_str());
-    ASSERT_EQ(err, API_OK);
-
-    WaitMillisec(3000);
-
-    a1 = megaApi[0]->getAlbum(ah);
-    ite = a1.elements().find(eh);
-    ASSERT_NE(ite, a1.elements().end());
-    const AlbumElement elu = ite->second;
-    ASSERT_EQ(elu.id(), eh);
-    ASSERT_EQ(elu.node(), uploadedNode);
-    ASSERT_EQ(elu.attrs(), elattrs);
-    //ASSERT_NE(elu.ts(), el.ts()); // apparently this is not always updated
-    ASSERT_EQ(elu.order(), order);
-
+    // 3. Fetch Album
     err = doFetchAlbum(0, ah); // will replace the one stored in memory
     ASSERT_EQ(err, API_OK);
 
+    const Album a1f = megaApi[0]->getAlbum(ah);
+    ASSERT_EQ(a1f.id(), ah);
+    ASSERT_EQ(a1f.attrs(), attrs);
+    ASSERT_EQ(a1f.key(), a1u.key());
+    ASSERT_EQ(a1f.ts(), a1u.ts());
+    ASSERT_EQ(a1f.user(), a1u.user());
+
+    auto itef = a1f.elements().find(eh);
+    ASSERT_NE(itef, a1f.elements().end());
+    const AlbumElement elf = ite->second;
+    ASSERT_EQ(elf.id(), eh);
+    ASSERT_EQ(elf.node(), uploadedNode);
+    ASSERT_EQ(elf.attrs(), elattrs);
+    ASSERT_EQ(elf.ts(), el.ts());
+    ASSERT_EQ(elf.order(), el.order());
+
+    // 6. Update Element order
+    MegaHandle ahu1 = INVALID_HANDLE;
+    optionFlags = 1; // update order
+    int64_t order = 222;
+    err = doUpdateAlbumElement(0, &ahu1, eh, optionFlags, order, nullptr);
+    ASSERT_EQ(err, API_OK);
+    ASSERT_EQ(ahu1, ah);
+
     a1 = megaApi[0]->getAlbum(ah);
     ite = a1.elements().find(eh);
     ASSERT_NE(ite, a1.elements().end());
-    const AlbumElement eluf = ite->second;
-    ASSERT_EQ(eluf.id(), eh);
-    ASSERT_EQ(eluf.node(), uploadedNode);
-    ASSERT_EQ(eluf.attrs(), elattrs);
-    ASSERT_EQ(eluf.ts(), elu.ts());
-    ASSERT_EQ(eluf.order(), order);
+    const AlbumElement elu1 = ite->second;
+    ASSERT_EQ(elu1.id(), eh);
+    ASSERT_EQ(elu1.node(), uploadedNode);
+    ASSERT_EQ(elu1.attrs(), elattrs);
+    ASSERT_EQ(elu1.order(), order);
+    ASSERT_NE(elu1.ts(), 0);
 
-    // 7. Remove Element
-    err = doRemoveAlbumElement(0, eh);
+    // 7. Update Element attrs
+    MegaHandle ahu2 = INVALID_HANDLE;
+    optionFlags = 2; // update attributes
+    elattrs += " updated";
+    err = doUpdateAlbumElement(0, &ahu2, eh, optionFlags, order, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
+    ASSERT_EQ(ahu2, ah);
 
+    err = doFetchAlbum(0, ah); // will replace the one stored in memory
+    a1 = megaApi[0]->getAlbum(ah);
+    ite = a1.elements().find(eh);
+    ASSERT_NE(ite, a1.elements().end());
+    const AlbumElement elu2 = ite->second;
+    ASSERT_EQ(elu2.id(), eh);
+    ASSERT_EQ(elu2.node(), uploadedNode);
+    ASSERT_EQ(elu2.attrs(), elattrs);
+    ASSERT_EQ(elu2.order(), order);
+    ASSERT_NE(elu2.ts(), 0);
 
-    WaitMillisec(3000);
+    // 8. Remove Element
+    handle ahre = 0;
+    err = doRemoveAlbumElement(0, &ahre, eh);
+    ASSERT_EQ(err, API_OK);
+    ASSERT_EQ(ahre, ah);
 
     a1 = megaApi[0]->getAlbum(ah);
     ite = a1.elements().find(eh);
@@ -7948,7 +7954,7 @@ TEST_F(SdkTest, SdkTestAlbums)
     ASSERT_EQ(ite, a1.elements().end());
 
 #if 0
-    // 8. logout / login
+    // 9. logout / login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
@@ -7960,7 +7966,7 @@ TEST_F(SdkTest, SdkTestAlbums)
     ASSERT_EQ(a1.key(), a1f.key());
 #endif
 
-    // 9. Remove all Albums
+    // 10. Remove all Albums
     unique_ptr<MegaHandleList> albumIds(megaApi[0]->getAlbumIds());
     for (unsigned i = 0; i < albumIds->size(); ++i)
     {
@@ -7973,7 +7979,4 @@ TEST_F(SdkTest, SdkTestAlbums)
         ASSERT_EQ(a1.attrs(), "");
         ASSERT_EQ(a1.key(), "");
     }
-
-    WaitMillisec(3000);
-
 }
