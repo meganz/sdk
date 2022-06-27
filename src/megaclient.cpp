@@ -8665,13 +8665,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     if (rootnodes.files.isUndef())
                     {
                         rootnodes.files.set6byte(h);
-                    }
 
-                    if (loggedIntoWritableFolder())
-                    {
-                        // If logged into writable folder, we need the sharekey set in the root node
-                        // so as to include it in subsequent put nodes
-                        n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                        if (loggedIntoWritableFolder())
+                        {
+                            // If logged into writable folder, we need the sharekey set in the root node
+                            // so as to include it in subsequent put nodes
+                            n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                        }
                     }
                 }
 
