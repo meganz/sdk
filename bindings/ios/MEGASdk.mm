@@ -32,7 +32,6 @@
 #import "MEGAShareList+init.h"
 #import "MEGAContactRequest+init.h"
 #import "MEGAContactRequestList+init.h"
-#import "MEGAChildrenLists+init.h"
 #import "MEGARecentActionBucket+init.h"
 #import "MEGABackgroundMediaUpload+init.h"
 #import "DelegateMEGARequestListener.h"
@@ -2499,16 +2498,6 @@ using namespace mega;
     if (self.megaApi) {
         self.megaApi->getFolderInfo(node.getCPtr);
     }
-}
-
-- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order {
-    if (self.megaApi == nil) return nil;
-    return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent.getCPtr, (int)order) cMemoryOwn:YES];
-}
-
-- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent {
-    if (self.megaApi == nil) return nil;
-    return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent.getCPtr) cMemoryOwn:YES];
 }
 
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name {

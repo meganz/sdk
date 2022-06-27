@@ -2657,6 +2657,7 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorFavDESC(Node *i, Node *j);
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
+        static m_off_t sizeDifference(Node *i, Node *j);
 
         char* escapeFsIncompatible(const char *filename, const char *dstPath);
         char* unescapeFsIncompatible(const char* name, const char *path);

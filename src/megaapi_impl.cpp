@@ -9265,6 +9265,31 @@ bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
     return 0;
 }
 
+m_off_t MegaApiImpl::sizeDifference(Node *i, Node *j)
+{
+    m_off_t iSize = 0;
+    if (i->type == FILENODE)
+    {
+        iSize = i->size;
+    }
+    else
+    {
+        iSize = i->getCounter().storage + i->getCounter().versionStorage;
+    }
+
+    m_off_t jSize = 0;
+    if (i->type == FILENODE)
+    {
+        jSize = j->size;
+    }
+    else
+    {
+        jSize = j->getCounter().storage + j->getCounter().versionStorage;
+    }
+
+    return iSize - jSize;
+}
+
 char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPath)
 {
     if(!filename)
@@ -17035,13 +17060,7 @@ bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
         return t;
     }
 
-    if (i->type != FILENODE) // Only file nodes have size
-    {
-        // If node doesn't have size, order alphabetically ascending
-        return nodeNaturalComparatorASC(i, j);
-    }
-
-    m_off_t r = i->size - j->size;
+    m_off_t r = sizeDifference(i, j);
     if (r < 0)
     {
         return 1;
@@ -17061,13 +17080,7 @@ bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
         return t;
     }
 
-    if (i->type != FILENODE) // Only file nodes have size
-    {
-        // If node doesn't have size, order alphabetically ascending
-        return nodeNaturalComparatorASC(i, j);
-    }
-
-    m_off_t r = i->size - j->size;
+    m_off_t r = sizeDifference(i, j);
     if (r < 0)
     {
         return 0;
@@ -17656,45 +17669,9 @@ void MegaApiImpl::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
     waiter->notify();
 }
 
-MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
+MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *, int )
 {
-    if (!p || p->getType() == MegaNode::TYPE_FILE)
-    {
-        return new MegaChildrenListsPrivate();
-    }
-
-    SdkMutexGuard guard(sdkMutex);
-
-    Node *parent = client->nodebyhandle(p->getHandle());
-    if (!parent || parent->type == FILENODE)
-    {
-        return new MegaChildrenListsPrivate();
-    }
-
-    node_vector files;
-    node_vector folders;
-    node_list nodeList = client->getChildren(parent);
-    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
-    {
-        Node *n = *it++;
-        if (n->type == FILENODE)
-        {
-            files.push_back(n);
-        }
-        else // if (n->type == FOLDERNODE)
-        {
-            folders.push_back(n);
-        }
-    }
-    if (std::function<bool(Node*, Node*)> comparatorFunction = getComparatorFunction(order, *client))
-    {
-        std::sort(files.begin(), files.end(), comparatorFunction);
-        std::sort(folders.begin(), folders.end(), comparatorFunction);
-    }
-
-    auto fileList = make_unique<MegaNodeListPrivate>(files.data(), int(files.size()));
-    auto folderList = make_unique<MegaNodeListPrivate>(folders.data(), int(folders.size()));
-    return new MegaChildrenListsPrivate(move(folderList), move(fileList));
+    return new MegaChildrenListsPrivate();
 }
 
 bool MegaApiImpl::hasChildren(MegaNode *parent)
