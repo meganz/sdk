@@ -10861,6 +10861,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
 
     OutShareProcessor shareProcessor(*client);
     processTree(client->nodeByHandle(client->rootnodes.files), &shareProcessor, true);
+    processTree(client->nodeByHandle(client->rootnodes.vault), &shareProcessor, true);
     shareProcessor.sortShares(order);
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
 
@@ -10922,6 +10923,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 
     PendingOutShareProcessor shareProcessor;
     processTree(client->nodeByHandle(client->rootnodes.files), &shareProcessor, true);
+    processTree(client->nodeByHandle(client->rootnodes.vault), &shareProcessor, true);
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
 
     sdkMutex.unlock();
