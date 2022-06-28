@@ -447,6 +447,9 @@ private:
 
     // store relationship between nodes and their children (nodes without children are not in the map)
     std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
+
+    // true if search is canceled
+    std::atomic_bool mSearchIsCanceled { false };
 };
 
 class MEGA_API MegaClient

@@ -17064,6 +17064,7 @@ uint64_t NodeManager::getNodeCount()
 
 node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
 {
+    mSearchIsCanceled = false;
     node_vector nodes;
     if (!mTable)
     {
@@ -17074,6 +17075,8 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByName(searchString, nodesFromTable);
     nodes = filterByAncestor(nodesFromTable, nodeHandle);
+
+    mSearchIsCanceled = false;
 
     return nodes;
 }
@@ -18002,6 +18005,7 @@ void NodeManager::cancelDbQuery()
         return;
     }
 
+    mSearchIsCanceled = true;
     mTable->cancelQuery();
 }
 
@@ -18224,21 +18228,21 @@ node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle
 {
     node_vector nodes;
 
-    for (const auto& nodeIt : nodesFromTable)
+    for (auto nodeIt = nodesFromTable.begin(); nodeIt != nodesFromTable.end() && !mSearchIsCanceled; nodeIt++)
     {
-        Node* n = getNodeInRAM(nodeIt.first);
+        Node* n = getNodeInRAM(nodeIt->first);
 
         if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)
         {
             bool skip = n ? !n->isAncestor(ancestorHandle)
-                          : !isAncestor(nodeIt.first, ancestorHandle);
+                          : !isAncestor(nodeIt->first, ancestorHandle);
 
             if (skip) continue;
         }
 
         if (!n)
         {
-            n = getNodeFromNodeSerialized(nodeIt.second);
+            n = getNodeFromNodeSerialized(nodeIt->second);
             if (!n)
             {
                 nodes.clear();
