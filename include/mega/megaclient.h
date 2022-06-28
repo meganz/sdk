@@ -251,6 +251,8 @@ public:
     bool hasAttrs() const                   { return mOpts[AE_ATTRS]; }
     bool hasOrder() const                   { return mOpts[AE_ORDER]; }
 
+    bool serialize(string*);
+
 private:
     handle mId = UNDEF;
     handle mNodeHandle = UNDEF;
@@ -268,7 +270,7 @@ private:
     std::bitset<AE_SIZE> mOpts;
 };
 
-class Album
+class Album : public Cacheable
 {
 public:
     Album() = default;
@@ -292,6 +294,11 @@ public:
     void addOrUpdateElement(AlbumElement&& el);
     bool removeElement(handle elemId) { return mElements.erase(elemId); }
 
+    bool serialize(string*) override;
+
+    void markForDbRemoval() { markedForDbRemoval = true; }
+    bool removeFromDb() const { return markedForDbRemoval; }
+
 private:
     handle mId = UNDEF;
     string mKey;        // new AES-128 key per set
@@ -299,6 +306,8 @@ private:
     m_time_t mTs = 0;
     string mAttrs;      // up to 65535 bytes of miscellaneous data, as b64, encrypted with mKey
     map<handle, AlbumElement> mElements;
+
+    bool markedForDbRemoval = false;
 };
 
 class MEGA_API MegaClient
@@ -1311,7 +1320,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT} sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDALBUM } sctablerectype;
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
@@ -2089,6 +2098,15 @@ private:
     void sc_asr(); // AP after removed Album
     void sc_aep(); // AP after new or updated Album Element
     void sc_aer(); // AP after removed Album Element
+
+    Album* unserializeAlbum(string* d);
+
+    bool initscalbums();
+    bool fetchscalbum(string* data, uint32_t id);
+    bool updatescalbums();
+    void notifyalbum(Album*);
+    void notifypurgealbums();
+    vector<Album*> albumnotify;
 
     map<handle, Album> mAlbums; // indexed by Album id
 

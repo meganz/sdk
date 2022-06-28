@@ -5103,10 +5103,16 @@ void MegaClient::initsc()
             }
         }
 
+        if (complete)
+        {
+            // 5. write Albums
+            complete = initscalbums();
+        }
+
 #ifdef ENABLE_CHAT
         if (complete)
         {
-            // 5. write new or modified chats
+            // 6. write new or modified chats
             for (textchat_map::iterator it = chats.begin(); it != chats.end(); it++)
             {
                 if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
@@ -5250,10 +5256,16 @@ void MegaClient::updatesc()
             }
         }
 
+        if (complete)
+        {
+            // 5. write new or modified albums, purge deleted ones
+            complete = updatescalbums();
+        }
+
 #ifdef ENABLE_CHAT
         if (complete)
         {
-            // 5. write new or modified chats
+            // 6. write new or modified chats
             for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
             {
                 char base64[12];
@@ -7267,7 +7279,7 @@ void MegaClient::notifypurge(void)
 
     if (scsn.ready()) tscsn = scsn.getHandle();
 
-    if (nodenotify.size() || usernotify.size() || pcrnotify.size()
+    if (nodenotify.size() || usernotify.size() || pcrnotify.size() || !albumnotify.empty()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -7473,6 +7485,8 @@ void MegaClient::notifypurge(void)
 
         useralerts.useralertnotify.clear();
     }
+
+    notifypurgealbums();
 
 #ifdef ENABLE_CHAT
     if ((t = int(chatnotify.size())))
@@ -12189,6 +12203,15 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
 #endif
                 break;
+
+            case CACHEDALBUM:
+            {
+                if (!fetchscalbum(&data, id))
+                {
+                    return false;
+                }
+                break;
+            }
         }
         hasNext = sctable->next(&id, &data, &key);
     }
@@ -17249,7 +17272,7 @@ error MegaClient::readAlbumsAndElements(JSON& j)
     else if (!newAlbums.empty()) // "aft" command (will contain only 1 Album)
     {
         auto& a = newAlbums.begin()->second;
-        mAlbums[a.id()] = move(a);
+        addAlbum(move(a));
     }
 
     return API_OK;
@@ -17479,7 +17502,9 @@ const Album* MegaClient::album(handle id) const
 
 void MegaClient::addAlbum(Album&& a)
 {
-    mAlbums[a.id()] = move(a);
+    Album& added = mAlbums[a.id()] = move(a);
+
+    notifyalbum(&added);
 }
 
 void MegaClient::updateAlbum(handle id, string&& attrs, m_time_t ts)
@@ -17490,13 +17515,23 @@ void MegaClient::updateAlbum(handle id, string&& attrs, m_time_t ts)
         {
             it.second.setAttrs(move(attrs));
             it.second.setTs(ts);
+            notifyalbum(&it.second);
+            break;
         }
     }
 }
 
 bool MegaClient::deleteAlbum(handle albumId)
 {
-    return mAlbums.erase(albumId);
+    auto it = mAlbums.find(albumId);
+    if (it != mAlbums.end())
+    {
+        it->second.markForDbRemoval();
+        notifyalbum(&it->second);
+        return true;
+    }
+
+    return false;
 }
 
 void MegaClient::addOrUpdateAlbumElement(AlbumElement&& el, handle albumId)
@@ -17508,6 +17543,7 @@ void MegaClient::addOrUpdateAlbumElement(AlbumElement&& el, handle albumId)
     }
 
     itAl->second.addOrUpdateElement(move(el));
+    notifyalbum(&itAl->second);
 }
 
 bool MegaClient::deleteAlbumElement(handle elemId, handle albumId)
@@ -17515,7 +17551,11 @@ bool MegaClient::deleteAlbumElement(handle elemId, handle albumId)
     auto it = mAlbums.find(albumId);
     if (it != mAlbums.end())
     {
-        return it->second.removeElement(elemId);
+        if (it->second.removeElement(elemId))
+        {
+            notifyalbum(&it->second);
+            return true;
+        }
     }
 
     return false;
@@ -17654,6 +17694,185 @@ void MegaClient::sc_aer()
     }
 }
 
+bool MegaClient::initscalbums()
+{
+    for (auto& i : mAlbums)
+    {
+        if (!sctable->put(CACHEDALBUM, &i.second, &key))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool MegaClient::fetchscalbum(string* data, uint32_t id)
+{
+    Album* al = unserializeAlbum(data);
+    if (al)
+    {
+        al->dbid = id;
+    }
+    else
+    {
+        LOG_err << "Failed - album record read error";
+        return false;
+    }
+
+    return true;
+}
+bool MegaClient::updatescalbums()
+{
+    for (Album* a : albumnotify)
+    {
+        char base64[12];
+        if (!a->removeFromDb()) // add / replace
+        {
+            LOG_verbose << "Adding album to database: " << (Base64::btoa((byte*)&(a->id()), MegaClient::ALBUMHANDLE, base64) ? base64 : "");
+            if (!sctable->put(CACHEDALBUM, a, &key))
+            {
+                return false;
+            }
+        }
+        else if (a->dbid) // remove
+        {
+            LOG_verbose << "Removing album from database: " << (Base64::btoa((byte*)&(a->id()), MegaClient::ALBUMHANDLE, base64) ? base64 : "");
+            if (!sctable->del(a->dbid))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+void MegaClient::notifyalbum(Album* al)
+{
+    if (!al->notified)
+    {
+        al->notified = true;
+        albumnotify.push_back(al);
+    }
+}
+
+void MegaClient::notifypurgealbums()
+{
+    for (auto& a : albumnotify)
+    {
+        if (a->removeFromDb())
+        {
+            mAlbums.erase(a->id());
+        }
+        else
+        {
+            a->notified = false;
+        }
+    }
+
+    albumnotify.clear();
+}
+
+Album* MegaClient::unserializeAlbum(string* d)
+{
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    if (ptr + MegaClient::ALBUMHANDLE + sizeof(size_t) + MegaClient::USERHANDLE + sizeof(m_time_t) + 2 * sizeof(size_t) > end)
+    {
+        return nullptr;
+    }
+
+    handle id = 0;
+    memcpy((char*)&id, ptr, MegaClient::ALBUMHANDLE);
+    ptr += MegaClient::ALBUMHANDLE;
+
+    size_t l = MemAccess::get<size_t>(ptr);
+    ptr += sizeof(size_t);
+    if (ptr + l + MegaClient::USERHANDLE + sizeof(m_time_t) + 2 * sizeof(size_t) > end)
+    {
+        return nullptr;
+    }
+    string k;
+    k.assign(ptr, l);
+    ptr += l;
+
+    handle u = 0;
+    memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
+    ptr += MegaClient::USERHANDLE;
+
+    m_time_t ts = MemAccess::get<m_time_t>(ptr);
+    ptr += sizeof(m_time_t);
+
+    l = MemAccess::get<size_t>(ptr);
+    ptr += sizeof(size_t);
+    if (ptr + l + sizeof(size_t) > end)
+    {
+        return nullptr;
+    }
+    string attrs;
+    attrs.assign(ptr, l);
+    ptr += l;
+
+    Album al((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(attrs));
+
+    // get Elements of this album
+    size_t elCount = MemAccess::get<size_t>(ptr);
+    ptr += sizeof(size_t);
+    for (auto i = 0; i < elCount; ++i)
+    {
+        if (ptr + MegaClient::ALBUMELEMENTHANDLE + MegaClient::NODEHANDLE + sizeof(size_t) + sizeof(int64_t) + sizeof(m_time_t) + sizeof(size_t) > end)
+        {
+            return nullptr;
+        }
+
+        id = 0;
+        memcpy((char*)&id, ptr, MegaClient::ALBUMELEMENTHANDLE);
+        ptr += MegaClient::ALBUMELEMENTHANDLE;
+
+        handle h = 0;
+        memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
+        ptr += MegaClient::NODEHANDLE;
+
+        l = MemAccess::get<size_t>(ptr);
+        ptr += sizeof(size_t);
+        if (ptr + l + sizeof(int64_t) + sizeof(m_time_t) + sizeof(size_t) > end)
+        {
+            return nullptr;
+        }
+        attrs.assign(ptr, l);
+        ptr += l;
+
+        int64_t o = MemAccess::get<int64_t>(ptr);
+        ptr += sizeof(int64_t);
+
+        ts = MemAccess::get<m_time_t>(ptr);
+        ptr += sizeof(m_time_t);
+
+        l = MemAccess::get<size_t>(ptr);
+        ptr += sizeof(size_t);
+        if (ptr + l > end)
+        {
+            return nullptr;
+        }
+        k.assign(ptr, l);
+        ptr += l;
+
+        AlbumElement el((h ? h : UNDEF), (id ? id : UNDEF));
+        el.setAttrs(move(attrs));
+        el.setOrder(o);
+        el.setTs(ts);
+        el.setKey(move(k));
+
+        al.addOrUpdateElement(move(el));
+    }
+
+    Album& addedAlbum = mAlbums[al.id()] = move(al);
+
+    return &addedAlbum;
+}
+
 bool Album::hasElement(handle elemId) const
 {
     auto it = mElements.find(elemId);
@@ -17686,6 +17905,45 @@ void Album::addOrUpdateElement(AlbumElement&& el)
     {
         existing.setTs(el.ts());
     }
+}
+
+bool Album::serialize(string* d)
+{
+    d->append((char*)&mId, MegaClient::ALBUMHANDLE);
+    size_t kSize = mKey.size();
+    d->append((char*)&kSize, sizeof(kSize));
+    d->append(mKey);
+    d->append((char*)&mUser, MegaClient::USERHANDLE);
+    d->append((char*)&mTs, sizeof(mTs));
+    size_t aSize = mAttrs.size();
+    d->append((char*)&aSize, sizeof(aSize));
+    d->append(mAttrs);
+
+    size_t elemCount = mElements.size();
+    d->append((char*)&elemCount, sizeof(elemCount));
+
+    for (auto& e : mElements)
+    {
+        e.second.serialize(d);
+    }
+
+    return true;
+}
+
+bool AlbumElement::serialize(string* d)
+{
+    d->append((char*)&mId, MegaClient::ALBUMELEMENTHANDLE);
+    d->append((char*)&mNodeHandle, MegaClient::NODEHANDLE);
+    size_t aSize = mAttrs.size();
+    d->append((char*)&aSize, sizeof(aSize));
+    d->append(mAttrs);
+    d->append((char*)&mOrder, sizeof(mOrder));
+    d->append((char*)&mTs, sizeof(mTs));
+    size_t kSize = mKey.size();
+    d->append((char*)&kSize, sizeof(kSize));
+    d->append(mKey);
+
+    return true;
 }
 
 // -------- end of Albums
