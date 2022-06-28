@@ -7807,16 +7807,17 @@ TEST_F(SdkTest, SdkTestAlbums)
     LOG_info << "___TEST Albums___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // 1. Create Album
-    // 2. Update album
-    // 3. Fetch Album
-    // 4. Upload test file
-    // 5. Add Element
-    // 6. Update Element order
-    // 7. Update Element attrs
-    // 8. Remove Element
-    // 9. logout / login  (DISABLED)
-    // 10. Remove all Albums
+    //  1. Create Album
+    //  2. Update album
+    //  3. Fetch Album
+    //  4. Upload test file
+    //  5. Add Element
+    //  6. Update Element order
+    //  7. Update Element attrs
+    //  8. Remove Element
+    //  9. Add another element
+    // 10. Logout / login
+    // 11. Remove all Albums
 
 
     // 1. Create Album
@@ -7943,30 +7944,51 @@ TEST_F(SdkTest, SdkTestAlbums)
     ASSERT_EQ(ahre, ah);
 
     a1 = megaApi[0]->getAlbum(ah);
-    ite = a1.elements().find(eh);
-    ASSERT_EQ(ite, a1.elements().end());
+    ASSERT_EQ(a1.id(), ah);
+    ASSERT_TRUE(a1.elements().empty());
 
     err = doFetchAlbum(0, ah); // will replace the one stored in memory
     ASSERT_EQ(err, API_OK);
 
     a1 = megaApi[0]->getAlbum(ah);
-    ite = a1.elements().find(eh);
-    ASSERT_EQ(ite, a1.elements().end());
+    ASSERT_EQ(a1.id(), ah);
+    ASSERT_TRUE(a1.elements().empty());
 
-#if 0
-    // 9. logout / login
+    // 9. Add another element
+    eh = 0;
+    optionFlags = 2; // set attributes
+    elattrs += " again";
+    err = doCreateAlbumElement(0, &eh, ah, uploadedNode, optionFlags, 0, elattrs.c_str());
+    const AlbumElement el_b4lo = megaApi[0]->getAlbum(ah).elements().begin()->second;
+    ASSERT_EQ(err, API_OK);
+    ASSERT_NE(eh, INVALID_HANDLE);
+    ASSERT_EQ(el_b4lo.id(), eh);
+    ASSERT_EQ(el_b4lo.attrs(), elattrs);
+
+    // 10. Logout / login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
+    a1 = megaApi[0]->getAlbum(ah);
+    ASSERT_EQ(a1.id(), INVALID_HANDLE);
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
-    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0)); // load cached albums
 
     a1 = megaApi[0]->getAlbum(ah);
     ASSERT_EQ(a1.id(), ah);
-    ASSERT_EQ(a1.attrs(), attrs);
     ASSERT_EQ(a1.key(), a1f.key());
-#endif
+    ASSERT_EQ(a1.user(), a1f.user());
+    ASSERT_EQ(a1.ts(), a1f.ts());
+    ASSERT_EQ(a1.attrs(), attrs);
+    ASSERT_EQ(a1.elements().size(), 1);
 
-    // 10. Remove all Albums
+    const AlbumElement& ell = a1.elements().begin()->second;
+    ASSERT_EQ(ell.id(), el_b4lo.id());
+    ASSERT_EQ(ell.node(), el_b4lo.node());
+    ASSERT_EQ(ell.ts(), el_b4lo.ts());
+    ASSERT_EQ(ell.key(), el_b4lo.key());
+    ASSERT_EQ(ell.attrs(), elattrs);
+
+    // 11. Remove all Albums
     unique_ptr<MegaHandleList> albumIds(megaApi[0]->getAlbumIds());
     for (unsigned i = 0; i < albumIds->size(); ++i)
     {
