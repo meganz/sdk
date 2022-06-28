@@ -570,7 +570,7 @@ SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAcce
 {
     int result = sqlite3_open_v2(path.toPath().c_str(), &mDbSearchConnection,
         SQLITE_OPEN_READONLY // The database is opened for reading
-        | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used without restriction. (Required to avoid failure at SyncTest)
+        | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used without restriction
         , nullptr);
 
     if (result)
