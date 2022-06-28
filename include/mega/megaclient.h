@@ -440,7 +440,8 @@ private:
     node_vector getRootNodesAndInshares();
 
     //Avoid loading nodes whose ancestor is not ancestorHandle. If ancestorHandle is undef load all nodes
-    node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle);
+    // If searchingNodeByName is true, mSearchIsCanceled will be checked in every iteration
+    node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle, bool searchingNodeByName = false);
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;

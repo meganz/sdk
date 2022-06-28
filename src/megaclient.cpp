@@ -17074,7 +17074,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByName(searchString, nodesFromTable);
-    nodes = filterByAncestor(nodesFromTable, nodeHandle);
+    nodes = filterByAncestor(nodesFromTable, nodeHandle, true);
 
     mSearchIsCanceled = false;
 
@@ -18224,13 +18224,13 @@ node_vector NodeManager::getRootNodesAndInshares()
     return rootnodes;
 }
 
-node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized> > &nodesFromTable, NodeHandle ancestorHandle)
+node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized> > &nodesFromTable, NodeHandle ancestorHandle, bool searchingNodeByName)
 {
     node_vector nodes;
 
     for (const auto& nodeIt : nodesFromTable)
     {
-        if (mSearchIsCanceled) break;
+        if (searchingNodeByName && mSearchIsCanceled) break;
 
         Node* n = getNodeInRAM(nodeIt.first);
 
