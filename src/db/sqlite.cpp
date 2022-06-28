@@ -568,7 +568,23 @@ void SqliteDbTable::remove()
 SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted)
     : SqliteDbTable(rng, pdb, fsAccess, path, checkAlwaysTransacted)
 {
+    int result = sqlite3_open_v2(path.toPath().c_str(), &mDbSearchConnection,
+        SQLITE_OPEN_READONLY // The database is opened for reading
+        | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used without restriction. (Required to avoid failure at SyncTest)
+        , nullptr);
 
+    if (result)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(mDbSearchConnection) ? sqlite3_errmsg(mDbSearchConnection) : std::to_string(result));
+        LOG_err << "Failure opening data base connection for get nodes by name: " <<  err;
+        if (mDbSearchConnection)
+        {
+            sqlite3_close(mDbSearchConnection);
+            mDbSearchConnection = nullptr;
+        }
+
+        assert(false);
+    }
 }
 
 SqliteAccountState::~SqliteAccountState()
@@ -577,9 +593,14 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtUpdateNode);
     sqlite3_finalize(mStmtTypeAndSizeNode);
     sqlite3_finalize(mDelStmt);
+
+    if (mDbSearchConnection)
+    {
+        sqlite3_close(mDbSearchConnection);
+    }
 }
 
-bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes)
+bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, sqlite3* dbConnection)
 {
     assert(stmt);
     int sqlResult = SQLITE_ERROR;
@@ -611,7 +632,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
     if (sqlResult == SQLITE_ERROR)
     {
         // In case of interrupt db query, it will finish with (expected) error
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        string err = string(" Error: ") + (sqlite3_errmsg(dbConnection) ? sqlite3_errmsg(dbConnection) : std::to_string(sqlResult));
         LOG_debug << "Unable to processSqlQueryNodes from database (maybe query has been interrupted): " << dbfile << err;
     }
 
@@ -664,12 +685,12 @@ bool SqliteAccountState::removeNodes()
 
 void SqliteAccountState::cancelQuery()
 {
-    if (!db)
+    if (!mDbSearchConnection)
     {
         return;
     }
 
-    sqlite3_interrupt(db);
+    sqlite3_interrupt(mDbSearchConnection);
 }
 
 void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob)
@@ -723,6 +744,9 @@ void SqliteAccountState::remove()
 
     sqlite3_finalize(mStmtGetNode);
     mStmtGetNode = nullptr;
+
+    sqlite3_close(mDbSearchConnection);
+    mDbSearchConnection = nullptr;
 
     SqliteDbTable::remove();
 }
@@ -869,7 +893,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
     {
         if ((sqlResult = sqlite3_bind_blob(stmt, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
         {
-            result = processSqlQueryNodes(stmt, nodes);
+            result = processSqlQueryNodes(stmt, nodes, db);
         }
     }
 
@@ -902,7 +926,7 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
         {
             if ((sqlResult = sqlite3_bind_int64(stmt, 2, nodetype_t::RUBBISHNODE)) == SQLITE_OK)
             {
-                result = processSqlQueryNodes(stmt, nodes);
+                result = processSqlQueryNodes(stmt, nodes, db);
             }
         }
     }
@@ -932,7 +956,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     {
         if ((sqlResult = sqlite3_bind_int(stmt, 1, static_cast<int>(shareType))) == SQLITE_OK)
         {
-            result = processSqlQueryNodes(stmt, nodes);
+            result = processSqlQueryNodes(stmt, nodes, db);
         }
     }
 
@@ -950,7 +974,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
 
 bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes)
 {
-    if (!db)
+    if (!mDbSearchConnection)
     {
         return false;
     }
@@ -966,17 +990,17 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
 
     sqlite3_stmt *stmt;
     bool result = false;
-    int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(mDbSearchConnection, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        result = processSqlQueryNodes(stmt, nodes);
+        result = processSqlQueryNodes(stmt, nodes, mDbSearchConnection);
     }
 
     sqlite3_finalize(stmt);
 
     if (sqlResult == SQLITE_ERROR)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        string err = string(" Error: ") + (sqlite3_errmsg(mDbSearchConnection) ? sqlite3_errmsg(mDbSearchConnection) : std::to_string(sqlResult));
         LOG_err << "Unable to get nodes by name from database: " << dbfile << err;
         assert(!"Unable to get nodes by name from database.");
         return false;
@@ -1019,7 +1043,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
         sqlResult = sqlite3_bind_int64(stmt, 1, since);
         if (sqlResult == SQLITE_OK)
         {
-            stepResult = processSqlQueryNodes(stmt, nodes);
+            stepResult = processSqlQueryNodes(stmt, nodes, db);
         }
     }
 

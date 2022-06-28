@@ -91,12 +91,14 @@ private:
     // Allow at least the following containers:
     //     std::map<mega::NodeHandle, NodeSerialized>
     //     std::vector<std::pair<mega::NodeHandle, NodeSerialized>>
-    bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
+    bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, sqlite3 *dbConnection);
 
     sqlite3_stmt* mStmtPutNode = nullptr;
     sqlite3_stmt* mStmtUpdateNode = nullptr;
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
+
+    sqlite3* mDbSearchConnection = nullptr;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess
