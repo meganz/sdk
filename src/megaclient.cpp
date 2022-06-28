@@ -18228,21 +18228,23 @@ node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle
 {
     node_vector nodes;
 
-    for (auto nodeIt = nodesFromTable.begin(); nodeIt != nodesFromTable.end() && !mSearchIsCanceled; nodeIt++)
+    for (const auto& nodeIt : nodesFromTable)
     {
-        Node* n = getNodeInRAM(nodeIt->first);
+        if (mSearchIsCanceled) break;
+
+        Node* n = getNodeInRAM(nodeIt.first);
 
         if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)
         {
             bool skip = n ? !n->isAncestor(ancestorHandle)
-                          : !isAncestor(nodeIt->first, ancestorHandle);
+                          : !isAncestor(nodeIt.first, ancestorHandle);
 
             if (skip) continue;
         }
 
         if (!n)
         {
-            n = getNodeFromNodeSerialized(nodeIt->second);
+            n = getNodeFromNodeSerialized(nodeIt.second);
             if (!n)
             {
                 nodes.clear();
