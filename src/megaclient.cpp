@@ -17589,6 +17589,7 @@ void MegaClient::sc_asp()
         {
             existing.setUser(al.user());
         }
+        notifyalbum(&existing);
     }
 }
 
@@ -17657,6 +17658,8 @@ void MegaClient::sc_aep()
     }
 
     al->addOrUpdateElement(move(el));
+
+    notifyalbum(al);
 }
 
 void MegaClient::sc_aer()
