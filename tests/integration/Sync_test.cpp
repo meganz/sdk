@@ -10489,37 +10489,37 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         ASSERT_TRUE(client0.uploadFilesInTree(sPath, r));
     }
 
+    NodeHandle sh;
+
     // Get our hands on the remote sync root.
-    Node* s = client0.drillchildnodebyname(r, "s");
-    ASSERT_NE(s, nullptr);
+    {
+        Node* s = client0.drillchildnodebyname(r, "s");
+        ASSERT_NE(s, nullptr);
+
+        sh = s->nodeHandle();
+    }
 
     // Share the test root with client 1.
     ASSERT_TRUE(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL));
     ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), std::chrono::seconds(90)));
 
     // Share the sync root with client 2.
-    ASSERT_TRUE(client0.share(*s, getenv("MEGA_EMAIL_AUX2"), FULL));
-    ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(*s), std::chrono::seconds(90)));
+    ASSERT_TRUE(client0.share(sh, getenv("MEGA_EMAIL_AUX2"), FULL));
+    ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(sh), std::chrono::seconds(90)));
 
     // Add and start a new sync.
     auto id = UNDEF;
 
-    {
-        // View s from client 1's perspective.
-        auto* xs = client1.client.nodebyhandle(s->nodehandle);
-        ASSERT_NE(xs, nullptr);
-
-        // Add the sync.
-        id = client1.setupSync_mainthread("s", *xs, false, false);
-        ASSERT_NE(id, UNDEF);
-    }
+    // Add the sync.
+    id = client1.setupSync_mainthread("s", sh, false, false);
+    ASSERT_NE(id, UNDEF);
 
     // Wait for the initial sync to complete.
     waitonsyncs(DEFAULTWAIT, &client1);
 
     // Make sure the clients all agree with what's in the cloud.
     ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id));
-    ASSERT_TRUE(client2.waitFor(SyncRemoteMatch(*s, model.root.get()), DEFAULTWAIT));
+    ASSERT_TRUE(client2.waitFor(SyncRemoteMatch(sh, model.root.get()), DEFAULTWAIT));
 
     // Log out the sharing client so that it doesn't maintain keys.
     ASSERT_TRUE(client0.logout(false));
@@ -10527,7 +10527,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
     // Make a couple changes to client1's sync via client2.
     {
         // Nodes from client2's perspective.
-        auto* xs = client2.client.nodebyhandle(s->nodehandle);
+        auto* xs = client2.client.nodeByHandle(sh);
         ASSERT_NE(xs, nullptr);
 
         auto* xt = client2.client.childnodebyname(xs, "t");
