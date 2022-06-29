@@ -655,6 +655,82 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 };
 
 
+class MegaSetPrivate : public MegaSet
+{
+public:
+    MegaSetPrivate(MegaHandle id, MegaHandle u, const string& k, m_time_t ts, const string& name) :
+        mId(id), mUser(u), mKey(k), mTs(ts), mName(name) {}
+
+    MegaHandle id() const override { return mId; }
+    MegaHandle user() const override { return mUser; }
+    const char* key() const override { return mKey.c_str(); }
+    int64_t ts() const override { return mTs; }
+    const char* name() const override { return mName.c_str(); }
+
+    MegaSet* copy() const override { return new MegaSetPrivate(*this); }
+
+private:
+    MegaHandle mId;
+    MegaHandle mUser;
+    string mKey;
+    m_time_t mTs;
+    string mName;
+};
+
+
+class MegaSetListPrivate : public MegaSetList
+{
+public:
+    void add(MegaSetPrivate&& s);
+    MegaSetList* copy() const override { return new MegaSetListPrivate(*this); }
+
+    const MegaSet* get(unsigned i) const override { return i < size() ? &mSets[i] : nullptr; }
+    unsigned size() const override { return (unsigned)mSets.size(); }
+
+private:
+    vector<MegaSetPrivate> mSets;
+};
+
+
+class MegaSetElementPrivate : public MegaElement
+{
+public:
+    MegaSetElementPrivate(MegaHandle id, MegaHandle h, int64_t o, const string& k, m_time_t ts, const string& attrs) :
+        mId(id), mNode(h), mOrder(o), mKey(k), mTs(ts), mAttrs(attrs) {}
+
+    MegaHandle id() const override { return mId; }
+    MegaHandle node() const override { return mNode; }
+    int64_t order() const override { return mOrder; }
+    const char* key() const override { return mKey.c_str(); }
+    int64_t ts() const override { return mTs; }
+    const char* attrs() const override { return mAttrs.c_str(); }
+
+    virtual MegaElement* copy() const override { return new MegaSetElementPrivate(*this); }
+
+private:
+    MegaHandle mId;
+    MegaHandle mNode;
+    int64_t mOrder;
+    string mKey;
+    m_time_t mTs;
+    string mAttrs;
+};
+
+
+class MegaSetElementListPrivate : public MegaElementList
+{
+public:
+    void add(MegaSetElementPrivate&& el);
+    MegaElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
+
+    const MegaElement* get(unsigned i) const override { return i < size() ? &mElements[i] : nullptr; }
+    unsigned size() const override { return (unsigned)mElements.size(); }
+
+private:
+    vector<MegaSetElementPrivate> mElements;
+};
+
+
 class MegaUserPrivate : public MegaUser
 {
 	public:
@@ -2515,8 +2591,11 @@ class MegaApiImpl : public MegaApp
         void fetchAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
         void putAlbumElement(MegaHandle id, MegaHandle albumId, MegaHandle node, int optionFlags, int64_t order, const char* attrs, MegaRequestListener* listener = nullptr);
         void removeAlbumElement(MegaHandle id, MegaRequestListener* listener = nullptr);
-        Album getAlbum(MegaHandle id);
-        MegaHandleList* getAlbumIds();
+
+        MegaSetList* getMegaSets();
+        MegaSet* getMegaSet(MegaHandle sid);
+        MegaElementList* getMegaElements(MegaHandle sid);
+        MegaElement* getMegaElement(MegaHandle eid, MegaHandle sid);
 
 #ifdef ENABLE_SYNC
         //Sync

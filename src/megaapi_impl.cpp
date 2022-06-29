@@ -23570,24 +23570,67 @@ void MegaApiImpl::removeAlbumElement(MegaHandle id, MegaRequestListener* listene
     waiter->notify();
 }
 
-Album MegaApiImpl::getAlbum(MegaHandle id)
-{
-    SdkMutexGuard g(sdkMutex);
-    const Album* a = client->album(id);
-    return a ? *a : Album();
-}
-
-MegaHandleList* MegaApiImpl::getAlbumIds()
+MegaSetList* MegaApiImpl::getMegaSets()
 {
     SdkMutexGuard g(sdkMutex);
 
-    MegaHandleList* aidList = new MegaHandleListPrivate();
-    for (const auto& a : client->albums())
+    MegaSetListPrivate* sList = new MegaSetListPrivate();
+    for (const auto& ap : client->albums())
     {
-        aidList->addMegaHandle(a.second.id());
+        const Album& a = ap.second;
+        sList->add(MegaSetPrivate(a.id(), a.user(), a.key(), a.ts(), a.attrs()));
     }
 
-    return aidList;
+    return sList;
+}
+
+MegaSet* MegaApiImpl::getMegaSet(MegaHandle sid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    const Album* al = client->album(sid);
+    return al ? new MegaSetPrivate(al->id(), al->user(), al->key(), al->ts(), al->attrs()) : nullptr;
+}
+
+MegaElementList* MegaApiImpl::getMegaElements(MegaHandle sid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    MegaSetElementListPrivate* eList = new MegaSetElementListPrivate();
+    const Album* al = client->album(sid);
+
+    if (al)
+    {
+        for (const auto& ell : al->elements())
+        {
+            const AlbumElement& el = ell.second;
+            eList->add(MegaSetElementPrivate(el.id(), el.node(), el.order(), el.key(), el.ts(), el.attrs()));
+        }
+    }
+
+    return eList;
+}
+
+MegaElement* MegaApiImpl::getMegaElement(MegaHandle eid, MegaHandle sid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    const Album* al = client->album(sid);
+    const AlbumElement* el = al ? al->element(eid) : nullptr;
+
+    return el ? new MegaSetElementPrivate(el->id(), el->node(), el->order(), el->key(), el->ts(), el->attrs()) : nullptr;
+}
+
+
+void MegaSetListPrivate::add(MegaSetPrivate&& s)
+{
+    mSets.emplace_back(move(s));
+}
+
+
+void MegaSetElementListPrivate::add(MegaSetElementPrivate&& el)
+{
+    mElements.emplace_back(move(el));
 }
 
 

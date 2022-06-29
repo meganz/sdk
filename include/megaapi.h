@@ -1182,6 +1182,126 @@ class MegaNode
         static MegaNode* unserialize(const char *d);
 };
 
+
+/**
+ * @brief Represents a Set in MEGA
+ *
+ * It allows to get all data related to a Set in MEGA.
+ *
+ * Objects of this class aren't live, they are snapshots of the state of a Set
+ * in MEGA when the object is created, they are immutable.
+ *
+ */
+class MegaSet
+{
+public:
+    virtual MegaHandle id() const { return INVALID_HANDLE; }
+    virtual MegaHandle user() const { return INVALID_HANDLE; }
+    virtual const char* key() const { return nullptr; }
+    virtual int64_t ts() const { return 0; }
+    virtual const char* name() const { return nullptr; }
+
+    virtual MegaSet* copy() const { return nullptr; }
+    virtual ~MegaSet() = default;
+};
+
+/**
+ * @brief List of MegaSet objects
+ *
+ * A MegaSetList has the ownership of the MegaSet objects that it contains, so they will be
+ * only valid until the MegaSetList is deleted. If you want to retain a MegaSet returned by
+ * a MegaSetList, use MegaSet::copy().
+ *
+ * Objects of this class are immutable.
+ */
+class MegaSetList
+{
+public:
+    /**
+     * @brief Returns the MegaSet at the position i in the MegaSetList
+     *
+     * The MegaSetList retains the ownership of the returned MegaSet. It will be only valid until
+     * the MegaSetList is deleted. If you want to retain a MegaSet returned by this function,
+     * use MegaSet::copy().
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the MegaSet that we want to get for the list
+     * @return MegaSet at the position i in the list
+     */
+    virtual const MegaSet* get(unsigned int i) const { return nullptr; }
+
+    /**
+     * @brief Returns the number of MegaSets in the list
+     * @return Number of MegaSets in the list
+     */
+    virtual unsigned int size() const { return 0; }
+
+    virtual MegaSetList* copy() const { return nullptr; }
+    virtual ~MegaSetList() = default;
+};
+
+
+/**
+ * @brief Represents an Element of a Set in MEGA
+ *
+ * It allows to get all data related to an Element of a Set in MEGA.
+ *
+ * Objects of this class aren't live, they are snapshots of the state of an Element of a Set
+ * in MEGA when the object is created, they are immutable.
+ *
+ */
+class MegaElement
+{
+public:
+    virtual MegaHandle id() const { return INVALID_HANDLE; }
+    virtual MegaHandle node() const { return INVALID_HANDLE; }
+    virtual int64_t order() const { return 0; }
+    virtual const char* key() const { return nullptr; }
+    virtual int64_t ts() const { return 0; }
+    virtual const char* attrs() const { return nullptr; }
+
+    virtual MegaElement* copy() const { return nullptr; }
+    virtual ~MegaElement() = default;
+};
+
+/**
+ * @brief List of MegaElement objects
+ *
+ * A MegaElementList has the ownership of the MegaElement objects that it contains, so they will be
+ * only valid until the MegaElementList is deleted. If you want to retain a MegaElement returned by
+ * a MegaElementList, use MegaElement::copy().
+ *
+ * Objects of this class are immutable.
+ */
+class MegaElementList
+{
+public:
+    /**
+     * @brief Returns the MegaElement at the position i in the MegaElementList
+     *
+     * The MegaElementList retains the ownership of the returned MegaElement. It will be only valid until
+     * the MegaElementList is deleted. If you want to retain a MegaElement returned by this function,
+     * use MegaElement::copy().
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the MegaElement that we want to get for the list
+     * @return MegaElement at the position i in the list
+     */
+    virtual const MegaElement* get(unsigned int i) const { return nullptr; }
+
+    /**
+     * @brief Returns the number of MegaSetElements in the list
+     * @return Number of MegaSetElements in the list
+     */
+    virtual unsigned int size() const { return 0; }
+
+    virtual MegaElementList* copy() const { return nullptr; }
+    virtual ~MegaElementList() = default;
+};
+
+
 /**
  * @brief Represents an user in MEGA
  *
@@ -18891,15 +19011,20 @@ class MegaApi
          */
         bool driveMonitorEnabled();
 
-        void createAlbum(const char* name = nullptr, MegaRequestListener* listener = nullptr);
-        void updateAlbum(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
-        void removeAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void fetchAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void createAlbumElement(MegaHandle albumId, MegaHandle node, int optionFlags, int64_t order = 0, const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
-        void updateAlbumElement(MegaHandle id, int optionFlags, int64_t order, const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
-        void removeAlbumElement(MegaHandle id, MegaRequestListener* listener = nullptr);
-        Album getAlbum(MegaHandle id);
-        MegaHandleList* getAlbumIds();
+        void createMegaSet(const char* name = nullptr, MegaRequestListener* listener = nullptr);
+        void updateMegaSetName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
+        void removeMegaSet(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void fetchMegaSet(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void createMegaElement(MegaHandle setId, MegaHandle node, int optionFlags, int64_t order = 0, const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
+        void updateMegaElement(MegaHandle id, int optionFlags, int64_t order, const char* name = nullptr, MegaRequestListener* listener = nullptr);
+        void updateMegaElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener = nullptr);
+        void updateMegaElementName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
+        void removeMegaElement(MegaHandle id, MegaRequestListener* listener = nullptr);
+
+        MegaSetList* getMegaSets();
+        MegaSet* getMegaSet(MegaHandle sid);
+        MegaElementList* getMegaElements(MegaHandle sid);
+        MegaElement* getMegaElement(MegaHandle eid, MegaHandle sid);
 
  private:
         MegaApiImpl *pImpl = nullptr;
