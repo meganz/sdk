@@ -11940,7 +11940,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             return new MegaNodeListPrivate();
         }
 
-        if (target == MegaApi::SEARCH_TARGET_ROOTNODE || target == MegaApi::SEARCH_TARGET_ALL)
+        if (target == MegaApi::SEARCH_TARGET_ROOTNODE)
         {
             // Search on rootnode (cloud, excludes Inbox and Rubbish)
             node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
@@ -11958,7 +11958,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             }
         }
 
-        if (target == MegaApi::SEARCH_TARGET_INSHARE || target == MegaApi::SEARCH_TARGET_ALL)
+        if (target == MegaApi::SEARCH_TARGET_INSHARE)
         {
             // Search on inshares
             unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
@@ -11978,6 +11978,11 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                     }
                 }
             }
+        }
+
+        if (target == MegaApi::SEARCH_TARGET_ALL)
+        {
+            result = searchInNodeManager(UNDEF, searchString, type, cancelToken);
         }
 
         if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
