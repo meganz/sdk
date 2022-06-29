@@ -5515,47 +5515,47 @@ bool MegaApi::driveMonitorEnabled()
 
 void MegaApi::createMegaSet(const char* name, MegaRequestListener* listener)
 {
-    pImpl->putAlbum(INVALID_HANDLE, name, listener);
+    pImpl->putSet(INVALID_HANDLE, name, listener);
 }
 
 void MegaApi::updateMegaSetName(MegaHandle id, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putAlbum(id, name, listener);
+    pImpl->putSet(id, name, listener);
 }
 
 void MegaApi::removeMegaSet(MegaHandle id, MegaRequestListener* listener)
 {
-    pImpl->removeAlbum(id, listener);
+    pImpl->removeSet(id, listener);
 }
 
 void MegaApi::fetchMegaSet(MegaHandle id, MegaRequestListener* listener)
 {
-    pImpl->fetchAlbum(id, listener);
+    pImpl->fetchSet(id, listener);
 }
 
-void MegaApi::createMegaElement(MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* attrs, MegaRequestListener* listener)
+void MegaApi::createMegaElement(MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putAlbumElement(INVALID_HANDLE, setId, node, optionFlags, order, attrs, listener);
+    pImpl->putSetElement(INVALID_HANDLE, setId, node, optionFlags, order, name, listener);
 }
 
 void MegaApi::updateMegaElement(MegaHandle id, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putAlbumElement(id, INVALID_HANDLE, INVALID_HANDLE, optionFlags, order, name, listener);
+    pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, optionFlags, order, name, listener);
 }
 
 void MegaApi::updateMegaElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener)
 {
-    pImpl->putAlbumElement(id, INVALID_HANDLE, INVALID_HANDLE, 1, order, nullptr, listener);
+    pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, 1, order, nullptr, listener);
 }
 
 void MegaApi::updateMegaElementName(MegaHandle id, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putAlbumElement(id, INVALID_HANDLE, INVALID_HANDLE, 2, 0, name, listener);
+    pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, 2, 0, name, listener);
 }
 
 void MegaApi::removeMegaElement(MegaHandle id, MegaRequestListener* listener)
 {
-    pImpl->removeAlbumElement(id, listener);
+    pImpl->removeSetElement(id, listener);
 }
 
 MegaSetList* MegaApi::getMegaSets()

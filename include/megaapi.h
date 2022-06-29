@@ -84,7 +84,7 @@ class MegaBackgroundMediaUpload;
 class MegaCancelToken;
 class MegaApi;
 class MegaSemaphore;
-class Album;
+class Set;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -1259,7 +1259,7 @@ public:
     virtual int64_t order() const { return 0; }
     virtual const char* key() const { return nullptr; }
     virtual int64_t ts() const { return 0; }
-    virtual const char* attrs() const { return nullptr; }
+    virtual const char* name() const { return nullptr; }
 
     virtual MegaElement* copy() const { return nullptr; }
     virtual ~MegaElement() = default;
@@ -3309,11 +3309,11 @@ class MegaRequest
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_FA_UPLOAD_URL                                          = 145,
             TYPE_EXECUTE_ON_THREAD                                          = 146,
-            TYPE_PUT_ALBUM                                                  = 147,
-            TYPE_REMOVE_ALBUM                                               = 148,
-            TYPE_FETCH_ALBUM                                                = 149,
-            TYPE_PUT_ALBUM_ELEMENT                                          = 150,
-            TYPE_REMOVE_ALBUM_ELEMENT                                       = 151,
+            TYPE_PUT_SET                                                    = 147,
+            TYPE_REMOVE_SET                                                 = 148,
+            TYPE_FETCH_SET                                                  = 149,
+            TYPE_PUT_SET_ELEMENT                                            = 150,
+            TYPE_REMOVE_SET_ELEMENT                                         = 151,
             TOTAL_OF_REQUEST_TYPES                                          = 152,
         };
 
@@ -19015,7 +19015,7 @@ class MegaApi
         void updateMegaSetName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
         void removeMegaSet(MegaHandle id, MegaRequestListener* listener = nullptr);
         void fetchMegaSet(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void createMegaElement(MegaHandle setId, MegaHandle node, int optionFlags, int64_t order = 0, const char* attrs = nullptr, MegaRequestListener* listener = nullptr);
+        void createMegaElement(MegaHandle setId, MegaHandle node, int optionFlags, int64_t order = 0, const char* name = nullptr, MegaRequestListener* listener = nullptr);
         void updateMegaElement(MegaHandle id, int optionFlags, int64_t order, const char* name = nullptr, MegaRequestListener* listener = nullptr);
         void updateMegaElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener = nullptr);
         void updateMegaElementName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);

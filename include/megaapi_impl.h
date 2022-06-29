@@ -695,15 +695,15 @@ private:
 class MegaSetElementPrivate : public MegaElement
 {
 public:
-    MegaSetElementPrivate(MegaHandle id, MegaHandle h, int64_t o, const string& k, m_time_t ts, const string& attrs) :
-        mId(id), mNode(h), mOrder(o), mKey(k), mTs(ts), mAttrs(attrs) {}
+    MegaSetElementPrivate(MegaHandle id, MegaHandle h, int64_t o, const string& k, m_time_t ts, const string& name) :
+        mId(id), mNode(h), mOrder(o), mKey(k), mTs(ts), mName(name) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle node() const override { return mNode; }
     int64_t order() const override { return mOrder; }
     const char* key() const override { return mKey.c_str(); }
     int64_t ts() const override { return mTs; }
-    const char* attrs() const override { return mAttrs.c_str(); }
+    const char* name() const override { return mName.c_str(); }
 
     virtual MegaElement* copy() const override { return new MegaSetElementPrivate(*this); }
 
@@ -713,7 +713,7 @@ private:
     int64_t mOrder;
     string mKey;
     m_time_t mTs;
-    string mAttrs;
+    string mName;
 };
 
 
@@ -2585,12 +2585,12 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getChildTransfers(int transferTag);
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
-        //Albums
-        void putAlbum(MegaHandle id, const char* attrs, MegaRequestListener* listener = nullptr);
-        void removeAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void fetchAlbum(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void putAlbumElement(MegaHandle id, MegaHandle albumId, MegaHandle node, int optionFlags, int64_t order, const char* attrs, MegaRequestListener* listener = nullptr);
-        void removeAlbumElement(MegaHandle id, MegaRequestListener* listener = nullptr);
+        //Sets and Elements
+        void putSet(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
+        void removeSet(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void fetchSet(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void putSetElement(MegaHandle id, MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
+        void removeSetElement(MegaHandle id, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getMegaSets();
         MegaSet* getMegaSet(MegaHandle sid);
