@@ -3232,15 +3232,18 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
 void StandardClient::cleanupForTestReuse()
 {
     auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
-        client.client.syncs.removeSelectedSync(
-          [](SyncConfig&, Sync*) { return true; },
-          [=](Error error) { result->set_value(error == API_OK); },
-          UNDEF,
-          true);
+        client.client.syncs.purgeSyncs([=](Error error) {
+            result->set_value(error == API_OK);
+        });
     });
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return;
+
+    EXPECT_TRUE(result.get());
 }
 
 bool StandardClient::login_reset_makeremotenodes(const string& prefix, int depth, int fanout, bool noCache)
