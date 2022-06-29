@@ -18326,7 +18326,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, CancelToken can
                 {
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    transfer->startRecursiveOperation(std::make_shared<MegaFolderUploadController>(this, transfer), nullptr);
+
+                    // todo:  use make_shared after jenkins node is updated to VS2019
+                    transfer->startRecursiveOperation(make_unique<MegaFolderUploadController>(this, transfer), nullptr);
                 }
                 break;
             }
@@ -18361,7 +18363,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, CancelToken can
                     // Folder download
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    transfer->startRecursiveOperation(std::make_shared<MegaFolderDownloadController>(this, transfer), publicNode);
+
+                    // todo:  use make_shared after jenkins node is updated to VS2019
+                    transfer->startRecursiveOperation(make_unique<MegaFolderDownloadController>(this, transfer), publicNode);
                     break;
                 }
 
