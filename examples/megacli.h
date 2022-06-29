@@ -405,4 +405,4 @@ void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
 
-void exec_album(autocomplete::ACState& s);
+void exec_setsandelements(autocomplete::ACState& s);
