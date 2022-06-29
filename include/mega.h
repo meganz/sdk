@@ -26,6 +26,10 @@
 #define MEGA_SDK
 #endif
 
+ // keep VS2017 on the jenkins node happy.  Can be removed after it's upgraded to 2019
+#define _ENABLE_EXTENDED_ALIGNED_STORAGE
+
+
 // version
 #include "mega/version.h"
 
