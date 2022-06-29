@@ -862,24 +862,10 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
 StandardClient::~StandardClient()
 {
     LOG_debug << "StandardClient exiting";
-    // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
-    auto result =
-        thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
-                        {
-                            if (mc.loggedin() == FULLACCOUNT)
-                            {
-                                mc.logout(false);
-                                result->set_value(true);
-                            }
-                            else result->set_value(false);
-                        });
 
     // Make sure logout completes before we escape.
-    if (result.get())
-    {
-        // Give it 1 second to send out the logout request, and maybe get a reply
-        WaitMillisec(1000);
-    }
+    logout(false);
+
     LOG_debug << "~StandardClient final logout complete";
 
     clientthreadexit = true;
@@ -901,15 +887,18 @@ void StandardClient::localLogout()
     result.get();
 }
 
-void StandardClient::logout(bool keepSyncsConfigFile)
+bool StandardClient::logout(bool keepSyncsConfigFile)
 {
     auto result = thread_do<bool>([=](MegaClient& client, PromiseBoolSP result) {
-        client.logout(keepSyncsConfigFile);
-        result->set_value(true);
+        client.logout(keepSyncsConfigFile, [=](error e) {
+            result->set_value(e == API_OK);
+        });
     });
 
-    // Wait for the logout to complete before escaping.
-    result.get();
+    if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
+        return false;
+
+    return result.get();
 }
 
 string StandardClient::lp(LocalNode* ln) { return ln->getLocalPath().toName(*client.fsaccess); }
@@ -1592,14 +1581,23 @@ bool StandardClient::uploadFilesInTree(fs::path p, const CloudItem& n2, Versioni
 
 void StandardClient::uploadFilesInTree(fs::path p, const CloudItem& n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo)
 {
+    Node* targetNode = nullptr;
+
+    {
+        lock_guard<recursive_mutex> guard(clientMutex);
+        targetNode = n2.resolve(*this);
+    }
+
+    // The target node should always exist.
+    EXPECT_TRUE(targetNode);
+
+    if (!targetNode && !inprogress)
+        return pb->set_value(false);
+
     resultproc.prepresult(PUTNODES, ++next_request_tag,
         [&](){
-            auto* t = n2.resolve(*this);
-            if (!t)
-                return pb->set_value(false);
-
             DBTableTransactionCommitter committer(client.tctable);
-            uploadFilesInTree_recurse(t, p, inprogress, committer, vo);
+            uploadFilesInTree_recurse(targetNode, p, inprogress, committer, vo);
         },
         [pb, &inprogress](error e)
         {
@@ -1641,6 +1639,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                          source,
                          NodeHandle(),
                          std::move(trampoline),
+                         nullptr,
                          nullptr);
 
             // Destroy ourselves.
@@ -2047,82 +2046,15 @@ vector<Node*> StandardClient::drillchildnodesbyname(Node* n, const string& path)
     }
 }
 
-handle StandardClient::backupAdd_mainthread(const string& drivePath,
-                            const string& sourcePath,
-                            const string& targetPath,
-                            const string& logname)
-{
-    const fs::path dp = fsBasePath / fs::u8path(drivePath);
-    const fs::path sp = fsBasePath / fs::u8path(sourcePath);
-
-    fs::create_directories(dp);
-    fs::create_directories(sp);
-
-    auto result =
-        thread_do<handle>(
-        [&](StandardClient& client, PromiseHandleSP result)
-        {
-            auto completion =
-                [=](error e, SyncError, handle backupId)
-                {
-                    if (e != API_OK)
-                    {
-                        out() << clientname << "Setting up backup from " << sourcePath << " to " << targetPath << " failed.";
-                    }
-                    result->set_value(backupId);
-                };
-
-            client.setupSync_inthread(targetPath, dp, sp, true, completion, logname);
-        });
-
-    return result.get();
-}
-
-error StandardClient::addSync(const string& displayPath, const fs::path& drivepath, const fs::path& localpath, handle remoteNode,
-                              function<void(error, SyncError, handle)> addSyncCompletion, const string& logname,
-                              SyncConfig::Type type)
-{
-    out() << clientname << "Setting up sync from " << displayPath << " to " << localpath;
-    auto syncConfig =
-        SyncConfig(LocalPath::fromAbsolutePath(localpath.u8string()),
-            localpath.u8string(),
-            NodeHandle().set6byte(remoteNode),
-            displayPath,
-            0,
-            LocalPath::fromAbsolutePath(drivepath.u8string()),
-            true,
-            type);
-    EXPECT_TRUE(!syncConfig.mOriginalPathOfRemoteRootNode.empty() &&
-        syncConfig.mOriginalPathOfRemoteRootNode.front() == '/')
-        << "syncConfig.mOriginalPathOfRemoteRootNode: " << syncConfig.mOriginalPathOfRemoteRootNode.c_str();
-
-    error e = client.addsync(move(syncConfig), true, addSyncCompletion, logname);
-    return e;
-}
-
-bool StandardClient::setupSync_inthread(const string& subfoldername, const fs::path& drivepath, const fs::path& localpath, const bool isBackup,
-    std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname)
-{
-    if (Node* n = client.nodebyhandle(basefolderhandle))
-    {
-        if (Node* m = drillchildnodebyname(n, subfoldername))
-        {
-            error e = addSync(m->displaypath(), drivepath, localpath, m->nodehandle, addSyncCompletion, logname,
-                              isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
-            return !e;
-        }
-    }
-    assert(false);
-    return false;
-}
-
-handle StandardClient::setupSync_mainthread(const string& localPath,
+handle StandardClient::setupSync_mainthread(const string& rootPath,
                                             const CloudItem& remoteItem,
                                             const bool isBackup,
-                                            const bool uploadIgnoreFile)
+                                            const bool uploadIgnoreFile,
+                                            const string& drivePath)
 {
     auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
-        client.setupSync_inThread(localPath,
+        client.setupSync_inThread(drivePath,
+                                  rootPath,
                                   remoteItem,
                                   isBackup,
                                   uploadIgnoreFile,
@@ -2131,19 +2063,23 @@ handle StandardClient::setupSync_mainthread(const string& localPath,
 
     auto status = result.wait_for(std::chrono::seconds(45));
     EXPECT_NE(status, future_status::timeout);
-    
+
     if (status == future_status::timeout)
         return UNDEF;
 
     return result.get();
 }
 
-void StandardClient::setupSync_inThread(const string& localPath,
+void StandardClient::setupSync_inThread(const string& drivePath,
+                                        const string& rootPath,
                                         const CloudItem& remoteItem,
                                         const bool isBackup,
                                         const bool,
                                         PromiseHandleSP result)
 {
+    // Helpful sentinel.
+    static const string internalDrive(1, '\0');
+
     // Check if node is (or is contained by) an in-share.
     auto isShare = [](const Node* node) {
         for ( ; node; node = node->parent) {
@@ -2164,14 +2100,38 @@ void StandardClient::setupSync_inThread(const string& localPath,
         return result->set_value(UNDEF);
 
     auto ec = std::error_code();
-    auto rootPath = fsBasePath / fs::u8path(localPath);
+    auto rootPath_ = fsBasePath / fs::u8path(rootPath);
 
     // Try and create the local sync root.
-    fs::create_directory(rootPath, ec);
+    fs::create_directories(rootPath_, ec);
     EXPECT_FALSE(ec);
 
     if (ec)
         return result->set_value(UNDEF);
+
+    fs::path drivePath_;
+
+    // Populate drive root if necessary.
+    if (drivePath != internalDrive)
+    {
+        // Path should be valid as syncs must be contained by their drive.
+        drivePath_ = fsBasePath / fs::u8path(drivePath);
+
+        // Read drive ID if present...
+        auto fsAccess = client.fsaccess.get();
+        auto id = UNDEF;
+        auto path = drivePath_.u8string();
+        auto result_ = readDriveId(*fsAccess, path.c_str(), id);
+
+        // Generate one if not...
+        if (result_ == API_ENOENT)
+        {
+            id = generateDriveId(client.rng);
+            result_ = writeDriveId(*fsAccess, path.c_str(), id);
+        }
+
+        EXPECT_EQ(result_, API_OK);
+    }
 
     // For purposes of capturing.
     auto remoteHandle = remoteNode->nodeHandle();
@@ -2195,8 +2155,8 @@ void StandardClient::setupSync_inThread(const string& localPath,
 
         // Generate config for the new sync.
         auto config =
-          SyncConfig(LocalPath::fromAbsolutePath(rootPath.u8string()),
-                     rootPath.u8string(),
+          SyncConfig(LocalPath::fromAbsolutePath(rootPath_.u8string()),
+                     rootPath_.u8string(),
                      remoteHandle,
                      remotePath,
                      0,
@@ -2208,6 +2168,14 @@ void StandardClient::setupSync_inThread(const string& localPath,
         EXPECT_TRUE(remoteIsShare || remotePath.substr(0, 1) == "/")
             << "config.mOriginalPathOfRemoteRootNode: "
             << remotePath;
+
+        // Are we dealing with an external backup sync?
+        if (!drivePath_.empty())
+        {
+            // Then make sure we specify where the external drive can be found.
+            config.mExternalDrivePath =
+              LocalPath::fromAbsolutePath(drivePath_.u8string());
+        }
 
         //if (gScanOnly)
         //{
@@ -2225,7 +2193,7 @@ void StandardClient::setupSync_inThread(const string& localPath,
 
         LOG_debug << "Asking engine to add the sync...";
 
-        auto result = client.addsync(move(config), true, std::move(completion), localPath + " ");
+        auto result = client.addsync(std::move(config), true, std::move(completion), rootPath + " ");
         EXPECT_EQ(result, API_OK);
     };
 
@@ -8661,47 +8629,24 @@ struct TwoWaySyncSymmetryCase
         return nullptr;
     }
 
-    handle BackupAdd(const string& drivePath, const string& sourcePath, const string& targetPath, const string& logname)
-    {
-        return client1().backupAdd_mainthread(drivePath, sourcePath, targetPath, logname);
-    }
-
-    handle SetupSync(const string& sourcePath, const string& targetPath, bool uploadIgnoreFirst = true)
-    {
-        return client1().setupSync_mainthread(sourcePath, targetPath, isBackup(), uploadIgnoreFirst);
-    }
-
     void SetupTwoWaySync()
     {
         ASSERT_NE(remoteSyncRoot(), nullptr);
 
         string basePath   = client1().fsBasePath.u8string();
-        string drivePath  = localTestBasePath().u8string();
+        string drivePath  = string(1, '\0');
         string sourcePath = localSyncRootPath().u8string();
         string targetPath = remoteSyncRootPath();
 
-        sourcePath.erase(0, basePath.size() + 1);
-
         if (isExternalBackup())
         {
-            handle driveId = 0;
-            if (API_ENOENT == readDriveId(*client1().client.fsaccess, drivePath.c_str(), driveId))
-            {
-                // Generate drive ID.
-                driveId = generateDriveId(client1().client.rng);
-
-                // Write drive ID.
-                auto result = writeDriveId(*client1().client.fsaccess, drivePath.c_str(), driveId);
-                EXPECT_EQ(result, API_OK);
-            }
-
-            backupId = BackupAdd(drivePath, sourcePath, targetPath, "");
-        }
-        else
-        {
-            backupId = SetupSync(sourcePath, targetPath, false);
+            drivePath = localTestBasePath().u8string();
+            drivePath.erase(0, basePath.size() + 1);
         }
 
+        sourcePath.erase(0, basePath.size() + 1);
+
+        backupId = client1().setupSync_mainthread(sourcePath, targetPath, isBackup(), false, drivePath);
         ASSERT_NE(backupId, UNDEF);
 
         if (Sync* sync = client1().syncByBackupId(backupId))
@@ -9889,19 +9834,8 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Add and start sync.
-        {
-            // Generate drive ID.
-            auto driveID = generateDriveId(cb.client.rng);
-
-            // Write drive ID.
-            auto drivePath = cb.fsBasePath.u8string();
-            auto result = writeDriveId(*cb.client.fsaccess, drivePath.c_str(), driveID);
-            ASSERT_EQ(result, API_OK);
-
-            // Add sync.
-            id = cb.backupAdd_mainthread(drivePath, "s", "s", "");
-            ASSERT_NE(id, UNDEF);
-        }
+        id = cb.setupSync_mainthread("s", "s", true, true, ""); 
+        ASSERT_NE(id, UNDEF);
 
         // Wait for sync to complete.
         waitonsyncs(TIMEOUT, &cb);
@@ -9975,21 +9909,8 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
     m.generate(cb.fsBasePath / "s");
 
     // Add and start sync.
-    auto id = UNDEF;
-
-    {
-        // Generate drive ID.
-        auto driveID = generateDriveId(cb.client.rng);
-
-        // Write drive ID.
-        auto drivePath = cb.fsBasePath.u8string();
-        auto result = writeDriveId(*cb.client.fsaccess, drivePath.c_str(), driveID);
-        ASSERT_EQ(result, API_OK);
-
-        // Add sync.
-        id = cb.backupAdd_mainthread(drivePath, "s", "s", "");
-        ASSERT_NE(id, UNDEF);
-    }
+    auto id = cb.setupSync_mainthread("s", "s", true, true, "");
+    ASSERT_NE(id, UNDEF);
 
     // Wait for the mirror to complete.
     waitonsyncs(TIMEOUT, &cb);
@@ -10398,7 +10319,7 @@ void BackupBehavior::doTest(const string& initialContent,
     ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
 
     // Add and start a backup sync.
-    const auto idU = cu.setupSync_mainthread("su", "s", true);
+    const auto idU = cu.setupSync_mainthread("su", "s", true, true);
     ASSERT_NE(idU, UNDEF);
 
     // Add a file for the engine to synchronize.
@@ -10462,7 +10383,7 @@ void BackupBehavior::doTest(const string& initialContent,
         ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
 
         // Add and start a new sync.
-        auto idD = cd.setupSync_mainthread("sd", "s");
+        auto idD = cd.setupSync_mainthread("sd", "s", false, true);
         ASSERT_NE(idD, UNDEF);
 
         // Wait for the sync to complete.
@@ -10576,45 +10497,45 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         ASSERT_TRUE(client0.uploadFilesInTree(sPath, r));
     }
 
+    NodeHandle sh;
+
     // Get our hands on the remote sync root.
-    Node* s = client0.drillchildnodebyname(r, "s");
-    ASSERT_NE(s, nullptr);
+    {
+        Node* s = client0.drillchildnodebyname(r, "s");
+        ASSERT_NE(s, nullptr);
+
+        sh = s->nodeHandle();
+    }
 
     // Share the test root with client 1.
     ASSERT_TRUE(client0.share(*r, getenv("MEGA_EMAIL_AUX"), FULL));
     ASSERT_TRUE(client1.waitFor(SyncRemoteNodePresent(*r), std::chrono::seconds(90)));
 
     // Share the sync root with client 2.
-    ASSERT_TRUE(client0.share(*s, getenv("MEGA_EMAIL_AUX2"), FULL));
-    ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(*s), std::chrono::seconds(90)));
+    ASSERT_TRUE(client0.share(sh, getenv("MEGA_EMAIL_AUX2"), FULL));
+    ASSERT_TRUE(client2.waitFor(SyncRemoteNodePresent(sh), std::chrono::seconds(90)));
 
     // Add and start a new sync.
     auto id = UNDEF;
 
-    {
-        // View s from client 1's perspective.
-        auto* xs = client1.client.nodebyhandle(s->nodehandle);
-        ASSERT_NE(xs, nullptr);
-
-        // Add the sync.
-        id = client1.setupSync_mainthread("s", *xs, false, false);
-        ASSERT_NE(id, UNDEF);
-    }
+    // Add the sync.
+    id = client1.setupSync_mainthread("s", sh, false, false);
+    ASSERT_NE(id, UNDEF);
 
     // Wait for the initial sync to complete.
     waitonsyncs(DEFAULTWAIT, &client1);
 
     // Make sure the clients all agree with what's in the cloud.
     ASSERT_TRUE(client1.confirmModel_mainthread(model.root.get(), id));
-    ASSERT_TRUE(client2.waitFor(SyncRemoteMatch(*s, model.root.get()), DEFAULTWAIT));
+    ASSERT_TRUE(client2.waitFor(SyncRemoteMatch(sh, model.root.get()), DEFAULTWAIT));
 
     // Log out the sharing client so that it doesn't maintain keys.
-    client0.logout(false);
+    ASSERT_TRUE(client0.logout(false));
 
     // Make a couple changes to client1's sync via client2.
     {
         // Nodes from client2's perspective.
-        auto* xs = client2.client.nodebyhandle(s->nodehandle);
+        auto* xs = client2.client.nodeByHandle(sh);
         ASSERT_NE(xs, nullptr);
 
         auto* xt = client2.client.childnodebyname(xs, "t");

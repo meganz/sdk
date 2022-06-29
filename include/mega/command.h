@@ -497,12 +497,16 @@ public:
 
 class MEGA_API CommandLogout : public Command
 {
-    bool mKeepSyncConfigsFile;
-
 public:
+    using Completion = std::function<void(error)>;
+
     bool procresult(Result) override;
 
-    CommandLogout(MegaClient*, bool keepSyncConfigsFile);
+    CommandLogout(MegaClient* client, Completion completion, bool keepSyncConfigsFile);
+
+private:
+    Completion mCompletion;
+    bool mKeepSyncConfigsFile;
 };
 
 class MEGA_API CommandPubKeyRequest : public Command

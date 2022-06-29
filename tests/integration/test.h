@@ -270,7 +270,7 @@ struct StandardClient : public MegaApp
     StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder = fs::path());
     ~StandardClient();
     void localLogout();
-    void logout(bool keepSyncsConfigFile);
+    bool logout(bool keepSyncsConfigFile);
 
     static mutex om;
     bool logcb = false;
@@ -549,24 +549,14 @@ struct StandardClient : public MegaApp
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
 
-    handle backupAdd_mainthread(const string& drivePath,
-        const string& sourcePath,
-        const string& targetPath,
-        const string& logname);
-
-    error addSync(const string& displayPath, const fs::path& drivepath, const fs::path& localpath, handle remoteNode,
-                  function<void(error, SyncError, handle)> addSyncCompletion, const string& logname,
-                  SyncConfig::Type type);
-
-    bool setupSync_inthread(const string& subfoldername, const fs::path& drivepath, const fs::path& localpath, const bool isBackup,
-        std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);
-
-    handle setupSync_mainthread(const string& localPath,
+    handle setupSync_mainthread(const string& rootPath,
                                 const CloudItem& remoteItem,
-                                const bool isBackup = false,
-                                const bool uploadIgnoreFile = true);
+                                const bool isBackup,
+                                const bool uploadIgnoreFile,
+                                const string& drivePath = string(1, '\0'));
 
-    void setupSync_inThread(const string& localPath,
+    void setupSync_inThread(const string& drivePath,
+                            const string& rootPath,
                             const CloudItem& remoteItem,
                             const bool isBackup,
                             const bool uploadIgnoreFile,

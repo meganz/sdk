@@ -44,9 +44,6 @@ struct MEGA_API MegaApp
     // login result
     virtual void login_result(error) { }
 
-    // logout result
-    virtual void logout_result(error) { }
-
     virtual void loggedInStateChanged(sessiontype_t, handle me) { }
 
     // user data result
