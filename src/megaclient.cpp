@@ -4333,7 +4333,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
-    mAlbums.clear();
+    mSets.clear();
 
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
     purgeOrphanTransfers();
@@ -5105,8 +5105,8 @@ void MegaClient::initsc()
 
         if (complete)
         {
-            // 5. write Albums
-            complete = initscalbums();
+            // 5. write Sets
+            complete = initscsets();
         }
 
 #ifdef ENABLE_CHAT
@@ -5258,8 +5258,8 @@ void MegaClient::updatesc()
 
         if (complete)
         {
-            // 5. write new or modified albums, purge deleted ones
-            complete = updatescalbums();
+            // 5. write new or modified Sets, purge deleted ones
+            complete = updatescsets();
         }
 
 #ifdef ENABLE_CHAT
@@ -7279,7 +7279,7 @@ void MegaClient::notifypurge(void)
 
     if (scsn.ready()) tscsn = scsn.getHandle();
 
-    if (nodenotify.size() || usernotify.size() || pcrnotify.size() || !albumnotify.empty()
+    if (nodenotify.size() || usernotify.size() || pcrnotify.size() || !setnotify.empty()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -7486,7 +7486,7 @@ void MegaClient::notifypurge(void)
         useralerts.useralertnotify.clear();
     }
 
-    notifypurgealbums();
+    notifypurgesets();
 
 #ifdef ENABLE_CHAT
     if ((t = int(chatnotify.size())))
@@ -12204,9 +12204,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
 #endif
                 break;
 
-            case CACHEDALBUM:
+            case CACHEDSET:
             {
-                if (!fetchscalbum(&data, id))
+                if (!fetchscset(&data, id))
                 {
                     return false;
                 }
@@ -17024,33 +17024,33 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
 
 
 //
-// Albums
+// Sets and Elements
 //
 
-void MegaClient::putAlbum(handle id, string&& attrs, std::function<void(Error, handle)> completion)
+void MegaClient::putSet(handle id, string&& attrs, std::function<void(Error, handle)> completion)
 {
-    // album key
-    byte albumKey[SymmCipher::KEYLENGTH];
-    if (id == UNDEF) // new album
+    // Set key
+    byte setKey[SymmCipher::KEYLENGTH];
+    if (id == UNDEF) // new Set
     {
         // generate AES-128 key
-        rng.genblock(albumKey, sizeof(albumKey));
+        rng.genblock(setKey, sizeof(setKey));
     }
     else // updating
     {
-        auto it = mAlbums.find(id);
-        if (it == mAlbums.end())
+        auto it = mSets.find(id);
+        if (it == mSets.end())
         {
-            LOG_err << "Albums: Failed to update Album (not found).";
+            LOG_err << "Sets: Failed to update Set (not found).";
             if (completion)
                 completion(API_ENOENT, id);
             return;
         }
 
-        copy_n(it->second.key().begin(), it->second.key().size(), albumKey);
+        copy_n(it->second.key().begin(), it->second.key().size(), setKey);
     }
 
-    // store attrs to TLV and encrypt with album key
+    // store attrs to TLV and encrypt with Set key
     unique_ptr<string> encrAttrs;
     if (!attrs.empty())
     {
@@ -17058,28 +17058,28 @@ void MegaClient::putAlbum(handle id, string&& attrs, std::function<void(Error, h
         tlvRecords.set("name", attrs);
         encrAttrs.reset(tlvRecords.tlvRecordsToContainer());
 
-        SymmCipher cipher(albumKey);
+        SymmCipher cipher(setKey);
         PaddedCBC::encrypt(rng, encrAttrs.get(), &cipher);
     }
 
-    // encrypt album key with master key (for new album only)
-    string decrAlbumKey, encrAlbumKey;
+    // encrypt Set key with master key (for new Set only)
+    string decrSetKey, encrSetKey;
     if (id == UNDEF)
     {
-        decrAlbumKey.assign((char*)albumKey, sizeof(albumKey));
-        key.cbc_encrypt(albumKey, sizeof(albumKey));
-        encrAlbumKey.assign((char*)albumKey, sizeof(albumKey));
+        decrSetKey.assign((char*)setKey, sizeof(setKey));
+        key.cbc_encrypt(setKey, sizeof(setKey));
+        encrSetKey.assign((char*)setKey, sizeof(setKey));
     }
 
-    reqs.add(new CommandPutAlbum(this, id, move(decrAlbumKey), move(encrAlbumKey),
+    reqs.add(new CommandPutSet(this, id, move(decrSetKey), move(encrSetKey),
                                  move(attrs), (encrAttrs ? move(*encrAttrs) : string()), completion));
 }
 
-void MegaClient::removeAlbum(handle id, std::function<void(Error)> completion)
+void MegaClient::removeSet(handle id, std::function<void(Error)> completion)
 {
-    if (album(id))
+    if (getSet(id))
     {
-        reqs.add(new CommandRemoveAlbum(this, id, completion));
+        reqs.add(new CommandRemoveSet(this, id, completion));
     }
     else if (completion)
     {
@@ -17087,33 +17087,33 @@ void MegaClient::removeAlbum(handle id, std::function<void(Error)> completion)
     }
 }
 
-void MegaClient::fetchAlbum(handle id, std::function<void(Error)> completion)
+void MegaClient::fetchSet(handle id, std::function<void(Error)> completion)
 {
-    reqs.add(new CommandFetchAlbum(this, id, completion));
+    reqs.add(new CommandFetchSet(this, id, completion));
 }
 
-void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::function<void(Error, handle, handle)> completion)
+void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void(Error, handle, handle)> completion)
 {
-    // albumId is required to create a new element, but not to update one
-    assert(el.id() != UNDEF || albumId != UNDEF);
+    // setId is required to create a new element, but not to update one
+    assert(el.id() != UNDEF || setId != UNDEF);
 
-    // find album
-    const Album* existingAlbum = albumId == UNDEF ? nullptr : album(albumId);
-    if (!existingAlbum)
+    // find Set
+    const Set* existingSet = setId == UNDEF ? nullptr : getSet(setId);
+    if (!existingSet)
     {
-        for (const auto& a : mAlbums)
+        for (const auto& a : mSets)
         {
             auto itE = a.second.elements().find(el.id());
             if (itE != a.second.elements().end())
             {
-                existingAlbum = &a.second;
+                existingSet = &a.second;
                 break;
             }
         }
     }
-    if (!existingAlbum)
+    if (!existingSet)
     {
-        LOG_err << "Albums: Album not found when adding or updating Element";
+        LOG_err << "Sets: Set not found when adding or updating Element";
         if (completion)
             completion(API_ENOENT, el.id(), UNDEF);
         return;
@@ -17127,7 +17127,7 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
         error e = !n ? API_EARGS : (n->nodekey().empty() || !n->nodecipher() || n->attrstring ? API_EKEY : API_OK);
         if (e != API_OK)
         {
-            LOG_err << "Albums: Invalid node for Element";
+            LOG_err << "Sets: Invalid node for Element";
             if (completion)
                 completion(e, el.id(), UNDEF);
             return;
@@ -17138,17 +17138,17 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
         // encrypt element.key with set.key
         byte encryptBuffer[SymmCipher::KEYLENGTH];
         std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
-        SymmCipher cipher((byte*)existingAlbum->key().c_str());
+        SymmCipher cipher((byte*)existingSet->key().c_str());
         cipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
         encrKey.assign((char*)encryptBuffer, sizeof(encryptBuffer));
     }
     // get element.key from existing element (only when updating attributes)
-    else if (el.hasAttrs() && !el.attrs().empty())
+    else if (el.hasName() && !el.name().empty())
     {
-        auto elIt = existingAlbum->elements().find(el.id());
-        if (elIt == existingAlbum->elements().end())
+        auto elIt = existingSet->elements().find(el.id());
+        if (elIt == existingSet->elements().end())
         {
-            LOG_err << "Albums: Invalid node for Element";
+            LOG_err << "Sets: Invalid node for Element";
             if (completion)
                 completion(API_ENOENT, el.id(), UNDEF);
             return;
@@ -17159,26 +17159,26 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
 
     // store element.attrs to TLV, and encrypt with element.key (copied from nodekey)
     unique_ptr<string> encrAttrs;
-    if (el.hasAttrs() && !el.attrs().empty())
+    if (el.hasName() && !el.name().empty())
     {
         TLVstore tlvRecords;
-        tlvRecords.set("name", el.attrs());
+        tlvRecords.set("name", el.name());
         encrAttrs.reset(tlvRecords.tlvRecordsToContainer());
 
         SymmCipher cipher((byte*)el.key().c_str());
         PaddedCBC::encrypt(rng, encrAttrs.get(), &cipher);
     }
 
-    reqs.add(new CommandPutAlbumElement(this, move(el), (encrAttrs ? move(*encrAttrs) : string()), move(encrKey), existingAlbum->id(), completion));
+    reqs.add(new CommandPutSetElement(this, move(el), (encrAttrs ? move(*encrAttrs) : string()), move(encrKey), existingSet->id(), completion));
 }
 
-void MegaClient::removeAlbumElement(handle id, std::function<void(Error, handle)> completion)
+void MegaClient::removeSetElement(handle id, std::function<void(Error, handle)> completion)
 {
-    for (const auto& a : mAlbums)
+    for (const auto& a : mSets)
     {
         if (a.second.elements().find(id) != a.second.elements().end())
         {
-            reqs.add(new CommandRemoveAlbumElement(this, id, completion));
+            reqs.add(new CommandRemoveSetElement(this, id, completion));
             return;
         }
     }
@@ -17189,11 +17189,11 @@ void MegaClient::removeAlbumElement(handle id, std::function<void(Error, handle)
     }
 }
 
-error MegaClient::readAlbumsAndElements(JSON& j)
+error MegaClient::readSetsAndElements(JSON& j)
 {
-    map<handle, Album> newAlbums;
-    multimap<handle, AlbumElement> newElements;
-    bool replaceAllAlbums = false;
+    map<handle, Set> newSets;
+    multimap<handle, SetElement> newElements;
+    bool replaceAllSets = false;
     bool loopAgain = true;
 
     while (loopAgain)
@@ -17202,15 +17202,15 @@ error MegaClient::readAlbumsAndElements(JSON& j)
         {
         case MAKENAMEID1('s'):
         {
-            // reuse this in "aft" (fetch-album command) and "aesp" (in gettree/fetchnodes/"f" command):
-            // "aft" will return a single Album for "s", while "aesp" will return an array of Albums
-            replaceAllAlbums = j.enterarray();
+            // reuse this in "aft" (fetch-Set command) and "aesp" (in gettree/fetchnodes/"f" command):
+            // "aft" will return a single Set for "s", while "aesp" will return an array of Sets
+            replaceAllSets = j.enterarray();
 
-            error e = readAlbums(j, newAlbums);
+            error e = readSets(j, newSets);
             if (e != API_OK)
                 return e;
 
-            if (replaceAllAlbums)
+            if (replaceAllSets)
                 j.leavearray();
 
             break;
@@ -17237,32 +17237,32 @@ error MegaClient::readAlbumsAndElements(JSON& j)
         }
     }
 
-    // decrypt album data
-    for (auto& al : newAlbums)
+    // decrypt Set data
+    for (auto& s : newSets)
     {
-        error e = decryptAlbumData(al.second);
+        error e = decryptSetData(s.second);
         if (e != API_OK)
         {
             return e;
         }
     }
 
-    // match elements and albums
-    auto itA = newAlbums.end();
+    // match Elements and Sets
+    auto itA = newSets.end();
     for (auto& newEl : newElements)
     {
-        // get corresponding album
-        if (itA == newAlbums.end() || itA->second.id() != newEl.first)
+        // get corresponding Set
+        if (itA == newSets.end() || itA->second.id() != newEl.first)
         {
-            itA = newAlbums.find(newEl.first);
-            if (itA == newAlbums.end())
+            itA = newSets.find(newEl.first);
+            if (itA == newSets.end())
             {
                 continue; // should never happen
             }
         }
 
         // decrypt element key and attrs
-        error e = decryptAlbumElementData(newEl.second, itA->second.key());
+        error e = decryptElementData(newEl.second, itA->second.key());
         if (e != API_OK)
         {
             return e;
@@ -17272,67 +17272,67 @@ error MegaClient::readAlbumsAndElements(JSON& j)
     }
 
     // apply changes
-    if (replaceAllAlbums) // "aesp"
+    if (replaceAllSets) // "aesp"
     {
-        mAlbums.swap(newAlbums);
+        mSets.swap(newSets);
     }
-    else if (!newAlbums.empty()) // "aft" command (will contain only 1 Album)
+    else if (!newSets.empty()) // "aft" command (will contain only 1 Set)
     {
-        auto& a = newAlbums.begin()->second;
-        addAlbum(move(a));
+        auto& a = newSets.begin()->second;
+        addSet(move(a));
     }
 
     return API_OK;
 }
 
-error MegaClient::decryptAlbumData(Album& al)
+error MegaClient::decryptSetData(Set& s)
 {
-    if (!al.id() || al.id() == UNDEF || al.key().empty())
+    if (!s.id() || s.id() == UNDEF || s.key().empty())
     {
-        LOG_err << "Albums: Missing mandatory Album data";
+        LOG_err << "Sets: Missing mandatory Set data";
         return API_EINTERNAL;
     }
 
-    // decrypt album key using the master key
-    al.setKey(decryptKey(al.key(), key));
+    // decrypt Set key using the master key
+    s.setKey(decryptKey(s.key(), key));
 
-    if (!al.attrs().empty())
+    if (!s.name().empty())
     {
-        // decrypt using the album key, then extract from TLV
-        string decryptedAttrs = decryptAttrs(al.attrs(), al.key());
-        unique_ptr<TLVstore> s(TLVstore::containerToTLVrecords(&decryptedAttrs));
-        if (!s || !s->get("name", decryptedAttrs))
+        // decrypt using the Set key, then extract from TLV
+        string decryptedAttrs = decryptAttrs(s.name(), s.key());
+        unique_ptr<TLVstore> sTlv(TLVstore::containerToTLVrecords(&decryptedAttrs));
+        if (!sTlv || !sTlv->get("name", decryptedAttrs))
         {
-            LOG_err << "Albums: Failed to parse TLV container for Album attrs";
+            LOG_err << "Sets: Failed to parse TLV container for Set name";
             return API_EINTERNAL;
         }
-        al.setAttrs(move(decryptedAttrs));
+        s.setName(move(decryptedAttrs));
     }
 
     return API_OK;
 }
 
-error MegaClient::decryptAlbumElementData(AlbumElement& el, const string& albumKey)
+error MegaClient::decryptElementData(SetElement& el, const string& setKey)
 {
     if (!el.id() || el.id() == UNDEF || !el.node() || el.node() == UNDEF || el.key().empty())
     {
-        LOG_err << "Albums: Missing mandatory Element data";
+        LOG_err << "Sets: Missing mandatory Element data";
         return API_EINTERNAL;
     }
 
-    SymmCipher cipher((byte*)albumKey.c_str());
+    SymmCipher cipher((byte*)setKey.c_str());
     el.setKey(decryptKey(el.key(), cipher));
 
-    if (!el.attrs().empty())
+    if (!el.name().empty())
     {
-        string decryptedAttrs = decryptAttrs(el.attrs(), el.key());
+        string decryptedAttrs = decryptAttrs(el.name(), el.key());
         unique_ptr<TLVstore> s(TLVstore::containerToTLVrecords(&decryptedAttrs));
         if (!s || !s->get("name", decryptedAttrs))
         {
-            LOG_err << "Albums: Failed to parse TLV container for Element attrs";
+            LOG_err << "Sets: Failed to parse TLV container for Element name";
             return API_EINTERNAL;
         }
-        el.setAttrs(decryptedAttrs);
+        el.setName(decryptedAttrs);
     }
 
     return API_OK;
@@ -17354,17 +17354,17 @@ string MegaClient::decryptAttrs(const string& attrs, const string& encryptionKey
     return tmp;
 }
 
-error MegaClient::readAlbums(JSON& j, map<handle, Album>& albums)
+error MegaClient::readSets(JSON& j, map<handle, Set>& sets)
 {
     while (j.enterobject())
     {
-        Album al;
-        error e = readAlbum(j, al);
+        Set s;
+        error e = readSet(j, s);
         if (e)
         {
             return e;
         }
-        albums[al.id()] = move(al);
+        sets[s.id()] = move(s);
 
         j.leaveobject();
     }
@@ -17372,48 +17372,48 @@ error MegaClient::readAlbums(JSON& j, map<handle, Album>& albums)
     return API_OK;
 }
 
-error MegaClient::readAlbum(JSON& j, Album& al)
+error MegaClient::readSet(JSON& j, Set& s)
 {
     for (;;)
     {
         switch (j.getnameid())
         {
         case MAKENAMEID2('i', 'd'):
-            al.setId(j.gethandle(MegaClient::ALBUMHANDLE));
+            s.setId(j.gethandle(MegaClient::SETHANDLE));
             break;
 
         case MAKENAMEID2('a', 't'):
         {
-            string attrs;
-            j.copystring(&attrs, j.getvalue()); // B64 encoded
-            if (!attrs.empty())
+            string name;
+            j.copystring(&name, j.getvalue()); // B64 encoded
+            if (!name.empty())
             {
-                attrs = Base64::atob(attrs);
+                name = Base64::atob(name);
             }
-            al.setAttrs(move(attrs)); // still encrypted
+            s.setName(move(name)); // still encrypted
             break;
         }
 
         case MAKENAMEID1('u'):
-            al.setUser(j.gethandle(MegaClient::USERHANDLE));
+            s.setUser(j.gethandle(MegaClient::USERHANDLE));
             break;
 
         case MAKENAMEID1('k'): // used to encrypt attrs; encrypted itself with owner's key
         {
-            string albumKey;
-            j.copystring(&albumKey, j.getvalue()); // B64 encoded
-            al.setKey(Base64::atob(albumKey));
+            string setKey;
+            j.copystring(&setKey, j.getvalue()); // B64 encoded
+            s.setKey(Base64::atob(setKey));
             break;
         }
 
         case MAKENAMEID2('t', 's'):
-            al.setTs(j.getint());
+            s.setTs(j.getint());
             break;
 
         default: // skip unknown member
             if (!j.storeobject())
             {
-                LOG_err << "Albums: Failed to parse Album";
+                LOG_err << "Sets: Failed to parse Set";
                 return API_EINTERNAL;
             }
             break;
@@ -17424,7 +17424,7 @@ error MegaClient::readAlbum(JSON& j, Album& al)
     }
 }
 
-error MegaClient::readElements(JSON& j, multimap<handle, AlbumElement>& elements)
+error MegaClient::readElements(JSON& j, multimap<handle, SetElement>& elements)
 {
     if (!j.enterarray())
     {
@@ -17433,14 +17433,14 @@ error MegaClient::readElements(JSON& j, multimap<handle, AlbumElement>& elements
 
     while (j.enterobject())
     {
-        handle albumId = 0;
-        AlbumElement el;
-        error e = readElement(j, el, albumId);
+        handle setId = 0;
+        SetElement el;
+        error e = readElement(j, el, setId);
         if (e)
         {
             return e;
         }
-        elements.emplace(albumId, el);
+        elements.emplace(setId, el);
 
         j.leaveobject();
     }
@@ -17449,20 +17449,20 @@ error MegaClient::readElements(JSON& j, multimap<handle, AlbumElement>& elements
     return API_OK;
 }
 
-error MegaClient::readElement(JSON& j, AlbumElement& el, handle& albumId)
+error MegaClient::readElement(JSON& j, SetElement& el, handle& setId)
 {
-    albumId = 0;
+    setId = 0;
 
     for (;;)
     {
         switch (j.getnameid())
         {
         case MAKENAMEID2('i', 'd'):
-            el.setId(j.gethandle(MegaClient::ALBUMELEMENTHANDLE));
+            el.setId(j.gethandle(MegaClient::SETELEMENTHANDLE));
             break;
 
         case MAKENAMEID1('s'):
-            albumId = j.gethandle(MegaClient::ALBUMHANDLE);
+            setId = j.gethandle(MegaClient::SETHANDLE);
             break;
 
         case MAKENAMEID1('h'):
@@ -17477,7 +17477,7 @@ error MegaClient::readElement(JSON& j, AlbumElement& el, handle& albumId)
             {
                 elementAttrs = Base64::atob(elementAttrs);
             }
-            el.setAttrs(move(elementAttrs)); // still encrypted
+            el.setName(move(elementAttrs)); // still encrypted
             break;
         }
 
@@ -17504,7 +17504,7 @@ error MegaClient::readElement(JSON& j, AlbumElement& el, handle& albumId)
         default: // skip unknown member
             if (!j.storeobject())
             {
-                LOG_err << "Albums: Failed to parse Element";
+                LOG_err << "Sets: Failed to parse Element";
                 return API_EINTERNAL;
             }
             break;
@@ -17515,66 +17515,66 @@ error MegaClient::readElement(JSON& j, AlbumElement& el, handle& albumId)
     }
 }
 
-const Album* MegaClient::album(handle id) const
+const Set* MegaClient::getSet(handle id) const
 {
-    auto it = mAlbums.find(id);
-    return it == mAlbums.end() ? nullptr : &it->second;
+    auto it = mSets.find(id);
+    return it == mSets.end() ? nullptr : &it->second;
 }
 
-void MegaClient::addAlbum(Album&& a)
+void MegaClient::addSet(Set&& a)
 {
-    Album& added = mAlbums[a.id()] = move(a);
+    Set& added = mSets[a.id()] = move(a);
 
-    notifyalbum(&added);
+    notifyset(&added);
 }
 
-void MegaClient::updateAlbum(handle id, string&& attrs, m_time_t ts)
+void MegaClient::updateSet(handle id, string&& name, m_time_t ts)
 {
-    for (auto& it : mAlbums)
+    for (auto& it : mSets)
     {
         if (it.second.id() == id)
         {
-            it.second.setAttrs(move(attrs));
+            it.second.setName(move(name));
             it.second.setTs(ts);
-            notifyalbum(&it.second);
+            notifyset(&it.second);
             break;
         }
     }
 }
 
-bool MegaClient::deleteAlbum(handle albumId)
+bool MegaClient::deleteSet(handle setId)
 {
-    auto it = mAlbums.find(albumId);
-    if (it != mAlbums.end())
+    auto it = mSets.find(setId);
+    if (it != mSets.end())
     {
         it->second.markForDbRemoval();
-        notifyalbum(&it->second);
+        notifyset(&it->second);
         return true;
     }
 
     return false;
 }
 
-void MegaClient::addOrUpdateAlbumElement(AlbumElement&& el, handle albumId)
+void MegaClient::addOrUpdateSetElement(SetElement&& el, handle setId)
 {
-    auto itAl = mAlbums.find(albumId);
-    if (itAl == mAlbums.end())
+    auto itAl = mSets.find(setId);
+    if (itAl == mSets.end())
     {
         return;
     }
 
     itAl->second.addOrUpdateElement(move(el));
-    notifyalbum(&itAl->second);
+    notifyset(&itAl->second);
 }
 
-bool MegaClient::deleteAlbumElement(handle elemId, handle albumId)
+bool MegaClient::deleteSetElement(handle elemId, handle setId)
 {
-    auto it = mAlbums.find(albumId);
-    if (it != mAlbums.end())
+    auto it = mSets.find(setId);
+    if (it != mSets.end())
     {
         if (it->second.removeElement(elemId))
         {
-            notifyalbum(&it->second);
+            notifyset(&it->second);
             return true;
         }
     }
@@ -17584,33 +17584,33 @@ bool MegaClient::deleteAlbumElement(handle elemId, handle albumId)
 
 void MegaClient::sc_asp()
 {
-    Album al;
-    error e = readAlbum(jsonsc, al);
+    Set s;
+    error e = readSet(jsonsc, s);
     if (e != API_OK)
     {
-        LOG_err << "Albums: Failed to parse `asp` action packet";
+        LOG_err << "Sets: Failed to parse `asp` action packet";
         return;
     }
 
-    auto it = mAlbums.find(al.id());
-    if (it == mAlbums.end()) // add new
+    auto it = mSets.find(s.id());
+    if (it == mSets.end()) // add new
     {
-        if (decryptAlbumData(al) != API_OK)
+        if (decryptSetData(s) != API_OK)
         {
             return;
         }
-        addAlbum(move(al));
+        addSet(move(s));
     }
-    else // update existing Album
+    else // update existing Set
     {
-        Album& existing = it->second;
-        existing.setAttrs(decryptAttrs(al.attrs(), existing.key()));
-        existing.setTs(al.ts());
-        if (al.user() != UNDEF) // this might not be received for an update
+        Set& existing = it->second;
+        existing.setName(decryptAttrs(s.name(), existing.key()));
+        existing.setTs(s.ts());
+        if (s.user() != UNDEF) // this might not be received for an update
         {
-            existing.setUser(al.user());
+            existing.setUser(s.user());
         }
-        notifyalbum(&existing);
+        notifyset(&existing);
     }
 }
 
@@ -17718,11 +17718,11 @@ void MegaClient::sc_aer()
     }
 }
 
-bool MegaClient::initscalbums()
+bool MegaClient::initscsets()
 {
-    for (auto& i : mAlbums)
+    for (auto& i : mSets)
     {
-        if (!sctable->put(CACHEDALBUM, &i.second, &key))
+        if (!sctable->put(CACHEDSET, &i.second, &key))
         {
             return false;
         }
@@ -17731,38 +17731,38 @@ bool MegaClient::initscalbums()
     return true;
 }
 
-bool MegaClient::fetchscalbum(string* data, uint32_t id)
+bool MegaClient::fetchscset(string* data, uint32_t id)
 {
-    Album* al = unserializeAlbum(data);
-    if (al)
+    Set* s = unserializeSet(data);
+    if (s)
     {
-        al->dbid = id;
+        s->dbid = id;
     }
     else
     {
-        LOG_err << "Failed - album record read error";
+        LOG_err << "Failed - Set record read error";
         return false;
     }
 
     return true;
 }
-bool MegaClient::updatescalbums()
+bool MegaClient::updatescsets()
 {
-    for (Album* a : albumnotify)
+    for (Set* s : setnotify)
     {
         char base64[12];
-        if (!a->removeFromDb()) // add / replace
+        if (!s->removeFromDb()) // add / replace
         {
-            LOG_verbose << "Adding album to database: " << (Base64::btoa((byte*)&(a->id()), MegaClient::ALBUMHANDLE, base64) ? base64 : "");
-            if (!sctable->put(CACHEDALBUM, a, &key))
+            LOG_verbose << "Adding Set to database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
+            if (!sctable->put(CACHEDSET, s, &key))
             {
                 return false;
             }
         }
-        else if (a->dbid) // remove
+        else if (s->dbid) // remove
         {
-            LOG_verbose << "Removing album from database: " << (Base64::btoa((byte*)&(a->id()), MegaClient::ALBUMHANDLE, base64) ? base64 : "");
-            if (!sctable->del(a->dbid))
+            LOG_verbose << "Removing Set from database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
+            if (!sctable->del(s->dbid))
             {
                 return false;
             }
@@ -17772,45 +17772,45 @@ bool MegaClient::updatescalbums()
     return true;
 }
 
-void MegaClient::notifyalbum(Album* al)
+void MegaClient::notifyset(Set* s)
 {
-    if (!al->notified)
+    if (!s->notified)
     {
-        al->notified = true;
-        albumnotify.push_back(al);
+        s->notified = true;
+        setnotify.push_back(s);
     }
 }
 
-void MegaClient::notifypurgealbums()
+void MegaClient::notifypurgesets()
 {
-    for (auto& a : albumnotify)
+    for (auto& s : setnotify)
     {
-        if (a->removeFromDb())
+        if (s->removeFromDb())
         {
-            mAlbums.erase(a->id());
+            mSets.erase(s->id());
         }
         else
         {
-            a->notified = false;
+            s->notified = false;
         }
     }
 
-    albumnotify.clear();
+    setnotify.clear();
 }
 
-Album* MegaClient::unserializeAlbum(string* d)
+Set* MegaClient::unserializeSet(string* d)
 {
     const char* ptr = d->data();
     const char* end = ptr + d->size();
 
-    if (ptr + MegaClient::ALBUMHANDLE + sizeof(size_t) + MegaClient::USERHANDLE + sizeof(m_time_t) + 2 * sizeof(size_t) > end)
+    if (ptr + MegaClient::SETHANDLE + sizeof(size_t) + MegaClient::USERHANDLE + sizeof(m_time_t) + 2 * sizeof(size_t) > end)
     {
         return nullptr;
     }
 
     handle id = 0;
-    memcpy((char*)&id, ptr, MegaClient::ALBUMHANDLE);
-    ptr += MegaClient::ALBUMHANDLE;
+    memcpy((char*)&id, ptr, MegaClient::SETHANDLE);
+    ptr += MegaClient::SETHANDLE;
 
     size_t l = MemAccess::get<size_t>(ptr);
     ptr += sizeof(size_t);
@@ -17835,25 +17835,25 @@ Album* MegaClient::unserializeAlbum(string* d)
     {
         return nullptr;
     }
-    string attrs;
-    attrs.assign(ptr, l);
+    string name;
+    name.assign(ptr, l);
     ptr += l;
 
-    Album al((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(attrs));
+    Set s((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(name));
 
-    // get Elements of this album
+    // get Elements of this Set
     size_t elCount = MemAccess::get<size_t>(ptr);
     ptr += sizeof(size_t);
     for (auto i = 0; i < elCount; ++i)
     {
-        if (ptr + MegaClient::ALBUMELEMENTHANDLE + MegaClient::NODEHANDLE + sizeof(size_t) + sizeof(int64_t) + sizeof(m_time_t) + sizeof(size_t) > end)
+        if (ptr + MegaClient::SETELEMENTHANDLE + MegaClient::NODEHANDLE + sizeof(size_t) + sizeof(int64_t) + sizeof(m_time_t) + sizeof(size_t) > end)
         {
             return nullptr;
         }
 
         id = 0;
-        memcpy((char*)&id, ptr, MegaClient::ALBUMELEMENTHANDLE);
-        ptr += MegaClient::ALBUMELEMENTHANDLE;
+        memcpy((char*)&id, ptr, MegaClient::SETELEMENTHANDLE);
+        ptr += MegaClient::SETELEMENTHANDLE;
 
         handle h = 0;
         memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
@@ -17865,7 +17865,7 @@ Album* MegaClient::unserializeAlbum(string* d)
         {
             return nullptr;
         }
-        attrs.assign(ptr, l);
+        name.assign(ptr, l);
         ptr += l;
 
         int64_t o = MemAccess::get<int64_t>(ptr);
@@ -17883,27 +17883,27 @@ Album* MegaClient::unserializeAlbum(string* d)
         k.assign(ptr, l);
         ptr += l;
 
-        AlbumElement el((h ? h : UNDEF), (id ? id : UNDEF));
-        el.setAttrs(move(attrs));
+        SetElement el((h ? h : UNDEF), (id ? id : UNDEF));
+        el.setName(move(name));
         el.setOrder(o);
         el.setTs(ts);
         el.setKey(move(k));
 
-        al.addOrUpdateElement(move(el));
+        s.addOrUpdateElement(move(el));
     }
 
-    Album& addedAlbum = mAlbums[al.id()] = move(al);
+    Set& addedSet = mSets[s.id()] = move(s);
 
-    return &addedAlbum;
+    return &addedSet;
 }
 
-const AlbumElement* Album::element(handle eId) const
+const SetElement* Set::element(handle eId) const
 {
     auto it = mElements.find(eId);
     return it != mElements.end() ? &(it->second) : nullptr;
 }
 
-void Album::addOrUpdateElement(AlbumElement&& el)
+void Set::addOrUpdateElement(SetElement&& el)
 {
     auto it = mElements.find(el.id());
 
@@ -17916,10 +17916,10 @@ void Album::addOrUpdateElement(AlbumElement&& el)
     }
 
     // update
-    AlbumElement& existing = it->second;
-    if (el.hasAttrs())
+    SetElement& existing = it->second;
+    if (el.hasName())
     {
-        existing.setAttrs(el.attrs());
+        existing.setName(el.name());
     }
     if (el.hasOrder())
     {
@@ -17931,17 +17931,17 @@ void Album::addOrUpdateElement(AlbumElement&& el)
     }
 }
 
-bool Album::serialize(string* d)
+bool Set::serialize(string* d)
 {
-    d->append((char*)&mId, MegaClient::ALBUMHANDLE);
+    d->append((char*)&mId, MegaClient::SETHANDLE);
     size_t kSize = mKey.size();
     d->append((char*)&kSize, sizeof(kSize));
     d->append(mKey);
     d->append((char*)&mUser, MegaClient::USERHANDLE);
     d->append((char*)&mTs, sizeof(mTs));
-    size_t aSize = mAttrs.size();
+    size_t aSize = mName.size();
     d->append((char*)&aSize, sizeof(aSize));
-    d->append(mAttrs);
+    d->append(mName);
 
     size_t elemCount = mElements.size();
     d->append((char*)&elemCount, sizeof(elemCount));
@@ -17954,13 +17954,13 @@ bool Album::serialize(string* d)
     return true;
 }
 
-bool AlbumElement::serialize(string* d)
+bool SetElement::serialize(string* d)
 {
-    d->append((char*)&mId, MegaClient::ALBUMELEMENTHANDLE);
+    d->append((char*)&mId, MegaClient::SETELEMENTHANDLE);
     d->append((char*)&mNodeHandle, MegaClient::NODEHANDLE);
-    size_t aSize = mAttrs.size();
+    size_t aSize = mName.size();
     d->append((char*)&aSize, sizeof(aSize));
-    d->append(mAttrs);
+    d->append(mName);
     d->append((char*)&mOrder, sizeof(mOrder));
     d->append((char*)&mTs, sizeof(mTs));
     size_t kSize = mKey.size();
@@ -17970,7 +17970,7 @@ bool AlbumElement::serialize(string* d)
     return true;
 }
 
-// -------- end of Albums
+// -------- end of Sets and Elements
 
 
 FetchNodesStats::FetchNodesStats()

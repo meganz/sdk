@@ -225,73 +225,73 @@ struct SyncdownContext
     bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
 
-class AlbumElement
+class SetElement
 {
 public:
-    AlbumElement() = default;
-    AlbumElement(handle node, handle elemId = UNDEF) // create new element or update existing one
+    SetElement() = default;
+    SetElement(handle node, handle elemId = UNDEF) // create new element or update existing one
         : mId(elemId), mNodeHandle(node) {}
 
     const handle& id() const                { return mId; }
     const handle& node() const              { return mNodeHandle; }
-    const string& attrs() const             { return mAttrs; }
+    const string& name() const              { return mName; }
     const int64_t& order() const            { return mOrder; }
     const m_time_t& ts() const              { return mTs; }
     const string& key() const               { return mKey; }
 
     void setId(handle id)                   { mId = id; }
     void setNode(handle nh)                 { mNodeHandle = nh; }
-    void setAttrs(string&& attrs)           { mAttrs = move(attrs); mOpts[AE_ATTRS] = 1; }
-    void setAttrs(const string& attrs)      { mAttrs = attrs; mOpts[AE_ATTRS] = 1; }
-    void setOrder(int64_t order)            { mOrder = order; mOpts[AE_ORDER] = 1; }
+    void setName(string&& name)             { mName = move(name); mOpts[SE_NAME] = 1; }
+    void setName(const string& name)        { mName = name; mOpts[SE_NAME] = 1; }
+    void setOrder(int64_t order)            { mOrder = order; mOpts[SE_ORDER] = 1; }
     void setTs(m_time_t ts)                 { mTs = ts; }
     void setKey(string&& key)               { mKey = move(key); }
     void setKey(const string& key)          { mKey = key; }
 
-    bool hasAttrs() const                   { return mOpts[AE_ATTRS]; }
-    bool hasOrder() const                   { return mOpts[AE_ORDER]; }
+    bool hasName() const                    { return mOpts[SE_NAME]; }
+    bool hasOrder() const                   { return mOpts[SE_ORDER]; }
 
     bool serialize(string*);
 
 private:
     handle mId = UNDEF;
     handle mNodeHandle = UNDEF;
-    string mAttrs;
+    string mName;
     int64_t mOrder = 0;
     m_time_t mTs = 0;
     string mKey;
 
     enum
     {
-        AE_ATTRS,
-        AE_ORDER,
-        AE_SIZE
+        SE_NAME,
+        SE_ORDER,
+        SE_SIZE
     };
-    std::bitset<AE_SIZE> mOpts;
+    std::bitset<SE_SIZE> mOpts;
 };
 
-class Album : public Cacheable
+class Set : public Cacheable
 {
 public:
-    Album() = default;
-    Album(handle id, string&& key, handle user, m_time_t ts, string&& attrs = string()) :
-        mId(id), mKey(move(key)), mUser(user), mTs(ts), mAttrs(move(attrs)) {}
+    Set() = default;
+    Set(handle id, string&& key, handle user, m_time_t ts, string&& name = string()) :
+        mId(id), mKey(move(key)), mUser(user), mTs(ts), mName(move(name)) {}
 
     const handle& id() const { return mId; }
     const string& key() const { return mKey; }
     const handle& user() const { return mUser; }
     const m_time_t& ts() const { return mTs; }
-    const string& attrs() const { return mAttrs; }
-    const map<handle, AlbumElement>& elements() const { return mElements; }
+    const string& name() const { return mName; }
+    const map<handle, SetElement>& elements() const { return mElements; }
 
     void setId(handle id) { mId = id; }
     void setKey(string&& key) { mKey = move(key); }
     void setUser(handle uh) { mUser = uh; }
     void setTs(m_time_t ts) { mTs = ts; }
-    void setAttrs(string&& attrs) { mAttrs = move(attrs); }
+    void setName(string&& name) { mName = move(name); }
 
-    const AlbumElement* element(handle eId) const;
-    void addOrUpdateElement(AlbumElement&& el);
+    const SetElement* element(handle eId) const;
+    void addOrUpdateElement(SetElement&& el);
     bool removeElement(handle elemId) { return mElements.erase(elemId); }
 
     bool serialize(string*) override;
@@ -304,8 +304,8 @@ private:
     string mKey;        // new AES-128 key per set
     handle mUser = UNDEF;
     m_time_t mTs = 0;
-    string mAttrs;      // up to 65535 bytes of miscellaneous data, as b64, encrypted with mKey
-    map<handle, AlbumElement> mElements;
+    string mName;       // up to 65535 bytes of miscellaneous data, as b64, encrypted with mKey
+    map<handle, SetElement> mElements;
 
     bool markedForDbRemoval = false;
 };
@@ -1320,7 +1320,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDALBUM } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET } sctablerectype;
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
@@ -1744,8 +1744,8 @@ public:
     static const int DRIVEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
-    static const int ALBUMHANDLE = 8;
-    static const int ALBUMELEMENTHANDLE = 8;
+    static const int SETHANDLE = 8;
+    static const int SETELEMENTHANDLE = 8;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -2041,56 +2041,56 @@ private:
 
 
 //
-// Albums
+// Sets and Elements
 //
 
 public:
     // generate "asp" command
-    void putAlbum(handle id, string&& attrs, std::function<void(Error, handle)> completion);
+    void putSet(handle id, string&& attrs, std::function<void(Error, handle)> completion);
 
     // generate "asr" command
-    void removeAlbum(handle id, std::function<void(Error)> completion);
+    void removeSet(handle id, std::function<void(Error)> completion);
 
     // generate "aft" command
-    void fetchAlbum(handle id, std::function<void(Error)> completion);
+    void fetchSet(handle id, std::function<void(Error)> completion);
 
     // generate "aep" command
-    void putAlbumElement(AlbumElement&& el, handle albumId, std::function<void(Error, handle, handle)> completion);
+    void putSetElement(SetElement&& el, handle setId, std::function<void(Error, handle, handle)> completion);
 
     // generate "aer" command
-    void removeAlbumElement(handle id, std::function<void(Error, handle)> completion);
+    void removeSetElement(handle id, std::function<void(Error, handle)> completion);
 
-    // load Albums and Elements from json
-    error readAlbumsAndElements(JSON& j);
+    // load Sets and Elements from json
+    error readSetsAndElements(JSON& j);
 
-    // return Album with given id or nullptr if it was not found
-    const Album* album(handle id) const;
+    // return Set with given id or nullptr if it was not found
+    const Set* getSet(handle id) const;
 
-    // return all available Albums, indexed by id
-    const map<handle, Album>& albums() const { return mAlbums; }
+    // return all available Sets, indexed by id
+    const map<handle, Set>& getSets() const { return mSets; }
 
-    // add new Album or replace exisiting one
-    void addAlbum(Album&& a);
+    // add new Set or replace exisiting one
+    void addSet(Set&& a);
 
-    // search for album with the same id, and update its members
-    void updateAlbum(handle id, string&& attrs, m_time_t ts);
+    // search for Set with the same id, and update its members
+    void updateSet(handle id, string&& name, m_time_t ts);
 
-    // delete Album with elemId from local memory; return true if found and deleted
-    bool deleteAlbum(handle albumId);
+    // delete Set with elemId from local memory; return true if found and deleted
+    bool deleteSet(handle setId);
 
     // add new element or update existing one with the same id
-    void addOrUpdateAlbumElement(AlbumElement&& el, handle albumId);
+    void addOrUpdateSetElement(SetElement&& el, handle setId);
 
-    // delete Element with elemId from Album with albumId in local memory; return true if found and deleted
-    bool deleteAlbumElement(handle elemId, handle albumId);
+    // delete Element with elemId from Set with setId in local memory; return true if found and deleted
+    bool deleteSetElement(handle elemId, handle setId);
 
 private:
-    error readAlbums(JSON& j, map<handle, Album>& albums);
-    error readAlbum(JSON& j, Album& al);
-    error readElements(JSON& j, multimap<handle, AlbumElement>& elements);
-    error readElement(JSON& j, AlbumElement& el, handle& albumId);
-    error decryptAlbumData(Album& al);
-    error decryptAlbumElementData(AlbumElement& el, const string& albumKey);
+    error readSets(JSON& j, map<handle, Set>& sets);
+    error readSet(JSON& j, Set& s);
+    error readElements(JSON& j, multimap<handle, SetElement>& elements);
+    error readElement(JSON& j, SetElement& el, handle& setId);
+    error decryptSetData(Set& s);
+    error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;
     string decryptAttrs(const string& attrs, const string& encryptionKey) const;
 
@@ -2099,18 +2099,18 @@ private:
     void sc_aep(); // AP after new or updated Album Element
     void sc_aer(); // AP after removed Album Element
 
-    Album* unserializeAlbum(string* d);
+    Set* unserializeSet(string* d);
 
-    bool initscalbums();
-    bool fetchscalbum(string* data, uint32_t id);
-    bool updatescalbums();
-    void notifyalbum(Album*);
-    void notifypurgealbums();
-    vector<Album*> albumnotify;
+    bool initscsets();
+    bool fetchscset(string* data, uint32_t id);
+    bool updatescsets();
+    void notifyset(Set*);
+    void notifypurgesets();
+    vector<Set*> setnotify;
 
-    map<handle, Album> mAlbums; // indexed by Album id
+    map<handle, Set> mSets; // indexed by Set id
 
-// -------- end of Albums
+// -------- end of Sets and Elements
 
 };
 } // namespace

@@ -1475,70 +1475,70 @@ public:
 
 
 //
-// Albums
+// Sets and Elements
 //
 
-class CommandAlbum : public Command // intermediary class to avoid code duplication
+class CommandSE : public Command // intermediary class to avoid code duplication
 {
 protected:
     bool procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s = nullptr, int64_t* o = nullptr) const;
     bool procerrorcode(const Result& r, Error& e) const;
 };
 
-class MEGA_API CommandPutAlbum : public CommandAlbum
+class MEGA_API CommandPutSet : public CommandSE
 {
 public:
-    CommandPutAlbum(MegaClient*, handle albumId, string&& decrKey, string&& encrKey, string&& decrAttrs, string&& encrAttrs,
-                    std::function<void(Error, handle)> completion);
+    CommandPutSet(MegaClient*, handle setId, string&& decrKey, string&& encrKey, string&& decrAttrs, string&& encrAttrs,
+                  std::function<void(Error, handle)> completion);
     bool procresult(Result) override;
 
 private:
     handle mId = UNDEF;
-    string mDecrKey;   // decrypted Album key
+    string mDecrKey;   // decrypted Set key
     string mDecrAttrs; // decrypted attrs
     std::function<void(Error, handle)> mCompletion;
 };
 
-class MEGA_API CommandRemoveAlbum : public CommandAlbum
+class MEGA_API CommandRemoveSet : public CommandSE
 {
 public:
-    CommandRemoveAlbum(MegaClient*, handle id, std::function<void(Error)> completion);
+    CommandRemoveSet(MegaClient*, handle id, std::function<void(Error)> completion);
     bool procresult(Result) override;
 
 private:
-    handle mAlbumId = UNDEF;
+    handle mSetId = UNDEF;
     std::function<void(Error)> mCompletion;
 };
 
-class MEGA_API CommandFetchAlbum : public CommandAlbum
+class MEGA_API CommandFetchSet : public CommandSE
 {
 public:
-    CommandFetchAlbum(MegaClient*, handle id, std::function<void(Error)> completion);
+    CommandFetchSet(MegaClient*, handle id, std::function<void(Error)> completion);
     bool procresult(Result) override;
 
 private:
     std::function<void(Error)> mCompletion;
 };
 
-class AlbumElement;
+class SetElement;
 
-class MEGA_API CommandPutAlbumElement : public CommandAlbum
+class MEGA_API CommandPutSetElement : public CommandSE
 {
 public:
-    CommandPutAlbumElement(MegaClient*, AlbumElement&& e, string&& encrAttrs, string&& encrKey, handle albumId,
-                           std::function<void(Error, handle, handle)> completion);
+    CommandPutSetElement(MegaClient*, SetElement&& el, string&& encrAttrs, string&& encrKey, handle setId,
+                         std::function<void(Error, handle, handle)> completion);
     bool procresult(Result) override;
 
 private:
-    unique_ptr<AlbumElement> mElement; // use a pointer to avoid defining AlbumElement in this header
-    handle mAlbumId = UNDEF;
+    unique_ptr<SetElement> mElement; // use a pointer to avoid defining SetElement in this header
+    handle mSetId = UNDEF;
     std::function<void(Error, handle, handle)> mCompletion;
 };
 
-class MEGA_API CommandRemoveAlbumElement : public CommandAlbum
+class MEGA_API CommandRemoveSetElement : public CommandSE
 {
 public:
-    CommandRemoveAlbumElement(MegaClient*, handle id, std::function<void(Error, handle)> completion);
+    CommandRemoveSetElement(MegaClient*, handle id, std::function<void(Error, handle)> completion);
     bool procresult(Result) override;
 
 private:
@@ -1546,7 +1546,7 @@ private:
     std::function<void(Error, handle)> mCompletion;
 };
 
-// -------- end of Albums
+// -------- end of Sets and Elements
 
 
 #ifdef ENABLE_CHAT
