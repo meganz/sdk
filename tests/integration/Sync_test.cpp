@@ -2290,19 +2290,14 @@ string StandardClient::exportSyncConfigs()
 bool StandardClient::delSync_inthread(handle backupId)
 {
     const auto handle = syncSet(backupId).h;
-    bool removed = false;
+    PromiseBoolSP pb;
 
     client.syncs.removeSelectedSyncs(
-        [&](SyncConfig& c, Sync*)
-        {
-            const bool matched = c.mRemoteNode == handle;
+        [&](SyncConfig& c, Sync*) { return c.mRemoteNode == handle; },
+        [&](Error e)  { pb->set_value(e == API_OK); },
+        UNDEF, false);
 
-            removed |= matched;
-
-            return matched;
-        });
-
-    return removed;
+    return pb.get();
 }
 
 bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)
@@ -3275,12 +3270,10 @@ void StandardClient::cleanupForTestReuse()
     future<bool> p1;
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
 
-        // currently synchronous
         sc.client.syncs.removeSelectedSyncs(
-            [](SyncConfig&, Sync*){ return true; }
-            );
-
-        pb->set_value(true);
+            [](SyncConfig&, Sync*){ return true; },
+            [&](Error e) { pb->set_value(e == API_OK); },
+            UNDEF, false);
     });
     if (!waitonresults(&p1))
     {
@@ -9462,7 +9455,7 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
     {
-        if (syncType == TwoWaySyncSymmetryCase::type_backupSync) continue;
+        //if (syncType != TwoWaySyncSymmetryCase::type_backupSync) continue;
 
         for (int selfChange = 0; selfChange < 2; ++selfChange)
         {
