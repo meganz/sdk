@@ -17876,10 +17876,10 @@ Album* MegaClient::unserializeAlbum(string* d)
     return &addedAlbum;
 }
 
-bool Album::hasElement(handle elemId) const
+const AlbumElement* Album::element(handle eId) const
 {
-    auto it = mElements.find(elemId);
-    return it != mElements.end();
+    auto it = mElements.find(eId);
+    return it != mElements.end() ? &(it->second) : nullptr;
 }
 
 void Album::addOrUpdateElement(AlbumElement&& el)

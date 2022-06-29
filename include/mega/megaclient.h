@@ -290,7 +290,7 @@ public:
     void setTs(m_time_t ts) { mTs = ts; }
     void setAttrs(string&& attrs) { mAttrs = move(attrs); }
 
-    bool hasElement(handle elemId) const;
+    const AlbumElement* element(handle eId) const;
     void addOrUpdateElement(AlbumElement&& el);
     bool removeElement(handle elemId) { return mElements.erase(elemId); }
 
