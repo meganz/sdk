@@ -17622,10 +17622,10 @@ void MegaClient::sc_asr()
         {
         case MAKENAMEID2('i', 'd'):
         {
-            handle albumId = jsonsc.gethandle(MegaClient::ALBUMHANDLE);
-            if (!deleteAlbum(albumId))
+            handle setId = jsonsc.gethandle(MegaClient::SETHANDLE);
+            if (!deleteSet(setId))
             {
-                LOG_err << "Albums: Failed to remove Album in `asr` action packet";
+                LOG_err << "Sets: Failed to remove Set in `asr` action packet";
                 return;
             }
             break;
@@ -17637,7 +17637,7 @@ void MegaClient::sc_asr()
         default:
             if (!jsonsc.storeobject())
             {
-                LOG_warn << "Albums: Failed to parse `asr` action packet";
+                LOG_warn << "Sets: Failed to parse `asr` action packet";
                 return;
             }
         }
@@ -17646,64 +17646,64 @@ void MegaClient::sc_asr()
 
 void MegaClient::sc_aep()
 {
-    AlbumElement el;
-    handle albumId = 0;
-    if (readElement(jsonsc, el, albumId) != API_OK)
+    SetElement el;
+    handle setId = 0;
+    if (readElement(jsonsc, el, setId) != API_OK)
     {
-        LOG_err << "Albums: `aep` action packet: failed to parse data";
+        LOG_err << "Sets: `aep` action packet: failed to parse data";
         return;
     }
 
-    // find the Album for this Element
-    Album* al = nullptr;
+    // find the Set for this Element
+    Set* s = nullptr;
 
-    if (albumId)
+    if (setId)
     {
-        auto it = mAlbums.find(albumId);
-        if (it != mAlbums.end())
+        auto it = mSets.find(setId);
+        if (it != mSets.end())
         {
-            al = &it->second;
+            s = &it->second;
         }
     }
 
-    if (!al)
+    if (!s)
     {
-        LOG_err << "Albums: `aep` action packet: failed to find Album for Element";
+        LOG_err << "Sets: `aep` action packet: failed to find Set for Element";
         return;
     }
 
-    if (decryptAlbumElementData(el, al->key()) != API_OK)
+    if (decryptElementData(el, s->key()) != API_OK)
     {
-        LOG_err << "Albums: `aep` action packet: failed to decrypt Element data";
+        LOG_err << "Sets: `aep` action packet: failed to decrypt Element data";
         return;
     }
 
-    al->addOrUpdateElement(move(el));
+    s->addOrUpdateElement(move(el));
 
-    notifyalbum(al);
+    notifyset(s);
 }
 
 void MegaClient::sc_aer()
 {
     handle elemId = 0;
-    handle albumId = 0;
+    handle setId = 0;
 
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
         case MAKENAMEID2('i', 'd'):
-            elemId = jsonsc.gethandle(MegaClient::ALBUMELEMENTHANDLE);
+            elemId = jsonsc.gethandle(MegaClient::SETELEMENTHANDLE);
             break;
 
         case MAKENAMEID1('s'):
-            albumId = jsonsc.gethandle(MegaClient::ALBUMHANDLE);
+            setId = jsonsc.gethandle(MegaClient::SETHANDLE);
             break;
 
         case EOO:
-            if (!deleteAlbumElement(elemId, albumId))
+            if (!deleteSetElement(elemId, setId))
             {
-                LOG_err << "Albums: Failed to remove Element in `aer` action packet";
+                LOG_err << "Sets: Failed to remove Element in `aer` action packet";
                 return;
             }
             return;
@@ -17711,7 +17711,7 @@ void MegaClient::sc_aer()
         default:
             if (!jsonsc.storeobject())
             {
-                LOG_warn << "Albums: Failed to parse `aer` action packet";
+                LOG_warn << "Sets: Failed to parse `aer` action packet";
                 return;
             }
         }
