@@ -267,6 +267,8 @@ public:
     // Search nodes containing 'searchString' in its name
     // Returned nodes are children of 'nodeHandle' (at any level)
     // If 'nodeHandle' is UNDEF, search includes the whole account
+    // Previously call this method we have to be sure of we have cleaned flags to cancel search
+    // NodeManager::resetSearchFlags
     node_vector search(NodeHandle nodeHandle, const char *searchString);
 
     node_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
@@ -368,6 +370,9 @@ public:
     // If some value is set previously (setParent), this value will be removed
     void initializeCounters();
 
+    // Reset flags for cancel search
+    void resetSearchFlags();
+
     NodeHandle getRootNodeFiles() {
         return rootnodes.files;
     }
@@ -386,6 +391,7 @@ public:
     void setRootNodeRubbish(NodeHandle h) {
         rootnodes.rubbish = h;
     }
+
 
 private:
     MegaClient& mClient;

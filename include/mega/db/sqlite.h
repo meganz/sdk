@@ -85,6 +85,8 @@ public:
     void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
     virtual ~SqliteAccountState();
+    static int callback(void *);
+    void resetGetNodesByNameFlag() override;
 
 private:
     // Iterate over a SQL query row by row and fill the map
@@ -100,6 +102,10 @@ private:
     sqlite3_stmt* mStmtGetNode = nullptr;
 
     sqlite3* mDbSearchConnection = nullptr;
+
+    // Avoid race condition if sqlite_interrupt between
+    // NodeManager::mSearchIsCanceled is checked and sql query starts
+    std::atomic_bool mGetNodesByNameIsCanceled { false };
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

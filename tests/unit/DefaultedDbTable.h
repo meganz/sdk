@@ -160,6 +160,9 @@ public:
     {
         return false;
     }
+    void resetGetNodesByNameFlag() override
+    {
+    }
 };
 
 } // mt

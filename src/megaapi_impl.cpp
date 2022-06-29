@@ -11793,8 +11793,6 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
         return nodeVector;
     }
 
-    SdkMutexGuard g(sdkMutex);
-
     nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString);
 
     for (auto it = nodeVector.begin(); it != nodeVector.end() && !(cancelToken && cancelToken->isCancelled());)
@@ -11884,6 +11882,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
     SdkMutexGuard g(sdkMutex);
 
+    client->mNodeManager.resetSearchFlags();
     MegaCancelTokenPrivate* cancelTokenPrivate = nullptr;
     if (cancelToken)
     {
@@ -12036,6 +12035,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         cancelTokenPrivate->endProcessing();
     }
 
+    client->mNodeManager.resetSearchFlags();
     return nodeList;
 }
 

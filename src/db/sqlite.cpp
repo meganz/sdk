@@ -600,6 +600,25 @@ SqliteAccountState::~SqliteAccountState()
     }
 }
 
+int SqliteAccountState::callback(void *param)
+{
+    SqliteAccountState* db = static_cast<SqliteAccountState*>(param);
+    if (db->mGetNodesByNameIsCanceled)
+    {
+        sqlite3_interrupt(db->mDbSearchConnection);
+    }
+
+    sqlite3_progress_handler(db->mDbSearchConnection, -1, nullptr, nullptr);
+
+    return 0;
+}
+
+void SqliteAccountState::resetGetNodesByNameFlag()
+{
+    sqlite3_progress_handler(mDbSearchConnection, -1, nullptr, nullptr);
+    mGetNodesByNameIsCanceled = false;
+}
+
 bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, sqlite3* dbConnection)
 {
     assert(stmt);
@@ -690,6 +709,7 @@ void SqliteAccountState::cancelQuery()
         return;
     }
 
+    mGetNodesByNameIsCanceled = true;
     sqlite3_interrupt(mDbSearchConnection);
 }
 
@@ -699,7 +719,6 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string&
     {
         return;
     }
-
 
     int sqlResult = SQLITE_ERROR;
     if (mStmtUpdateNode)
@@ -978,6 +997,8 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
     {
         return false;
     }
+
+    sqlite3_progress_handler(mDbSearchConnection, 15, SqliteAccountState::callback, static_cast<void*>(this));
 
     // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
     // (with or without any additional char at the beginning and/or end of the name). The '%' is the wildcard in SQL

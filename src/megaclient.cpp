@@ -17064,7 +17064,6 @@ uint64_t NodeManager::getNodeCount()
 
 node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
 {
-    mSearchIsCanceled = false;
     node_vector nodes;
     if (!mTable)
     {
@@ -17076,8 +17075,7 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
     mTable->getNodesByName(searchString, nodesFromTable);
     nodes = filterByAncestor(nodesFromTable, nodeHandle, true);
 
-    mSearchIsCanceled = false;
-
+    resetSearchFlags();
     return nodes;
 }
 
@@ -18256,6 +18254,12 @@ node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle
     }
 
     return nodes;
+}
+
+void NodeManager::resetSearchFlags()
+{
+    mSearchIsCanceled = false;
+    mTable->resetGetNodesByNameFlag();
 }
 
 size_t NodeManager::nodeNotifySize() const
