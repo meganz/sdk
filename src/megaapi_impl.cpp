@@ -18326,6 +18326,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, CancelToken can
                 {
                     transferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
+
+                    // keep VS2017 on the jenkins node happy.  Can be removed after it's upgraded to 2019
+                    #define _ENABLE_EXTENDED_ALIGNED_STORAGE
+
                     transfer->startRecursiveOperation(std::make_shared<MegaFolderUploadController>(this, transfer), nullptr);
                 }
                 break;
