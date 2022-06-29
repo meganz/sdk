@@ -7798,60 +7798,62 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
 #endif
 
 /**
- * @brief TEST_F SdkTestAlbums
+ * @brief TEST_F SdkTestSetsAndElements
  *
- * Tests creating, modifying and removing albums.
+ * Tests creating, modifying and removing Sets and Elements.
  */
-TEST_F(SdkTest, SdkTestAlbums)
+TEST_F(SdkTest, SdkTestSetsAndElements)
 {
-    LOG_info << "___TEST Albums___";
+    LOG_info << "___TEST Sets and Elements___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    //  1. Create Album
-    //  2. Update album
-    //  3. Fetch Album
-    //  4. Upload test file
-    //  5. Add Element
+    //  1. Create Set
+    //  2. Update Set name
+    //  3. Upload test file
+    //  4. Add Element
+    //  5. Fetch Set
     //  6. Update Element order
-    //  7. Update Element attrs
+    //  7. Update Element name
     //  8. Remove Element
     //  9. Add another element
     // 10. Logout / login
-    // 11. Remove all Albums
+    // 11. Remove all Sets
 
 
-    // 1. Create Album
-    string attrs = "first album";
-    MegaHandle ah = INVALID_HANDLE;
-    int err = doCreateMegaSet(0, &ah, attrs.c_str());
+    // 1. Create Set
+    string name = "first Set";
+    MegaHandle sh = INVALID_HANDLE;
+    int err = doCreateMegaSet(0, &sh, name.c_str());
     ASSERT_EQ(err, API_OK);
-    ASSERT_NE(ah, INVALID_HANDLE);
+    ASSERT_NE(sh, INVALID_HANDLE);
 
-    unique_ptr<MegaSet> a1p(megaApi[0]->getMegaSet(ah));
-    ASSERT_NE(a1p, nullptr);
-    ASSERT_EQ(a1p->id(), ah);
-    ASSERT_EQ(a1p->name(), attrs);
-    ASSERT_NE((a1p->key() ? string(a1p->key(), SymmCipher::KEYLENGTH) : string()), string());
-    ASSERT_NE(a1p->ts(), 0);
-    ASSERT_NE(a1p->user(), INVALID_HANDLE);
+    unique_ptr<MegaSet> s1p(megaApi[0]->getMegaSet(sh));
+    ASSERT_NE(s1p, nullptr);
+    ASSERT_EQ(s1p->id(), sh);
+    ASSERT_EQ(s1p->name(), name);
+    string setKey = s1p->key() ? string(s1p->key(), SymmCipher::KEYLENGTH) : string();
+    ASSERT_NE(setKey, string());
+    ASSERT_NE(s1p->ts(), 0);
+    ASSERT_NE(s1p->user(), INVALID_HANDLE);
 
-    // 2. Update Album attributes
-    MegaHandle ahu = INVALID_HANDLE;
-    attrs += " updated";
-    err = doUpdateMegaSetName(0, &ahu, ah, attrs.c_str());
+    // 2. Update Set name
+    MegaHandle shu = INVALID_HANDLE;
+    name += " updated";
+    err = doUpdateMegaSetName(0, &shu, sh, name.c_str());
     ASSERT_EQ(err, API_OK);
-    ASSERT_EQ(ahu, ah);
+    ASSERT_EQ(shu, sh);
 
-    unique_ptr<MegaSet> a1up(megaApi[0]->getMegaSet(ahu));
-    ASSERT_NE(a1up, nullptr);
-    ASSERT_EQ(a1up->id(), ah);
-    ASSERT_EQ(a1up->name(), attrs);
-    ASSERT_EQ((a1up->key() ? string(a1up->key(), SymmCipher::KEYLENGTH) : string()),
-              (a1p->key() ? string(a1p->key(), SymmCipher::KEYLENGTH) : string()));
-    ASSERT_EQ(a1up->user(), a1p->user());
-    //ASSERT_NE(a1up->ts(), a1p->ts()); // apparently this is not always updated
+    unique_ptr<MegaSet> s1up(megaApi[0]->getMegaSet(shu));
+    ASSERT_NE(s1up, nullptr);
+    ASSERT_EQ(s1up->id(), sh);
+    ASSERT_EQ(s1up->name(), name);
+    string key1 = s1up->key() ? string(s1up->key(), SymmCipher::KEYLENGTH) : string();
+    string key2 = s1p->key() ? string(s1p->key(), SymmCipher::KEYLENGTH) : string();
+    ASSERT_EQ(key1, key2);
+    ASSERT_EQ(s1up->user(), s1p->user());
+    //ASSERT_NE(s1up->ts(), s1p->ts()); // apparently this is not always updated
 
-    // 4. Create test node
+    // 3. Upload test file
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
     ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
     MegaHandle uploadedNode = UNDEF;
@@ -7864,142 +7866,144 @@ TEST_F(SdkTest, SdkTestAlbums)
         false   /*startFirst*/,
         nullptr /*cancelToken*/)) << "Cannot upload a test file";
 
-    // 5. Add Element
+    // 4. Add Element
     MegaHandle eh = INVALID_HANDLE;
-    int optionFlags = 0;
     string elattrs = "element attributes";
-    optionFlags |= 2; // set attributes
-    err = doCreateMegaElement(0, &eh, ah, uploadedNode, optionFlags, 0, elattrs.c_str());
+    int optionFlags = 2; // set attributes
+    err = doCreateMegaElement(0, &eh, sh, uploadedNode, optionFlags, 0, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(eh, INVALID_HANDLE);
 
-    unique_ptr<MegaElementList> els(megaApi[0]->getMegaElements(ah));
+    unique_ptr<MegaElementList> els(megaApi[0]->getMegaElements(sh));
     ASSERT_NE(els, nullptr);
     ASSERT_EQ(els->size(), 1u);
-    unique_ptr<MegaElement> elp(megaApi[0]->getMegaElement(eh, ah));
+    unique_ptr<MegaElement> elp(megaApi[0]->getMegaElement(eh, sh));
     ASSERT_NE(elp, nullptr);
     ASSERT_EQ(elp->id(), els->get(0)->id());
     ASSERT_EQ(elp->id(), eh);
     ASSERT_EQ(elp->node(), uploadedNode);
-    ASSERT_EQ(elp->attrs(), elattrs);
+    ASSERT_EQ(elp->name(), elattrs);
     ASSERT_NE(elp->ts(), 0);
     ASSERT_EQ(elp->order(), 1000); // first default value, according to specs
 
-    // 3. Fetch Album
-    err = doFetchMegaSet(0, ah); // will replace the one stored in memory
+    // 5. Fetch Set
+    err = doFetchMegaSet(0, sh); // will replace the one stored in memory
     ASSERT_EQ(err, API_OK);
 
-    unique_ptr<MegaSet> a1fp(megaApi[0]->getMegaSet(ah));
-    ASSERT_NE(a1fp, nullptr);
-    ASSERT_EQ(a1fp->id(), ah);
-    ASSERT_EQ(a1fp->name(), attrs);
-    ASSERT_EQ((a1fp->key() ? string(a1fp->key(), SymmCipher::KEYLENGTH) : string()),
-              (a1up->key() ? string(a1up->key(), SymmCipher::KEYLENGTH) : string()));
-    ASSERT_EQ(a1fp->ts(), a1up->ts());
-    ASSERT_EQ(a1fp->user(), a1up->user());
+    unique_ptr<MegaSet> s1fp(megaApi[0]->getMegaSet(sh));
+    ASSERT_NE(s1fp, nullptr);
+    ASSERT_EQ(s1fp->id(), sh);
+    ASSERT_EQ(s1fp->name(), name);
+    key1 = s1fp->key() ? string(s1fp->key(), SymmCipher::KEYLENGTH) : string();
+    key2 = s1up->key() ? string(s1up->key(), SymmCipher::KEYLENGTH) : string();
+    ASSERT_EQ(key1, key2);
+    ASSERT_EQ(s1fp->ts(), s1up->ts());
+    ASSERT_EQ(s1fp->user(), s1up->user());
 
-    unique_ptr<MegaElement> elfp(megaApi[0]->getMegaElement(eh, ah));
+    unique_ptr<MegaElement> elfp(megaApi[0]->getMegaElement(eh, sh));
     ASSERT_NE(elfp, nullptr);
     ASSERT_EQ(elfp->id(), eh);
     ASSERT_EQ(elfp->node(), uploadedNode);
-    ASSERT_EQ(elfp->attrs(), elattrs);
+    ASSERT_EQ(elfp->name(), elattrs);
     ASSERT_EQ(elfp->ts(), elp->ts());
     ASSERT_EQ(elfp->order(), elp->order());
 
     // 6. Update Element order
-    MegaHandle ahu1 = INVALID_HANDLE;
+    MegaHandle shu1 = INVALID_HANDLE;
     int64_t order = 222;
-    err = doUpdateMegaElementOrder(0, &ahu1, eh, order);
+    err = doUpdateMegaElementOrder(0, &shu1, eh, order);
     ASSERT_EQ(err, API_OK);
-    ASSERT_EQ(ahu1, ah);
+    ASSERT_EQ(shu1, sh);
 
-    unique_ptr<MegaElement> elu1p(megaApi[0]->getMegaElement(eh, ah));
+    unique_ptr<MegaElement> elu1p(megaApi[0]->getMegaElement(eh, sh));
     ASSERT_NE(elu1p, nullptr);
     ASSERT_EQ(elu1p->id(), eh);
     ASSERT_EQ(elu1p->node(), uploadedNode);
-    ASSERT_EQ(elu1p->attrs(), elattrs);
+    ASSERT_EQ(elu1p->name(), elattrs);
     ASSERT_EQ(elu1p->order(), order);
     ASSERT_NE(elu1p->ts(), 0);
 
-    // 7. Update Element attrs
-    MegaHandle ahu2 = INVALID_HANDLE;
+    // 7. Update Element name
+    MegaHandle shu2 = INVALID_HANDLE;
     optionFlags = 2; // update attributes
     elattrs += " updated";
-    err = doUpdateMegaElement(0, &ahu2, eh, optionFlags, 0, elattrs.c_str());
+    err = doUpdateMegaElement(0, &shu2, eh, optionFlags, 0, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
-    ASSERT_EQ(ahu2, ah);
+    ASSERT_EQ(shu2, sh);
 
-    err = doFetchMegaSet(0, ah); // will replace the one stored in memory
-    unique_ptr<MegaElement> elu2p(megaApi[0]->getMegaElement(eh, ah));
+    err = doFetchMegaSet(0, sh); // will replace the one stored in memory
+    unique_ptr<MegaElement> elu2p(megaApi[0]->getMegaElement(eh, sh));
     ASSERT_NE(elu2p, nullptr);
     ASSERT_EQ(elu2p->id(), eh);
     ASSERT_EQ(elu2p->node(), uploadedNode);
-    ASSERT_EQ(elu2p->attrs(), elattrs);
+    ASSERT_EQ(elu2p->name(), elattrs);
     ASSERT_EQ(elu2p->order(), order);
     ASSERT_NE(elu2p->ts(), 0);
 
     // 8. Remove Element
-    handle ahre = 0;
-    err = doRemoveMegaElement(0, &ahre, eh);
+    handle shre = 0;
+    err = doRemoveMegaElement(0, &shre, eh);
     ASSERT_EQ(err, API_OK);
-    ASSERT_EQ(ahre, ah);
+    ASSERT_EQ(shre, sh);
 
-    elp.reset(megaApi[0]->getMegaElement(eh, ah));
+    elp.reset(megaApi[0]->getMegaElement(eh, sh));
     ASSERT_EQ(elp, nullptr);
 
-    err = doFetchMegaSet(0, ah); // will replace the one stored in memory
+    err = doFetchMegaSet(0, sh); // will replace the one stored in memory
     ASSERT_EQ(err, API_OK);
 
-    elp.reset(megaApi[0]->getMegaElement(eh, ah));
+    elp.reset(megaApi[0]->getMegaElement(eh, sh));
     ASSERT_EQ(elp, nullptr);
 
     // 9. Add another element
     eh = 0;
     optionFlags = 2; // set attributes
     elattrs += " again";
-    err = doCreateMegaElement(0, &eh, ah, uploadedNode, optionFlags, 0, elattrs.c_str());
+    err = doCreateMegaElement(0, &eh, sh, uploadedNode, optionFlags, 0, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(eh, INVALID_HANDLE);
-    unique_ptr<MegaElement> elp_b4lo(megaApi[0]->getMegaElement(eh, ah));
+    unique_ptr<MegaElement> elp_b4lo(megaApi[0]->getMegaElement(eh, sh));
     ASSERT_NE(elp_b4lo, nullptr);
     ASSERT_EQ(elp_b4lo->id(), eh);
-    ASSERT_EQ(elp_b4lo->attrs(), elattrs);
+    ASSERT_EQ(elp_b4lo->name(), elattrs);
 
     // 10. Logout / login
     unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
-    a1p.reset(megaApi[0]->getMegaSet(ah));
-    ASSERT_EQ(a1p, nullptr);
+    s1p.reset(megaApi[0]->getMegaSet(sh));
+    ASSERT_EQ(s1p, nullptr);
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
-    ASSERT_NO_FATAL_FAILURE(fetchnodes(0)); // load cached albums
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0)); // load cached Sets
 
-    a1p.reset(megaApi[0]->getMegaSet(ah));
-    ASSERT_NE(a1p, nullptr);
-    ASSERT_EQ(a1p->id(), ah);
-    ASSERT_EQ((a1p->key() ? string(a1p->key(), SymmCipher::KEYLENGTH) : string()),
-              (a1fp->key() ? string(a1fp->key(), SymmCipher::KEYLENGTH) : string()));
-    ASSERT_EQ(a1p->user(), a1fp->user());
-    ASSERT_EQ(a1p->ts(), a1fp->ts());
-    ASSERT_EQ(a1p->name(), attrs);
+    s1p.reset(megaApi[0]->getMegaSet(sh));
+    ASSERT_NE(s1p, nullptr);
+    ASSERT_EQ(s1p->id(), sh);
+    key1 = s1p->key() ? string(s1p->key(), SymmCipher::KEYLENGTH) : string();
+    key2 = s1fp->key() ? string(s1fp->key(), SymmCipher::KEYLENGTH) : string();
+    ASSERT_EQ(key1, key2);
+    ASSERT_EQ(s1p->user(), s1fp->user());
+    ASSERT_EQ(s1p->ts(), s1fp->ts());
+    ASSERT_EQ(s1p->name(), name);
 
-    unique_ptr<MegaElement> ellp(megaApi[0]->getMegaElement(eh, ah));
+    unique_ptr<MegaElement> ellp(megaApi[0]->getMegaElement(eh, sh));
     ASSERT_NE(ellp, nullptr);
     ASSERT_EQ(ellp->id(), elp_b4lo->id());
     ASSERT_EQ(ellp->node(), elp_b4lo->node());
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
-    ASSERT_EQ((ellp->key() ? string(ellp->key(), SymmCipher::KEYLENGTH) : string()),
-              (elp_b4lo->key() ? string(elp_b4lo->key(), SymmCipher::KEYLENGTH) : string()));
-    ASSERT_EQ(ellp->attrs(), elattrs);
+    key1 = ellp->key() ? string(ellp->key(), SymmCipher::KEYLENGTH) : string();
+    key2 = elp_b4lo->key() ? string(elp_b4lo->key(), SymmCipher::KEYLENGTH) : string();
+    ASSERT_EQ(key1, key2);
+    ASSERT_EQ(ellp->name(), elattrs);
 
-    // 11. Remove all Albums
-    unique_ptr<MegaSetList> albums(megaApi[0]->getMegaSets());
-    for (unsigned i = 0; i < albums->size(); ++i)
+    // 11. Remove all Sets
+    unique_ptr<MegaSetList> sets(megaApi[0]->getMegaSets());
+    for (unsigned i = 0; i < sets->size(); ++i)
     {
-        handle albumId = albums->get(i)->id();
-        err = doRemoveMegaSet(0, albumId);
+        handle setId = sets->get(i)->id();
+        err = doRemoveMegaSet(0, setId);
         ASSERT_EQ(err, API_OK);
 
-        a1p.reset(megaApi[0]->getMegaSet(albumId));
-        ASSERT_EQ(a1p, nullptr);
+        s1p.reset(megaApi[0]->getMegaSet(setId));
+        ASSERT_EQ(s1p, nullptr);
     }
 }
