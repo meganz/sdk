@@ -10023,14 +10023,8 @@ void exec_syncremove(autocomplete::ACState& s)
     }
 
     error err = client->syncs.removeSelectedSync(
-        [&](SyncConfig& config, Sync*)
-        {
-            auto matched = config.mBackupId == backupId;
-
-            return matched;
-        },
-        bkpDest, false,
-            [](Error e)
+        [&](SyncConfig& config, Sync*) { return config.mBackupId == backupId; },
+        [](Error e)
         {
             if (e == API_OK || e == API_ENOENT)
             {
@@ -10040,7 +10034,8 @@ void exec_syncremove(autocomplete::ACState& s)
             {
                 cout << "Sync - Failed to remove (" << error(e) << ": " << errorstring(e) << ')' << endl;
             }
-        });
+        },
+        bkpDest, false);
 
     switch (err)
     {
