@@ -5808,9 +5808,9 @@ bool CommandFetchNodes::procresult(Result r)
                 break;
 
             case MAKENAMEID4('a', 'e', 's', 'p'):
-                // Albums
+                // Sets and Elements
                 if (!client->json.enterobject() ||
-                    client->readAlbumsAndElements(client->json) != API_OK ||
+                    client->readSetsAndElements(client->json) != API_OK ||
                     !client->json.leaveobject())
                 {
                     return false;
