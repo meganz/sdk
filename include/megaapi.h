@@ -4450,7 +4450,7 @@ class MegaTransfer
         virtual const MegaError* getLastErrorExtended() const;
 
         /**
-         * @brief Returns true if the transfer is a folder transfer
+         * @brief Returns true if the transfer is part of a folder transfer
          * @return true if it's a folder transfer, otherwise (file transfer) it returns false
          */
         virtual bool isFolderTransfer() const;
@@ -4565,12 +4565,9 @@ class MegaTransfer
          *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
          *    of those transfers.
          *
-         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
-         *    that shares the same cancel token instance.
-         *
-         * @return A pointer to the cancelToken instance associated to the transfer in case it exists
+         * @return A pointer to a cancelToken instance associated to the transfer in case it exists
          */
-        virtual MegaCancelToken* getCancelToken() const;
+        virtual MegaCancelToken* getCancelToken();
 
         /**
          * @brief Returns a string that identify the recursive operation stage
@@ -20036,13 +20033,13 @@ public:
      * @brief Allows to set the value of the flag
      * @param newValue True to force the cancelation of the processing. False to reset.
      */
-    virtual void cancel(bool newValue = true);
+    virtual void cancel() = 0;
 
     /**
      * @brief Returns the state of the flag
      * @return The state of the flag
      */
-    virtual bool isCancelled() const;
+    virtual bool isCancelled() const = 0;
 };
 
 }

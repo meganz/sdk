@@ -117,8 +117,11 @@ struct MEGA_API File: public FileFingerprint
 
     static File* unserialize(string*);
 
-    // tag of the file
+    // tag of the file transfer
     int tag;
+
+    // set the token true to cause cancellation of this transfer (this file of the transfer)
+    CancelToken cancelToken;
 };
 
 struct MEGA_API SyncFileGet: public File

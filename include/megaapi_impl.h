@@ -233,14 +233,17 @@ public:
     MegaRecursiveOperation(MegaClient* c) : mMegaapiThreadClient(c) {}
     virtual ~MegaRecursiveOperation() = default;
     virtual void start(MegaNode* node) = 0;
-    virtual void cancel() = 0;
-    void notifyStage(uint8_t stage);
 
-    // check if recursive operation is cancelled
-    bool isCancelled();
+    void notifyStage(uint8_t stage);
+    void ensureThreadStopped();
 
     // check if user has cancelled recursive operation by using cancelToken of associated transfer
-    bool isCancelledByUser();
+    bool isCancelledByFolderTransferToken();
+
+    bool allSubtransfersResolved()
+    {
+        return  pendingTransfers == 0;
+    }
 
 protected:
     MegaApiImpl *megaApi;
@@ -248,9 +251,7 @@ protected:
     MegaTransferListener *listener;
     int recursive;
     int tag;
-    uint64_t pendingTransfers;
-    bool cancelled = false;
-    std::set<MegaTransferPrivate*> subTransfers;
+    std::atomic<uint64_t> pendingTransfers{0};
     uint64_t mIncompleteTransfers = 0;
 
     // If the thread was started, it queues a completion before exiting
@@ -259,6 +260,7 @@ protected:
     shared_ptr<ExecuteOnce> mCompletionForMegaApiThread;
 
     // worker thread
+    std::atomic_bool mWorkerThreadStopFlag { false };
     std::thread mWorkerThread;
 
     // thread id of MegaApiImpl thread
@@ -283,7 +285,6 @@ public:
 
     // ---- MegaRecursiveOperation methods ---
     void start(MegaNode* node) override;
-    void cancel() override;
 
     // ---- MegaTransferListener methods ---
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
@@ -495,7 +496,6 @@ public:
 
     // ---- MegaRecursiveOperation methods ---
     void start(MegaNode *node) override;
-    void cancel() override;
 
     // ---- MegaTransferListener methods ---
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
@@ -779,6 +779,27 @@ class MegaSharePrivate : public MegaShare
         bool pending;
 };
 
+class MegaCancelTokenPrivate : public MegaCancelToken
+{
+public:
+    MegaCancelTokenPrivate();
+    MegaCancelTokenPrivate(CancelToken);
+
+    void cancel() override;
+    bool isCancelled() const override;
+
+    MegaCancelTokenPrivate* existencePtr() { return cancelFlag.exists() ? this : nullptr; }
+
+    CancelToken cancelFlag;
+};
+
+inline CancelToken MegaCancelTokenAdapter(MegaCancelToken* mct)
+{
+    if (!mct) return CancelToken();
+    return static_cast<MegaCancelTokenPrivate*>(mct)->cancelFlag;
+}
+
+
 class MegaTransferPrivate : public MegaTransfer, public Cacheable
 {
 	public:
@@ -824,7 +845,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setNotificationNumber(long long notificationNumber);
         void setListener(MegaTransferListener *listener);
         void setTargetOverride(bool targetOverride);
-        void setCancelToken(MegaCancelToken *cancelToken);
+        void setCancelToken(CancelToken);
 
         int getType() const override;
         const char * getTransferString() const override;
@@ -879,22 +900,24 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         static MegaTransferPrivate* unserialize(string*);
 
         void startRecursiveOperation(shared_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
+        void stopRecursiveOperationThread();
+
         long long getPlaceInQueue() const;
         void setPlaceInQueue(long long value);
 
-        void setDoNotStopSubTransfers(bool doNotStopSubTransfers);
-        bool getDoNotStopSubTransfers() const;
-        MegaCancelToken* getCancelToken() const override;
+        MegaCancelToken* getCancelToken() override;
         bool isRecursive() const { return recursiveOperation.get() != nullptr; }
         void completeRecursiveOperation(Error e);
+
+
+        CancelToken& accessCancelToken() { return mCancelToken.cancelFlag; }
+
 
 protected:
         int type;
         int tag;
         int state;
         uint64_t priority;
-
-        bool mDoNotStopSubTransfers = false;
 
         struct
         {
@@ -933,7 +956,7 @@ protected:
         MegaTransferListener *listener;
         Transfer *transfer = nullptr;
         std::unique_ptr<MegaError> lastError;
-        MegaCancelToken *mCancelToken = nullptr;
+        MegaCancelTokenPrivate mCancelToken;
         int folderTransferTag;
         const char* appData;
         uint8_t mStage;
@@ -1620,18 +1643,6 @@ private:
     AchievementsDetails details;
 };
 
-class MegaCancelTokenPrivate : public MegaCancelToken
-{
-public:
-    ~MegaCancelTokenPrivate() override;
-
-    void cancel(bool newValue = true) override;
-    bool isCancelled() const override;
-
-private:
-    std::atomic_bool cancelFlag { false };
-};
-
 #ifdef ENABLE_CHAT
 class MegaTextChatPeerListPrivate : public MegaTextChatPeerList
 {
@@ -2208,6 +2219,7 @@ class TransferQueue
         void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
         int getLastPushedTag() const;
+        void setAllCancelled(CancelToken t, int direction);
 };
 
 
@@ -2468,10 +2480,10 @@ class MegaApiImpl : public MegaApp
         //Transfers
         void startUploadForChat(const char* localPath, MegaNode* parent, const char* fileName, const char* appData, bool isSourceFileTemporary, MegaTransferListener* listener);
         void startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener);
-        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener* listener);
-        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener *listener);
-        void startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener);
-        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener* listener);
+        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener *listener);
+        void startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, MegaTransferListener *listener);
+        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
@@ -2656,9 +2668,9 @@ class MegaApiImpl : public MegaApp
 
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
 
-        MegaNodeList* search(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL);
+        MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
+        MegaNodeList* search(const char* searchString, CancelToken cancelToken, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
@@ -2917,7 +2929,6 @@ class MegaApiImpl : public MegaApp
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
-        map<int, MegaTransferPrivate *> folderTransferMap; //transferMap includes these, added for speedup
 
 
         MegaClient *getMegaClient();
@@ -3216,7 +3227,6 @@ protected:
         void file_added(File*) override;
         void file_removed(File*, const Error& e) override;
         void file_complete(File*) override;
-        bool file_isCancelled(File*) override;
 
         void transfer_complete(Transfer *) override;
         void transfer_removed(Transfer *) override;
@@ -3357,14 +3367,14 @@ protected:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        unsigned sendPendingTransfers(TransferQueue *queue = nullptr, MegaCancelToken *cancelToken = nullptr);
+        unsigned sendPendingTransfers(TransferQueue *queue, CancelToken cancelToken);
         void updateBackups();
 
         //Internal
         Node* getNodeByFingerprintInternal(const char *fingerprint);
         Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
 
-        bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1, MegaCancelToken* cancelToken = nullptr);
+        bool processTree(Node* node, TreeProcessor* processor, bool recursive, CancelToken cancelToken);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		    void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);

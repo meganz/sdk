@@ -2351,7 +2351,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
     this->setNotificationNumber(transfer->getNotificationNumber());
-    this->setCancelToken(transfer->getCancelToken());
+    mCancelToken = transfer->mCancelToken;
     this->setStage(transfer->getStage());
 }
 
@@ -2918,16 +2918,29 @@ void MegaTransferPrivate::setTargetOverride(bool targetOverride)
     mTargetOverride = targetOverride;
 }
 
-void MegaTransferPrivate::setCancelToken(MegaCancelToken *cancelToken)
+void MegaTransferPrivate::setCancelToken(CancelToken cancelToken)
 {
-    mCancelToken = cancelToken;
+    mCancelToken = MegaCancelTokenPrivate(cancelToken);
 }
 
 void MegaTransferPrivate::startRecursiveOperation(shared_ptr<MegaRecursiveOperation> op, MegaNode* node)
 {
     assert(op && !recursiveOperation);
     recursiveOperation = move(op);
+
+    // for folder transfers, we must have a CancelToken even if the user did not supply one
+    // so that we can cancel the remainder of the batch if the user cancels the folder transfer
+    if (!mCancelToken.cancelFlag.exists())
+    {
+        mCancelToken.cancelFlag = CancelToken(false);
+    }
+
     recursiveOperation->start(node);
+}
+
+void MegaTransferPrivate::stopRecursiveOperationThread()
+{
+    if (recursiveOperation) recursiveOperation->ensureThreadStopped();
 }
 
 long long MegaTransferPrivate::getPlaceInQueue() const
@@ -2938,16 +2951,6 @@ long long MegaTransferPrivate::getPlaceInQueue() const
 void MegaTransferPrivate::setPlaceInQueue(long long value)
 {
     placeInQueue = value;
-}
-
-void MegaTransferPrivate::setDoNotStopSubTransfers(bool doNotStopSubTransfers)
-{
-    mDoNotStopSubTransfers = doNotStopSubTransfers;
-}
-
-bool MegaTransferPrivate::getDoNotStopSubTransfers() const
-{
-    return mDoNotStopSubTransfers;
 }
 
 void MegaTransferPrivate::completeRecursiveOperation(Error e)
@@ -2969,9 +2972,9 @@ void MegaTransferPrivate::completeRecursiveOperation(Error e)
     }
 }
 
-MegaCancelToken* MegaTransferPrivate::getCancelToken() const
+MegaCancelToken* MegaTransferPrivate::getCancelToken()
 {
-    return mCancelToken;
+    return mCancelToken.existencePtr();
 }
 
 void MegaTransferPrivate::setPath(const char* path)
@@ -3071,11 +3074,9 @@ MegaTransferPrivate::~MegaTransferPrivate()
 {
     if (recursiveOperation)
     {
-        assert(!recursiveOperation->isCancelled());
-        if (!recursiveOperation->isCancelled())
-        {
-            recursiveOperation->cancel();
-        }
+        // folder transfers can only be resolved after all their sub-transfers
+        // are resolved.  Eg, cancellation is via setting the cancelToken for all subTransfers
+        assert(recursiveOperation->allSubtransfersResolved());
     }
     delete[] path;
     delete[] parentPath;
@@ -6543,7 +6544,7 @@ void MegaApiImpl::loop()
         {
             WAIT_CLASS::bumpds();
             updateBackups();
-            if (sendPendingTransfers())
+            if (sendPendingTransfers(nullptr, CancelToken()))
             {
                 yield();
             }
@@ -7801,25 +7802,13 @@ void MegaApiImpl::abortPendingActions(error preverror)
             MegaTransferPrivate* transfer = transferMap.begin()->second;
             if (transfer->isRecursive())
             {
-                if (transfer->getCancelToken() && transfer->getCancelToken()->isCancelled())
-                {
-                    // remove transfer and subtransfers as cancel token was cancelled
-                    transferMap.erase(transfer->getTag());
-                    transfer->completeRecursiveOperation(API_EINCOMPLETE);
-                }
-                else // no cancel token, or it exists but not cancelled
-                {
-                    // fire onTransferFinished without stopping subTransfers to preserve subtransfers in cache
-                    LOG_debug << "abortPendingActions: Folder transfer with tag (" << transfer->getTag() <<") doesn't have a valid cancel token";
-                    transfer->setState(MegaTransfer::STATE_FAILED);
-                    transfer->setDoNotStopSubTransfers(true);
-                    fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
-                }
+                // just remove it from the map.  When its last dependent transfer is deleted
+                // then it will have its fireOnTransferFinish called also.
+                transferMap.erase(transferMap.begin());
             }
             else
             {
                 transfer->setState(MegaTransfer::STATE_FAILED);
-                transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
                 fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
             }
         }
@@ -8428,7 +8417,7 @@ void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
     waiter->notify();
 }
 
-MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener *listener)
 {
     if (fsType == FS_UNKNOWN && localPath)
     {
@@ -8480,12 +8469,12 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
 
 void MegaApiImpl::startUploadForChat(const char* localPath, MegaNode* parent, const char* fileName, const char* appData, bool isSourceFileTemporary, MegaTransferListener* listener)
 {
-    MegaTransferPrivate* transfer = createUploadTransfer(false, localPath, parent, fileName, nullptr, MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, appData, isSourceFileTemporary, true, FS_UNKNOWN, nullptr, listener);
+    MegaTransferPrivate* transfer = createUploadTransfer(false, localPath, parent, fileName, nullptr, MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, appData, isSourceFileTemporary, true, FS_UNKNOWN, CancelToken(), listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaCancelToken *cancelToken, MegaTransferListener* listener)
+void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener* listener)
 {
     MegaTransferPrivate* transfer = createUploadTransfer(startFirst, localPath, parent, fileName, targetUser, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, cancelToken, listener);
     transferQueue.push(transfer);
@@ -8494,19 +8483,19 @@ void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* 
 
 void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener)
 {
-    MegaTransferPrivate* transfer = createUploadTransfer(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, nullptr, isSourceFileTemporary, false, fsType, nullptr, listener);
+    MegaTransferPrivate* transfer = createUploadTransfer(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, nullptr, isSourceFileTemporary, false, fsType, CancelToken(), listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-void MegaApiImpl::startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+void MegaApiImpl::startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, MegaTransferListener *listener)
 {
     MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, customName, folderTransferTag, appData, cancelToken, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
 
-MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
+MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, MegaTransferListener *listener)
 {
     FileSystemType fsType = fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(localPath));
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
@@ -8577,7 +8566,6 @@ void MegaApiImpl::cancelTransfers(int direction, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CANCEL_TRANSFERS, listener);
     request->setParamType(direction);
-    request->setTransferTag(transferQueue.getLastPushedTag());
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8625,7 +8613,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
         {
             node = getNodeByHandle(t->getNodeHandle());
         }
-        this->startDownload(t->shouldStartFirst(), node, t->getPath(), NULL, 0, t->getAppData(), NULL, listener);
+        this->startDownload(t->shouldStartFirst(), node, t->getPath(), NULL, 0, t->getAppData(), CancelToken(), listener);
         delete node;
     }
     else
@@ -8634,7 +8622,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
         this->startUpload (t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), nullptr,
                     t->getTime(), 0, t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(),
                     t->isForceNewUpload(), client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(t->getPath())),
-                    t->getCancelToken(), listener);
+                    t->accessCancelToken(), listener);
 
         delete parent;
     }
@@ -10996,7 +10984,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
     sdkMutex.lock();
 
     OutShareProcessor shareProcessor(*client);
-    processTree(client->nodeByHandle(client->rootnodes.files), &shareProcessor, true);
+    processTree(client->nodeByHandle(client->rootnodes.files), &shareProcessor, true, CancelToken());
     shareProcessor.sortShares(order);
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
 
@@ -11057,7 +11045,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
     sdkMutex.lock();
 
     PendingOutShareProcessor shareProcessor;
-    processTree(client->nodeByHandle(client->rootnodes.files), &shareProcessor, true);
+    processTree(client->nodeByHandle(client->rootnodes.files), &shareProcessor, true, CancelToken());
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
 
     sdkMutex.unlock();
@@ -11297,7 +11285,7 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
-MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order, int type)
+MegaNodeList *MegaApiImpl::search(const char *searchString, CancelToken cancelToken, int order, int type)
 {
     if (!searchString && (type < MegaApi::FILE_TYPE_PHOTO || type > MegaApi::FILE_TYPE_DOCUMENT))
     {
@@ -11311,14 +11299,14 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
         return new MegaNodeListPrivate();
     }
 
-    if (cancelToken && cancelToken->isCancelled())
+    if (cancelToken.isCancelled())
     {
         return new MegaNodeListPrivate();
     }
 
     SdkMutexGuard g(sdkMutex);
 
-    if (cancelToken && cancelToken->isCancelled())
+    if (cancelToken.isCancelled())
     {
         return new MegaNodeListPrivate();
     }
@@ -11336,14 +11324,14 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
         result.insert(result.end(), vNodes.begin(), vNodes.end());
     };
 
-    if (!(cancelToken && cancelToken->isCancelled())) searchRoot(client->rootnodes.files);
-    if (!(cancelToken && cancelToken->isCancelled())) searchRoot(client->rootnodes.inbox);
-    if (!(cancelToken && cancelToken->isCancelled())) searchRoot(client->rootnodes.rubbish);
+    if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.files);
+    if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.inbox);
+    if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.rubbish);
 
 
     // inshares
     unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
-    for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+    for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
     {
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
@@ -11796,7 +11784,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive, MegaCancelToken *cancelToken)
+bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive, CancelToken cancelToken)
 {
     if (!node)
     {
@@ -11808,14 +11796,14 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
         return 0;
     }
 
-    if (cancelToken && cancelToken->isCancelled())
+    if (cancelToken.isCancelled())
     {
         return 0;
     }
 
     SdkMutexGuard g(sdkMutex);
 
-    if (cancelToken && cancelToken->isCancelled()) // check before lock and after, in case it was cancelled while being locked
+    if (cancelToken.isCancelled()) // check before lock and after, in case it was cancelled while being locked
     {
         return 0;
     }
@@ -11841,7 +11829,7 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     return result;
 }
 
-MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
+MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelToken cancelToken, bool recursive, int order, int type, int target)
 {
     if (!n && !searchString && (type < MegaApi::FILE_TYPE_PHOTO || type > MegaApi::FILE_TYPE_DOCUMENT))
     {
@@ -11860,14 +11848,14 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
-    if (cancelToken && cancelToken->isCancelled())
+    if (cancelToken.isCancelled())
     {
         return new MegaNodeListPrivate();
     }
 
     SdkMutexGuard g(sdkMutex);
 
-    if (cancelToken && cancelToken->isCancelled())
+    if (cancelToken.isCancelled())
     {
         return new MegaNodeListPrivate();
     }
@@ -11885,7 +11873,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         // searchString and nodeType (if provided), are considered in search
         SearchTreeProcessor searchProcessor(client, searchString, type);
         for (node_list::iterator it = node->children.begin(); it != node->children.end()
-             && !(cancelToken && cancelToken->isCancelled()); )
+             && !cancelToken.isCancelled(); )
         {
             processTree(*it++, &searchProcessor, recursive, cancelToken);
         }
@@ -11921,7 +11909,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         {
             // Search on inshares
             unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
-            for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
             {
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
@@ -11938,7 +11926,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             // Search on outshares
             std::set<MegaHandle> outsharesHandles;
             unique_ptr<MegaShareList>shares (getOutShares(MegaApi::ORDER_NONE));
-            for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+            for (int i = 0; i < shares->size() && !cancelToken.isCancelled(); i++)
             {
                 handle h = shares->get(i)->getNodeHandle();
                 if (outsharesHandles.find(h) != outsharesHandles.end())
@@ -11961,7 +11949,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         {
             // Search on public links
             for (auto it = client->mPublicLinks.begin(); it != client->mPublicLinks.end()
-                 && !(cancelToken && cancelToken->isCancelled()); it++)
+                 && !cancelToken.isCancelled(); it++)
             {
                 node = client->nodebyhandle(it->first);
                 SearchTreeProcessor searchProcessor(client, searchString, type);
@@ -12001,7 +11989,7 @@ long long MegaApiImpl::getSize(MegaNode *n)
         return 0;
     }
     SizeProcessor sizeProcessor;
-    processTree(node, &sizeProcessor);
+    processTree(node, &sizeProcessor, true, CancelToken());
     long long result = sizeProcessor.getTotalBytes();
     sdkMutex.unlock();
 
@@ -12490,23 +12478,6 @@ void MegaApiImpl::file_complete(File *f)
 
         processTransferComplete(f->transfer, transfer);
     }
-}
-
-bool MegaApiImpl::file_isCancelled(File *f)
-{
-    assert(f);
-    MegaTransferPrivate *transfer = getMegaTransferPrivate(f->tag);
-    if (transfer)
-    {
-        if ((transfer->getType() <= MegaTransfer::TYPE_UPLOAD)
-                && !transfer->isStreamingTransfer()
-                && transfer->getState() < MegaTransfer::STATE_COMPLETED
-                && transfer->getCancelToken() && transfer->getCancelToken()->isCancelled())
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 void MegaApiImpl::transfer_complete(Transfer *t)
@@ -16309,10 +16280,6 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     }
 
     transferMap.erase(transfer->getTag());
-    if (transfer->isFolderTransfer())
-    {
-        folderTransferMap.erase(transfer->getTag());
-    }
 
     activeTransfer = NULL;
     activeError = NULL;
@@ -18093,7 +18060,7 @@ void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
     waiter->notify();
 }
 
-unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken *cancelToken)
+unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, CancelToken cancelToken)
 {
     CodeCounter::ScopeTimer ccst(client->performanceStats.megaapiSendPendingTransfers);
 
@@ -18112,7 +18079,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
 
     while (MegaTransferPrivate *transfer = auxQueue.pop())
     {
-        if (cancelToken && cancelToken->isCancelled())
+        if (cancelToken.isCancelled())
         {
             assert(queue);
             return count;
@@ -18121,6 +18088,19 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
         error e = API_OK;
         int nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);
+
+        if (transfer->accessCancelToken().isCancelled())
+        {
+            transferMap[nextTag] = transfer;
+            transfer->setTag(nextTag);
+            transfer->setState(MegaTransfer::STATE_QUEUED);
+            fireOnTransferStart(transfer);
+            transfer->setStartTime(Waiter::ds);
+            transfer->setUpdateTime(Waiter::ds);
+            transfer->setState(MegaTransfer::STATE_CANCELLED);
+            fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
+            continue;
+        }
 
         switch(transfer->getType())
         {
@@ -18284,7 +18264,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                             NodeHandle().set6byte(transfer->getParentHandle()),
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp_onDisk;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
+
                     f->setTransfer(transfer);
+                    f->cancelToken = transfer->accessCancelToken();
+
                     error result = API_OK;
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag, &result);
                     if (!started)
@@ -18342,9 +18325,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                 else
                 {
                     transferMap[nextTag] = transfer;
-                    folderTransferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    transfer->startRecursiveOperation(make_unique<MegaFolderUploadController>(this, transfer), nullptr);
+                    transfer->startRecursiveOperation(std::make_shared<MegaFolderUploadController>(this, transfer), nullptr);
                 }
                 break;
             }
@@ -18378,9 +18360,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                 {
                     // Folder download
                     transferMap[nextTag] = transfer;
-                    folderTransferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
-                    transfer->startRecursiveOperation(make_unique<MegaFolderDownloadController>(this, transfer), publicNode);
+                    transfer->startRecursiveOperation(std::make_shared<MegaFolderDownloadController>(this, transfer), publicNode);
                     break;
                 }
 
@@ -18518,7 +18499,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                     }
 
                     transfer->setPath(wLocalPath.toPath().c_str());
+
                     f->setTransfer(transfer);
+                    f->cancelToken = transfer->accessCancelToken();
 
                     bool skipDuplicates = transfer->getFolderTransferTag() <= 0; //Let folder subtransfer have duplicates, so that repeated downloads can co-exist and progress accordingly
                     bool ok = client->startxfer(GET, f, committer, skipDuplicates, startFirst, false, UseLocalVersioningFlag);
@@ -20431,7 +20414,7 @@ void MegaApiImpl::sendPendingRequests()
                     node = client->nodeByHandle(client->rootnodes.files);
                 }
                 FavouriteProcessor processor(count);
-                processTree(node, &processor);
+                processTree(node, &processor, true, CancelToken());
                 request->setMegaHandleList(processor.getHandles());
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
@@ -21149,10 +21132,24 @@ void MegaApiImpl::sendPendingRequests()
 
             if (megaTransfer->isFolderTransfer())
             {
-                // one of the files in the the folder tree being uploaded/downloaded
-                megaTransfer->setState(MegaTransfer::STATE_CANCELLED);
-                fireOnTransferFinish(megaTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                // folder upload or folder download.
+                // we can do this by cancel token
+                // all sub-transfers must have the same cancel token
+                if (!megaTransfer->getCancelToken())
+                {
+                    e = API_EARGS;
+                }
+                else
+                {
+                    // there is a race to this point, in theory the operation could have just completed successfully on the thread
+                    megaTransfer->stopRecursiveOperationThread();
+
+                    // mark this transfer and any/all sub-transfers as cancelled
+                    megaTransfer->getCancelToken()->cancel();
+
+                    // report cancellation signalled
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+                }
                 break;
             }
 
@@ -21228,7 +21225,6 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CANCEL_TRANSFERS:
         {
             int direction = request->getParamType();
-            bool flag = request->getFlag();
 
             if ((direction != MegaTransfer::TYPE_DOWNLOAD) && (direction != MegaTransfer::TYPE_UPLOAD))
             {
@@ -21236,55 +21232,34 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (!flag)
+            CancelToken cancelled(true);
+
+            // 1. Set all intermediate layer MegaTransfer object cancel tokens
+            transferQueue.setAllCancelled(cancelled, direction);
+            for (auto& t : transferMap)
             {
-                long long cancelledPending = 0;
-                // 1. cancel queued transfers, not yet started (and not added to cache), up to the last one queued when cancelTransfers was queued
-                auto lastQueuedTransfer = request->getTransferTag();
-
-                for (auto transfer : transferQueue.popUpTo(lastQueuedTransfer, direction))
+                if (t.second->getType() == direction
+                   && !t.second->isSyncTransfer()
+                   && !t.second->isStreamingTransfer())
                 {
-                    fireOnTransferStart(transfer);
-                    transfer->setState(MegaTransfer::STATE_CANCELLED);
-                    fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
-                    cancelledPending++;
+                    t.second->setCancelToken(cancelled);
                 }
+            }
 
-                // 2. cancel regular in-transit transfers
-                long long cancelledTransit = 0;
-                for (transfer_map::iterator it = client->transfers[direction].begin() ; it != client->transfers[direction].end() ; it++)
+            // 2. cancel transfers that were already startxfer'd
+            for (auto& it : client->transfers[direction])
+            {
+                for (auto& it2 : it.second->files)
                 {
-                    Transfer *t = it->second;
-                    for (file_list::iterator it2 = t->files.begin(); it2 != t->files.end(); it2++)
+                    if (!it2->syncxfer)
                     {
-                        if (!(*it2)->syncxfer)
-                        {
-                            cancelTransferByTag((*it2)->tag);
-                            cancelledTransit++;
-                        }
+                        it2->cancelToken = cancelled;
                     }
                 }
-
-                // 3. cancel folder in-transit transfers
-                long long cancelledFolder = 0;
-                for (std::map<int, MegaTransferPrivate *>::iterator it = folderTransferMap.begin(); it != folderTransferMap.end(); it++)
-                {
-                    MegaTransferPrivate *transfer = it->second;
-                    if (!transfer->isSyncTransfer() && transfer->getType() == direction)
-                    {
-                        cancelTransferByTag(transfer->getTag());
-                        cancelledFolder++;
-                    }
-                }
-
-                LOG_verbose << "Cancelled transfers. dir: " << direction << " pending: " << cancelledPending << " folder: " << cancelledFolder << " transit: " << cancelledTransit;
-                request->setFlag(true);
-                requestQueue.push(request);
             }
-            else
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            }
+
+            LOG_verbose << "Marked all non-sync non-streaming transfers as cancelled. direction: " << direction;
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
         case MegaRequest::TYPE_ADD_SCHEDULED_COPY:
@@ -23622,6 +23597,20 @@ void TransferQueue::removeListener(MegaTransferListener *listener)
     }
 }
 
+void TransferQueue::setAllCancelled(CancelToken cancelled, int direction)
+{
+    std::lock_guard<std::mutex> g(mutex);
+    for (auto& t : transfers)
+    {
+        if (t->getType() == direction
+            && !t->isSyncTransfer()
+            && !t->isStreamingTransfer())
+        {
+            t->setCancelToken(cancelled);
+        }
+    }
+}
+
 RequestQueue::RequestQueue()
 {
 }
@@ -24988,17 +24977,17 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
     return true;
 }
 
-MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
-    : MegaRecursiveOperation(megaApi->getMegaClient())
+MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *api, MegaTransferPrivate *t)
+    : MegaRecursiveOperation(api->getMegaClient())
     , fsaccess(new FSACCESS_CLASS())
 {
-    this->megaApi = megaApi;
-    this->transfer = transfer;
-    this->listener = transfer->getListener();
-    this->recursive = 0;
-    this->pendingTransfers = 0;
-    this->tag = transfer->getTag();
-    this->mMainThreadId = std::this_thread::get_id();
+    megaApi = api;
+    transfer = t;
+    listener = t->getListener();
+    recursive = 0;
+    pendingTransfers = 0;
+    tag = transfer->getTag();
+    mMainThreadId = std::this_thread::get_id();
 
     assert(mMainThreadId == megaApi->threadId);
 }
@@ -25063,6 +25052,10 @@ void MegaFolderUploadController::start(MegaNode*)
             // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
             assert(mMainThreadId == std::this_thread::get_id());
 
+            // make sure the thread is joined.  This lets us add error-catching asserts elsewhere.
+            assert(mWorkerThread.joinable());
+            mWorkerThread.join();
+
             if (!fullyScanned)
             {
                 if (!hasEnded(true)) // also notify app in case of user cancellation
@@ -25108,7 +25101,7 @@ void MegaFolderUploadController::start(MegaNode*)
                     notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
                     // completion will occur on the last transfer's onFinish callback
                     // (at which time this object is deleted)
-                    megaApi->sendPendingTransfers(&transferQueue, transfer->getCancelToken());
+                    megaApi->sendPendingTransfers(&transferQueue, transfer->accessCancelToken());
                     if (hasEnded(true)) // also notify app in case of user cancellation
                     {
                         return;
@@ -25132,130 +25125,9 @@ handle MegaFolderUploadController::nextUploadId()
         : 0;
 }
 
-
-void MegaFolderUploadController::cancel()
-{
-    assert(mMainThreadId == std::this_thread::get_id());
-
-    // With the cancelled flag true, the last subtransfer to complete won't automatically
-    // complete and delete our object.  Those would happen on this same thread, so we
-    // know we don't have a race for that.  Final completion occurs from this function.
-    cancelled = true; //we dont want to further checkcompletion, and produce multiple fireOnTransferFinish -> multiple deletions
-
-    if (mWorkerThread.joinable())
-    {
-        mWorkerThread.join();
-    }
-    // if user cancelled recursive operation via cancel token at STAGE_GEN_TRANSFERS or STAGE_PROCESS_TRANSFER_QUEUE stage,
-    // pendingTransfers could not be 0, as pendingTransfers are increased at (gen[Upload/Download]TransfersForFiles) and
-    // decreased at onTransferFinish for every subtransfer.
-    // On the other hand subTransfers are increased at onTransferStart called from sendPendingTransfers, so if we cancel recursive
-    // operation before adding subtransfers, there will be a mismatch between pendingTransfers and subTransfers
-    bool subtransfersMismatch = pendingTransfers > subTransfers.size();
-
-    //remove subtransfers from pending transferQueue
-    megaApi->cancelPendingTransfersByFolderTag(tag);
-
-    //remove ongoing subtransfers
-    long long cancelledSubTransfers = 0;
-
-    // The thread is now finished, and it must have run or this object would have been completed already.
-    // So it prepared a completion function to run on this thread, and it's either queued or already executed
-    // But, we can execute it early.  With cancelled = true, it won't queue any subtransfers or delete us.
-    if (mCompletionForMegaApiThread)
-    {
-        mCompletionForMegaApiThread->exec();
-    }
-
-    // If we did queue subtransfers (ie, the thread ran with no errors and the completion function executed from the request queue)
-    // Then the code below cancels them.  Since subtransfers were queued, the last one to call fireOnTransferFinished
-    // also causes this object to finish (calling fireOnTransferFinished for itself, and being deleted from that function)
-
-    DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);  // nested committers are allowed now
-
-    while (!subTransfers.empty())
-    {
-        auto subTransfer = *subTransfers.begin();
-
-        Transfer *transfer = subTransfer->getTransfer();
-        if (!transfer)
-        {
-            LOG_warn << "Subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
-
-            subTransfer->setState(MegaTransfer::STATE_CANCELLED);
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
-
-            continue;
-        }
-
-#ifdef _WIN32
-        if (transfer->type == GET)
-        {
-            RemoveHiddenFileAttribute(transfer->localfilename);
-        }
-#endif
-
-        MegaErrorPrivate megaError(API_EINCOMPLETE);
-        subTransfer->setLastError(&megaError);
-
-        bool found = false;
-        bool fireSubTransferFinish = false;
-        file_list files = transfer->files;
-        file_list::iterator iterator = files.begin();
-        while (iterator != files.end())
-        {
-            File *file = *iterator;
-            iterator++;
-            if (file->tag == subTransfer->getTag())
-            {
-                found = true;
-                if (!file->syncxfer)
-                {
-                    if (!this->transfer->getDoNotStopSubTransfers())
-                    {
-                        megaapiThreadClient()->stopxfer(file, &committer);
-                    }
-                    else
-                    {
-                        //firing onTransferFinished without stopping (to preserve cache)
-                        subTransfer->setState(MegaTransfer::STATE_FAILED);
-                        fireSubTransferFinish = true;
-                    }
-                }
-                else
-                {
-                    LOG_err << "Sync subtransfer found for folder transfer: " << subTransfer->getFileName();
-                    assert(false);
-                }
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
-
-            subTransfer->setState(MegaTransfer::STATE_CANCELLED);
-            fireSubTransferFinish = true;
-        }
-
-        if (fireSubTransferFinish)
-        {
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
-        }
-
-        cancelledSubTransfers++;
-    }
-
-    LOG_verbose << " MegaFolderUploadController, cancelled subTransfers = " << cancelledSubTransfers;
-    assert(pendingTransfers == 0 || subtransfersMismatch);
-    transfer = nullptr;  // no final callback for this one since it is being destroyed now
-}
-
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     assert(mMainThreadId == std::this_thread::get_id());
-    subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
     assert(transfer);
     if (transfer)
     {
@@ -25286,7 +25158,6 @@ void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
     assert(mMainThreadId == std::this_thread::get_id());
-    subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
     assert(transfer);
     if (transfer)
@@ -25313,12 +25184,9 @@ MegaFolderUploadController::~MegaFolderUploadController()
 {
     assert(mMainThreadId == std::this_thread::get_id());
     LOG_debug << "MegaFolderUploadController dtor is being called from main thread";
-    if (mWorkerThread.joinable())
-    {
-        mWorkerThread.join();
-    }
+    ensureThreadStopped();
 
-    //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
+    //we shouldn't need to detach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
 bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
@@ -25470,7 +25338,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                             notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
                             // completion will occur on the last transfer's onFinish callback
                             // (at which time this object is deleted)
-                            megaApi->sendPendingTransfers(&transferQueue, transfer->getCancelToken());
+                            megaApi->sendPendingTransfers(&transferQueue, transfer->accessCancelToken());
                             if (hasEnded(true)) // also notify app in case of user cancellation
                             {
                                 return;
@@ -25497,7 +25365,7 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     {
         MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.toPath().c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, NULL, false, false, tree.fsType, transfer->getCancelToken(), this);
+                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, NULL, false, false, tree.fsType, transfer->accessCancelToken(), this);
         transferQueue.push(subTransfer);
         pendingTransfers++;
     }
@@ -25510,22 +25378,22 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 
 bool MegaFolderUploadController::hasEnded(bool notifyUserCancellation)
 {
-    if (isCancelled())
+    if (mWorkerThreadStopFlag)
     {
         // MegaFolderUploadController::cancel method has been previously called
         // We do not need to notify transfer as finished here, as It has been done previously
-        LOG_debug << "MegaFolderUploadController - this operation was previously cancelled";
+        LOG_debug << "MegaFolderUploadController - thread stop flag was set";
         return true;
     }
 
-    if (isCancelledByUser())
+    if (isCancelledByFolderTransferToken())
     {
         // User has cancelled operation via cancelToken
         if (notifyUserCancellation)
         {
             complete(API_EINCOMPLETE, true);
         }
-        LOG_debug << "MegaFolderUploadController - this operation has been cancelled by user";
+        LOG_debug << "MegaFolderUploadController - this operation has been cancelled by cancelToken";
         return true;
     }
 
@@ -25536,13 +25404,12 @@ void MegaFolderUploadController::complete(Error e, bool cancelledByUser)
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
-    if (isCancelled())
-    {
-        // Cancellation only happens on this same thread, and only from cancel()
-        // In which case, it's all much simpler to let the final fireOnTransferFinish be done there
-        // rather than here (which might be being called from the last reminaing subtransfer's completion)
-        return;
-    }
+    // Completion only happens on this same thread
+    // and only by two possible paths:
+    // 1. the very last file sub-transfer has completed
+    // 2. there were no files (either by cancel/fail or only folders were needed)
+    // for both those cases, the thread must have completed already.
+    assert(!mWorkerThread.joinable());
 
     LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
     transfer->setState(cancelledByUser ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_COMPLETED);
@@ -26229,7 +26096,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                         totalFiles++;
                         megaApi->startUpload(false, localPath.toPath().c_str(),
                                                             parent, nullptr, nullptr, -1,folderTransferTag, true,
-                                                            nullptr, false, false, fsType, nullptr, this);
+                                                            nullptr, false, false, fsType, CancelToken(), this);
                     }
                     else
                     {
@@ -26658,19 +26525,18 @@ void MegaRecursiveOperation::notifyStage(uint8_t stage)
     megaApi->fireOnTransferUpdate(transferPtr);
 }
 
-bool MegaRecursiveOperation::isCancelled()
+void MegaRecursiveOperation::ensureThreadStopped()
 {
-    return cancelled;
+    mWorkerThreadStopFlag = true;
+    if (mWorkerThread.joinable())
+    {
+        mWorkerThread.join();
+    }
 }
 
-bool MegaRecursiveOperation::isCancelledByUser()
+bool MegaRecursiveOperation::isCancelledByFolderTransferToken()
 {
-    if (!transfer || !transfer->getCancelToken())
-    {
-        return false;
-    }
-
-    return transfer->getCancelToken()->isCancelled();
+    return transfer->accessCancelToken().isCancelled();
 }
 
 MegaClient* MegaRecursiveOperation::megaapiThreadClient()
@@ -26679,27 +26545,24 @@ MegaClient* MegaRecursiveOperation::megaapiThreadClient()
     return mMegaapiThreadClient;
 }
 
-MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
-    : MegaRecursiveOperation(megaApi->client)
+MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *api, MegaTransferPrivate *t)
+    : MegaRecursiveOperation(api->client)
     , fsaccess(new FSACCESS_CLASS())
 {
-    this->megaApi = megaApi;
-    this->transfer = transfer;
-    this->listener = transfer->getListener();
-    this->recursive = 0;
-    this->pendingTransfers = 0;
-    this->tag = transfer->getTag();
-    this->mMainThreadId = std::this_thread::get_id();
+    megaApi = api;
+    transfer = t;
+    listener = t->getListener();
+    recursive = 0;
+    pendingTransfers = 0;
+    tag = t->getTag();
+    mMainThreadId = std::this_thread::get_id();
 }
 
 MegaFolderDownloadController::~MegaFolderDownloadController()
 {
     assert(mMainThreadId == std::this_thread::get_id());
     LOG_debug << "MegaFolderDownloadController dtor is being called from main thread";
-    if (mWorkerThread.joinable())
-    {
-        mWorkerThread.join();
-    }
+    ensureThreadStopped();
 }
 
 void MegaFolderDownloadController::start(MegaNode *node)
@@ -26771,6 +26634,14 @@ void MegaFolderDownloadController::start(MegaNode *node)
 			// we keep a pointer to it in case we need to cancel()
             mCompletionForMegaApiThread.reset(new ExecuteOnce([this, fsType, e]() {
 
+                // these next parts must run on MegaApiImpl's thread again, as
+                // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
+                assert(mMainThreadId == std::this_thread::get_id());
+
+                // make sure the thread is joined.  This lets us add error-catching asserts elsewhere.
+                assert(mWorkerThread.joinable());
+                mWorkerThread.join();
+
                 auto err = e;
                 if (!err && hasEnded(true)) err = API_EINCOMPLETE;
                 if (!err)
@@ -26793,126 +26664,6 @@ void MegaFolderDownloadController::start(MegaNode *node)
             megaApi->executeOnThread(mCompletionForMegaApiThread);
         });
     }
-}
-
-void MegaFolderDownloadController::cancel()
-{
-    assert(mMainThreadId == std::this_thread::get_id());
-
-    // With the cancelled flag true, the last subtransfer to complete won't automatically
-    // complete and delete our object.  Those would happen on this same thread, so we
-    // know we don't have a race for that.  Final completion occurs from this function.
-    cancelled = true; //we dont want to further checkcompletion, and produce multiple fireOnTransferFinish -> multiple deletions
-
-	if (mWorkerThread.joinable())
-    {
-        mWorkerThread.join();
-    }
-
-    // if user cancelled recursive operation via cancel token at STAGE_GEN_TRANSFERS or STAGE_PROCESS_TRANSFER_QUEUE stage,
-    // pendingTransfers could not be 0, as pendingTransfers are increased at (gen[Upload/Download]TransfersForFiles) and
-    // decreased at onTransferFinish for every subtransfer.
-    // On the other hand subTransfers are increased at onTransferStart called from sendPendingTransfers, so if we cancel recursive
-    // operation before adding subtransfers, there will be a mismatch between pendingTransfers and subTransfers
-    bool subtransfersMismatch = pendingTransfers > subTransfers.size();
-
-    //remove subtransfers from pending transferQueue
-    megaApi->cancelPendingTransfersByFolderTag(tag);
-
-    //remove ongoing subtransfers
-    long long cancelledSubTransfers = 0;
-
-    // The thread is now finished, and it must have run or this object would have been completed already.
-    // So it prepared a completion function to run on this thread, and it's either queued or already executed
-    // But, we can execute it early.  With cancelled = true, it won't queue any subtransfers or delete us.
-    if (mCompletionForMegaApiThread)
-    {
-        mCompletionForMegaApiThread->exec();
-    }
-
-    // If we did queue subtransfers (ie, the thread ran with no errors and the completion function executed from the request queue)
-    // Then the code below cancels them.  Since subtransfers were queued, the last one to call fireOnTransferFinished
-    // also causes this object to finish (calling fireOnTransferFinished for itself, and being deleted from that function)
-
-    DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);  // nested committers are allowed now
-
-    while (!subTransfers.empty())
-    {
-        auto subTransfer = *subTransfers.begin();
-
-        Transfer *transfer = subTransfer->getTransfer();
-        if (!transfer)
-        {
-            LOG_warn << "Subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
-
-            subTransfer->setState(MegaTransfer::STATE_CANCELLED);
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
-
-            continue;
-        }
-
-#ifdef _WIN32
-        if (transfer->type == GET)
-        {
-            RemoveHiddenFileAttribute(transfer->localfilename);
-        }
-#endif
-
-        MegaErrorPrivate megaError(API_EINCOMPLETE);
-        subTransfer->setLastError(&megaError);
-
-        bool found = false;
-        bool fireSubTransferFinish = false;
-        file_list files = transfer->files;
-        file_list::iterator iterator = files.begin();
-        while (iterator != files.end())
-        {
-            File *file = *iterator;
-            iterator++;
-            if (file->tag == subTransfer->getTag())
-            {
-                found = true;
-                if (!file->syncxfer)
-                {
-                    if (!this->transfer->getDoNotStopSubTransfers())
-                    {
-                        megaapiThreadClient()->stopxfer(file, &committer);
-                    }
-                    else
-                    {
-                        //firing onTransferFinished without stopping (to preserve cache)
-                        subTransfer->setState(MegaTransfer::STATE_FAILED);
-                        fireSubTransferFinish = true;
-                    }
-                }
-                else
-                {
-                    LOG_err << "Sync subtransfer found for folder transfer: " << subTransfer->getFileName();
-                    assert(false);
-                }
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
-
-            subTransfer->setState(MegaTransfer::STATE_CANCELLED);
-            fireSubTransferFinish = true;
-        }
-
-        if (fireSubTransferFinish)
-        {
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
-        }
-
-        cancelledSubTransfers++;
-    }
-
-    LOG_verbose << "MegaFolderDownloadController, cancelled subTransfers = " << cancelledSubTransfers;
-    assert(pendingTransfers == 0 || subtransfersMismatch);
-    transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
 bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
@@ -27019,7 +26770,7 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromRelativeName(node.getName(), *fsaccess, fsType), true);
              string utf8path = localpath.toPath();
-             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), transfer->getCancelToken(), this);
+             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), transfer->accessCancelToken(), this);
              transferQueue.push(transferDownload);
              pendingTransfers++;
          }
@@ -27033,7 +26784,7 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
     if (pendingTransfers)
     {
         notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
-        megaApi->sendPendingTransfers(&transferQueue, transfer->getCancelToken());
+        megaApi->sendPendingTransfers(&transferQueue, transfer->accessCancelToken());
         if (hasEnded(false))
         {
             return;
@@ -27048,22 +26799,22 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
 
 bool MegaFolderDownloadController::hasEnded(bool notifyUserCancellation)
 {
-    if (isCancelled())
+    if (mWorkerThreadStopFlag)
     {
         // MegaFolderDownloadController::cancel method has been previously called
         // We do not need to notify transfer as finished here, as It has been done previously
-        LOG_debug << "MegaFolderDownloadController - this operation was previously cancelled";
+        LOG_debug << "MegaFolderDownloadController - thread stop flag was set";
         return true;
     }
 
-    if (isCancelledByUser())
+    if (isCancelledByFolderTransferToken())
     {
         // User has cancelled operation via cancelToken
         if (notifyUserCancellation)
         {
             complete(API_EINCOMPLETE, true);
         }
-        LOG_debug << "MegaFolderDownloadController - this operation has been cancelled by user";
+        LOG_debug << "MegaFolderDownloadController - this operation has been cancelled by CancelToken";
         return true;
     }
 
@@ -27074,13 +26825,12 @@ void MegaFolderDownloadController::complete(Error e, bool cancelledByUser)
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
-    if (isCancelled())
-    {
-        // Cancellation only happens on this same thread, and only from cancel()
-        // In which case, it's all much simpler to let the final fireOnTransferFinish be done there
-        // rather than here (which might be being called from the last reminaing subtransfer's completion)
-        return;
-    }
+    // Completion only happens on this same thread
+    // and only by two possible paths:
+    // 1. the very last file sub-transfer has completed
+    // 2. there were no files (either by cancel/fail or only folders were needed)
+    // for both those cases, the thread must have completed already.
+    assert(!mWorkerThread.joinable());
 
     LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
     transfer->setState(cancelledByUser ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_COMPLETED);
@@ -27090,7 +26840,6 @@ void MegaFolderDownloadController::complete(Error e, bool cancelledByUser)
 
 void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
-    subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
     assert(transfer);
     if (transfer)
     {
@@ -27119,7 +26868,6 @@ void MegaFolderDownloadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 
 void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
-    subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
     assert(transfer);
     if (transfer)
@@ -29697,7 +29445,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
             FileSystemType fsType = httpctx->server->fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(httpctx->tmpFileName));
             httpctx->megaApi->startUpload(false, httpctx->tmpFileName.c_str(), newParentNode, newname.c_str(), nullptr,
-                                                -1, 0, true, nullptr, false, false, fsType, nullptr, httpctx);
+                                                -1, 0, true, nullptr, false, false, fsType, CancelToken(), httpctx);
 
             delete node;
             delete baseNode;
@@ -32433,7 +32181,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
 
                 FileSystemType fsType = fds->fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(ftpdatactx->tmpFileName));
                 ftpdatactx->megaApi->startUpload(false, ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(),
-                                                    nullptr, -1, 0, true, nullptr, false, false, fsType, nullptr, fds->controlftpctx);
+                                                    nullptr, -1, 0, true, nullptr, false, false, fsType, CancelToken(), fds->controlftpctx);
 
                 ftpdatactx->controlRespondedElsewhere = true;
             }
@@ -34367,19 +34115,23 @@ void MegaPushNotificationSettingsPrivate::enableChats(bool enable)
     mGlobalChatsDND = enable ? -1 : 0;
 }
 
-MegaCancelTokenPrivate::~MegaCancelTokenPrivate()
+MegaCancelTokenPrivate::MegaCancelTokenPrivate()
 {
-
 }
 
-void MegaCancelTokenPrivate::cancel(bool newValue)
+MegaCancelTokenPrivate::MegaCancelTokenPrivate(CancelToken t)
+    : cancelFlag(t)
 {
-    cancelFlag = newValue;
+}
+
+void MegaCancelTokenPrivate::cancel()
+{
+    cancelFlag.cancel();
 }
 
 bool MegaCancelTokenPrivate::isCancelled() const
 {
-    return cancelFlag;
+    return cancelFlag.isCancelled();
 }
 
 FavouriteProcessor::FavouriteProcessor(int maxCount)
