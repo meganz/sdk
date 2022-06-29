@@ -12035,7 +12035,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         cancelTokenPrivate->endProcessing();
     }
 
-    client->mNodeManager.resetSearchFlags();
     return nodeList;
 }
 
