@@ -17050,13 +17050,16 @@ void MegaClient::putAlbum(handle id, string&& attrs, std::function<void(Error, h
         copy_n(it->second.key().begin(), it->second.key().size(), albumKey);
     }
 
-    // encrypt attrs with album key
-    string encrAttrs;
+    // store attrs to TLV and encrypt with album key
+    unique_ptr<string> encrAttrs;
     if (!attrs.empty())
     {
-        encrAttrs = attrs;
+        TLVstore tlvRecords;
+        tlvRecords.set("name", attrs);
+        encrAttrs.reset(tlvRecords.tlvRecordsToContainer());
+
         SymmCipher cipher(albumKey);
-        PaddedCBC::encrypt(rng, &encrAttrs, &cipher);
+        PaddedCBC::encrypt(rng, encrAttrs.get(), &cipher);
     }
 
     // encrypt album key with master key (for new album only)
@@ -17068,7 +17071,8 @@ void MegaClient::putAlbum(handle id, string&& attrs, std::function<void(Error, h
         encrAlbumKey.assign((char*)albumKey, sizeof(albumKey));
     }
 
-    reqs.add(new CommandPutAlbum(this, id, move(decrAlbumKey), move(encrAlbumKey), move(attrs), move(encrAttrs), completion));
+    reqs.add(new CommandPutAlbum(this, id, move(decrAlbumKey), move(encrAlbumKey),
+                                 move(attrs), (encrAttrs ? move(*encrAttrs) : string()), completion));
 }
 
 void MegaClient::removeAlbum(handle id, std::function<void(Error)> completion)
@@ -17153,16 +17157,19 @@ void MegaClient::putAlbumElement(AlbumElement&& el, handle albumId, std::functio
         el.setKey(elIt->second.key());
     }
 
-    // encrypt element.attrs with element.key (copied from nodekey)
-    string encrAttrs;
+    // store element.attrs to TLV, and encrypt with element.key (copied from nodekey)
+    unique_ptr<string> encrAttrs;
     if (el.hasAttrs() && !el.attrs().empty())
     {
-        encrAttrs = el.attrs();
+        TLVstore tlvRecords;
+        tlvRecords.set("name", el.attrs());
+        encrAttrs.reset(tlvRecords.tlvRecordsToContainer());
+
         SymmCipher cipher((byte*)el.key().c_str());
-        PaddedCBC::encrypt(rng, &encrAttrs, &cipher);
+        PaddedCBC::encrypt(rng, encrAttrs.get(), &cipher);
     }
 
-    reqs.add(new CommandPutAlbumElement(this, move(el), move(encrAttrs), move(encrKey), existingAlbum->id(), completion));
+    reqs.add(new CommandPutAlbumElement(this, move(el), (encrAttrs ? move(*encrAttrs) : string()), move(encrKey), existingAlbum->id(), completion));
 }
 
 void MegaClient::removeAlbumElement(handle id, std::function<void(Error, handle)> completion)
@@ -17291,8 +17298,15 @@ error MegaClient::decryptAlbumData(Album& al)
 
     if (!al.attrs().empty())
     {
-        // decrypt album attributes using the album key
-        al.setAttrs(decryptAttrs(al.attrs(), al.key()));
+        // decrypt using the album key, then extract from TLV
+        string decryptedAttrs = decryptAttrs(al.attrs(), al.key());
+        unique_ptr<TLVstore> s(TLVstore::containerToTLVrecords(&decryptedAttrs));
+        if (!s || !s->get("name", decryptedAttrs))
+        {
+            LOG_err << "Albums: Failed to parse TLV container for Album attrs";
+            return API_EINTERNAL;
+        }
+        al.setAttrs(move(decryptedAttrs));
     }
 
     return API_OK;
@@ -17311,7 +17325,14 @@ error MegaClient::decryptAlbumElementData(AlbumElement& el, const string& albumK
 
     if (!el.attrs().empty())
     {
-        el.setAttrs(decryptAttrs(el.attrs(), el.key()));
+        string decryptedAttrs = decryptAttrs(el.attrs(), el.key());
+        unique_ptr<TLVstore> s(TLVstore::containerToTLVrecords(&decryptedAttrs));
+        if (!s || !s->get("name", decryptedAttrs))
+        {
+            LOG_err << "Albums: Failed to parse TLV container for Element attrs";
+            return API_EINTERNAL;
+        }
+        el.setAttrs(decryptedAttrs);
     }
 
     return API_OK;
@@ -17369,7 +17390,7 @@ error MegaClient::readAlbum(JSON& j, Album& al)
             {
                 attrs = Base64::atob(attrs);
             }
-            al.setAttrs(move(attrs));
+            al.setAttrs(move(attrs)); // still encrypted
             break;
         }
 
@@ -17456,7 +17477,7 @@ error MegaClient::readElement(JSON& j, AlbumElement& el, handle& albumId)
             {
                 elementAttrs = Base64::atob(elementAttrs);
             }
-            el.setAttrs(move(elementAttrs));
+            el.setAttrs(move(elementAttrs)); // still encrypted
             break;
         }
 
