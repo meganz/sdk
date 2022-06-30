@@ -14350,7 +14350,7 @@ class MegaApi
         enum { SEARCH_TARGET_INSHARE = 0,
                SEARCH_TARGET_OUTSHARE,
                SEARCH_TARGET_PUBLICLINK,
-               SEARCH_TARGET_ROOTNODE,
+               SEARCH_TARGET_ROOTNODE,      // search in Cloud and Vault rootnodes
                SEARCH_TARGET_ALL, };
 
         /**
@@ -16136,7 +16136,7 @@ class MegaApi
          * - SEARCH_TARGET_INSHARE = 0
          * - SEARCH_TARGET_OUTSHARE = 1
          * - SEARCH_TARGET_PUBLICLINK = 2
-         * - SEARCH_TARGET_ROOTNODE = 3
+         * - SEARCH_TARGET_ROOTNODE = 3 --> search in Cloud and Vault rootnodes
          * - SEARCH_TARGET_ALL = 4
          *
          * @return List of nodes that match with the search parameters

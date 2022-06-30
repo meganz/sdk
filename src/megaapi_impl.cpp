@@ -11778,13 +11778,16 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
         if (target == MegaApi::SEARCH_TARGET_ROOTNODE || target == MegaApi::SEARCH_TARGET_ALL)
         {
-            // Search on rootnode (cloud, excludes Vault and Rubbish)
+            // Search on rootnode (Cloud and Vault, excludes Rubbish)
             node = client->nodeByHandle(client->rootnodes.files);
-
             SearchTreeProcessor searchProcessor(client, searchString, type);
             processTree(node, &searchProcessor, recursive, cancelToken);
-            node_vector& vNodes = searchProcessor.getResults();
 
+            // also consider Vault, since backups are in there
+            node = client->nodeByHandle(client->rootnodes.vault);
+            processTree(node, &searchProcessor, recursive, cancelToken);
+
+            node_vector& vNodes = searchProcessor.getResults();
             result.insert(result.end(), vNodes.begin(), vNodes.end());
         }
 
