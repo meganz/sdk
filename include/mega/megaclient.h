@@ -441,7 +441,7 @@ private:
     node_vector getRootNodesAndInshares();
 
     //Avoid loading nodes whose ancestor is not ancestorHandle. If ancestorHandle is undef load all nodes
-    // If a valid cancelFlag is passed and takes true value, method returns without complete operation
+    // If a valid cancelFlag is passed and takes true value, this method returns without complete operation
     // If a valid object is passed, it must be kept alive until this method returns.
     node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle, const std::atomic_bool* cancelFlag = nullptr);
 
