@@ -17647,12 +17647,25 @@ void MegaClient::sc_asp()
     else // update existing Set
     {
         Set& existing = it->second;
-        existing.setName(decryptAttrs(s.name(), existing.key()));
+
+        if (!s.encryptedAttrs().empty())
+        {
+            existing.setEncryptedAttrs(move(s.encryptedAttrs()));
+            auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
+            if (!existing.decryptAttributes(decryptFunc))
+            {
+                LOG_err << "Sets: Failed to parse `asp` action packet";
+                return;
+            }
+        }
+
         existing.setTs(s.ts());
+
         if (s.user() != UNDEF) // this might not be received for an update
         {
             existing.setUser(s.user());
         }
+
         notifyset(&existing);
     }
 }
