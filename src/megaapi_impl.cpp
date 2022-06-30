@@ -11881,8 +11881,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
-    SdkMutexGuard g(sdkMutex);
-
     MegaCancelTokenPrivate* cancelTokenPrivate = nullptr;
     if (cancelToken)
     {
@@ -11894,6 +11892,8 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         cancelTokenPrivate = static_cast<MegaCancelTokenPrivate*>(cancelToken);
         cancelTokenPrivate->startProcessing(MegaCancelTokenPrivate::Usage::USAGE_SEARCH, client);
     }
+
+    SdkMutexGuard g(sdkMutex);
 
     MegaNodeList *nodeList = nullptr;
     if (n)
