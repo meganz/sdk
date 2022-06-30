@@ -21500,7 +21500,8 @@ void MegaApiImpl::sendPendingRequests()
             client->syncs.removeSelectedSyncs(
                         [](SyncConfig&, Sync*) { return true; },
                         [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); },
-                        request->getNodeHandle(), false);
+                        NodeHandle().set6byte(request->getNodeHandle()),
+                        false);
             break;
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
@@ -21541,7 +21542,7 @@ void MegaApiImpl::sendPendingRequests()
               {
                   fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
               },
-              backupTarget,
+              NodeHandle().set6byte(backupTarget),
               false);
 
             break;

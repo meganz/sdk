@@ -2260,7 +2260,7 @@ void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
     client.syncs.removeSelectedSyncs(
       [=](SyncConfig& config, Sync*) { return config.mBackupId == backupId; },
       [=](Error error) { result->set_value(error == API_OK); },
-      UNDEF,
+      NodeHandle(),
       true);
 }
 
