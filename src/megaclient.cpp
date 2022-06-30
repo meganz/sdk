@@ -18226,7 +18226,8 @@ node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle
 
     for (const auto& nodeIt : nodesFromTable)
     {
-        if (cancelFlag && cancelFlag) break;
+        // Check pointer and value
+        if (cancelFlag && *cancelFlag) break;
 
         Node* n = getNodeInRAM(nodeIt.first);
 

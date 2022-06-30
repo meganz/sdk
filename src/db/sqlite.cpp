@@ -603,7 +603,8 @@ SqliteAccountState::~SqliteAccountState()
 int SqliteAccountState::callback(void *param)
 {
     SqliteAccountState* db = static_cast<SqliteAccountState*>(param);
-    if (db->mCancelFlag && (*db->mCancelFlag) == true)
+    // Check pointer and value
+    if (db->mCancelFlag && *db->mCancelFlag)
     {
         sqlite3_interrupt(db->mDbSearchConnection);
     }
