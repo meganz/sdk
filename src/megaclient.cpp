@@ -1043,15 +1043,20 @@ const Node* MegaClient::childnodebyname(const Node* p, const char* name, bool sk
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
-            if ((*it)->type != FILENODE && !skipfolders)
+            if ((*it)->type == FILENODE)
             {
-                return *it;
+                if (skipfolders)
+                {
+                    return *it; // FOLDERs ignored, return first FILE
+                }
+                else
+                {
+                    found = *it; // FOLDERs not ignored and with precedence, save FILE in case no FOLDER is found
+                }
             }
-
-            found = *it;
-            if (skipfolders)
+            else if (!skipfolders)
             {
-                return found;
+                return *it; // FOLDER not ignored and with precedence, return first FOLDER
             }
         }
     }
