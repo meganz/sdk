@@ -7831,8 +7831,6 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(s1p, nullptr);
     ASSERT_EQ(s1p->id(), sh);
     ASSERT_EQ(s1p->name(), name);
-    string setKey = s1p->key() ? string(s1p->key(), SymmCipher::KEYLENGTH) : string();
-    ASSERT_NE(setKey, string());
     ASSERT_NE(s1p->ts(), 0);
     ASSERT_NE(s1p->user(), INVALID_HANDLE);
 
@@ -7847,9 +7845,6 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(s1up, nullptr);
     ASSERT_EQ(s1up->id(), sh);
     ASSERT_EQ(s1up->name(), name);
-    string key1 = s1up->key() ? string(s1up->key(), SymmCipher::KEYLENGTH) : string();
-    string key2 = s1p->key() ? string(s1p->key(), SymmCipher::KEYLENGTH) : string();
-    ASSERT_EQ(key1, key2);
     ASSERT_EQ(s1up->user(), s1p->user());
     //ASSERT_NE(s1up->ts(), s1p->ts()); // apparently this is not always updated
 
@@ -7894,9 +7889,6 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(s1fp, nullptr);
     ASSERT_EQ(s1fp->id(), sh);
     ASSERT_EQ(s1fp->name(), name);
-    key1 = s1fp->key() ? string(s1fp->key(), SymmCipher::KEYLENGTH) : string();
-    key2 = s1up->key() ? string(s1up->key(), SymmCipher::KEYLENGTH) : string();
-    ASSERT_EQ(key1, key2);
     ASSERT_EQ(s1fp->ts(), s1up->ts());
     ASSERT_EQ(s1fp->user(), s1up->user());
 
@@ -7978,9 +7970,6 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     s1p.reset(megaApi[0]->getMegaSet(sh));
     ASSERT_NE(s1p, nullptr);
     ASSERT_EQ(s1p->id(), sh);
-    key1 = s1p->key() ? string(s1p->key(), SymmCipher::KEYLENGTH) : string();
-    key2 = s1fp->key() ? string(s1fp->key(), SymmCipher::KEYLENGTH) : string();
-    ASSERT_EQ(key1, key2);
     ASSERT_EQ(s1p->user(), s1fp->user());
     ASSERT_EQ(s1p->ts(), s1fp->ts());
     ASSERT_EQ(s1p->name(), name);
@@ -7990,9 +7979,6 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(ellp->id(), elp_b4lo->id());
     ASSERT_EQ(ellp->node(), elp_b4lo->node());
     ASSERT_EQ(ellp->ts(), elp_b4lo->ts());
-    key1 = ellp->key() ? string(ellp->key(), SymmCipher::KEYLENGTH) : string();
-    key2 = elp_b4lo->key() ? string(elp_b4lo->key(), SymmCipher::KEYLENGTH) : string();
-    ASSERT_EQ(key1, key2);
     ASSERT_EQ(ellp->name(), elattrs);
 
     // 11. Remove all Sets
