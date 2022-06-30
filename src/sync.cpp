@@ -3892,12 +3892,52 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     remover->remove(remover);
 }
 
-error Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector, std::function<void(Error)> completion, handle bkpDest, bool skipMoveOrDelBackup)
+void Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector,
+                               std::function<void(Error)> completion,
+                               handle moveTarget,
+                               bool dontMoveOrUnlink)
 {
-    const vector<size_t>& syncsToRemove = selectedSyncs(selector, 1);
+    // Sanity.
+    assert(completion);
+    assert(selector);
 
-    // not finding the sync must be treated as an error
-    return syncsToRemove.empty() ? API_ENOENT : removeSyncByIndex(syncsToRemove.front(), bkpDest, skipMoveOrDelBackup, completion);
+    // Is any sync elligible for removal?
+    auto selected = selectedSyncs(std::move(selector), 1);
+
+    // Was any sync actually elligble?
+    if (selected.empty())
+        return completion(API_ENOENT);
+
+    // What's the ID of the sync we are going to remove?
+    auto id = selected.back();
+
+    // Wrap the completion function.
+    completion = [completion, id](Error result) {
+        // Were we able to remove the sync?
+        if (result == API_OK)
+        {
+            // Yep but leave a trail anyway.
+            LOG_debug << "Sync removed: "
+                      << toHandle(id);
+        }
+        else
+        {
+            // Nope so let's complain loudly.
+            LOG_err << "Unable to remove sync: "
+                    << toHandle(id)
+                    << ". Error was: "
+                    << result;
+        }
+
+        // Pass the result to our continuation.
+        completion(result);
+    };
+
+    // Remove the sync.
+    removeSyncByIndex(selected.back(),
+                      moveTarget,
+                      dontMoveOrUnlink,
+                      std::move(completion));
 }
 
 vector<size_t> Syncs::selectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, size_t maxCount) const

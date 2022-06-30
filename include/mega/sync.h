@@ -618,7 +618,10 @@ struct Syncs
                              bool dontMoveOrUnlink = false);
 
     // remove at most one sync
-    error removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector, std::function<void(Error)> completion, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false);
+    void removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector,
+                            std::function<void(Error)> completion,
+                            handle moveTarget = UNDEF,
+                            bool dontMoveOrUnlink = false);
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);

@@ -10022,13 +10022,18 @@ void exec_syncremove(autocomplete::ACState& s)
         }
     }
 
-    error err = client->syncs.removeSelectedSync(
+    client->syncs.removeSelectedSync(
         [&](SyncConfig& config, Sync*) { return config.mBackupId == backupId; },
-        [](Error e)
+        [=](Error e)
         {
-            if (e == API_OK || e == API_ENOENT)
+            if (e == API_OK)
             {
                 cout << "Sync - removed" << endl;
+            }
+            else if (e == API_ENOENT)
+            {
+                cout << "Sync - no config exists with the ID: "
+                     << toHandle(backupId);
             }
             else
             {
@@ -10036,23 +10041,6 @@ void exec_syncremove(autocomplete::ACState& s)
             }
         },
         bkpDest, false);
-
-    switch (err)
-    {
-    case API_ENOENT:
-        cerr << "No sync config exists with the backupId "
-            << Base64Str<sizeof(handle)>(backupId)
-            << endl;
-
-    case API_OK:
-        break;
-
-    default:
-        cerr << "Removing sync with backupId "
-            << Base64Str<sizeof(handle)>(backupId)
-            << " failed (" << err << ": " << errorstring(err) << ')'
-            << endl;
-    }
 }
 
 void exec_syncxable(autocomplete::ACState& s)
