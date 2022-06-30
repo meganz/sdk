@@ -1636,6 +1636,7 @@ public:
     // if usage other than generic, call this method to set the specific usage
     void startProcessing(MegaCancelTokenPrivate::Usage usage, MegaClient *c);
     void endProcessing();
+    const std::atomic_bool* getCancelFlag();
 
 private:
     std::atomic_bool cancelFlag { false };
@@ -2905,7 +2906,7 @@ protected:
         void processTransferFailed(Transfer *tr, MegaTransferPrivate *transfer, const Error &e, dstime timeleft);
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
-        node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int type, MegaCancelToken *cancelToken);
+        node_vector searchInNodeManager(MegaHandle nodeHandle, const char* searchString, int type, MegaCancelTokenPrivate *cancelToken);
         bool isValidTypeNode(Node *node, int type);
 
         MegaApi *api;

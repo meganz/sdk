@@ -267,9 +267,8 @@ public:
     // Search nodes containing 'searchString' in its name
     // Returned nodes are children of 'nodeHandle' (at any level)
     // If 'nodeHandle' is UNDEF, search includes the whole account
-    // Previously call this method we have to be sure of we have cleaned flags to cancel search
-    // NodeManager::resetSearchFlags
-    node_vector search(NodeHandle nodeHandle, const char *searchString);
+    // If a cancelFlag is passed, it must be kept alive until this method returns
+    node_vector search(NodeHandle nodeHandle, const char *searchString, const std::atomic_bool *cancelFlag);
 
     node_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
     node_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
@@ -370,9 +369,6 @@ public:
     // If some value is set previously (setParent), this value will be removed
     void initializeCounters();
 
-    // Reset flags for cancel search
-    void resetSearchFlags();
-
     NodeHandle getRootNodeFiles() {
         return rootnodes.files;
     }
@@ -447,16 +443,14 @@ private:
 
     //Avoid loading nodes whose ancestor is not ancestorHandle. If ancestorHandle is undef load all nodes
     // If searchingNodeByName is true, mSearchIsCanceled will be checked in every iteration
-    node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle, bool searchingNodeByName = false);
+    // If a valid object is passed, it must be kept alive until this method returns.
+    node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle, const std::atomic_bool* cancelFlag = nullptr);
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
 
     // store relationship between nodes and their children (nodes without children are not in the map)
     std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
-
-    // true if search is canceled
-    std::atomic_bool mSearchIsCanceled { false };
 };
 
 class MEGA_API MegaClient

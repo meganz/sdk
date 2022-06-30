@@ -65,7 +65,7 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    bool getNodesByName(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&) override
+    bool getNodesByName(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, const std::atomic_bool* cancelFlag) override
     {
         return false;
         //throw NotImplemented(__func__);
@@ -159,9 +159,6 @@ public:
     bool loadFingerprintsAndChildren(std::map<mega::FileFingerprint, std::map<mega::NodeHandle, mega::Node*>, mega::FileFingerprintCmp>& , std::map<mega::NodeHandle, std::set<mega::NodeHandle>>&) override
     {
         return false;
-    }
-    void resetGetNodesByNameFlag() override
-    {
     }
 };
 

@@ -603,7 +603,7 @@ SqliteAccountState::~SqliteAccountState()
 int SqliteAccountState::callback(void *param)
 {
     SqliteAccountState* db = static_cast<SqliteAccountState*>(param);
-    if (db->mGetNodesByNameIsCanceled)
+    if (db->mCancelFlag && (*db->mCancelFlag) == true)
     {
         sqlite3_interrupt(db->mDbSearchConnection);
     }
@@ -611,12 +611,6 @@ int SqliteAccountState::callback(void *param)
     sqlite3_progress_handler(db->mDbSearchConnection, -1, nullptr, nullptr);
 
     return 0;
-}
-
-void SqliteAccountState::resetGetNodesByNameFlag()
-{
-    sqlite3_progress_handler(mDbSearchConnection, -1, nullptr, nullptr);
-    mGetNodesByNameIsCanceled = false;
 }
 
 bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, sqlite3* dbConnection)
@@ -709,7 +703,6 @@ void SqliteAccountState::cancelQuery()
         return;
     }
 
-    mGetNodesByNameIsCanceled = true;
     sqlite3_interrupt(mDbSearchConnection);
 }
 
@@ -991,14 +984,19 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     return result;
 }
 
-bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes)
+bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, const std::atomic_bool *cancelFlag)
 {
     if (!mDbSearchConnection)
     {
         return false;
     }
 
-    sqlite3_progress_handler(mDbSearchConnection, 15, SqliteAccountState::callback, static_cast<void*>(this));
+    if (cancelFlag)
+    {
+        mCancelFlag = cancelFlag;
+        // Add a callback to be called inside db query to check if we should interrupt it
+        sqlite3_progress_handler(mDbSearchConnection, 15, SqliteAccountState::callback, static_cast<void*>(this));
+    }
 
     // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
     // (with or without any additional char at the beginning and/or end of the name). The '%' is the wildcard in SQL
@@ -1018,6 +1016,8 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
     }
 
     sqlite3_finalize(stmt);
+    mCancelFlag = nullptr;
+
 
     if (sqlResult == SQLITE_ERROR)
     {

@@ -66,7 +66,8 @@ public:
     bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes) override;
     bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType) override;
-    bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes) override;
+    // If a cancelFlag is passed, it must be kept alive until this method returns.
+    bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, const std::atomic_bool* cancelFlag) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
@@ -86,7 +87,6 @@ public:
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
     virtual ~SqliteAccountState();
     static int callback(void *);
-    void resetGetNodesByNameFlag() override;
 
 private:
     // Iterate over a SQL query row by row and fill the map
@@ -103,9 +103,9 @@ private:
 
     sqlite3* mDbSearchConnection = nullptr;
 
-    // Avoid race condition if sqlite_interrupt between
-    // NodeManager::mSearchIsCanceled is checked and sql query starts
-    std::atomic_bool mGetNodesByNameIsCanceled { false };
+    // Avoid race condition if search is cancelled and sql query hasn't started
+    // This flag is checked at callback that is called in the middle of the query
+    const std::atomic_bool *mCancelFlag = nullptr;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

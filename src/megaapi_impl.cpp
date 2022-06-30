@@ -11785,7 +11785,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int type, MegaCancelToken *cancelToken)
+node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int type, MegaCancelTokenPrivate* cancelToken)
 {
     node_vector nodeVector;
     if (!searchString)
@@ -11793,7 +11793,8 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
         return nodeVector;
     }
 
-    nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString);
+    const std::atomic_bool* cancelFlag = cancelToken ? cancelToken->getCancelFlag() : nullptr;
+    nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelFlag);
 
     for (auto it = nodeVector.begin(); it != nodeVector.end() && !(cancelToken && cancelToken->isCancelled());)
     {
@@ -11882,7 +11883,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
     SdkMutexGuard g(sdkMutex);
 
-    client->mNodeManager.resetSearchFlags();
     MegaCancelTokenPrivate* cancelTokenPrivate = nullptr;
     if (cancelToken)
     {
@@ -11909,7 +11909,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         node_vector nodeVector;
         if (recursive)
         {
-            nodeVector = searchInNodeManager(n->getHandle(), searchString, type, cancelToken);
+            nodeVector = searchInNodeManager(n->getHandle(), searchString, type, cancelTokenPrivate);
         }
         else
         {
@@ -11945,7 +11945,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
             if (recursive)
             {
-                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken);
+                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelTokenPrivate);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
             else
@@ -11966,7 +11966,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelTokenPrivate);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -11981,7 +11981,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
         if (target == MegaApi::SEARCH_TARGET_ALL)
         {
-            result = searchInNodeManager(UNDEF, searchString, type, cancelToken);
+            result = searchInNodeManager(UNDEF, searchString, type, cancelTokenPrivate);
         }
 
         if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
@@ -12001,7 +12001,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelToken);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelTokenPrivate);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -12021,7 +12021,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {
-                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, type, cancelToken);
+                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, type, cancelTokenPrivate);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
@@ -34193,6 +34193,11 @@ void MegaCancelTokenPrivate::startProcessing(MegaCancelTokenPrivate::Usage usage
 void MegaCancelTokenPrivate::endProcessing()
 {
     processing = false;
+}
+
+const std::atomic_bool *MegaCancelTokenPrivate::getCancelFlag()
+{
+    return &cancelFlag;
 }
 
 }
