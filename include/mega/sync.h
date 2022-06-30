@@ -612,7 +612,10 @@ struct Syncs
     void disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered, and backup syncs in Vault are permanently deleted (if request came from SDK) or moved
-    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, std::function<void(Error)> lastCompletion, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false);
+    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
+                             std::function<void(Error)> completion,
+                             handle moveTarget = UNDEF,
+                             bool dontMoveOrUnlink = false);
 
     // remove at most one sync
     error removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector, std::function<void(Error)> completion, handle bkpDest = UNDEF, bool skipMoveOrDelBackup = false);

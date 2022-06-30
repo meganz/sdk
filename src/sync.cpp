@@ -3733,67 +3733,163 @@ void Syncs::disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError
     if (completion) completion();
 }
 
-void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, std::function<void(Error)> lastCompletion, handle bkpDest, bool skipMoveOrDelBackup)
+void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
+                                std::function<void(Error)> completion,
+                                handle moveTarget,
+                                bool dontMoveOrUnlink)
 {
-    const vector<size_t>& syncsToRemove = selectedSyncs(selector);
+    // Sanity.
+    assert(completion);
+    assert(selector);
 
-    if (syncsToRemove.empty())
+    // Convenience.
+    class Remover;
+
+    using RemoverPtr = shared_ptr<Remover>;
+
+    // Context tracking the state of the removal process.
+    class Remover
     {
-        // not finding any syncs is fine
-        lastCompletion(API_OK);
-        return;
-    }
-
-    auto syncCount = syncsToRemove.size();
-    auto ok = std::make_shared<bool>(true); // flag any local or API failure while removing syncs
-
-    for (auto i = syncCount; i--;)
-    {
-        // prepare to handle the result of (intermediary) removal
-        size_t idxToRemove = syncsToRemove[i];
-        const auto& syncName = mSyncVec[idxToRemove]->mConfig.mName;
-        std::function<void(Error)> nextCompl = i ? nullptr : lastCompletion;
-        std::function<void(Error)> completion = [ok, syncName, syncCount, nextCompl](Error e)
+    public:
+        Remover(std::function<void(Error)> &&completion,
+                bool dontMoveOrUnlink,
+                handle moveTarget,
+                vector<size_t> &&pending,
+                Syncs& syncs)
+          : mCompletion(std::move(completion))
+          , mDontMoveOrUnlink(dontMoveOrUnlink)
+          , mNumProcessed(0u)
+          , mPending(std::move(pending))
+          , mResult(API_OK)
+          , mSyncs(syncs)
         {
-            if (e == API_ENOENT) // in case the sync was removed in BC
-            {
-                e = API_OK;
-            }
+        }
 
-            if (e != API_OK)
-            {
-                LOG_err << "API failed to remove sync " << syncName << " (error: " << error(e) << ')';
-                *ok = false;
-            }
-            if (nextCompl)
-            {
-                // when removing a single sync return its own error code,
-                // otherwise return a more generic status
-                nextCompl(syncCount == 1 ? error(e) : (*ok ? API_OK : API_EINCOMPLETE));
-            }
-        };
-
-        // remove current sync
-        error err = removeSyncByIndex(idxToRemove, bkpDest, skipMoveOrDelBackup, completion);
-        if (err != API_OK)
+        void remove(RemoverPtr remover)
         {
-            if (err == API_ENOENT)
+            // Sanity.
+            assert(remover);
+
+            // Are there any syncs left to remove?
+            if (mPending.empty())
             {
-                err = API_OK; // not finding a sync is fine
+                // Nope so tell our continuation that we're done.
+                return mCompletion(mResult);
+            }
+
+            // What's the index of the sync we're about to remove?
+            auto index = mPending.back();
+
+            // What's the ID of the sync we're about to remove?
+            auto id = mSyncs.mSyncVec[index]->mConfig.mBackupId;
+
+            // Leave a trail for debuggers.
+            LOG_debug << "Attempting to remove sync: "
+                      << toHandle(id);
+
+            using std::bind;
+            using std::placeholders::_1;
+
+            // Make ourselves look like a continuation.
+            auto completion = std::bind(&Remover::removed,
+                                        this,
+                                        id,
+                                        remover,
+                                        _1,
+                                        "API");
+
+            // Try and remove the sync.
+            auto result = mSyncs.removeSyncByIndex(index,
+                                                   mMoveTarget,
+                                                   mDontMoveOrUnlink,
+                                                   std::move(completion));
+
+            // Did the client encounter an error?
+            if (result != API_OK)
+            {
+                // Yes so we need to call the continuation explicitly.
+                removed(id, std::move(remover), result, "Client");
+            }
+        }
+
+    private:
+        void removed(handle id,
+                     RemoverPtr remover,
+                     Error result,
+                     const char* where)
+        {
+            // Sanity.
+            assert(id != UNDEF);
+            assert(remover);
+            assert(where);
+
+            // Keep track of how many syncs we've processed.
+            ++mNumProcessed;
+
+            // Were we able to remove the sync?
+            if (result == API_OK)
+            {
+                // Yep but leave a trail for debuggers anyway.
+                LOG_debug << where
+                          << ": Sync removed: "
+                          << toHandle(id);
             }
             else
             {
-                LOG_err << "Failed to remove sync " << syncName << " (error: " << err << ')';
-                *ok = false;
+                // Nope so complain loudly.
+                LOG_err << where
+                        << ": Unable to remove sync: "
+                        << toHandle(id)
+                        << ". Error was: "
+                        << result;
+
+                // Why couldn't we remove the sync?
+                mResult = result;
             }
 
-            // completion was not run but it needs to if it's the last sync
-            if (nextCompl)
-            {
-                nextCompl(syncCount == 1 ? err : (*ok ? API_OK : API_EINCOMPLETE));
-            }
+            // Translate result to general form if necessary.
+            if (mNumProcessed > 1 && mResult != API_OK)
+                mResult = API_EINCOMPLETE;
+
+            // Queue the next pending sync for removal.
+            mPending.pop_back();
+
+            // Remove that sync.
+            remove(std::move(remover));
         }
-    }
+
+        // Who should we call when we're done?
+        std::function<void(Error)> mCompletion;
+
+        // Should we move (or unlink) a backup's content?
+        bool mDontMoveOrUnlink;
+
+        // Where should we move a backup's content?
+        handle mMoveTarget;
+
+        // How many syncs have we attempted to remove?
+        unsigned mNumProcessed;
+
+        // What syncs need to be removed?
+        vector<size_t> mPending;
+
+        // What's the overall result of the removal process?
+        Error mResult;
+
+        // Who owns the syncs we are removing?
+        Syncs& mSyncs;
+    }; // Remover
+
+    // Create a context to track the removal process.
+    auto remover = std::make_shared<Remover>(
+                     std::move(completion),
+                     dontMoveOrUnlink,
+                     moveTarget,
+                     selectedSyncs(std::move(selector)),
+                     *this);
+
+    // Kick off the removal process.
+    remover->remove(remover);
 }
 
 error Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector, std::function<void(Error)> completion, handle bkpDest, bool skipMoveOrDelBackup)
@@ -4027,6 +4123,8 @@ error Syncs::removeSyncByIndex(size_t index, handle bkpDest, bool skipMoveOrDelB
 
 void Syncs::unloadSyncByIndex(size_t index)
 {
+    assert(index < mSyncVec.size());
+
     if (index < mSyncVec.size())
     {
         if (auto& syncPtr = mSyncVec[index]->mSync)
