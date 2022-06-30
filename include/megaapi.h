@@ -1197,7 +1197,6 @@ class MegaSet
 public:
     virtual MegaHandle id() const { return INVALID_HANDLE; }
     virtual MegaHandle user() const { return INVALID_HANDLE; }
-    virtual const char* key() const { return nullptr; }
     virtual int64_t ts() const { return 0; }
     virtual const char* name() const { return nullptr; }
 
@@ -1257,7 +1256,6 @@ public:
     virtual MegaHandle id() const { return INVALID_HANDLE; }
     virtual MegaHandle node() const { return INVALID_HANDLE; }
     virtual int64_t order() const { return 0; }
-    virtual const char* key() const { return nullptr; }
     virtual int64_t ts() const { return 0; }
     virtual const char* name() const { return nullptr; }
 

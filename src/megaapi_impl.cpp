@@ -23578,7 +23578,7 @@ MegaSetList* MegaApiImpl::getMegaSets()
     for (const auto& sp : client->getSets())
     {
         const Set& s = sp.second;
-        sList->add(MegaSetPrivate(s.id(), s.user(), s.key(), s.ts(), s.name()));
+        sList->add(MegaSetPrivate(s.id(), s.user(), s.ts(), s.name()));
     }
 
     return sList;
@@ -23589,7 +23589,7 @@ MegaSet* MegaApiImpl::getMegaSet(MegaHandle sid)
     SdkMutexGuard g(sdkMutex);
 
     const Set* s = client->getSet(sid);
-    return s ? new MegaSetPrivate(s->id(), s->user(), s->key(), s->ts(), s->name()) : nullptr;
+    return s ? new MegaSetPrivate(s->id(), s->user(), s->ts(), s->name()) : nullptr;
 }
 
 MegaElementList* MegaApiImpl::getMegaElements(MegaHandle sid)
@@ -23604,7 +23604,7 @@ MegaElementList* MegaApiImpl::getMegaElements(MegaHandle sid)
         for (const auto& ell : s->elements())
         {
             const SetElement& el = ell.second;
-            eList->add(MegaSetElementPrivate(el.id(), el.node(), el.order(), el.key(), el.ts(), el.name()));
+            eList->add(MegaSetElementPrivate(el.id(), el.node(), el.order(), el.ts(), el.name()));
         }
     }
 
@@ -23618,7 +23618,7 @@ MegaElement* MegaApiImpl::getMegaElement(MegaHandle eid, MegaHandle sid)
     const Set* s = client->getSet(sid);
     const SetElement* el = s ? s->element(eid) : nullptr;
 
-    return el ? new MegaSetElementPrivate(el->id(), el->node(), el->order(), el->key(), el->ts(), el->name()) : nullptr;
+    return el ? new MegaSetElementPrivate(el->id(), el->node(), el->order(), el->ts(), el->name()) : nullptr;
 }
 
 

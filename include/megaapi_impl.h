@@ -658,12 +658,11 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 class MegaSetPrivate : public MegaSet
 {
 public:
-    MegaSetPrivate(MegaHandle id, MegaHandle u, const string& k, m_time_t ts, const string& name) :
-        mId(id), mUser(u), mKey(k), mTs(ts), mName(name) {}
+    MegaSetPrivate(MegaHandle id, MegaHandle u, m_time_t ts, const string& name) :
+        mId(id), mUser(u), mTs(ts), mName(name) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle user() const override { return mUser; }
-    const char* key() const override { return mKey.c_str(); }
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
 
@@ -672,7 +671,6 @@ public:
 private:
     MegaHandle mId;
     MegaHandle mUser;
-    string mKey;
     m_time_t mTs;
     string mName;
 };
@@ -695,13 +693,12 @@ private:
 class MegaSetElementPrivate : public MegaElement
 {
 public:
-    MegaSetElementPrivate(MegaHandle id, MegaHandle h, int64_t o, const string& k, m_time_t ts, const string& name) :
-        mId(id), mNode(h), mOrder(o), mKey(k), mTs(ts), mName(name) {}
+    MegaSetElementPrivate(MegaHandle id, MegaHandle h, int64_t o, m_time_t ts, const string& name) :
+        mId(id), mNode(h), mOrder(o), mTs(ts), mName(name) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle node() const override { return mNode; }
     int64_t order() const override { return mOrder; }
-    const char* key() const override { return mKey.c_str(); }
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
 
@@ -711,7 +708,6 @@ private:
     MegaHandle mId;
     MegaHandle mNode;
     int64_t mOrder;
-    string mKey;
     m_time_t mTs;
     string mName;
 };
