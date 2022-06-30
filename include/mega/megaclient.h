@@ -238,6 +238,8 @@ public:
     const int64_t& order() const            { return mOrder; }
     const m_time_t& ts() const              { return mTs; }
     const string& key() const               { return mKey; }
+    const map<string, string>& unusedAttrs() const { return mUnusedAttrs; }
+    map<string, string> allAttributes() const;
 
     void setId(handle id)                   { mId = id; }
     void setNode(handle nh)                 { mNodeHandle = nh; }
@@ -247,9 +249,13 @@ public:
     void setTs(m_time_t ts)                 { mTs = ts; }
     void setKey(string&& key)               { mKey = move(key); }
     void setKey(const string& key)          { mKey = key; }
+    void setUnusedAttrs(const map<string, string>& uattrs) { mUnusedAttrs = uattrs; }
 
-    bool hasName() const                    { return mOpts[SE_NAME]; }
+    bool hasAttrs() const                   { return mOpts[SE_NAME]; }
     bool hasOrder() const                   { return mOpts[SE_ORDER]; }
+
+    void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs = move(eattrs); mOpts[SE_NAME] = 1; }
+    bool decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f);
 
     bool serialize(string*);
 
@@ -268,6 +274,9 @@ private:
         SE_SIZE
     };
     std::bitset<SE_SIZE> mOpts;
+
+    string mEncryptedAttrs;
+    map<string, string> mUnusedAttrs;
 };
 
 class Set : public Cacheable
@@ -289,6 +298,12 @@ public:
     void setUser(handle uh) { mUser = uh; }
     void setTs(m_time_t ts) { mTs = ts; }
     void setName(string&& name) { mName = move(name); }
+    void setUnusedAttrs(const map<string, string>& uattrs) { mUnusedAttrs = uattrs; }
+
+    void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs = move(eattrs); }
+    void setEncryptedAttrs(const string& eattrs) { mEncryptedAttrs = eattrs; }
+    const string& encryptedAttrs() const { return mEncryptedAttrs; }
+    bool decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f);
 
     const SetElement* element(handle eId) const;
     void addOrUpdateElement(SetElement&& el);
@@ -301,13 +316,16 @@ public:
 
 private:
     handle mId = UNDEF;
-    string mKey;        // new AES-128 key per set
+    string mKey;                        // new AES-128 key per set
     handle mUser = UNDEF;
     m_time_t mTs = 0;
-    string mName;       // up to 65535 bytes of miscellaneous data, as b64, encrypted with mKey
+    string mName;                       // extracted from "at"
     map<handle, SetElement> mElements;
 
     bool markedForDbRemoval = false;
+
+    string mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
+    map<string, string> mUnusedAttrs;   // leftovers from "at"
 };
 
 class MEGA_API MegaClient
@@ -2046,7 +2064,7 @@ private:
 
 public:
     // generate "asp" command
-    void putSet(handle id, string&& attrs, std::function<void(Error, handle)> completion);
+    void putSet(handle id, string&& name, std::function<void(Error, handle)> completion);
 
     // generate "asr" command
     void removeSet(handle id, std::function<void(Error)> completion);
@@ -2092,7 +2110,8 @@ private:
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;
-    string decryptAttrs(const string& attrs, const string& encryptionKey) const;
+    bool decryptAttrs(const string& attrs, const string& decrKey, map<string, string>& output);
+    string encryptAttrs(map<string, string>&& attrs, const string& encryptionKey);
 
     void sc_asp(); // AP after new or updated Set
     void sc_asr(); // AP after removed Set

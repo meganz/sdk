@@ -5813,6 +5813,8 @@ bool CommandFetchNodes::procresult(Result r)
                     client->readSetsAndElements(client->json) != API_OK ||
                     !client->json.leaveobject())
                 {
+                    client->fetchingnodes = false;
+                    client->app->fetchnodes_result(API_EINTERNAL);
                     return false;
                 }
                 break;
@@ -8968,9 +8970,9 @@ bool CommandSE::procerrorcode(const Result& r, Error& e) const
     return false;
 }
 
-CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, string&& encrKey, string&& decrAttrs, string&& encrAttrs,
+CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, string&& encrKey, string&& name, string&& encrAttrs,
                                  std::function<void(Error, handle)> completion)
-    : mId(setId), mDecrKey(move(decrKey)), mDecrAttrs(move(decrAttrs)), mCompletion(completion)
+    : mId(setId), mDecrKey(move(decrKey)), mName(move(name)), mCompletion(completion)
 {
     cmd("asp");
 
@@ -9008,12 +9010,12 @@ bool CommandPutSet::procresult(Result r)
     {
         if (mId == UNDEF) // add new
         {
-            Set a(setId, move(mDecrKey), user, ts, move(mDecrAttrs));
+            Set a(setId, move(mDecrKey), user, ts, move(mName));
             client->addSet(move(a));
         }
         else // update existing
         {
-            client->updateSet(setId, move(mDecrAttrs), ts);
+            client->updateSet(setId, move(mName), ts);
             assert(mId == setId);
         }
     }
@@ -9116,7 +9118,7 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, stri
         arg("o", mElement->order());
     }
 
-    if (mElement->hasName())
+    if (mElement->hasAttrs())
     {
         arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
     }

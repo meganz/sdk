@@ -17027,7 +17027,7 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
 // Sets and Elements
 //
 
-void MegaClient::putSet(handle id, string&& attrs, std::function<void(Error, handle)> completion)
+void MegaClient::putSet(handle id, string&& name, std::function<void(Error, handle)> completion)
 {
     // Set key
     byte setKey[SymmCipher::KEYLENGTH];
@@ -17051,15 +17051,17 @@ void MegaClient::putSet(handle id, string&& attrs, std::function<void(Error, han
     }
 
     // store attrs to TLV and encrypt with Set key
-    unique_ptr<string> encrAttrs;
-    if (!attrs.empty())
+    string encrAttrs;
+    if (!name.empty())
     {
-        TLVstore tlvRecords;
-        tlvRecords.set("name", attrs);
-        encrAttrs.reset(tlvRecords.tlvRecordsToContainer());
-
-        SymmCipher cipher(setKey);
-        PaddedCBC::encrypt(rng, encrAttrs.get(), &cipher);
+        map<string, string> attrs { {"name", name} };
+        encrAttrs = encryptAttrs(move(attrs), string((char*)setKey, sizeof(setKey)));
+        if (encrAttrs.empty())
+        {
+            if (completion)
+                completion(API_EINTERNAL, id);
+            return;
+        }
     }
 
     // encrypt Set key with master key (for new Set only)
@@ -17071,8 +17073,7 @@ void MegaClient::putSet(handle id, string&& attrs, std::function<void(Error, han
         encrSetKey.assign((char*)setKey, sizeof(setKey));
     }
 
-    reqs.add(new CommandPutSet(this, id, move(decrSetKey), move(encrSetKey),
-                                 move(attrs), (encrAttrs ? move(*encrAttrs) : string()), completion));
+    reqs.add(new CommandPutSet(this, id, move(decrSetKey), move(encrSetKey), move(name), move(encrAttrs), completion));
 }
 
 void MegaClient::removeSet(handle id, std::function<void(Error)> completion)
@@ -17134,16 +17135,17 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
         }
 
         el.setKey(n->nodekey());
+        assert(el.key().size() == FILENODEKEYLENGTH);
 
         // encrypt element.key with set.key
-        byte encryptBuffer[SymmCipher::KEYLENGTH];
+        byte encryptBuffer[FILENODEKEYLENGTH];
         std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
-        SymmCipher cipher((byte*)existingSet->key().c_str());
-        cipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
+        tmpnodecipher.setkey(&existingSet->key());
+        tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
         encrKey.assign((char*)encryptBuffer, sizeof(encryptBuffer));
     }
     // get element.key from existing element (only when updating attributes)
-    else if (el.hasName() && !el.name().empty())
+    else if (el.hasAttrs())
     {
         auto elIt = existingSet->elements().find(el.id());
         if (elIt == existingSet->elements().end())
@@ -17158,18 +17160,19 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
     }
 
     // store element.attrs to TLV, and encrypt with element.key (copied from nodekey)
-    unique_ptr<string> encrAttrs;
-    if (el.hasName() && !el.name().empty())
+    string encrAttrs;
+    if (el.hasAttrs())
     {
-        TLVstore tlvRecords;
-        tlvRecords.set("name", el.name());
-        encrAttrs.reset(tlvRecords.tlvRecordsToContainer());
-
-        SymmCipher cipher((byte*)el.key().c_str());
-        PaddedCBC::encrypt(rng, encrAttrs.get(), &cipher);
+        encrAttrs = encryptAttrs(el.allAttributes(), el.key());
+        if (encrAttrs.empty())
+        {
+            if (completion)
+                completion(API_EINTERNAL, el.id(), UNDEF);
+            return;
+        }
     }
 
-    reqs.add(new CommandPutSetElement(this, move(el), (encrAttrs ? move(*encrAttrs) : string()), move(encrKey), existingSet->id(), completion));
+    reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), existingSet->id(), completion));
 }
 
 void MegaClient::removeSetElement(handle id, std::function<void(Error, handle)> completion)
@@ -17296,17 +17299,11 @@ error MegaClient::decryptSetData(Set& s)
     // decrypt Set key using the master key
     s.setKey(decryptKey(s.key(), key));
 
-    if (!s.name().empty())
+    // decrypt attrs
+    auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
+    if (!s.decryptAttributes(decryptFunc))
     {
-        // decrypt using the Set key, then extract from TLV
-        string decryptedAttrs = decryptAttrs(s.name(), s.key());
-        unique_ptr<TLVstore> sTlv(TLVstore::containerToTLVrecords(&decryptedAttrs));
-        if (!sTlv || !sTlv->get("name", decryptedAttrs))
-        {
-            LOG_err << "Sets: Failed to parse TLV container for Set name";
-            return API_EINTERNAL;
-        }
-        s.setName(move(decryptedAttrs));
+        return API_EINTERNAL;
     }
 
     return API_OK;
@@ -17320,19 +17317,14 @@ error MegaClient::decryptElementData(SetElement& el, const string& setKey)
         return API_EINTERNAL;
     }
 
-    SymmCipher cipher((byte*)setKey.c_str());
-    el.setKey(decryptKey(el.key(), cipher));
+    tmpnodecipher.setkey(&setKey);
+    el.setKey(decryptKey(el.key(), tmpnodecipher));
 
-    if (!el.name().empty())
+    // decrypt attrs
+    auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
+    if (el.hasAttrs() && !el.decryptAttributes(decryptFunc))
     {
-        string decryptedAttrs = decryptAttrs(el.name(), el.key());
-        unique_ptr<TLVstore> s(TLVstore::containerToTLVrecords(&decryptedAttrs));
-        if (!s || !s->get("name", decryptedAttrs))
-        {
-            LOG_err << "Sets: Failed to parse TLV container for Element name";
-            return API_EINTERNAL;
-        }
-        el.setName(decryptedAttrs);
+        return API_EINTERNAL;
     }
 
     return API_OK;
@@ -17340,18 +17332,68 @@ error MegaClient::decryptElementData(SetElement& el, const string& setKey)
 
 string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
 {
-    byte decrKey[SymmCipher::KEYLENGTH] = { 0 };
-    std::copy_n(k.begin(), std::min(k.size(), sizeof(decrKey)), decrKey);
-    cipher.cbc_decrypt(decrKey, sizeof(decrKey));
-    return string((char*)decrKey, sizeof(decrKey));
+    unique_ptr<byte> decrKey(new byte[k.size()]{ 0 });
+    std::copy_n(k.begin(), k.size(), decrKey.get());
+    cipher.cbc_decrypt(decrKey.get(), k.size());
+    return string((char*)decrKey.get(), k.size());
 }
 
-string MegaClient::decryptAttrs(const string& attrs, const string& encryptionKey) const
+string MegaClient::encryptAttrs(map<string, string>&& attrs, const string& encryptionKey)
 {
-    string tmp = attrs;
-    SymmCipher cipher((byte*)encryptionKey.c_str());
-    PaddedCBC::decrypt(&tmp, &cipher);
-    return tmp;
+    if (attrs.empty())
+    {
+        return string();
+    }
+
+    if (!tmpnodecipher.setkey(&encryptionKey))
+    {
+        LOG_err << "Sets: Failed to use cipher key when encrypting attrs";
+        return string();
+    }
+
+    TLVstore tlvRecords;
+    for (auto& a : attrs)
+    {
+        tlvRecords.set(move(a.first), move(a.second));
+    }
+
+    unique_ptr<string> encrAttrs(tlvRecords.tlvRecordsToContainer(rng, &tmpnodecipher));
+
+    if (!encrAttrs || encrAttrs->empty())
+    {
+        LOG_err << "Sets: Failed to write name to TLV container";
+        return string();
+    }
+
+    return *encrAttrs;
+}
+
+bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, map<string, string>& output)
+{
+    if (attrs.empty())
+    {
+        output.clear();
+        return true;
+    }
+
+    assert(decrKey.size() == SymmCipher::KEYLENGTH || decrKey.size() == FILENODEKEYLENGTH);
+
+    if (!tmpnodecipher.setkey(&decrKey))
+    {
+        LOG_err << "Sets: Failed to assign key to cipher when decrypting attrs";
+        return false;
+    }
+
+    unique_ptr<TLVstore> sTlv(TLVstore::containerToTLVrecords(&attrs, &tmpnodecipher));
+    if (!sTlv)
+    {
+        LOG_err << "Sets: Failed to build TLV container of attrs";
+        return false;
+    }
+
+    output = *sTlv->getMap();
+
+    return true;
 }
 
 error MegaClient::readSets(JSON& j, map<handle, Set>& sets)
@@ -17384,13 +17426,13 @@ error MegaClient::readSet(JSON& j, Set& s)
 
         case MAKENAMEID2('a', 't'):
         {
-            string name;
-            j.copystring(&name, j.getvalue()); // B64 encoded
-            if (!name.empty())
+            string attrs;
+            j.copystring(&attrs, j.getvalue()); // B64 encoded
+            if (!attrs.empty())
             {
-                name = Base64::atob(name);
+                attrs = Base64::atob(attrs);
             }
-            s.setName(move(name)); // still encrypted
+            s.setEncryptedAttrs(move(attrs)); // decrypt them after reading everything
             break;
         }
 
@@ -17477,7 +17519,7 @@ error MegaClient::readElement(JSON& j, SetElement& el, handle& setId)
             {
                 elementAttrs = Base64::atob(elementAttrs);
             }
-            el.setName(move(elementAttrs)); // still encrypted
+            el.setEncryptedAttrs(move(elementAttrs)); // decrypt them after reading everything
             break;
         }
 
@@ -17597,6 +17639,7 @@ void MegaClient::sc_asp()
     {
         if (decryptSetData(s) != API_OK)
         {
+            LOG_err << "Sets: Failed to parse `asp` action packet";
             return;
         }
         addSet(move(s));
@@ -17746,6 +17789,7 @@ bool MegaClient::fetchscset(string* data, uint32_t id)
 
     return true;
 }
+
 bool MegaClient::updatescsets()
 {
     for (Set* s : setnotify)
@@ -17800,94 +17844,78 @@ void MegaClient::notifypurgesets()
 
 Set* MegaClient::unserializeSet(string* d)
 {
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
-    if (ptr + MegaClient::SETHANDLE + sizeof(size_t) + MegaClient::USERHANDLE + sizeof(m_time_t) + 2 * sizeof(size_t) > end)
-    {
-        return nullptr;
-    }
-
-    handle id = 0;
-    memcpy((char*)&id, ptr, MegaClient::SETHANDLE);
-    ptr += MegaClient::SETHANDLE;
-
-    size_t l = MemAccess::get<size_t>(ptr);
-    ptr += sizeof(size_t);
-    if (ptr + l + MegaClient::USERHANDLE + sizeof(m_time_t) + 2 * sizeof(size_t) > end)
-    {
-        return nullptr;
-    }
+    handle id = 0, u = 0;
+    m_time_t ts = 0;
     string k;
-    k.assign(ptr, l);
-    ptr += l;
+    uint32_t attrCount = 0;
+    unsigned char expansionsS[8];
 
-    handle u = 0;
-    memcpy((char*)&u, ptr, MegaClient::USERHANDLE);
-    ptr += MegaClient::USERHANDLE;
+    CacheableReader r(*d);
+    r.unserializehandle(id);
+    r.unserializehandle(u);
+    r.unserializebinary((byte*)&ts, sizeof(ts));
+    r.unserializestring(k);
+    r.unserializeu32(attrCount);
 
-    m_time_t ts = MemAccess::get<m_time_t>(ptr);
-    ptr += sizeof(m_time_t);
-
-    l = MemAccess::get<size_t>(ptr);
-    ptr += sizeof(size_t);
-    if (ptr + l + sizeof(size_t) > end)
+    // get all attrs
+    map<string, string> attrs;
+    for (uint32_t i = 0; i < attrCount; ++i)
     {
-        return nullptr;
+        string ak, av;
+        r.unserializestring(ak);
+        r.unserializestring(av);
+        attrs[move(ak)] = move(av);
     }
-    string name;
-    name.assign(ptr, l);
-    ptr += l;
+
+    string name = move(attrs["name"]);
+    attrs.erase("name");
+
+    r.unserializeexpansionflags(expansionsS, 0);
 
     Set s((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(name));
+    s.setUnusedAttrs(attrs);
 
-    // get Elements of this Set
-    size_t elCount = MemAccess::get<size_t>(ptr);
-    ptr += sizeof(size_t);
-    for (auto i = 0; i < elCount; ++i)
+    uint32_t elCount = 0;
+    r.unserializeu32(elCount);
+
+    // unserialize Elements
+    for (uint32_t i = 0; i < elCount; ++i)
     {
-        if (ptr + MegaClient::SETELEMENTHANDLE + MegaClient::NODEHANDLE + sizeof(size_t) + sizeof(int64_t) + sizeof(m_time_t) + sizeof(size_t) > end)
-        {
-            return nullptr;
-        }
-
         id = 0;
-        memcpy((char*)&id, ptr, MegaClient::SETELEMENTHANDLE);
-        ptr += MegaClient::SETELEMENTHANDLE;
-
         handle h = 0;
-        memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
-        ptr += MegaClient::NODEHANDLE;
+        int64_t o = 0;
+        ts = 0;
+        attrCount = 0;
+        unsigned char expansionsE[8];
 
-        l = MemAccess::get<size_t>(ptr);
-        ptr += sizeof(size_t);
-        if (ptr + l + sizeof(int64_t) + sizeof(m_time_t) + sizeof(size_t) > end)
+        r.unserializehandle(id);
+        r.unserializenodehandle(h);
+        r.unserializei64(o);
+        r.unserializebinary((byte*)&ts, sizeof(ts));
+        r.unserializestring(k);
+        r.unserializeu32(attrCount);
+
+        // get all attrs
+        attrs.clear();
+        for (size_t j = 0; j < attrCount; ++j)
         {
-            return nullptr;
+            string ak, av;
+            r.unserializestring(ak);
+            r.unserializestring(av);
+            attrs[move(ak)] = move(av);
         }
-        name.assign(ptr, l);
-        ptr += l;
 
-        int64_t o = MemAccess::get<int64_t>(ptr);
-        ptr += sizeof(int64_t);
+        name = move(attrs["name"]);
+        attrs.erase("name");
 
-        ts = MemAccess::get<m_time_t>(ptr);
-        ptr += sizeof(m_time_t);
-
-        l = MemAccess::get<size_t>(ptr);
-        ptr += sizeof(size_t);
-        if (ptr + l > end)
-        {
-            return nullptr;
-        }
-        k.assign(ptr, l);
-        ptr += l;
+        r.unserializeexpansionflags(expansionsE, 0);
 
         SetElement el((h ? h : UNDEF), (id ? id : UNDEF));
         el.setName(move(name));
         el.setOrder(o);
         el.setTs(ts);
         el.setKey(move(k));
+        el.setUnusedAttrs(attrs);
 
         s.addOrUpdateElement(move(el));
     }
@@ -17917,9 +17945,10 @@ void Set::addOrUpdateElement(SetElement&& el)
 
     // update
     SetElement& existing = it->second;
-    if (el.hasName())
+    if (el.hasAttrs())
     {
         existing.setName(el.name());
+        existing.setUnusedAttrs(el.unusedAttrs());
     }
     if (el.hasOrder())
     {
@@ -17933,18 +17962,28 @@ void Set::addOrUpdateElement(SetElement&& el)
 
 bool Set::serialize(string* d)
 {
-    d->append((char*)&mId, MegaClient::SETHANDLE);
-    size_t kSize = mKey.size();
-    d->append((char*)&kSize, sizeof(kSize));
-    d->append(mKey);
-    d->append((char*)&mUser, MegaClient::USERHANDLE);
-    d->append((char*)&mTs, sizeof(mTs));
-    size_t aSize = mName.size();
-    d->append((char*)&aSize, sizeof(aSize));
-    d->append(mName);
+    CacheableWriter r(*d);
+
+    r.serializehandle(mId);
+    r.serializehandle(mUser);
+    r.serializebinary((byte*)&mTs, sizeof(mTs));
+    r.serializestring(mKey);
+
+    auto allAttrs = mUnusedAttrs;
+    allAttrs["name"] = mName;
+    size_t aAttrsCount = allAttrs.size();
+    r.serializeu32((uint32_t)aAttrsCount);
+
+    for (auto& aa : allAttrs)
+    {
+        r.serializestring(aa.first);
+        r.serializestring(aa.second);
+    }
+
+    r.serializeexpansionflags();
 
     size_t elemCount = mElements.size();
-    d->append((char*)&elemCount, sizeof(elemCount));
+    r.serializeu32((uint32_t)elemCount);
 
     for (auto& e : mElements)
     {
@@ -17954,18 +17993,60 @@ bool Set::serialize(string* d)
     return true;
 }
 
+bool Set::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
+{
+    if (f(mEncryptedAttrs, mKey, mUnusedAttrs))
+    {
+        mEncryptedAttrs.clear();
+        mName = mUnusedAttrs["name"];
+        mUnusedAttrs.erase("name");
+        return true;
+    }
+
+    return false;
+}
+
+bool SetElement::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
+{
+    if (hasAttrs() && f(mEncryptedAttrs, mKey, mUnusedAttrs))
+    {
+        mEncryptedAttrs.clear();
+        mName = mUnusedAttrs["name"];
+        mUnusedAttrs.erase("name");
+        return true;
+    }
+
+    return false;
+}
+
+map<string, string> SetElement::allAttributes() const
+{
+    map<string, string> a = mUnusedAttrs;
+    a["name"] = mName;
+    return a;
+}
+
 bool SetElement::serialize(string* d)
 {
-    d->append((char*)&mId, MegaClient::SETELEMENTHANDLE);
-    d->append((char*)&mNodeHandle, MegaClient::NODEHANDLE);
-    size_t aSize = mName.size();
-    d->append((char*)&aSize, sizeof(aSize));
-    d->append(mName);
-    d->append((char*)&mOrder, sizeof(mOrder));
-    d->append((char*)&mTs, sizeof(mTs));
-    size_t kSize = mKey.size();
-    d->append((char*)&kSize, sizeof(kSize));
-    d->append(mKey);
+    CacheableWriter r(*d);
+
+    r.serializehandle(mId);
+    r.serializenodehandle(mNodeHandle);
+    r.serializei64(mOrder);
+    r.serializebinary((byte*)&mTs, sizeof(mTs));
+    r.serializestring(mKey);
+
+    auto allAttrs = allAttributes();
+    size_t uAttrsCount = allAttrs.size();
+    r.serializeu32((uint32_t)uAttrsCount);
+
+    for (auto& aa : allAttrs)
+    {
+        r.serializestring(aa.first);
+        r.serializestring(aa.second);
+    }
+
+    r.serializeexpansionflags();
 
     return true;
 }
