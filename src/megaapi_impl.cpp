@@ -11796,7 +11796,8 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
     const std::atomic_bool* cancelFlag = cancelToken ? cancelToken->getCancelFlag() : nullptr;
     nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelFlag);
 
-    for (auto it = nodeVector.begin(); it != nodeVector.end() && !(cancelToken && cancelToken->isCancelled());)
+    auto it = nodeVector.begin();
+    while (it != nodeVector.end() && !(cancelToken && cancelToken->isCancelled()))
     {
         Node* n = *it;
         auto itNode = it;
