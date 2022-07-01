@@ -17657,6 +17657,8 @@ void MegaClient::sc_asp()
             LOG_err << "Sets: Failed to parse `asp` action packet";
             return;
         }
+        s.resetChanges();
+        s.setChangeNew();
         addSet(move(s));
     }
     else // update existing Set
@@ -17750,8 +17752,10 @@ void MegaClient::sc_aep()
     }
 
     s->addOrUpdateElement(move(el));
-
-    notifyset(s);
+    if (s->changed())
+    {
+        notifyset(s);
+    }
 }
 
 void MegaClient::sc_aer()
