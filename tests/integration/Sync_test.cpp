@@ -10750,7 +10750,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
         m.generate(cb.fsBasePath / "s");
 
         // Add and start sync.
-        id = cb.setupSync_mainthread("s", "s", true, true, ""); 
+        id = cb.setupSync_mainthread("s", "s", true, true, "");
         ASSERT_NE(id, UNDEF);
 
         // Wait for sync to complete.
@@ -16013,7 +16013,7 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     model.generate(client->fsBasePath / "s");
 
     // Add and start sync.
-    auto id = client->setupSync_mainthread("s", "s");
+    auto id = client->setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for the initial sync to complete.
@@ -16096,7 +16096,7 @@ TEST_F(SyncTest, StallsOnSpecialFile)
     model.generate(client->fsBasePath / "s");
 
     // Add and start sync.
-    auto id = client->setupSync_mainthread("s", "s");
+    auto id = client->setupSync_mainthread("s", "s", false, false);
     ASSERT_NE(id, UNDEF);
 
     // Wait for initial sync to complete.
