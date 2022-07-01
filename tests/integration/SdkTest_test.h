@@ -215,9 +215,10 @@ public:
         std::unique_ptr<MegaPricing> mMegaPricing;
         std::unique_ptr<MegaCurrency> mMegaCurrency;
 
-        // flags to monitor the updates of nodes/users/PCRs due to actionpackets
+        // flags to monitor the updates of nodes/users/sets/PCRs due to actionpackets
         bool nodeUpdated;
         bool userUpdated;
+        bool setUpdated;
         bool contactRequestUpdated;
         bool accountUpdated;
 
@@ -289,8 +290,9 @@ protected:
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) override {}
     void onUsersUpdate(MegaApi* api, MegaUserList *users) override;
-    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) override;
     void onAccountUpdate(MegaApi *api) override;
+    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) override;
+    void onSetsUpdate(MegaApi *api, MegaSetList *sets) override;
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests) override;
     void onReloadNeeded(MegaApi *api) override {}
 #ifdef ENABLE_SYNC

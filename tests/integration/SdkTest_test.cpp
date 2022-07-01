@@ -616,6 +616,14 @@ void SdkTest::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
     mApi[apiIndex].nodeUpdated = true;
 }
 
+void SdkTest::onSetsUpdate(MegaApi* api, MegaSetList* requests)
+{
+    int apiIndex = getApiIndex(api);
+    if (apiIndex < 0) return;
+
+    mApi[apiIndex].setUpdated = true;
+}
+
 void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
 {
     int apiIndex = getApiIndex(api);
@@ -7819,10 +7827,27 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // 10. Logout / login
     // 11. Remove all Sets
 
+    // Use another connection with the same credentials
+    megaApi.emplace_back(newMegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+    auto& differentApi = *megaApi.back();
+    differentApi.addListener(this);
+    PerApi pa; // make a copy
+    pa.email = mApi.back().email;
+    pa.pwd = mApi.back().pwd;
+    mApi.push_back(move(pa));
+    auto& differentApiDtls = mApi.back();
+    differentApiDtls.megaApi = &differentApi;
+    int differentApiIdx = int(megaApi.size() - 1);
+
+    auto loginTracker = asyncRequestLogin(differentApiIdx, differentApiDtls.email.c_str(), differentApiDtls.pwd.c_str());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to establish a login/session for account " << differentApiIdx;
+    loginTracker = asyncRequestFetchnodes(differentApiIdx);
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << differentApiIdx;
 
     // 1. Create Set
     string name = "first Set";
     MegaHandle sh = INVALID_HANDLE;
+    differentApiDtls.setUpdated = false;
     int err = doCreateMegaSet(0, &sh, name.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(sh, INVALID_HANDLE);
@@ -7834,9 +7859,19 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(s1p->ts(), 0);
     ASSERT_NE(s1p->user(), INVALID_HANDLE);
 
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set create AP not received after " << maxTimeout << " seconds";
+    unique_ptr<MegaSet> s2p(differentApi.getMegaSet(sh));
+    ASSERT_NE(s2p, nullptr);
+    ASSERT_EQ(s2p->id(), s1p->id());
+    ASSERT_EQ(s2p->name(), name);
+    ASSERT_EQ(s2p->ts(), s1p->ts());
+    ASSERT_EQ(s2p->user(), s1p->user());
+
     // 2. Update Set name
     MegaHandle shu = INVALID_HANDLE;
     name += " updated";
+    differentApiDtls.setUpdated = false;
     err = doUpdateMegaSetName(0, &shu, sh, name.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_EQ(shu, sh);
@@ -7847,6 +7882,13 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s1up->name(), name);
     ASSERT_EQ(s1up->user(), s1p->user());
     //ASSERT_NE(s1up->ts(), s1p->ts()); // apparently this is not always updated
+
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set update AP not received after " << maxTimeout << " seconds";
+    s2p.reset(differentApi.getMegaSet(sh));
+    ASSERT_NE(s2p, nullptr);
+    ASSERT_EQ(s2p->name(), name);
+    ASSERT_EQ(s2p->ts(), s1up->ts());
 
     // 3. Upload test file
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
@@ -7865,6 +7907,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     MegaHandle eh = INVALID_HANDLE;
     string elattrs = "element attributes";
     int optionFlags = 2; // set attributes
+    differentApiDtls.setUpdated = false;
     err = doCreateMegaElement(0, &eh, sh, uploadedNode, optionFlags, 0, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(eh, INVALID_HANDLE);
@@ -7880,6 +7923,21 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elp->name(), elattrs);
     ASSERT_NE(elp->ts(), 0);
     ASSERT_EQ(elp->order(), 1000); // first default value, according to specs
+
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
+    s2p.reset(differentApi.getMegaSet(sh));
+    ASSERT_NE(s2p, nullptr);
+    unique_ptr<MegaElementList> els2(differentApi.getMegaElements(sh));
+    ASSERT_NE(els2, nullptr);
+    ASSERT_EQ(els2->size(), els->size());
+    unique_ptr<MegaElement> elp2(differentApi.getMegaElement(eh, sh));
+    ASSERT_NE(elp2, nullptr);
+    ASSERT_EQ(elp2->id(), elp->id());
+    ASSERT_EQ(elp2->node(), elp->node());
+    ASSERT_EQ(elp2->name(), elattrs);
+    ASSERT_EQ(elp2->ts(), elp->ts());
+    ASSERT_EQ(elp2->order(), elp->order());
 
     // 5. Fetch Set
     err = doFetchMegaSet(0, sh); // will replace the one stored in memory
@@ -7903,6 +7961,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // 6. Update Element order
     MegaHandle shu1 = INVALID_HANDLE;
     int64_t order = 222;
+    differentApiDtls.setUpdated = false;
     err = doUpdateMegaElementOrder(0, &shu1, eh, order);
     ASSERT_EQ(err, API_OK);
     ASSERT_EQ(shu1, sh);
@@ -7915,13 +7974,26 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elu1p->order(), order);
     ASSERT_NE(elu1p->ts(), 0);
 
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Element order change AP not received after " << maxTimeout << " seconds";
+    elp2.reset(differentApi.getMegaElement(eh, sh));
+    ASSERT_NE(elp2, nullptr);
+    ASSERT_EQ(elp2->order(), elu1p->order());
+
     // 7. Update Element name
     MegaHandle shu2 = INVALID_HANDLE;
     optionFlags = 2; // update attributes
     elattrs += " updated";
+    differentApiDtls.setUpdated = false;
     err = doUpdateMegaElement(0, &shu2, eh, optionFlags, 0, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_EQ(shu2, sh);
+
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Element name change AP not received after " << maxTimeout << " seconds";
+    elp2.reset(differentApi.getMegaElement(eh, sh));
+    ASSERT_NE(elp2, nullptr);
+    ASSERT_EQ(elp2->name(), elattrs);
 
     err = doFetchMegaSet(0, sh); // will replace the one stored in memory
     unique_ptr<MegaElement> elu2p(megaApi[0]->getMegaElement(eh, sh));
@@ -7934,6 +8006,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 8. Remove Element
     handle shre = 0;
+    differentApiDtls.setUpdated = false;
     err = doRemoveMegaElement(0, &shre, eh);
     ASSERT_EQ(err, API_OK);
     ASSERT_EQ(shre, sh);
@@ -7946,6 +8019,15 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     elp.reset(megaApi[0]->getMegaElement(eh, sh));
     ASSERT_EQ(elp, nullptr);
+
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Element remove AP not received after " << maxTimeout << " seconds";
+    s2p.reset(differentApi.getMegaSet(sh));
+    ASSERT_NE(s2p, nullptr);
+    els2.reset(differentApi.getMegaElements(sh));
+    ASSERT_EQ(els2->size(), 0u);
+    elp2.reset(differentApi.getMegaElement(eh, sh));
+    ASSERT_EQ(elp2, nullptr);
 
     // 9. Add another element
     eh = 0;
@@ -7986,10 +8068,22 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     for (unsigned i = 0; i < sets->size(); ++i)
     {
         handle setId = sets->get(i)->id();
+        differentApiDtls.setUpdated = false;
         err = doRemoveMegaSet(0, setId);
         ASSERT_EQ(err, API_OK);
 
         s1p.reset(megaApi[0]->getMegaSet(setId));
         ASSERT_EQ(s1p, nullptr);
+
+        // test action packets
+        ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set remove AP not received after " << maxTimeout << " seconds";
+        s2p.reset(differentApi.getMegaSet(setId));
+        ASSERT_EQ(s2p, nullptr);
     }
+
+    sets.reset(megaApi[0]->getMegaSets());
+    ASSERT_EQ(sets->size(), 0u);
+
+    unique_ptr<MegaSetList> sets2(differentApi.getMegaSets());
+    ASSERT_EQ(sets2->size(), 0u);
 }
