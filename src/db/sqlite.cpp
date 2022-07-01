@@ -208,6 +208,7 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
     int result = sqlite3_open_v2(dbPath.toPath().c_str(), db,
         SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
         | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used withou restriction. (Required to avoid failure at SyncTest)
+        | SQLITE_OPEN_SHAREDCACHE // Allow shared uncommited data between connections
         , nullptr);
 
     if (result)
@@ -571,6 +572,7 @@ SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAcce
     int result = sqlite3_open_v2(path.toPath().c_str(), &mDbSearchConnection,
         SQLITE_OPEN_READONLY // The database is opened for reading
         | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used without restriction
+        | SQLITE_OPEN_SHAREDCACHE  // Allow shared uncommited data between connections
         , nullptr);
 
     if (result)
@@ -583,6 +585,14 @@ SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAcce
             mDbSearchConnection = nullptr;
         }
 
+        assert(false);
+    }
+
+    result = sqlite3_exec(mDbSearchConnection, "PRAGMA read_uncommitted=1;", nullptr, nullptr, nullptr);
+    if (result)
+    {
+        sqlite3_close(mDbSearchConnection);
+        mDbSearchConnection = nullptr;
         assert(false);
     }
 }
