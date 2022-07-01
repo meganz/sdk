@@ -17567,7 +17567,10 @@ void MegaClient::addSet(Set&& a)
 {
     Set& added = mSets[a.id()] = move(a);
 
-    notifyset(&added);
+    if (added.changed())
+    {
+        notifyset(&added);
+    }
 }
 
 void MegaClient::updateSet(handle id, string&& name, m_time_t ts)
@@ -17578,7 +17581,10 @@ void MegaClient::updateSet(handle id, string&& name, m_time_t ts)
         {
             it.second.setName(move(name));
             it.second.setTs(ts);
+
+            it.second.setChangeName();
             notifyset(&it.second);
+
             break;
         }
     }
@@ -17590,7 +17596,10 @@ bool MegaClient::deleteSet(handle setId)
     if (it != mSets.end())
     {
         it->second.markForDbRemoval();
+
+        it->second.setChangeRemoved();
         notifyset(&it->second);
+
         return true;
     }
 
@@ -17605,8 +17614,11 @@ void MegaClient::addOrUpdateSetElement(SetElement&& el, handle setId)
         return;
     }
 
-    itAl->second.addOrUpdateElement(move(el));
-    notifyset(&itAl->second);
+    itAl->second.addOrUpdateElement(move(el)); // will set changed status accordingly
+    if (itAl->second.changed())
+    {
+        notifyset(&itAl->second);
+    }
 }
 
 bool MegaClient::deleteSetElement(handle elemId, handle setId)
@@ -17616,7 +17628,10 @@ bool MegaClient::deleteSetElement(handle elemId, handle setId)
     {
         if (it->second.removeElement(elemId))
         {
-            notifyset(&it->second);
+            if (it->second.changed())
+            {
+                notifyset(&it->second);
+            }
             return true;
         }
     }
@@ -17840,6 +17855,11 @@ void MegaClient::notifyset(Set* s)
 
 void MegaClient::notifypurgesets()
 {
+    if (!fetchingnodes)
+    {
+        app->sets_updated(setnotify.data(), (int)setnotify.size());
+    }
+
     for (auto& s : setnotify)
     {
         if (s->removeFromDb())
@@ -17849,6 +17869,7 @@ void MegaClient::notifypurgesets()
         else
         {
             s->notified = false;
+            s->resetChanges();
         }
     }
 
@@ -17934,6 +17955,7 @@ Set* MegaClient::unserializeSet(string* d)
     }
 
     Set& addedSet = mSets[s.id()] = move(s);
+    addedSet.resetChanges();
 
     return &addedSet;
 }
@@ -17953,6 +17975,7 @@ void Set::addOrUpdateElement(SetElement&& el)
     {
         auto id = el.id(); // before move()-ing from it
         mElements[id] = move(el);
+        mChanges[CH_EL_NEW] = 1;
         return;
     }
 
@@ -17961,16 +17984,29 @@ void Set::addOrUpdateElement(SetElement&& el)
     if (el.hasAttrs())
     {
         existing.setName(el.name());
+        mChanges[CH_EL_NAME] = 1;
         existing.setUnusedAttrs(el.unusedAttrs());
     }
     if (el.hasOrder())
     {
         existing.setOrder(el.order());
+        mChanges[CH_EL_ORDER] = 1;
     }
     if (el.ts())
     {
         existing.setTs(el.ts());
     }
+}
+
+bool Set::removeElement(handle elemId)
+{
+    if (mElements.erase(elemId))
+    {
+        mChanges[CH_EL_REMOVED] = 1;
+        return true;
+    }
+
+    return false;
 }
 
 bool Set::serialize(string* d)

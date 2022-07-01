@@ -307,7 +307,13 @@ public:
 
     const SetElement* element(handle eId) const;
     void addOrUpdateElement(SetElement&& el);
-    bool removeElement(handle elemId) { return mElements.erase(elemId); }
+    bool removeElement(handle elemId);
+
+    void setChangeNew() { mChanges[CH_NEW] = 1; }
+    void setChangeName() { mChanges[CH_NAME] = 1; }
+    void setChangeRemoved() { mChanges[CH_REMOVED] = 1; }
+    void resetChanges() { mChanges = 0; }
+    bool changed() const { return mChanges != 0; }
 
     bool serialize(string*) override;
 
@@ -326,6 +332,23 @@ private:
 
     string mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
     map<string, string> mUnusedAttrs;   // leftovers from "at"
+
+    enum
+    {
+        // update these from outside Set
+        CH_NEW,
+        CH_NAME,
+        CH_REMOVED,
+
+        // update these from inside Set
+        CH_EL_NEW,
+        CH_EL_NAME,
+        CH_EL_ORDER,
+        CH_EL_REMOVED,
+
+        CH_SIZE
+    };
+    std::bitset<CH_SIZE> mChanges;
 };
 
 class MEGA_API MegaClient
@@ -2123,8 +2146,8 @@ private:
     bool initscsets();
     bool fetchscset(string* data, uint32_t id);
     bool updatescsets();
-    void notifyset(Set*);
     void notifypurgesets();
+    void notifyset(Set*);
     vector<Set*> setnotify;
 
     map<handle, Set> mSets; // indexed by Set id

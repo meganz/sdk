@@ -9010,8 +9010,10 @@ bool CommandPutSet::procresult(Result r)
     {
         if (mId == UNDEF) // add new
         {
-            Set a(setId, move(mDecrKey), user, ts, move(mName));
-            client->addSet(move(a));
+            Set s(setId, move(mDecrKey), user, ts, move(mName));
+            s.resetChanges();
+            s.setChangeNew();
+            client->addSet(move(s));
         }
         else // update existing
         {
