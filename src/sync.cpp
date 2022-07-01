@@ -3116,7 +3116,23 @@ void Syncs::getSyncProblems_inThread(SyncProblems& problems)
     problems.mStallsDetected = syncStallState;
 
     conflictsDetected(problems.mConflicts);
-    problems.mStalls = stallReport;
+
+    // if we're not actually in stall state then don't report things
+    // that we are waiting on that migtht come right, only report definites.
+    for (auto& r: stallReport.cloud)
+    {
+        if (syncStallState || r.second.alertUserImmediately)
+        {
+            problems.mStalls.cloud.insert(r);
+        }
+    }
+    for (auto& r: stallReport.local)
+    {
+        if (syncStallState || r.second.alertUserImmediately)
+        {
+            problems.mStalls.local.insert(r);
+        }
+    }
 
     // Try to present just one item for a move/rename, instead of two.
     // We may have generated two items, one for the source node
