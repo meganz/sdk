@@ -38,7 +38,9 @@ bool GfxProc::isgfx(const LocalPath& localfilename)
 
     if (!(supported = mGfxProvider->supportedformats()))
     {
-        return true;
+        // We don't have supported formats, so the build was without FREEIMAGE or other graphics processing libraries
+        // Therefore we cannot graphics process any file, so return false so that we don't try.
+        return false;
     }
 
     string ext;
