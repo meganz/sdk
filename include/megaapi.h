@@ -84,7 +84,6 @@ class MegaBackgroundMediaUpload;
 class MegaCancelToken;
 class MegaApi;
 class MegaSemaphore;
-class Set;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -6750,6 +6749,20 @@ class MegaGlobalListener
         virtual void onAccountUpdate(MegaApi *api);
 
         /**
+         * @brief This function is called when a Set has been updated (created / updated / removed /
+         * element created / element updated / element removed)
+         *
+         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
+         * MegaSet objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaSetList::copy. If you want to save only some of the MegaSet objects, use MegaSet::copy
+         * for them.
+         *
+         * @param api MegaApi object connected to the account
+         * @param sets List that contains the new or updated Sets
+         */
+        virtual void onSetsUpdate(MegaApi *api, MegaSetList* sets);
+
+        /**
          * @brief This function is called when there are new or updated contact requests in the account
          *
          * When the full account is reloaded or a large number of server notifications arrives at once, the
@@ -7162,6 +7175,20 @@ class MegaListener
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
+
+        /**
+         * @brief This function is called when a Set has been updated (created / updated / removed /
+         * element created / element updated / element removed)
+         *
+         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
+         * MegaSet objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaSetList::copy. If you want to save only some of the MegaSet objects, use MegaSet::copy
+         * for them.
+         *
+         * @param api MegaApi object connected to the account
+         * @param sets List that contains the new or updated Sets
+         */
+        virtual void onSetsUpdate(MegaApi* api, MegaSetList* sets);
 
         /**
          * @brief This function is called when there are new or updated contact requests in the account

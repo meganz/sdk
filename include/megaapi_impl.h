@@ -3039,6 +3039,7 @@ protected:
         void fireOnUserAlertsUpdate(MegaUserAlertList *alerts);
         void fireOnNodesUpdate(MegaNodeList *nodes);
         void fireOnAccountUpdate();
+        void fireOnSetsUpdate(MegaSetList* sets);
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
@@ -3225,6 +3226,7 @@ protected:
         void useralerts_updated(UserAlert::Base**, int) override;
         void account_updated() override;
         void pcrs_updated(PendingContactRequest**, int) override;
+        void sets_updated(Set**, int) override;
 
         // password change result
         void changepw_result(error) override;

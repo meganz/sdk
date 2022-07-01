@@ -13560,6 +13560,29 @@ void MegaApiImpl::account_updated()
     fireOnAccountUpdate();
 }
 
+void MegaApiImpl::sets_updated(Set** sets, int count)
+{
+    if (!count)
+    {
+        return;
+    }
+
+    if (sets)
+    {
+        unique_ptr<MegaSetListPrivate> sList(new MegaSetListPrivate());
+        for (int i = 0; i < count; ++i)
+        {
+            Set& s = *sets[i];
+            sList->add(MegaSetPrivate(s.id(), s.user(), s.ts(), s.name()));
+        }
+        fireOnSetsUpdate(sList.get());
+    }
+    else
+    {
+        fireOnSetsUpdate(nullptr);
+    }
+}
+
 void MegaApiImpl::pcrs_updated(PendingContactRequest **r, int count)
 {
     if(!count)
@@ -16476,6 +16499,20 @@ void MegaApiImpl::fireOnAccountUpdate()
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onAccountUpdate(api);
+    }
+}
+
+void MegaApiImpl::fireOnSetsUpdate(MegaSetList* sets)
+{
+    assert(threadId == std::this_thread::get_id());
+
+    for (set<MegaGlobalListener*>::iterator it = globalListeners.begin(); it != globalListeners.end();)
+    {
+        (*it++)->onSetsUpdate(api, sets);
+    }
+    for (set<MegaListener*>::iterator it = listeners.begin(); it != listeners.end();)
+    {
+        (*it++)->onSetsUpdate(api, sets);
     }
 }
 

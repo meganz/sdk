@@ -145,6 +145,14 @@ public:
 
 		std::cout << "***** There are " << nodes->size() << " new or updated node/s in your account" << std::endl;
 	}
+
+	virtual void onSetsUpdate(MegaApi* api, MegaSetList *sets)
+	{
+		if (sets)
+		{
+			std::cout << "***** There are " << sets->size() << " new or updated Set/s in your account" << std::endl;
+		}
+	}
 };
 
 std::string displayTime(time_t t)
