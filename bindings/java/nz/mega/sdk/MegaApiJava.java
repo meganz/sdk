@@ -6504,11 +6504,11 @@ public class MegaApiJava {
      *                    If this path is a local folder, it must end with a '\' or '/' character and the file name
      *                    in MEGA will be used to store a file inside that folder. If the path doesn't finish with
      *                    one of these characters, the file will be downloaded to a file in that path.
+     * @param fileName    Custom file name for the file or folder in local destination
+     *                    + If you don't need this param provide NULL as value
      * @param appData     Custom app data to save in the MegaTransfer object
      *                    The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
      *                    related to the transfer.
-     *                    + If you don't need this param provide NULL as value
-     * @param fileName    Custom file name for the file or folder in local destination
      *                    + If you don't need this param provide NULL as value
      * @param startFirst  puts the transfer on top of the download queue
      *                    + If you don't need this param provide false as value
@@ -6517,10 +6517,10 @@ public class MegaApiJava {
      *                    You preserve the ownership of this param.
      * @param listener    MegaTransferListener to track this transfer
      */
-    public void startDownload(MegaNode node, String localPath, String appData, String fileName,
+    public void startDownload(MegaNode node, String localPath, String fileName, String appData,
                               boolean startFirst, MegaCancelToken cancelToken,
                               MegaTransferListenerInterface listener) {
-        megaApi.startDownload(node, localPath, appData, fileName, startFirst, cancelToken,
+        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken,
                 createDelegateTransferListener(listener));
     }
 
@@ -6543,11 +6543,11 @@ public class MegaApiJava {
      *                    If this path is a local folder, it must end with a '\' or '/' character and the file name
      *                    in MEGA will be used to store a file inside that folder. If the path doesn't finish with
      *                    one of these characters, the file will be downloaded to a file in that path.
+     * @param fileName    Custom file name for the file or folder in local destination
+     *                    + If you don't need this param provide NULL as value
      * @param appData     Custom app data to save in the MegaTransfer object
      *                    The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
      *                    related to the transfer.
-     *                    + If you don't need this param provide NULL as value
-     * @param fileName    Custom file name for the file or folder in local destination
      *                    + If you don't need this param provide NULL as value
      * @param startFirst  puts the transfer on top of the download queue
      *                    + If you don't need this param provide false as value
@@ -6555,9 +6555,9 @@ public class MegaApiJava {
      *                    This param is required to be able to cancel the transfer safely by calling MegaCancelToken::cancel(true)
      *                    You preserve the ownership of this param.
      */
-    public void startDownload(MegaNode node, String localPath, String appData, String fileName,
+    public void startDownload(MegaNode node, String localPath, String fileName, String appData,
                               boolean startFirst, MegaCancelToken cancelToken) {
-        megaApi.startDownload(node, localPath, appData, fileName, startFirst, cancelToken);
+        megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken);
     }
 
     /**

@@ -2519,7 +2519,7 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
                 // but the intermediate layer still needs that in order to call the client app back:
                 client->app->putnodes_result(e, t, nn, targetOverride);
             }
-        });
+        }, nullptr);
 }
 
 SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,

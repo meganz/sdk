@@ -525,15 +525,18 @@ public:
 
 class MEGA_API CommandLogout : public Command
 {
-    bool mKeepSyncConfigsFile;
-
     bool incrementedCount = false;
     const char* getJSON(MegaClient* client) override;
-
 public:
-    bool procresult(Result r) override;
+    using Completion = std::function<void(error)>;
 
-    CommandLogout(MegaClient*, bool keepSyncConfigsFile);
+    bool procresult(Result) override;
+
+    CommandLogout(MegaClient* client, Completion completion, bool keepSyncConfigsFile);
+
+private:
+    Completion mCompletion;
+    bool mKeepSyncConfigsFile;
 };
 
 class MEGA_API CommandPubKeyRequest : public Command

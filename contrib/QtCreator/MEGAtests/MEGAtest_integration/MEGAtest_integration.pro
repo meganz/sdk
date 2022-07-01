@@ -22,15 +22,20 @@ CONFIG -= qt
 win32 {
     CONFIG += USE_AUTOCOMPLETE
     CONFIG += console
+}
+else {
+    CONFIG += object_parallel_to_source
+}
+
+include(../../../../bindings/qt/sdk.pri)
+
+vcpkg {
     debug:LIBS += -lgmockd -lgtestd
     !debug:LIBS += -lgmock -lgtest
 }
 else {
-    CONFIG += object_parallel_to_source
     LIBS += -lgmock -lgtest
 }
-
-include(../../../../bindings/qt/sdk.pri)
 
 CONFIG -= c++11
 QMAKE_CXXFLAGS-=-std=c++11
@@ -51,3 +56,10 @@ first.depends = $(first) copydata
 export(first.depends)
 export(copydata.commands)
 QMAKE_EXTRA_TARGETS += first copydata
+
+macx {
+    # At least 10.15 required.
+    contains(QT_ARCH, arm64):QMAKE_MACOSX_DEPLOYMENT_TARGET = 11.0
+    else:QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.15
+    LIBS += -framework Cocoa
+}

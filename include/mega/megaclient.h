@@ -696,7 +696,7 @@ public:
     void abortlockrequest();
 
     // abort session and free all state information
-    void logout(bool keepSyncConfigsFile);
+    void logout(bool keepSyncConfigsFile, CommandLogout::Completion completion = nullptr);
 
     // free all state information
     void locallogout(bool removecaches, bool keepSyncsConfigFile);
