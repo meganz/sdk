@@ -5,8 +5,8 @@ cryptopp/c303dd024e2dc03a0665ddffbb12a1077933e649
 curl/7375bb408f2278d2f1875c259beef93332697ba7 all:on ios:off
 curl[core,sectransp]/7375bb408f2278d2f1875c259beef93332697ba7 all:off ios:curl-for-ios.patch
 libsodium/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on ios:libsodium-ios.patch
-openssl/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:off
-openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 windows:off ios:off
+openssl/c303dd024e2dc03a0665ddffbb12a1077933e649 ios:off osx:off
+openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off linux:on
 openssl-windows/c303dd024e2dc03a0665ddffbb12a1077933e649 all:off windows:on
 vcpkg-cmake-config/7375bb408f2278d2f1875c259beef93332697ba7
 vcpkg-cmake/7375bb408f2278d2f1875c259beef93332697ba7
@@ -27,7 +27,7 @@ libmediainfo/19.09
 libzen/0.4.37
 
 # ffmpeg (video preview/thumbnail generation)
-ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on osx:ffmpeg-fix-x64-cross-compilation-on-arm.patch ios:off
+ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649 all:on osx:ffmpeg-fix-osx-cross-compilation.patch ios:off
 
 #freeimage and its dependencies (image preview/thumbnail generation)
 freeimage/7375bb408f2278d2f1875c259beef93332697ba7 osx:freeimage-bool-typedef-xcode-compiler.patch
