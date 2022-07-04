@@ -242,6 +242,9 @@ public:
     // check if user has cancelled recursive operation by using cancelToken of associated transfer
     bool isCancelledByUser();
 
+    // check if a folder transfer has any subtransfer associated
+    bool hasSubTransfers();
+
 protected:
     MegaApiImpl *megaApi;
     MegaTransferPrivate *transfer;
@@ -335,9 +338,9 @@ protected:
 
     // Gathers up enough (but not too many) newnode records that are all descendants of a single folder
     // and can be created in a single operation.
-    // Called from the main thread just before we send the next set of folder creation commands.  
+    // Called from the main thread just before we send the next set of folder creation commands.
     bool createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel);
-    
+
     // Iterate through all pending files of each uploaded folder, and start all upload transfers
     void genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue);
 };
@@ -886,6 +889,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         bool getDoNotStopSubTransfers() const;
         MegaCancelToken* getCancelToken() const override;
         bool isRecursive() const { return recursiveOperation.get() != nullptr; }
+        bool hasSubTransfers() const;
         void completeRecursiveOperation(Error e);
 
 protected:
@@ -3080,7 +3084,7 @@ protected:
         // login result
         void prelogin_result(int, string*, string*, error) override;
         void login_result(error) override;
-        void logout_result(error) override;
+        void logout_result(error);
         void userdata_result(string*, string*, string*, Error) override;
         void pubkey_result(User *) override;
 

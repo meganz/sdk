@@ -1043,15 +1043,20 @@ const Node* MegaClient::childnodebyname(const Node* p, const char* name, bool sk
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
-            if ((*it)->type != FILENODE && !skipfolders)
+            if ((*it)->type == FILENODE)
             {
-                return *it;
+                if (skipfolders)
+                {
+                    return *it; // FOLDERs ignored, return first FILE
+                }
+                else
+                {
+                    found = *it; // FOLDERs not ignored and with precedence, save FILE in case no FOLDER is found
+                }
             }
-
-            found = *it;
-            if (skipfolders)
+            else if (!skipfolders)
             {
-                return found;
+                return *it; // FOLDER not ignored and with precedence, return first FOLDER
             }
         }
     }
@@ -1979,10 +1984,10 @@ void MegaClient::exec()
                                     }
                                 }
 
-                                if (mOnCSCompletion)
+                                if (auto completion = std::move(mOnCSCompletion))
                                 {
-                                    mOnCSCompletion(this);
-                                    mOnCSCompletion = nullptr;
+                                    assert(mOnCSCompletion == nullptr);
+                                    completion(this);
                                 }
                             }
                             else
@@ -4309,39 +4314,39 @@ void MegaClient::abortlockrequest()
     disconnecttimestamp = NEVER;
 }
 
-void MegaClient::logout(bool keepSyncConfigsFile)
+void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion completion)
 {
+    // Avoids us having to check validity later.
+    if (!completion)
+    {
+        completion = [](error) { };
+    }
+
     if (loggedin() != FULLACCOUNT)
     {
         locallogout(true, keepSyncConfigsFile);
 
         restag = reqtag;
-        app->logout_result(API_OK);
+        completion(API_OK);
         reportLoggedInChanges();
         return;
     }
 
     loggingout++;
 
-    auto completion = [&]()
-    {
-        reqs.add(new CommandLogout(this, keepSyncConfigsFile));
-    };
+    auto request = new CommandLogout(this, std::move(completion), keepSyncConfigsFile);
 
 #ifdef ENABLE_SYNC
     // if logging out and syncs won't be kept...
     if (!keepSyncConfigsFile)
     {
-        // logout should wait until all syncs have been unregistered and removed
-        syncs.purgeSyncs(completion);
+        // Unregister from API and clean up backup-names
+        syncs.purgeSyncs([=](Error) { reqs.add(request); });
+        return;
     }
-    else
-    {
-        completion();
-    }
-#elif
-    completion();
 #endif
+
+    reqs.add(request);
 }
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
@@ -8783,13 +8788,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     if (rootnodes.files.isUndef())
                     {
                         rootnodes.files.set6byte(h);
-                    }
 
-                    if (loggedIntoWritableFolder())
-                    {
-                        // If logged into writable folder, we need the sharekey set in the root node
-                        // so as to include it in subsequent put nodes
-                        n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                        if (loggedIntoWritableFolder())
+                        {
+                            // If logged into writable folder, we need the sharekey set in the root node
+                            // so as to include it in subsequent put nodes
+                            n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                        }
                     }
                 }
 

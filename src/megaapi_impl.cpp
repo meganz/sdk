@@ -2832,6 +2832,15 @@ bool MegaTransferPrivate::getDoNotStopSubTransfers() const
     return mDoNotStopSubTransfers;
 }
 
+bool MegaTransferPrivate::hasSubTransfers() const
+{
+    if (!isRecursive())
+    {
+        return false;
+    }
+    return recursiveOperation.get()->hasSubTransfers();
+}
+
 void MegaTransferPrivate::completeRecursiveOperation(Error e)
 {
     if (!isRecursive())
@@ -5070,6 +5079,7 @@ MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, N
     // new node name
     name = *filename;
 
+    // If the file's time is to be used, this is MegaApi::INVALID_CUSTOM_MOD_TIME
     customMtime = mtime;
 
     temporaryfile = isSourceTemporary;
@@ -5137,10 +5147,14 @@ MegaFilePut *MegaFilePut::unserialize(string *d)
 
 void MegaFilePut::completed(Transfer* t, putsource_t source)
 {
-    if(customMtime >= 0)
-        t->mtime = customMtime;
+    assert(!transfer || t == transfer);
+    assert(source == PUTNODES_APP);
+    assert(t->type == PUT);
 
-    File::completed(t, source);
+    // allow for putnodes with a different mtime to the actual file
+    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
+        nullptr, nullptr, customMtime == MegaApi::INVALID_CUSTOM_MOD_TIME ? nullptr : &customMtime);
+
     delete this;
 }
 
@@ -7673,37 +7687,26 @@ void MegaApiImpl::abortPendingActions(error preverror)
             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
         }
 
-        // clear existing transfers
-        while (!transferMap.empty())
+        while (!transferMap.empty()) //  when we exit from this loop, all transfers must be properly deleted and app must be informed about that
         {
-            MegaTransferPrivate* transfer = transferMap.begin()->second;
-            if (transfer->isRecursive())
+            for (auto it = transferMap.begin(); it != transferMap.end();)
             {
-                if (transfer->getCancelToken() && transfer->getCancelToken()->isCancelled())
+                auto auxit = it++;
+                MegaTransferPrivate* transfer = auxit->second;
+                if (!transfer->isRecursive()         // not a folder transfer, but file transfer
+                    || !transfer->hasSubTransfers()) // file transfer or folder transfer without sub-transfers
                 {
-                    // remove transfer and subtransfers as cancel token was cancelled
-                    transferMap.erase(transfer->getTag());
-                    transfer->completeRecursiveOperation(API_EINCOMPLETE);
-                }
-                else // no cancel token, or it exists but not cancelled
-                {
-                    // fire onTransferFinished without stopping subTransfers to preserve subtransfers in cache
-                    LOG_debug << "abortPendingActions: Folder transfer with tag (" << transfer->getTag() <<") doesn't have a valid cancel token";
+                    // the very last file transfer of folder transfers (or the folder transfer without sub-transfers itself)
+                    // will receive the onRequestFinish() at the MegaFolderController and will proceed to complete the folder
+                    // transfer by calling the corresponding onRequestFinish()
                     transfer->setState(MegaTransfer::STATE_FAILED);
-                    transfer->setDoNotStopSubTransfers(true);
+                    transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
                     fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
                 }
-            }
-            else
-            {
-                transfer->setState(MegaTransfer::STATE_FAILED);
-                transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
-                fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
             }
         }
         assert(transferMap.empty());
         transferMap.clear();
-
     }
 
     resetTotalDownloads();
@@ -8358,7 +8361,7 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
 
 void MegaApiImpl::startUploadForChat(const char* localPath, MegaNode* parent, const char* fileName, const char* appData, bool isSourceFileTemporary, MegaTransferListener* listener)
 {
-    MegaTransferPrivate* transfer = createUploadTransfer(false, localPath, parent, fileName, nullptr, -1, 0, false, appData, isSourceFileTemporary, true, FS_UNKNOWN, nullptr, listener);
+    MegaTransferPrivate* transfer = createUploadTransfer(false, localPath, parent, fileName, nullptr, MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, appData, isSourceFileTemporary, true, FS_UNKNOWN, nullptr, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
@@ -8372,7 +8375,7 @@ void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* 
 
 void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener)
 {
-    MegaTransferPrivate* transfer = createUploadTransfer(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", -1, 0, false, nullptr, isSourceFileTemporary, false, fsType, nullptr, listener);
+    MegaTransferPrivate* transfer = createUploadTransfer(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, nullptr, isSourceFileTemporary, false, fsType, nullptr, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
@@ -18038,10 +18041,19 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                     break;
                 }
                 m_off_t size = fa->size;
-                FileFingerprint fp;
+                FileFingerprint fp_onDisk;
+                FileFingerprint fp_forCloud;
                 if (type == FILENODE)
                 {
-                    fp.genfingerprint(fa.get());
+                    fp_onDisk.genfingerprint(fa.get());
+                    fp_forCloud = fp_onDisk;
+
+                    // don't clone an existing node unless it also already has the overridden mtime
+                    // don't think that an existing file at this path is the right file unless it also has the overridden mtime
+                    if (mtime != MegaApi::INVALID_CUSTOM_MOD_TIME)
+                    {
+                        fp_forCloud.mtime = mtime;
+                    }
                 }
                 fa.reset();
 
@@ -18052,7 +18064,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                     bool forceToUpload = false;
                     if (previousNode && previousNode->type == type)
                     {
-                        if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
+                        if (fp_forCloud.isvalid && previousNode->isvalid && fp_forCloud == *((FileFingerprint *)previousNode))
                         {
                             forceToUpload= hasToForceUpload(*previousNode, *transfer);
                             if (!forceToUpload)
@@ -18082,7 +18094,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                     // If has been found by name and it's necessary force upload, it isn't necessary look for it again
                     if (!forceToUpload)
                     {
-                        Node *samenode = client->nodebyfingerprint(&fp);
+                        Node *samenode = client->nodebyfingerprint(&fp_forCloud);
                         if (samenode && samenode->nodekey().size() && !hasToForceUpload(*samenode, *transfer))
                         {
                             pendingUploads++;
@@ -18144,7 +18156,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                     MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName,
                             NodeHandle().set6byte(transfer->getParentHandle()),
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
-                    *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
+                    *static_cast<FileFingerprint*>(f) = fp_onDisk;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
                     error result = API_OK;
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag, &result);
@@ -19606,10 +19618,13 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if(request->getFlag())
+            if (request->getFlag())
             {
                 bool keepSyncConfigsFile = request->getTransferTag();
-                client->logout(keepSyncConfigsFile);
+
+                client->logout(keepSyncConfigsFile, [this](error result) {
+                    logout_result(result);
+                });
             }
             else
             {
@@ -20488,7 +20503,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
             const char *email = request->getEmail();
-            const char *name = request->getName();            
+            const char *name = request->getName();
             if (!email || !name)
             {
                 e = API_EARGS;
@@ -25384,7 +25399,7 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     {
         MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.toPath().c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      -1, tag, false, NULL, false, false, tree.fsType, transfer->getCancelToken(), this);
+                                                                      MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, NULL, false, false, tree.fsType, transfer->getCancelToken(), this);
         transferQueue.push(subTransfer);
         pendingTransfers++;
     }
@@ -26558,6 +26573,11 @@ bool MegaRecursiveOperation::isCancelledByUser()
     }
 
     return transfer->getCancelToken()->isCancelled();
+}
+
+bool MegaRecursiveOperation::hasSubTransfers()
+{
+    return !subTransfers.empty();
 }
 
 MegaClient* MegaRecursiveOperation::megaapiThreadClient()

@@ -1565,8 +1565,9 @@ bool CommandKillSessions::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandLogout::CommandLogout(MegaClient *client, bool keepSyncConfigsFile)
-    : mKeepSyncConfigsFile(keepSyncConfigsFile)
+CommandLogout::CommandLogout(MegaClient *client, Completion completion, bool keepSyncConfigsFile)
+  : mCompletion(std::move(completion))
+  , mKeepSyncConfigsFile(keepSyncConfigsFile)
 {
     cmd("sml");
 
@@ -1578,7 +1579,6 @@ CommandLogout::CommandLogout(MegaClient *client, bool keepSyncConfigsFile)
 bool CommandLogout::procresult(Result r)
 {
     assert(r.wasErrorOrOK());
-    MegaApp *app = client->app;
     if (client->loggingout > 0)
     {
         client->loggingout--;
@@ -1587,15 +1587,16 @@ bool CommandLogout::procresult(Result r)
     {
         // We are logged out, but we mustn't call locallogout until we exit this call
         // stack for processing CS batches, as it deletes data currently in use.
+        Completion completion = std::move(mCompletion);
         bool keepSyncConfigsFile = mKeepSyncConfigsFile;
-        client->mOnCSCompletion = [keepSyncConfigsFile](MegaClient* client){
+        client->mOnCSCompletion = [=](MegaClient* client){
             client->locallogout(true, keepSyncConfigsFile);
-            client->app->logout_result(API_OK);
+            completion(API_OK);
         };
     }
     else
     {
-        app->logout_result(r.errorOrOK());
+        mCompletion(r.errorOrOK());
     }
     return true;
 }

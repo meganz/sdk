@@ -253,10 +253,11 @@ struct StandardClient : public MegaApp
             handle h = UNDEF;
             std::function<bool(error)> f;
             id_callback(std::function<bool(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
+            id_callback(id_callback&&) = default;
         };
 
         recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
-        map<resultprocenum, deque<id_callback>> m;
+        map<resultprocenum, map<int, id_callback>> m;
 
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF);
         void processresult(resultprocenum rpe, error e, handle h = UNDEF);
@@ -270,7 +271,7 @@ struct StandardClient : public MegaApp
     StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder = fs::path());
     ~StandardClient();
     void localLogout();
-    void logout(bool keepSyncsConfigFile);
+    bool logout(bool keepSyncsConfigFile);
 
     static mutex om;
     bool logcb = false;
@@ -554,19 +555,14 @@ struct StandardClient : public MegaApp
         const string& targetPath,
         const string& logname);
 
-    error addSync(const string& displayPath, const fs::path& drivepath, const fs::path& localpath, handle remoteNode,
-                  function<void(error, SyncError, handle)> addSyncCompletion, const string& logname,
-                  SyncConfig::Type type);
-
-    bool setupSync_inthread(const string& subfoldername, const fs::path& drivepath, const fs::path& localpath, const bool isBackup,
-        std::function<void(error, SyncError, handle)> addSyncCompletion, const string& logname);
-
-    handle setupSync_mainthread(const string& localPath,
+    handle setupSync_mainthread(const string& rootPath,
                                 const CloudItem& remoteItem,
-                                const bool isBackup = false,
-                                const bool uploadIgnoreFile = true);
+                                const bool isBackup,
+                                const bool uploadIgnoreFile,
+                                const string& drivePath = string(1, '\0'));
 
-    void setupSync_inThread(const string& localPath,
+    void setupSync_inThread(const string& drivePath,
+                            const string& rootPath,
                             const CloudItem& remoteItem,
                             const bool isBackup,
                             const bool uploadIgnoreFile,

@@ -624,7 +624,7 @@ struct Syncs
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
     // removes all configured backups from cache and API (BackupCenter)
-    void purgeSyncs(std::function<void()> completion);
+    void purgeSyncs(std::function<void(Error)> completion);
 
     // remove all configured backups from cache, not from API
     void purgeSyncsLocal();

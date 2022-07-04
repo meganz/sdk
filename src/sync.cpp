@@ -3835,21 +3835,25 @@ void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
-void Syncs::purgeSyncs(std::function<void()> completion)
+void Syncs::purgeSyncs(std::function<void(Error)> completion)
 {
-    if (!mSyncConfigStore) return;
+    if (!mSyncConfigStore)
+    {
+        completion(API_OK);
+        return;
+    }
 
     // Remove all syncs.
     removeSelectedSyncs(
         [](SyncConfig&, Sync*) { return true; },    // selector: all syncs
-        [&](Error e)
+        [=](Error e)
         {
             if (e != API_OK) LOG_err << "Failed to purge syncs. Error: " << e;
 
             // finally, remove local syncs config files (internal and external, if any)
             purgeSyncsLocal();
 
-            completion();
+            completion(e);
         },
         UNDEF, true);
 }
