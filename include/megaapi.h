@@ -270,6 +270,30 @@ public:
      */
     virtual void freeBitmap();
 
+    /**
+    * @brief Indicate which file extensions (file/image types) are supported
+    *
+    * Return a string with all the supported extensions concatenated, with . separating
+    * Make sure to include a trailing .   eg.  ".jpg.png.bmp.jpeg."
+    *
+    * The caller does not take ownership of the string.
+    *
+    * If not supplied, all relevant files will be attempted.
+    */
+    virtual const char* supportedImageFormats();
+
+    /**
+    * @brief Indicate which file extensions (file/image types) are supported
+    *
+    * Return a string with all the supported extensions concatenated, with . separating
+    * Make sure to include a trailing .   eg.  ".mpeg.mp4.avi.mkv."
+    *
+    * The caller does not take ownership of the string.
+    *
+    * If not supplied, all relevant files will be attempted.
+    */
+    virtual const char* supportedVideoFormats();
+
     virtual ~MegaGfxProcessor();
 };
 

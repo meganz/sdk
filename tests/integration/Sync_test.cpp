@@ -735,8 +735,9 @@ void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::fu
     if (rpe != COMPLETION)
     {
         lock_guard<recursive_mutex> g(mtx);
-        auto& entry = m[rpe];
-        entry.emplace_back(move(f), tag, h);
+        auto& perTypeTags = m[rpe];
+        assert(perTypeTags.find(tag) == perTypeTags.end());
+        perTypeTags.emplace(tag, id_callback(move(f), tag, h));
     }
 
     std::lock_guard<std::recursive_mutex> lg(client.clientMutex);
@@ -746,6 +747,7 @@ void StandardClient::ResultProc::prepresult(resultprocenum rpe, int tag, std::fu
     client.client.reqtag = tag;
     requestfunc();
     client.client.reqtag = oldtag;
+    LOG_debug << "tag-result prepared for operation " << rpe << " tag " << tag;
 
     client.client.waiter->notify();
 }
@@ -772,8 +774,8 @@ void StandardClient::ResultProc::processresult(resultprocenum rpe, error e, hand
     {
         while (!entry.empty())
         {
-            entry.front().f(e);
-            entry.pop_front();
+            entry.begin()->second.f(e);
+            entry.erase(entry.begin());
         }
         return;
     }
@@ -785,16 +787,17 @@ void StandardClient::ResultProc::processresult(resultprocenum rpe, error e, hand
         return;
     }
 
-    if (tag != entry.front().request_tag)
+    auto it = entry.find(tag);
+    if (it == entry.end())
     {
         out() << client.client.clientname
-                << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag;
+              << "tag not found for operation completion of " << rpe << " tag " << tag;
         return;
     }
 
-    if (entry.front().f(e))
+    if (it->second.f(e))
     {
-        entry.pop_front();
+        entry.erase(it);
     }
 }
 

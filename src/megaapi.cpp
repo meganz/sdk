@@ -5726,6 +5726,20 @@ bool MegaGfxProcessor::getBitmapData(char* /*bitmapData*/, size_t /*size*/)
 
 void MegaGfxProcessor::freeBitmap() { }
 
+const char* MegaGfxProcessor::supportedImageFormats()
+{
+    // This special string will cause all files to be attempted
+    // (backwards compatibility for Android)
+    return "all";
+}
+
+const char* MegaGfxProcessor::supportedVideoFormats()
+{
+    // This special string will cause all files to be attempted
+    // (backwards compatibility for Android)
+    return "all";
+}
+
 MegaGfxProcessor::~MegaGfxProcessor() { }
 MegaPricing::~MegaPricing() { }
 
