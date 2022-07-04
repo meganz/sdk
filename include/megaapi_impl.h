@@ -245,9 +245,6 @@ public:
         return  pendingTransfers == 0;
     }
 
-    // check if a folder transfer has any subtransfer associated
-    bool hasSubTransfers();
-
 protected:
     MegaApiImpl *megaApi;
     MegaTransferPrivate *transfer;
@@ -910,7 +907,6 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         MegaCancelToken* getCancelToken() override;
         bool isRecursive() const { return recursiveOperation.get() != nullptr; }
-        bool hasSubTransfers() const;
         void completeRecursiveOperation(Error e);
 
 

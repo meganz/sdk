@@ -2953,15 +2953,6 @@ void MegaTransferPrivate::setPlaceInQueue(long long value)
     placeInQueue = value;
 }
 
-bool MegaTransferPrivate::hasSubTransfers() const
-{
-    if (!isRecursive())
-    {
-        return false;
-    }
-    return recursiveOperation.get()->hasSubTransfers();
-}
-
 void MegaTransferPrivate::completeRecursiveOperation(Error e)
 {
     if (!isRecursive())
@@ -26556,11 +26547,6 @@ void MegaRecursiveOperation::ensureThreadStopped()
 bool MegaRecursiveOperation::isCancelledByFolderTransferToken()
 {
     return transfer->accessCancelToken().isCancelled();
-}
-
-bool MegaRecursiveOperation::hasSubTransfers()
-{
-    return !subTransfers.empty();
 }
 
 MegaClient* MegaRecursiveOperation::megaapiThreadClient()
