@@ -898,9 +898,9 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
     if (sqlResult == SQLITE_OK)
     {
         // nodeHandleUndef; // By default is set as undef
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, nodetype_t::ROOTNODE)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int(stmt, 1, nodetype_t::ROOTNODE)) == SQLITE_OK)
         {
-            if ((sqlResult = sqlite3_bind_int64(stmt, 2, nodetype_t::RUBBISHNODE)) == SQLITE_OK)
+            if ((sqlResult = sqlite3_bind_int(stmt, 2, nodetype_t::RUBBISHNODE)) == SQLITE_OK)
             {
                 result = processSqlQueryNodes(stmt, nodes);
             }
