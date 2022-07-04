@@ -2953,6 +2953,15 @@ void MegaTransferPrivate::setPlaceInQueue(long long value)
     placeInQueue = value;
 }
 
+bool MegaTransferPrivate::hasSubTransfers() const
+{
+    if (!isRecursive())
+    {
+        return false;
+    }
+    return recursiveOperation.get()->hasSubTransfers();
+}
+
 void MegaTransferPrivate::completeRecursiveOperation(Error e)
 {
     if (!isRecursive())
@@ -7818,7 +7827,6 @@ void MegaApiImpl::abortPendingActions(error preverror)
         }
         assert(transferMap.empty());
         transferMap.clear();
-
     }
 
     resetTotalDownloads();
@@ -19736,10 +19744,13 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if(request->getFlag())
+            if (request->getFlag())
             {
                 bool keepSyncConfigsFile = request->getTransferTag();
-                client->logout(keepSyncConfigsFile);
+
+                client->logout(keepSyncConfigsFile, [this](error result) {
+                    logout_result(result);
+                });
             }
             else
             {
@@ -26545,6 +26556,11 @@ void MegaRecursiveOperation::ensureThreadStopped()
 bool MegaRecursiveOperation::isCancelledByFolderTransferToken()
 {
     return transfer->accessCancelToken().isCancelled();
+}
+
+bool MegaRecursiveOperation::hasSubTransfers()
+{
+    return !subTransfers.empty();
 }
 
 MegaClient* MegaRecursiveOperation::megaapiThreadClient()

@@ -6247,6 +6247,33 @@ public class MegaApiJava {
     }
 
     /**
+     * Send events to the stats server
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the event type
+     * - MegaRequest::getText - Returns the event message
+     *
+     * @param eventType Event type
+     * @param message Event message
+     *
+     * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+     * is sent to MEGA servers.
+     * </p>
+     * Event types are restricted to the following ranges:
+     *  - MEGAcmd:   [98900, 99000)
+     *  - MEGAchat:  [99000, 99150)
+     *  - Android:   [99200, 99300)
+     *  - iOS:       [99300, 99400)
+     *  - MEGA SDK:  [99400, 99500)
+     *  - MEGAsync:  [99500, 99600)
+     *  - Webclient: [99600, 99800]
+     */
+    public void sendEvent(int eventType, String message) {
+        megaApi.sendEvent(eventType, message);
+    }
+
+    /**
      * Create a new ticket for support with attached description
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_SUPPORT_TICKET
