@@ -74,6 +74,7 @@ public:
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor) override;
     bool isNodeInDB(mega::NodeHandle node) override;
     uint64_t getNumberOfNodes() override;
+    uint64_t getNumberOfChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType) override;
     bool put(Node* node) override;
     bool remove(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;

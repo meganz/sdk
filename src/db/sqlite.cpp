@@ -1286,6 +1286,42 @@ uint64_t SqliteAccountState::getNumberOfNodes()
     return nodeNumber;
 }
 
+uint64_t SqliteAccountState::getNumberOfChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType)
+{
+    uint64_t nodeNumber = 0;
+    if (!db)
+    {
+        return nodeNumber;
+    }
+
+    sqlite3_stmt *stmt;
+    int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes where parenthandle = ? AND type = ?", -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
+        {
+            if ((sqlResult = sqlite3_bind_int(stmt, 2, nodeType)) == SQLITE_OK)
+            {
+                if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+                {
+                    nodeNumber = sqlite3_column_int64(stmt, 0);
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    if (sqlResult == SQLITE_ERROR)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get number of children of type from database: " << dbfile << err;
+        assert(!"Unable to get number of children of type from database.");
+    }
+
+    return nodeNumber;
+
+}
+
 bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node *>, FileFingerprintCmp> &fingerprints, std::map<NodeHandle, std::set<NodeHandle> > &children)
 {
     if (!db)

@@ -130,6 +130,8 @@ public:
     // count of items in 'nodes' table. Returns 0 if error
     virtual uint64_t getNumberOfNodes() = 0;
 
+    virtual uint64_t getNumberOfChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType) = 0;
+
 
     // -- get node properties --
 
