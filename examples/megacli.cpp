@@ -9673,6 +9673,8 @@ void exec_numberofchildren(autocomplete::ACState &s)
         n = client->nodeByHandle(cwd);
     }
 
+    assert(n);
+
     size_t folders = client->mNodeManager.getNumberOfChildrenFromType(n->nodeHandle(), FOLDERNODE);
     size_t files = client->mNodeManager.getNumberOfChildrenFromType(n->nodeHandle(), FILENODE);
 
