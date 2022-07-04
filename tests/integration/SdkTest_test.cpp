@@ -8583,6 +8583,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_NE(nodeToRemove, INVALID_HANDLE) << "nodeToRemove is not set";
     ASSERT_NE(handleFolderToMove, INVALID_HANDLE) << "folderToMove is not set";
 
+    // --- UserA and UserB check number of files
     std::unique_ptr<MegaNode> parent(megaApi[0]->getNodeByHandle(parentHandle));
     ASSERT_NE(parent.get(), nullptr);
     ASSERT_EQ(numberFiles, megaApi[0]->getNumChildFiles(parent.get()));
@@ -8591,6 +8592,7 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_NE(parent.get(), nullptr);
     ASSERT_EQ(numberFiles, megaApi[1]->getNumChildFiles(parent.get()));
 
+    // --- UserA and UserB check number of folders
     ASSERT_EQ(numberFolderLevel1, megaApi[0]->getNumChildFolders(rootnodeA.get()));
     ASSERT_EQ(numberFolderLevel1, megaApi[1]->getNumChildFolders(rootnodeB.get()));
 
