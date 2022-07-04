@@ -262,6 +262,7 @@ SqliteDbTable::~SqliteDbTable()
     }
 
     sqlite3_finalize(pStmt);
+    sqlite3_finalize(mDelStmt);
 
     if (inTransaction())
     {
@@ -602,7 +603,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtPutNode);
     sqlite3_finalize(mStmtUpdateNode);
     sqlite3_finalize(mStmtTypeAndSizeNode);
-    sqlite3_finalize(mDelStmt);
+    sqlite3_finalize(mStmtGetNode);
 
     if (mDbSearchConnection)
     {
