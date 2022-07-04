@@ -1097,7 +1097,6 @@ class CancelToken
 {
     // A small item with representation shared between many objects
     // They can all be cancelled in one go by setting the token flag true
-
     shared_ptr<bool> flag;
 
 public:

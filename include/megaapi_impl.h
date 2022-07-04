@@ -793,7 +793,7 @@ public:
     CancelToken cancelFlag;
 };
 
-inline CancelToken MegaCancelTokenAdapter(MegaCancelToken* mct)
+inline CancelToken convertToCancelToken(MegaCancelToken* mct)
 {
     if (!mct) return CancelToken();
     return static_cast<MegaCancelTokenPrivate*>(mct)->cancelFlag;

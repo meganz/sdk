@@ -3072,11 +3072,15 @@ MegaTransferListener* MegaTransferPrivate::getListener() const
 
 MegaTransferPrivate::~MegaTransferPrivate()
 {
-    if (recursiveOperation)
+    if (recursiveOperation && !recursiveOperation->allSubtransfersResolved())
     {
-        // folder transfers can only be resolved after all their sub-transfers
+        // Folder transfers can only be resolved after all their sub-transfers
         // are resolved.  Eg, cancellation is via setting the cancelToken for all subTransfers
-        assert(recursiveOperation->allSubtransfersResolved());
+        // Therefore, logically we should never be deleting this object- assert to catch any errors
+        assert(false);
+
+        // from review: also log just in case
+        LOG_warn << "~MegaTransferPrivate called before all sub-transfers were resolved";
     }
     delete[] path;
     delete[] parentPath;
