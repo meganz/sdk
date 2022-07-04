@@ -7703,7 +7703,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
                 {
                     auto size = row.cloudNode->fingerprint.size;
 
-                    assert(size > 0);
+                    assert(size >= 0);
 
                     if (syncs.fsaccess->availableDiskSpace(mLocalPath) <= size)
                     {

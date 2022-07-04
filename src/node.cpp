@@ -1853,7 +1853,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                     continue;
                 }
 
-                if (priorScanChildren.find(child.localname) == priorScanChildren.end())
+                if (priorScanChildren.find(child.localname) != priorScanChildren.end())
                 {
                     // already using not yet discarded last-scan data
                     continue;
