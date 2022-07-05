@@ -99,7 +99,7 @@ public:
     {
         return false;
     }
-    uint64_t getNumberOfChildrenFromType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType) override
+    uint64_t getNumberOfChildrenByType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType) override
     {
       return 0;
     }

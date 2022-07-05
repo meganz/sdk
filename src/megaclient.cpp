@@ -17418,7 +17418,7 @@ size_t NodeManager::getNumberOfChildrenFromType(NodeHandle parentHandle, nodetyp
 
     assert(nodeType == FILENODE || nodeType == FOLDERNODE);
 
-    return mTable->getNumberOfChildrenFromType(parentHandle, nodeType);
+    return mTable->getNumberOfChildrenByType(parentHandle, nodeType);
 }
 
 bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)

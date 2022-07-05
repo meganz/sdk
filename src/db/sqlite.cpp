@@ -897,7 +897,6 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
     int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, counter, node FROM nodes WHERE type >= ? AND type <= ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        // nodeHandleUndef; // By default is set as undef
         if ((sqlResult = sqlite3_bind_int(stmt, 1, nodetype_t::ROOTNODE)) == SQLITE_OK)
         {
             if ((sqlResult = sqlite3_bind_int(stmt, 2, nodetype_t::RUBBISHNODE)) == SQLITE_OK)
@@ -1259,10 +1258,10 @@ bool SqliteAccountState::isNodeInDB(NodeHandle node)
 
 uint64_t SqliteAccountState::getNumberOfNodes()
 {
-    uint64_t nodeNumber = 0;
+    uint64_t count = 0;
     if (!db)
     {
-        return nodeNumber;
+        return count;
     }
 
     sqlite3_stmt *stmt;
@@ -1271,7 +1270,7 @@ uint64_t SqliteAccountState::getNumberOfNodes()
     {
         if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
         {
-            nodeNumber = sqlite3_column_int64(stmt, 0);
+            count = sqlite3_column_int64(stmt, 0);
         }
     }
 
@@ -1283,15 +1282,15 @@ uint64_t SqliteAccountState::getNumberOfNodes()
         assert(!"Unable to get number of nodes from database.");
     }
 
-    return nodeNumber;
+    return count;
 }
 
-uint64_t SqliteAccountState::getNumberOfChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType)
+uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType)
 {
-    uint64_t nodeNumber = 0;
+    uint64_t count = 0;
     if (!db)
     {
-        return nodeNumber;
+        return count;
     }
 
     sqlite3_stmt *stmt;
@@ -1304,7 +1303,7 @@ uint64_t SqliteAccountState::getNumberOfChildrenFromType(NodeHandle parentHandle
             {
                 if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
                 {
-                    nodeNumber = sqlite3_column_int64(stmt, 0);
+                    count = sqlite3_column_int64(stmt, 0);
                 }
             }
         }
@@ -1318,7 +1317,7 @@ uint64_t SqliteAccountState::getNumberOfChildrenFromType(NodeHandle parentHandle
         assert(!"Unable to get number of children of type from database.");
     }
 
-    return nodeNumber;
+    return count;
 
 }
 
