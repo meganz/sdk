@@ -86,7 +86,7 @@ public:
     void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
     virtual ~SqliteAccountState();
-    static int callback(void *);
+    static int progressHandler(void *);
 
 private:
     // Iterate over a SQL query row by row and fill the map
@@ -104,7 +104,7 @@ private:
     sqlite3* mDbSearchConnection = nullptr;
 
     // Avoid race condition if search is cancelled and sql query hasn't started
-    // This flag is checked at callback that is called in the middle of the query
+    // This flag is checked at progressHandler() that is called once the query has started
     const std::atomic_bool *mCancelFlag = nullptr;
 };
 

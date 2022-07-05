@@ -612,7 +612,7 @@ SqliteAccountState::~SqliteAccountState()
     }
 }
 
-int SqliteAccountState::callback(void *param)
+int SqliteAccountState::progressHandler(void *param)
 {
     SqliteAccountState* db = static_cast<SqliteAccountState*>(param);
     // Check pointer and value
@@ -1008,7 +1008,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
     {
         mCancelFlag = cancelFlag;
         // Add a callback to be called inside db query to check if we should interrupt it
-        sqlite3_progress_handler(mDbSearchConnection, 15, SqliteAccountState::callback, static_cast<void*>(this));
+        sqlite3_progress_handler(mDbSearchConnection, 15, SqliteAccountState::progressHandler, static_cast<void*>(this));
     }
 
     // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
