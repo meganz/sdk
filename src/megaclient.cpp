@@ -17408,7 +17408,7 @@ size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     return (it != mNodeChildren.end()) ? it->second.size() : 0;
 }
 
-size_t NodeManager::getNumberOfChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType)
+size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType)
 {
     if (!mTable)
     {

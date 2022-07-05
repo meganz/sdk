@@ -289,9 +289,9 @@ public:
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
 
-    // Returns the number of nodes from specific type with a query to DB
+    // Returns the number of children nodes of specific node type with a query to DB
     // Valid types are FILENODE and FOLDERNODE
-    size_t getNumberOfChildrenFromType(NodeHandle parentHandle, nodetype_t nodeType);
+    size_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType);
 
     // true if 'node' is a child node of 'ancestor', false otherwise.
     bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor);

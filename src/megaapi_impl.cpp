@@ -17491,7 +17491,7 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
         return 0;
     }
 
-    return static_cast<int>(client->mNodeManager.getNumberOfChildrenFromType(parent->nodeHandle(), FILENODE));
+    return static_cast<int>(client->mNodeManager.getNumberOfChildrenByType(parent->nodeHandle(), FILENODE));
 }
 
 int MegaApiImpl::getNumChildFolders(MegaNode* p)
@@ -17508,7 +17508,7 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
         return 0;
     }
 
-    return static_cast<int>(client->mNodeManager.getNumberOfChildrenFromType(parent->nodeHandle(), FOLDERNODE));
+    return static_cast<int>(client->mNodeManager.getNumberOfChildrenByType(parent->nodeHandle(), FOLDERNODE));
 }
 
 

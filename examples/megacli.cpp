@@ -9675,8 +9675,8 @@ void exec_numberofchildren(autocomplete::ACState &s)
 
     assert(n);
 
-    size_t folders = client->mNodeManager.getNumberOfChildrenFromType(n->nodeHandle(), FOLDERNODE);
-    size_t files = client->mNodeManager.getNumberOfChildrenFromType(n->nodeHandle(), FILENODE);
+    size_t folders = client->mNodeManager.getNumberOfChildrenByType(n->nodeHandle(), FOLDERNODE);
+    size_t files = client->mNodeManager.getNumberOfChildrenByType(n->nodeHandle(), FILENODE);
 
     cout << "Number of folders: " << folders << endl;
     cout << "Number of files: " << files << endl;
