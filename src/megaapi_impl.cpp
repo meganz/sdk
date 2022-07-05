@@ -11793,23 +11793,23 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
         return nodeVector;
     }
 
+    SdkMutexGuard g(sdkMutex);
+
     const std::atomic_bool* cancelFlag = cancelToken ? cancelToken->getCancelFlag() : nullptr;
     nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelFlag);
 
     auto it = nodeVector.begin();
     while (it != nodeVector.end() && !(cancelToken && cancelToken->isCancelled()))
     {
-        Node* n = *it;
         auto itNode = it;
         it++;
-        if (!isValidTypeNode(n, type))
+        if (!isValidTypeNode(*itNode, type))
         {
             nodeVector.erase(itNode);
         }
     }
 
     return nodeVector;
-
 }
 
 bool MegaApiImpl::isValidTypeNode(Node *node, int type)
