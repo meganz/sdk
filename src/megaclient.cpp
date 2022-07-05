@@ -1027,17 +1027,15 @@ Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfold
     LocalPath::utf8_normalize(&nname);
 
     Node* node = nullptr;
-    if (skipfolders)
-    {
-        node = mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, FILENODE);
-    }
-    else
+
+    if (!skipfolders)
     {
         node = mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, FOLDERNODE);
-        if (!node)
-        {
-            node = mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, FILENODE);
-        }
+    }
+
+    if (!node)
+    {
+        node = mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, FILENODE);
     }
 
     return node;
