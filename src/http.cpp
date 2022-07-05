@@ -390,6 +390,7 @@ m_off_t HttpIO::getmaxuploadspeed()
 
 void HttpReq::post(MegaClient* client, const char* data, unsigned len)
 {
+    std::cout << "[HttpReq::post] BEGIN [client="<<client<<", httpio="<<(httpio?httpio:0x0)<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (httpio)
     {
         LOG_warn << "Ensuring that the request is finished before sending it again";
@@ -409,10 +410,12 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
     DEBUG_TEST_HOOK_HTTPREQ_POST(this)
 
     httpio->post(this, data, len);
+    std::cout << "[HttpReq::post] END [client="<<client<<", httpio="<<(httpio?httpio:0x0)<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void HttpReq::get(MegaClient *client)
 {
+    std::cout << "[HttpReq::get] BEGIN [client="<<client<<", httpio="<<(httpio?httpio:0x0)<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (httpio)
     {
         LOG_warn << "Ensuring that the request is finished before sending it again";
@@ -430,10 +433,12 @@ void HttpReq::get(MegaClient *client)
     lastdata = Waiter::ds;
 
     httpio->post(this);
+    std::cout << "[HttpReq::get] END [client="<<client<<", httpio="<<(httpio?httpio:0x0)<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void HttpReq::dns(MegaClient *client)
 {
+    std::cout << "[HttpReq::dns] BEGIN [client="<<client<<", httpio="<<(httpio?httpio:0x0)<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (httpio)
     {
         LOG_warn << "Ensuring that the request is finished before sending it again";
@@ -451,16 +456,19 @@ void HttpReq::dns(MegaClient *client)
     lastdata = Waiter::ds;
 
     httpio->post(this);
+    std::cout << "[HttpReq::dns] END [client="<<client<<", httpio="<<(httpio?httpio:0x0)<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void HttpReq::disconnect()
 {
+    std::cout << "[HttpReq::disconnect] BEGIN [httpio="<<(httpio?httpio:0x0)<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (httpio)
     {
         httpio->cancel(this);
         httpio = NULL;
         init();
     }
+    std::cout << "[HttpReq::disconnect] END [httpio="<<(httpio?httpio:0x0)<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 HttpReq::HttpReq(bool b)
@@ -483,12 +491,14 @@ HttpReq::HttpReq(bool b)
 
 HttpReq::~HttpReq()
 {
+    std::cout << "[HttpReq::~HttpReq] BEGIN " << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (httpio)
     {
         httpio->cancel(this);
     }
 
     delete[] buf;
+    std::cout << "[HttpReq::~HttpReq] END " << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void HttpReq::init()
@@ -508,6 +518,7 @@ void HttpReq::init()
 
 void HttpReq::setreq(const char* u, contenttype_t t)
 {
+    std::cout << "[HttpReq::setreq] call (posturl='"<<u<<"')" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (u)
     {
         posturl = u;
@@ -669,7 +680,7 @@ HttpReqDL::HttpReqDL()
     : dlpos(0)
     , buffer_released(false)
 {
-    std::cout << "[HttpReqDL::HttpReqDL] new HttpReqDL (Constructor) [this=" << this << "]" << std::endl;
+    std::cout << "[HttpReqDL::HttpReqDL] new HttpReqDL (Constructor) [this=" << this << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
 }
 
 // prepare file chunk download
@@ -680,27 +691,37 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
     char urlbuf[512];
 
     snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos ? npos - 1 : 0);
-    std::cout << "[HttpReqDL::prepare] setreq(urlbuf, REQ_BINARY) [req=" << this << "]" << std::endl;
+    std::cout << "[HttpReqDL::prepare] setreq(urlbuf, REQ_BINARY) [req=" << this << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     setreq(urlbuf, REQ_BINARY);
 
     dlpos = pos;
     size = (unsigned)(npos - pos);
     buffer_released = false;
-    std::cout << "[HttpReqDL::prepare] pos=" << pos << ", npos=" << npos << ", size=" << size << ", [req=" << this << "]" << std::endl;
+    std::cout << "[HttpReqDL::prepare] pos=" << pos << ", npos=" << npos << ", size=" << size << ", [req=" << this << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
 
     if (!buf || buflen != size)
     {
         // (re)allocate buffer
         if (buf)
         {
+            std::cout << "[HttpReqDL::prepare] (buf) -> reallocate buffer -> delete[] buf; buf = NULL; [req=" << this << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             delete[] buf;
             buf = NULL;
         }
 
         if (size)
         {
+            /*
+            if (!tempurl || strlen(tempurl)==0)
+            {
+                buf = new byte[size];
+            }
+            else
+            */
+            std::cout << "[HttpReqDL::prepare] (size) -> buf new byte[size + padding...] [req=" << this << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             buf = new byte[(size + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE];
         }
+        else std::cout << "[HttpReqDL::prepare] (!size) -> ALERT WTF !!! size=0 !!!!!!!!!!!!!!!! [req=" << this << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         buflen = size;
     }
 }

@@ -1,3 +1,3 @@
 #include "mega/sccloudraid/mega.h"
 
-PStats pstats;
+mega::SCCR::PStats pstats;

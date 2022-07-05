@@ -22,10 +22,13 @@
 #ifndef MEGA_TRANSFERSLOT_H
 #define MEGA_TRANSFERSLOT_H 1
 
+
 #include "http.h"
 #include "node.h"
 #include "backofftimer.h"
 #include "raid.h"
+#include "sccloudraid/raidproxy.h"
+//#include "sccloudraid/mega.h"
 
 namespace mega {
 
@@ -103,20 +106,37 @@ struct MEGA_API TransferSlot
     // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
     TransferBufferManager transferbuf;
 
+    bool initCloudRaid(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, dstime ctickettime, int cskippart);
+    shared_ptr<CloudRaid> getcloudRaidPtr()
+    {
+        return cloudRaid;
+    }
+    SCCR::RaidReqPoolArray& getRaidReqPoolArray()
+    {
+        return raidReqPoolArray;
+    }
+
     // async IO operations
     AsyncIOContext** asyncIO;
 
     // handle I/O for this slot
     void doio(MegaClient*, DBTableTransactionCommitter&);
 
+    off_t processRaidReq(const std::shared_ptr<HttpReqXfer>&);
+    void prepareRequest(const std::shared_ptr<HttpReqXfer>&, const string& tempURL, off_t pos, off_t npos, bool setReqPreparedStatus = true);
+    //void procRequest(MegaClient*, DBTableTransactionCommitter&, std::shared_ptr<HttpReqXfer>);
+    //void processRequestFailure(MegaClient* client, DBTableTransactionCommitter& committer, int channel, dstime& backoff);
+    void processRequestFailure(MegaClient* client, DBTableTransactionCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel = 0);
+
     // helper for doio to delay connection creation until we know if it's raid or non-raid
-    bool createconnectionsonce();
+    bool createconnectionsonce(MegaClient* client, DBTableTransactionCommitter& committer);
 
     // disconnect and reconnect all open connections for this transfer
     void disconnect();
 
     // disconnect and reconnect one connection for this transfer
     void disconnect(unsigned connectionNum);
+    void disconnect(const std::shared_ptr<HttpReqXfer>& req);
 
     // indicate progress
     void progress();
@@ -142,6 +162,11 @@ struct MEGA_API TransferSlot
     ~TransferSlot();
 
 private:
+    // New CloudRaid Proxy
+    SCCR::RaidReqPoolArray raidReqPoolArray;
+    std::shared_ptr<CloudRaid> cloudRaid;
+
+
     void toggleport(HttpReqXfer* req);
     bool checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
     bool checkMetaMacWithMissingLateEntries();
@@ -150,6 +175,67 @@ private:
     // returns true if connection haven't received data recently (set incrementErrors) or if slower than other connections (reset incrementErrors)
     bool testForSlowRaidConnection(unsigned connectionNum, bool& incrementErrors);
 };
+
+/*
+class CloudRaid
+{
+private:
+    class CloudRaidImpl;
+    const CloudRaidImpl* Pimpl() const { return m_pImpl.get(); }
+    CloudRaidImpl* Pimpl() { return m_pImpl.get(); }
+
+    std::unique_ptr<CloudRaidImpl> m_pImpl;
+    std::atomic<bool> shown;
+
+public:
+    CloudRaid();
+    CloudRaid(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, mtime_t ctickettime, int cskippart);
+    ~CloudRaid();
+
+    bool isShown() const;
+    bool isStarted() const;
+
+    bool disconnect(const std::shared_ptr<HttpReqXfer>& req);
+    bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, off_t pos, off_t npos);
+    bool post(const std::shared_ptr<HttpReqXfer>& req);
+
+    bool init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, mtime_t ctickettime, int cskippart);
+    bool balancedRequest(MegaClient* client, int notifyfd = -1);
+    bool removeRaidReq();
+
+    m_off_t read_data(byte* buf, off_t len);
+    m_off_t send_data(byte* outbuf, off_t len); // Not really valid for uploads...
+};
+*/
+
+/*
+class TransferSlot::CloudRaid
+{
+private:
+    class CloudRaidImpl;
+    const CloudRaidImpl* Pimpl() const { return m_pImpl.get(); }
+    CloudRaidImpl* Pimpl() { return m_pImpl.get(); }
+
+    std::unique_ptr<CloudRaidImpl> m_pImpl;
+    std::atomic<bool> shown;
+
+public:
+    CloudRaid();
+    CloudRaid(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, mtime_t ctickettime, int cskippart);
+    ~CloudRaid();
+
+    bool isShown() const;
+    bool isStarted() const;
+
+    bool init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, mtime_t ctickettime, int cskippart);
+    bool balancedRequest(MegaClient* client, int notifyfd = -1);
+    bool removeRaidReq();
+
+    m_off_t read_data(byte* buf, off_t len);
+    m_off_t send_data(byte* outbuf, off_t len); // Not really valid for uploads...
+};
+*/
+
 } // namespace
 
 #endif

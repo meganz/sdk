@@ -3,7 +3,7 @@
 
 #include <array>
 
-#define SEGSIZE 131072
+//#define SEGSIZE 131072
 
 namespace mega::SCCR {
 
@@ -52,7 +52,7 @@ private:
     } __attribute__ ((aligned(16)));
 #pragma pack(pop)
 
-    typedef map<off_t, struct HashChunk> chunk_map;
+    typedef std::map<off_t, struct HashChunk> chunk_map;
 
     static off_t chunkfloor(off_t, int* = NULL);
     static off_t chunkceil(off_t);

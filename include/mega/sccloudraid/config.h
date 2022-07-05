@@ -22,9 +22,9 @@ struct IPv6
     IPv6(in6_addr*);
 };
 
-typedef multimap<string, IPv6*> stringip_map;
-typedef multimap<IPv6, string> ipstring_map;
-typedef map<string, string> settings_map;
+typedef std::multimap<std::string, IPv6*> stringip_map;
+typedef std::multimap<IPv6, std::string> ipstring_map;
+typedef std::map<std::string, std::string> settings_map;
 
 //extern const char* std_config_file;
 //extern const char* std_local_config_file;
@@ -32,17 +32,17 @@ typedef map<string, string> settings_map;
 class Config
 {
     mtime_t lastmtime;
-    atomic<time_t> lastcheck;
+    std::atomic<time_t> lastcheck;
     
-    atomic<stringip_map*> nameips;
-    atomic<ipstring_map*> ipnames;
-    atomic<settings_map*> settings;
+    std::atomic<stringip_map*> nameips;
+    std::atomic<ipstring_map*> ipnames;
+    std::atomic<settings_map*> settings;
 
 public:
     static char* skipspace(char*);
     static char* findspace(char*);
     static char* findlastspace(char*);
-    static vector<string> split(const string& line);
+    static std::vector<std::string> split(const std::string& line);
 
 private:
     void update(bool printsettings = false);
@@ -58,11 +58,11 @@ public:
     int getipname(in6_addr*, char*, int);
 
     // get a string or unsigned value. If not present in this instance, the parent (if any) is checked
-    string getsetting_s(const std::string& key, const std::string& defaultvalue);
+    std::string getsetting_s(const std::string& key, const std::string& defaultvalue);
     size_t getsetting_u(const std::string& key, size_t defaultvalue);
 
     static void loadStandardFiles(const char* cdaemonname);
-    static string daemonname;
+    static std::string daemonname;
     
     Config(const char* filename = nullptr, Config* parent = nullptr);
 };

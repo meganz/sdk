@@ -1,7 +1,9 @@
+#include "mega/sccloudraid/base64.h"
 #include "mega/sccloudraid/mega.h"
 
+/*
 // modified base64 conversion (no trailing '=' and '-_' instead of '+/')
-unsigned char Base64::to64(byte c)
+unsigned char mega::SCCR::Base64::to64(byte c)
 {
     c &= 63;
 
@@ -14,7 +16,7 @@ unsigned char Base64::to64(byte c)
     return "-_"[c-62];
 }
 
-unsigned char Base64::from64(byte c)
+unsigned char mega::SCCR::Base64::from64(byte c)
 {
     if (c >= 'A' && c <= 'Z') return c-'A';
 
@@ -29,7 +31,7 @@ unsigned char Base64::from64(byte c)
     return 255;
 }
 
-int Base64::btoa(const byte* b, int blen, char* a)
+int mega::SCCR::Base64::btoa(const byte* b, int blen, char* a)
 {
     int p = 0;
 
@@ -55,7 +57,7 @@ int Base64::btoa(const byte* b, int blen, char* a)
     return p;
 }
 
-int Base64::atob(const char* a, byte* b, int blen)
+int mega::SCCR::Base64::atob(const char* a, byte* b, int blen)
 {
     byte c[4];
     int i;
@@ -87,3 +89,4 @@ int Base64::atob(const char* a, byte* b, int blen)
         b[p++] = (c[2] << 6) | c[3];
     }
 }
+*/

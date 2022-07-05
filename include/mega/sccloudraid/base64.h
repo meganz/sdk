@@ -1,6 +1,7 @@
 #ifndef MEGA_SCCR_BASE64_H
 #define MEGA_SCCR_BASE64_H 1
 
+/*
 typedef unsigned char byte;
 
 namespace mega::SCCR {
@@ -16,5 +17,6 @@ public:
 };
 
 } // namespace
+*/
 
 #endif

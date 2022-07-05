@@ -1,8 +1,8 @@
 #include "mega/sccloudraid/mega.h"
 
-Logger logger("/usr/local/mega/logdsock");
+mega::SCCR::Logger logger("/usr/local/mega/logdsock");
 
-void Logger::logf(const char* fmt, ...)
+void mega::SCCR::Logger::logf(const char* fmt, ...)
 {
     char buf[16384];
 
@@ -14,7 +14,7 @@ void Logger::logf(const char* fmt, ...)
     puts(buf);
 }
 
-void Logger::logline(const char* item, int len)
+void mega::SCCR::Logger::logline(const char* item, int len)
 {
     if (len < 0) len = strlen(item);
 
@@ -23,10 +23,10 @@ void Logger::logline(const char* item, int len)
 
     if (s >= 0 && sendto(s, item, len, 0, (sockaddr*)&addr, sizeof addr) != len)
     {
-        cout << "*** Error writing to log socket (" << errno << "), len=" << len << endl;
+        std::cout << "*** Error writing to log socket (" << errno << "), len=" << len << std::endl;
     }
 }
 
-Logger::Logger(const char* sunpath)
+mega::SCCR::Logger::Logger(const char* sunpath)
 {
 }

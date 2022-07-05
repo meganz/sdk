@@ -89,6 +89,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
+    std::cout << "[Transfer::~Transfer] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (faputcompletion_it != client->faputcompletion.end())
     {
         client->faputcompletion.erase(faputcompletion_it);
@@ -135,11 +136,12 @@ Transfer::~Transfer()
         }
         client->transfercachedel(this, nullptr);
     }
+    std::cout << "[Transfer::~Transfer] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 bool Transfer::serialize(string *d)
 {
-    std::cout << "[Transfer::serialize] BEGIN" << std::endl;
+    std::cout << "[Transfer::serialize] BEGIN" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     unsigned short ll;
 
     d->append((const char*)&type, sizeof(type));
@@ -211,13 +213,13 @@ bool Transfer::serialize(string *d)
     assert(t->fingerprint() == fingerprint());
 #endif
 
-    std::cout << "[Transfer::serialize] END" << std::endl;
+    std::cout << "[Transfer::serialize] END" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     return true;
 }
 
 Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* transfers)
 {
-    std::cout << "[Transfer::unserialize] BEGIN" << std::endl;
+    std::cout << "[Transfer::unserialize] BEGIN" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     unsigned short ll;
     const char* ptr = d->data();
     const char* end = ptr + d->size();
@@ -368,7 +370,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     }
     ptr++;
 
-    std::cout << "[Transfer::unserialize] t->chunkmacs.calcprogress(size, pos, progresscompleted)" << std::endl;
+    std::cout << "[Transfer::unserialize] t->chunkmacs.calcprogress(size, pos, progresscompleted)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
     auto it_bool = transfers[type].insert(pair<FileFingerprint*, Transfer*>(t.get(), t.get()));
@@ -377,7 +379,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
         // duplicate transfer
         t.reset();
     }
-    std::cout << "[Transfer::unserialize] END" << std::endl;
+    std::cout << "[Transfer::unserialize] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return t.release();
 }
 
@@ -388,6 +390,7 @@ SymmCipher *Transfer::transfercipher()
 
 void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter* committer)
 {
+    std::cout << "[Transfer::removeTransferFile] BEGIN (e"<<e<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     Transfer *transfer = f->transfer;
     client->filecachedel(f, committer);
     assert(*f->file_it == f);
@@ -395,12 +398,14 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
     client->app->file_removed(f, e);
     f->transfer = NULL;
     f->terminated(e);
+    std::cout << "[Transfer::removeTransferFile] END (e"<<e<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
 void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, dstime timeleft)
 {
+    std::cout << "[Transfer::failed] BEGIN -> Transfer failed with error (e="<<e<<", dstime timeleft="<<timeleft<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     bool defer = false;
 
     LOG_debug << "Transfer failed with error " << e;
@@ -409,6 +414,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
     if (e == API_EOVERQUOTA || e == API_EPAYWALL)
     {
+        std::cout << "[Transfer::failed] (e == API_EOVERQUOTA || e == API_EPAYWALL) -> overstorage only possible for uploads, overbandwidth for downloads " << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         assert((e == API_EPAYWALL && !timeleft) || (type == PUT && !timeleft) || (type == GET && timeleft)); // overstorage only possible for uploads, overbandwidth for downloads
         if (!slot)
         {
@@ -471,6 +477,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
                 client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE, false);
             }
 #endif
+            std::cout << "[Transfer::failed] (e == API_EOVERQUOTA && !timeleft && client->isForeignNode((*it)->h)) -> removeTransferFile(API_EOVERQUOTA, f, &committer) (e="<<e<<", dstime timeleft="<<timeleft<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             removeTransferFile(API_EOVERQUOTA, f, &committer);
             continue;
         }
@@ -489,6 +496,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
              }
              else
              {
+                std::cout << "[Transfer::failed] (e == API_EARGS || (e == API_EBLOCKED && type == GET) || (e == API_ETOOMANY && type == GET && e.hasExtraInfo())) -> removeTransferFile(e, f, &committer) (e="<<e<<", dstime timeleft="<<timeleft<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 removeTransferFile(e, f, &committer);
              }
              continue;
@@ -527,12 +535,14 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         failcount++;
         delete slot;
         slot = NULL;
+        std::cout << "[Transfer::failed] (defer) -> failcount++; delete slot; slot = NULL; client->transfercacheadd(this, &committer); -> Deferring transfer failcount=" << failcount << " during " << (bt.retryin() * 100) << " ms (e="<<e<<", dstime timeleft="<<timeleft<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         client->transfercacheadd(this, &committer);
 
         LOG_debug << "Deferring transfer " << failcount << " during " << (bt.retryin() * 100) << " ms";
     }
     else
     {
+        std::cout << "[Transfer::failed] !defer -> Removing transfer -> state = TRANSFERSTATE_FAILED; finished = true;  (e="<<e<<", dstime timeleft="<<timeleft<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_debug << "Removing transfer";
         state = TRANSFERSTATE_FAILED;
         finished = true;
@@ -565,6 +575,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         ++client->performanceStats.transferFails;
         delete this;
     }
+    std::cout << "[Transfer::failed] END (Transfer failed with error (e"<<e<<", dstime timeleft="<<timeleft<<"))" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 #ifdef USE_MEDIAINFO
@@ -615,7 +626,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 // fingerprint, notify app, notify files
 void Transfer::complete(DBTableTransactionCommitter& committer)
 {
-    std::cout << "[Transfer::complete] BEGIN" << std::endl;
+    std::cout << "[Transfer::complete] BEGIN" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     CodeCounter::ScopeTimer ccst(client->performanceStats.transferComplete);
 
     state = TRANSFERSTATE_COMPLETING;
@@ -623,7 +634,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
     if (type == GET)
     {
-        std::cout << "[Transfer::complete] client->clientname = " << client->clientname << ". Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "") << std::endl;
+        std::cout << "[Transfer::complete] client->clientname = " << client->clientname << ". Download complete: h=" << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << ", size=" << files.size() << ", name='"<<(files.size() ? files.front()->name : "") << "'" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
         LOG_debug << client->clientname << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "");
 
         bool transient_error = false;
@@ -679,7 +690,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             fingerprint.genfingerprint(fa.get());
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
-                std::cout << "[Transfer::complete] Fingerprint mismatch" << std::endl;
+                std::cout << "[Transfer::complete] Fingerprint mismatch" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                 LOG_err << "Fingerprint mismatch";
 
                 // enforce the verification of the fingerprint for sync transfers only
@@ -704,7 +715,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     }
                     else
                     {
-                        std::cout << "[Transfer::complete] Silent failure in setmtimelocal" << std::endl;
+                        std::cout << "[Transfer::complete] Silent failure in setmtimelocal" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                         LOG_warn << "Silent failure in setmtimelocal";
                     }
                 }
@@ -715,7 +726,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             if (syncxfer && !fixedfingerprint && success)
             {
                 transient_error = fa->retry;
-                std::cout << "[Transfer::complete] Unable to validate fingerprint " << transient_error << std::endl;
+                std::cout << "[Transfer::complete] Unable to validate fingerprint " << transient_error << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                 LOG_debug << "Unable to validate fingerprint " << transient_error;
             }
         }
@@ -798,7 +809,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                             if (!foundOne)
                             {
-                                std::cout << "[Transfer::complete] LocalNode for destination file not found" << std::endl;
+                                std::cout << "[Transfer::complete] LocalNode for destination file not found" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                                 LOG_err << "LocalNode for destination file not found";
 
                                 if(client->syncs.hasRunningSyncs())
@@ -814,7 +825,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                         else
         #endif
                         {
-                            std::cout << "[Transfer::complete] The destination file exist (not synced). Saving with a different name" << std::endl;
+                            std::cout << "[Transfer::complete] The destination file exist (not synced). Saving with a different name" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                             LOG_debug << "The destination file exist (not synced). Saving with a different name";
 
                             // the destination path isn't synced, save with a (x) suffix
@@ -848,6 +859,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 {
                     if (localfilename != localname)
                     {
+                        std::cout << "[Transfer::complete] (localfilename != localname) -> Renaming temporary file to target path [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                         LOG_debug << "Renaming temporary file to target path";
                         if (client->fsaccess->renamelocal(localfilename, localname))
                         {
@@ -868,24 +880,29 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (!success)
                 {
+                    std::cout << "[Transfer::complete] (!success) [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                     if((!tmplocalname.empty() ? tmplocalname : localfilename) == localname)
                     {
+                        std::cout << "[Transfer::complete] (!success) ((!tmplocalname.empty() ? tmplocalname : localfilename) == localname) -> Identical node downloaded to the same folder -> success = true [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                         LOG_debug << "Identical node downloaded to the same folder";
                         success = true;
                     }
                     else if (client->fsaccess->copylocal(!tmplocalname.empty() ? tmplocalname : localfilename,
                                                    localname, mtime))
                     {
+                        std::cout << "[Transfer::complete] (!success) (client->fsaccess->copylocal(!tmplocalname.empty() ? tmplocalname : localfilename, localname, mtime)) -> success = true [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                         success = true;
                     }
                     else if (client->fsaccess->transient_error)
                     {
+                        std::cout << "[Transfer::complete] (!success) (client->fsaccess->transient_error) -> transient_error = true [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                         transient_error = true;
                     }
                 }
 
                 if (success)
                 {
+                    std::cout << "[Transfer::complete] !success -> set missing node attributes [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                     // set missing node attributes
                     if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h)))
                     {
@@ -916,6 +933,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                 if (success || !transient_error)
                 {
+                    std::cout << "[Transfer::complete] (success || !transient_error) [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                     if (auto node = client->nodeByHandle((*it)->h))
                     {
                         auto path = (*it)->localname;
@@ -923,12 +941,14 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                         if (type != FILENAME_ANOMALY_NONE)
                         {
+                            std::cout << "[Transfer::complete] (success || !transient_error) (type != FILENAME_ANOMALY_NONE) -> client->filenameAnomalyDetected(type, path, node->displaypath()) [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                             client->filenameAnomalyDetected(type, path, node->displaypath());
                         }
                     }
 
                     if (success)
                     {
+                        std::cout << "[Transfer::complete] (success || !transient_error) (success) -> prevent deletion of associated Transfer object in completed() [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                         // prevent deletion of associated Transfer object in completed()
                         client->filecachedel(*it, &committer);
                         client->app->file_complete(*it);
@@ -938,10 +958,12 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                     if (success || !(*it)->failed(API_EAGAIN, client))
                     {
+                        std::cout << "[Transfer::complete] (success || !transient_error) (success || !(*it)->failed(API_EAGAIN, client)) [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                         File* f = (*it);
                         files.erase(it++);
                         if (!success)
                         {
+                            std::cout << "[Transfer::complete] (success || !transient_error) (!success) -> Unable to complete transfer due to a persistent error [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                             LOG_warn << "Unable to complete transfer due to a persistent error";
                             client->filecachedel(f, &committer);
 #ifdef ENABLE_SYNC
@@ -958,12 +980,14 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     else
                     {
                         failcount++;
+                        std::cout << "[Transfer::complete] (success || !transient_error) (!success && (*it)->failed(API_EAGAIN, client)) -> Persistent error completing file. Failcount: " << failcount << " [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                         LOG_debug << "Persistent error completing file. Failcount: " << failcount;
                         it++;
                     }
                 }
                 else
                 {
+                    std::cout << "[Transfer::complete] (!success && transient_error) -> Transient error completing file [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                     LOG_debug << "Transient error completing file";
                     it++;
                 }
@@ -977,6 +1001,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
         if (!files.size())
         {
+            std::cout << "[Transfer::complete] (!files.size()) -> state = TRANSFERSTATE_COMPLETED && delete this [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
             state = TRANSFERSTATE_COMPLETED;
             localfilename = localname;
             assert(localfilename.isAbsolute());
@@ -988,6 +1013,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         }
         else
         {
+            std::cout << "[Transfer::complete] (files.size()) -> some files are still pending completion, close fa and set retry timer [success="<<success<<", transient_error="<<transient_error<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
             // some files are still pending completion, close fa and set retry timer
             slot->fa.reset();
 
@@ -1100,12 +1126,12 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         client->checkfacompletion(uploadhandle, this);
         return;
     }
-    std::cout << "[Transfer::complete] END" << std::endl;
+    std::cout << "[Transfer::complete] END" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
 }
 
 void Transfer::completefiles()
 {
-    std::cout << "[Transfer::completefiles] call" << std::endl;
+    std::cout << "[Transfer::completefiles] call" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     // notify all files and give them an opportunity to self-destruct
     vector<uint32_t> &ids = client->pendingtcids[tag];
     vector<LocalPath> *pfs = NULL;

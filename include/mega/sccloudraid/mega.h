@@ -4,19 +4,23 @@
 
 #include "system.h"
 
-#include "raidstub.h"
 #include "aes.h"
 #include "chunkedhash.h"
-#include "raidproxy.h"
+//#include "raidproxy.h"
 #include "pstats.h"
-#include "base64.h"
+//#include "base64.h"
 #include "config.h"
 #include "logger.h"
 
-using namespace mega::SCCR;
+//using namespace mega::SCCR;
+/*
+namespace mega::SCCR {
+    using raidTime = mega::dstime;
+}
+*/
 
-extern mtime_t currtime;
-extern Config config;
+extern mega::SCCR::raidTime currtime;
+extern mega::SCCR::Config config;
 
 namespace mega::SCCR {
 

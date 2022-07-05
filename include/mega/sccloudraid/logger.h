@@ -6,7 +6,7 @@ namespace mega::SCCR {
 class Logger
 {
     int s;
-    struct sockaddr_un addr = { AF_UNIX };
+    struct sockaddr_un addr = { AF_UNIX, "" };
 
 public:
     void logf(const char*, ...);
