@@ -348,7 +348,7 @@ bool SqliteDbTable::get(uint32_t index, string* data)
         return false;
     }
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     int rc;
 
     rc = sqlite3_prepare(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL);
@@ -390,7 +390,7 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 
     checkTransaction();
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     bool result = false;
 
     int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL);
@@ -862,7 +862,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
         return false;
     }
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     bool result = false;
     int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, counter, node FROM nodes WHERE origfingerprint = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
@@ -892,7 +892,7 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
         return false;
     }
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     bool result = false;
     int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, counter, node FROM nodes WHERE type >= ? AND type <= ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
@@ -924,7 +924,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
         return false;
     }
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     bool result = false;
     int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, counter, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
@@ -963,7 +963,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
     // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
     // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     bool result = false;
     int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
@@ -1041,7 +1041,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
         return false;
     }
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle, fav) AS (SELECT nodehandle, parenthandle, fav "
                            "FROM nodes WHERE parenthandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle, A.fav "
                            "FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.parenthandle = E.nodehandle)) SELECT * "
@@ -1097,7 +1097,7 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
 
     sqlQuery.append(" limit 1");
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
@@ -1195,7 +1195,7 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
             "AS E ON (A.nodehandle = E.parenthandle)) "
             "SELECT * FROM nodesCTE WHERE parenthandle = ?";
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
@@ -1231,7 +1231,7 @@ bool SqliteAccountState::isNodeInDB(NodeHandle node)
         return inDb;
     }
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
@@ -1264,7 +1264,7 @@ uint64_t SqliteAccountState::getNumberOfNodes()
         return count;
     }
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
@@ -1293,7 +1293,7 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
         return count;
     }
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     int sqlResult = sqlite3_prepare(db, "SELECT count(*) FROM nodes where parenthandle = ? AND type = ?", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
@@ -1328,7 +1328,7 @@ bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, s
         return false;
     }
 
-    sqlite3_stmt *stmt;
+    sqlite3_stmt *stmt = nullptr;
     int sqlResult = sqlite3_prepare(db, "SELECT nodehandle, fingerprint, parenthandle, type FROM nodes", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
