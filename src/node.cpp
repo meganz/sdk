@@ -1794,7 +1794,7 @@ void LocalNode::prepare(FileSystemAccess&)
 
 void LocalNode::terminated(error e)
 {
-    sync->threadSafeState->transferComplete(PUT, size);
+    sync->threadSafeState->transferFailed(PUT, size);
 
     File::terminated(e);
 }
