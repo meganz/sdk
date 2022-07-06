@@ -2946,7 +2946,7 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::ParentFolderDoesNotExist: return "ParentFolderDoesNotExist";
     case PathProblem::FilesystemErrorDuringOperation: return "FilesystemErrorDuringOperation";
     case PathProblem::NameTooLongForFilesystem: return "NameTooLongForFilesystem";
-    case PathProblem::CannotFingrprintFile: return "CannotFingrprintFile";
+    case PathProblem::CannotFingerprintFile: return "CannotFingerprintFile";
     case PathProblem::DestinationPathInUnresolvedArea: return "DestinationPathInUnresolvedArea";
     case PathProblem::MACVerificationFailure: return "MACVerificationFailure";
     case PathProblem::DeletedOrMovedByUser: return "DeletedOrMovedByUser";

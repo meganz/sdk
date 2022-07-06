@@ -2348,28 +2348,28 @@ FSNode LocalNode::getScannedFSDetails() const
     return n;
 }
 
-void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo)
+void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst)
 {
     resetTransfer(upload);
 
-    sync->syncs.queueClient([upload, vo](MegaClient& mc, DBTableTransactionCommitter& committer)
+    sync->syncs.queueClient([upload, vo, queueFirst](MegaClient& mc, DBTableTransactionCommitter& committer)
         {
             upload->transferTag = mc.nextreqtag();
             upload->selfKeepAlive = upload;
-            mc.startxfer(PUT, upload.get(), committer, false, false, false, vo);
+            mc.startxfer(PUT, upload.get(), committer, false, queueFirst, false, vo);
         });
 
 }
 
-void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download)
+void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download, bool queueFirst)
 {
     resetTransfer(download);
 
-    sync->syncs.queueClient([download](MegaClient& mc, DBTableTransactionCommitter& committer)
+    sync->syncs.queueClient([download, queueFirst](MegaClient& mc, DBTableTransactionCommitter& committer)
         {
             mc.nextreqtag();
             download->selfKeepAlive = download;
-            mc.startxfer(GET, download.get(), committer, false, false, false, NoVersioning);
+            mc.startxfer(GET, download.get(), committer, false, queueFirst, false, NoVersioning);
         });
 
 }

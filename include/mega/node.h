@@ -783,8 +783,8 @@ struct MEGA_API LocalNode
 
     // Each LocalNode can be either uploading or downloading a file.
     // These functions manage that
-    void queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo);
-    void queueClientDownload(shared_ptr<SyncDownload_inClient> upload);
+    void queueClientUpload(shared_ptr<SyncUpload_inClient> upload, VersioningOption vo, bool queueFirst);
+    void queueClientDownload(shared_ptr<SyncDownload_inClient> upload, bool queueFirst);
     void resetTransfer(shared_ptr<SyncTransfer_inClient> p);
     void checkTransferCompleted(syncRow& row, syncRow& parentRow, SyncPath& fullPath);
     void updateTransferLocalname();
