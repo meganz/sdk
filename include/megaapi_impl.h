@@ -782,7 +782,10 @@ class MegaSharePrivate : public MegaShare
 class MegaCancelTokenPrivate : public MegaCancelToken
 {
 public:
+    // The default constructor leaves the token empty, so we don't waste space when it may not be needed (eg. a request object not related to transfers)
     MegaCancelTokenPrivate();
+
+    // Use this one to actually embed a token
     MegaCancelTokenPrivate(CancelToken);
 
     void cancel() override;
@@ -956,7 +959,7 @@ protected:
         MegaTransferListener *listener;
         Transfer *transfer = nullptr;
         std::unique_ptr<MegaError> lastError;
-        MegaCancelTokenPrivate mCancelToken;
+        MegaCancelTokenPrivate mCancelToken;  // default-constructed with no actual token inside
         int folderTransferTag;
         const char* appData;
         uint8_t mStage;

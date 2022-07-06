@@ -7047,7 +7047,7 @@ MegaPushNotificationSettings::MegaPushNotificationSettings()
 
 MegaCancelToken *MegaCancelToken::createInstance()
 {
-    return new MegaCancelTokenPrivate;
+    return new MegaCancelTokenPrivate(CancelToken(false));
 }
 
 MegaCancelToken::MegaCancelToken()

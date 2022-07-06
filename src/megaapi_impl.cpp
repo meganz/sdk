@@ -34127,13 +34127,13 @@ void MegaPushNotificationSettingsPrivate::enableChats(bool enable)
 }
 
 MegaCancelTokenPrivate::MegaCancelTokenPrivate()
-    : cancelFlag(false)
 {
 }
 
 MegaCancelTokenPrivate::MegaCancelTokenPrivate(CancelToken t)
     : cancelFlag(t)
 {
+    // The default constructor leaves the token empty, so we don't waste space when it may not be needed (eg. a request object not related to transfers)
 }
 
 void MegaCancelTokenPrivate::cancel()
