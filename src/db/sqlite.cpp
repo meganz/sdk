@@ -679,7 +679,6 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string&
         return;
     }
 
-
     int sqlResult = SQLITE_ERROR;
     if (mStmtUpdateNode)
     {
@@ -977,6 +976,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get nodes by name from database: " << dbfile << err;
         assert(!"Unable to get nodes by name from database.");
+        sqlite3_finalize(stmt);
         return false;
     }
 
@@ -1027,6 +1027,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
     {
         std::string err = std::string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get recent nodes from database: " << dbfile << err;
+        sqlite3_finalize(stmt);
         return false;
     }
 
@@ -1065,6 +1066,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get favourites from database: " << dbfile << err;
         assert(!"Unable to get favourites from database.");
+        sqlite3_finalize(stmt);
         return false;
     }
 
@@ -1134,6 +1136,7 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get nodes by name and type from database: " << dbfile << err;
         assert(!"Unable to get node by name from database (Only search at first level).");
+        sqlite3_finalize(stmt);
         return false;
     }
 
@@ -1362,6 +1365,7 @@ bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, s
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get a map with fingerprints: " << dbfile << err;
         assert(!"Unable to get a map with fingerprints.");
+        sqlite3_finalize(stmt);
         return false;
     }
 
