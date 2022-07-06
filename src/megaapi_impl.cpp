@@ -21148,6 +21148,7 @@ void MegaApiImpl::sendPendingRequests()
                 if (!megaTransfer->getCancelToken())
                 {
                     e = API_EARGS;
+                    LOG_warn << "Cancel requested for folder transfer, but it has lost its cancel token";
                 }
                 else
                 {
@@ -34126,6 +34127,7 @@ void MegaPushNotificationSettingsPrivate::enableChats(bool enable)
 }
 
 MegaCancelTokenPrivate::MegaCancelTokenPrivate()
+    : cancelFlag(false)
 {
 }
 
