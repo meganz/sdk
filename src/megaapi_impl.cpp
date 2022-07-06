@@ -11791,8 +11791,6 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
         return nodeVector;
     }
 
-    SdkMutexGuard g(sdkMutex);
-
     const std::atomic_bool* cancelFlag = cancelToken ? cancelToken->getCancelFlag() : nullptr;
     nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelFlag);
 
