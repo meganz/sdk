@@ -694,7 +694,7 @@ public:
 private:
     void ensureSyncUserAttributesCompleted(Error e);
     std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
-    void cleanupFailedExtBackup(const string& remotePath);
+    void cleanupFailedBackup(const string& remotePath);
 
 public:
 
