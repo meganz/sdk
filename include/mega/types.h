@@ -1116,7 +1116,7 @@ public:
 
     bool isCancelled() const
     {
-        return flag && *flag;
+        return !!flag && *flag;
     }
 
     bool exists()
