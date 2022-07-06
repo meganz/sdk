@@ -1096,7 +1096,7 @@ enum class PathProblem : unsigned short {
     ParentFolderDoesNotExist,
     FilesystemErrorDuringOperation,
     NameTooLongForFilesystem,
-    CannotFingrprintFile,
+    CannotFingerprintFile,
     DestinationPathInUnresolvedArea,
     MACVerificationFailure,
     DeletedOrMovedByUser,

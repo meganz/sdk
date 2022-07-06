@@ -1321,7 +1321,7 @@ MegaSyncStallPrivate::pathProblemDebugString(MegaSyncStall::SyncPathProblem reas
     static_assert((int)PathProblem::ParentFolderDoesNotExist == (int)MegaSyncStall::SyncPathProblem::ParentFolderDoesNotExist, "");
     static_assert((int)PathProblem::FilesystemErrorDuringOperation == (int)MegaSyncStall::SyncPathProblem::FilesystemErrorDuringOperation, "");
     static_assert((int)PathProblem::NameTooLongForFilesystem == (int)MegaSyncStall::SyncPathProblem::NameTooLongForFilesystem, "");
-    static_assert((int)PathProblem::CannotFingrprintFile == (int)MegaSyncStall::SyncPathProblem::CannotFingrprintFile, "");
+    static_assert((int)PathProblem::CannotFingerprintFile == (int)MegaSyncStall::SyncPathProblem::CannotFingerprintFile, "");
     static_assert((int)PathProblem::DestinationPathInUnresolvedArea == (int)MegaSyncStall::SyncPathProblem::DestinationPathInUnresolvedArea, "");
     static_assert((int)PathProblem::MACVerificationFailure == (int)MegaSyncStall::SyncPathProblem::MACVerificationFailure, "");
     static_assert((int)PathProblem::DeletedOrMovedByUser == (int)MegaSyncStall::SyncPathProblem::DeletedOrMovedByUser, "");

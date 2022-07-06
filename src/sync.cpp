@@ -6541,7 +6541,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             SyncWaitReason::FileIssue, false, false,
             {},
             {},
-            {fullPath.localPath, PathProblem::CannotFingrprintFile},
+            {fullPath.localPath, PathProblem::CannotFingerprintFile},
             {}));
 
         return false;
@@ -7145,7 +7145,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, SyncPat
             SyncWaitReason::FileIssue, false, false,
             {},
             {},
-            {fullPath.localPath, PathProblem::CannotFingrprintFile},
+            {fullPath.localPath, PathProblem::CannotFingerprintFile},
             {}));
 
         return false;
@@ -7442,7 +7442,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                     fullPath.localPath, nodeName, row.fsNode->fingerprint, threadSafeState,
                     row.fsNode->fsid, row.fsNode->localname, inshare);
 
-                row.syncNode->queueClientUpload(upload, UseLocalVersioningFlag);  // we'll take care of versioning ourselves ( we take over the putnodes step below)
+                row.syncNode->queueClientUpload(upload, UseLocalVersioningFlag, nodeName == ".megaignore");  // we'll take care of versioning ourselves ( we take over the putnodes step below)
 
                 LOG_debug << syncname << "Sync - sending file " << fullPath.localPath_utf8();
 
@@ -7724,9 +7724,11 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
 
                 createDebrisTmpLockOnce();
 
+                bool downloadFirst = fullPath.localPath.leafName().toPath() == ".megaignore";
+
                 // download to tmpfaPath (folder debris/tmp). We will rename/mv it to correct location (updated if necessary) after that completes
                 row.syncNode->queueClientDownload(std::make_shared<SyncDownload_inClient>(*row.cloudNode,
-                    fullPath.localPath, inshare, *syncs.fsaccess, threadSafeState));
+                    fullPath.localPath, inshare, *syncs.fsaccess, threadSafeState), downloadFirst);
 
                 //row.syncNode->treestate(TREESTATE_SYNCING);
                 //parentRow.syncNode->treestate(TREESTATE_SYNCING);

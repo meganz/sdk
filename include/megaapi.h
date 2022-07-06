@@ -5632,7 +5632,7 @@ class MegaSyncStall
             ParentFolderDoesNotExist,
             FilesystemErrorDuringOperation,
             NameTooLongForFilesystem,
-            CannotFingrprintFile,
+            CannotFingerprintFile,
             DestinationPathInUnresolvedArea,
             MACVerificationFailure,
             DeletedOrMovedByUser,
