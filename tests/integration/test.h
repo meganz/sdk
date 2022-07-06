@@ -115,7 +115,7 @@ void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
 
 std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
-
+fs::path makeReusableClientFolder(const string& subfolder);
 #ifdef ENABLE_SYNC
 
 template<typename T>
@@ -294,7 +294,18 @@ struct StandardClient : public MegaApp
 
     std::atomic<unsigned> transfersAdded{0}, transfersRemoved{0}, transfersPrepared{0}, transfersFailed{0}, transfersUpdated{0}, transfersComplete{0};
 
-    void transfer_added(Transfer*) override { onCallback(); ++transfersAdded; }
+    void transfer_added(Transfer* transfer) override
+    {
+        onCallback();
+
+        ++transfersAdded;
+
+        if (mOnTransferAdded)
+            mOnTransferAdded(*transfer);
+    }
+
+    std::function<void(Transfer&)> mOnTransferAdded;
+
     void transfer_removed(Transfer*) override { onCallback(); ++transfersRemoved; }
     void transfer_prepare(Transfer*) override { onCallback(); ++transfersPrepared; }
     void transfer_failed(Transfer*,  const Error&, dstime = 0) override { onCallback(); ++transfersFailed; }
@@ -629,6 +640,8 @@ struct StandardClient : public MegaApp
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
+    bool resetBaseFolderMulticlient(StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr);
+    void cleanupForTestReuse();
     bool login_reset_makeremotenodes(const string& prefix, int depth = 0, int fanout = 0, bool noCache = false);
     bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false);
     void ensureSyncUserAttributes(PromiseBoolSP result);
@@ -648,6 +661,29 @@ struct StandardClient : public MegaApp
     bool match(const Node& destination, const Model::ModelNode& source) const;
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
+
+    FileFingerprint fingerprint(const fs::path& fsPath);
+
+    vector<FileFingerprint> fingerprints(const string& path);
+
+#ifndef NDEBUG
+    virtual void move_begin(const LocalPath& source, const LocalPath& target) override
+    {
+        if (mOnMoveBegin)
+            mOnMoveBegin(source, target);
+    }
+
+    function<void(const LocalPath&, const LocalPath&)> mOnMoveBegin;
+
+    void putnodes_begin(const LocalPath& path) override
+    {
+        if (mOnPutnodesBegin)
+            mOnPutnodesBegin(path);
+    }
+
+    std::function<void(const LocalPath&)> mOnPutnodesBegin;
+#endif // ! NDEBUG
+
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
 
     void ipcr(handle id, ipcactions_t action, PromiseBoolSP result);
@@ -675,4 +711,71 @@ struct StandardClient : public MegaApp
 
 
 
+
+struct StandardClientInUseEntry
+{
+    bool inUse = false;
+    shared_ptr<StandardClient> ptr;
+    string name;
+
+    StandardClientInUseEntry(bool iu, shared_ptr<StandardClient> sp, string n)
+    : inUse(iu)
+    , ptr(sp)
+    , name(n)
+    {}
+};
+
+
+class StandardClientInUse
+{
+    list<StandardClientInUseEntry>::iterator entry;
+
+public:
+
+    StandardClientInUse(list<StandardClientInUseEntry>::iterator i)
+    : entry(i)
+    {
+        assert(!entry->inUse);
+        entry->inUse = true;
+    }
+
+    ~StandardClientInUse()
+    {
+        entry->ptr->cleanupForTestReuse();
+        entry->inUse = false;
+    }
+
+    StandardClient* operator->()
+    {
+        return entry->ptr.get();
+    }
+
+    operator StandardClient*()
+    {
+        return entry->ptr.get();
+    }
+
+    operator StandardClient&()
+    {
+        return *entry->ptr;
+    }
+
+};
+
+class ClientManager
+{
+    // reuse the same client for subsequent tests, to save all the time of logging in, fetchnodes, etc.
+
+    map<int, list<StandardClientInUseEntry>> clients;
+
+public:
+
+    StandardClientInUse getCleanStandardClient(int loginIndex, fs::path workingFolder);
+
+    ~ClientManager();
+};
+
+extern ClientManager* g_clientManager;
+
 #endif // ENABLE_SYNC
+

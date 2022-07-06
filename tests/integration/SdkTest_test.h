@@ -276,7 +276,7 @@ protected:
     int getApiIndex(MegaApi* api);
 
     bool checkAlert(int apiIndex, const string& title, const string& path);
-    bool checkAlert(int apiIndex, const string& title, handle h, int n);
+    bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
 
     MegaHandle syncTestMyBackupsRemoteFolder(unsigned apiIdx);
 
