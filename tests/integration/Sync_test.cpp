@@ -1643,7 +1643,8 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                          NodeHandle(),
                          std::move(trampoline),
                          nullptr,
-                         nullptr);
+                         nullptr,
+                         false);    // it's a putnodes from app, not from a sync
 
             // Destroy ourselves.
             delete this;
