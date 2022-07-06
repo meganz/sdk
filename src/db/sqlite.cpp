@@ -578,23 +578,24 @@ SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAcce
 
     if (result)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(mDbSearchConnection) ? sqlite3_errmsg(mDbSearchConnection) : std::to_string(result));
-        LOG_err << "Failure opening data base connection for get nodes by name: " <<  err;
+        string err = sqlite3_errmsg(mDbSearchConnection) ? sqlite3_errmsg(mDbSearchConnection) : std::to_string(result);
+        LOG_err << "Failure opening DB connection for search. Error: " <<  err;
         if (mDbSearchConnection)
         {
             sqlite3_close(mDbSearchConnection);
             mDbSearchConnection = nullptr;
         }
-
-        assert(false);
+        assert(!"Failure opening DB connection for search");
     }
 
     result = sqlite3_exec(mDbSearchConnection, "PRAGMA read_uncommitted=1;", nullptr, nullptr, nullptr);
     if (result)
     {
+        string err = sqlite3_errmsg(mDbSearchConnection) ? sqlite3_errmsg(mDbSearchConnection) : std::to_string(result);
+        LOG_err << "Failure setting read_uncommitted at DB connection for search. Error: " <<  err;
         sqlite3_close(mDbSearchConnection);
         mDbSearchConnection = nullptr;
-        assert(false);
+        assert(!"Failure setting read_uncommitted at DB connection for search");
     }
 }
 
@@ -611,7 +612,7 @@ SqliteAccountState::~SqliteAccountState()
     }
 }
 
-int SqliteAccountState::callback(void *param)
+int SqliteAccountState::progressHandler(void *param)
 {
     SqliteAccountState* db = static_cast<SqliteAccountState*>(param);
     // Check pointer and value
@@ -1007,7 +1008,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
     {
         mCancelFlag = cancelFlag;
         // Add a callback to be called inside db query to check if we should interrupt it
-        sqlite3_progress_handler(mDbSearchConnection, 15, SqliteAccountState::callback, static_cast<void*>(this));
+        sqlite3_progress_handler(mDbSearchConnection, 15, SqliteAccountState::progressHandler, static_cast<void*>(this));
     }
 
     // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
