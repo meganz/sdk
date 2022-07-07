@@ -22,7 +22,7 @@
 #ifndef MEGA_RAID_H
 #define MEGA_RAID_H 1
 
-#define ISNEWRAID_DEFVALUE false
+#define ISNEWRAID_DEFVALUE true
 
 #include "http.h"
 #include "utils.h"

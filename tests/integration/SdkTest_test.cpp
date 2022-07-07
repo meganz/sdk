@@ -4480,8 +4480,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
         mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
         megaApi[0]->startDownload(nimported.get(), filename.c_str());
 
-        //unsigned int transfer_timeout_in_seconds = 180;
-        unsigned int transfer_timeout_in_seconds = 15;
+        unsigned int transfer_timeout_in_seconds = 180;
+        //unsigned int transfer_timeout_in_seconds = 15;
         ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], transfer_timeout_in_seconds)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
         ASSERT_GE(onTransferUpdate_filesize, 0u);

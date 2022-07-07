@@ -63,7 +63,7 @@ PartFetcher::~PartFetcher()
     std::cout << "[PartFetcher::~PartFetcher] [part="<<std::to_string(part)<<"] BEGIN [connected="<<connected<<", rr="<<rr<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (rr)
     {
-        closesocket();
+        closesocket(true, true);
 
         while (!readahead.empty())
         {
@@ -296,13 +296,17 @@ void PartFetcher::closesocket(bool disconnect, bool socketDisconnect)
         {
             std::cout << "[PartFetcher::closesocket] [part="<<std::to_string(part)<<"] [connected] s -> proceed (s="<<s<<")  [disconnect=" << std::to_string(disconnect) << ", socketDisconnect="<<std::to_string(socketDisconnect)<<", s->status="<<std::to_string(s->status)<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         //if (s->disconnect()) perror("Error closing socket");
-            assert(!disconnect || s->status != REQ_INFLIGHT);
+            //assert(disconnect || s->status != REQ_INFLIGHT);
+            if (!disconnect && s->status==REQ_INFLIGHT)
+            {
+                std::cout << "[PartFetcher::closesocket] [part="<<std::to_string(part)<<"] [connected] (!disconnect && s->status==REQ_INFLIGHT) OJO -> ALERT WTF !!!!! WTF [disconnect=" << std::to_string(disconnect) << ", socketDisconnect="<<std::to_string(socketDisconnect)<<", s->status="<<std::to_string(s->status)<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
+            }
             if (socketDisconnect || s->status == REQ_INFLIGHT)
             {
                 rr->cloudRaid->disconnect(s);
             }
             //s = -1;
-            if (disconnect) 
+            if (disconnect)
             {
                 s->status = REQ_READY;
                 rr->pool.socketrrs.del(s);
@@ -542,9 +546,13 @@ connest++;
                 return -1;
             }
 
-            std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] prepareRequest(s="<<s<<", url='"<<url<<"', pos="<<pos<<", rem="<<rem<<") [sourcesize=" << sourcesize << "] " << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+            std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] prepareRequest(s="<<s<<", url='"<<url<<"', pos="<<pos<<", rem="<<rem<<") [remfeed="<<remfeed<<"] [sourcesize=" << sourcesize << "] " << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
             if (inbuf) inbuf.reset();
-            rr->cloudRaid->prepareRequest(s, url, pos, pos+rem);
+            size_t chunkSize = std::min(static_cast<size_t>(rem), static_cast<size_t>(sourcesize/3));
+            std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] prepareRequest(s="<<s<<", url='"<<url<<"', pos="<<pos<<", chunkSize="<<chunkSize<<", rem="<<rem<<") [remfeed="<<remfeed<<"] [sourcesize=" << sourcesize << ", rr->paddedpartsize="<<rr->paddedpartsize<<"] " << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+            //assert(pos+chunkSize <= sourcesize);
+            assert(pos+chunkSize <= rr->paddedpartsize);
+            rr->cloudRaid->prepareRequest(s, url, pos, pos+chunkSize);
             assert(s->status == REQ_PREPARED);
         }
 
@@ -594,12 +602,12 @@ connest++;
         {
             std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] REQ_SUCCESS [inbuf="<<(inbuf?inbuf.get():(void*)0x0)<<", s->buffer_released="<<s->buffer_released<<", s->dlpos="<<s->dlpos<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
             assert(!inbuf || s->buffer_released);
-            if (!inbuf)
+            if (!inbuf || !s->buffer_released)
             {
                 std::chrono::time_point<std::chrono::system_clock> postEndTime = std::chrono::system_clock::now();
                 std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] REQ_SUCCESS -> TIME ELAPSED = " << std::chrono::duration_cast<std::chrono::milliseconds>(postEndTime - postTime).count() << " ms" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                 assert(pos == s->dlpos);
-                std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] Asserts passed [s->buf.datalen()="<<(s->bufpos-s->inpurge)<<", s->bufpos="<<s->bufpos<<", s->inpurge="<<s->inpurge<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+                std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] Asserts passed [s->buf.datalen()="<<(s->bufpos-s->inpurge)<<", s->bufpos="<<s->bufpos<<", s->dlpos="<<s->dlpos<<", s->inpurge="<<s->inpurge<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                 inbuf.reset(s->release_buf());
                 s->buffer_released = true;
             }
@@ -633,12 +641,14 @@ connest++;
             // feed from network
             //s->status = REQ_READY;
             //char inbuf[NUMLINES*RAIDSECTOR];
-            assert(inbuf->datalen() - pos > 0);
-            while (remfeed)
+            //assert(inbuf->datalen() - pos > 0);
+            std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] inbuf->datalen()="<<inbuf->datalen()<<", remfeed="<<remfeed<<""  << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+            //assert(inbuf->datalen() == remfeed);
+            while (remfeed && inbuf->datalen())
             {
-                size_t t = inbuf->datalen() - pos;
+                size_t t = inbuf->datalen();
                 if (remfeed < t) t = remfeed;
-                std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] [while remfeed] t="<<t<<", remfeed="<<remfeed<<", inbuf->datalen-pos="<<inbuf->datalen()<<"-"<<"pos="<<(inbuf->datalen()-pos)<<") -> process"  << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+                std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] [while remfeed] t="<<t<<", remfeed="<<remfeed<<", inbuf->datalen="<<inbuf->datalen()<<") -> process"  << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
 
                 //t = read(s, inbuf, t);
 
@@ -656,6 +666,7 @@ connest++;
                         // read error: first try previously unused source
                         if (rr->slow1 < 0)
                         {
+                            std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] [while remfeed] (rr->slow1 < 0) -> fast mode -> try previously unused source"  << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                             int i;
 
                             for (i = RAIDPARTS; i--; )
@@ -664,7 +675,8 @@ connest++;
                                 {
                                     if (!rr->fetcher[i].errors)
                                     {
-                                        closesocket();
+                                        std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] [while remfeed] (rr->slow1 < 0) -> fast mode -> Disconnecting channel " << std::to_string(part) << " and connecting channel " << i << ""  << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+                                        closesocket(true);
                                         rr->fetcher[i].trigger();
                                         return -1;
                                     }
@@ -675,6 +687,7 @@ connest++;
 
                             if (i >= 0)
                             {
+                                std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] [while remfeed] (rr->slow1 < 0) -> fast mode -> (i >= 0) -> no previously unused source: switch to slow mode -> rr->setslow(part="<<std::to_string(part)<<", i="<<i<<")" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                                 // no previously unused source: switch to slow mode
                                 //cout << "Switching to slow mode on " << rr->slow1 << "/" << rr->slow2 << " after read error" << endl;
                                 rr->setslow(part, i);
@@ -694,6 +707,7 @@ connest++;
                             }
                         }
 
+                        std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] [while remfeed] [t=0] no useful data will come out of this connection -> rem=0, rr->resumeall(), s->status == REQ_PREPARED, return trigger(50);"  << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                         rem = 0;    // no useful data will come out of this connection
                         rr->resumeall();
 
@@ -715,14 +729,15 @@ connest++;
                     // completed a read: reset consecutive_errors
                     if (!rem && consecutive_errors) consecutive_errors = 0;
 
-                    std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] [while remfeed] t="<<t<<" > 0 -> rr->procdata(part="<<std::to_string(part)<<", inbuf.datastart()+pos, pos="<<pos<<", t="<<t<<") [remfeed="<<remfeed<<", rem="<<rem<<"]"  << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-                    rr->procdata(part, inbuf->datastart()+pos, pos, t);
+                    std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] [while remfeed] t="<<t<<" > 0 -> rr->procdata(part="<<std::to_string(part)<<", inbuf->datastart()="<<(void*)inbuf->datastart()<<", pos="<<pos<<", t="<<t<<") [remfeed="<<remfeed<<", rem="<<rem<<"]"  << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+                    rr->procdata(part, inbuf->datastart(), pos, t);
 
                     if (!connected) std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] [while reemfeed] [t > 0] ALERT!!!!! !connected -> break" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     if (!connected) break;
 
                     std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] [while remfeed] [t="<<t<<">0] -> pos += t (pos="<<pos<<", t="<<t<<", pos+=t="<<pos+t<<") [remfeed="<<remfeed<<", rem="<<rem<<"]"  << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                     pos += t;
+                    inbuf->start += t;
                 }
             }
 
@@ -764,9 +779,13 @@ connest++;
             else
             {
                 //std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] END -> return -1 (rem) -> s->status = REQ_READY [connected="<<connected<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-                std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] (rem) -> s->status="<<s->status<<" -> lastdata = currtime[connected="<<connected<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-                //s->status = REQ_READY;
+                std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] (rem) -> s->status="<<s->status<<" -> lastdata = currtime [connected="<<connected<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                 lastdata = currtime;
+                if (inbuf->datalen() == 0)
+                {
+                    std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] (rem) (inbuf->datalen() == 0) -> REQ_READY [connected="<<connected<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
+                    s->status = REQ_READY;
+                }
             }
         }
         assert(s->status == REQ_READY || s->status == REQ_SUCCESS || s->status == REQ_INFLIGHT || s->status == REQ_FAILURE);
