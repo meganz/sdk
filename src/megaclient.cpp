@@ -3998,60 +3998,61 @@ void MegaClient::dispatchTransfers()
                             [this, ts, hprivate, h](const Error &e, m_off_t s, m_time_t /*ts*/, m_time_t /*tm*/, dstime tl /*timeleft*/,
                                std::string* filename, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
                                const std::vector<std::string> &tempurls, const std::vector<std::string> &/*ips*/)
+                        {
+                            auto tslot = ts;
+                            auto priv = hprivate;
+                            auto ph = h.as8byte();
+
+                            tslot->pendingcmd = nullptr;
+
+                            if (!filename) //failed! (Notice: calls not coming from !callFailedCompletion) will allways have that != nullptr
                             {
-                                auto tslot = ts;
-                                auto priv = hprivate;
-                                auto ph = h.as8byte();
-
-                                tslot->pendingcmd = nullptr;
-
-                                if (!filename) //failed! (Notice: calls not coming from !callFailedCompletion) will allways have that != nullptr
-                                {
-                                    assert(s == -1 && "failing a transfer too soon: coming from a successful mCompletion call");
-                                    tslot->transfer->failed(e, *mTctableRequestCommitter);
-                                    return true;
-                                }
-
-                                if (s >= 0 && s != tslot->transfer->size)
-                                {
-                                    tslot->transfer->size = s;
-                                    for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
-                                    {
-                                        (*it)->size = s;
-                                    }
-
-                                    if (priv)
-                                    {
-                                        Node *n = nodebyhandle(ph);
-                                        if (n)
-                                        {
-                                            n->size = s;
-                                            notifynode(n);
-                                        }
-                                    }
-
-                                    sendevent(99411, "Node size mismatch", 0);
-                                }
-
-                                tslot->starttime = tslot->lastdata = waiter->ds;
-                                if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
-                                {
-                                    tslot->transfer->tempurls = tempurls;
-                                    tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
-                                    tslot->progress();
-                                    return true;
-                                }
-
-                                if (e == API_EOVERQUOTA && tl <= 0)
-                                {
-                                    // default retry interval
-                                    tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
-                                }
-
-                                tslot->transfer->failed(e, *mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
+                                assert(s == -1 && "failing a transfer too soon: coming from a successful mCompletion call");
+                                tslot->transfer->failed(e, *mTctableRequestCommitter);
                                 return true;
+                            }
 
-                            })));
+                            if (s >= 0 && s != tslot->transfer->size)
+                            {
+                                tslot->transfer->size = s;
+                                for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
+                                {
+                                    (*it)->size = s;
+                                }
+
+                                if (priv)
+                                {
+                                    Node *n = nodebyhandle(ph);
+                                    if (n)
+                                    {
+                                        n->size = s;
+                                        notifynode(n);
+                                    }
+                                }
+
+                                sendevent(99411, "Node size mismatch", 0);
+                            }
+
+                            tslot->starttime = tslot->lastdata = waiter->ds;
+
+                            if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
+                            {
+                                tslot->transfer->tempurls = tempurls;
+                                tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
+                                tslot->progress();
+                                return true;
+                            }
+
+                            if (e == API_EOVERQUOTA && tl <= 0)
+                            {
+                                // default retry interval
+                                tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+                            }
+
+                            tslot->transfer->failed(e, *mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
+                            return true;
+
+                        })));
                     }
 
                     LOG_debug << "Activating transfer";

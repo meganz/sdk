@@ -402,15 +402,11 @@ int PartFetcher::io()
     if (!connected || s->status == REQ_READY || s->status == REQ_PREPARED || s->status == REQ_FAILURE)
     {
         assert(s->status != REQ_INFLIGHT && s->status != REQ_SUCCESS);
+
         // prevent spurious epoll events from triggering a delayed reconnect early
         if (currtime < delayuntil) return -1;
 
         lastconnect = currtime;
-        //rr->cloudRaid->prepareRequest(s, url, pos, npos);
-        //t = connect(s, (const sockaddr*)&target, sizeof target);
-
-        //if (t < 0 && errno != EINPROGRESS && errno != EALREADY)
-        //if (s->status != REQ_INFLIGHT && errno != EINPROGRESS && errno != EALREADY)
         if (s->status != REQ_READY && s->status != REQ_PREPARED)
         {
             return onFailure();
@@ -441,8 +437,14 @@ connest++;
             }
 
             if (inbuf) inbuf.reset();
-            size_t chunkSize = std::min(static_cast<size_t>(rem), static_cast<size_t>(sourcesize/3));
-            //assert(pos+chunkSize <= sourcesize);
+            //size_t chunkSize = std::min(static_cast<size_t>(rem), static_cast<size_t>(sourcesize/3));
+            unsigned int raidLinesPerChunk = 0;
+            raidLinesPerChunk = unsigned(sourcesize / (RAIDPARTS * 3 * RAIDSECTOR));
+            raidLinesPerChunk -= raidLinesPerChunk % 1024;
+            raidLinesPerChunk = std::min<unsigned>(raidLinesPerChunk, 64 * 1024);
+            raidLinesPerChunk = std::max<unsigned>(raidLinesPerChunk, 8 * 1024);
+            unsigned int RaidMaxChunksPerRead = 5;
+            size_t chunkSize = std::min(static_cast<size_t>(rem), static_cast<size_t>(pos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead));
             assert(pos+chunkSize <= rr->paddedpartsize);
             rr->cloudRaid->prepareRequest(s, url, pos, pos+chunkSize);
             assert(s->status == REQ_PREPARED);
@@ -454,18 +456,9 @@ connest++;
             if (postDone)
             {
                 lastdata = currtime;
-                postTime = std::chrono::system_clock::now();
             }
             else
             {
-                
-                /*
-                if (s->status != REQ_FAILURE)
-                {
-                    // try the same server, with a small delay to avoid hammering
-                    return trigger(MAX_DELAY_IN_SECONDS);
-                }
-                */
                 return onFailure();
             }
 
@@ -492,9 +485,10 @@ connest++;
             assert(!inbuf || s->buffer_released);
             if (!inbuf || !s->buffer_released)
             {
-                std::chrono::time_point<std::chrono::system_clock> postEndTime = std::chrono::system_clock::now();
+                //std::chrono::time_point<std::chrono::system_clock> postEndTime = std::chrono::system_clock::now();
                 assert(pos == s->dlpos);
                 inbuf.reset(s->release_buf());
+                //inbuf.swap(s->release_buf());
                 s->buffer_released = true;
             }
 
@@ -509,64 +503,58 @@ connest++;
 
                 if (t == 0)
                 {
-                    /*if (!t || errno != EAGAIN)*/
-                    //{
-                        errors++;
-                        int save_errno = t ? errno : 0;
-                        LOGF("E 10804 CloudRAID data read from %d failed (%d)", url, save_errno);
-    readerr++;
-                        errors++;
+                    errors++;
+                    int save_errno = t ? errno : 0;
+                    LOGF("E 10804 CloudRAID data read from %d failed (%d)", url, save_errno);
+                    readerr++;
+                    errors++;
 
-                        // read error: first try previously unused source
-                        if (rr->slow1 < 0)
+                    // read error: first try previously unused source
+                    if (rr->slow1 < 0)
+                    {
+                        int i;
+
+                        for (i = RAIDPARTS; i--;)
                         {
-                            int i;
-
-                            for (i = RAIDPARTS; i--; )
+                            if (!rr->fetcher[i].connected)
                             {
-                                if (!rr->fetcher[i].connected)
+                                if (!rr->fetcher[i].errors)
                                 {
-                                    if (!rr->fetcher[i].errors)
-                                    {
-                                        closesocket(true);
-                                        rr->fetcher[i].trigger();
-                                        return -1;
-                                    }
-
-                                    break;
+                                    closesocket(true);
+                                    rr->fetcher[i].trigger();
+                                    return -1;
                                 }
-                            }
 
-                            if (i >= 0)
-                            {
-                                // no previously unused source: switch to slow mode
-                                //cout << "Switching to slow mode on " << rr->slow1 << "/" << rr->slow2 << " after read error" << endl;
-                                rr->setslow(part, i);
-                                return -1;
+                                break;
                             }
+                        }
+
+                        if (i >= 0)
+                        {
+                            // no previously unused source: switch to slow mode
+                            // cout << "Switching to slow mode on " << rr->slow1 << "/" << rr->slow2 << " after read error" << endl;
+                            rr->setslow(part, i);
+                            return -1;
+                        }
+                    }
+                    else
+                    {
+                        if (consecutive_errors > MAXRETRIES)
+                        {
+                            rr->setfast();
                         }
                         else
                         {
-                            if (consecutive_errors > MAXRETRIES)
-                            {
-                                rr->setfast();
-                            }
-                            else
-                            {
-                                consecutive_errors++;
-                            }
+                            consecutive_errors++;
                         }
+                    }
 
-                        rem = 0;    // no useful data will come out of this connection
-                        rr->resumeall();
+                    rem = 0; // no useful data will come out of this connection
+                    rr->resumeall();
 
-                        // try the same server, with a small delay to avoid hammering
-                        s->status = REQ_PREPARED;
-                        return trigger(50);
-                        //return trigger(MAX_DELAY_IN_SECONDS);
-                    //}
-
-                    //break;
+                    // try the same server, with a small delay to avoid hammering
+                    s->status = REQ_PREPARED;
+                    return trigger(50);
                 }
                 else
                 {
@@ -588,7 +576,6 @@ connest++;
             }
 
             lastdata = currtime;
-            //connected = false;
 
             if (!remfeed && pos == sourcesize && sourcesize < rr->paddedpartsize)
             {
@@ -610,12 +597,6 @@ connest++;
                     rr->resumeall();
                     return -1;
                 }
-                else
-                {
-                    // WATCH: SHOULD THIS CALL DIRECTTRIGGER() ? ANY OPTION OF CHANGING REM TO POSITIVE VALUE FROM HERE????? -> probably not: better call directTrigger()
-                }
-
-                //return -1;
             }
             else
             {
@@ -630,16 +611,7 @@ connest++;
         if (s->status == REQ_READY || s->status == REQ_INFLIGHT || s->status == REQ_SUCCESS)
         {
             directTrigger();
-            //rr->pool.addDirectio(s);
-
         }
-        /*
-        else if (s->status == REQ_SUCCESS)
-        {
-            //rr->pool.addDirectio(s);
-
-        }
-        */
         else if (s->status == REQ_FAILURE)
         {
            return onFailure();
@@ -670,20 +642,10 @@ int PartFetcher::onFailure()
             }
         }
 
-        int save_errno = errno;
-
-        /*
-        if (save_errno == EADDRNOTAVAIL)
-        {
-            LOGF("E 10809 CloudRAID proxy subsystem ran out of local ports");
-            exit(0);    // we ran out of local ports: restart
-        }
-        */
-
         static raidTime lastlog;
         if (currtime > lastlog)
         {
-            LOGF("E 10802 CloudRAID connection to %d failed (%d)", url, save_errno);
+            LOGF("E 10802 CloudRAID connection to %d failed: http status (%d)", url, s->httpstatus);
             lastlog = currtime;
         }
         connerr++;
@@ -719,9 +681,6 @@ int PartFetcher::onFailure()
                 }
             }
 
-            // return trigger(save_errno == ETIMEDOUT ? -1 : 3);
-            //return trigger(MAX_DELAY_IN_SECONDS);
-            //return trigger(backoff ? backoff : MAX_DELAY_IN_SECONDS);
             return trigger(backoff);
         }
     }
@@ -739,7 +698,6 @@ void PartFetcher::cont(int numbytes)
         if (sourcesize-pos < remfeed) remfeed = sourcesize-pos; // we only read to the physical end of the part
 
         auto& s = rr->sockets[part];
-//assert(rr->isSocketConnected(part));
 assert(s != nullptr);
         rr->pendingio.push_back(s);
     }
@@ -782,8 +740,6 @@ current_fast++;
 
     for (int i = RAIDPARTS; i--; ) 
     {
-        //sockets[i] = -1;
-
         if (!p.tempUrls[i].empty())
         {
             // we don't trigger I/O on unknown source servers (which shouldn't exist in normal ops anyway)
@@ -791,9 +747,6 @@ current_fast++;
             {
                 // this kicks off I/O on that source
                 fetcher[i].trigger();
-            }
-            else
-            {
             }
         }
         else
@@ -1158,12 +1111,10 @@ void RaidReq::dispatchio(HttpReqPtr s)
         {
             int t = fetcher[i].io();
 
-            //if (t >= 0)
             if (t > 0)
             {
                 // this is a relatively infrequent ocurrence, so we tolerate the overhead of a std::set insertion/erasure
-                pool.addScheduledio(currtime+t, sockets[i]);
-                //pool.scheduledio.insert(std::make_pair(currtime+t, sockets[i]));            
+                pool.addScheduledio(currtime+t, sockets[i]);       
             }
             break;
         }
@@ -1216,7 +1167,6 @@ void RaidReq::watchdog()
             if (idlegoodsource >= 0)
             {
                 // "Attempted remedy: Switching from " << hangingsource << "/" << fetcher[hangingsource].serverid << " to previously unused " << fetcher[idlegoodsource].serverid << endl;
-
                 fetcher[hangingsource].errors++;
                 fetcher[hangingsource].closesocket();
                 fetcher[idlegoodsource].trigger();
@@ -1288,9 +1238,9 @@ off_t RaidReq::readdata(byte* buf, off_t len)
     }
     else
     {
-        if (currtime-lastdata > 1000/*100*/)
+        if (currtime-lastdata > 100)
         {
-            if (currtime-lastdata > 6000/*600*/)
+            if (currtime-lastdata > 600)
             {
                 LOGF("E %d CloudRAID feed timed out", 10812+haddata);
                 if (!haddata) pstats.raidproxyerr++;
@@ -1325,7 +1275,6 @@ off_t RaidReq::senddata(byte* outbuf, off_t len)
     {
         if (t > len) t = len;
 
-        //t = write(s, data+skip, t);
         memcpy(outbuf, data+skip, t);
         e = errno;
 
@@ -1383,20 +1332,19 @@ bool RaidReqPool::addDirectio(const HttpReqPtr& req)
 
 void* RaidReqPool::raidproxyiothread()
 {
-    int i, j, m, e;//n, e;
     RaidReq* rr;
-
-    //events = (HttpReqPtr*)calloc(MAXEPOLLEVENTS, sizeof(HttpReqPtr));
     std::deque<HttpReqPtr> events;
 
-    //auto nCount =sss
     while (isRunning.load())
     {
+        std::this_thread::sleep_for(std::chrono::microseconds(10));
+        /*
         mega::dstime timeNow = Waiter::ds;
         while (isRunning.load() && timeNow == Waiter::ds)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
+        */
 
 
         lock_guard<recursive_mutex> g(rrp_lock);  // this lock guarantees RaidReq will not be deleted between lookup and dispatch - locked for a while but only affects the main thread with new raidreqs being added or removed
@@ -1415,13 +1363,11 @@ void* RaidReqPool::raidproxyiothread()
         assert(events.size() <= 6);
   
         // initially process all the ones for which we can get the RaidReq lock instantly.  For any that are contended, skip and process the rest for now - then loop and retry, last loop locks rather than try_locks.
-        for (j = 2; j--; )
+        for (int j = 2; j--; )
         {
             while (!events.empty())
             {
                 const HttpReqPtr& s = *events.begin();
-                //s = events[i].data.fd;
-                //e = events[i].events;
 
                 if ((rr = socketrrs.lookup(s)))  // retrieved under extremely brief lock.  RaidReqs can not be deleted until we unlock rrp_lock 
                 {
@@ -1478,14 +1424,16 @@ RaidReqPool::RaidReqPool(RaidReqPoolArray& ar)
 
     int err; 
 
-    //std::thread t1(raidproxyiothreadstart, this);
     isRunning.store(true);
+    rrp_thread = std::thread(raidproxyiothreadstart, this);
+    /*
     if ((err = pthread_create(&rrp_thread, NULL, raidproxyiothreadstart, this)))
     {
         LOGF("E 10806 CloudRAID proxy thread creation failed: %d", err);
         isRunning.store(false);
         exit(0);
     }
+    */
 }
 
 RaidReqPool::~RaidReqPool()
@@ -1494,7 +1442,8 @@ RaidReqPool::~RaidReqPool()
     {
         lock_guard<recursive_mutex> g(rrp_lock); // Let other operations end
     }
-    pthread_join(rrp_thread, NULL);
+    //pthread_join(rrp_thread, NULL);
+    rrp_thread.join();
 }
 
 RaidReq* RaidReqPool::request(const mega::SCCR::RaidReq::Params& p, const std::shared_ptr<CloudRaid>& cloudRaid, int notifyfd)
@@ -1507,7 +1456,6 @@ RaidReq* RaidReqPool::request(const mega::SCCR::RaidReq::Params& p, const std::s
 
 void RaidReqPool::removerequest(RaidReq* rr)
 {
-    // ToDo: Disconnect everything in flight
     if (rr)
     {
         lock_guard<recursive_mutex> g(rrp_lock);

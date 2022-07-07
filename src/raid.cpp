@@ -181,8 +181,6 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
 
     if (tempurls.size() == RAIDPARTS)
     {
-        //is_newRaid = isNewRaid;
-        //is_raid = !is_newRaid;
         if (isNewRaid)
         {
             is_newRaid = true;
@@ -202,22 +200,22 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
     startfilepos = resumepos;
     if (is_raid)
     {
-            raidpartspos = resumepos / (RAIDPARTS - 1);
-            raidpartspos -= raidpartspos % RAIDSECTOR;
-            resumewastedbytes = size_t(outputfilepos - raidpartspos * (RAIDPARTS - 1));
-            outputfilepos -= resumewastedbytes;  // we'll skip over these bytes on the first output
-            for (int i = RAIDPARTS; i--;)
-            {
-                raidrequestpartpos[i] = raidpartspos;
-            }
+        raidpartspos = resumepos / (RAIDPARTS - 1);
+        raidpartspos -= raidpartspos % RAIDSECTOR;
+        resumewastedbytes = size_t(outputfilepos - raidpartspos * (RAIDPARTS - 1));
+        outputfilepos -= resumewastedbytes; // we'll skip over these bytes on the first output
+        for (int i = RAIDPARTS; i--;)
+        {
+            raidrequestpartpos[i] = raidpartspos;
+        }
 
-            // How much buffer space can we use.  Assuming two chunk sets incoming, one outgoing
-            raidLinesPerChunk = unsigned(maxRequestSize / (RAIDPARTS * 3 * RAIDSECTOR));
-            raidLinesPerChunk -= raidLinesPerChunk % 1024;
-            raidLinesPerChunk = std::min<unsigned>(raidLinesPerChunk, 64 * 1024);
-            raidLinesPerChunk = std::max<unsigned>(raidLinesPerChunk, 8 * 1024);
+        // How much buffer space can we use.  Assuming two chunk sets incoming, one outgoing
+        raidLinesPerChunk = unsigned(maxRequestSize / (RAIDPARTS * 3 * RAIDSECTOR));
+        raidLinesPerChunk -= raidLinesPerChunk % 1024;
+        raidLinesPerChunk = std::min<unsigned>(raidLinesPerChunk, 64 * 1024);
+        raidLinesPerChunk = std::max<unsigned>(raidLinesPerChunk, 8 * 1024);
 
-            unusedRaidConnection = g_faultyServers.selectWorstServer(tempurls);
+        unusedRaidConnection = g_faultyServers.selectWorstServer(tempurls);
     }
 
     DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(this)
@@ -1072,7 +1070,6 @@ public:
             raidReqPoolArray.start(1);
             currtime = Waiter::ds;
             raidReqToken = raidReqPoolArray.balancedRequest(raidReqParams, tslot->getcloudRaidPtr(), notifyfd);
-            //started.store(raidReqToken.rr != nullptr);
             if (raidReqToken.rr)
             {
                 return start();
@@ -1098,14 +1095,6 @@ public:
 
     bool stop()
     {
-        /*
-        if (!started.load())
-        {
-            return false;
-        }
-        //started.store(false);
-        //return true;
-        */
         return removeRaidReq();
     }
 

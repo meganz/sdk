@@ -8549,8 +8549,6 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
         transfer->setFolderTransferTag(folderTransferTag);
     }
 
-    transferQueue.push(transfer);
-    waiter->notify();
     return transfer;
 }
 

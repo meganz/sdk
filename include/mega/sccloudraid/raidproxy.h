@@ -221,7 +221,8 @@ class RaidReqPool
 
     RaidReqPoolArray& array;
     recursive_mutex rrp_lock;
-    pthread_t rrp_thread;
+    //pthread_t rrp_thread;
+    std::thread rrp_thread;
     int efd;
     std::atomic<bool> isRunning;
  

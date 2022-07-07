@@ -693,7 +693,6 @@ CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySi
                                const char *publicauth, const char *chatauth,
                                bool singleUrl, Cb &&completion)
 {
-    std::cout << "[CommandGetFile::CommandGetFile()] BEGIN" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     cmd("g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1); // server will provide download URL(s)/token(s) (if skipped, only information about the file)
@@ -736,19 +735,16 @@ CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySi
     }
 
     mCompletion = std::move(completion);
-    std::cout << "[CommandGetFile::CommandGetFile()] END" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
 }
 
 void CommandGetFile::cancel()
 {
-    std::cout << "[CommandGetFile::cancel]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     Command::cancel();
 }
 
 
 void CommandGetFile::callFailedCompletion(const Error &e)
 {
-    std::cout << "[CommandGetFile::callFailedCompletion]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     assert(mCompletion);
     if (mCompletion)
     {
@@ -759,7 +755,6 @@ void CommandGetFile::callFailedCompletion(const Error &e)
 // process file credentials
 bool CommandGetFile::procresult(Result r)
 {
-    std::cout << "[CommandGetFile::procresult]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     if (r.wasErrorOrOK())
     {
         if (!canceled)
