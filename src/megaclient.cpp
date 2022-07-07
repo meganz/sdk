@@ -14143,11 +14143,11 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-void MegaClient::cleanupFailedExtBackup(const string& remotePath)
+void MegaClient::cleanupFailedBackup(const string& remotePath)
 {
     if (!syncs.backupRestrictionsEnabled())
     {
-        LOG_warn << "Skipping cleanup of remote dir of external backup: restrictions disabled";
+        LOG_warn << "Skipping cleanup of remote dir of backup: restrictions disabled";
         return;
     }
 
@@ -14158,7 +14158,7 @@ void MegaClient::cleanupFailedExtBackup(const string& remotePath)
     }
     if (getrootnode(n)->nodeHandle() != rootnodes.vault)
     {
-        LOG_err << "Failed to cleanup remote dir of external backup "
+        LOG_err << "Failed to cleanup remote dir of backup "
                 << remotePath
                 << " (path outside Vault).";
         assert(getrootnode(n)->nodeHandle() == rootnodes.vault);
@@ -14166,7 +14166,7 @@ void MegaClient::cleanupFailedExtBackup(const string& remotePath)
     }
     if (!n->children.empty())
     {
-        LOG_err << "Failed to cleanup remote dir of external backup "
+        LOG_err << "Failed to cleanup remote dir of backup "
                 << remotePath
                 << " (dir not empty).";
         assert(n->children.empty());
@@ -14182,7 +14182,7 @@ void MegaClient::cleanupFailedExtBackup(const string& remotePath)
 
     if (errUnlink)
     {
-        LOG_err << "Failed to cleanup remote dir of external backup "
+        LOG_err << "Failed to cleanup remote dir of backup "
                 << remotePath
                 << " (error " << errUnlink << ").";
     }
@@ -14205,10 +14205,10 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
         // the cause is already logged in checkSyncConfig
         completion(e, config.mError, UNDEF);
 
-        // A new external backup will have its dir created in Vault by now. Let's clean that up.
-        if (config.isExternal())
+        // A new backup will have its dir created in Vault by now. Let's clean that up.
+        if (config.isBackup())
         {
-            cleanupFailedExtBackup(config.mOriginalPathOfRemoteRootNode);
+            cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
         }
 
         return e;
@@ -14232,7 +14232,7 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
                     << " as there is no config store.";
 
             completion(API_EINTERNAL, NO_SYNC_ERROR, UNDEF);
-            cleanupFailedExtBackup(config.mOriginalPathOfRemoteRootNode);
+            cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
 
             return API_EINTERNAL;
         }
@@ -14253,7 +14253,7 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
                         << " as we could not read its config database.";
 
                 completion(API_EFAILED, NO_SYNC_ERROR, UNDEF);
-                cleanupFailedExtBackup(config.mOriginalPathOfRemoteRootNode);
+                cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
 
                 return API_EFAILED;
             }
@@ -14280,7 +14280,7 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
             if (e)
             {
                 completion(e, config.mError, backupId);
-                cleanupFailedExtBackup(config.mOriginalPathOfRemoteRootNode);
+                cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
             }
             else
             {
