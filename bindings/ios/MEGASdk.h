@@ -6040,7 +6040,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
  * You preserve the ownership of this param.
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(MEGACancelToken *)cancelToken;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(nullable MEGACancelToken *)cancelToken;
 
 /**
  * @brief Upload a file or a folder
@@ -6079,7 +6079,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * You preserve the ownership of this param.
  * @param delegate MEGATransferDelegate to track this transfer
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Upload a file or a folder
