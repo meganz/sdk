@@ -17420,6 +17420,19 @@ size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     return (it != mNodeChildren.end()) ? it->second.size() : 0;
 }
 
+size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return 0;
+    }
+
+    assert(nodeType == FILENODE || nodeType == FOLDERNODE);
+
+    return mTable->getNumberOfChildrenByType(parentHandle, nodeType);
+}
+
 bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)
 {
     if (!mTable)
