@@ -1809,20 +1809,25 @@ void LocalNode::completed(Transfer* t, putsource_t source)
 
     // complete to rubbish for later retrieval if the parent node does not
     // exist or is newer
+    Node *target;
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
         h = t->client->rootnodes.rubbish;
+        target = t->client->nodeByHandle(h);
     }
     else
     {
         // otherwise, overwrite node if it already exists and complete in its
         // place
         h = parent->node->nodeHandle();
+        target = parent->node;
     }
+
+    bool changeVault = target->firstancestor()->nodeHandle() == t->client->rootnodes.vault;
 
     // we are overriding completed() for sync upload, we don't use the File::completed version at all.
     assert(t->type == PUT);
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr);
+    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr, changeVault);
 }
 
 // serialize/unserialize the following LocalNode properties:

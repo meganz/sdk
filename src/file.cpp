@@ -292,7 +292,7 @@ void File::completed(Transfer* t, putsource_t source)
 
     if (t->type == PUT)
     {
-        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr);
+        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr, false);
     }
 }
 
@@ -300,7 +300,7 @@ void File::completed(Transfer* t, putsource_t source)
 void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                         const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
                         CommandPutNodes::Completion&& completion,
-                        LocalNode* l, const m_time_t* overrideMtime)
+                        LocalNode* l, const m_time_t* overrideMtime, bool changeVault)
 {
     assert(!!l == syncxfer);
 
@@ -393,7 +393,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
                                              mVersioningOption,
                                              move(newnodes),
                                              tag,
-                                             source, nullptr, move(completion)));
+                                             source, nullptr, move(completion), changeVault));
     }
 }
 
