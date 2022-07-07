@@ -4474,7 +4474,7 @@ class MegaTransfer
         virtual const MegaError* getLastErrorExtended() const;
 
         /**
-         * @brief Returns true if the transfer is part of a folder transfer
+         * @brief Returns true if the transfer is a folder transfer
          * @return true if it's a folder transfer, otherwise (file transfer) it returns false
          */
         virtual bool isFolderTransfer() const;
