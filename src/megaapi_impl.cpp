@@ -11783,7 +11783,7 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int type)
+node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int type, MegaCancelTokenPrivate* cancelToken)
 {
     node_vector nodeVector;
     if (!searchString)
@@ -11791,23 +11791,21 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
         return nodeVector;
     }
 
-    SdkMutexGuard g(sdkMutex);
+    const std::atomic_bool* cancelFlag = cancelToken ? cancelToken->getCancelFlag() : nullptr;
+    nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelFlag);
 
-    nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString);
-
-    for (auto it = nodeVector.begin(); it != nodeVector.end();)
+    auto it = nodeVector.begin();
+    while (it != nodeVector.end() && !(cancelToken && cancelToken->isCancelled()))
     {
-        Node* n = *it;
         auto itNode = it;
         it++;
-        if (!isValidTypeNode(n, type))
+        if (!isValidTypeNode(*itNode, type))
         {
             nodeVector.erase(itNode);
         }
     }
 
     return nodeVector;
-
 }
 
 bool MegaApiImpl::isValidTypeNode(Node *node, int type)
@@ -11908,7 +11906,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         node_vector nodeVector;
         if (recursive)
         {
-            nodeVector = searchInNodeManager(n->getHandle(), searchString, type);
+            nodeVector = searchInNodeManager(n->getHandle(), searchString, type, cancelTokenPrivate);
         }
         else
         {
@@ -11938,13 +11936,13 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             return new MegaNodeListPrivate();
         }
 
-        if (target == MegaApi::SEARCH_TARGET_ROOTNODE || target == MegaApi::SEARCH_TARGET_ALL)
+        if (target == MegaApi::SEARCH_TARGET_ROOTNODE)
         {
             // Search on rootnode (cloud, excludes Inbox and Rubbish)
             node = client->nodeByHandle(client->mNodeManager.getRootNodeFiles());
             if (recursive)
             {
-                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type);
+                node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelTokenPrivate);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
             else
@@ -11956,7 +11954,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             }
         }
 
-        if (target == MegaApi::SEARCH_TARGET_INSHARE || target == MegaApi::SEARCH_TARGET_ALL)
+        if (target == MegaApi::SEARCH_TARGET_INSHARE)
         {
             // Search on inshares
             unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
@@ -11965,7 +11963,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelTokenPrivate);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -11976,6 +11974,11 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                     }
                 }
             }
+        }
+
+        if (target == MegaApi::SEARCH_TARGET_ALL)
+        {
+            result = searchInNodeManager(UNDEF, searchString, type, cancelTokenPrivate);
         }
 
         if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
@@ -11995,7 +11998,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
                 if (recursive)
                 {
-                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type);
+                    node_vector nodeVector = searchInNodeManager(node->nodehandle, searchString, type, cancelTokenPrivate);
                     result.insert(result.end(), nodeVector.begin(), nodeVector.end());
                 }
                 else
@@ -12015,7 +12018,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             for (auto it = publicLinks.begin(); it != publicLinks.end()
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {
-                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, type);
+                node_vector nodeVector = searchInNodeManager((*it)->nodehandle, searchString, type, cancelTokenPrivate);
                 result.insert(result.end(), nodeVector.begin(), nodeVector.end());
             }
         }
@@ -34175,6 +34178,11 @@ void MegaCancelTokenPrivate::startProcessing(MegaCancelTokenPrivate::Usage usage
 void MegaCancelTokenPrivate::endProcessing()
 {
     processing = false;
+}
+
+const std::atomic_bool *MegaCancelTokenPrivate::getCancelFlag()
+{
+    return &cancelFlag;
 }
 
 }

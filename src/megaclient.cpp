@@ -17080,7 +17080,7 @@ uint64_t NodeManager::getNodeCount()
     return count;
 }
 
-node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
+node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, const std::atomic_bool* cancelFlag)
 {
     node_vector nodes;
     if (!mTable)
@@ -17090,8 +17090,8 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString)
     }
 
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
-    mTable->getNodesByName(searchString, nodesFromTable);
-    nodes = filterByAncestor(nodesFromTable, nodeHandle);
+    mTable->getNodesByName(searchString, nodesFromTable, cancelFlag);
+    nodes = filterByAncestor(nodesFromTable, nodeHandle, cancelFlag);
 
     return nodes;
 }
@@ -18251,12 +18251,15 @@ node_vector NodeManager::getRootNodesAndInshares()
     return rootnodes;
 }
 
-node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized> > &nodesFromTable, NodeHandle ancestorHandle)
+node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized> > &nodesFromTable, NodeHandle ancestorHandle, const std::atomic_bool* cancelFlag)
 {
     node_vector nodes;
 
     for (const auto& nodeIt : nodesFromTable)
     {
+        // Check pointer and value
+        if (cancelFlag && *cancelFlag) break;
+
         Node* n = getNodeInRAM(nodeIt.first);
 
         if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)

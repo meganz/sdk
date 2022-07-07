@@ -112,7 +112,7 @@ public:
     // get nodes and queries about nodes
     virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
     virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
-    virtual bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+    virtual bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, const std::atomic_bool* cancelFlag) = 0;
     virtual bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
 
     virtual bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
