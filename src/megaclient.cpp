@@ -7401,7 +7401,8 @@ void MegaClient::notifypurge(void)
                             setattr(n, attr_map(Node::sdsId(), value), 0, nullptr, nullptr, true);
                         }
                     },
-                    UNDEF, true);
+                    NodeHandle(),
+                    true);
             }
 
             //update sync root node location and trigger failing cases
