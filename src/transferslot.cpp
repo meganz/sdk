@@ -141,19 +141,16 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 
 bool TransferSlot::createconnectionsonce(MegaClient* client, DBTableTransactionCommitter& committer)
 {
-    std::cout << "[TransferSlot::createconnectionsonce] BEGIN [client="<<client<<", committer="<<(void*)&committer<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     // delay creating these until we know if it's raid or non-raid
     if (!(connections || reqs.size() || asyncIO))
     {
         //if (transferbuf.tempUrlVector().empty())
         if (!transferbuf.isRaidKnown())
         {
-            std::cout << "[TransferSlot::createconnectionsonce] !transferbuf.isRaidKnown() -> return false" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             return false;   // too soon, we don't know raid / non-raid yet
         }
 
         connections = transferbuf.isRaid() ? RAIDPARTS : (!transferbuf.isNewRaid() && transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1);
-        std::cout << "[TransferSlot::createconnectionsonce] Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes [isRaid=" << transferbuf.isRaid() << ", isNewRaid=" << transferbuf.isNewRaid() << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes";
         reqs.resize(connections);
         mReqSpeeds.resize(connections);
@@ -161,17 +158,13 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, DBTableTransactionC
 
         if (transferbuf.isNewRaid())
         {
-            std::cout << "[TransferSlot::createconnectionsonce] isNewRaid!!!! cloudRaid->balancedRequest(client="<<client<<", committer="<<(void*)&committer<<")" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             assert(cloudRaid != nullptr);
             if (!cloudRaid->balancedRequest(client, committer))
             {
-                std::cout << "[TransferSlot::createconnectionsonce] [isNewRaid] balancedRequest FAILED -> return false" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 return false;
             }
-            std::cout << "[TransferSlot::createconnectionsonce] [isNewRaid] balancedRequest OK -> return true" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         }
     }
-    std::cout << "[TransferSlot::createconnectionsonce] END" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return true;
 }
 
@@ -179,7 +172,6 @@ bool TransferSlot::createconnectionsonce(MegaClient* client, DBTableTransactionC
 // reused on a new slot)
 TransferSlot::~TransferSlot()
 {
-    std::cout << "[TransferSlot::~TransferSlot] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (transfer->type == GET && !transfer->finished
             && transfer->progresscompleted != transfer->size
             && !transfer->asyncopencontext)
@@ -308,7 +300,6 @@ TransferSlot::~TransferSlot()
 
     if (pendingcmd)
     {
-        std::cout << "[TransferSlot::~TransferSlot] (pendingcmd) -> pendingcmd->cancel()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         pendingcmd->cancel();
     }
 
@@ -329,11 +320,9 @@ TransferSlot::~TransferSlot()
     /*
     if (cloudRaid)
     {
-        std::cout << "[TransferSlot::~TransferSlot] (cloudRaid) -> cloudRaid->removeRaidReq()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         cloudRaid->removeRaidReq();
     }
     */
-    std::cout << "[TransferSlot::~TransferSlot] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)
@@ -385,7 +374,6 @@ void TransferSlot::disconnect(const std::shared_ptr<HttpReqXfer>& req)
 
 int64_t TransferSlot::macsmac(chunkmac_map* m)
 {
-    //std::cout << "[TransferSlot::macsmac] call -> return m->macsmac(transfer->transfercipher()) [m="<<m<<", transfer->transfercipher()="<<transfer->transfercipher()<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
     return m->macsmac(transfer->transfercipher());
 }
 
@@ -396,7 +384,6 @@ int64_t TransferSlot::macsmac_gaps(chunkmac_map* m, size_t g1, size_t g2, size_t
 
 bool TransferSlot::checkMetaMacWithMissingLateEntries()
 {
-    std::cout << "[TransferSlot::checkMetaMacWithMissingLateEntries] BEGIN" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
     // Due to an old bug, some uploads attached a MAC to the node that was missing some MAC entries
     // (even though the data was uploaded) - this occurred when a ultoken arrived but one other
     // final upload connection had not completed at the local end (even though it must have
@@ -408,7 +395,6 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
     size_t finalN = std::min<size_t>(32 * 3, end);
 
     // first check for the most likely - a single connection gap (or two but completely consecutive making a single gap)
-    std::cout << "[TransferSlot::checkMetaMacWithMissingLateEntries] first check for the most likely - a single connection gap [end="<<end<<", finalN="<<finalN<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
     for (size_t countBack = 1; countBack <= finalN; ++countBack)
     {
         size_t start1 = end - countBack;
@@ -416,7 +402,6 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
         {
             if (transfer->metamac == macsmac_gaps(&transfer->chunkmacs, start1, start1 + len1, end, end))
             {
-                std::cout << "[TransferSlot::checkMetaMacWithMissingLateEntries] END -> Found mac gaps were at " << start1 << " " << len1 << " from " << end << " -> correctMac && return true" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                 LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " from " << end;
                 auto correctMac = macsmac(&transfer->chunkmacs);
                 transfer->metamac = correctMac;
@@ -429,7 +414,6 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
     // now check for two separate pieces missing (much less likely)
     // limit to checking up to 16Mb pieces wtih up to 8Mb between to avoid excessive CPU
     // takes about 1 second on a fairly modest laptop for a 100Mb file (in a release build)
-    std::cout << "[TransferSlot::checkMetaMacWithMissingLateEntries] Now check for two separate pieces missing (much less likely)" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
     finalN = std::min<size_t>(16 * 2 + 8, transfer->chunkmacs.size());
     for (size_t start1 = end - finalN; start1 < end; ++start1)
     {
@@ -441,7 +425,6 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
                 {
                     if (transfer->metamac == macsmac_gaps(&transfer->chunkmacs, start1, start1 + len1, start2, start2 + len2))
                     {
-                        std::cout << "[TransferSlot::checkMetaMacWithMissingLateEntries] END -> Found mac gaps were at " << start1 << " " << len1 << " " << start2 << " " << len2 << " from " << end << " -> correctMac && return true" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
                         LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " " << start2 << " " << len2 << " from " << end;
                         auto correctMac = macsmac(&transfer->chunkmacs);
                         transfer->metamac = correctMac;
@@ -452,48 +435,37 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
             }
         }
     }
-    std::cout << "[TransferSlot::checkMetaMacWithMissingLateEntries] END -> return false" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
     return false;
 }
 
 bool TransferSlot::checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client)
 {
-    std::cout << "[TransferSlot::checkDownloadTransferFinished] BEGIN [transfer->progresscompleted = " << transfer->progresscompleted << ", transfer->size = " << transfer->size << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (transfer->progresscompleted == transfer->size)
     {
-        std::cout << "[TransferSlot::checkDownloadTransferFinished] (transfer->progresscompleted == transfer->size) -> GOOD! -> verify meta MAC [transfer->size="<<transfer->size<<", macsmac(&transfer->chunkmacs)="<<macsmac(&transfer->chunkmacs)<<", transfer->metamac="<<transfer->metamac<<"] [transfer->progresscompleted = " << transfer->progresscompleted << ", transfer->size = " << transfer->size << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         // verify meta MAC
         if (!transfer->size
             || (macsmac(&transfer->chunkmacs) == transfer->metamac)
             || checkMetaMacWithMissingLateEntries())
         {
-            std::cout << "[TransferSlot::checkDownloadTransferFinished] (!transfer->size || (macsmac(&transfer->chunkmacs) == transfer->metamac)|| checkMetaMacWithMissingLateEntries()) -> META MAC VERIFICATION OK!!!!!!!! [transfer->progresscompleted = " << transfer->progresscompleted << ", transfer->size = " << transfer->size << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-            std::cout << "[TransferSlot::checkDownloadTransferFinished] [META MAC VERIFICATION OK] client->transfercacheadd(transfer, &committer)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             client->transfercacheadd(transfer, &committer);
             if (transfer->progresscompleted != progressreported)
             {
-                std::cout << "[TransferSlot::checkDownloadTransferFinished] [META MAC VERIFICATION OK] (transfer->progresscompleted != progressreported) -> progressreported=transfer->progresscompleted, lastdata=Waiter::ds, progress()" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 progressreported = transfer->progresscompleted;
                 lastdata = Waiter::ds;
 
                 progress();
             }
 
-            std::cout << "[TransferSlot::checkDownloadTransferFinished] [META MAC VERIFICATION OK] transfer->complete(commiter) " << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             transfer->complete(committer);
-            std::cout << "[TransferSlot::checkDownloadTransferFinished] [META MAC VERIFICATION OK] ACTIONS COMPLETED!!!!! " << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         }
         else
         {
-            std::cout << "[TransferSlot::checkDownloadTransferFinished] (transfer->size && !(macsmac(&transfer->chunkmacs) == transfer->metamac) && !checkMetaMacWithMissingLateEntries()) -> MAC verification failed!!!! -> sendevent && transfer->failed(API_EKEY, committer) [transfer->progresscompleted = " << transfer->progresscompleted << ", transfer->size = " << transfer->size << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             client->sendevent(99431, "MAC verification failed", 0);
             transfer->chunkmacs.clear();
             transfer->failed(API_EKEY, committer);
         }
-        std::cout << "[TransferSlot::checkDownloadTransferFinished] END -> (transfer->progresscompleted == transfer->size) -> return true [transfer->progresscompleted = " << transfer->progresscompleted << ", transfer->size = " << transfer->size << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         return true;
     }
-    std::cout << "[TransferSlot::checkDownloadTransferFinished] END -> transfer->progresscompleted != transfer->size -> return false [transfer->progresscompleted = " << transfer->progresscompleted << ", transfer->size = " << transfer->size << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return false;
 }
 
@@ -556,7 +528,6 @@ bool TransferSlot::testForSlowRaidConnection(unsigned connectionNum, bool& incre
 // file transfer state machine
 void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committer)
 {
-    std::cout << "[TransferSlot::doio] BEGIN [this=" << this << ", transfer=" << transfer << ", client=" << client << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     CodeCounter::ScopeTimer pbt(client->performanceStats.transferslotDoio);
 
     if (!fa || (transfer->size && transfer->progresscompleted == transfer->size)
@@ -641,7 +612,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             unsigned slowestStartConnection;
             if (transfer->type == GET && reqs[i]->contentlength == reqs[i]->size && !transferbuf.isNewRaid() && transferbuf.detectSlowestRaidConnection(i, slowestStartConnection))
             {
-                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" Connection " << slowestStartConnection << " is the slowest to reply, using the other 5." << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 LOG_debug << "Connection " << slowestStartConnection << " is the slowest to reply, using the other 5.";
                 reqs[slowestStartConnection].reset();
                 transferbuf.resetPart(slowestStartConnection);
@@ -653,7 +623,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             {
                 // check if we got some data and the failure occured partway through the part chunk.  If so, best not to waste it, convert to success case with less data
                 HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
-                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_FAILURE && httpstatus = 200 -> Connection " << i << " received " << downloadRequest->bufpos << " before failing, processing data." << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 LOG_debug << "Connection " << i << " received " << downloadRequest->bufpos << " before failing, processing data.";
                 if (downloadRequest->contentlength == downloadRequest->size && downloadRequest->bufpos >= RAIDSECTOR)
                 {
@@ -681,7 +650,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         // switch to 5 channel raid to avoid the slow/delayed connection. (or if already switched, try a different 5).  If we already tried too many times then let the usual timeout occur
                         if (tryRaidRecoveryFromHttpGetError(i, incrementErrors))
                         {
-                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_INFLIGHT && testForSlowRaidConnection -> Connection " << i << " is slow or stalled, trying the other 5 cloudraid connections [reqs[i]->disconnect && status = REQ_READY]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                             LOG_warn << "Connection " << i << " is slow or stalled, trying the other 5 cloudraid connections";
                             reqs[i]->disconnect();
                             reqs[i]->status = REQ_READY;
@@ -698,13 +666,11 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                 case REQ_SUCCESS:
                 {
-                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_SUCCESS" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     m_off_t delta = mReqSpeeds[i].requestProgressed(reqs[i]->size);
                     mTransferSpeed.calculateSpeed(delta);
 
                     if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i].get())->dlpos)
                     {
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_SUCCESS (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i].get())->dlpos) -> postponing unsorted chunk -> p += reqs[i]->size -> p += "<<reqs[i]->size<<" -> p = " << (p+reqs[i]->size) << "" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         // postponing unsorted chunk
                         p += reqs[i]->size;
                         break;
@@ -720,8 +686,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     }
                     else
                     {
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" Transfer request finished (" << transfer->type << ") " << " on connection " << i << " part pos: " << transferbuf.transferPos(i) << " of part size " << transferbuf.raidPartSize(i, transfer->size)
-                            << " Overall Completed: " << (transfer->progresscompleted) << " of " << transfer->size << " speed " << mReqSpeeds[i].lastRequestSpeed() << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         LOG_debug << "Transfer request finished (" << transfer->type << ") " << " on connection " << i << " part pos: " << transferbuf.transferPos(i) << " of part size " << transferbuf.raidPartSize(i, transfer->size)
                             << " Overall Completed: " << (transfer->progresscompleted) << " of " << transfer->size << " speed " << mReqSpeeds[i].lastRequestSpeed();
                     }
@@ -884,13 +848,11 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     else   // GET
                     {
                         HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_SUCCESS GET [downloadRequest = " << downloadRequest << ", reqs[i=" << i << "]->size = " << reqs[i]->size << ", reqs[i]->bufpos = " << reqs[i]->bufpos << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl; 
                         if (reqs[i]->size == reqs[i]->bufpos || downloadRequest->buffer_released)   // downloadRequest->buffer_released being true indicates we're retrying this asyncIO
                         {
 
                             if (!downloadRequest->buffer_released)
                             {
-                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_SUCCESS GET] !downloadRequest->buffer_released -> call transferbuf.submitBuffer(i="<<i<<", new TransferBufferManager::FilePiece(downloadRequest->dlpos="<<downloadRequest->dlpos<<", downloadRequest->release_buf())); downloadRequest->buffer_released = true" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, downloadRequest->release_buf())); // resets size & bufpos.  finalize() is taken care of in the transferbuf
                                 downloadRequest->buffer_released = true;
                             }
@@ -899,12 +861,10 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             if (outputPiece)
                             {
                                 mRaidChannelSwapsForSlowness = 0;
-                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_SUCCESS GET] outputPiece! (transferbuf.getAsyncOutputBufferPointer(i)) mAsyncQueue func: outputPiece->finalize(false, transfer->size=" << transfer->size << ", transfer->ctriv=" << transfer->ctriv << ", transfer->transfercipher(), &transfer->chunkmacs);" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 bool parallelNeeded = outputPiece->finalize(false, transfer->size, transfer->ctriv, transfer->transfercipher(), &transfer->chunkmacs);
 
                                 if (parallelNeeded)
                                 {
-                                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_SUCCESS GET] [outputPiece] parallelNeeded -> status = REQ_DECRYPTING -> do full chunk (and chunk-remainder) decryption on a thread for throughput and to minimize mutex lock times." << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                     // do full chunk (and chunk-remainder) decryption on a thread for throughput and to minimize mutex lock times.
                                     auto req = reqs[i];   // shared_ptr for shutdown safety
                                     auto transferkey = transfer->transferkey;
@@ -915,21 +875,17 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     client->mAsyncQueue.push([req, i, outputPiece, transferkey, ctriv, filesize](SymmCipher& sc)
                                     {
                                         sc.setkey(transferkey.data());
-                                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<req<<" [REQ_SUCCESS GET] [Completion for REQ_DECRYPTING] mAsyncQueue func: outputPiece->finalize(true, filesize=" << filesize << ", ctriv=" << ctriv << ", &sc (SymmCypher), nullptr);" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                         outputPiece->finalize(true, filesize, ctriv, &sc, nullptr);
-                                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<req<<" [REQ_SUCCESS GET] [Completion for REQ_DECRYPTING] mAsyncQueue func: req->status = REQ_DECRYPTED" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                         req->status = REQ_DECRYPTED;
                                     }, false);  // not discardable:  if we downloaded the data, don't waste it - decrypt and write as much as we can to file
                                 }
                                 else
                                 {
-                                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_SUCCESS GET] [outputPiece] !parallelNeeded -> status = REQ_DECRYPTED" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                     reqs[i]->status = REQ_DECRYPTED;
                                 }
                             }
                             else if (transferbuf.isRaid())
                             {
-                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_SUCCESS GET] [!outputPiece] -> reqs[i]->status = REQ_READY -> this connection has retrieved a part of the file, but we don't have enough to combine yet for full file output.   This connection can start fetching the next piece of that part." << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 reqs[i]->status = REQ_READY;  // this connection has retrieved a part of the file, but we don't have enough to combine yet for full file output.   This connection can start fetching the next piece of that part.
                             }
                             else
@@ -942,7 +898,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             if (reqs[i]->contenttype.find("text/html") != string::npos
                                     && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                             {
-                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_SUCCESS GET -> Invalid Content-Type detected during download: " << reqs[i]->contenttype << " -> transfer->failed(API_EAGAIN)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 LOG_warn << "Invalid Content-Type detected during download: " << reqs[i]->contenttype;
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
@@ -954,7 +909,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                             client->sendevent(99430, "Invalid chunk size", 0);
 
-                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_SUCCESS GET -> Invalid chunk size: reqs[i]->size=" << reqs[i]->size << ", reqs[i]->bufpos=" << reqs[i]->bufpos << " -> lasterror = APIEREAD && REQ_PREPARED" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                             LOG_warn << "Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
                             lasterror = API_EREAD;
                             errorcount++;
@@ -971,7 +925,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
                 case REQ_DECRYPTED:
                 {
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         assert(transfer->type == GET);
 
                         // this must return the same piece we just decrypted, since we have not asked the transferbuf to discard it yet.
@@ -988,18 +941,14 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                             p += outputPiece->buf.datalen();
 
-                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [fa->asyncavailable] Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen()) << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                             LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
                             asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos);
                             reqs[i]->status = REQ_ASYNCIO;
-                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED -> reqs[i=" << i << "]->status = REQ_ASYNCIO" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         }
                         else
                         {
-                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [!fa->asyncavailable]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                             if (fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
                             {
-                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [!fa->asyncavailable] Sync write succeeded (call updatecontiguousprogress())" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 LOG_verbose << "Sync write succeeded";
                                 transferbuf.bufferWriteCompleted(i, true);
                                 errorcount = 0;
@@ -1008,7 +957,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             }
                             else
                             {
-                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [!fa->asyncavailable] Error saving finished chunk" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 LOG_err << "Error saving finished chunk";
                                 if (!fa->retry)
                                 {
@@ -1020,25 +968,20 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 break;
                             }
 
-                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [!fa->asyncavailable] checkDownloadTransferFinished(committer, client)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                             if (checkDownloadTransferFinished(committer, client))
                             {
-                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED [!fa->asyncavailable] CHECKDOWNLOADTRANSFERFINISHED = TRUE!!!!" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 return;
                             }
 
                             client->transfercacheadd(transfer, &committer);
                             reqs[i]->status = REQ_READY;
-                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_DECRYPTED client->transfercacheadd(transfer=" << transfer << ", &committer), reqs[i=" << i << "]->status = REQ_READY" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl; 
                         }
                     }
                     break;
 
                 case REQ_ASYNCIO:
-                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     if (asyncIO[i]->finished)
                     {
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO [asyncIO[" << i << "]->finished -> Processing finished async fs operation" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         LOG_verbose << "Processing finished async fs operation";
                         if (!asyncIO[i]->failed)
                         {
@@ -1072,7 +1015,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             }
                             else
                             {
-                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO -> Async write succeeded -> call transferbuf.bufferWriteCompleted(i="<<i<<", true), updatecontiguousprogress()" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 LOG_verbose << "Async write succeeded";
                                 transferbuf.bufferWriteCompleted(i, true);
                                 errorcount = 0;
@@ -1080,20 +1022,16 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                                 updatecontiguousprogress();
 
-                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO -> checkDownloadTransferFinished(committer, client)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 if (checkDownloadTransferFinished(committer, client))
                                 {
-                                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO -> checkDownloadTransferFinished = TRUE!!!!!!" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                     return;
                                 }
 
                                 client->transfercacheadd(transfer, &committer);
                                 reqs[i]->status = REQ_READY;
-                                std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO client->transfercacheadd(transfer=" << transfer << ", &committer), reqs[i=" << i << "]->status = REQ_READY" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl; 
 
                                 if (client->orderdownloadedchunks && !transferbuf.isRaid())
                                 {
-                                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO OJO -> (client->orderdownloadedchunks && !transferbuf.isRaid()) -> Check connections again looking for postponed chunks (delete asyncIO[i]...)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                     // Check connections again looking for postponed chunks
                                     delete asyncIO[i];
                                     asyncIO[i] = NULL;
@@ -1106,7 +1044,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         }
                         else
                         {
-                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO [asyncIO[" << i << "]->finished && [asyncIO[" << i << "]->failed -> Async operation failed: asyncIO[i]->retry = " << asyncIO[i]->retry << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                             LOG_warn << "Async operation failed: " << asyncIO[i]->retry;
                             if (!asyncIO[i]->retry)
                             {
@@ -1132,7 +1069,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     }
                     else if (transfer->type == GET)
                     {
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_ASYNCIO -> p += asyncIO[i]->dataBufferLen" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         p += asyncIO[i]->dataBufferLen;
                     }
                     break;
@@ -1149,7 +1085,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         {
             if (!reqs[i] || (reqs[i]->status == REQ_READY))
             {
-                std::cout << "[TransferSlot::doio] [!failure] [!reqs["<<i<<"]="<<reqs[i]<<" || (reqs[i]->status == REQ_READY) [reqs[i] ? " << (reqs[i]!=nullptr) << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 bool newInputBufferSupplied = false;
                 bool pauseConnectionInputForRaid = false;
                 std::pair<m_off_t, m_off_t> posrange = transferbuf.nextNPosForConnection(i, maxRequestSize, connections, newInputBufferSupplied, pauseConnectionInputForRaid, client->httpio->uploadSpeed);
@@ -1159,7 +1094,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                 if (outputPiece && reqs[i])
                 {
-                    std::cout << "[TransferSlot::doio] [!failure] [reqs["<<i<<"]="<<reqs[i]<<" OJO -> (outputPiece && reqs[i]) -> status = REQ_SUCCESS (set up to do the actual write on the next loop, as if it was a retry)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     // set up to do the actual write on the next loop, as if it was a retry
                     reqs[i]->status = REQ_SUCCESS;
                     static_cast<HttpReqDL*>(reqs[i].get())->buffer_released = true;
@@ -1226,7 +1160,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     if (prepare)
                     {
-                        std::cout << "[TransferSlot::doio] [prepare] -> prepareRequest(reqs["<<i<<"]="<<reqs[i]<<", tempURL='"<< string(transferbuf.isNewRaid() ? string("") : transferbuf.tempURL(i)) <<"', posrange.first="<<posrange.first<<", posrange.second="<<posrange.second<<");" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;         
                         prepareRequest(reqs[i], transferbuf.isNewRaid() ? std::string() : transferbuf.tempURL(i), posrange.first, posrange.second);
                     }
 
@@ -1234,7 +1167,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
                 else if (reqs[i])
                 {
-                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" -> OJO -> reqs[i]->status = REQ_DONE" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     reqs[i]->status = REQ_DONE;
 
                     if (transfer->type == GET)
@@ -1243,7 +1175,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                         if (outputPiece)
                         {
-                            std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_DONE] OJO -> outpiece! (getAsyncOutputBufferPointer) -> status = REQ_SUCCESS (actual write on next loop)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                             // set up to do the actual write on the next loop, as if it was a retry
                             reqs[i]->status = REQ_SUCCESS;
                             static_cast<HttpReqDL*>(reqs[i].get())->buffer_released = true;
@@ -1280,14 +1211,12 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     (numInflight && !earliestUploadCompleted &&
                     earliestPosInFlight + MAX_GAP_SIZE < (reqs[i]->pos + reqs[i]->size)))
                 {
-                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_PREPARED] Connection " << i << " delaying until earliest completes. pos=" << reqs[i]->pos << ", status = REQ_UPLOAD_PREPARED_BUT_WAIT" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     LOG_debug << "Connection " << i << " delaying until earliest completes. pos=" << reqs[i]->pos;
                     reqs[i]->status = REQ_UPLOAD_PREPARED_BUT_WAIT;
                 }
                 else if (reqs[i]->status == REQ_UPLOAD_PREPARED_BUT_WAIT &&
                     (!numInflight || earliestUploadCompleted))
                 {
-                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_UPLOAD_PREPARED_BUT_WAIT] Connection " << i << " resumes. pos=" << reqs[i]->pos << ", status = REQ_PREPARED" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     LOG_debug << "Connection " << i << " resumes. pos=" << reqs[i]->pos;
                     reqs[i]->status = REQ_PREPARED;
                 }
@@ -1298,7 +1227,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
     // Finally see if any requests are now fit to post
     for (int i = connections; i--; )
     {
-        std::cout << "[TransferSlot::doio] See if any requests are now fit to post [reqs["<<i<<"]="<<reqs[i]<<" [status="<<std::to_string(reqs[i]?reqs[i]->status:-1)<<", backoff="<<backoff<<", failure="<<std::to_string(failure)<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (reqs[i] && !failure)
         {
             if (!backoff)
@@ -1311,7 +1239,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     if (!transferbuf.isNewRaid())
                     {
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_PREPARED] [!backoff] CONNECTION FIT TO POST! (requestStarted) -> reqs[i]->post(client)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         reqs[i]->post(client); // status becomes either REQ_INFLIGHT or REQ_FAILED
                     }
                 }
@@ -1319,12 +1246,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 {
                     if (reqs[i]->status == REQ_PREPARED || reqs[i]->status == REQ_INFLIGHT)
                     {
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_PREPARED] [!backoff] isNewRaid -> processRaidReq()" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         m_off_t reqProgress = processRaidReq(reqs[i]);
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_PREPARED] [!backoff] [isNewRaid] [processRaidReq] reqProgress = " << reqProgress << " [new req->status=" << std::string(reqProgress>0? "REQ_SUCCESS":reqProgress<0?"REQ_FAILURE":"REQ_INFLIGHT") << ", req->status="<<reqs[i]->status<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 
                     }
-                    else std::cout << "[TransferSlot::doio] ALERT! isNewRaid but [reqs["<<i<<"]="<<reqs[i]<<" status = reqs[i]->status=" << std::to_string(reqs[i]->status) << "" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 }  
             }
         }
@@ -1335,15 +1259,12 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         // for Raid, additionally we need the raid data that's waiting to be recombined
         p += transferbuf.progress();
     }
-    std::cout << "[TransferSlot::doio] p += transfer->progresscompleted = "<<(p+transfer->progresscompleted)<<" [p="<<p<<", transfer->progresscompleted="<<transfer->progresscompleted<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     p += transfer->progresscompleted;
 
     if (p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT)
     {
-        std::cout << "[TransferSlot::doio] (p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT) BEGIN [p="<<p<<", progressreported="<<progressreported<<", Waiter::ds="<<Waiter::ds<<", lastdata="<<lastdata<<", lastprogressreport="<<lastprogressreport<<", PROGRESSTIMEOUT="<<PROGRESSTIMEOUT<<", transfer->progresscompleted="<<transfer->progresscompleted<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (p != progressreported)
         {
-            std::cout << "[TransferSlot::doio] [p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT] ((p != progressreported)) -> update speeds, progressreported (=p) and lastdata (=Waiter::ds) [p="<<p<<", progressreported="<<progressreported<<", Waiter::ds="<<Waiter::ds<<", lastdata="<<lastdata<<", lastprogressreport="<<lastprogressreport<<", PROGRESSTIMEOUT="<<PROGRESSTIMEOUT<<", transfer->progresscompleted="<<transfer->progresscompleted<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             m_off_t diff = std::max<m_off_t>(0, p - progressreported);
             speed = speedController.calculateSpeed(diff);
             meanSpeed = speedController.getMeanSpeed();
@@ -1362,20 +1283,17 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         lastprogressreport = Waiter::ds;
 
         progress();
-        std::cout << "[TransferSlot::doio] [p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT] END [p="<<p<<", progressreported="<<progressreported<<", Waiter::ds="<<Waiter::ds<<", lastdata="<<lastdata<<", lastprogressreport="<<lastprogressreport<<", PROGRESSTIMEOUT="<<PROGRESSTIMEOUT<<", transfer->progresscompleted="<<transfer->progresscompleted<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     }
 
     assert(lastdata != NEVER);
     if (Waiter::ds - lastdata >= XFERTIMEOUT && !failure)
     {
-        std::cout << "[TransferSlot::doio] OJO -> Failed chunk(s) due to a timeout: no data moved for " << (XFERTIMEOUT/10) << " seconds [Waiter::ds-lastdata="<<(Waiter::ds-lastdata)<<" >= XFERTIMEOUT="<<XFERTIMEOUT<<" && !failure" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_warn << "Failed chunk(s) due to a timeout: no data moved for " << (XFERTIMEOUT/10) << " seconds" ;
         failure = true;
         bool changeport = false;
 
         if (transfer->type == GET && client->autodownport && !memcmp(transferbuf.tempURL(0).c_str(), "http:", 5))
         {
-            std::cout << "[TransferSlot::doio] Automatically changing download port due to a timeout" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             LOG_debug << "Automatically changing download port due to a timeout";
             client->usealtdownport = !client->usealtdownport;
             changeport = true;
@@ -1392,7 +1310,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         {
             if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
             {
-                std::cout << "[TransferSlot::doio] [Failed chunk] (reqs[i="<<i<<"] && reqs[i]->status == REQ_INFLIGHT) -> setchunkfailed && reqs[i]->status=REQ_PREPARED" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 chunkfailed = true;
                 client->setchunkfailed(&reqs[i]->posturl);
                 reqs[i]->disconnect();
@@ -1408,13 +1325,11 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
         if (!chunkfailed)
         {
-            std::cout << "[TransferSlot::doio] [Failed chunk] !chunkfailed -> Transfer failed due to a timeout -> return transfer->failed" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             LOG_warn << "Transfer failed due to a timeout";
             return transfer->failed(API_EAGAIN, committer);  // either the (this) slot has been deleted, or the whole transfer including slot has been deleted
         }
         else
         {
-            std::cout << "[TransferSlot::doio] [Failed chunk] chunkfailed -> Chunk failed due to a timeout" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             LOG_warn << "Chunk failed due to a timeout";
             client->app->transfer_failed(transfer, API_EFAILED);
             ++client->performanceStats.transferTempErrors;
@@ -1423,16 +1338,13 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
     if (!failure && backoff > 0)
     {
-        std::cout << "[TransferSlot::doio] (!failure && backoff > 0) -> OJO -> retrying in backoff="<<backoff<<"" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         retrybt.backoff(backoff);
         retrying = true;  // we don't bother checking the `retrybt` before calling `doio` unless `retrying` is set.
     }
-    std::cout << "[TransferSlot::doio] END [this=" << this << ", transfer=" << transfer << ", client=" << client << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 m_off_t TransferSlot::processRaidReq(const std::shared_ptr<HttpReqXfer>& httpReq)
 {
-    std::cout << "[TransferSlot::processRaidReq] BEGIN [httpReq=" << httpReq << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     //assert(transfer->type == GET || transfer->type == PUT);
     assert(transfer->type == GET);
     assert(httpReq != nullptr);
@@ -1452,7 +1364,6 @@ m_off_t TransferSlot::processRaidReq(const std::shared_ptr<HttpReqXfer>& httpReq
     //len -= httpReq->bufpos;
     off_t len = httpReq->size - httpReq->bufpos;
     assert(len > 0);
-    std::cout << "[TransferSlot::processRaidReq] buf="<<(void*)buf<<", len="<<len<<" [httpReq->bufpos="<<httpReq->bufpos<<", httpReq->size="<<httpReq->size<<", httpReq->status="<<httpReq->status<<", transfer->size="<<transfer->size<<", transfer->progresscompleted="<<transfer->progresscompleted<<"] [httpReq=" << httpReq << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (transfer->type == GET)
     {
         progress = static_cast<m_off_t>(cloudRaid->read_data(buf, len));
@@ -1476,13 +1387,11 @@ m_off_t TransferSlot::processRaidReq(const std::shared_ptr<HttpReqXfer>& httpReq
         httpReq->status = REQ_FAILURE;
     }
     httpReq->lastdata = Waiter::ds;
-    std::cout << "[TransferSlot::processRaidReq] END -> return progress="<<progress<<" [httpReq->bufpos="<<httpReq->bufpos<<", httpReq->size="<<httpReq->size<<", httpReq->status="<<httpReq->status<<", transfer->size="<<transfer->size<<", transfer->progresscompleted="<<transfer->progresscompleted<<"] [httpReq= << " << httpReq << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return progress;
 }
 
 void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, const string& tempURL, off_t pos, off_t npos, bool setReqPreparedStatus)
 {
-    std::cout << "[TransferSlot::prepareRequest] [httpReq=" << httpReq << "] BEGIN [tempURL=" << tempURL << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     size_t index = string::npos;
     if (((transfer->type == GET && transfer->client->usealtdownport) ||
         (transfer->type == PUT && transfer->client->usealtupport)) &&
@@ -1495,13 +1404,11 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
         }
     }
 
-    std::cout << "[TransferSlot::prepareRequest] tempURL='"<<tempURL<<"' [index="<<index<<" ("<<string(index==std::string::npos?"npos!!!":"NOT npos")<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     const string& finaltempURL = (index == std::string::npos) ? 
                                     tempURL :
                                     string(tempURL).insert(index, ":8080");
 
 
-    std::cout << "[TransferSlot::prepareRequest] [httpReq=" << httpReq << "] -> httpReq->prepare(finaltempurl='" << finaltempURL.c_str() << "', ...), req->pos = " << pos << " (npos = " << npos << "), status = REQ_PREPARED" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     httpReq->prepare(finaltempURL.empty() ? nullptr : finaltempURL.c_str(), transfer->transfercipher(),
                      transfer->ctriv,
                      pos, npos);
@@ -1510,54 +1417,45 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
     {
         httpReq->status = REQ_PREPARED;
     }
-    std::cout << "[TransferSlot::prepareRequest] [httpReq=" << httpReq << "] END [finaltempURL=" << finaltempURL << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
 {
-    std::cout << "[TransferSlot::processRequestFailure] BEGIN [httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] REQ_FAILURE: Failed chunk. HTTP status: " << httpReq->httpstatus << " on channel " << channel << " [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     LOG_warn << "Failed chunk. HTTP status: " << httpReq->httpstatus << " on channel " << channel;
 
     if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos && !memcmp(httpReq->posturl.c_str(), "http:", 5))
     {
-        std::cout << "[TransferSlot::doio] [httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [REQ_FAILURE] Invalid Content-Type detected on failed chunk: " << httpReq->contenttype << " (transfer->failed(API_EAGAIN)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_warn << "Invalid Content-Type detected on failed chunk: " << httpReq->contenttype;
         client->usehttps = true;
         client->app->notify_change_to_https();
 
         client->sendevent(99436, "Automatic change to HTTPS", 0);
 
-        std::cout << "[TransferSlot::doio] END -> Automatic change to HTTPS event to client sent -> return transfer->failed(API_EAGAIN, committer) [httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         return transfer->failed(API_EAGAIN, committer);
     }
 
     if (httpReq->httpstatus == 509)
     {
-        std::cout << "[TransferSlot::processRequestFailure] [httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [REQ_FAILURE] Bandwidth overquota from storage server (transfer->failed(API_EOVERQUOTA)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_warn << "Bandwidth overquota from storage server";
 
         dstime new_backoff = client->overTransferQuotaBackoff(httpReq.get());
 
-        std::cout << "[TransferSlot::processRequestFailure] END -> new_backoff="<<new_backoff<<" -> transfer->failed(API_EAGAIN, committer) [httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         return transfer->failed(API_EOVERQUOTA, committer, new_backoff);
     }
     else if (httpReq->httpstatus == 429)
     {
-        std::cout << "[TransferSlot::processRequestFailure] (httpReq->httpstatus == 429) -> too many requests - back off a bit -> backoff = 5; httpReq->status = REQ_PREPARED [httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         // too many requests - back off a bit (may be added serverside at some point.  Added here 202020623)
         backoff = 5;
         httpReq->status = REQ_PREPARED;
     }
     else if (httpReq->httpstatus == 503 && !transferbuf.isRaid() && !transferbuf.isNewRaid())
     {
-        std::cout << "[TransferSlot::processRequestFailure] (httpReq->httpstatus == 503 && !transferbuf.isRaid() && !transferbuf.isNewRaid()) -> for non-raid, if a file gets a 503 then back off as it may become available shortly - back off a bit -> backoff = 50; httpReq->status = REQ_PREPARED [httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         // for non-raid, if a file gets a 503 then back off as it may become available shortly
         backoff = 50;
         httpReq->status = REQ_PREPARED;
     }
     else if (httpReq->httpstatus == 403 || httpReq->httpstatus == 404 || (httpReq->httpstatus == 503 && (transferbuf.isRaid() || transferbuf.isNewRaid())))
     {
-        std::cout << "[TransferSlot::processRequestFailure] (httpReq->httpstatus == 403 || httpReq->httpstatus == 404 || (httpReq->httpstatus == 503 && (transferbuf.isRaid() || transferbuf.isNewRaid()))) -> try another source [isNewRaid()="<<transferbuf.isNewRaid()<<", httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (transferbuf.isNewRaid())
         {
             httpReq->status = REQ_READY;
@@ -1567,13 +1465,11 @@ void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionC
         // for raid parts and 503, it's appropriate to try another raid source
         else if (!tryRaidRecoveryFromHttpGetError(channel, true))
         {
-            std::cout << "[TransferSlot::processRequestFailure] (!tryRaidRecoveryFromHttpGetError(channel, true)) -> transfer->failed(API_EAGAIN, committer)[httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             return transfer->failed(API_EAGAIN, committer);
         }
     }
     else if (httpReq->httpstatus == 0 && (transferbuf.isNewRaid() || tryRaidRecoveryFromHttpGetError(channel, true)))
     {
-        std::cout << "[TransferSlot::processRequestFailure] (httpReq->httpstatus == 0 && (transferbuf.isNewRaid() || tryRaidRecoveryFromHttpGetError(channel, true))) -> status 0 indicates network error or timeout; no headers received [isNewRaid()="<<transferbuf.isNewRaid()<<", httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (transferbuf.isNewRaid())
         {
             httpReq->status = REQ_READY;
@@ -1583,17 +1479,14 @@ void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionC
     }
     else
     {
-        std::cout << "[TransferSlot::processRequestFailure] None of the HTTP errors above [isNewRaid()="<<transferbuf.isNewRaid()<<", httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (!failure)
         {
-            std::cout << "[TransferSlot::processRequestFailure] (!failure) -> failure = true [isNewRaid()="<<transferbuf.isNewRaid()<<", httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             failure = true;
             bool changeport = false;
 
             //if (transfer->type == GET && client->autodownport && !memcmp(transferbuf.tempURL(channel).c_str(), "http:", 5))
             if (transfer->type == GET && client->autodownport && !memcmp(httpReq->posturl.c_str(), "http:", 5))
             {
-                std::cout << "[TransferSlot::processRequestFailure] (!failure) (transfer->type == GET && client->autodownport && !memcmp(httpReq->posturl.c_str(), \"http:\", 5)) -> Automatically changing download port [isNewRaid()="<<transferbuf.isNewRaid()<<", httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 LOG_debug << "Automatically changing download port";
                 client->usealtdownport = !client->usealtdownport;
                 changeport = true;
@@ -1612,14 +1505,11 @@ void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionC
 
             if (changeport)
             {
-                std::cout << "[TransferSlot::processRequestFailure] (!failure) (changeport) -> toggleport(httpReq.get()) [isNewRaid()="<<transferbuf.isNewRaid()<<", httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 toggleport(httpReq.get());
             }
         }
-        std::cout << "[TransferSlot::processRequestFailure] [httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [REQ_FAILURE] -> REQ_PREPARED" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         httpReq->status = REQ_PREPARED;
     }
-    std::cout << "[TransferSlot::processRequestFailure] END [httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 
@@ -1662,7 +1552,6 @@ void TransferSlot::progress()
 
 m_off_t TransferSlot::updatecontiguousprogress()
 {
-    std::cout << "[TransferSlot::updatecontiguousprogress()] BEGIN -> contiguousProgress = transfer->chunkmacs.updateContiguousProgress(transfer->size="<<transfer->size<<"), call transfer->chunkmacs.updateMacsmacProgress(transfer->transfercipher())" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     m_off_t contiguousProgress = transfer->chunkmacs.updateContiguousProgress(transfer->size);
 
     // Since that is updated, we may have a chance to consolidate the macsmac calculation so far also
@@ -1670,16 +1559,13 @@ m_off_t TransferSlot::updatecontiguousprogress()
 
     if (!transferbuf.tempUrlVector().empty() && transferbuf.isRaid())
     {
-        std::cout << "[TransferSlot::updatecontiguousprogress()] (!transferbuf.tempUrlVector().empty() && transferbuf.isRaid()) -> LOG_DEBUG Contiguous progress: " << contiguousProgress << "" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_debug << "Contiguous progress: " << contiguousProgress;
     }
     else
     {
-        std::cout << "[TransferSlot::updatecontiguousprogress()] (transferbuf.tempUrlVector().empty() || !transferbuf.isRaid()) -> Contiguous progress: " << contiguousProgress << " (transfer->pos - contiguousProgress)=(" << (transfer->pos - contiguousProgress) << ")" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_debug << "Contiguous progress: " << contiguousProgress << " (" << (transfer->pos - contiguousProgress) << ")";
     }
 
-    std::cout << "[TransferSlot::updatecontiguousprogress()] END -> return contiguousProgress=" << contiguousProgress << "" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return contiguousProgress;
 }
 

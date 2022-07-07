@@ -882,7 +882,6 @@ void MegaClient::acknowledgeuseralerts()
 
 void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
 {
-    std::cout << "[MegaClient::activateoverquota] BEGIN -> Transfer failed with error (isPaywall="<<isPaywall<<", dstime timeleft="<<timeleft<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (timeleft)
     {
         assert(!isPaywall);
@@ -927,7 +926,6 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
         }
     }
     looprequested = true;
-    std::cout << "[MegaClient::activateoverquota] END -> looprequested = true (isPaywall="<<isPaywall<<", dstime timeleft="<<timeleft<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 std::string MegaClient::getDeviceidHash()
@@ -1129,7 +1127,6 @@ Node* MegaClient::childNodeTypeByName(Node *p, const char *name, nodetype_t type
 
 void MegaClient::init()
 {
-    std::cout << "[MegaClient::init] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     warned = false;
     csretrying = false;
     chunkfailed = false;
@@ -1199,7 +1196,6 @@ void MegaClient::init()
     mNotifiedSumSize = 0;
     mNodeCounters = NodeCounterMap();
     mOptimizePurgeNodes = false;
-    std::cout << "[MegaClient::init] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAccess>&& f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
@@ -1224,7 +1220,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     , mSyncMonitorTimer(rng)
 #endif
 {
-    std::cout << "[MegaClient::MegaClient] BEGIN (MegaApp* a="<<a<<", Waiter* w="<<w<<", HttpIO* h="<<h<<", unique_ptr<FileSystemAccess>&& f, DbAccess* d="<<d<<", GfxProc* g="<<g<<", const char* k="<<k<<", const char* u="<<u<<", unsigned workerThreadCount="<<workerThreadCount<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     sctable = NULL;
     pendingsccommit = false;
     tctable = NULL;
@@ -1348,12 +1343,10 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
-    std::cout << "[MegaClient::MegaClient] END (MegaApp* a="<<a<<", Waiter* w="<<w<<", HttpIO* h="<<h<<", unique_ptr<FileSystemAccess>&& f, DbAccess* d="<<d<<", GfxProc* g="<<g<<", const char* k="<<k<<", const char* u="<<u<<", unsigned workerThreadCount="<<workerThreadCount<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 MegaClient::~MegaClient()
 {
-    std::cout << "[MegaClient::~MegaClient] BEGIN (clientname="<<clientname<<" ~MegaClient running)" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     LOG_debug << clientname << "~MegaClient running";
     destructorRunning = true;
     locallogout(false, true);
@@ -1362,7 +1355,6 @@ MegaClient::~MegaClient()
     delete badhostcs;
     delete dbaccess;
     LOG_debug << clientname << "~MegaClient completing";
-    std::cout << "[MegaClient::~MegaClient] END (clientname="<<clientname<<" ~MegaClient completing)" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void MegaClient::resetId(char *id, size_t length)
@@ -1377,7 +1369,6 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
                                          const LocalPath& localPath,
                                          const string& remotePath)
 {
-    std::cout << "[MegaClient::filenameAnomalyDetected] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     const char* typeName;
 
     switch (type)
@@ -1394,7 +1385,6 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
         break;
     }
 
-    std::cout << "[MegaClient::filenameAnomalyDetected] Filename anomaly detected: type: '" << typeName << "', local path: '" << localPath.toPath() << "', remote path: '" << remotePath << "'" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     LOG_debug << "Filename anomaly detected: type: "
               << typeName
               << " local path: "
@@ -1402,11 +1392,9 @@ void MegaClient::filenameAnomalyDetected(FilenameAnomalyType type,
               << " remote path: "
               << remotePath;
 
-    if (!mFilenameAnomalyReporter) std::cout << "[MegaClient::filenameAnomalyDetected] END (!mFilenameAnomalyReporter) -> return" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (!mFilenameAnomalyReporter) return;
 
     mFilenameAnomalyReporter->anomalyDetected(type, localPath, remotePath);
-    std::cout << "[MegaClient::filenameAnomalyDetected] END [mFilenameAnomalyReporter==true]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 std::string MegaClient::publicLinkURL(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
@@ -1450,8 +1438,6 @@ std::string MegaClient::getWritableLinkAuthKey(handle nodeHandle)
 // nonblocking state machine executing all operations currently in progress
 void MegaClient::exec()
 {
-    std::cout << "[MegaClient::exec] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-    std::cout << "[MegaClient::exec] pendinghttp.size() = " << pendinghttp.size() << "" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     CodeCounter::ScopeTimer ccst(performanceStats.execFunction);
 
     WAIT_CLASS::bumpds();
@@ -1463,7 +1449,6 @@ void MegaClient::exec()
 
     if (httpio->inetisback())
     {
-        std::cout << "[MegaClient::exec] (httpio->inetisback()) -> Internet connectivity returned - resetting all backoff timers -> abortbackoff(overquotauntil <= Waiter::ds)" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_info << "Internet connectivity returned - resetting all backoff timers";
         abortbackoff(overquotauntil <= Waiter::ds);
     }
@@ -1471,13 +1456,11 @@ void MegaClient::exec()
     if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
             && !pendingcs)
     {
-        std::cout << "[MegaClient::exec] (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT && !pendingcs) -> Network timeout. Reconnecting (call disconnect())" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_debug << "Network timeout. Reconnecting";
         disconnect();
     }
     else if (EVER(disconnecttimestamp))
     {
-        std::cout << "[MegaClient::exec] (EVER(disconnecttimestamp)) && if (disconnecttimestamp <= Waiter::ds) -> sendevent Timeout (server idle) (call disconnect())" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (disconnecttimestamp <= Waiter::ds)
         {
             sendevent(99427, "Timeout (server idle)", 0);
@@ -1488,7 +1471,6 @@ void MegaClient::exec()
     else if (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes
             &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
     {
-        std::cout << "[MegaClient::exec] (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT) -> Request timeout. Triggering a lock request -> requestLock = true" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_debug << clientname << "Request timeout. Triggering a lock request";
         requestLock = true;
     }
@@ -1497,7 +1479,6 @@ void MegaClient::exec()
     // and continue transfers
     if (httpio->success && chunkfailed)
     {
-        std::cout << "[MegaClient::exec] httpio->success && chunkfailed" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         chunkfailed = false;
 
         for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); it++)
@@ -1513,11 +1494,9 @@ void MegaClient::exec()
         }
     }
 
-    std::cout << "[MegaClient::exec] doWhile() BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     bool first = true;
     do
     {
-        std::cout << "[MegaClient::exec] doWhile() first = " << first << " [pendinghttp.size() = " << pendinghttp.size() << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (!first)
         {
             WAIT_CLASS::bumpds();
@@ -1528,25 +1507,20 @@ void MegaClient::exec()
 
         if (cachedug && btugexpiration.armed())
         {
-            std::cout << "[MegaClient::exec] Cached user data expired" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             LOG_debug << "Cached user data expired";
             getuserdata(reqtag);
             fetchtimezone();
         }
-        else std::cout << "[MegaClient::exec] Cached user data NOT expired" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 
         if (pendinghttp.size())
         {
-            std::cout << "[MegaClient::exec] [if] pendinghttp.size() = " << pendinghttp.size() << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             pendinghttp_map::iterator it = pendinghttp.begin();
             while (it != pendinghttp.end())
             {
                 GenericHttpReq *req = it->second;
-                std::cout << "[MegaClient::exec] it != pendinghttp.end [req->status = " << req->status << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 switch (static_cast<reqstatus_t>(req->status))
                 {
                 case REQ_FAILURE:
-                    std::cout << "[MegaClient::exec] REQ_FAILURE -> set req->status = REQ_PREPARED" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     if (!req->httpstatus && (!req->maxretries || (req->numretry + 1) < req->maxretries))
                     {
                         req->numretry++;
@@ -1561,7 +1535,6 @@ void MegaClient::exec()
                     // no retry -> fall through
                     // fall through
                 case REQ_SUCCESS:
-                    std::cout << "[MegaClient::exec] REQ_SUCCESS -> restag = it->first, call app->http_result" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     restag = it->first;
                     app->http_result(req->httpstatus ? API_OK : API_EFAILED,
                                      req->httpstatus,
@@ -1571,10 +1544,8 @@ void MegaClient::exec()
                     pendinghttp.erase(it++);
                     break;
                 case REQ_PREPARED:
-                    std::cout << "[MegaClient::exec] REQ_PREPARED" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     if (req->bt.armed())
                     {
-                        std::cout << "[MegaClient::exec] REQ_PREPARED -> [if] req->bt.armed() -> req->isbtactive = false; req->method = " << req->method << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         req->isbtactive = false;
                         LOG_debug << "Sending retry for " << req->posturl;
                         switch (req->method)
@@ -1595,10 +1566,8 @@ void MegaClient::exec()
                     // no retry -> fall through
                     // fall through
                 case REQ_INFLIGHT:
-                    std::cout << "[MegaClient::exec] REQ_INFLIGHT" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     if (req->maxbt.nextset() && req->maxbt.armed())
                     {
-                        std::cout << "[MegaClient::exec] REQ_INFLIGHT -> Max total time exceeded for request: req->posturl=" << req->posturl << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         LOG_debug << "Max total time exceeded for request: " << req->posturl;
                         restag = it->first;
                         app->http_result(API_EFAILED, 0, NULL, 0);
@@ -1616,7 +1585,6 @@ void MegaClient::exec()
         // file attribute puts (handled sequentially as a FIFO)
         if (activefa.size())
         {
-            std::cout << "[MegaClient::exec] File attribute puts" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             putfa_list::iterator curfa = activefa.begin();
             while (curfa != activefa.end())
             {
@@ -1763,7 +1731,6 @@ void MegaClient::exec()
 
         if (btpfa.armed())
         {
-            std::cout << "[MegaClient::exec] btpfa.armed() true" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             faretrying = false;
             while (queuedfa.size() && activefa.size() < MAXPUTFA)
             {
@@ -1781,7 +1748,6 @@ void MegaClient::exec()
 
         if (fafcs.size())
         {
-            std::cout << "[MegaClient::exec] file attribute fetching" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             // file attribute fetching (handled in parallel on a per-cluster basis)
             // cluster channels are never purged
             fafc_map::iterator cit;
@@ -1886,14 +1852,11 @@ void MegaClient::exec()
         }
 
         // handle API client-server requests
-        std::cout << "[MegaClient::exec] handle API client-server requests" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         for (;;)
         {
-            std::cout << "[MegaClient::exec] [for] API request outstanding? pendingcs = " << pendingcs << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             // do we have an API request outstanding?
             if (pendingcs)
             {
-                std::cout << "[MegaClient::exec] [for] pendingcs true -> size = " << pendingcs->size() << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 // handle retry reason for requests
                 retryreason_t reason = RETRY_NONE;
 
@@ -1905,11 +1868,9 @@ void MegaClient::exec()
                 switch (static_cast<reqstatus_t>(pendingcs->status))
                 {
                     case REQ_READY:
-                        std::cout << "[MegaClient::exec] [for] [pendingcs=true] pendingcs->status = REQ_READY" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         break;
 
                     case REQ_INFLIGHT:
-                        std::cout << "[MegaClient::exec] [for] [pendingcs=true] pendingcs->status = REQ_INFLIGHT [actualizamos cosas]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         if (pendingcs->contentlength > 0)
                         {
                             if (fetchingnodes && fnstats.timeToFirstByte == NEVER
@@ -1929,7 +1890,6 @@ void MegaClient::exec()
                         break;
 
                     case REQ_SUCCESS:
-                        std::cout << "[MegaClient::exec] [for] [pendingcs=true] REQ_SUCCESS -> actualizamos cosas" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         abortlockrequest();
                         app->request_response_progress(pendingcs->bufpos, -1);
 
@@ -1952,7 +1912,6 @@ void MegaClient::exec()
                                 }
 
                                 // request succeeded, process result array
-                                std::cout << "[MegaClient::exec] [for] [pendingcs=true] REQ_SUCCESS -> Request succeeded, process result array, notifypurge, commit, etc." << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 reqs.serverresponse(std::move(pendingcs->in), this);
 
                                 WAIT_CLASS::bumpds();
@@ -1963,7 +1922,6 @@ void MegaClient::exec()
                                 notifypurge();
                                 if (sctable && pendingsccommit && !reqs.cmdspending())
                                 {
-                                    std::cout << "[MegaClient::exec] [for] [pendingcs=true] REQ_SUCCESS -> Executing postponed DB commit 2" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                     LOG_debug << "Executing postponed DB commit 2";
                                     sctable->commit();
                                     sctable->begin();
@@ -1992,7 +1950,6 @@ void MegaClient::exec()
                             }
                             else
                             {
-                                std::cout << "[MegaClient::exec] [for] [pendingcs=true] REQ_SUCCESS -> REQUEST failed" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 // request failed
                                 JSON json;
                                 json.pos = pendingcs->in.c_str();
@@ -2057,7 +2014,6 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
-                        std::cout << "[MegaClient::exec] [for] [pendingcs=true] REQ_SUCCESS -> REQ_FAILURE ! looking for reason, abortlockrequest, etc." << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         if (!reason && pendingcs->httpstatus != 200)
                         {
                             if (pendingcs->httpstatus == 500)
@@ -2114,7 +2070,6 @@ void MegaClient::exec()
                         btcs.backoff();
                         app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
-                        std::cout << "[MegaClient::exec] [for] [pendingcs=true] REQ_SUCCESS -> REQ_FAILURE! -> Retrying cs request in " << btcs.retryin() << "ds" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         LOG_warn << "Retrying cs request in " << btcs.retryin() << " ds";
 
                         reqs.requeuerequest();
@@ -2131,10 +2086,8 @@ void MegaClient::exec()
 
             if (btcs.armed())
             {
-                std::cout << "[MegaClient::exec] [for] btcs.armed() -> true" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 if (reqs.cmdspending())
                 {
-                    std::cout << "[MegaClient::exec] [for] btcs.armed() -> true, reqs.cmdspending() -> true [abortlockrequest, pendingcs->posturl append, new req, etc.]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     abortlockrequest();
                     pendingcs = new HttpReq();
                     pendingcs->protect = true;
@@ -2166,7 +2119,6 @@ void MegaClient::exec()
                 }
                 else
                 {
-                    std::cout << "[MegaClient::exec] [for] btcs.armed() -> true, reqs.cmdspending() -> false, btcs.reset()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     btcs.reset();
                 }
             }
@@ -2176,7 +2128,6 @@ void MegaClient::exec()
         // handle the request for the last 50 UserAlerts
         if (pendingscUserAlerts)
         {
-            std::cout << "[MegaClient::exec] pendingscUserAlerts true -> handle the request for the last 50 UserAlerts" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             switch (static_cast<reqstatus_t>(pendingscUserAlerts->status))
             {
             case REQ_SUCCESS:
@@ -2226,12 +2177,9 @@ void MegaClient::exec()
         // handle API server-client requests
         if (!jsonsc.pos && !pendingscUserAlerts && pendingsc && !loggingout)
         {
-            std::cout << "[MegaClient::exec] handle API server-client requests -> if (!jsonsc.pos && !pendingscUserAlerts && pendingsc && !loggingout) [pendingsc->status=" << pendingsc->status << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-            std::cout << "[MegaClient::exec] pendingsc->contentlength = " << pendingsc->contentlength << ", pendingsc->in.size() = " << pendingsc->in.size() << "" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             switch (static_cast<reqstatus_t>(pendingsc->status))
             {
             case REQ_SUCCESS:
-                std::cout << "[MegaClient::exec] [handle API server-client req] -> REQ_SUCCESS" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 pendingscTimedOut = false;
                 if (pendingsc->contentlength == 1
                         && pendingsc->in.size()
@@ -2302,7 +2250,6 @@ void MegaClient::exec()
 
                 // fall through
             case REQ_FAILURE:
-                std::cout << "[MegaClient::exec] [handle API server-client req] -> REQ_FAILURE" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 pendingscTimedOut = false;
                 if (pendingsc)
                 {
@@ -2346,10 +2293,8 @@ void MegaClient::exec()
                 break;
 
             case REQ_INFLIGHT:
-                std::cout << "[MegaClient::exec] [handle API server-client req] -> REQ_INFLIGHT" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
-                    std::cout << "[MegaClient::exec] [handle API server-client req] -> REQ_INFLIGHT [sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     LOG_debug << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
                     // In almost all cases the server won't take more than SCREQUESTTIMEOUT seconds.  But if it does, break the cycle of endless requests for the same thing
                     pendingscTimedOut = true;
@@ -2546,7 +2491,6 @@ void MegaClient::exec()
 
         if (!mBlocked) // handle active unpaused transfers
         {
-            std::cout << "[MegaClient::exec] !mBlocked -> handle active unpaused transfers [tslots.size() = " << tslots.size() << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             DBTableTransactionCommitter committer(tctable);
 
             while (slotit != tslots.end())
@@ -2555,19 +2499,14 @@ void MegaClient::exec()
 
                 slotit++;
 
-                std::cout << "[MegaClient::exec] [handle active unpaused transfers] while (slotit != tslots.end()) [tslots.size() = " << tslots.size() << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                std::cout << "[MegaClient::exec] [handle active unpaused transfers] [it->progressreported = " << (*it)->progressreported << ", it->transfer = " << (*it)->transfer << ", it->transfer->size = " << (*it)->transfer->size << ", it->transfer->pos = " << (*it)->transfer->pos << ", it->transfer->progresscompleted = " << (*it)->transfer->progresscompleted << ", it->reqs.size() = " << (*it)->reqs.size() << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
                 {
-                    std::cout << "[MegaClient::exec] [handle active unpaused transfers] if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                    std::cout << "[MegaClient::exec] [handle active unpaused transfers] (" << (*it) << ")->doio(this=" << this << ", commiter)" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     (*it)->doio(this, committer);
                 }
             }
         }
         else
         {
-            std::cout << "[MegaClient::exec] mBlocked -> skipping slots doio while blocked" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             LOG_debug << "skipping slots doio while blocked";
         }
 
@@ -3193,7 +3132,6 @@ void MegaClient::exec()
             string auth = getAuthURI();
             if (auth.size())
             {
-                std::cout << "[MegaClient::exec] clientname = " << clientname << ". Sending lock request" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 LOG_debug << clientname << "Sending lock request";
                 workinglockcs.reset(new HttpReq());
                 workinglockcs->logname = clientname + "accountBusyCheck ";
@@ -3206,7 +3144,6 @@ void MegaClient::exec()
             }
             else if (!EVER(disconnecttimestamp))
             {
-                std::cout << "[MegaClient::exec] requestlock? nope.... Possible server timeout, but we don't have auth yet, disconnect and retry" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 LOG_warn << "Possible server timeout, but we don't have auth yet, disconnect and retry";
                 disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
             }
@@ -3234,9 +3171,7 @@ void MegaClient::exec()
 
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
-        std::cout << "[MegaClient::exec] doWhile() httpio->doio() [CurlHttpIO::doio] [ || execdirectreads() || ((!pendingcs(="<<std::to_string(!pendingcs)<<")) && reqs.cmdspending="<<reqs.cmdspending()<<" && btcs.armed="<<btcs.armed()<<") || looprequested=" << looprequested << ") !!!!" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
-    std::cout << "[MegaClient::exec] doWhile() END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 
 
     NodeCounter storagesum;
@@ -3277,7 +3212,6 @@ void MegaClient::exec()
 #endif
 
     reportLoggedInChanges();
-    std::cout << "[MegaClient::exec] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -3296,7 +3230,6 @@ int MegaClient::wait()
 
 int MegaClient::preparewait()
 {
-    std::cout << "[MegaClient::preparewait] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     CodeCounter::ScopeTimer ccst(performanceStats.prepareWait);
 
     dstime nds;
@@ -3588,13 +3521,11 @@ int MegaClient::preparewait()
     }
 #endif
 
-    std::cout << "[MegaClient::preparewait] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return 0;
 }
 
 int MegaClient::dowait()
 {
-    std::cout << "[MegaClient::dowait] call" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     CodeCounter::ScopeTimer ccst(performanceStats.doWait);
 
     return waiter->wait();
@@ -3602,7 +3533,6 @@ int MegaClient::dowait()
 
 int MegaClient::checkevents()
 {
-    std::cout << "[MegaClient::checkevents] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     CodeCounter::ScopeTimer ccst(performanceStats.checkEvents);
 
     int r =  httpio->checkevents(waiter);
@@ -3611,14 +3541,12 @@ int MegaClient::checkevents()
     {
         r |= gfx->checkevents(waiter);
     }
-    std::cout << "[MegaClient::checkevents] END -> return r="<<r<<"" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return r;
 }
 
 // reset all backoff timers and transfer retry counters
 bool MegaClient::abortbackoff(bool includexfers)
 {
-    std::cout << "[MegaClient::abortbackoff] BEGIN [includexfers="<<includexfers<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     bool r = false;
 
     WAIT_CLASS::bumpds();
@@ -3697,18 +3625,15 @@ bool MegaClient::abortbackoff(bool includexfers)
         }
     }
 
-    std::cout << "[MegaClient::abortbackoff] END -> return r="<<r<<"" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return r;
 }
 
 // activate enough queued transfers as necessary to keep the system busy - but not too busy
 void MegaClient::dispatchTransfers()
 {
-    std::cout << "[MegaClient::dispatchTransfers] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     // do we have any transfer slots available?
     if (!slotavail())
     {
-        std::cout << "[MegaClient::dispatchTransfers] END -> No slots available -> return" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         LOG_verbose << "No slots available";
         return;
     }
@@ -3981,13 +3906,10 @@ void MegaClient::dispatchTransfers()
                         m_off_t p = 0;
 
                         // resume at the end of the last contiguous completed block
-                        std::cout << "[MegaClient::dispatchTransfers] nexttransfer->chunkmacs.calcprogress(size, pos, progresscompleted)" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         nexttransfer->chunkmacs.calcprogress(nexttransfer->size, nexttransfer->pos, nexttransfer->progresscompleted, &p);
 
-                        std::cout << "[MegaClient::dispatchTransfers] nexttransfer->progresscompleted = " << nexttransfer->progresscompleted << ", nexttransfer->size = " << nexttransfer->size << "" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         if (nexttransfer->progresscompleted > nexttransfer->size)
                         {
-                            std::cout << "[MegaClient::dispatchTransfers] (nexttransfer->progresscompleted > nexttransfer->size) Invalid transfer progress!" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                             LOG_err << "Invalid transfer progress!";
                             nexttransfer->pos = nexttransfer->size;
                             nexttransfer->progresscompleted = nexttransfer->size;
@@ -4069,7 +3991,6 @@ void MegaClient::dispatchTransfers()
                     }
                     else
                     {
-                        std::cout << "[MegaClient::dispatchTransfers] nexttransfer->type =" << string(nexttransfer->type==PUT?"PUT":"GET") << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
                             ? (Command*)new CommandPutFile(this, ts, putmbpscap)
                             : new CommandGetFile(this, ts->transfer->transferkey.data(), SymmCipher::KEYLENGTH,
@@ -4078,7 +3999,6 @@ void MegaClient::dispatchTransfers()
                                std::string* filename, std::string* /*fingerprint*/, std::string* /*fileattrstring*/,
                                const std::vector<std::string> &tempurls, const std::vector<std::string> &/*ips*/)
                             {
-                                std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] filename = " << string(filename?*filename:"NULL") << ", tl (timeleft) = " << tl << "" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 auto tslot = ts;
                                 auto priv = hprivate;
                                 auto ph = h.as8byte();
@@ -4092,24 +4012,19 @@ void MegaClient::dispatchTransfers()
                                     return true;
                                 }
 
-                                std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] filename = " << *filename << ", m_off_t s = " << s << ", tslot->transfer->size = " << tslot->transfer->size << ", tslot->maxRequestSize = " << tslot->maxRequestSize << "" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 if (s >= 0 && s != tslot->transfer->size)
                                 {
-                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] s=" << s <<" >= 0 && s != tslot->transfer->size=" << tslot->transfer->size << " -> tslot->transfer->size = s, iterate over transfer's files and change their size" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                     tslot->transfer->size = s;
                                     for (file_list::iterator it = tslot->transfer->files.begin(); it != tslot->transfer->files.end(); it++)
                                     {
-                                        std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] [if...] [iterating over transfer files] (*it)->name = " << (*it)->name << ", (*it)->size = " << (*it)->size << " (now (*it)->size = s = " << s << ")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                         (*it)->size = s;
                                     }
 
                                     if (priv)
                                     {
-                                        std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] [if...] if(priv)==true -> Node*n = nodebyhandle(ph)" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                         Node *n = nodebyhandle(ph);
                                         if (n)
                                         {
-                                            std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] [if...] if(n) -> n->size(=" << n->size << ") = s = " << s << "; notifynode(n)" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                             n->size = s;
                                             notifynode(n);
                                         }
@@ -4119,36 +4034,26 @@ void MegaClient::dispatchTransfers()
                                 }
 
                                 tslot->starttime = tslot->lastdata = waiter->ds;
-                                std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] tslot->starttime = tslot->lastdata = waiter->ds = " << tslot->starttime << "" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
                                 {
-                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile]  RAID! tslot->transfer = " << tslot->transfer << ", tslot->transfer->pos = " << tslot->transfer->pos << ", tslot->maxRequestSize = " << tslot->maxRequestSize << "" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                     tslot->transfer->tempurls = tempurls;
-                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] tempurls:" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                                    for (auto& turl : tempurls) {std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] tempURL: '" << turl << "'" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl; }
-                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile]  tslot->transfer->tempurls = tempurls, tslot->transferbuf.setisRaid, tslot->progress()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                     tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                                     tslot->progress();
-                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile] return true;" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                     return true;
                                 }
 
                                 if (e == API_EOVERQUOTA && tl <= 0)
                                 {
-                                    std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile]  e = APIOVERQUOTA!!!" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                     // default retry interval
                                     tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                                 }
 
-                                std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile]  tslot->transfer->failed()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 tslot->transfer->failed(e, *mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
-                                std::cout << "[MegaClient::dispatchTransfers] [Completion for CommandGetFile]  return true;" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                                 return true;
 
                             })));
                     }
 
-                    std::cout << "[MegaClient::dispatchTransfers] Activating transfer... (it->start && app->transfer_update(nexttransfer))" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     LOG_debug << "Activating transfer";
                     ts->slots_it = tslots.insert(tslots.begin(), ts);
 
@@ -4156,7 +4061,6 @@ void MegaClient::dispatchTransfers()
                     for (file_list::iterator it = nexttransfer->files.begin();
                         it != nexttransfer->files.end(); it++)
                     {
-                        std::cout << "[MegaClient::dispatchTransfers] notify the app about the starting transfer [nextransfer(=" << nexttransfer << ")->files[x].start()]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         (*it)->start();
                     }
                     app->transfer_update(nexttransfer);
@@ -4190,7 +4094,6 @@ void MegaClient::dispatchTransfers()
             }
         }
     }
-    std::cout << "[MegaClient::dispatchTransfers] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 // do we have an upload that is still waiting for file attributes before being completed?
@@ -4258,7 +4161,6 @@ void MegaClient::checkfacompletion(UploadHandle th, Transfer* t)
 // clear transfer queue
 void MegaClient::freeq(direction_t d)
 {
-    std::cout << "[MegaClient::freeq] BEGIN (direction_t d="<<d<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     DBTableTransactionCommitter committer(tctable);
     for (auto transferPtr : transfers[d])
     {
@@ -4269,7 +4171,6 @@ void MegaClient::freeq(direction_t d)
     transfers[d].clear();
     transferlist.transfers[GET].clear();
     transferlist.transfers[PUT].clear();
-    std::cout << "[MegaClient::freeq] END (direction_t d="<<d<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 bool MegaClient::isFetchingNodesPendingCS()
@@ -4289,7 +4190,6 @@ void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
 // disconnect all HTTP connections (slows down operations, but is semantically neutral)
 void MegaClient::disconnect()
 {
-    std::cout << "[MegaClient::disconnect] BEGIN [httpio="<<httpio<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (pendingcs)
     {
         app->request_response_progress(-1, -1);
@@ -4343,19 +4243,16 @@ void MegaClient::disconnect()
         badhostcs->disconnect();
     }
 
-    std::cout << "[MegaClient::disconnect] do -> httpio->lastdata = NEVER && httpio->disconnect() [httpio="<<httpio<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     httpio->lastdata = NEVER;
     httpio->disconnect();
 
     app->notify_disconnect();
-    std::cout << "[MegaClient::disconnect] END [httpio="<<httpio<<", this="<<this<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 // force retrieval of pending actionpackets immediately
 // by closing pending sc, reset backoff and clear waitd URL
 void MegaClient::catchup()
 {
-    std::cout << "[MegaClient::catchup] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (pendingsc)
     {
         pendingsc->disconnect();
@@ -4364,22 +4261,18 @@ void MegaClient::catchup()
     }
     btsc.reset();
     scnotifyurl.clear();
-    std::cout << "[MegaClient::catchup] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void MegaClient::abortlockrequest()
 {
-    std::cout << "[MegaClient::abortlockrequest] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     workinglockcs.reset();
     btworkinglock.reset();
     requestLock = false;
     disconnecttimestamp = NEVER;
-    std::cout << "[MegaClient::abortlockrequest] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion completion)
 {
-    std::cout << "[MegaClient::logout] BEGIN (keepSyncConfigsFile="<<keepSyncConfigsFile<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     // Avoids us having to check validity later.
     if (!completion)
     {
@@ -4407,7 +4300,6 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 #endif
 
     reqs.add(new CommandLogout(this, std::move(completion), keepSyncConfigsFile));
-    std::cout << "[MegaClient::logout] END (keepSyncConfigsFile="<<keepSyncConfigsFile<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
@@ -13629,7 +13521,6 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
 // execute pending directreads
 bool MegaClient::execdirectreads()
 {
-    std::cout << "[MegaClient::execdirectreads] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     CodeCounter::ScopeTimer ccst(performanceStats.execdirectreads);
 
     bool r = false;
@@ -13675,7 +13566,6 @@ bool MegaClient::execdirectreads()
         }
     }
 
-    std::cout << "[MegaClient::execdirectreads] END [r = " << std::to_string(r) << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return r;
 }
 
@@ -16647,7 +16537,6 @@ void MegaClient::nodesbyoriginalfingerprint(const char* originalfingerprint, Nod
 // a chunk transfer request failed: record failed protocol & host
 void MegaClient::setchunkfailed(string* url)
 {
-    std::cout << "[MegaClient::setchunkfailed] call [url = " << url << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (!chunkfailed && url->size() > 19)
     {
         LOG_debug << "Adding badhost report for URL " << *url;

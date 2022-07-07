@@ -755,7 +755,6 @@ void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
 bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
 {
     timeout *= 1000000; // convert to micro-seconds
-    std::cout << "[SdkTest::waitForResponse] BEGIN [timeout="<<(timeout/1000)<<" ms]" << " [thread_id="<<std::this_thread::get_id()<<"]" << std::endl;
     unsigned int tWaited = 0;    // microseconds
     bool connRetried = false;
     while(!(*responseReceived))
@@ -765,10 +764,8 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
         if (timeout)
         {
             tWaited += pollingT;
-            std::cout << "[SdkTest::waitForResponse] (timeout) tWaited += pollingT -> tWaited="<<(tWaited/1000)<<" [pollingT="<<(pollingT/1000)<<", pollingT*240="<<((pollingT*240)/1000)<<", timeout="<<(timeout/1000)<<" ms]" << " [thread_id="<<std::this_thread::get_id()<<"]" << std::endl;
             if (tWaited >= timeout)
             {
-                std::cout << "[SdkTest::waitForResponse] (tWaited >= timeout) -> return false [tWaited="<<(tWaited/1000)<<", timeout="<<(timeout/1000)<<" ms]" << " [thread_id="<<std::this_thread::get_id()<<"]" << std::endl;
                 return false;   // timeout is expired
             }
             // if no response after 2 minutes...
@@ -777,11 +774,9 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
             //else if (!connRetried && tWaited > (400000)) // > 0,3 s
             else if (!connRetried && tWaited > (pollingT * 240 * 2)) // 4 minutes
             {
-                std::cout << "[SdkTest::waitForResponse] (!connRetried && tWaited > (pollingT * 240)) -> no response after 2 minutes... -> megaApi[0]->retryPendingConnections(true) [tWaited="<<(tWaited/1000)<<", pollingT="<<(pollingT/1000)<<", pollingT*240="<<((pollingT*240)/1000)<<", timeout="<<(timeout/1000)<<" ms]" << " [thread_id="<<std::this_thread::get_id()<<"]" << std::endl;
                 megaApi[0]->retryPendingConnections(true);
                 if (megaApi.size() > 1 && megaApi[1] && megaApi[1]->isLoggedIn())
                 {
-                    std::cout << "[SdkTest::waitForResponse] [no response after 2 minutes...] (megaApi.size() > 1 && megaApi[1] && megaApi[1]->isLoggedIn()) -> megaApi[0]->retryPendingConnections(true) [timeout="<<(timeout/1000)<<" ms]" << " [thread_id="<<std::this_thread::get_id()<<"]" << std::endl;
                     megaApi[1]->retryPendingConnections(true);
                 }
                 connRetried = true;
@@ -789,7 +784,6 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
         }
     }
 
-    std::cout << "[SdkTest::waitForResponse] END -> return true [timeout="<<(timeout/1000)<<" ms]" << " [thread_id="<<std::this_thread::get_id()<<"]" << std::endl;
     return true;    // response is received
 }
 
@@ -4316,7 +4310,6 @@ namespace mega
             unsigned oldvalue = tbm->raidLinesPerChunk;
             tbm->raidLinesPerChunk /= 4;
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk;
-            std::cout << "[SdkTest_test.cpp] [onSetIsRaid_morechunks] adjusted raidlinesPerChunk from tbm->raidLinesPerChunk = " << oldvalue << " to tbm->raidLinesPerChunk/4 = " << tbm->raidLinesPerChunk << "" << std::endl;
         }
 
         static bool  onHttpReqPost509(HttpReq* req)
@@ -4337,15 +4330,12 @@ namespace mega
 
         static bool  onHttpReqPost404Or403(HttpReq* req)
         {
-            std::cout << "[SdkTest_test.cpp] [onHttpReqPost404Or403] BEGIN -> countdownTo404="<<countdownTo404<<", countdownto403="<<countdownTo403<<" [req="<<req<<"]" << std::endl;
             if (req->type == REQ_BINARY)
             {
-                std::cout << "[SdkTest_test.cpp] [onHttpReqPost404Or403] req->type == REQ_BINARY [countdownTo404="<<countdownTo404<<", countdownto403="<<countdownTo403<<"] [req="<<req<<"]" << std::endl;
                 if (countdownTo404-- == 0) {
                     req->httpstatus = 404;
                     req->status = REQ_FAILURE;
 
-                    std::cout << "[SdkTest_test.cpp] [onHttpReqPost404Or403] END -> SIMULATING HTTP GET 404 -> return true [countdownTo404="<<countdownTo404<<", countdownto403="<<countdownTo403<<"] [req="<<req<<"]" << std::endl;
                     LOG_info << "SIMULATING HTTP GET 404";
                     return true;
                 }
@@ -4353,12 +4343,10 @@ namespace mega
                     req->httpstatus = 403;
                     req->status = REQ_FAILURE;
 
-                    std::cout << "[SdkTest_test.cpp] [onHttpReqPost404Or403] END -> SIMULATING HTTP GET 403 -> return true [countdownTo404="<<countdownTo404<<", countdownto403="<<countdownTo403<<"] [req="<<req<<"]" << std::endl;
                     LOG_info << "SIMULATING HTTP GET 403";
                     return true;
                 }
             }
-            std::cout << "[SdkTest_test.cpp] [onHttpReqPost404Or403] END -> return false [countdownTo404="<<countdownTo404<<", countdownto403="<<countdownTo403<<"] [req="<<req<<"]" << std::endl;
             return false;
         }
 
@@ -4382,7 +4370,6 @@ namespace mega
         {
             isRaid = tbm->isRaid() || tbm->isNewRaid();
             isRaidKnown = true;
-            std::cout << "[SdkTest_test.cpp] [onSetIsRaid] -> isRaid="<<isRaid<<", isRaidKnown="<<isRaidKnown<<"" << std::endl;
         }
 
         static bool resetForTests()
@@ -4403,7 +4390,6 @@ namespace mega
 
         static void onSetIsRaid_smallchunks10(::mega::RaidBufferManager* tbm)
         {
-            std::cout << "[SdkTest_test.cpp] [onSetIsRaid_smallchunks10] -> tbm->raidLinesPerChunk = 10" << std::endl;
             tbm->raidLinesPerChunk = 10;
         }
 
@@ -4593,7 +4579,6 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 #ifdef DEBUG
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
-    std::cout << "[SdkTestCloudraidTransferWithConnectionFailures] BEGIN" << std::endl;
     LOG_info << "___TEST Cloudraid transfers___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
@@ -4635,14 +4620,12 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
         ASSERT_EQ(API_OK, mApi[0].lastError) << "Cannot download the cloudraid file (error: " << mApi[0].lastError << ")";
         ASSERT_GE(onTransferUpdate_filesize, 0u);
         ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
-        std::cout << "[SdkTestCloudraidTransferWithConnectionFailures] TRANSFER COMPLETE: DebugTestHook::countdownTo404="<<DebugTestHook::countdownTo404<<", DebugTestHook::countdownTo403="<<DebugTestHook::countdownTo403<<"" << std::endl;
         ASSERT_LT(DebugTestHook::countdownTo404, 0);
         ASSERT_LT(DebugTestHook::countdownTo403, 0);
     }
 
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
-    std::cout << "[SdkTestCloudraidTransferWithConnectionFailures] END" << std::endl;
 }
 #endif
 

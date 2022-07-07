@@ -5948,13 +5948,11 @@ void MegaApiImpl::base64ToBinary(const char *base64string, unsigned char **binar
 
 void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener *listener)
 {
-    std::cout << "[MegaApiImpl::retryPendingConnections] BEGIN [disconnect="<<disconnect<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS, listener);
     request->setFlag(disconnect);
     request->setNumber(includexfers);
     requestQueue.push(request);
     waiter->notify();
-    std::cout << "[MegaApiImpl::retryPendingConnections] END [disconnect="<<disconnect<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void MegaApiImpl::setDnsServers(const char *dnsServers, MegaRequestListener *listener)
@@ -8508,7 +8506,6 @@ void MegaApiImpl::startDownload (bool startFirst, MegaNode *node, const char* lo
 
 MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    std::cout << "[MegaApiImpl::startDownload] BEGIN [new MegaTransfer::TYPE_DOWNLOAD]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     FileSystemType fsType = fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(localPath));
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -8554,7 +8551,6 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
 
     transferQueue.push(transfer);
     waiter->notify();
-    std::cout << "[MegaApiImpl::startDownload] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return transfer;
 }
 
@@ -11492,14 +11488,11 @@ void MegaApiImpl::queryDNS(const char *hostname, MegaRequestListener *listener)
 
 void MegaApiImpl::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
 {
-    std::cout << "[MegaApiImpl::downloadFile] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-    std::cout << "[MegaApiImpl::downloadFile] [new MegaRequestPrivate(MegaRequest::TYPE_DOWNLOAD_FILE, listener)] url = " << url << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DOWNLOAD_FILE, listener);
     request->setLink(url);
     request->setFile(dstpath);
     requestQueue.push(request);
     waiter->notify();
-    std::cout << "[MegaApiImpl::downloadFile] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 void MegaApiImpl::contactLinkCreate(bool renew, MegaRequestListener *listener)
@@ -11580,7 +11573,6 @@ const char *MegaApiImpl::getBasePath()
 
 void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
 {
-    std::cout << "[MegaApiImpl::changeApiUrl] BEGIN [apiURL='"<<apiURL<<"']" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     {
         // change defaults for future MegaApi construction
         lock_guard<mutex> g(g_APIURL_default_mutex);
@@ -11593,10 +11585,8 @@ void MegaApiImpl::changeApiUrl(const char *apiURL, bool disablepkp)
     client->httpio->APIURL = apiURL;
     client->httpio->disablepkp = disablepkp;
 
-    std::cout << "[MegaApiImpl::changeApiUrl] client->abortbackoff() && client->disconnect() [apiURL='"<<apiURL<<"']" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     client->abortbackoff();
     client->disconnect();
-    std::cout << "[MegaApiImpl::changeApiUrl] END [apiURL='"<<apiURL<<"']" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
 bool MegaApiImpl::setLanguage(const char *languageCode)
@@ -18105,7 +18095,6 @@ void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
 
 unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken *cancelToken)
 {
-    std::cout << "[MegaApiImpl::sendPendingTransfers] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     CodeCounter::ScopeTimer ccst(client->performanceStats.megaapiSendPendingTransfers);
 
     auto t0 = std::chrono::steady_clock::now();
@@ -18123,7 +18112,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
 
     while (MegaTransferPrivate *transfer = auxQueue.pop())
     {
-        std::cout << "[MegaApiImpl::sendPendingTransfers] while(MegaTransferPrivate *transfer = transferQueue.pop()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (cancelToken && cancelToken->isCancelled())
         {
             assert(queue);
@@ -18138,7 +18126,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
         {
             case MegaTransfer::TYPE_UPLOAD:
             {
-                std::cout << "[MegaApiImpl::sendPendingTransfers] case MegaTransfer::TYPE_UPLOAD" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 const char* localPath = transfer->getPath();
                 const char* fileName = transfer->getFileName();
                 int64_t mtime = transfer->getTime();
@@ -18363,13 +18350,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
             }
             case MegaTransfer::TYPE_DOWNLOAD:
             {
-                std::cout << "[MegaApiImpl::sendPendingTransfers] case MegaTransfer::TYPE_DOWNLOAD" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 Node *node = NULL;
                 MegaNode *publicNode = transfer->getPublicNode();
                 const char *parentPath = transfer->getParentPath();
                 const char *fileName = transfer->getFileName();
                 bool startFirst = transfer->shouldStartFirst();
-                std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] transfer->getFileName = " << fileName << ", transfer->shouldStartFirst = " << startFirst << "" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 
                 if (!publicNode)
                 {
@@ -18402,7 +18387,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                 // File download
                 if (!transfer->isStreamingTransfer())
                 {
-                    std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] File download [totalDownloads=" << totalDownloads << ", pendingDownloads=" << pendingDownloads << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     LocalPath name;
                     LocalPath wLocalPath;
 
@@ -18491,7 +18475,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
 
                         if (duplicate)
                         {
-                            std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] [File download] duplicate = true" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
@@ -18564,7 +18547,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                     currentTransfer = transfer;
                     m_off_t startPos = transfer->getStartPos();
                     m_off_t endPos = transfer->getEndPos();
-                    std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] [File download] [startPos=" << startPos << ", endpos=" << endPos << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                     if (startPos < 0 || endPos < 0 || startPos > endPos)
                     {
                         e = API_EARGS;
@@ -18585,7 +18567,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                         transfer->setTotalBytes(totalBytes);
                         transfer->setTag(nextTag);
                         transfer->setState(MegaTransfer::STATE_QUEUED);
-                        std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] [File download] Is Node. [transfer->setTotalBytes=" << totalBytes << ", transfer->setState=MegaTransfer::STATE_QUEUED]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 
                         fireOnTransferStart(transfer);
                         client->pread(node, startPos, totalBytes, transfer);
@@ -18605,7 +18586,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                         transfer->setTotalBytes(totalBytes);
                         transfer->setTag(nextTag);
                         transfer->setState(MegaTransfer::STATE_QUEUED);
-                        std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] [File download] NOT Node. [transfer->setTotalBytes=" << totalBytes << ", transfer->setState=MegaTransfer::STATE_QUEUED]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         fireOnTransferStart(transfer);
                         SymmCipher cipher;
                         cipher.setkey(publicNode->getNodeKey());
@@ -18619,7 +18599,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
                     }
                 }
 
-                std::cout << "[MegaApiImpl::sendPendingTransfers] [TYPE_DOWNLOAD] currentTransfer = NULL & break" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 currentTransfer = NULL;
                 break;
             }
@@ -18627,7 +18606,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
 
         if (e)
         {
-            std::cout << "[MegaApiImpl::sendPendingTransfers] e = true (error)" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             transferMap[nextTag] = transfer;
             transfer->setTag(nextTag);
             transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -18643,7 +18621,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaCancelToken
             break;
         }
     }
-    std::cout << "[MegaApiImpl::sendPendingTransfers] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     return count;
 }
 
@@ -19545,7 +19522,6 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_DOWNLOAD_URLS:
         {
-            std::cout << "[CommandGetFile::CommandGetFile()] MegaRequest::TYPE_GET_DOWNLOAD_URLS" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             Node *node = client->nodebyhandle(request->getNodeHandle());
             bool singleUrl = request->getFlag();
             if(!node)
@@ -20507,11 +20483,9 @@ void MegaApiImpl::sendPendingRequests()
             bool includexfers = request->getNumber();
             const char *dnsservers = request->getText();
 
-            std::cout << "[MegaApiImpl::sendPendingRequests] case MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS -> client->abortbackoff(includexfers) [disconnect="<<disconnect<<", includexfers="<<includexfers<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             client->abortbackoff(includexfers);
             if (disconnect)
             {
-                std::cout << "[MegaApiImpl::sendPendingRequests] [MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS] (disconnect) -> client->disconnect()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 client->disconnect();
 
                 string servers;
@@ -22145,7 +22119,6 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_DOWNLOAD_FILE:
         {
-            std::cout << "[MegaApiImpl::sendPendingRequests] MegaRequest::TYPE_DOWNLOAD_FILE" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             const char *url = request->getLink();
             const char *file = request->getFile();
             if (!url || !file)

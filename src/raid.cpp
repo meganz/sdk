@@ -341,26 +341,20 @@ std::shared_ptr<RaidBufferManager::FilePiece> RaidBufferManager::getAsyncOutputB
 
 void RaidBufferManager::bufferWriteCompleted(unsigned connectionNum, bool success)
 {
-    std::cout << "[RaidBufferManager::bufferWriteCompleted] connectionNum = " << connectionNum << ", success = " << success << "" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     auto aob = asyncoutputbuffers.find(connectionNum);
     if (aob != asyncoutputbuffers.end())
     {
-        std::cout << "[RaidBufferManager::bufferWriteCompleted] asyncoutputbuffers.find(connectionNum=" << connectionNum << ") != asyncoutputbuffers.end()" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
         assert(aob->second);
         if (aob->second)
         {
             if (success)
             {
-                std::cout << "[RaidBufferManager::bufferWriteCompleted] asyncoutputBuffers.find(connectionNum=" << connectionNum << ") && success -> bufferWriteCompletedAction(FilePiece*r *aob->second)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                 bufferWriteCompletedAction(*aob->second);
             }
-            else std::cout << "[RaidBufferManager::bufferWriteCompleted] asyncoutputBuffers.find(connectionNum=" << connectionNum << ") && NOT success -> DON'T CALL bufferWriteCompletedAction(FilePiece*r *aob->second)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
 
-            std::cout << "[RaidBufferManager::bufferWriteCompleted] asyncoutputBuffers.find(connectionNum=" << connectionNum << ") -> aob->second.reset() [aob->second="<<(aob->second!=nullptr?aob->second.get():(void*)0x0)<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
             aob->second.reset();
         }
     }
-    else std::cout << "[RaidBufferManager::bufferWriteCompleted] asyncoutputbuffers.find(connectionNum=" << connectionNum << ") == asyncoutputbuffers.end() -> do nothing" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
 }
 
 void RaidBufferManager::bufferWriteCompletedAction(FilePiece&)
@@ -620,7 +614,6 @@ void RaidBufferManager::recoverSectorFromParity(byte* dest, byte* inputbufs[], u
 
 void RaidBufferManager::combineLastRaidLine(byte* dest, size_t remainingbytes)
 {
-    std::cout << "[RaidBufferManager::combineLastRaidLine] dest=" << dest << ", remainingbytes=" << remainingbytes << "" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     // we have to be careful to use the right number of bytes from each sector
     for (unsigned i = 1; i < RAIDPARTS && remainingbytes > 0; ++i)
     {
@@ -680,29 +673,24 @@ m_off_t TransferBufferManager::calcOutputChunkPos(m_off_t acquiredpos)
 // decrypt, mac downloaded chunk
 bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int64_t ctriv, SymmCipher *cipher, chunkmac_map* source_chunkmacs)
 {
-    std::cout << "[RaidBufferManager::FilePiece::finalize] BEGIN [parallel=" << parallel << ", filesize=" << filesize << ", ctriv=" << ctriv << ", source_chunkmacs=" << source_chunkmacs << ", source_chunkmacs.size=" << (source_chunkmacs ? source_chunkmacs->size() : 0) << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     assert(!finalized);
     bool queueParallel = false;
 
     byte *chunkstart = buf.datastart();
     m_off_t startpos = pos;
     m_off_t finalpos = startpos + buf.datalen();
-    std::cout << "[RaidBufferManager::FilePiece::finalize] startpos = " << startpos << ", finalpos = " << finalpos << " [filesize = " << filesize << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     assert(finalpos <= filesize);
     if (finalpos != filesize)
     {
         finalpos &= -SymmCipher::BLOCKSIZE;
-        std::cout << "[RaidBufferManager::FilePiece::finalize] (finalpos != filesize) -> finalpos &= -SymmCipher::BLOCKSIZE -> finalpos = " << finalpos << " [filesize = " << filesize << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     }
 
     m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
     unsigned chunksize = static_cast<unsigned>(endpos - startpos);
-    std::cout << "[RaidBufferManager::FilePiece::finalize] chunksize = (endpos-startpos) = " << chunksize << ", endpos =  chunkceil(startpos="<<startpos<<", finalpos="<<finalpos<<") = " << endpos << "" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
 
     while (chunksize)
     {
         m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
-        std::cout << "[RaidBufferManager::FilePiece::finalize] while(chunksize="<<chunksize<<") -> chunkid = ChunkedHash::chunkfloor(startpos="<<startpos<<") = " << chunkid << "" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
         if (!chunkmacs.finishedAt(chunkid))
         {
             if (source_chunkmacs)
@@ -711,31 +699,25 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
             }
             if (endpos == ChunkedHash::chunkceil(chunkid, filesize))
             {
-                std::cout << "[RaidBufferManager::FilePiece::finalize] [while] endpos == ChunkedHash::chunkceil(chunkid="<<chunkid<<", filesize="<<filesize<<") = " << endpos << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                 if (parallel)
                 {
                     // executing on a worker thread (or synchronously on transferslot destruction)
                     // these are independent chunks, or the earlier part of the chunk is already done.
                     chunkmacs.ctr_decrypt(chunkid, cipher, chunkstart, chunksize, startpos, ctriv, true);
-                    std::cout << "[RaidBufferManager::FilePiece::finalize] [while]  (parallel) -> [worker thread] Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                     LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
                 }
                 else
                 {
-                    std::cout << "[RaidBufferManager::FilePiece::finalize] [while] (!parallel) -> queueParallel = true" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                     queueParallel = true;
                 }
             }
             else if (!parallel)
             {
-                std::cout << "[RaidBufferManager::FilePiece::finalize] [while] endpos != ChunkedHash::chunkceil(chunkid="<<chunkid<<", filesize="<<filesize<<") = " << endpos << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                 // these part chunks must be done serially (and first), since later parts of a chunk need the mac of earlier parts as input.
                 chunkmacs.ctr_decrypt(chunkid, cipher, chunkstart, chunksize, startpos, ctriv, false);
-                std::cout << "[RaidBufferManager::FilePiece::finalize] [while] (!parallel) -> Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
                 LOG_debug << "Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
             }
         }
-        std::cout << "[RaidBufferManager::FilePiece::finalize] [while] chunkstart += chunksize -> " << (void*)chunkstart << " += " << chunksize << " -> " << (void*)(chunkstart+chunksize) << ", startpos = endpos -> " << startpos << " = " << endpos << ", endpos = ChunkedHash::chunkceil(startpos=" << endpos << ", finalpos=" << finalpos << ") = " << ChunkedHash::chunkceil(startpos, finalpos) << ", chunksize = " << static_cast<unsigned>(ChunkedHash::chunkceil(endpos, finalpos) - endpos) << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
         chunkstart += chunksize;
         startpos = endpos;
         endpos = ChunkedHash::chunkceil(startpos, finalpos);
@@ -746,7 +728,6 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
     if (finalized)
         finalizedCV.notify_one();
 
-    std::cout << "[RaidBufferManager::FilePiece::finalize] return queueParallel [finalized = !queueParallel = " << finalized << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     return queueParallel;
 }
 
@@ -856,7 +837,6 @@ TransferBufferManager::TransferBufferManager()
 
 void TransferBufferManager::setIsRaid(Transfer* t, const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t maxRequestSize, bool isNewRaid)
 {
-    std::cout << "[TransferBufferManager::setIsRaid] call RaidBufferManager::setIsRaid(tempUrls, resumepos=" << resumepos << ", readtopos=t->size,=" << t->size << ", filesize=t->size=" << t->size << ", maxRequestSize=" << maxRequestSize << ")" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     RaidBufferManager::setIsRaid(tempUrls, resumepos, t->size, t->size, maxRequestSize, isNewRaid && t->type == GET);
 
     transfer = t;
@@ -946,11 +926,9 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
 
 void TransferBufferManager::bufferWriteCompletedAction(FilePiece& r)
 {
-    std::cout << "[TransferBufferManager::bufferWriteCompletedAction] call r.chunkmacs.copyEntriesTo(transfer->chunkmacs); r.chunkmacs.clear(); transfer->progresscompleted(=" << transfer->progresscompleted << ") += r.buf.datalen()(=" << r.buf.datalen() << ")" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     r.chunkmacs.copyEntriesTo(transfer->chunkmacs);
     r.chunkmacs.clear();
     transfer->progresscompleted += r.buf.datalen();
-    std::cout << "[TransferBufferManager::bufferWriteCompletedAction] Cached data at r.pos = " << r.pos << ".  Size: r.buf.datalen() = " << r.buf.datalen() << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;;
     LOG_debug << "Cached data at: " << r.pos << "   Size: " << r.buf.datalen();
 }
 
@@ -1030,9 +1008,7 @@ public:
 
     ~CloudRaidImpl()
     {
-        std::cout << "[CloudRaidImpl::~CloudRaidImpl] call" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         /*
-        std::cout << "[CloudRaidImpl::~CloudRaidImpl] call -> raidReqToken.rr->disconnect()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (raidReqToken.rr)
         {
             raidReqToken.rr->disconnect();
@@ -1044,7 +1020,6 @@ public:
     /* TransferSlot functionality */
     bool disconnect(std::shared_ptr<HttpReqXfer> req)
     {
-        std::cout << "[CloudRaidImpl::disconnect] call (req="<<req<<") [started="<<started.load()<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
         tslot->disconnect(req);
         return true;
@@ -1052,16 +1027,13 @@ public:
 
     bool prepareRequest(std::shared_ptr<HttpReqXfer> req, const string& tempURL, off_t pos, off_t npos)
     {
-        std::cout << "[CloudRaidImpl::prepareRequest] BEGIN (req="<<req<<", tempURL="<<tempURL<<", pos="<<pos<<", npos="<<npos<<") [started="<<started.load()<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
         tslot->prepareRequest(req, tempURL, pos, npos);
-        std::cout << "[CloudRaidImpl::prepareRequest] END [return = " << std::to_string(req->status == REQ_PREPARED) << "] (req="<<req<<", tempURL="<<tempURL<<", pos="<<pos<<", npos="<<npos<<") [started="<<started.load()<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         return req->status == REQ_PREPARED;
     }
 
     bool post(std::shared_ptr<HttpReqXfer> req)
     {
-        std::cout << "[CloudRaidImpl::post] call [tslot="<<tslot<<", started="<<started.load()<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
         req->post(client);
         return req->status == REQ_INFLIGHT;
@@ -1069,10 +1041,8 @@ public:
 
     bool onRequestFailure(std::shared_ptr<HttpReqXfer> req, int part, SCCR::raidTime& backoff)
     {
-        std::cout << "[CloudRaidImpl::onRequestFailure] BEGIN [req="<<req<<", part="<<part<<"] [started="<<started.load()<<"]"  << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
         dstime tslot_backoff = 0;
-        std::cout << "[CloudRaidImpl::onTransferFailure] tslot->processRequestFailure(client="<<client<<", *committer=*"<<(void*)committer<<", req="<<req<<", tslot_backoff="<<tslot_backoff<<", part="<<std::to_string(part)<<"); [started="<<started.load()<<"]"  << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         tslot->processRequestFailure(client, *committer, req, tslot_backoff, part);
         backoff = static_cast<SCCR::raidTime>(backoff);
         /*
@@ -1081,30 +1051,24 @@ public:
             req->status = REQ_READY;
         }
         */
-        std::cout << "[CloudRaidImpl::onRequestFailure] END -> return backoff="<<backoff<<" [req="<<req<<", part="<<part<<"]"  << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         return true;
     }
 
     bool onTransferFailure()
     {
-        std::cout << "[CloudRaidImpl::onTransferFailure] BEGIN [started="<<started.load()<<"]"  << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load()) return false;
-        std::cout << "[CloudRaidImpl::onTransferFailure] tslot->transfer->failed(API_EAGAIN, *committer) [committer="<<(void*)committer<<"] [started="<<started.load()<<"]"  << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         tslot->transfer->failed(API_EAGAIN, *committer);
-        std::cout << "[CloudRaidImpl::onTransferFailure] END [started="<<started.load()<<"]"  << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         return true;
     }
 
     /* CloudRaid functionality */
     bool balancedRequest(MegaClient* _client, DBTableTransactionCommitter& _committer, int notifyfd)
     {
-        std::cout << "[CloudRaidImpl::balancedRequest] BEGIN (client="<<_client<<", committer="<<(void*)&committer<<", notifyfd="<<notifyfd<<") [tslot="<<tslot<<", started="<<started.load()<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (!started.load())
         {
             if (!_client) return false;
             client = _client;
             committer = &_committer;
-            std::cout << "[CloudRaidImpl::balancedRequest] !started -> new balancedRequest (tslot="<<tslot<<", notifyfd="<<notifyfd<<") [started="<<started.load()<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             raidReqPoolArray.start(1);
             currtime = Waiter::ds;
             raidReqToken = raidReqPoolArray.balancedRequest(raidReqParams, tslot->getcloudRaidPtr(), notifyfd);
@@ -1114,7 +1078,6 @@ public:
                 return start();
             }
         }
-        std::cout << "[CloudRaidImpl::balancedRequest] END (tslot="<<tslot<<", notifyfd="<<notifyfd<<") [started="<<started.load()<<"]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         return false;
     }
 
@@ -1148,7 +1111,6 @@ public:
 
     bool removeRaidReq()
     {
-        std::cout << "[CloudRaidImpl::removeRaidReq] call -> removeRaidReq()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         if (started.load())
         {
             raidReqPoolArray.remove(raidReqToken);
@@ -1190,7 +1152,7 @@ CloudRaid::CloudRaid(TransferSlot* tslot, const std::vector<std::string> &tempUr
     init(tslot, tempUrls, cfilesize, cstart, creqlen, static_cast<SCCR::raidTime>(ctickettime), cskippart);
 }
 
-CloudRaid::~CloudRaid() { std::cout << "[CloudRaid::~CloudRaid] call" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl; }
+CloudRaid::~CloudRaid() { }
 
 bool CloudRaid::isShown() const
 {
@@ -1200,7 +1162,6 @@ bool CloudRaid::isShown() const
 /* TransferSlot functionality */
 bool CloudRaid::disconnect(const std::shared_ptr<HttpReqXfer>& req)
 {
-    std::cout << "[CloudRaid::disconnect] call -> removeRaidReq()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (!shown.load())
         return false;
     return Pimpl()->disconnect(req);
@@ -1258,7 +1219,6 @@ bool CloudRaid::isStarted() const
 
 bool CloudRaid::removeRaidReq()
 {
-    std::cout << "[CloudRaid::removeRaidReq] call -> removeRaidReq()" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     if (!shown.load())
         return false;
     return Pimpl()->removeRaidReq();
