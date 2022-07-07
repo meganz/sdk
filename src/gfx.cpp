@@ -38,6 +38,16 @@ bool GfxProc::isgfx(const LocalPath& localfilename)
 
     if (!(supported = mGfxProvider->supportedformats()))
     {
+        // We don't have supported formats, so the build was without FREEIMAGE or other graphics processing libraries
+        // Therefore we cannot graphics process any file, so return false so that we don't try.
+        return false;
+    }
+
+    if (0 == strcmp(supported, "all"))
+    {
+        // special case for client app provided MegaGfxProcessor
+        // and for our Android app.  If they don't supply a list
+        // of extensions, then we don't filter.
         return true;
     }
 
@@ -63,6 +73,14 @@ bool GfxProc::isvideo(const LocalPath& localfilename)
     if (!(supported = mGfxProvider->supportedvideoformats()))
     {
         return false;
+    }
+
+    if (0 == strcmp(supported, "all"))
+    {
+        // special case for client app provided MegaGfxProcessor
+        // and for our Android app.  If they don't supply a list
+        // of extensions, then we don't filter.
+        return true;
     }
 
     string ext;

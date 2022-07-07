@@ -157,6 +157,11 @@ CONFIG(USE_CONSOLE) {
         SOURCES += src/posix/console.cpp
         SOURCES += src/posix/consolewaiter.cpp
         LIBS += -lreadline
+        macx:vcpkg{
+            debug:LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libhistory.a
+            !debug:LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libhistory.a
+            LIBS += -ltermcap
+        }
     }
 }
 
@@ -247,7 +252,7 @@ CONFIG(USE_LIBRAW) {
     vcpkg:win32:LIBS += -ljpeg
     vcpkg:!win32:LIBS += -ljpeg
     vcpkg:unix:!macx:LIBS += -lgomp
-    vcpkg:!CONFIG(USE_PDFIUM):LIBS += -llcms2$$DEBUG_SUFFIX
+    vcpkg:!CONFIG(USE_PDFIUM):LIBS += -llcms$$DEBUG_SUFFIX
 
     win32 {
         DEFINES += LIBRAW_NODLL

@@ -2791,7 +2791,7 @@ std::string getSafeUrl(const std::string &posturl)
         {
             end = safeurl.size();
         }
-        memset((char *)safeurl.data() + sid, 'X', end - sid);
+        safeurl.replace(sid, end - sid, end - sid, 'X');
     }
     size_t authKey = safeurl.find("&n=");
     if (authKey != string::npos)
@@ -2802,7 +2802,7 @@ std::string getSafeUrl(const std::string &posturl)
         {
             end = safeurl.size();
         }
-        memset((char *)safeurl.data() + authKey, 'X', end - authKey);
+        safeurl.replace(authKey, end - authKey, end - authKey, 'X');
     }
     return safeurl;
 }

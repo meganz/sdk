@@ -511,7 +511,9 @@ void CurlHttpIO::filterDNSservers()
 void CurlHttpIO::addaresevents(Waiter *waiter)
 {
     std::cout << "[CurlHttpIO::addaresevents] BEGIN [waiter = " << waiter << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
+#ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countAddAresEventsCode);
+#endif
 
     SockInfoMap prevAressockets;   // if there are SockInfo records that were in use, and won't be anymore, they will be deleted with this
     prevAressockets.swap(aressockets);
@@ -591,7 +593,9 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 {
     std::cout << "[CurlHttpIO::addcurlevents] BEGIN [waiter = " << waiter << ", direction_t = " << d << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
+#ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countAddCurlEventsCode);
+#endif
 
 #if defined(_WIN32)
     bool anyWriters = false;
@@ -683,7 +687,9 @@ void CurlHttpIO::closecurlevents(direction_t d)
 void CurlHttpIO::processaresevents()
 {
     std::cout << "[CurlHttpIO::processaresevents] call" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
+#ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countProcessAresEventsCode);
+#endif
 
 #ifndef _WIN32
     auto *rfds = &((PosixWaiter *)waiter)->rfds;
@@ -725,7 +731,9 @@ void CurlHttpIO::processaresevents()
 void CurlHttpIO::processcurlevents(direction_t d)
 {
     std::cout << "[CurlHttpIO::processcurlevents] BEGIN [direction_t = " << d << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
+#ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
+#endif
 #ifdef WIN32
     mSocketsWaitEvent_curl_call_needed = false;
 #else
@@ -1011,7 +1019,9 @@ bool CurlHttpIO::cacheresolvedurls(const std::vector<string>& urls, std::vector<
 void CurlHttpIO::addevents(Waiter* w, int)
 {
     std::cout << "[CurlHttpIO::addevents] BEGIN [waiter* = " << w << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
+#ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countCurlHttpIOAddevents);
+#endif
 
     waiter = (WAIT_CLASS*)w;
     long curltimeoutms = -1;

@@ -986,7 +986,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
-
     cmd("p");
     notself(client);
 
@@ -1550,8 +1549,9 @@ bool CommandKillSessions::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandLogout::CommandLogout(MegaClient *client, bool keepSyncConfigsFile)
-    : mKeepSyncConfigsFile(keepSyncConfigsFile)
+CommandLogout::CommandLogout(MegaClient *client, Completion completion, bool keepSyncConfigsFile)
+  : mCompletion(std::move(completion))
+  , mKeepSyncConfigsFile(keepSyncConfigsFile)
 {
     cmd("sml");
 
@@ -1563,7 +1563,6 @@ CommandLogout::CommandLogout(MegaClient *client, bool keepSyncConfigsFile)
 bool CommandLogout::procresult(Result r)
 {
     assert(r.wasErrorOrOK());
-    MegaApp *app = client->app;
     if (client->loggingout > 0)
     {
         client->loggingout--;
@@ -1572,15 +1571,16 @@ bool CommandLogout::procresult(Result r)
     {
         // We are logged out, but we mustn't call locallogout until we exit this call
         // stack for processing CS batches, as it deletes data currently in use.
+        Completion completion = std::move(mCompletion);
         bool keepSyncConfigsFile = mKeepSyncConfigsFile;
-        client->mOnCSCompletion = [keepSyncConfigsFile](MegaClient* client){
+        client->mOnCSCompletion = [=](MegaClient* client){
             client->locallogout(true, keepSyncConfigsFile);
-            client->app->logout_result(API_OK);
+            completion(API_OK);
         };
     }
     else
     {
-        app->logout_result(r.errorOrOK());
+        mCompletion(r.errorOrOK());
     }
     return true;
 }
@@ -1867,8 +1867,13 @@ bool CommandLogin::procresult(Result r)
                             return true;
                         }
 
+                        byte buf[sizeof me];
+
                         // decrypt and set session ID for subsequent API communication
-                        if (!client->asymkey.decrypt(sidbuf, len_csid, sidbuf, MegaClient::SIDLEN))
+                        if (!client->asymkey.decrypt(sidbuf, len_csid, sidbuf, MegaClient::SIDLEN)
+                                // additionally, check that the user's handle included in the session matches the own user's handle (me)
+                                || (Base64::atob((char*)sidbuf + SymmCipher::KEYLENGTH, buf, sizeof buf) != sizeof buf)
+                                || (me != MemAccess::get<handle>((const char*)buf)))
                         {
                             client->app->login_result(API_EINTERNAL);
                             return true;
@@ -5371,7 +5376,6 @@ bool CommandGetPH::procresult(Result r)
                         newnode->parenthandle = UNDEF;
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
-
                         client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0);
                     }
                     else if (havekey)

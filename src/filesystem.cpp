@@ -1707,5 +1707,199 @@ bool isNetworkFilesystem(FileSystemType type)
            || type == FS_SMB2;
 }
 
+
+std::atomic<size_t> ScanService::mNumServices(0);
+std::unique_ptr<ScanService::Worker> ScanService::mWorker;
+std::mutex ScanService::mWorkerLock;
+
+ScanService::ScanService(Waiter& waiter)
+    : mWaiter(waiter)
+{
+    // Locking here, rather than in the if statement, ensures that the
+    // worker is fully constructed when control leaves the constructor.
+    std::lock_guard<std::mutex> lock(mWorkerLock);
+
+    if (++mNumServices == 1)
+    {
+        mWorker.reset(new Worker());
+    }
+}
+
+ScanService::~ScanService()
+{
+    if (--mNumServices == 0)
+    {
+        std::lock_guard<std::mutex> lock(mWorkerLock);
+        mWorker.reset();
+    }
+}
+
+auto ScanService::queueScan(LocalPath targetPath, handle expectedFsid, bool followSymlinks, map<LocalPath, FSNode>&& priorScanChildren) -> RequestPtr
+{
+    // Create a request to represent the scan.
+    auto request = std::make_shared<ScanRequest>(mWaiter, followSymlinks, targetPath, expectedFsid, move(priorScanChildren));
+
+    // Queue request for processing.
+    mWorker->queue(request);
+
+    return request;
+}
+
+ScanService::ScanRequest::ScanRequest(Waiter& waiter,
+    bool followSymLinks,
+    LocalPath targetPath,
+    handle expectedFsid,
+    map<LocalPath, FSNode>&& priorScanChildren)
+    : mWaiter(waiter)
+    , mScanResult(SCAN_INPROGRESS)
+    , mFollowSymLinks(followSymLinks)
+    , mKnown(move(priorScanChildren))
+    , mResults()
+    , mTargetPath(std::move(targetPath))
+    , mExpectedFsid(expectedFsid)
+{
+}
+
+ScanService::Worker::Worker(size_t numThreads)
+    : mFsAccess(new FSACCESS_CLASS())
+    , mPending()
+    , mPendingLock()
+    , mPendingNotifier()
+    , mThreads()
+{
+    // Always at least one thread.
+    assert(numThreads > 0);
+
+    LOG_debug << "Starting ScanService worker...";
+
+    // Start the threads.
+    while (numThreads--)
+    {
+        try
+        {
+            mThreads.emplace_back([this]() { loop(); });
+        }
+        catch (std::system_error& e)
+        {
+            LOG_err << "Failed to start worker thread: " << e.what();
+        }
+    }
+
+    LOG_debug << mThreads.size() << " worker thread(s) started.";
+    LOG_debug << "ScanService worker started.";
+}
+
+ScanService::Worker::~Worker()
+{
+    LOG_debug << "Stopping ScanService worker...";
+
+    // Queue the 'terminate' sentinel.
+    {
+        std::unique_lock<std::mutex> lock(mPendingLock);
+        mPending.emplace_back();
+    }
+
+    // Wake any sleeping threads.
+    mPendingNotifier.notify_all();
+
+    LOG_debug << "Waiting for worker thread(s) to terminate...";
+
+    // Wait for the threads to terminate.
+    for (auto& thread : mThreads)
+    {
+        thread.join();
+    }
+
+    LOG_debug << "ScanService worker stopped.";
+}
+
+void ScanService::Worker::queue(ScanRequestPtr request)
+{
+    // Queue the request.
+    {
+        std::unique_lock<std::mutex> lock(mPendingLock);
+        mPending.emplace_back(std::move(request));
+    }
+
+    // Tell the lucky thread it has something to do.
+    mPendingNotifier.notify_one();
+}
+
+void ScanService::Worker::loop()
+{
+    // We're ready when we have some work to do.
+    auto ready = [this]() { return mPending.size(); };
+
+    for ( ; ; )
+    {
+        ScanRequestPtr request;
+
+        {
+            // Wait for something to do.
+            std::unique_lock<std::mutex> lock(mPendingLock);
+            mPendingNotifier.wait(lock, ready);
+
+            // Are we being told to terminate?
+            if (!mPending.front())
+            {
+                // Bail, don't deque the sentinel.
+                return;
+            }
+
+            request = std::move(mPending.front());
+            mPending.pop_front();
+        }
+
+        const auto targetPath =
+            request->mTargetPath.toPath();
+
+        LOG_verbose << "Directory scan begins: " << targetPath;
+        using namespace std::chrono;
+        auto scanStart = high_resolution_clock::now();
+
+        // Process the request.
+        unsigned nFingerprinted = 0;
+        auto result = scan(request, nFingerprinted);
+        auto scanEnd = high_resolution_clock::now();
+
+        if (result == SCAN_SUCCESS)
+        {
+            LOG_verbose << "Directory scan complete for: " << targetPath
+                << " entries: " << request->mResults.size()
+                << " taking " << duration_cast<milliseconds>(scanEnd - scanStart).count() << "ms"
+                << " fingerprinted: " << nFingerprinted;
+        }
+        else
+        {
+            LOG_verbose << "Directory scan FAILED (" << result << "): " << targetPath;
+        }
+
+        request->mScanResult = result;
+        request->mWaiter.notify();
+    }
+}
+
+// Really we only have one worker despite the vector of threads - maybe we should just have one
+// regardless of multiple clients too - there is only one filesystem after all (but not singleton!!)
+CodeCounter::ScopeStats ScanService::syncScanTime = { "folderScan" };
+
+auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted) -> ScanResult
+{
+    CodeCounter::ScopeTimer rst(syncScanTime);
+
+    auto result = mFsAccess->directoryScan(request->mTargetPath,
+        request->mExpectedFsid,
+        request->mKnown,
+        request->mResults,
+        request->mFollowSymLinks,
+        nFingerprinted);
+
+    // No need to keep this data around anymore.
+    request->mKnown.clear();
+
+    return result;
+}
+
+
 } // namespace
 
