@@ -50,12 +50,6 @@ PartFetcher::PartFetcher()
     lastdata = currtime;
 
     delayuntil = 0;
-
-    /*
-    memset(&target, 0, sizeof(target));
-    target.sin6_family = AF_INET6;
-    target.sin6_port = ntohs(80);   // we don't use SSL for inter-server encrypted file transfer
-    */
 }
 
 PartFetcher::~PartFetcher()
@@ -80,20 +74,6 @@ bool PartFetcher::setsource(/*short cserverid, byte* chash*/const std::string& p
     url = partUrl;
     part = cpart;
     rr = crr;
-    /*
-    memcpy(hash, chash, sizeof hash);
-
-    char buf[32];
-
-    sprintf(buf, "storage.%d", serverid);
-
-    if (!config.getallips(buf, &target.sin6_addr, 1))
-    {
-        LOGF("E 10801 Unknown CloudRAID target server: %d", serverid);
-        errors++;
-        return false;
-    }
-    */
 
     sourcesize = RaidReq::raidPartSize(part, rr->filesize);
     return true;
@@ -334,12 +314,6 @@ int PartFetcher::trigger(raidTime delay, bool reusesocket)
     }
     assert(!url.empty());
 
-    /*
-    if (!reusesocket)
-    {
-        closesocket();
-    }
-    */
     closesocket(!reusesocket);
 
     if (!rem)
@@ -352,57 +326,8 @@ int PartFetcher::trigger(raidTime delay, bool reusesocket)
 
     std::cout << "[PartFetcher::trigger] [part="<<std::to_string(part)<<"] Getting socket for directIO [part=" << std::to_string(part) << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     
-    /*
-    auto s = rr->sockets[part];
-
-    if (!s)
-    {
-        std::cout << "[PartFetcher::trigger] [part="<<std::to_string(part)<<"] !s [s=" << s << "]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-        LOGF("E 10800 Can't get CloudRAID socket (%d)", errno);
-        exit(0);
-    }
-    */
-
-    /*
-    if ((s = socket(AF_INET6, SOCK_STREAM, 0)) < 0)
-    {
-        LOGF("E 10800 Can't get CloudRAID socket (%d)", errno);
-        exit(0);
-    }
-
-    TcpServer::makenblock(s);
-    */
-
-    //rr->pool.socketrrs.set(s, rr);  // set up for event to be handled immediately on the wait thread 
-
-    /*
-    epoll_event event;
-    event.data.fd = s;
-    event.events = EPOLLRDHUP | EPOLLHUP | EPOLLIN | EPOLLOUT | EPOLLET;
-
-    int t = epoll_ctl(rr->pool.efd, EPOLL_CTL_ADD, s, &event);
-
-    if (t < 0)
-    {
-        perror("CloudRAID EPOLL_CTL_ADD failed");
-        exit(0);
-    }
-    */
-   /*
-    if (directTrigger())
-    {
-        //rr->pool.socketrrs.set(s, rr);  // set up for event to be handled immediately on the wait thread
-    }
-    else
-    {
-        std::cout << "[PartFetcher::trigger] [part="<<std::to_string(part)<<"] !(rr->pool.addDirectio(s="<<s<<")) -> already added ????" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-        //std::cout << "[PartFetcher::trigger] !(rr->pool.addDirectio(s="<<s<<")) -> CloudRAID failed -> exit(0)" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-        //exit(0);
-    }
-    */
     if (delay < 0) delay = 0;
     directTrigger(!delay);
-    //directTrigger(false);
 
     if (delay) delayuntil = currtime+delay;
 
@@ -613,37 +538,10 @@ connest++;
             }
             else std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] Inbuf already owned -> go on processing it [pos="<<pos<<", s->dlpos="<<s->dlpos<<", s->buffer_released="<<std::to_string(s->buffer_released)<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
             std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] connected && REQ_SUCCESS -> process inputBuffer [pos="<<pos<<", s->dlpos="<<s->dlpos<<", s->buffer_released="<<std::to_string(s->buffer_released)<<"]" << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-            /*
-            while (*outbuf)
-            {
-                t = write(s, outbuf, strlen(outbuf));
 
-                if (t <= 0)
-                {
-                    if (!t || errno != EAGAIN)
-                    {
-                        //int save_errno = errno;
-                        LOGF("E 10803 CloudRAID request write to %d failed (%d)", url, errno);
-                        trigger();
-                        return -1;
-                    }
-
-                    break;
-                }
-                else
-                {
-                    // this is efficient due to outbuf being small and always NUL-terminated
-                    strcpy(outbuf, outbuf+t);
-                }
-            }
-            */
 
             // feed from network
-            //s->status = REQ_READY;
-            //char inbuf[NUMLINES*RAIDSECTOR];
-            //assert(inbuf->datalen() - pos > 0);
             std::cout << "[PartFetcher::io] [part="<<std::to_string(part)<<"] inbuf->datalen()="<<inbuf->datalen()<<", remfeed="<<remfeed<<""  << " [thread_id = " << std::this_thread::get_id() << "]" << std::endl;
-            //assert(inbuf->datalen() == remfeed);
             while (remfeed && inbuf->datalen())
             {
                 size_t t = inbuf->datalen();
@@ -1636,17 +1534,8 @@ bool RaidReqPool::addDirectio(const HttpReqPtr& req)
 
 void* RaidReqPool::raidproxyiothread()
 {
-    //std::cout << "[RaidReqPool::raidproxyiothread] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-    //_Exit(1);
-    //HttpReqPtr* events;
-    //std::vector<HttpReqPtr> reqEvents;
-    //std::map<std::pair<std::atomic<mega::reqstatus_t>&, HttpReq
-    //std::deque<std::pair<HttpReqPtr, std::atomic<std::shared_ptr<RaidReq>>>> events;
-    //std::vector<HttpReqPtr> events;
-
     int i, j, m, e;//n, e;
     RaidReq* rr;
-    int epollwait = -1;
 
     //events = (HttpReqPtr*)calloc(MAXEPOLLEVENTS, sizeof(HttpReqPtr));
     std::deque<HttpReqPtr> events;
@@ -1654,22 +1543,14 @@ void* RaidReqPool::raidproxyiothread()
     //auto nCount =sss
     while (isRunning.load())
     {
-        //usleep(100); // QUITAR !!!
         std::cout << "[RaidReqPool::raidproxyiothread] for (;;) BEGIN -> sleep until new Waiter::ds" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         mega::dstime timeNow = Waiter::ds;
-        //int nummswaits = 0;
         while (isRunning.load() && timeNow == Waiter::ds)
         {
-            //std::cout << "[RaidReqPool::raidproxyiothread] for (;;) sleep 1ms (nummswaits="<<nummswaits++<<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-        //std::this_thread::sleep_for(std::chrono::microseconds(1000));
-        //std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        //std::vector<
-        //n = epoll_wait(efd, events, MAXEPOLLEVENTS, epollwait);
 
         std::cout << "[RaidReqPool::raidproxyiothread] for (;;) AFTER SLEEP" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-        //if (epollwait >= 0) epollwait = -1;
 
         std::cout << "[RaidReqPool::raidproxyiothread] for (;;) GET LOCK" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         lock_guard<recursive_mutex> g(rrp_lock);  // this lock guarantees RaidReq will not be deleted between lookup and dispatch - locked for a while but only affects the main thread with new raidreqs being added or removed
@@ -1688,65 +1569,16 @@ void* RaidReqPool::raidproxyiothread()
             events.emplace_front(*directio.begin());
             directio.erase(directio.begin());
         }
-        //n = events.size();
+
         std::cout << "[RaidReqPool::raidproxyiothread] for (;;) (n=" << events.size() <<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 
         if (events.size() > 6) std::cout << "[RaidReqPool::raidproxyiothread] for (;;) ALERT WTF -> events.size() > 6 !!!!! (n=" << events.size() <<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
         assert(events.size() <= 6);
-        //std::cout << "[RaidReqPool::raidproxyiothread] for (;;) GET LOCK" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-        //lock_guard<mutex> g(rrp_lock);  // this lock guarantees RaidReq will not be deleted between lookup and dispatch - locked for a while but only affects the main thread with new raidreqs being added or removed
-
-
+  
         // initially process all the ones for which we can get the RaidReq lock instantly.  For any that are contended, skip and process the rest for now - then loop and retry, last loop locks rather than try_locks.
         for (j = 2; j--; )
         {
             std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [j="<<j<<", n=" << events.size() <<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-            //m = 0;
-            /*
-            for (i = 0; i < events.size(); i++)
-            {
-                HttpReqPtr s = nullptr;
-                try {
-                    s = events.at(i);
-                    std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [j="<<j<<", i="<<i<<", n=" << events.size() <<"] -> s acquired, call (rr = socketrrs.lookup(s="<<s<<"))" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                }
-                catch (std::exception& ex)
-                {
-                    std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [j="<<j<<", i="<<i<<", n=" << events.size() <<"] -> ALERT!!!! EXCEPTION: ex=" << ex.what() << "" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                    exit(0);
-                }
-                //s = events[i].data.fd;
-                //e = events[i].events;
-
-                if ((rr = socketrrs.lookup(s)))  // retrieved under extremely brief lock.  RaidReqs can not be deleted until we unlock rrp_lock 
-                {
-                    std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [j="<<j<<", i="<<i<<", n=" << events.size() <<"] -> (rr = socketrrs.lookup(s="<<s<<")) == TRUE" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                    //rr->isSocketConnected(i)
-                    std::unique_lock<mutex> g(rr->rr_lock, std::defer_lock);
-                    //if (j > 0 ? g.try_lock() : (g.lock(), true))
-                    if (g.try_lock()) 
-                    {
-                        std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [n=" << events.size() <<"] (rr = socketrrs.lookup(s=" << s <<") && trylock) -> rr->dispatchio(s=" << s <<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                        rr->dispatchio(s);
-                        events.erase(events.begin() + i);
-                    }
-                    else
-                    {
-                        std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [n=" << events.size() <<"] (rr = socketrrs.lookup(s=" << s <<") && !trylock) -> move it to the front" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                        // move it to the front
-                        events.erase(events.begin() + i);
-                        events.emplace_front(s);
-                        //events[m].events = e;
-                        //events[m++].data.fd = s;
-                    }
-                }
-                else
-                {
-                    std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [n=" << events.size() <<"] !socketrrs.lookup(s=" << s <<") -> NOTHING (delete event)" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;  
-                    events.erase(events.begin() + i);
-                }
-            }
-            */
             while (!events.empty())
             {
                 const HttpReqPtr& s = *events.begin();
@@ -1757,9 +1589,7 @@ void* RaidReqPool::raidproxyiothread()
                 if ((rr = socketrrs.lookup(s)))  // retrieved under extremely brief lock.  RaidReqs can not be deleted until we unlock rrp_lock 
                 {
                     std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [j="<<j<<", i="<<0<<", n=" << events.size() <<"] -> (rr = socketrrs.lookup(s="<<s<<")) == TRUE" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                    //rr->isSocketConnected(i)
                     std::unique_lock<mutex> g(rr->rr_lock, std::defer_lock);
-                    //if (j > 0 ? g.try_lock() : (g.lock(), true))
                     if (g.try_lock()) 
                     {
                         std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [n=" << events.size() <<"] (rr = socketrrs.lookup(s=" << s <<") && trylock) -> rr->dispatchio(s=" << s <<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
@@ -1769,14 +1599,9 @@ void* RaidReqPool::raidproxyiothread()
                     else
                     {
                         std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [n=" << events.size() <<"] (rr = socketrrs.lookup(s=" << s <<") && !trylock) -> sleep 1 ms and retry" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                        //std::this_thread::sleep_for(std::chrono::milliseconds(1));
                         // move it to the front
                         events.erase(events.begin());
                         addScheduledio(currtime, s);
-                        //addDirectio(s);
-                        //events.emplace_front(s);
-                        //events[m].events = e;
-                        //events[m++].data.fd = s;
                     }
                 }
                 else
@@ -1791,149 +1616,29 @@ void* RaidReqPool::raidproxyiothread()
                 std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [j=1] -> scheduledio.size() = "<<scheduledio.size()<<"" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                 while (!scheduledio.empty())
                 {
-                    epollwait = scheduledio.begin()->first-currtime;
+                    int schedulewait = scheduledio.begin()->first-currtime;
 
-                    if (epollwait <= 0)
+                    if (schedulewait <= 0)
                     {
-                        //if (m == MAXEPOLLEVENTS)
-                        /*
-                        if (scheduledio.begin()->second->st)
-                        {
-                            // process remainder in the next round
-                            epollwait = 0;
-                            break;
-                        }
-                        */
-
-                        /*
-                        // a scheduled io() has come up for execution
-                        events[m].events = 0;
-                        events[m++].data.fd = scheduledio.begin()->second;
-                        */
-                        std::cout << "[RaidReqPool::raidproxyiothread] for (;;) (epollwait="<<epollwait<<" <= 0) -> a scheduled io() has come up for execution -> s="<<scheduledio.begin()->second<<"" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
+                        std::cout << "[RaidReqPool::raidproxyiothread] for (;;) (schedulewait="<<schedulewait<<" <= 0) -> a scheduled io() has come up for execution -> s="<<scheduledio.begin()->second<<"" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
                         events.emplace_front(scheduledio.begin()->second);
                         scheduledio.erase(scheduledio.begin());
-
-                        epollwait = -1;
                     }
                     else
                     {
-                        std::cout << "[RaidReqPool::raidproxyiothread] for (;;) (epollwait="<<epollwait<<" > 0) -> epollwait *= 1000 " << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                        epollwait *= 1000;
-                        break;
+                        std::cout << "[RaidReqPool::raidproxyiothread] for (;;) (schedulewait="<<schedulewait<<" > 0) -> schedulewait *= 1000 " << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;                        break;
                     }
                 }
             }
 
             if (events.empty()) std::cout << "[RaidReqPool::raidproxyiothread] for (;;) events.empty() -> BREAK" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
             if (events.empty()) break;
-            //else n = events.size();
         }
         std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [END]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
     }
     std::cout << "[RaidReqPool::raidproxyiothread] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
-/*
-void* RaidReqPool::raidproxyiothread()
-{
-    std::cout << "[RaidReqPool::raidproxyiothread] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-    //_Exit(1);
-    HttpReqPtr* events;
-    //std::vector<HttpReqPtr> reqEvents;
-    //std::map<std::pair<std::atomic<mega::reqstatus_t>&, HttpReq
-    //std::deque<std::pair<HttpReqPtr, std::atomic<std::shared_ptr<RaidReq>>>> events;
-    //std::vector<HttpReqPtr> events;
-
-    int i, j, m, n, e;
-    RaidReq* rr;
-    int epollwait = -1;
-
-    events = (HttpReqPtr*)calloc(MAXEPOLLEVENTS, sizeof(HttpReqPtr));
-    int events_size = 0;
-
-    //auto nCount =sss
-    for (;;)
-    {
-        //std::vector<
-        //n = epoll_wait(efd, events, MAXEPOLLEVENTS, epollwait);
-        n = events_size;
-        std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [BEGIN] (n=" << n <<")" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-
-        //if (epollwait >= 0) epollwait = -1;
-
-        lock_guard<mutex> g(rrp_lock);  // this lock guarantees RaidReq will not be deleted between lookup and dispatch - locked for a while but only affects the main thread with new raidreqs being added or removed
-
-        // initially process all the ones for which we can get the RaidReq lock instantly.  For any that are contended, skip and process the rest for now - then loop and retry, last loop locks rather than try_locks.
-        for (j = 2; j--; )
-        {
-            m = 0;
-            for (i = 0; i < n; i++)
-            {
-                auto s = events[i];
-                //s = events[i].data.fd;
-                //e = events[i].events;
-
-                if ((rr = socketrrs.lookup(s)))  // retrieved under extremely brief lock.  RaidReqs can not be deleted until we unlock rrp_lock 
-                {
-
-                    //rr->isSocketConnected(s)
-                    std::unique_lock<mutex> g(rr->rr_lock, std::defer_lock);
-                    if (j > 0 ? g.try_lock() : (g.lock(), true)) 
-                    {
-                        rr->dispatchio(s);
-                    }
-                    else
-                    {
-                        // move it to the front
-                        //events[m].events = e;
-                        //events[m++].data.fd = s;
-                    }
-                }
-            }
-
-            if (j == 1)
-            {
-                while (!scheduledio.empty())
-                {
-                    epollwait = scheduledio.begin()->first-currtime;
-
-                    if (epollwait <= 0)
-                    {
-                        
-                        if (m == MAXEPOLLEVENTS)
-                        {
-                            // process remainder in the next round
-                            epollwait = 0;
-                            break;
-                        }
-                        
-
-                        
-                        // a scheduled io() has come up for execution
-                        events[m].events = 0;
-                        events[m++].data.fd = scheduledio.begin()->second;
-                        
-                        scheduledio.erase(scheduledio.begin());
-
-                        epollwait = -1;
-                    }
-                    else
-                    {
-                        epollwait *= 1000;
-                        break;
-                    }
-                }
-            }
-
-            std::cout << "[RaidReqPool::raidproxyiothread] for (;;) [END]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-            if (m == 0) break;
-            else n = m;
-        }
-    }
-    std::cout << "[RaidReqPool::raidproxyiothread] END" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-}
-*/
 
 void* RaidReqPool::raidproxyiothreadstart(void* arg)
 {
@@ -1944,7 +1649,6 @@ RaidReqPool::RaidReqPool(RaidReqPoolArray& ar)
     : array(ar)
 {
     std::cout << "[RaidReqPool::RaidReqPool] BEGIN" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-    //efd = epoll_create(1);
 
     int err; 
 

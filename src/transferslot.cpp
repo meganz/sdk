@@ -1139,91 +1139,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                 case REQ_FAILURE:
                     processRequestFailure(client, committer, reqs[i], backoff, i);
-                    /*
-                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" REQ_FAILURE: Failed chunk. HTTP status: " << reqs[i]->httpstatus << " on channel " << i << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                    LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus << " on channel " << i;
-                    if (reqs[i]->httpstatus && reqs[i]->contenttype.find("text/html") != string::npos
-                            && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
-                    {
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_FAILURE] Invalid Content-Type detected on failed chunk: " << reqs[i]->contenttype << " (transfer->failed(API_EAGAIN)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                        LOG_warn << "Invalid Content-Type detected on failed chunk: " << reqs[i]->contenttype;
-                        client->usehttps = true;
-                        client->app->notify_change_to_https();
-
-                        client->sendevent(99436, "Automatic change to HTTPS", 0);
-
-                        return transfer->failed(API_EAGAIN, committer);
-                    }
-
-                    if (reqs[i]->httpstatus == 509)
-                    {
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_FAILURE] Bandwidth overquota from storage server (transfer->failed(API_EOVERQUOTA)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                        LOG_warn << "Bandwidth overquota from storage server";
-
-                        dstime backoff = client->overTransferQuotaBackoff(reqs[i].get());
-
-                        return transfer->failed(API_EOVERQUOTA, committer, backoff);
-                    }
-                    else if (reqs[i]->httpstatus == 429)
-                    {
-                        // too many requests - back off a bit (may be added serverside at some point.  Added here 202020623)
-                        backoff = 5;
-                        reqs[i]->status = REQ_PREPARED;
-                    }
-                    else if (reqs[i]->httpstatus == 503 && !transferbuf.isRaid())
-                    {
-                        // for non-raid, if a file gets a 503 then back off as it may become available shortly
-                        backoff = 50;
-                        reqs[i]->status = REQ_PREPARED;
-                    }
-                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404 || (reqs[i]->httpstatus == 503 && transferbuf.isRaid()))
-                    {
-                        // - 404 means "malformed or expired URL" - can be immediately fixed by getting a fresh one from the API
-                        // - 503 means "the API gave you good information, but I don't have the file" - cannot be fixed (at least not immediately) by getting a fresh URL
-                        // for raid parts and 503, it's appropriate to try another raid source
-                        if (!tryRaidRecoveryFromHttpGetError(i, true))
-                        {
-                            return transfer->failed(API_EAGAIN, committer);
-                        }
-                    }
-                    else if (reqs[i]->httpstatus == 0 && tryRaidRecoveryFromHttpGetError(i, true))
-                    {
-                        // status 0 indicates network error or timeout; no headers recevied.
-                        // tryRaidRecoveryFromHttpGetError has switched to loading a different part instead of this one.
-                    }
-                    else
-                    {
-                        if (!failure)
-                        {
-                            failure = true;
-                            bool changeport = false;
-
-                            if (transfer->type == GET && client->autodownport && !memcmp(transferbuf.tempURL(i).c_str(), "http:", 5))
-                            {
-                                LOG_debug << "Automatically changing download port";
-                                client->usealtdownport = !client->usealtdownport;
-                                changeport = true;
-                            }
-                            else if (transfer->type == PUT && client->autoupport && !memcmp(transferbuf.tempURL(i).c_str(), "http:", 5))
-                            {
-                                LOG_debug << "Automatically changing upload port";
-                                client->usealtupport = !client->usealtupport;
-                                changeport = true;
-                            }
-
-                            client->app->transfer_failed(transfer, API_EFAILED);
-                            client->setchunkfailed(&reqs[i]->posturl);
-                            ++client->performanceStats.transferTempErrors;
-
-                            if (changeport)
-                            {
-                                toggleport(reqs[i].get());
-                            }
-                        }
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_FAILURE] -> REQ_PREPARED" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                        reqs[i]->status = REQ_PREPARED;
-                    }
-                    */
 
                 default:
                     ;
@@ -1311,39 +1226,8 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     if (prepare)
                     {
-                        std::cout << "[TransferSlot::doio] [prepare] -> prepareRequest(reqs["<<i<<"]="<<reqs[i]<<", tempURL='"<< string(transferbuf.isNewRaid() ? string("") : transferbuf.tempURL(i)) <<"', posrange.first="<<posrange.first<<", posrange.second="<<posrange.second<<");" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                        
+                        std::cout << "[TransferSlot::doio] [prepare] -> prepareRequest(reqs["<<i<<"]="<<reqs[i]<<", tempURL='"<< string(transferbuf.isNewRaid() ? string("") : transferbuf.tempURL(i)) <<"', posrange.first="<<posrange.first<<", posrange.second="<<posrange.second<<");" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;         
                         prepareRequest(reqs[i], transferbuf.isNewRaid() ? std::string() : transferbuf.tempURL(i), posrange.first, posrange.second);
-                        //transferbuf.tempURL(i)
-                        /*
-                        string finaltempurl = transferbuf.tempURL(i);
-                        if (transfer->type == GET && client->usealtdownport
-                                && !memcmp(finaltempurl.c_str(), "http:", 5))
-                        {
-                            size_t index = finaltempurl.find("/", 8);
-                            if(index != string::npos && finaltempurl.find(":", 8) == string::npos)
-                            {
-                                finaltempurl.insert(index, ":8080");
-                            }
-                        }
-
-                        if (transfer->type == PUT && client->usealtupport
-                                && !memcmp(finaltempurl.c_str(), "http:", 5))
-                        {
-                            size_t index = finaltempurl.find("/", 8);
-                            if(index != string::npos && finaltempurl.find(":", 8) == string::npos)
-                            {
-                                finaltempurl.insert(index, ":8080");
-                            }
-                        }
-
-                        std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" (prepare) -> reqs[i]->prepare(finaltempurl='" << finaltempurl.c_str() << "', ...), reqs[i]->pos = posrange.first = " << posrange.first << ", status = REQ_PREPARED"  << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                        reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
-                                                               transfer->ctriv,
-                                                               posrange.first, posrange.second);
-                        reqs[i]->pos = posrange.first;
-                        reqs[i]->status = REQ_PREPARED;
-                        */
                     }
 
                     transferbuf.transferPos(i) = std::max<m_off_t>(transferbuf.transferPos(i), posrange.second);
@@ -1441,15 +1325,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     }
                     else std::cout << "[TransferSlot::doio] ALERT! isNewRaid but [reqs["<<i<<"]="<<reqs[i]<<" status = reqs[i]->status=" << std::to_string(reqs[i]->status) << "" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                }
-                /*
-                else if (reqs[i]->status == REQ_PREPARED)
-                {
-                    std::cout << "[TransferSlot::doio] [reqs["<<i<<"]="<<reqs[i]<<" [REQ_PREPARED] [!backoff] CONNECTION FIT TO POST! (requestStarted) -> reqs[i]->post(client)" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-                    reqs[i]->post(client); // status becomes either REQ_INFLIGHT or REQ_FAILED
-                }
-                */
-                
+                }  
             }
         }
     }
@@ -1637,16 +1513,6 @@ void TransferSlot::prepareRequest(const std::shared_ptr<HttpReqXfer>& httpReq, c
     std::cout << "[TransferSlot::prepareRequest] [httpReq=" << httpReq << "] END [finaltempURL=" << finaltempURL << "]" << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
 }
 
-/*
-void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionCommitter& committer, int channel, dstime& backoff)
-{
-    const std::shared_ptr<HttpReqXfer>& httpReq = reqs[channel];
-    std::cout << "[TransferSlot::processRequestFailure] [httpReq="<<httpReq<<" REQ_FAILURE: Failed chunk. HTTP status: " << httpReq->httpstatus << " on channel " << channel << "  [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
-    LOG_warn << "Failed chunk. HTTP status: " << httpReq->httpstatus << " on channel " << channel;
-    processRequestFailure(client, committer, httpReq, backoff, channel);
-}
-*/
-
 void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel)
 {
     std::cout << "[TransferSlot::processRequestFailure] BEGIN [httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] REQ_FAILURE: Failed chunk. HTTP status: " << httpReq->httpstatus << " on channel " << channel << " [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;
@@ -1715,22 +1581,6 @@ void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionC
         // status 0 indicates network error or timeout; no headers received.
         // tryRaidRecoveryFromHttpGetError has switched to loading a different part instead of this one.
     }
-    /*else if (httpReq->httpstatus == 403 || httpReq->httpstatus == 404 || (httpReq->httpstatus == 503 && transferbuf.isRaid()))
-    {
-        // - 404 means "malformed or expired URL" - can be immediately fixed by getting a fresh one from the API
-        // - 503 means "the API gave you good information, but I don't have the file" - cannot be fixed (at least not immediately) by getting a fresh URL
-        // for raid parts and 503, it's appropriate to try another raid source
-        if (!tryRaidRecoveryFromHttpGetError(i, true))
-        {
-            return transfer->failed(API_EAGAIN, committer);
-        }
-    }
-    else if (httpReq->httpstatus == 0 && tryRaidRecoveryFromHttpGetError(i, true))
-    {
-        // status 0 indicates network error or timeout; no headers recevied.
-        // tryRaidRecoveryFromHttpGetError has switched to loading a different part instead of this one.
-    }
-    */
     else
     {
         std::cout << "[TransferSlot::processRequestFailure] None of the HTTP errors above [isNewRaid()="<<transferbuf.isNewRaid()<<", httpReq="<<httpReq<<", httpReq->httpstatus="<<httpReq->httpstatus<<"] [client="<<client<<", committer="<<(void*)&committer<<"]" << " [thread_id=" << std::this_thread::get_id() << "]" << std::endl;

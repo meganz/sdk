@@ -176,66 +176,6 @@ private:
     bool testForSlowRaidConnection(unsigned connectionNum, bool& incrementErrors);
 };
 
-/*
-class CloudRaid
-{
-private:
-    class CloudRaidImpl;
-    const CloudRaidImpl* Pimpl() const { return m_pImpl.get(); }
-    CloudRaidImpl* Pimpl() { return m_pImpl.get(); }
-
-    std::unique_ptr<CloudRaidImpl> m_pImpl;
-    std::atomic<bool> shown;
-
-public:
-    CloudRaid();
-    CloudRaid(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, mtime_t ctickettime, int cskippart);
-    ~CloudRaid();
-
-    bool isShown() const;
-    bool isStarted() const;
-
-    bool disconnect(const std::shared_ptr<HttpReqXfer>& req);
-    bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, off_t pos, off_t npos);
-    bool post(const std::shared_ptr<HttpReqXfer>& req);
-
-    bool init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, mtime_t ctickettime, int cskippart);
-    bool balancedRequest(MegaClient* client, int notifyfd = -1);
-    bool removeRaidReq();
-
-    m_off_t read_data(byte* buf, off_t len);
-    m_off_t send_data(byte* outbuf, off_t len); // Not really valid for uploads...
-};
-*/
-
-/*
-class TransferSlot::CloudRaid
-{
-private:
-    class CloudRaidImpl;
-    const CloudRaidImpl* Pimpl() const { return m_pImpl.get(); }
-    CloudRaidImpl* Pimpl() { return m_pImpl.get(); }
-
-    std::unique_ptr<CloudRaidImpl> m_pImpl;
-    std::atomic<bool> shown;
-
-public:
-    CloudRaid();
-    CloudRaid(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, mtime_t ctickettime, int cskippart);
-    ~CloudRaid();
-
-    bool isShown() const;
-    bool isStarted() const;
-
-    bool init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, mtime_t ctickettime, int cskippart);
-    bool balancedRequest(MegaClient* client, int notifyfd = -1);
-    bool removeRaidReq();
-
-    m_off_t read_data(byte* buf, off_t len);
-    m_off_t send_data(byte* outbuf, off_t len); // Not really valid for uploads...
-};
-*/
-
 } // namespace
 
 #endif
