@@ -3365,6 +3365,8 @@ TEST_F(SdkTest, SdkTestShares)
     delete sl;
     delete n;
 
+    mApi[0].contactRequestUpdated = false;
+    mApi[0].nodeUpdated = false;
     ASSERT_NO_FATAL_FAILURE( shareFolder(dummyNode1.get(), emailfake, MegaShare::ACCESS_FULL) );
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
