@@ -7614,6 +7614,47 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (NSMutableArray *)recentActionsSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
 
+/// Get a list of buckets, each bucket containing a list of recently added/modified nodes
+///
+/// Each bucket contains files that were added/modified in a set, by a single user.
+///
+/// Valid data in the MEGARequest object received on callbacks:
+///
+/// - [MEGARequest number] - Returns the number of days since nodes will be considerated
+/// 
+/// - [MEGARequest paramType] - Returns the maximun number of nodes
+///
+/// The associated request type with this request is MEGARequestTypeGetRecentActions
+/// Valid data in the MegaRequest object received in onRequestFinish when the error code
+/// is MEGAErrorTypeApiOk:
+///
+/// - [MEGARequest recentActionsBuckets] - Returns an array of buckets recently added/modified nodes
+///
+/// @param days Age of actions since added/modified nodes will be considered (in days)
+/// @param maxNodes Maximum amount of nodes to be considered
+/// @param delegate MEGARequestDelegate to track this request
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes delegate:(id<MEGARequestDelegate>)delegate;
+
+/// Get a list of buckets, each bucket containing a list of recently added/modified nodes
+///
+/// Each bucket contains files that were added/modified in a set, by a single user.
+///
+/// Valid data in the MEGARequest object received on callbacks:
+///
+/// - [MEGARequest number] - Returns the number of days since nodes will be considerated
+///
+/// - [MEGARequest paramType] - Returns the maximun number of nodes
+///
+/// The associated request type with this request is MEGARequestTypeGetRecentActions
+/// Valid data in the MegaRequest object received in onRequestFinish when the error code
+/// is MEGAErrorTypeApiOk:
+/// 
+/// - [MEGARequest recentActionsBuckets] - Returns an array of buckets recently added/modified nodes
+///
+/// @param days Age of actions since added/modified nodes will be considered (in days)
+/// @param maxNodes Maximum amount of nodes to be considered
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
+
 /**
  * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
  * @param node The parent node of the tree to explore
