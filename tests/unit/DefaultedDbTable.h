@@ -99,6 +99,10 @@ public:
     {
         return false;
     }
+    uint64_t getNumberOfChildrenByType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType) override
+    {
+      return 0;
+    }
     void cancelQuery() override
     {
 

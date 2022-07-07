@@ -17487,24 +17487,14 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
         return 0;
     }
 
-    sdkMutex.lock();
+    SdkMutexGuard lock(sdkMutex);
     Node *parent = client->nodebyhandle(p->getHandle());
     if (!parent || parent->type == FILENODE)
     {
-        sdkMutex.unlock();
         return 0;
     }
 
-    int numFiles = 0;
-    node_list nodeList = client->getChildren(parent);
-    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
-    {
-        if ((*it)->type == FILENODE)
-            numFiles++;
-    }
-    sdkMutex.unlock();
-
-    return numFiles;
+    return static_cast<int>(client->mNodeManager.getNumberOfChildrenByType(parent->nodeHandle(), FILENODE));
 }
 
 int MegaApiImpl::getNumChildFolders(MegaNode* p)
@@ -17514,24 +17504,14 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
         return 0;
     }
 
-    sdkMutex.lock();
+    SdkMutexGuard lock(sdkMutex);
     Node *parent = client->nodebyhandle(p->getHandle());
     if (!parent || parent->type == FILENODE)
     {
-        sdkMutex.unlock();
         return 0;
     }
 
-    int numFolders = 0;
-    node_list nodeList = client->getChildren(parent);
-    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
-    {
-        if ((*it)->type != FILENODE)
-            numFolders++;
-    }
-    sdkMutex.unlock();
-
-    return numFolders;
+    return static_cast<int>(client->mNodeManager.getNumberOfChildrenByType(parent->nodeHandle(), FOLDERNODE));
 }
 
 

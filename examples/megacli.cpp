@@ -3463,6 +3463,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_cp, sequence(text("cp"), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_numberofnodes, sequence(text("nn")));
+    p->Add(exec_numberofchildren, sequence(text("nc"), opt(remoteFSPath(client, &cwd))));
 
 
 #ifdef ENABLE_SYNC
@@ -9653,4 +9654,30 @@ void exec_numberofnodes(autocomplete::ACState &s)
     }
     cout << "Total nodes: " << numberOfNodes << endl;
     cout << "Total nodes in RAM: " << client->mNodeManager.getNumberNodesInRam() << endl << endl;
+}
+
+void exec_numberofchildren(autocomplete::ACState &s)
+{
+    Node *n;
+
+    if (s.words.size() > 1)
+    {
+        if (!(n = nodebypath(s.words[1].s.c_str())))
+        {
+            cout << s.words[1].s << ": No such file or directory" << endl;
+            return;
+        }
+    }
+    else
+    {
+        n = client->nodeByHandle(cwd);
+    }
+
+    assert(n);
+
+    size_t folders = client->mNodeManager.getNumberOfChildrenByType(n->nodeHandle(), FOLDERNODE);
+    size_t files = client->mNodeManager.getNumberOfChildrenByType(n->nodeHandle(), FILENODE);
+
+    cout << "Number of folders: " << folders << endl;
+    cout << "Number of files: " << files << endl;
 }

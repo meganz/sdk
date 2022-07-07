@@ -1026,7 +1026,19 @@ Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfold
 
     LocalPath::utf8_normalize(&nname);
 
-    return mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, skipfolders ? FILENODE : TYPE_UNKNOWN);
+    Node* node = nullptr;
+
+    if (!skipfolders)
+    {
+        node = mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, FOLDERNODE);
+    }
+
+    if (!node)
+    {
+        node = mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, FILENODE);
+    }
+
+    return node;
 }
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
@@ -7798,7 +7810,7 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag,
         restag = tag;
         if (completion) completion(API_EARGS, USER_HANDLE, newnodes, false);
         else app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
-		return;
+        return;
     }
 
     queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag, move(completion)));
@@ -13777,7 +13789,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
 {
     // If the attributes are not available yet, we make or get them.
-	// Then the completion function is called.
+    // Then the completion function is called.
 
     // we rely on storing this function to remember that we have an
     // operation in progress, so we don't allow nullptr
@@ -17408,6 +17420,19 @@ size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
     return (it != mNodeChildren.end()) ? it->second.size() : 0;
 }
 
+size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return 0;
+    }
+
+    assert(nodeType == FILENODE || nodeType == FOLDERNODE);
+
+    return mTable->getNumberOfChildrenByType(parentHandle, nodeType);
+}
+
 bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)
 {
     if (!mTable)
@@ -17561,7 +17586,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     auto encrypted = *ptr && ptr[1];
 
     ptr += (unsigned)*ptr + 1;
-    
+
     for (i = 4; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
