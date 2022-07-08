@@ -3600,6 +3600,9 @@ public:
     bool isHandleAllowed(handle h);
     void clearAllowedHandles();
     char* getLink(MegaNode *node, std::string protocol = "http");
+    bool isCurrentThread() {
+        return thread->isCurrentThread();
+    }
 
     set<handle> getAllowedHandles();
     void removeAllowedHandle(MegaHandle handle);

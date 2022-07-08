@@ -9835,21 +9835,21 @@ void MegaApiImpl::httpServerRemoveListener(MegaTransferListener *listener)
 
 void MegaApiImpl::fireOnStreamingStart(MegaTransferPrivate *transfer)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(httpServer && httpServer->isCurrentThread());
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferStart(api, transfer);
 }
 
 void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(httpServer && httpServer->isCurrentThread());
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferTemporaryError(api, transfer, e.get());
 }
 
 void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(httpServer && httpServer->isCurrentThread());
     if(e->getErrorCode())
     {
         LOG_warn << "Streaming request finished with error: " << e->getErrorString();
