@@ -1364,7 +1364,14 @@ void* RaidReqPool::raidproxyiothread()
 
         while (!directio.empty())
         {
-            events.emplace_front(*directio.begin());
+            if (static_cast<HttpReqPtr>(*directio.begin())->status != REQ_INFLIGHT)
+            {
+                events.emplace_front(*directio.begin());
+            }
+            else
+            {
+                addScheduledio(currtime, *directio.begin());
+            }
             directio.erase(directio.begin());
         }
 
@@ -1389,7 +1396,7 @@ void* RaidReqPool::raidproxyiothread()
                     {
                         // move it to the front
                         events.erase(events.begin());
-                        addScheduledio(currtime, s);
+                        addDirectio(s);
                     }
                 }
                 else
@@ -1402,7 +1409,14 @@ void* RaidReqPool::raidproxyiothread()
             {
                 while (!scheduledio.empty() && scheduledio.begin()->first <= currtime)
                 {
-                    events.emplace_front(scheduledio.begin()->second);
+                    if (static_cast<HttpReqPtr>(scheduledio.begin()->second)->status != REQ_INFLIGHT)
+                    {
+                        events.emplace_front(scheduledio.begin()->second);
+                    }
+                    else
+                    {
+                        addDirectio(scheduledio.begin()->second);
+                    }
                     scheduledio.erase(scheduledio.begin());
                 }
             }
