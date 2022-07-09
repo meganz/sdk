@@ -4308,7 +4308,8 @@ namespace mega
         {
 
             unsigned oldvalue = tbm->raidLinesPerChunk;
-            tbm->raidLinesPerChunk /= 4;
+            tbm->raidLinesPerChunk.store(tbm->raidLinesPerChunk / 4);
+            std::cout << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk << std::endl;
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk;
         }
 

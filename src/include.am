@@ -70,7 +70,6 @@ src_libmega_la_SOURCES += src/sccloudraid/config.cpp
 src_libmega_la_SOURCES += src/sccloudraid/logger.cpp
 src_libmega_la_SOURCES += src/sccloudraid/pstats.cpp
 src_libmega_la_SOURCES += src/sccloudraid/raidproxy.cpp
-src_libmega_la_SOURCES += src/sccloudraid/main_sccr.cpp
 
 EXTRA_DIST = src/mega_utf8proc_data.c
 

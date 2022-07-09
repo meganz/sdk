@@ -122,10 +122,13 @@ struct MEGA_API TransferSlot
     // handle I/O for this slot
     void doio(MegaClient*, DBTableTransactionCommitter&);
 
+    // Process CloudRaid Request
     off_t processRaidReq(const std::shared_ptr<HttpReqXfer>&);
+
+    // Prepare a transfer request for POST
     void prepareRequest(const std::shared_ptr<HttpReqXfer>&, const string& tempURL, off_t pos, off_t npos, bool setReqPreparedStatus = true);
-    //void procRequest(MegaClient*, DBTableTransactionCommitter&, std::shared_ptr<HttpReqXfer>);
-    //void processRequestFailure(MegaClient* client, DBTableTransactionCommitter& committer, int channel, dstime& backoff);
+
+    // Process a request in REQ_FAILURE state
     void processRequestFailure(MegaClient* client, DBTableTransactionCommitter& committer, const std::shared_ptr<HttpReqXfer>& httpReq, dstime& backoff, int channel = 0);
 
     // helper for doio to delay connection creation until we know if it's raid or non-raid

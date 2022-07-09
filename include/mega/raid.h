@@ -76,6 +76,12 @@ namespace mega {
         // indicate if the file is new raid (CloudRaidProxy) or not
         bool isNewRaid() const;
 
+        // get calculated raid lines per chunk
+        unsigned getRaidLinesPerChunk();
+
+        // get raid max chunks per read
+        unsigned getRaidMaxChunksPerRead();
+
         // Is this the connection we are not using
         bool isUnusedRaidConection(unsigned connectionNum) const;
 
@@ -142,7 +148,7 @@ namespace mega {
         m_off_t fullfilesize;      // end of the file
 
         // controls buffer sizes used
-        unsigned raidLinesPerChunk;
+        std::atomic<unsigned> raidLinesPerChunk;
 
         // of the six raid URLs, which 5 are we downloading from
         unsigned unusedRaidConnection;
@@ -262,9 +268,11 @@ namespace mega {
         CloudRaid(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, dstime ctickettime, int cskippart);
         ~CloudRaid();
 
+        /* Instance control functionality */
         bool isShown() const;
         bool isStarted() const;
 
+        /* TransferSlot functionality for RaidProxy */
         bool disconnect(const std::shared_ptr<HttpReqXfer>& req);
         bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, off_t pos, off_t npos);
         bool post(const std::shared_ptr<HttpReqXfer>& req);
@@ -272,6 +280,11 @@ namespace mega {
         bool onTransferFailure();
 
         bool init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, dstime ctickettime, int cskippart);
+        /* RaidBufferManager functionality for RaidProxy */
+        std::pair<bool, size_t> getRaidLinesPerChunk() const;
+        std::pair<bool, size_t> getRaidMaxChunksPerRead() const;
+
+        /* RaidProxy functionality for TransferSlot */
         bool balancedRequest(MegaClient* client, DBTableTransactionCommitter& committer, int notifyfd = -1);
         bool removeRaidReq();
 

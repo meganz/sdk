@@ -4,6 +4,8 @@
 #include <map>
 #include <sstream>
 
+mega::SCCR::raidTime currtime;
+
 using namespace mega::SCCR;
 
 // DONE: add connection re-use between RaidReqs
@@ -42,7 +44,7 @@ PartFetcher::PartFetcher()
     connected = false;
     skip_setposrem = false;
 
-    pos = 0; 
+    pos = 0;
     rem = 0;
 
     errors = 0;
@@ -56,7 +58,7 @@ PartFetcher::~PartFetcher()
 {
     if (rr)
     {
-        closesocket(true, true);
+        closesocket(true);
 
         while (!readahead.empty())
         {
@@ -81,7 +83,7 @@ size_t RaidReq::raidPartSize(int part, size_t fullfilesize)
 {
     // compute the size of this raid part based on the original file size len
     int r = fullfilesize % RAIDLINE;   // residual part
-    
+
     // parts 0 (parity) & 1 (largest data) are the same size
     int t = r-(part-!!part)*RAIDSECTOR;
 
@@ -185,7 +187,7 @@ void PartFetcher::setposrem()
         }
         else
         {
-            // if this is a slow fetch, we only look ahead as far READAHEAD 
+            // if this is a slow fetch, we only look ahead as far READAHEAD
             if (isslow() && it->first-startpos > READAHEAD) break;
 
             // startpos valid, look for suitable endpos
@@ -250,14 +252,13 @@ bool RaidReq::allconnected()
 }
 
 // close socket
-void PartFetcher::closesocket(bool disconnect, bool socketDisconnect)
+void PartFetcher::closesocket(bool reuseSocket)
 {
-    if (socketDisconnect && !disconnect) disconnect = true;
     if (skip_setposrem)
     {
         skip_setposrem = false;
     }
-    else if (disconnect)
+    else
     {
         rem = 0;
         remfeed = 0;    // need to clear remfeed so that the disconnected channel does not corrupt feedlag
@@ -268,31 +269,19 @@ void PartFetcher::closesocket(bool disconnect, bool socketDisconnect)
         auto &s = rr->sockets[part];
         if (s)
         {
-        //if (s->disconnect()) perror("Error closing socket");
-            //assert(disconnect || s->status != REQ_INFLIGHT);
-            if (!disconnect && s->status==REQ_INFLIGHT)
-            {
-            }
-            if (socketDisconnect || s->status == REQ_INFLIGHT)
+            if (!reuseSocket || s->status == REQ_INFLIGHT)
             {
                 rr->cloudRaid->disconnect(s);
             }
-            //s = -1;
-            if (disconnect)
-            {
-                s->status = REQ_READY;
-                rr->pool.socketrrs.del(s);
-            }
+            s->status = REQ_READY;
+            rr->pool.socketrrs.del(s);
         }
-        if (disconnect)
-        {
-            connected = false;
-        }
+        connected = false;
     }
 }
 
 // (re)create, set up socket and start (optionally delayed) io on it
-int PartFetcher::trigger(raidTime delay, bool reusesocket)
+int PartFetcher::trigger(raidTime delay, bool disconnect)
 {
     if (delay == MAX_DELAY_IN_SECONDS)
     {
@@ -301,7 +290,10 @@ int PartFetcher::trigger(raidTime delay, bool reusesocket)
     }
     assert(!url.empty());
 
-    closesocket(!reusesocket);
+    if (disconnect)
+    {
+        closesocket();
+    }
 
     if (!rem)
     {
@@ -309,7 +301,7 @@ int PartFetcher::trigger(raidTime delay, bool reusesocket)
         if (pos == rr->paddedpartsize) return -1;
     }
 
-    
+
     if (delay < 0) delay = 0;
     directTrigger(!delay);
 
@@ -395,87 +387,84 @@ void RaidReq::setslow(int newslow1, int newslow2)
 // perform I/O on socket (which is assumed to exist)
 int PartFetcher::io()
 {
-    //int t;
+    // prevent spurious epoll events from triggering a delayed reconnect early
+    if (currtime < delayuntil) return -1;
+
     auto s = rr->sockets[part];
+    assert(s != nullptr);
 
-    // FIXME: retrigger io() at retrytime
-    if (!connected || s->status == REQ_READY || s->status == REQ_PREPARED || s->status == REQ_FAILURE)
+
+    if (s->status == REQ_FAILURE)
     {
-        assert(s->status != REQ_INFLIGHT && s->status != REQ_SUCCESS);
+        return onFailure();
+    }
 
-        // prevent spurious epoll events from triggering a delayed reconnect early
-        if (currtime < delayuntil) return -1;
+    if (rr->slow1 < 0 && rr->allconnected())
+    {
+        // we only need RAIDPARTS-1 connections in fast mode, so shut down the slowest one
+        closesocket(true);
+        return -1;
+    }
 
-        lastconnect = currtime;
-        if (s->status != REQ_READY && s->status != REQ_PREPARED)
+    // unless the fetch position/length for the connection has been computed
+    // before, we do so *after* the connection so that the order in which
+    // the connections are established are the first criterion for slow source
+    // heuristics
+    if (!rem)
+    {
+        setposrem();
+        s->status = REQ_READY;
+    }
+
+    if (s->status == REQ_READY)
+    {
+        if (rem <= 0)
+        {
+            closesocket();
+            rr->resumeall();
+            return -1;
+        }
+
+        if (inbuf)
+            inbuf.reset();
+        size_t raidLinesPerChunk = rr->cloudRaid->getRaidLinesPerChunk().second;
+        size_t raidMaxChunksPerRead = rr->cloudRaid->getRaidMaxChunksPerRead().second;
+        size_t oldRaidChunkSize = raidLinesPerChunk * RAIDSECTOR * raidMaxChunksPerRead;
+        size_t newRaidChunkSize = static_cast<size_t>(sourcesize / 4);
+        size_t npos = std::min(static_cast<size_t>(pos + rem), static_cast<size_t>(pos + oldRaidChunkSize));
+        assert(npos <= rr->paddedpartsize);
+        rr->cloudRaid->prepareRequest(s, url, pos, npos);
+        assert(s->status == REQ_PREPARED);
+        connected = true;
+connest++;
+    }
+
+    if (s->status == REQ_PREPARED)
+    {
+        bool postDone = rr->cloudRaid->post(s);
+        if (postDone)
+        {
+            lastconnect = currtime;
+            lastdata = currtime;
+        }
+        else
         {
             return onFailure();
         }
 
-        if (s->status == REQ_READY)
-        {
-            connected = true;
-connest++;
-            if (rr->slow1 < 0 && rr->allconnected())
-            {
-                // we only need RAIDPARTS-1 connections in fast mode, so shut down the slowest one
-                closesocket();
-                return -1;
-            }
+        /*
+        DirectTicket dt;
 
-            // unless the fetch position/length for the connection has been computed
-            // before, we do so *after* the connection so that the order in which
-            // the connections are established are the first criterion for slow source
-            // heuristics
-            if (!rem) setposrem();
+        memcpy(dt.hash, hash, sizeof dt.hash);
+        dt.size = sourcesize;
+        dt.pos = pos;
+        dt.rem = rem;
+        dt.timestamp = rr->tickettime;
+        dt.partshard = rr->shard | (part << 10);
 
-            if (rem <= 0)
-            {
-                closesocket();
-                rr->resumeall();
-                return -1;
-            }
-
-            if (inbuf) inbuf.reset();
-            //size_t chunkSize = std::min(static_cast<size_t>(rem), static_cast<size_t>(sourcesize/3));
-            unsigned int raidLinesPerChunk = 0;
-            raidLinesPerChunk = unsigned(sourcesize / (RAIDPARTS * 3 * RAIDSECTOR));
-            raidLinesPerChunk -= raidLinesPerChunk % 1024;
-            raidLinesPerChunk = std::min<unsigned>(raidLinesPerChunk, 64 * 1024);
-            raidLinesPerChunk = std::max<unsigned>(raidLinesPerChunk, 8 * 1024);
-            unsigned int RaidMaxChunksPerRead = 5;
-            size_t chunkSize = std::min(static_cast<size_t>(rem), static_cast<size_t>(pos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead));
-            assert(pos+chunkSize <= rr->paddedpartsize);
-            rr->cloudRaid->prepareRequest(s, url, pos, pos+chunkSize);
-            assert(s->status == REQ_PREPARED);
-        }
-
-        if (s->status == REQ_PREPARED)
-        {
-            bool postDone = rr->cloudRaid->post(s);
-            if (postDone)
-            {
-                lastdata = currtime;
-            }
-            else
-            {
-                return onFailure();
-            }
-
-            /*
-            DirectTicket dt;
-
-            memcpy(dt.hash, hash, sizeof dt.hash);
-            dt.size = sourcesize;
-            dt.pos = pos;
-            dt.rem = rem;
-            dt.timestamp = rr->tickettime;
-            dt.partshard = rr->shard | (part << 10);
-
-            strcpy(outbuf, "GET /dl/");
-            strcpy(outbuf+8+Base64::btoa((const byte*)&dt, sizeof dt, outbuf+8), " HTTP/0.9\r\n\r\n");
-            */
-        }
+        strcpy(outbuf, "GET /dl/");
+        strcpy(outbuf+8+Base64::btoa((const byte*)&dt, sizeof dt, outbuf+8), " HTTP/0.9\r\n\r\n");
+        */
     }
 
     if (connected)
@@ -488,18 +477,14 @@ connest++;
                 //std::chrono::time_point<std::chrono::system_clock> postEndTime = std::chrono::system_clock::now();
                 assert(pos == s->dlpos);
                 inbuf.reset(s->release_buf());
-                //inbuf.swap(s->release_buf());
                 s->buffer_released = true;
             }
-
 
             // feed from network
             while (remfeed && inbuf->datalen())
             {
                 size_t t = inbuf->datalen();
                 if (remfeed < t) t = remfeed;
-
-                //t = read(s, inbuf, t);
 
                 if (t == 0)
                 {
@@ -520,7 +505,7 @@ connest++;
                             {
                                 if (!rr->fetcher[i].errors)
                                 {
-                                    closesocket(true);
+                                    closesocket();
                                     rr->fetcher[i].trigger();
                                     return -1;
                                 }
@@ -653,6 +638,23 @@ int PartFetcher::onFailure()
 
         if (consecutive_errors > MAXRETRIES || s->status == REQ_READY)
         {
+            closesocket(true);
+            if (rr->slow1 >= 0)
+            {
+                // we are in slow mode and have ten connection failures in a row on this
+                // server - switch back to fast mode
+                rr->setfast();
+            }
+            for (int i = RAIDPARTS; i--;)
+            {
+                if (i != part && !rr->fetcher[i].connected)
+                {
+                    //rr->fetcher[i].trigger();
+                    rr->fetcher[i].resume(true);
+                }
+            }
+
+            /*
             // we are in slow mode and have ten connection failures in a row on this
             // server - switch back to fast mode
             if (rr->slow1 >= 0)
@@ -667,6 +669,7 @@ int PartFetcher::onFailure()
                     }
                 }
             }
+            */
 
             return -1;
         }
@@ -683,6 +686,11 @@ int PartFetcher::onFailure()
 
             return trigger(backoff);
         }
+    }
+    else
+    {
+        s->status = REQ_READY;
+        resume(true);
     }
     return -1;
 }
@@ -731,14 +739,12 @@ current_fast++;
     paddedpartsize = (raidPartSize(0, filesize)+RAIDSECTOR-1) & -RAIDSECTOR;
 
     tickettime = p.tickettime;
-    //shard = p.shard;
-
     lastdata = currtime;
     haddata = false;
     reported = false;
     missingsource = false;
 
-    for (int i = RAIDPARTS; i--; ) 
+    for (int i = RAIDPARTS; i--; )
     {
         if (!p.tempUrls[i].empty())
         {
@@ -757,10 +763,10 @@ current_fast++;
 }
 
 // resume fetching on a parked source that has become eligible again
-void PartFetcher::resume()
+void PartFetcher::resume(bool forceSetPosRem)
 {
     // no readahead or end of readahead within READAHEAD?
-    if (!connected && rr && pos < rr->paddedpartsize)
+    if (!connected && ((pos < rr->paddedpartsize) || forceSetPosRem))
     {
         setposrem();
 
@@ -852,7 +858,7 @@ void RaidReq::procdata(int part, byte* ptr, off_t pos, int len)
         auto ahead_len = len;
 
         // if this is a consecutive feed, we store the overflowing part as readahead data
-        // and process the non-overflowing part normally 
+        // and process the non-overflowing part normally
         if (consecutive)
         {
             ahead_pos = basepos+NUMLINES*RAIDSECTOR;
@@ -1114,7 +1120,7 @@ void RaidReq::dispatchio(HttpReqPtr s)
             if (t > 0)
             {
                 // this is a relatively infrequent ocurrence, so we tolerate the overhead of a std::set insertion/erasure
-                pool.addScheduledio(currtime+t, sockets[i]);       
+                pool.addScheduledio(currtime+t, sockets[i]);
             }
             break;
         }
@@ -1148,15 +1154,15 @@ void RaidReq::watchdog()
     {
         if (sockets[i] && sockets[i]->status == REQ_INFLIGHT)
         {
-            if (fetcher[i].connected && fetcher[i].remfeed && currtime-fetcher[i].lastdata > 200/*20*/ && !fetcher[i].isslow())
+            if (fetcher[i].connected && fetcher[i].remfeed && currtime-fetcher[i].lastdata > 20 && !fetcher[i].isslow())
             {
                 hanging++;
                 hangingsource = i;
             }
 
             if (fetcher[i].connected) numconnected++;
-            if (!fetcher[i].connected && !fetcher[i].errors) idlegoodsource = i;
         }
+        if (!fetcher[i].connected && !fetcher[i].errors) idlegoodsource = i;
     }
 
     if (hanging)
@@ -1169,7 +1175,7 @@ void RaidReq::watchdog()
                 // "Attempted remedy: Switching from " << hangingsource << "/" << fetcher[hangingsource].serverid << " to previously unused " << fetcher[idlegoodsource].serverid << endl;
                 fetcher[hangingsource].errors++;
                 fetcher[hangingsource].closesocket();
-                fetcher[idlegoodsource].trigger();
+                fetcher[idlegoodsource].resume(true);
                 return;
             }
             //else cout << "Inactive connection potentially bad" << endl;
@@ -1348,9 +1354,6 @@ void* RaidReqPool::raidproxyiothread()
 
 
         lock_guard<recursive_mutex> g(rrp_lock);  // this lock guarantees RaidReq will not be deleted between lookup and dispatch - locked for a while but only affects the main thread with new raidreqs being added or removed
-        if (!events.empty())
-        {
-        }
         if (!isRunning.load()) break;
 
         while (!directio.empty())
@@ -1359,9 +1362,8 @@ void* RaidReqPool::raidproxyiothread()
             directio.erase(directio.begin());
         }
 
-
         assert(events.size() <= 6);
-  
+
         // initially process all the ones for which we can get the RaidReq lock instantly.  For any that are contended, skip and process the rest for now - then loop and retry, last loop locks rather than try_locks.
         for (int j = 2; j--; )
         {
@@ -1369,10 +1371,10 @@ void* RaidReqPool::raidproxyiothread()
             {
                 const HttpReqPtr& s = *events.begin();
 
-                if ((rr = socketrrs.lookup(s)))  // retrieved under extremely brief lock.  RaidReqs can not be deleted until we unlock rrp_lock 
+                if ((rr = socketrrs.lookup(s)))  // retrieved under extremely brief lock.  RaidReqs can not be deleted until we unlock rrp_lock
                 {
                     std::unique_lock<mutex> g(rr->rr_lock, std::defer_lock);
-                    if (g.try_lock()) 
+                    if (g.try_lock())
                     {
                         rr->dispatchio(s);
                         events.erase(events.begin());
@@ -1392,18 +1394,10 @@ void* RaidReqPool::raidproxyiothread()
 
             if (j == 1)
             {
-                while (!scheduledio.empty())
+                while (!scheduledio.empty() && scheduledio.begin()->first <= currtime)
                 {
-                    int schedulewait = scheduledio.begin()->first-currtime;
-
-                    if (schedulewait <= 0)
-                    {
-                        events.emplace_front(scheduledio.begin()->second);
-                        scheduledio.erase(scheduledio.begin());
-                    }
-                    else
-                    {
-                    }
+                    events.emplace_front(scheduledio.begin()->second);
+                    scheduledio.erase(scheduledio.begin());
                 }
             }
 
@@ -1422,7 +1416,7 @@ RaidReqPool::RaidReqPool(RaidReqPoolArray& ar)
     : array(ar)
 {
 
-    int err; 
+    int err;
 
     isRunning.store(true);
     rrp_thread = std::thread(raidproxyiothreadstart, this);
@@ -1483,7 +1477,7 @@ RaidReqPoolArray::Token RaidReqPoolArray::balancedRequest(const RaidReq::Params&
     int least = -1;
     for (int i = rrps.size(); i--; )
     {
-        if (least == -1 || rrps[i]->rrcount() < least) 
+        if (least == -1 || rrps[i]->rrcount() < least)
         {
             least = rrps[i]->rrcount();
             t.poolId = i;

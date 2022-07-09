@@ -1484,14 +1484,12 @@ void TransferSlot::processRequestFailure(MegaClient* client, DBTableTransactionC
             failure = true;
             bool changeport = false;
 
-            //if (transfer->type == GET && client->autodownport && !memcmp(transferbuf.tempURL(channel).c_str(), "http:", 5))
             if (transfer->type == GET && client->autodownport && !memcmp(httpReq->posturl.c_str(), "http:", 5))
             {
                 LOG_debug << "Automatically changing download port";
                 client->usealtdownport = !client->usealtdownport;
                 changeport = true;
             }
-            //else if (transfer->type == PUT && client->autoupport && !memcmp(transferbuf.tempURL(channel).c_str(), "http:", 5))
             else if (transfer->type == PUT && client->autoupport && !memcmp(httpReq->posturl.c_str(), "http:", 5))
             {
                 LOG_debug << "Automatically changing upload port";

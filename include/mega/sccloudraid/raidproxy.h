@@ -29,20 +29,14 @@ namespace mega::SCCR {
 #define LAGINTERVAL 256
 
 typedef uint128_t raidsector_t;
-//typedef std::shared_ptr<mega::HttpReqXfer> HttpReqPtr;
 using HttpReqType = HttpReqDL;
-//using HttpReqPtr = std::atomic<std::shared_ptr<HttpReqType>>;
 using HttpReqPtr = std::shared_ptr<HttpReqType>;
 using HttpInputBuf = mega::HttpReq::http_buf_t;
-//using CloudRaid = mega::TransferSlot::CloudRaid;
-//using CloudRaidPtr = std::shared_ptr<mega::CloudRaid>;
 //using raidTime = mega::dstime;
 
 #pragma pack(push,1)
 struct RaidPart
 {
-    //unsigned short serverid;                    // source server
-    //unsigned char hash[ChunkedHash::HASHLEN];   // hash of RAID part
     std::string tempUrl;
 
     //RaidPart(const char* tempUrl_) : tempUrl(tempUrl_) {}
@@ -98,14 +92,14 @@ public:
     static std::atomic<uint64_t> globalBytesReceived;
 
     bool setsource(const std::string&, RaidReq*, int);
-    int trigger(raidTime = 0, bool = true);
+    int trigger(raidTime = 0, bool = false);
     bool directTrigger(bool = true);
-    void closesocket(bool = true, bool = false);
+    void closesocket(bool = false);
     int io();
     void cont(int);
     bool isslow();
     bool feedreadahead();
-    void resume();
+    void resume(bool = false);
     int onFailure();
 
     PartFetcher();

@@ -78,8 +78,7 @@ SOURCES += src/attrmap.cpp \
     src/sccloudraid/config.cpp \
     src/sccloudraid/logger.cpp \
     src/sccloudraid/pstats.cpp \
-    src/sccloudraid/raidproxy.cpp \
-    src/sccloudraid/main_sccr.cpp
+    src/sccloudraid/raidproxy.cpp
 
 CONFIG(USE_MEGAAPI) {
   SOURCES += src/megaapi.cpp src/megaapi_impl.cpp

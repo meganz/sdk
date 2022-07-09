@@ -271,6 +271,15 @@ bool RaidBufferManager::isRaidConnectionProgressBlocked(unsigned connectionNum) 
     return connectionPaused[connectionNum];
 }
 
+unsigned RaidBufferManager::getRaidLinesPerChunk()
+{
+    return raidLinesPerChunk.load();
+}
+
+unsigned RaidBufferManager::getRaidMaxChunksPerRead()
+{
+    return RaidMaxChunksPerRead;
+}
 
 const std::string& RaidBufferManager::tempURL(unsigned connectionNum)
 {
@@ -1059,6 +1068,22 @@ public:
         return true;
     }
 
+
+    /* RaidBufferManager functionality */
+    std::pair<bool, size_t> getRaidLinesPerChunk() const
+    {
+        if (!started.load()) return std::make_pair(false, 0);
+        return std::make_pair(true,
+                                static_cast<size_t>(tslot->transferbuf.getRaidLinesPerChunk()));
+    }
+
+    std::pair<bool, size_t> getRaidMaxChunksPerRead() const
+    {
+        if (!started.load()) return std::make_pair(false, 0);
+        return std::make_pair(true,
+                                static_cast<size_t>(tslot->transferbuf.getRaidMaxChunksPerRead()));
+    }
+
     /* CloudRaid functionality */
     bool balancedRequest(MegaClient* _client, DBTableTransactionCommitter& _committer, int notifyfd)
     {
@@ -1185,6 +1210,19 @@ bool CloudRaid::onTransferFailure()
 }
 
 bool CloudRaid::init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, SCCR::raidTime ctickettime, int cskippart)
+std::pair<bool, size_t> CloudRaid::getRaidLinesPerChunk() const
+{
+    if (!shown.load())
+        return std::make_pair(false, 0);
+    return Pimpl()->getRaidLinesPerChunk();
+}
+
+std::pair<bool, size_t> CloudRaid::getRaidMaxChunksPerRead() const
+{
+    if (!shown.load())
+        return std::make_pair(false, 0);
+    return Pimpl()->getRaidMaxChunksPerRead();
+}
 {
     
     m_pImpl = mega::make_unique<CloudRaidImpl>(tslot, tslot->getRaidReqPoolArray(), tempUrls, cfilesize, cstart, creqlen, ctickettime, cskippart);
