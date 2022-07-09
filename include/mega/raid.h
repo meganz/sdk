@@ -265,7 +265,7 @@ namespace mega {
 
     public:
         CloudRaid();
-        CloudRaid(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, dstime ctickettime, int cskippart);
+        CloudRaid(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart);
         ~CloudRaid();
 
         /* Instance control functionality */
@@ -279,12 +279,12 @@ namespace mega {
         bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, int part, SCCR::raidTime& backoff);
         bool onTransferFailure();
 
-        bool init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, dstime ctickettime, int cskippart);
         /* RaidBufferManager functionality for RaidProxy */
         std::pair<bool, size_t> getRaidLinesPerChunk() const;
         std::pair<bool, size_t> getRaidMaxChunksPerRead() const;
 
         /* RaidProxy functionality for TransferSlot */
+        bool init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart);
         bool balancedRequest(MegaClient* client, DBTableTransactionCommitter& committer, int notifyfd = -1);
         bool removeRaidReq();
 

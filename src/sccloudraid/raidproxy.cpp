@@ -50,6 +50,7 @@ PartFetcher::PartFetcher()
     errors = 0;
     consecutive_errors = 0;
     lastdata = currtime;
+    lastconnect = 0;
 
     delayuntil = 0;
 }
@@ -406,6 +407,12 @@ int PartFetcher::io()
         return -1;
     }
 
+    if (s->status == REQ_INFLIGHT)
+    {
+        directTrigger();
+        return -1;
+    }
+
     // unless the fetch position/length for the connection has been computed
     // before, we do so *after* the connection so that the order in which
     // the connections are established are the first criterion for slow source
@@ -738,7 +745,6 @@ current_fast++;
     filesize = p.filesize;
     paddedpartsize = (raidPartSize(0, filesize)+RAIDSECTOR-1) & -RAIDSECTOR;
 
-    tickettime = p.tickettime;
     lastdata = currtime;
     haddata = false;
     reported = false;

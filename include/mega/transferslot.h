@@ -106,7 +106,7 @@ struct MEGA_API TransferSlot
     // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
     TransferBufferManager transferbuf;
 
-    bool initCloudRaid(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, dstime ctickettime, int cskippart);
+    bool initCloudRaid(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart);
     shared_ptr<CloudRaid> getcloudRaidPtr()
     {
         return cloudRaid;

@@ -1567,7 +1567,7 @@ m_off_t TransferSlot::updatecontiguousprogress()
     return contiguousProgress;
 }
 
-bool TransferSlot::initCloudRaid(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, dstime ctickettime, int cskippart)
+bool TransferSlot::initCloudRaid(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart)
 {
     assert(transferbuf.isNewRaid());
     if (!transferbuf.isNewRaid())
@@ -1577,10 +1577,10 @@ bool TransferSlot::initCloudRaid(const std::vector<std::string>& tempUrls, size_
 
     if (cloudRaid == nullptr)
     {
-        cloudRaid = std::make_shared<CloudRaid>(this, tempUrls, cfilesize, cstart, creqlen, ctickettime, cskippart);
+        cloudRaid = std::make_shared<CloudRaid>(this, tempUrls, cfilesize, cstart, creqlen, cskippart);
         return cloudRaid->isShown();
     }
-    return cloudRaid->init(this, tempUrls, cfilesize, cstart, creqlen, ctickettime, cskippart);
+    return cloudRaid->init(this, tempUrls, cfilesize, cstart, creqlen, cskippart);
 }
 
 } // namespace

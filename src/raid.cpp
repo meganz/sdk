@@ -850,7 +850,7 @@ void TransferBufferManager::setIsRaid(Transfer* t, const std::vector<std::string
 
     if (isNewRaid)
     {
-        transfer->slot->initCloudRaid(tempUrls, static_cast<size_t>(transfer->size), resumepos, static_cast<size_t>(transfer->size), Waiter::ds, 0);
+        transfer->slot->initCloudRaid(tempUrls, static_cast<size_t>(transfer->size), resumepos, static_cast<size_t>(transfer->size), 0);
     }
 }
 
@@ -1002,9 +1002,9 @@ private:
     std::atomic<bool> started;
 
 public:
-    CloudRaidImpl(TransferSlot* tslot, SCCR::RaidReqPoolArray& rrpa, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, SCCR::raidTime ctickettime, int cskippart)
+    CloudRaidImpl(TransferSlot* tslot, SCCR::RaidReqPoolArray& rrpa, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart)
     : raidReqPoolArray(rrpa)
-    , raidReqParams(tempUrls, cfilesize, cstart, creqlen, ctickettime, cskippart)
+    , raidReqParams(tempUrls, cfilesize, cstart, creqlen, cskippart)
     , tslot(tslot)
     , client(nullptr)
     , committer(nullptr)
@@ -1084,6 +1084,7 @@ public:
                                 static_cast<size_t>(tslot->transferbuf.getRaidMaxChunksPerRead()));
     }
 
+
     /* CloudRaid functionality */
     bool balancedRequest(MegaClient* _client, DBTableTransactionCommitter& _committer, int notifyfd)
     {
@@ -1161,9 +1162,9 @@ CloudRaid::CloudRaid()
     shown.store(false);
 }
 
-CloudRaid::CloudRaid(TransferSlot* tslot, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, dstime ctickettime, int cskippart)
+CloudRaid::CloudRaid(TransferSlot* tslot, const std::vector<std::string> &tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart)
 {
-    init(tslot, tempUrls, cfilesize, cstart, creqlen, static_cast<SCCR::raidTime>(ctickettime), cskippart);
+    init(tslot, tempUrls, cfilesize, cstart, creqlen, cskippart);
 }
 
 CloudRaid::~CloudRaid() { }
@@ -1209,7 +1210,6 @@ bool CloudRaid::onTransferFailure()
     return Pimpl()->onTransferFailure();
 }
 
-bool CloudRaid::init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, SCCR::raidTime ctickettime, int cskippart)
 std::pair<bool, size_t> CloudRaid::getRaidLinesPerChunk() const
 {
     if (!shown.load())
@@ -1223,9 +1223,11 @@ std::pair<bool, size_t> CloudRaid::getRaidMaxChunksPerRead() const
         return std::make_pair(false, 0);
     return Pimpl()->getRaidMaxChunksPerRead();
 }
+
+bool CloudRaid::init(TransferSlot* tslot, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart)
 {
     
-    m_pImpl = mega::make_unique<CloudRaidImpl>(tslot, tslot->getRaidReqPoolArray(), tempUrls, cfilesize, cstart, creqlen, ctickettime, cskippart);
+    m_pImpl = mega::make_unique<CloudRaidImpl>(tslot, tslot->getRaidReqPoolArray(), tempUrls, cfilesize, cstart, creqlen, cskippart);
     shown.store(m_pImpl != nullptr);
     return shown.load();
 }

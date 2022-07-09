@@ -156,7 +156,6 @@ class RaidReq
 
 public:
     size_t filesize;
-    raidTime tickettime;
     short shard;
 
     enum errortype { NOERR, READERR, WRITEERR, CONNECTERR }; // largest is the one reported
@@ -182,10 +181,9 @@ public:
         size_t filesize;
         m_off_t start;
         size_t reqlen;
-        raidTime tickettime;
         int skippart;
-        Params(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, raidTime ctickettime, int cskippart)
-            : tempUrls(tempUrls), filesize(cfilesize), start(cstart), reqlen(creqlen), tickettime(ctickettime), skippart(cskippart) {}
+        Params(const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen, int cskippart)
+            : tempUrls(tempUrls), filesize(cfilesize), start(cstart), reqlen(creqlen), skippart(cskippart) {}
     };
 
     RaidReq(const Params&, RaidReqPool&, const std::shared_ptr<CloudRaid>&, int notifyfd);
