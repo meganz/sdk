@@ -1642,7 +1642,14 @@ public:
     /**
     * @brief Returns the handle of a user related to the alert
     *
-    * This value is valid for user related alerts.
+    * This value is valid for user related alerts: 
+    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
+    *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
+    *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
+    *  TYPE_CONTACTCHANGE_BLOCKEDYOU, TYPE_CONTACTCHANGE_DELETEDYOU,
+    *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
     *
     * @return the associated user's handle, otherwise UNDEF
     */
@@ -1652,6 +1659,8 @@ public:
     * @brief Returns the handle of a node related to the alert
     *
     * This value is valid for alerts that relate to a single node.
+    *  TYPE_NEWSHARE (folder handle), TYPE_DELETEDSHARE (folder handle), TYPE_NEWSHAREDNODES (parent handle), TYPE_TAKEDOWN (node handle),
+    *  TYPE_TAKEDOWN_REINSTATED (node handle)
     *
     * @return the relevant node handle, or UNDEF if this alert does not have one.
     */
@@ -1665,8 +1674,16 @@ public:
     * this function will return false and the client can request it via the userHandle.
     *
     * The SDK retains the ownership of the returned value. It will be valid until
-    * the MegaUserAlert object is deleted.
-    *
+    * the MegaUserAlert object is deleted.    
+    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU, 
+    *   TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_DELETEDYOU,
+    *   TYPE_DELETEDSHARE,
+    *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *   TYPE_NEWSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
+    *   TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
+    *   TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
+    * 
     * @return email string of the relevant user, or NULL if not available
     */
     virtual const char* getEmail() const;
@@ -1679,7 +1696,8 @@ public:
     *
     * This value is valid for those alerts that relate to a single path, provided
     * it could be looked up from the cached nodes at the time the alert arrived.
-    * Otherwise, it may be obtainable via the nodeHandle.
+    * Otherwise, it may be obtainable via the nodeHandle. 
+    *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
     *
     * @return the path string if relevant and available, otherwise NULL
     */
@@ -1693,7 +1711,8 @@ public:
      *
      * This value is valid for those alerts that relate to a single name, provided
      * it could be looked up from the cached nodes at the time the alert arrived.
-     * Otherwise, it may be obtainable via the nodeHandle.
+     * Otherwise, it may be obtainable via the nodeHandle. 
+     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
      *
      * @return the name string if relevant and available, otherwise NULL
      */
@@ -1729,11 +1748,11 @@ public:
     * @brief Returns a number related to this alert
     *
     * This value is valid for these alerts:
-    * TYPE_NEWSHAREDNODES (0: folder count 1: file count )
-    * TYPE_REMOVEDSHAREDNODES (0: item count )
-    * TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
-    *                       value 0 if someone left the folder)
-    *
+    *   TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
+    *                        value 0 if someone left the folder)
+    *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
+    *   TYPE_REMOVEDSHAREDNODES (0: item count)
+    * 
     * @return Number related to this request, or -1 if the index is invalid
     */
     virtual int64_t getNumber(unsigned index) const;
@@ -1764,8 +1783,8 @@ public:
     * the MegaUserAlert object is deleted.
     *
     * This value is currently only valid for
-    *   TYPE_PAYMENT_SUCCEEDED   index 0: the plan name
     *   TYPE_PAYMENT_FAILED      index 0: the plan name
+    *   TYPE_PAYMENT_SUCCEEDED   index 0: the plan name
     *
     * @return a pointer to the string if index is valid; otherwise NULL
     */
