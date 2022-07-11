@@ -21501,7 +21501,8 @@ void MegaApiImpl::sendPendingRequests()
             client->syncs.removeSelectedSyncs(
                         [](SyncConfig&, Sync*) { return true; },
                         [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); },
-                        request->getNodeHandle(), false);
+                        NodeHandle().set6byte(request->getNodeHandle()),
+                        false);
             break;
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
@@ -21523,22 +21524,27 @@ void MegaApiImpl::sendPendingRequests()
 
             handle backupTarget = request->getNodeHandle();
 
-            e = client->syncs.removeSelectedSync(
-                        [&](SyncConfig& c, Sync* sync)
-                        {
-                            bool matched = c.mBackupId == backupId;
-                            if (matched && sync)    // if active
-                            {
-                                string path = sync->localroot->localname.toPath();
-                                if (!request->getFile() || sync->localroot->node)
-                                {
-                                    request->setFile(path.c_str());
-                                }
-                            }
-                            return matched;
-                        },
-                        [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); },
-                        backupTarget, false);
+            client->syncs.removeSelectedSync(
+              [&](SyncConfig& c, Sync* sync)
+              {
+                  bool matched = c.mBackupId == backupId;
+                  if (matched && sync)    // if active
+                  {
+                      string path = sync->localroot->localname.toPath();
+
+                      if (!request->getFile() || sync->localroot->node)
+                      {
+                          request->setFile(path.c_str());
+                      }
+                  }
+                  return matched;
+              },
+              [request, this](Error e)
+              {
+                  fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
+              },
+              NodeHandle().set6byte(backupTarget),
+              false);
 
             break;
         }

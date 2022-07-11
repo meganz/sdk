@@ -2197,7 +2197,7 @@ void StandardClient::setupSync_inThread(const string& drivePath,
 
         LOG_debug << "Asking engine to add the sync...";
 
-        auto result = client.addsync(move(config), true, std::move(completion), rootPath + " ");
+        auto result = client.addsync(std::move(config), true, std::move(completion), rootPath + " ");
         EXPECT_EQ(result, API_OK);
     };
 
@@ -2259,17 +2259,13 @@ string StandardClient::exportSyncConfigs()
     return result.get();
 }
 
-bool StandardClient::delSync_inthread(handle backupId)
+void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
 {
-    const auto handle = syncSet(backupId).h;
-    PromiseBoolSP pb;
-
     client.syncs.removeSelectedSyncs(
-        [&](SyncConfig& c, Sync*) { return c.mRemoteNode == handle; },
-        [&](Error e)  { pb->set_value(e == API_OK); },
-        UNDEF, false);
-
-    return pb.get();
+      [=](SyncConfig& config, Sync*) { return config.mBackupId == backupId; },
+      [=](Error error) { result->set_value(error == API_OK); },
+      NodeHandle(),
+      true);
 }
 
 bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)
@@ -3239,18 +3235,19 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
 
 void StandardClient::cleanupForTestReuse()
 {
-    future<bool> p1;
-    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
-
-        sc.client.syncs.removeSelectedSyncs(
-            [](SyncConfig&, Sync*){ return true; },
-            [&](Error e) { pb->set_value(e == API_OK); },
-            UNDEF, false);
+    auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
+        client.client.syncs.purgeSyncs([=](Error error) {
+            result->set_value(error == API_OK);
+        });
     });
-    if (!waitonresults(&p1))
-    {
-        out() << "removeSelectedSyncs failed";
-    }
+
+    auto status = result.wait_for(DEFAULTWAIT);
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return;
+
+    EXPECT_TRUE(result.get());
 }
 
 bool StandardClient::login_reset_makeremotenodes(const string& prefix, int depth, int fanout, bool noCache)
@@ -3360,8 +3357,18 @@ bool StandardClient::login_fetchnodes(const string& session)
 
 bool StandardClient::delSync_mainthread(handle backupId)
 {
-    future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId)); });
-    return fb.get();
+    auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
+        client.delSync_inthread(backupId, std::move(result));
+    });
+
+    auto status = result.wait_for(DEFAULTWAIT);
+
+    EXPECT_NE(status, future_status::timeout);
+
+    if (status == future_status::timeout)
+        return false;
+
+    return result.get();
 }
 
 bool StandardClient::confirmModel_mainthread(Model::ModelNode* mnode, handle backupId, bool ignoreDebris, int confirm, bool expectFail, bool skipIgnoreFile)
@@ -8634,7 +8641,6 @@ struct TwoWaySyncSymmetryCase
         string drivePath  = string(1, '\0');
         string sourcePath = localSyncRootPath().u8string();
         string targetPath = remoteSyncRootPath();
-
 
         if (isExternalBackup())
         {

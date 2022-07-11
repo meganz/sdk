@@ -550,11 +550,6 @@ struct StandardClient : public MegaApp
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
 
-    handle backupAdd_mainthread(const string& drivePath,
-        const string& sourcePath,
-        const string& targetPath,
-        const string& logname);
-
     handle setupSync_mainthread(const string& rootPath,
                                 const CloudItem& remoteItem,
                                 const bool isBackup,
@@ -571,7 +566,7 @@ struct StandardClient : public MegaApp
     void importSyncConfigs(string configs, PromiseBoolSP result);
     bool importSyncConfigs(string configs);
     string exportSyncConfigs();
-    bool delSync_inthread(handle backupId);
+    void delSync_inthread(handle backupId, PromiseBoolSP result);
 
     struct CloudNameLess
     {
