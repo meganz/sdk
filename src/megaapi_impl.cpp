@@ -26500,10 +26500,10 @@ void MegaRecursiveOperation::notifyStage(uint8_t stage)
     assert(mMainThreadId == std::this_thread::get_id());
     assert (stage > MegaTransfer::STAGE_NONE && stage <= MegaTransfer::STAGE_MAX);
     LOG_debug << "MegaRecursiveOperation: starting " << MegaTransfer::stageToString(stage);
-
-    // set the stage in the transfer itself, not a copy, or the later progress updates will have stage "not initialized"
-    transfer->setStage(stage);
-    megaApi->fireOnTransferUpdate(transfer);
+    unique_ptr<MegaTransfer> tempTransfer(transfer->copy());
+    MegaTransferPrivate *transferPtr = static_cast<MegaTransferPrivate*>(tempTransfer.get());
+    transferPtr->setStage(stage);
+    megaApi->fireOnTransferUpdate(transferPtr);
 }
 
 void MegaRecursiveOperation::ensureThreadStopped()
