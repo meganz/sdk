@@ -2229,13 +2229,13 @@ using namespace mega;
 
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(nullable MEGACancelToken *)cancelToken {
     if (self.megaApi) {
-        self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr, fileName.UTF8String, 0, appData.UTF8String, isSourceTemporary, startFirst, cancelToken.getCPtr);
+        self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr, fileName.UTF8String, MegaApi::INVALID_CUSTOM_MOD_TIME, appData.UTF8String, isSourceTemporary, startFirst, cancelToken.getCPtr);
     }
 }
 
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr, fileName.UTF8String, 0, appData.UTF8String, isSourceTemporary, startFirst, cancelToken.getCPtr, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+        self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr, fileName.UTF8String, MegaApi::INVALID_CUSTOM_MOD_TIME, appData.UTF8String, isSourceTemporary, startFirst, cancelToken.getCPtr, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
     }
 }
 
