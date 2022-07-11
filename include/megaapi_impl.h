@@ -1130,7 +1130,7 @@ public:
 
     virtual ~MegaSyncPrivate();
 
-    virtual MegaSync *copy();
+    MegaSync *copy() override;
 
     MegaHandle getMegaHandle() const override;
     void setMegaHandle(MegaHandle handle);

@@ -2980,7 +2980,7 @@ void MegaClient::dispatchTransfers()
         counters[tc.directionIndex()].addexisting(ts->transfer->size,  ts->progressreported);
     }
 
-    std::function<bool(direction_t)> continueDirection = [&counters, this](direction_t putget) {
+    std::function<bool(direction_t)> continueDirection = [&counters](direction_t putget) {
 
             // hard limit on puts/gets
             if (counters[putget].total >= MAXTRANSFERS)

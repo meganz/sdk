@@ -5128,7 +5128,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [this, unifiedSync](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [unifiedSync](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath().toPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
                     }, "");
@@ -6246,7 +6246,15 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
             }
         }
 
-        // If we added any FSNodes that aren't part of our scan data (and we think we don't need another scan), add them to the scan data
+        if (!anyNameConflicts)
+        {
+            // here childRows still contains pointers into lastFolderScan, fsAddedSiblings etc
+            row.syncNode->clearRegeneratableFolderScan(fullPath, childRows);
+        }
+
+        // If we still don't match the known fs state, and if we added any FSNodes that
+        // aren't part of our scan data (and we think we don't need another scan),
+        // add them to the scan data to avoid re-fingerprinting no the next folder scan
         if (!row.fsAddedSiblings.empty())
         {
             auto& scan = row.syncNode->lastFolderScan;
@@ -6259,11 +6267,6 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
                 }
                 row.fsAddedSiblings.clear();
             }
-        }
-
-        if (!anyNameConflicts)
-        {
-            row.syncNode->clearRegeneratableFolderScan(fullPath, childRows);
         }
     }
 
@@ -6345,7 +6348,7 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
     }
 
     // Under some circumstances on sync startup, our shortname records can be out of date.
-    // If so, we adjust for that here, as the diretories are scanned
+    // If so, we adjust for that here, as the directories are scanned
     if (row.syncNode && row.fsNode && row.fsNode->shortname)
     {
         if ((!row.syncNode->slocalname ||
