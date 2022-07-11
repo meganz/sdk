@@ -6269,6 +6269,7 @@ public class MegaApiJava {
      *  - MEGAsync:  [99500, 99600)
      *  - Webclient: [99600, 99800]
      */
+    @Deprecated
     public void sendEvent(int eventType, String message) {
         megaApi.sendEvent(eventType, message);
     }
