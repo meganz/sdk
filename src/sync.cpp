@@ -3759,6 +3759,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
                 Syncs& syncs)
           : mCompletion(std::move(completion))
           , mDontMoveOrUnlink(dontMoveOrUnlink)
+          , mMoveTarget(moveTarget)
           , mNumProcessed(0u)
           , mPending(std::move(pending))
           , mResult(API_OK)
@@ -4222,6 +4223,8 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
                 LOG_warn << "Backup ID was already deregistered: "
                          << toHandle(mID);
 
+                // backup was already deregistered, so better to not touch the backup folder
+                // (it could have been moved to the cloud or deleted by the backup center already)
                 return mCompletion(API_OK);
             }
 
