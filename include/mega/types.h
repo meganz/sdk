@@ -1022,6 +1022,46 @@ typedef enum
 }
 BackupType;
 
+typedef mega::byte ChatOptions_t;
+struct ChatOptions
+{
+public:
+    enum: ChatOptions_t {
+        kEmpty         = 0x00,
+        kSpeakRequest  = 0x01,
+        kWaitingRoom   = 0x02,
+        kOpenInvite    = 0x04,
+    };
+
+    ChatOptions(): mChatOptions(ChatOptions::kEmpty){}
+    ChatOptions(ChatOptions_t options): mChatOptions(options){}
+    ChatOptions(bool speakRequest, bool waitingRoom , bool openInvite)
+        : mChatOptions(static_cast<ChatOptions_t>((speakRequest ? kSpeakRequest : 0)
+                                            | (waitingRoom ? kWaitingRoom : 0)
+                                            | (openInvite ? kOpenInvite : 0)))
+    {
+    }
+
+    // setters/modifiers
+    void set(ChatOptions_t val)             { mChatOptions = val; }
+    void add(ChatOptions_t val)             { mChatOptions = mChatOptions | val; }
+    void remove(ChatOptions_t val)          { mChatOptions = mChatOptions & ~val; }
+    void updateSpeakRequest(bool enabled)   { enabled ? add(kSpeakRequest)  : remove(kSpeakRequest);}
+    void updateWaitingRoom(bool enabled)    { enabled ? add(kWaitingRoom)   : remove(kWaitingRoom);}
+    void updateOpenInvite(bool enabled)     { enabled ? add(kOpenInvite)    : remove(kOpenInvite);}
+
+    // getters
+    ChatOptions_t value() const             { return mChatOptions; }
+    bool areEqual(ChatOptions_t val)        { return mChatOptions == val; }
+    bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
+    bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
+    bool openInvite() const                 { return mChatOptions & kOpenInvite; }
+    static bool isEmpty(int options)        { return options == kEmpty; }
+
+protected:
+    ChatOptions_t mChatOptions = kEmpty;
+};
+
 enum VersioningOption
 {
     // In the cases where these options are specified for uploads, the `ov` flag will be
