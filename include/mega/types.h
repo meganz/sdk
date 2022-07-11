@@ -214,6 +214,7 @@ typedef enum ErrorCodes : int
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    LOCAL_ENOSPC = -1000,           ///< Insufficient space
 } error;
 
 class Error
@@ -336,12 +337,19 @@ typedef uint16_t fatype;
 typedef list<struct File*> file_list;
 
 // node types:
-// FILE - regular file nodes
-// FOLDER - regular folder nodes
-// ROOT - the cloud drive root node
-// INCOMING - inbox
-// RUBBISH - rubbish bin
-typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
+typedef enum {
+
+    // these first two are for sync rework, and should not be used before that branch is merged (directoyScan is from sync rework)
+    TYPE_DONOTSYNC = -3,
+    TYPE_SPECIAL = -2,
+
+    TYPE_UNKNOWN = -1,
+    FILENODE = 0,    // FILE - regular file nodes
+    FOLDERNODE,      // FOLDER - regular folder nodes
+    ROOTNODE,        // ROOT - the cloud drive root node
+    INCOMINGNODE,    // INCOMING - inbox
+    RUBBISHNODE      // RUBBISH - rubbish bin
+} nodetype_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
@@ -429,6 +437,14 @@ typedef enum
     SYNC_BACKUP_MONITOR = 2
 }
 SyncBackupState;
+
+enum ScanResult
+{
+    SCAN_INPROGRESS,
+    SCAN_SUCCESS,
+    SCAN_FSID_MISMATCH,
+    SCAN_INACCESSIBLE
+}; // ScanResult
 
 enum SyncError {
     NO_SYNC_ERROR = 0,

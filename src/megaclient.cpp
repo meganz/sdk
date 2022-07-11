@@ -2737,7 +2737,9 @@ void MegaClient::exec()
                                         LOG_debug << "Pending MEGA nodes: " << synccreate.size();
                                         if (!syncadding)
                                         {
-                                            LOG_debug << "Running syncup to create missing folders";
+                                            LOG_debug << "Running syncup to create missing folders: "
+                                                      << toHandle(sync->getConfig().mBackupId);
+
                                             syncup(sync->localroot.get(), &nds);
                                             sync->cachenodes();
                                         }
@@ -2905,7 +2907,9 @@ void MegaClient::exec()
                                 if ((sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN)
                                  && !syncadding && syncuprequired && !syncnagleretry)
                                 {
-                                    LOG_debug << "Running syncup on demand";
+                                    LOG_debug << "Running syncup on demand: "
+                                              << toHandle(sync->getConfig().mBackupId);
+
                                     repeatsyncup |= !syncup(sync->localroot.get(), &nds);
                                     syncupdone = true;
                                     sync->cachenodes();
@@ -3050,7 +3054,9 @@ void MegaClient::exec()
                             LocalPath localpath = sync->localroot->localname;
                             if (sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN)
                             {
-                                LOG_debug << "Running syncdown on demand";
+                                LOG_debug << "Running syncdown on demand: "
+                                          << toHandle(sync->getConfig().mBackupId);
+
                                 if (!syncdown(sync->localroot.get(), localpath))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
@@ -8659,13 +8665,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     if (rootnodes.files.isUndef())
                     {
                         rootnodes.files.set6byte(h);
-                    }
 
-                    if (loggedIntoWritableFolder())
-                    {
-                        // If logged into writable folder, we need the sharekey set in the root node
-                        // so as to include it in subsequent put nodes
-                        n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                        if (loggedIntoWritableFolder())
+                        {
+                            // If logged into writable folder, we need the sharekey set in the root node
+                            // so as to include it in subsequent put nodes
+                            n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                        }
                     }
                 }
 
@@ -14183,11 +14189,16 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
 
     SyncdownContext cxt;
 
-    cxt.mActionsPerformed = false;
-
     if (!syncdown(l, localpath, cxt))
     {
         return false;
+    }
+
+    if (cxt.mBackupForeignChangeDetected)
+    {
+        assert(l->sync->isBackup());
+
+        return true;
     }
 
     if (!l->sync->isBackupAndMirroring())
@@ -14197,11 +14208,13 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
 
     bool mirrorStable = true;
 
+    assert(l->sync->isBackup());
+
     // SCs must have been processed.
     mirrorStable &= statecurrent;
 
     // Syncdown must not have performed any actions.
-    mirrorStable &= !cxt.mActionsPerformed;
+    mirrorStable &= !cxt.mBackupActionsPerformed;
 
     // Scan queue must be empty.
     mirrorStable &= l->sync->dirnotify->empty();
@@ -14240,7 +14253,10 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
     remotenode_map nchildren;
     remotenode_map::iterator rit;
 
-    bool success = true;
+    // Set to false if we encounter any transient errors while trying to
+    // perform an operation on the local filesystem such as creating a
+    // directory or moving a file.
+    bool noTransientErrors = true;
 
     // build array of sync-relevant (in case of clashes, the newest alias wins)
     // remote children by name
@@ -14308,7 +14324,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 if (l->sync->isBackupAndMirroring())
                 {
                     // Mirror hasn't stabilized yet.
-                    cxt.mActionsPerformed = true;
+                    cxt.mBackupActionsPerformed = true;
 
                     // Detach the remote, re-upload if necessary.
                     ll->detach(true);
@@ -14318,8 +14334,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
                 else if (l->sync->isBackupMonitoring())
                 {
-                    // Disable the sync and tell our caller we've failed.
-                    return l->sync->backupModified();
+                    // Let the caller know we've detected a foreign change.
+                    cxt.mBackupForeignChangeDetected = true;
+
+                    // Disable the sync and return to our caller.
+                    l->sync->backupModified();
+
+                    // Don't forget to signal any other error conditions.
+                    return noTransientErrors;
                 }
             }
             else if (ll->type == FILENODE)
@@ -14393,9 +14415,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
 
                 // recurse into directories of equal name
-                if (!syncdown(ll, localpath, cxt) && success)
+                noTransientErrors &= syncdown(ll, localpath, cxt);
+
+                // Bail if the callee detected a foreign change.
+                if (cxt.mBackupForeignChangeDetected)
                 {
-                    success = false;
+                    assert(l->sync->isBackup());
+
+                    return noTransientErrors;
                 }
 
                 nchildren.erase(rit);
@@ -14426,7 +14453,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             if (l->sync->isBackupAndMirroring())
             {
                 // Mirror hasn't stabilized.
-                cxt.mActionsPerformed = true;
+                cxt.mBackupActionsPerformed = true;
 
                 // Re-upload the node.
                 ll->created = false;
@@ -14434,8 +14461,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             }
             else if (l->sync->isBackupMonitoring())
             {
-                // Disable the sync and tell our caller we've failed.
-                return l->sync->backupModified();
+                // Let our caller know there's been a foreign change.
+                cxt.mBackupForeignChangeDetected = true;
+
+                // Disable the sync and return to the caller.
+                l->sync->backupModified();
+
+                // Make sure we persist any (other) error condition.
+                return noTransientErrors;
             }
 
             if (ll->deleted)
@@ -14452,7 +14485,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 {
                     blockedfile = localpath;
                     LOG_warn << "Transient error deleting " << blockedfile;
-                    success = false;
+                    noTransientErrors = false;
                     lit++;
                 }
             }
@@ -14462,7 +14495,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             if (l->sync->isBackupAndMirroring())
             {
                 // Local node needs to be uploaded.
-                cxt.mActionsPerformed |= !ll->node;
+                cxt.mBackupActionsPerformed |= !ll->node;
             }
 
             lit++;
@@ -14491,7 +14524,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             if (l->sync->isBackupAndMirroring())
             {
                 // Mirror hasn't stabilized.
-                cxt.mActionsPerformed = true;
+                cxt.mBackupActionsPerformed = true;
 
                 // Detach the remote, re-upload the local if necessary.
                 rit->second->detach(true);
@@ -14501,8 +14534,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             }
             else if (l->sync->isBackupMonitoring())
             {
-                // Disable the sync and tell our caller we've failed.
-                return l->sync->backupModified();
+                // Let the caller know we've detected a foreign change.
+                cxt.mBackupForeignChangeDetected = true;
+
+                // Disable the sync and return to our caller.
+                l->sync->backupModified();
+
+                // Make sure to signal any other error conditions.
+                return noTransientErrors;
             }
             else if (rit->second->localnode->parent)
             {
@@ -14538,12 +14577,12 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
                     rit->second->localnode->treestate(TREESTATE_SYNCED);
                 }
-                else if (success && fsaccess->transient_error)
+                else if (noTransientErrors && fsaccess->transient_error)
                 {
                     // schedule retry
                     blockedfile = curpath;
                     LOG_debug << "Transient error moving localnode " << blockedfile;
-                    success = false;
+                    noTransientErrors = false;
                 }
             }
             else
@@ -14585,15 +14624,21 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                         if (l->sync->isBackupAndMirroring())
                         {
                             // Mirror hasn't stabilized.
-                            cxt.mActionsPerformed = true;
+                            cxt.mBackupActionsPerformed = true;
 
                             // Debris the remote.
                             movetosyncdebris(rit->second, l->sync->inshare);
                         }
                         else if (l->sync->isBackupMonitoring())
                         {
-                            // Disable sync and let the caller know we've failed.
-                            return l->sync->backupModified();
+                            // Let the caller know we've detected a foreign change.
+                            cxt.mBackupForeignChangeDetected = true;
+
+                            // Disable the sync and return to the caller.
+                            l->sync->backupModified();
+
+                            // Make sure to signal any other error conditions.
+                            return noTransientErrors;
                         }
                         else
                         {
@@ -14602,8 +14647,10 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
                             nextreqtag();
                             DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                            startxfer(GET, rit->second->syncget, committer, false, false, false, UseLocalVersioningFlag);
-                            syncactivity = true;
+                            error result = API_OK;
+
+                            startxfer(GET, rit->second->syncget, committer, false, false, false, UseLocalVersioningFlag, &result);
+                            syncactivity |= result != LOCAL_ENOSPC;
                         }
                     }
                 }
@@ -14618,15 +14665,21 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 else if (l->sync->isBackupAndMirroring())
                 {
                     // Mirror hasn't stabilized.
-                    cxt.mActionsPerformed = true;
+                    cxt.mBackupActionsPerformed = true;
 
                     // Remove the remote.
                     movetosyncdebris(rit->second, l->sync->inshare);
                 }
                 else if (l->sync->isBackupMonitoring())
                 {
-                    // Disable the sync as we have a mismatch.
-                    return l->sync->backupModified();
+                    // Let the caller know we've detected a foreign change.
+                    cxt.mBackupForeignChangeDetected = true;
+
+                    // Disable the sync and return the caller.
+                    l->sync->backupModified();
+
+                    // Don't forget to signal other error conditions.
+                    return noTransientErrors;
                 }
                 else
                 {
@@ -14655,10 +14708,10 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             ll->setnode(rit->second);
                             ll->sync->statecacheadd(ll);
 
-                            if (!syncdown(ll, localpath, cxt) && success)
+                            if (!syncdown(ll, localpath, cxt) && noTransientErrors)
                             {
                                 LOG_debug << "Syncdown not finished";
-                                success = false;
+                                noTransientErrors = false;
                             }
                         }
                         else
@@ -14666,11 +14719,11 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             LOG_debug << "Checkpath() failed " << (ll == NULL);
                         }
                     }
-                    else if (success && fsaccess->transient_error)
+                    else if (noTransientErrors && fsaccess->transient_error)
                     {
                         blockedfile = localpath;
                         LOG_debug << "Transient error creating folder " << blockedfile;
-                        success = false;
+                        noTransientErrors = false;
                     }
                     else if (!fsaccess->transient_error)
                     {
@@ -14681,7 +14734,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
         }
     }
 
-    return success;
+    return noTransientErrors;
 }
 
 // recursively traverse tree of LocalNodes and match with remote Nodes
@@ -15209,7 +15262,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             }
 
             // create remote folder or send file
-            LOG_debug << "Adding local file to synccreate: " << ll->name << " " << synccreate.size();
+            LOG_debug << "Adding local file to synccreate: "
+                      << ll->getLocalPath()
+                      << " "
+                      << synccreate.size();
             synccreate.push_back(ll);
             syncactivity = true;
 
@@ -15342,7 +15398,9 @@ void MegaClient::syncupdate()
                         tattrs.map.erase(it);
                     }
 
-                    LOG_debug << "Sync - creating remote file " << l->name << " by copying existing remote file";
+                    LOG_debug << "Sync - creating remote file "
+                              << l->getLocalPath()
+                              << " by copying existing remote file";
                 }
                 else
                 {
@@ -15764,9 +15822,39 @@ void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo)
+bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause)
 {
     f->mVersioningOption = vo;
+
+    // Dummy to avoid checking later.
+    if (!cause)
+    {
+        // Initializer provided to silence warnings.
+        static error dummy = API_OK;
+
+        cause = &dummy;
+    }
+
+    // Is caller trying to start a download?
+    if (d == GET)
+    {
+        auto targetPath = f->localname.parentPath();
+
+        assert(f->size >= 0);
+
+        // Do we have enough space for the download?
+        if (fsaccess->availableDiskSpace(targetPath) <= f->size)
+        {
+            LOG_warn << "Insufficient space available for download: "
+                     << f->localname
+                     << ": "
+                     << f->size;
+
+            *cause = LOCAL_ENOSPC;
+
+            return false;
+        }
+    }
 
     if (!f->transfer)
     {
@@ -15787,6 +15875,9 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             if (!f->isvalid)
             {
                 LOG_err << "Unable to get a fingerprint " << f->name;
+
+                *cause = API_EREAD;
+
                 return false;
             }
 
@@ -15821,6 +15912,9 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                                 && f->name == (*fi)->name))
                     {
                         LOG_warn << "Skipping duplicated transfer";
+
+                        *cause = API_EEXIST;
+
                         return false;
                     }
                 }
@@ -15971,6 +16065,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         assert( (f->h.isUndef() && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
                 || (!f->h.isUndef() && (nodeByHandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
+
+    *cause = API_OK;
 
     return true;
 }
