@@ -600,8 +600,6 @@ class MEGA_API CommandGetPutUrl : public Command
     using Cb = std::function<void(Error, const std::string &/*url*/, const vector<std::string> &/*ips*/)>;
     Cb mCompletion;
 
-    string* result;
-
 public:
     bool procresult(Result) override;
 
