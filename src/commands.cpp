@@ -154,13 +154,14 @@ bool HttpReqCommandPutFA::procresult(Result r)
 
                         // cache resolved URLs if received
                         std::vector<string> urls(1, posturl);
-
-                        mCompletion(API_OK, posturl, ips);
+                        std::vector<string> ipsCopy = ips;
 
                         if(!cacheresolvedurls(urls, std::move(ips)))
                         {
                             LOG_err << "Unpaired IPs received for URLs in `ufa` command. URLs: " << urls.size() << " IPs: " << ips.size();
                         }
+
+                        mCompletion(API_OK, posturl, ipsCopy);
 
                         return true;
                     }
