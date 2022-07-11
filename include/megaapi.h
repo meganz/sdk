@@ -1659,8 +1659,8 @@ public:
     * @brief Returns the handle of a node related to the alert
     *
     * This value is valid for alerts that relate to a single node.
-    *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_TAKEDOWN,
-    *  TYPE_TAKEDOWN_REINSTATED
+    *  TYPE_NEWSHARE (folder handle), TYPE_DELETEDSHARE (folder handle), TYPE_NEWSHAREDNODES (parent handle), TYPE_TAKEDOWN (node handle),
+    *  TYPE_TAKEDOWN_REINSTATED (node handle)
     *
     * @return the relevant node handle, or UNDEF if this alert does not have one.
     */
