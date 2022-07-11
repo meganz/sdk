@@ -1067,11 +1067,11 @@ void RaidReq::shiftdata(off_t len)
                 {
                     if (highest == slow1 || highest == slow2)
                     {
-//                        cout << "Slow channel already marked as such, no action taken" << endl;
+//                        std::cout << "Slow channel already marked as such, no action taken" << std::endl;
                     }
                     else
                     {
-//                        cout << "Switching " << highest << " to slow" << endl;
+//                        std::cout << "Switching " << highest << " to slow" << std::endl;
                         setslow(highest, slow1);
                     }
                 }
@@ -1081,18 +1081,18 @@ void RaidReq::shiftdata(off_t len)
 
                     // check if we have a fresh and idle channel left to try
                     int fresh;
-                    for (fresh = RAIDPARTS; fresh--; ) if (sockets[fresh] < 0 && fetcher[fresh].errors < 3) break;
+                    for (fresh = RAIDPARTS; fresh--; ) if (!fetcher[fresh].connected && fetcher[fresh].errors < 3) break;
 
                     if (fresh >= 0)
                     {
-//                        cout << "Trying fresh channel " << fresh << "..." << endl;
+//                        std::cout << "Trying fresh channel " << fresh << "..." << std::endl;
                         fetcher[highest].closesocket();
                         fetcher[fresh].trigger();
                     }
                     else
                     {
                         int disconnected;
-                        for (disconnected = RAIDPARTS; disconnected--; ) if (sockets[disconnected] < 0) break;
+                        for (disconnected = RAIDPARTS; disconnected--; ) if (!fetcher[disconnected].connected) break;
 
                         if (disconnected >= 0)
                         {
@@ -1113,7 +1113,7 @@ void RaidReq::shiftdata(off_t len)
     }
 }
 
-void RaidReq::dispatchio(HttpReqPtr s)
+void RaidReq::dispatchio(const HttpReqPtr& s)
 {
     // fast lookup of which PartFetcher to call from a single cache line
     // we don't check for s not being found since we know sometimes it won't be when we closed a socket to a slower/nonresponding server
@@ -1330,21 +1330,38 @@ void RaidReq::disconnect()
 
 bool RaidReqPool::addScheduledio(raidTime scheduledFor, const HttpReqPtr& req)
 {
-    lock_guard<recursive_mutex> g(rrp_lock);
-    auto it = scheduledio.insert(std::make_pair(scheduledFor, req));
-    return it.second;
+    if (scheduledFor == 0) return addDirectio(req);
+    lock_guard<recursive_mutex> g(rrp_queuelock);
+    auto it = directio_set.insert(req);
+    if (it.second)
+    {
+        auto itScheduled = scheduledio.insert(std::make_pair(scheduledFor, req));
+        return itScheduled.second;
+    }
+    return false;
 }
 
 bool RaidReqPool::addDirectio(const HttpReqPtr& req)
 {
-    lock_guard<recursive_mutex> g(rrp_lock);
-    auto it = directio.insert(req);
+    lock_guard<recursive_mutex> g(rrp_queuelock);
+    auto it = directio_set.insert(req);
+    if (it.second)
+    {
+        if (req->status != REQ_INFLIGHT)
+        {
+            directio.emplace_front(req);
+        }
+        else
+        {
+            directio.emplace_back(req);
+        }
+    }
     return it.second;
 }
 
+
 void* RaidReqPool::raidproxyiothread()
 {
-    RaidReq* rr;
     std::deque<HttpReqPtr> events;
 
     while (isRunning.load())
@@ -1358,74 +1375,62 @@ void* RaidReqPool::raidproxyiothread()
         }
         */
 
-
-        lock_guard<recursive_mutex> g(rrp_lock);  // this lock guarantees RaidReq will not be deleted between lookup and dispatch - locked for a while but only affects the main thread with new raidreqs being added or removed
         if (!isRunning.load()) break;
 
-        while (!directio.empty())
         {
-            if (static_cast<HttpReqPtr>(*directio.begin())->status != REQ_INFLIGHT)
+            lock_guard<recursive_mutex> g(rrp_queuelock); // for directIo
+
+            auto itScheduled = scheduledio.begin();
+            while (itScheduled != scheduledio.end() && itScheduled->first <= currtime)
             {
-                events.emplace_front(*directio.begin());
+                if (static_cast<HttpReqPtr>(itScheduled->second)->status != REQ_INFLIGHT)
+                {
+                    events.emplace_back(std::move(itScheduled->second));
+                    itScheduled = scheduledio.erase(itScheduled);
+                }
+                else itScheduled++;
             }
-            else
+
+            while (!directio.empty() && directio.front()->status != REQ_INFLIGHT)
             {
-                addScheduledio(currtime, *directio.begin());
+                events.emplace_back(std::move(directio.front()));
+                directio.pop_front();
             }
-            directio.erase(directio.begin());
         }
 
-        assert(events.size() <= 6);
-
-        // initially process all the ones for which we can get the RaidReq lock instantly.  For any that are contended, skip and process the rest for now - then loop and retry, last loop locks rather than try_locks.
-        for (int j = 2; j--; )
+        if (!events.empty())
         {
-            while (!events.empty())
-            {
-                const HttpReqPtr& s = *events.begin();
+            assert(events.size() <= 6); // Delete when more than 1 transfers are supported by this class
 
-                if ((rr = socketrrs.lookup(s)))  // retrieved under extremely brief lock.  RaidReqs can not be deleted until we unlock rrp_lock
+            auto itEvent = events.begin();
+            while (isRunning.load() && itEvent != events.end())
+            {
                 {
-                    std::unique_lock<mutex> g(rr->rr_lock, std::defer_lock);
-                    if (g.try_lock())
+                    lock_guard<recursive_mutex> g(rrp_lock); // this lock guarantees RaidReq will not be deleted between lookup and dispatch - locked for a while but only affects the main thread with new raidreqs being added or removed
+                    const HttpReqPtr& s = *itEvent;
+                    RaidReq* rr;
+                    if ((rr = socketrrs.lookup(s)))  // retrieved under extremely brief lock.  RaidReqs can not be deleted until we unlock rrp_lock
                     {
-                        rr->dispatchio(s);
-                        events.erase(events.begin());
+                        std::unique_lock<mutex> g(rr->rr_lock, std::defer_lock);
+                        if (g.try_lock())
+                        {
+                            {
+                                lock_guard<recursive_mutex> g(rrp_queuelock);
+                                directio_set.erase(s);
+                            }
+                            rr->dispatchio(s);
+                            itEvent = events.erase(itEvent);
+                        }
+                        else
+                        {
+                            itEvent++;
+                        }
                     }
-                    else
-                    {
-                        // move it to the front
-                        events.erase(events.begin());
-                        addDirectio(s);
-                    }
-                }
-                else
-                {
-                    events.erase(events.begin());
                 }
             }
-
-            if (j == 1)
-            {
-                while (!scheduledio.empty() && scheduledio.begin()->first <= currtime)
-                {
-                    if (static_cast<HttpReqPtr>(scheduledio.begin()->second)->status != REQ_INFLIGHT)
-                    {
-                        events.emplace_front(scheduledio.begin()->second);
-                    }
-                    else
-                    {
-                        addDirectio(scheduledio.begin()->second);
-                    }
-                    scheduledio.erase(scheduledio.begin());
-                }
-            }
-
-            if (events.empty()) break;
         }
     }
 }
-
 
 void* RaidReqPool::raidproxyiothreadstart(void* arg)
 {

@@ -124,7 +124,7 @@ class RaidReq
     typedef deque<HttpReqPtr> socket_deque;
     socket_deque pendingio;
     void handlependingio();
-    void dispatchio(HttpReqPtr);
+    void dispatchio(const HttpReqPtr&);
     int notifyeventfd = -1;
 
     alignas(RAIDSECTOR) byte data[NUMLINES*RAIDLINE];       // always starts on a RAID line boundary
@@ -212,7 +212,7 @@ class RaidReqPool
     ts_ptr_map<HttpReqPtr, RaidReq> socketrrs; // to be able to set up the handling of epoll events from any thread safely
 
     RaidReqPoolArray& array;
-    recursive_mutex rrp_lock;
+    recursive_mutex rrp_lock, rrp_queuelock;
     //pthread_t rrp_thread;
     std::thread rrp_thread;
     int efd;
@@ -224,9 +224,12 @@ class RaidReqPool
     std::map<RaidReq*, unique_ptr<RaidReq>> rrs;
 
     typedef set<pair<raidTime, HttpReqPtr>> timesocket_set;
-    timesocket_set scheduledio;
     typedef set<HttpReqPtr> directsocket_set;
-    directsocket_set directio;
+    typedef deque<HttpReqPtr> directsocket_queue;
+    timesocket_set scheduledio;
+    directsocket_set directio_set;
+    directsocket_queue directio;
+
 
 public:
     RaidReqPool(RaidReqPoolArray& ar);
