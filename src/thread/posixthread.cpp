@@ -57,7 +57,7 @@ void PosixThread::join()
 }
 
 bool PosixThread::isCurrentThread() {
-    return thread == pthread_self();
+    return *thread == pthread_self();
 }
 
 unsigned long long PosixThread::currentThreadId()
