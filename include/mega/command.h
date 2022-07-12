@@ -1019,10 +1019,22 @@ class MEGA_API CommandChatCreate : public Command
     string mTitle;
     string mUnifiedKey;
     bool mMeeting;
+    ChatOptions mChatOptions;
 public:
     bool procresult(Result) override;
 
-    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map *ukm = NULL, const char *title = NULL, bool meetingRoom = false);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map *ukm = NULL, const char *title = NULL, bool meetingRoom = false, int chatOptions = 0);
+};
+
+class MEGA_API CommandSetChatOptions : public Command
+{
+    handle mChatid;
+    ChatOptions mChatOptions;
+    bool mAdd;
+
+public:
+    bool procresult(Result) override;
+    CommandSetChatOptions(MegaClient*, handle, int, bool);
 };
 
 class MEGA_API CommandChatInvite : public Command
