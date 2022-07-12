@@ -1083,11 +1083,22 @@ public:
     void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
 };
 
+class CancelElement
+{
+public:
+    CancelElement(bool value)
+        : flag(value)
+    {
+    }
+    bool flag;
+    std::function<void(void)> mCancelMethod;
+};
+
 class CancelToken
 {
     // A small item with representation shared between many objects
     // They can all be cancelled in one go by setting the token flag true
-    shared_ptr<bool> flag;
+    shared_ptr<CancelElement> element;
 
 public:
 
@@ -1096,22 +1107,37 @@ public:
 
     // create with a token available to be cancelled
     explicit CancelToken(bool value)
-        : flag(std::make_shared<bool>(value))
+        : element(std::make_shared<CancelElement>(value))
     {}
 
     void cancel()
     {
-        if (flag) *flag = true;
+        if (element && !element->flag)
+        {
+            element->flag = true;
+            if (element->mCancelMethod)
+            {
+                element->mCancelMethod();
+            }
+        }
     }
 
     bool isCancelled() const
     {
-        return !!flag && *flag;
+        return !!element && element->flag;
     }
 
     bool exists()
     {
-        return !!flag;
+        return !!element;
+    }
+
+    void setCancelMethod(std::function<void(void)> method)
+    {
+        if (element)
+        {
+            element->mCancelMethod = method;
+        }
     }
 };
 
