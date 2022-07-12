@@ -6825,17 +6825,18 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 assert(readingPublicChat);
                 meeting = jsonsc.getbool();
                 break;
-            case 'w':
+
+            case 'w': // waiting room
                 assert(readingPublicChat);
                 waitingRoom = jsonsc.getbool();
                 break;
 
-            case MAKENAMEID2('s','r'):
+            case MAKENAMEID2('s','r'): // speak request
                 assert(readingPublicChat);
                 speakRequest = jsonsc.getbool();
                 break;
 
-            case MAKENAMEID2('o','i'):
+            case MAKENAMEID2('o','i'): // open invite
                 assert(readingPublicChat);
                 openInvite = jsonsc.getbool();
                 break;
@@ -11139,19 +11140,19 @@ void MegaClient::procmcf(JSON *j)
                                 assert(readingPublicChats || !meeting); // public chats can be meetings or not. Private chats cannot be meetings
                                 break;
 
-                            case 'w':
-                                assert(readingPublicChats);
-                                waitingRoom = jsonsc.getbool();
+                            case 'w':   // waiting room
+                                waitingRoom = static_cast<int>(j->getint());
+                                assert(readingPublicChats || !meeting); // TOCHECK
                                 break;
 
-                            case MAKENAMEID2('s','r'):
-                                assert(readingPublicChats);
-                                speakRequest = jsonsc.getbool();
+                            case MAKENAMEID2('s','r'): // speak request
+                                speakRequest = static_cast<int>(j->getint());
+                                assert(readingPublicChats || !meeting); // TOCHECK
                                 break;
 
-                            case MAKENAMEID2('o','i'):
-                                assert(readingPublicChats);
-                                openInvite = jsonsc.getbool();
+                            case MAKENAMEID2('o','i'): // open invite
+                                openInvite = static_cast<int>(j->getint());
+                                assert(readingPublicChats || !meeting); // TOCHECK
                                 break;
 
                             case EOO:
