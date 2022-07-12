@@ -534,14 +534,6 @@ FilterResult FilterChain::match(const RemotePathPair& p,
 {
     assert(isValid());
 
-    static const string iconResource = "Icon\x0d";
-
-    // Always ignore custom icon metadata.
-    if (p.first == iconResource)
-    {
-        return FilterResult(false);
-    }
-
     auto i = mStringFilters.rbegin();
     auto j = mStringFilters.rend();
 
