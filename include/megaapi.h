@@ -12688,7 +12688,7 @@ class MegaApi
          * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
          * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
          * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
-         * instead of that, use MegaCancelToken::cancel(true) calling through MegaCancelToken instance associated to this transfer.
+         * instead of that, use MegaCancelToken::cancel() calling through MegaCancelToken instance associated to this transfer.
          *
          * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
@@ -12774,7 +12774,7 @@ class MegaApi
          * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
          * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
          * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
-         * instead of that, use MegaCancelToken::cancel(true) calling through MegaCancelToken instance associated to this transfer.
+         * instead of that, use MegaCancelToken::cancel() calling through MegaCancelToken instance associated to this transfer.
          *
          * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
@@ -20074,7 +20074,6 @@ public:
 
     /**
      * @brief Allows to set the value of the flag
-     * @param newValue True to force the cancelation of the processing. False to reset.
      */
     virtual void cancel() = 0;
 
