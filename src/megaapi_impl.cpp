@@ -3939,7 +3939,7 @@ void MegaRequestPrivate::setBanners(vector< tuple<int, string, string, string, s
     }
 }
 
-MegaRecentActionBucketList* MegaRequestPrivate::getRecentActionBucketList() const
+MegaRecentActionBucketList* MegaRequestPrivate::getRecentActions() const
 {
     return mRecentActions.get();
 }

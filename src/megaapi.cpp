@@ -1066,7 +1066,7 @@ MegaHandleList* MegaRequest::getMegaHandleList() const
     return nullptr;
 }
 
-MegaRecentActionBucketList *MegaRequest::getRecentActionBucketList() const
+MegaRecentActionBucketList *MegaRequest::getRecentActions() const
 {
     return nullptr;
 }

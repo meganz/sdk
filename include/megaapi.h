@@ -4029,7 +4029,7 @@ class MegaRequest
          *
          * @return MegaRecentActionBucketList list
          */
-        virtual MegaRecentActionBucketList *getRecentActionBucketList() const;
+        virtual MegaRecentActionBucketList *getRecentActions() const;
 };
 
 /**
@@ -16226,6 +16226,8 @@ class MegaApi
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
          *
+         * @deprecated use getRecentActionsAsync
+         *
          * @param days Age of actions since added/modified nodes will be considered (in days)
          * @param maxnodes Maximum amount of nodes to be considered
          *
@@ -16242,6 +16244,8 @@ class MegaApi
          * interactions during the last 30 days and max 10.000 nodes.
          *
          * You take the ownership of the returned value.
+         *
+         * @deprecated use getRecentActionsAsync
          *
          * @return List of buckets containing nodes that were added/modifed as a set
          */
@@ -16262,8 +16266,12 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getRecentsBucket - Returns buckets with a list of recently added/modified nodes
          *
+         * The recommended values for the following parameters are to consider
+         * interactions during the last 30 days and maximum 500 nodes.
+         *
          * @param days Age of actions since added/modified nodes will be considered (in days)
          * @param maxnodes Maximum amount of nodes to be considered
+
          * @param listener MegaRequestListener to track this request
          */
         void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
