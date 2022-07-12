@@ -1338,8 +1338,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaBannerList* getMegaBannerList() const override;
         void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
 
-        void setRecentActionbucketList(const MegaRecentActionBucketList *recentActionBucketList);
         MegaRecentActionBucketList *getRecentActions() const override;
+        void setRecentActionbucketList(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList);
 
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
