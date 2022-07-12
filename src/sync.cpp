@@ -7571,7 +7571,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
             SYNC_verbose << syncname << "Upload already in progress" << logTriplet(row, fullPath);
         }
     }
-    else // FOLDERNODE
+    else if (row.fsNode->type == FOLDERNODE)
     {
         if (row.syncNode->hasRare() && !row.syncNode->rare().createFolderHere.expired())
         {
@@ -7632,6 +7632,21 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
         }
         // we may not see some moves/renames until the entire folder structure is created.
         row.syncNode->setCheckMovesAgain(true, false, false);     // todo: double check - might not be needed for the wait case? might cause a stall?
+    }
+    else if (row.fsNode->type == TYPE_DONOTSYNC)
+    {
+        // This is the sort of thing that we should not sync, but not complain about either
+        // consider it synced.
+        return true;
+    }
+    else // unknown/special
+    {
+        monitor.waitingLocal(fullPath.localPath, SyncStallEntry(
+            SyncWaitReason::FileIssue, false, false,
+            {fullPath.cloudPath, PathProblem::DetectedSpecialFile},
+            {},
+            {fullPath.localPath},
+            {}));
     }
     return false;
 }

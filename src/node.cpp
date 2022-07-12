@@ -1924,6 +1924,16 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
         {
             lastFolderScan.reset(new vector<FSNode>(ourScanRequest->resultNodes()));
 
+            for (auto& i : *lastFolderScan)
+            {
+                string n = i.localname.toPath();
+                if (n == "desktop.ini" || n == ".DS_Store")
+                {
+                    // These are special shell-generated files for win & mac, only relevant in the filesystem they were created
+                    i.type = TYPE_DONOTSYNC;
+                }
+            }
+
             LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath_utf8();
 
             scanDelayUntil = Waiter::ds + 20; // don't scan too frequently
