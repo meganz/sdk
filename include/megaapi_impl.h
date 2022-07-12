@@ -1677,6 +1677,7 @@ public:
     MegaHandle getOriginatingUser() const override;
     const char *getTitle() const override;
     const char *getUnifiedKey() const override;
+    unsigned char getChatOptions() const override;
     int64_t getCreationTime() const override;
     bool isArchived() const override;
     bool isPublicChat() const override;
@@ -1702,6 +1703,7 @@ private:
     bool publicchat;
     int64_t ts;
     bool meeting;
+    ChatOptions_t chatOptions;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -2831,7 +2833,8 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, bool meetingRoom = false, int chatOptions = 0, MegaRequestListener *listener = NULL);
+        void setChatOptions(MegaHandle chatid, int chatOptions, bool add, MegaRequestListener* listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
@@ -3277,6 +3280,7 @@ protected:
         void registerpushnotification_result(error) override;
         void archivechat_result(error) override;
         void setchatretentiontime_result(error) override;
+        void setchatoptions_result(error) override;
 
         void chats_updated(textchat_map *, int) override;
         void richlinkrequest_result(string*, error) override;

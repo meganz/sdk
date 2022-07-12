@@ -2049,7 +2049,8 @@ public:
     {
         CHANGE_TYPE_ATTACHMENT      = 0x01,
         CHANGE_TYPE_FLAGS           = 0x02,
-        CHANGE_TYPE_MODE            = 0x04
+        CHANGE_TYPE_MODE            = 0x04,
+        CHANGE_TYPE_CHAT_OPTIONS    = 0x08,
     };
 
     virtual ~MegaTextChat();
@@ -2144,6 +2145,16 @@ public:
     virtual const char *getUnifiedKey() const;
 
     /**
+     * @brief Returns the chat options.
+     *
+     * The returned value contains the chat options represented in 1 Byte, where each individual option is stored in 1 bit.
+     * Check ChatOptions struct at types.h
+     *
+     * @return The chat options in a numeric format
+     */
+    virtual unsigned char getChatOptions() const;
+
+    /**
      * @brief Returns true if this chat has an specific change
      *
      * This value is only useful for chats notified by MegaListener::onChatsUpdate or
@@ -2153,14 +2164,17 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaUser::CHANGE_TYPE_ATTACHMENT       = 0x01
+     * - MegaTextChat::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
      *
-     * - MegaUser::CHANGE_TYPE_FLAGS            = 0x02
+     * - MegaTextChat::CHANGE_TYPE_FLAGS            = 0x02
      * Check if flags have changed (like archive flag)
      *
-     * - MegaUser::CHANGE_TYPE_MODE             = 0x04
+     * - MegaTextChat::CHANGE_TYPE_MODE             = 0x04
      * Check if operation mode has changed to private mode (from public mode)
+     *
+     * - MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS     = 0x08
+     * Check if chat options have changed
      *
      * @return true if this chat has an specific change
      */
@@ -2174,14 +2188,17 @@ public:
      *
      * @return The returned value is an OR combination of these flags:
      *
-     * - MegaUser::CHANGE_TYPE_ATTACHMENT       = 0x01
+     * - MegaTextChat::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
      *
-     * - MegaUser::CHANGE_TYPE_FLAGS            = 0x02
+     * - MegaTextChat::CHANGE_TYPE_FLAGS            = 0x02
      * Check if flags have changed (like archive flag)
      *
-     * - MegaUser::CHANGE_TYPE_MODE             = 0x04
+     * - MegaTextChat::CHANGE_TYPE_MODE             = 0x04
      * Check if operation mode has changed to private mode (from public mode)
+     *
+     * - MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS     = 0x08
+     * Check if chat options have changed
      */
     virtual int getChanges() const;
 
@@ -3212,7 +3229,8 @@ class MegaRequest
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_FA_UPLOAD_URL                                          = 145,
             TYPE_EXECUTE_ON_THREAD                                          = 146,
-            TOTAL_OF_REQUEST_TYPES                                          = 147,
+            TYPE_SET_CHAT_OPTIONS                                           = 147,
+            TOTAL_OF_REQUEST_TYPES                                          = 148,
         };
 
         virtual ~MegaRequest();
@@ -17778,6 +17796,7 @@ class MegaApi
          * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getNumber - Returns if chat room is a meeting room
+         * - MegaRequest::getNumDetails - Returns the chatOptions in a numeric format
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -17790,9 +17809,38 @@ class MegaApi
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
          * @param meetingRoom Boolean indicating if room is a meeting room
+         * @param chatOptions Integer representing chatOptions (just valid for Meeting rooms) in a numeric format (check ChatOptions at types.h)
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = 0, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Enable or disable a set of chat options for a Meeting room
+         *
+         * This function allows to enable/disable one or more of the following Meeting room options:
+         * - OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
+         * - SpeakRequest: during calls non-operator users must request permission to speak.
+         * - WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
+         *
+         * Chat options are provided in a numeric format represented in 1 Byte, where each option is stored in 1 bit.
+         * Check ChatOptions struct at types.h
+         *
+         * The associated request type with this request is MegaChatRequest::TYPE_SET_CHAT_OPTIONS
+         * Valid data in the MegaChatRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getAccess - Returns the chatOptions in a numeric format
+         * - MegaRequest::getFlag -  Returns true if we want to enable options, otherwise returns false
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS  - If the chatid is invalid
+         * - MegaError::API_EARGS  - If chat options are empty
+         * - MegaError::API_ENOENT - If the chatroom does not exists
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param chatOptions Integer representing chatOptions in a numeric format (check ChatOptions at types.h)
+         * @param listener MegaChatRequestListener to track this request
+         */
+        void setChatOptions(MegaHandle chatid, int chatOptions, bool add, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

@@ -4092,6 +4092,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
         case TYPE_GET_FA_UPLOAD_URL: return "GET_FA_UPLOAD_URL";
         case TYPE_EXECUTE_ON_THREAD: return "EXECUTE_ON_THREAD";
+        case TYPE_SET_CHAT_OPTIONS: return "SET_CHAT_OPTIONS";
     }
     return "UNKNOWN";
 }
@@ -10187,7 +10188,7 @@ void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, unique
 
 #ifdef ENABLE_CHAT
 
-void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, int chatOptions, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
@@ -10196,6 +10197,17 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *
     request->setText(title);
     request->setMegaStringMap(userKeyMap);
     request->setNumber(meetingRoom);
+    request->setNumDetails(chatOptions);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setChatOptions(MegaHandle chatid, int chatOptions, bool add, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_CHAT_OPTIONS, listener);
+    request->setNodeHandle(chatid);
+    request->setAccess(chatOptions);
+    request->setFlag(add);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13173,6 +13185,15 @@ void MegaApiImpl::setchatretentiontime_result(error e)
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate *request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_SET_RETENTION_TIME)) return;
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+}
+
+void MegaApiImpl::setchatoptions_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate *request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_SET_CHAT_OPTIONS)) return;
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -22167,6 +22188,8 @@ void MegaApiImpl::sendPendingRequests()
 
             bool meetingRoom = static_cast<bool>(request->getNumber());
 
+            int chatOptions = request->getNumDetails();
+
             const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
 
             // if 1:1 chat, peer is enforced to be moderator too
@@ -22175,9 +22198,37 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom);
+            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, chatOptions);
             break;
         }
+        case MegaRequest::TYPE_SET_CHAT_OPTIONS:
+        {
+            handle chatid = request->getNodeHandle();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            int chatOptions = request->getAccess();
+            if (ChatOptions::isEmpty(chatOptions))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            bool add = request->getFlag();
+            client->setChatOptions(chatid, chatOptions, add);
+            break;
+        }
+
         case MegaRequest::TYPE_CHAT_INVITE:
         {
             handle chatid = request->getNodeHandle();
@@ -32906,6 +32957,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->changed = chat->getChanges();
     this->unifiedKey = chat->getUnifiedKey() ? chat->getUnifiedKey() : "";
     this->meeting = chat->isMeeting();
+    this->chatOptions = chat->getChatOptions();
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -32923,6 +32975,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->publicchat = chat->publicchat;
     this->unifiedKey = chat->unifiedKey;
     this->meeting = chat->meeting;
+    this->chatOptions = chat->chatOptions;
     this->changed = 0;
 
     if (chat->changed.attachments)
@@ -32936,6 +32989,10 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     if (chat->changed.mode)
     {
         changed |= MegaTextChat::CHANGE_TYPE_MODE;
+    }
+    if (chat->changed.options)
+    {
+        changed |= MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS;
     }
 }
 
@@ -32996,6 +33053,11 @@ const char *MegaTextChatPrivate::getTitle() const
 const char *MegaTextChatPrivate::getUnifiedKey() const
 {
     return !unifiedKey.empty() ? unifiedKey.c_str() : NULL;
+}
+
+unsigned char MegaTextChatPrivate::getChatOptions() const
+{
+    return chatOptions;
 }
 
 int MegaTextChatPrivate::isOwnChange() const

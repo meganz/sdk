@@ -5136,12 +5136,17 @@ char *MegaApi::getMimeType(const char *extension)
 #ifdef ENABLE_CHAT
 void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
 {
-    pImpl->createChat(group, false, peers, NULL, title, false, listener);
+    pImpl->createChat(group, false, peers, NULL, title, false, 0/*chatOptions*/, listener);
 }
 
-void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, MegaRequestListener *listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, int chatOptions, MegaRequestListener *listener)
 {
-    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, listener);
+    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, chatOptions, listener);
+}
+
+void MegaApi::setChatOptions(MegaHandle chatid, int chatOptions, bool add, MegaRequestListener* listener)
+{
+     pImpl->setChatOptions(chatid, chatOptions, add, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
@@ -6474,6 +6479,11 @@ const char * MegaTextChat::getTitle() const
 const char * MegaTextChat::getUnifiedKey() const
 {
     return NULL;
+}
+
+unsigned char MegaTextChat::getChatOptions() const
+{
+    return 0;
 }
 
 bool MegaTextChat::hasChanged(int) const
