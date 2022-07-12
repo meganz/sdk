@@ -1003,9 +1003,9 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
         return false;
     }
 
-    if (cancelFlag.isCancelled())
+    if (cancelFlag.exists())
     {
-        mCancelFlag = CancelToken();
+        mCancelFlag = cancelFlag;
         // Add a callback to be called inside db query to check if we should interrupt it
         sqlite3_progress_handler(mDbSearchConnection, 15, SqliteAccountState::progressHandler, static_cast<void*>(this));
     }
