@@ -56,7 +56,7 @@ void PosixThread::join()
     pthread_join(*thread, NULL);
 }
 
-bool CppThread::isCurrentThread() {
+bool PosixThread::isCurrentThread() {
     return thread == pthread_self();
 }
 
