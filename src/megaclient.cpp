@@ -3730,7 +3730,9 @@ void MegaClient::dispatchTransfers()
             return true;
         };
 
-    std::array<vector<Transfer*>, 6> nextInCategory = transferlist.nexttransfers(testAddTransferFunction, continueDirection);
+    DBTableTransactionCommitter committer(tctable);
+
+    std::array<vector<Transfer*>, 6> nextInCategory = transferlist.nexttransfers(testAddTransferFunction, continueDirection, committer);
 
     // Iterate the 4 combinations in this order:
     static const TransferCategory categoryOrder[] = {
@@ -3739,8 +3741,6 @@ void MegaClient::dispatchTransfers()
         TransferCategory(PUT, SMALLFILE),
         TransferCategory(GET, SMALLFILE),
     };
-
-    DBTableTransactionCommitter committer(tctable);
 
     for (auto category : categoryOrder)
     {
@@ -16001,10 +16001,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
         if (!transfer->files.size())
         {
             looprequested = true;
-            transfer->finished = true;
-            transfer->state = TRANSFERSTATE_CANCELLED;
-            app->transfer_removed(transfer);
-            delete transfer;
+            transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
         }
         else
         {
@@ -17080,7 +17077,7 @@ uint64_t NodeManager::getNodeCount()
     return count;
 }
 
-node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, const std::atomic_bool* cancelFlag)
+node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag)
 {
     node_vector nodes;
     if (!mTable)
@@ -17133,7 +17130,7 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     mTable->getNodesByOrigFingerprint(fingerprint, nodesFromTable);
 
-    nodes = filterByAncestor(nodesFromTable, parent ? parent->nodeHandle() : NodeHandle());
+    nodes = filterByAncestor(nodesFromTable, parent ? parent->nodeHandle() : NodeHandle(), CancelToken());
     return nodes;
 }
 
@@ -18251,14 +18248,14 @@ node_vector NodeManager::getRootNodesAndInshares()
     return rootnodes;
 }
 
-node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized> > &nodesFromTable, NodeHandle ancestorHandle, const std::atomic_bool* cancelFlag)
+node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized> > &nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag)
 {
     node_vector nodes;
 
     for (const auto& nodeIt : nodesFromTable)
     {
         // Check pointer and value
-        if (cancelFlag && *cancelFlag) break;
+        if (cancelFlag.isCancelled()) break;
 
         Node* n = getNodeInRAM(nodeIt.first);
 

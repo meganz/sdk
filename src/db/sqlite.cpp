@@ -616,7 +616,7 @@ int SqliteAccountState::progressHandler(void *param)
 {
     SqliteAccountState* db = static_cast<SqliteAccountState*>(param);
     // Check pointer and value
-    if (db->mCancelFlag && *db->mCancelFlag)
+    if (db->mCancelFlag.isCancelled())
     {
         sqlite3_interrupt(db->mDbSearchConnection);
     }
@@ -996,14 +996,14 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     return result;
 }
 
-bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, const std::atomic_bool *cancelFlag)
+bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag)
 {
     if (!mDbSearchConnection)
     {
         return false;
     }
 
-    if (cancelFlag)
+    if (cancelFlag.exists())
     {
         mCancelFlag = cancelFlag;
         // Add a callback to be called inside db query to check if we should interrupt it
@@ -1027,7 +1027,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
         result = processSqlQueryNodes(stmt, nodes, mDbSearchConnection);
     }
 
-    mCancelFlag = nullptr;
+    mCancelFlag = CancelToken();
 
     if (sqlResult == SQLITE_ERROR)
     {

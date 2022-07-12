@@ -268,7 +268,7 @@ public:
     // Returned nodes are children of 'nodeHandle' (at any level)
     // If 'nodeHandle' is UNDEF, search includes the whole account
     // If a cancelFlag is passed, it must be kept alive until this method returns
-    node_vector search(NodeHandle nodeHandle, const char *searchString, const std::atomic_bool *cancelFlag);
+    node_vector search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag);
 
     node_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
     node_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
@@ -447,7 +447,7 @@ private:
     //Avoid loading nodes whose ancestor is not ancestorHandle. If ancestorHandle is undef load all nodes
     // If a valid cancelFlag is passed and takes true value, this method returns without complete operation
     // If a valid object is passed, it must be kept alive until this method returns.
-    node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle, const std::atomic_bool* cancelFlag = nullptr);
+    node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag);
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;

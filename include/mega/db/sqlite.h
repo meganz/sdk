@@ -67,7 +67,7 @@ public:
     bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, ShareType_t shareType) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
-    bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, const std::atomic_bool* cancelFlag) override;
+    bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
@@ -106,7 +106,7 @@ private:
 
     // Avoid race condition if search is cancelled and sql query hasn't started
     // This flag is checked at progressHandler() that is called once the query has started
-    const std::atomic_bool *mCancelFlag = nullptr;
+    CancelToken mCancelFlag;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess
