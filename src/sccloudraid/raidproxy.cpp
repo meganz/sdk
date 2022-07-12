@@ -46,6 +46,7 @@ PartFetcher::PartFetcher()
 
     pos = 0;
     rem = 0;
+    remfeed = 0;
 
     errors = 0;
     consecutive_errors = 0;
@@ -59,7 +60,7 @@ PartFetcher::~PartFetcher()
 {
     if (rr)
     {
-        closesocket(true);
+        closesocket();
 
         while (!readahead.empty())
         {
@@ -239,15 +240,32 @@ void PartFetcher::setposrem()
 
     pos = startpos;
 
-    // request 1 less RAIDSECTOR as we will add up to 1 sector of 0 bytes at the end of the file - this leaves enough buffer space in the buffer pased to procdata for us to write past the reported length
-    remfeed = std::min(rem, (off_t)NUMLINES*RAIDSECTOR);
-    if (sourcesize-pos < remfeed) remfeed = sourcesize-pos; // we only read to the physical end of the part
+    setremfeed();
 
 }
 
-bool RaidReq::allconnected()
+bool PartFetcher::setremfeed(unsigned numBytes)
 {
-    for (int i = RAIDPARTS; i--; ) if (!fetcher[i].connected) return false;
+    // request 1 less RAIDSECTOR as we will add up to 1 sector of 0 bytes at the end of the file - this leaves enough buffer space in the buffer pased to procdata for us to write past the reported length
+    remfeed = std::min(static_cast<unsigned>(rem), numBytes);
+    if (sourcesize-pos < remfeed)
+    {
+        if (sourcesize-pos >= 0)
+        {
+            remfeed = sourcesize-pos; // we only read to the physical end of the part
+        }
+        else
+        {
+            rem = 0;
+            remfeed = 0;
+        }
+    }
+    return remfeed != 0;
+}
+
+bool RaidReq::allconnected(int excludedPart)
+{
+    for (int i = RAIDPARTS; i--; ) if (i != excludedPart && !fetcher[i].connected) return false;
 
     return true;
 }
@@ -293,7 +311,7 @@ int PartFetcher::trigger(raidTime delay, bool disconnect)
 
     if (disconnect)
     {
-        closesocket();
+        closesocket(true);
     }
 
     if (!rem)
@@ -400,7 +418,7 @@ int PartFetcher::io()
         return onFailure();
     }
 
-    if (rr->slow1 < 0 && rr->allconnected())
+    if (rr->slow1 < 0 && rr->allconnected((int)part))
     {
         // we only need RAIDPARTS-1 connections in fast mode, so shut down the slowest one
         closesocket(true);
@@ -417,7 +435,7 @@ int PartFetcher::io()
     // before, we do so *after* the connection so that the order in which
     // the connections are established are the first criterion for slow source
     // heuristics
-    if (!rem)
+    if (!rem && s->status != REQ_SUCCESS)
     {
         setposrem();
         s->status = REQ_READY;
@@ -428,16 +446,19 @@ int PartFetcher::io()
         if (rem <= 0)
         {
             closesocket();
-            rr->resumeall();
+            rr->resumeall((int)part);
             return -1;
         }
 
         if (inbuf)
             inbuf.reset();
-        size_t raidLinesPerChunk = rr->cloudRaid->getRaidLinesPerChunk().second;
+
+        size_t raidLinesPerChunk = std::max(rr->cloudRaid->getRaidLinesPerChunk().second, static_cast<size_t>(14336));
+        //size_t raidLinesPerChunk = rr->cloudRaid->getRaidLinesPerChunk().second;
         size_t raidMaxChunksPerRead = rr->cloudRaid->getRaidMaxChunksPerRead().second;
         size_t oldRaidChunkSize = raidLinesPerChunk * RAIDSECTOR * raidMaxChunksPerRead;
         size_t newRaidChunkSize = static_cast<size_t>(sourcesize / 4);
+        size_t newRaidChunkSize = static_cast<size_t>(sourcesize / 6);
         size_t npos = std::min(static_cast<size_t>(pos + rem), static_cast<size_t>(pos + oldRaidChunkSize));
         assert(npos <= rr->paddedpartsize);
         rr->cloudRaid->prepareRequest(s, url, pos, npos);
@@ -586,7 +607,7 @@ connest++;
                 if (readahead.empty() && pos == rr->paddedpartsize)
                 {
                     closesocket();
-                    rr->resumeall();
+                    rr->resumeall((int)part);
                     return -1;
                 }
             }
@@ -596,6 +617,10 @@ connest++;
                 if (inbuf->datalen() == 0)
                 {
                     s->status = REQ_READY;
+                }
+                else if (!remfeed)
+                {
+                    setremfeed(std::min(static_cast<unsigned>(NUMLINES*RAIDSECTOR), static_cast<unsigned>(inbuf->datalen())));
                 }
             }
         }
@@ -645,7 +670,7 @@ int PartFetcher::onFailure()
 
         if (consecutive_errors > MAXRETRIES || s->status == REQ_READY)
         {
-            closesocket(true);
+            closesocket();
             if (rr->slow1 >= 0)
             {
                 // we are in slow mode and have ten connection failures in a row on this
@@ -656,8 +681,8 @@ int PartFetcher::onFailure()
             {
                 if (i != part && !rr->fetcher[i].connected)
                 {
-                    //rr->fetcher[i].trigger();
-                    rr->fetcher[i].resume(true);
+                    rr->fetcher[i].trigger();
+                    //rr->fetcher[i].resume(true);
                 }
             }
 
@@ -688,6 +713,7 @@ int PartFetcher::onFailure()
                 if (i != part && !rr->fetcher[i].connected)
                 {
                     rr->fetcher[i].trigger();
+                    //rr->fetcher[i].resume(true);
                 }
             }
 
@@ -706,15 +732,21 @@ int PartFetcher::onFailure()
 // (we cannot call io() directly due procdata() being non-reentrant)
 void PartFetcher::cont(int numbytes)
 {
-    if (connected && pos < rr->paddedpartsize)
+    assert(numbytes > 0);
+    if (pos < rr->paddedpartsize)
     {
+        setremfeed(static_cast<unsigned>(numbytes));
         remfeed = numbytes;
         if (rem < remfeed) remfeed = rem;
         if (sourcesize-pos < remfeed) remfeed = sourcesize-pos; // we only read to the physical end of the part
 
         auto& s = rr->sockets[part];
 assert(s != nullptr);
+        //directTrigger();
         rr->pendingio.push_back(s);
+    }
+    else
+    {
     }
 }
 
@@ -772,9 +804,21 @@ current_fast++;
 void PartFetcher::resume(bool forceSetPosRem)
 {
     // no readahead or end of readahead within READAHEAD?
-    if (!connected && ((pos < rr->paddedpartsize) || forceSetPosRem))
+    //if (!connected && (!readahead.empty() || ((pos < rr->paddedpartsize) || forceSetPosRem)))
+    //if (!connected && ((pos < rr->paddedpartsize) || forceSetPosRem))
+    if (!connected)
     {
-        setposrem();
+        /*
+        if (!readahead.empty())
+        {
+            rr->procreadahead();
+        }
+        */
+
+        if ((pos < rr->paddedpartsize) || forceSetPosRem)
+        {
+            setposrem();
+        }
 
         if (rem)
         {
@@ -785,9 +829,19 @@ void PartFetcher::resume(bool forceSetPosRem)
 }
 
 // try to resume fetching on all sources
-void RaidReq::resumeall()
+void RaidReq::resumeall(int excludedPart)
 {
     if (slow1 >= 0) for (int i = RAIDPARTS; i--; ) fetcher[i].resume();
+    else if (excludedPart != RAIDPARTS)
+    {
+        for (int i = RAIDPARTS; i--; )
+        {
+            if (i != excludedPart && !fetcher[i].connected)
+            {
+                fetcher[i].resume();
+            }
+        }
+    }
 }
 
 // feed suitable readahead data
@@ -1106,7 +1160,7 @@ void RaidReq::shiftdata(off_t len)
             lagrounds = 0;
         }
 
-        resumeall();
+        resumeall(-1);
 
         haddata = true;
         lastdata = currtime;
@@ -1158,17 +1212,20 @@ void RaidReq::watchdog()
 
     for (int i = RAIDPARTS; i--; )
     {
-        if (sockets[i] && sockets[i]->status == REQ_INFLIGHT)
+        if (fetcher[i].connected)
         {
-            if (fetcher[i].connected && fetcher[i].remfeed && currtime-fetcher[i].lastdata > 20 && !fetcher[i].isslow())
+            if (sockets[i]->status == REQ_INFLIGHT)
             {
-                hanging++;
-                hangingsource = i;
-            }
+                if (fetcher[i].remfeed && ((currtime - sockets[i]->lastdata > 40) || (currtime - fetcher[i].lastdata > 200)) && !fetcher[i].isslow())
+                {
+                    hanging++;
+                    hangingsource = i;
+                }
 
-            if (fetcher[i].connected) numconnected++;
+                numconnected++;
+            }
         }
-        if (!fetcher[i].connected && !fetcher[i].errors) idlegoodsource = i;
+        else if (!fetcher[i].errors) idlegoodsource = i;
     }
 
     if (hanging)
@@ -1181,7 +1238,7 @@ void RaidReq::watchdog()
                 // "Attempted remedy: Switching from " << hangingsource << "/" << fetcher[hangingsource].serverid << " to previously unused " << fetcher[idlegoodsource].serverid << endl;
                 fetcher[hangingsource].errors++;
                 fetcher[hangingsource].closesocket();
-                fetcher[idlegoodsource].resume(true);
+                fetcher[idlegoodsource].trigger();
                 return;
             }
             //else cout << "Inactive connection potentially bad" << endl;
@@ -1383,23 +1440,35 @@ void* RaidReqPool::raidproxyiothread()
             auto itScheduled = scheduledio.begin();
             while (itScheduled != scheduledio.end() && itScheduled->first <= currtime)
             {
-                if (static_cast<HttpReqPtr>(itScheduled->second)->status != REQ_INFLIGHT)
+                if (itScheduled->second->status != REQ_INFLIGHT)
                 {
                     events.emplace_back(std::move(itScheduled->second));
                     itScheduled = scheduledio.erase(itScheduled);
                 }
-                else itScheduled++;
+                else
+                {
+                    itScheduled++;
+                }
             }
 
-            while (!directio.empty() && directio.front()->status != REQ_INFLIGHT)
+            auto itDirect = directio.begin();
+            while (itDirect != directio.end())
             {
-                events.emplace_back(std::move(directio.front()));
-                directio.pop_front();
+                if ((*itDirect)->status != REQ_INFLIGHT)
+                {
+                    events.emplace_back(std::move(*itDirect));
+                    itDirect = directio.erase(itDirect);
+                }
+                else
+                {
+                    itDirect++;
+                }
             }
         }
-
         if (!events.empty())
         {
+            for (int j = 2; j--; )
+            {
             assert(events.size() <= 6); // Delete when more than 1 transfers are supported by this class
 
             auto itEvent = events.begin();
@@ -1426,7 +1495,10 @@ void* RaidReqPool::raidproxyiothread()
                             itEvent++;
                         }
                     }
+                    else itEvent = events.erase(itEvent);
                 }
+            }
+            if (events.empty()) break;
             }
         }
     }
