@@ -6770,6 +6770,9 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     bool publicchat = false;
     string unifiedkey;
     bool meeting = false;
+    int waitingRoom = -1;
+    int openInvite = -1;
+    int speakRequest = -1;
 
     bool done = false;
     while (!done)
@@ -6822,6 +6825,20 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 assert(readingPublicChat);
                 meeting = jsonsc.getbool();
                 break;
+            case 'w':
+                assert(readingPublicChat);
+                waitingRoom = jsonsc.getbool();
+                break;
+
+            case MAKENAMEID2('s','r'):
+                assert(readingPublicChat);
+                speakRequest = jsonsc.getbool();
+                break;
+
+            case MAKENAMEID2('o','i'):
+                assert(readingPublicChat);
+                openInvite = jsonsc.getbool();
+                break;
 
             case EOO:
                 done = true;
@@ -6865,6 +6882,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
                     }
                     chat->meeting = meeting;
+                    chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -11069,6 +11087,9 @@ void MegaClient::procmcf(JSON *j)
                         m_time_t ts = -1;
                         bool publicchat = false;
                         bool meeting = false;
+                        int waitingRoom = -1;
+                        int openInvite = -1;
+                        int speakRequest = -1;
 
                         bool readingChat = true;
                         while(readingChat) // read the chat information
@@ -11118,6 +11139,21 @@ void MegaClient::procmcf(JSON *j)
                                 assert(readingPublicChats || !meeting); // public chats can be meetings or not. Private chats cannot be meetings
                                 break;
 
+                            case 'w':
+                                assert(readingPublicChats);
+                                waitingRoom = jsonsc.getbool();
+                                break;
+
+                            case MAKENAMEID2('s','r'):
+                                assert(readingPublicChats);
+                                speakRequest = jsonsc.getbool();
+                                break;
+
+                            case MAKENAMEID2('o','i'):
+                                assert(readingPublicChats);
+                                openInvite = jsonsc.getbool();
+                                break;
+
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
@@ -11134,6 +11170,7 @@ void MegaClient::procmcf(JSON *j)
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
                                     chat->meeting = meeting;
+                                    chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
 
                                     if (readingPublicChats)
                                     {
@@ -16682,9 +16719,14 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title, bool meetingRoom)
+void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title, bool meetingRoom, int chatOptions)
 {
-    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom));
+    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom, chatOptions));
+}
+
+void MegaClient::setChatOptions(handle chatid, int chatOptions, bool add)
+{
+    reqs.add(new CommandSetChatOptions(this, chatid, chatOptions, add));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)
