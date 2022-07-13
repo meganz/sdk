@@ -44,7 +44,8 @@ struct MEGA_API File: public FileFingerprint
     // transfer terminated before completion (cancelled, failed too many times)
     virtual void terminated(error e);
 
-    // transfer failed
+    // return true if the transfer should keep trying (limited to 16)
+    // return false to delete the transfer
     virtual bool failed(error, MegaClient*);
 
     // update localname
@@ -52,7 +53,8 @@ struct MEGA_API File: public FileFingerprint
 
     void sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                       const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
-                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>&& completion, LocalNode* l);
+                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>&& completion,
+                      LocalNode* l, const m_time_t* overrideMtime);
 
     // generic filename for this transfer
     void displayname(string*);

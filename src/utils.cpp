@@ -429,6 +429,36 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
     return npos;
 }
 
+m_off_t chunkmac_map::hasUnfinishedGap(m_off_t fileSize)
+{
+    bool sawUnfinished = false;
+
+    for (auto it = mMacMap.begin();
+        it != mMacMap.end(); )
+    {
+        if (!it->second.finished)
+        {
+            sawUnfinished = true;
+        }
+
+        auto nextpos = ChunkedHash::chunkceil(it->first, fileSize);
+        auto expected_it = mMacMap.find(nextpos);
+
+        if (sawUnfinished && expected_it != mMacMap.end() && expected_it->second.finished)
+        {
+            return true;
+        }
+
+        ++it;
+        if (it != expected_it)
+        {
+            sawUnfinished = true;
+        }
+    }
+    return false;
+}
+
+
 void chunkmac_map::ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk)
 {
     assert(chunkid == startpos);
@@ -556,6 +586,13 @@ void chunkmac_map::copyEntryTo(m_off_t pos, chunkmac_map& other)
     mMacMap[pos] = other.mMacMap[pos];
 }
 
+void chunkmac_map::debugLogOuputMacs()
+{
+    for (auto& it : mMacMap)
+    {
+        LOG_debug << "macs: " << it.first << " " << Base64Str<SymmCipher::BLOCKSIZE>(it.second.mac) << " " << it.second.finished;
+    }
+}
 
 // coalesce block macs into file mac
 int64_t chunkmac_map::macsmac(SymmCipher *cipher)
@@ -2752,7 +2789,7 @@ std::string getSafeUrl(const std::string &posturl)
         {
             end = safeurl.size();
         }
-        memset((char *)safeurl.data() + sid, 'X', end - sid);
+        safeurl.replace(sid, end - sid, end - sid, 'X');
     }
     size_t authKey = safeurl.find("&n=");
     if (authKey != string::npos)
@@ -2763,7 +2800,7 @@ std::string getSafeUrl(const std::string &posturl)
         {
             end = safeurl.size();
         }
-        memset((char *)safeurl.data() + authKey, 'X', end - authKey);
+        safeurl.replace(authKey, end - authKey, end - authKey, 'X');
     }
     return safeurl;
 }

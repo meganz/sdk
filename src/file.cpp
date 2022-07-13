@@ -292,14 +292,15 @@ void File::completed(Transfer* t, putsource_t source)
 
     if (t->type == PUT)
     {
-        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr);
+        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr);
     }
 }
 
 
 void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                         const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
-                        CommandPutNodes::Completion&& completion, LocalNode* l)
+                        CommandPutNodes::Completion&& completion,
+                        LocalNode* l, const m_time_t* overrideMtime)
 {
     assert(!!l == syncxfer);
 
@@ -334,7 +335,10 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
     attrs.map['n'] = name;
 
     // store fingerprint
+    auto oldMtime = mtime;
+    if (overrideMtime) mtime = *overrideMtime;
     serializefingerprint(&attrs.map['c']);
+    if (overrideMtime) mtime = oldMtime;
 
     string tattrstring;
 

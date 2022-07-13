@@ -593,6 +593,7 @@ bool SyncConfig::operator!=(const SyncConfig& rhs) const
     return !(*this == rhs);
 }
 
+
 bool SyncConfig::getEnabled() const
 {
     return mEnabled;
@@ -965,10 +966,9 @@ Sync::~Sync()
     }
 }
 
-bool Sync::backupModified()
+void Sync::backupModified()
 {
     changestate(SYNC_DISABLED, BACKUP_MODIFIED, false, true);
-    return false;
 }
 
 bool Sync::isBackup() const

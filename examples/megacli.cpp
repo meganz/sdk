@@ -23,6 +23,7 @@
 #include "megacli.h"
 #include <fstream>
 #include <bitset>
+#include "mega/testhooks.h"
 
 #if defined(_WIN32) && defined(_DEBUG)
 // so we can delete a secret internal CrytpoPP singleton
@@ -135,7 +136,10 @@ int attempts = 0;
 std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
-void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo);
+void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
+    DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo,
+    std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries);
+
 
 #ifdef ENABLE_SYNC
 
@@ -241,6 +245,8 @@ const char* errorstring(error e)
             return "Business account has expired";
         case API_EPAYWALL:
             return "Over Disk Quota Paywall";
+        case LOCAL_ENOSPC:
+            return "Insufficient disk space";
         default:
             return "Unknown error";
     }
@@ -289,6 +295,33 @@ ConsoleLock conlock(std::ostream& o)
     return ConsoleLock(o);
 }
 
+static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
+{
+    error result = API_OK;
+
+    if (client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &result))
+    {
+        file->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), file.release());
+    }
+    else
+    {
+        conlock(cout) << "Unable to download file: "
+                      << path
+                      << " -> "
+                      << file->localname.toPath()
+                      << ": "
+                      << errorstring(result)
+                      << endl;
+    }
+
+    return result;
+}
+
+static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
+{
+    return startxfer(committer, std::move(file), node.displaypath());
+}
+
 
 AppFile::AppFile()
 {
@@ -309,6 +342,8 @@ void AppFileGet::start()
 // transfer completion
 void AppFileGet::completed(Transfer*, putsource_t source)
 {
+    if (onCompleted) onCompleted();
+
     // (at this time, the file has already been placed in the final location)
     delete this;
 }
@@ -322,7 +357,26 @@ void AppFileGet::terminated(error e)
 void AppFilePut::completed(Transfer* t, putsource_t source)
 {
     // perform standard completion (place node in user filesystem etc.)
-    File::completed(t, source);
+    //File::completed(t, source);
+
+    // standard completion except we want onCompleted to run at the end of putnodes:
+
+    assert(!transfer || t == transfer);
+    assert(source == PUTNODES_APP);  // derived class for sync doesn't use this code path
+    assert(t->type == PUT);
+
+    auto onCompleted_foward = onCompleted;
+    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(),
+        [onCompleted_foward](const Error& e, targettype_t, vector<NewNode>&, bool targetOverride){
+
+            if (e)
+            {
+                cout << "Putnodes error is breaking upload/download cycle: " << e << endl;
+            }
+            else if (onCompleted_foward) onCompleted_foward();
+
+        },
+        nullptr, nullptr);
 
     delete this;
 }
@@ -335,7 +389,8 @@ void AppFilePut::terminated(error e)
 
 AppFileGet::~AppFileGet()
 {
-    appxferq[GET].erase(appxfer_it);
+    if (appxfer_it != appfile_list::iterator())
+        appxferq[GET].erase(appxfer_it);
 }
 
 AppFilePut::~AppFilePut()
@@ -572,13 +627,16 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
         {
             memcpy(crc.data(), filekey, sizeof crc);
         }
-
-        name = *cfilename;
     }
 
     string s = targetfolder;
     if (s.empty()) s = ".";
     auto fstype = client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(s));
+
+    if (cfilename)
+    {
+        name = *cfilename;
+    }
 
     auto ln = LocalPath::fromRelativeName(name, *client->fsaccess, fstype);
     ln.prependWithSeparator(LocalPath::fromAbsolutePath(s));
@@ -2589,7 +2647,7 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count)
         DBTableTransactionCommitter committer(client->tctable);
         int total = 0;
         auto lp = LocalPath::fromAbsolutePath(local_path);
-        uploadLocalPath(FILENODE, lp.leafName().toPath(), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion);
+        uploadLocalPath(FILENODE, lp.leafName().toPath(), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false);
 
         if (count > 0)
         {
@@ -2602,6 +2660,7 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count)
     };
 }
 
+std::deque<std::function<void()>> mainloopActions;
 
 #ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
@@ -2626,7 +2685,7 @@ void exec_treecompare(autocomplete::ACState& s)
 }
 
 
-bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, uint64_t filesize, int& totalfilecount, int& totalfoldercount)
+bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, uint64_t filesize, int& totalfilecount, int& totalfoldercount, vector<LocalPath>* localPaths)
 {
     fs::path p = targetfolder / fs::u8path(prefix);
     if (!fs::is_directory(p) && !fs::create_directory(p))
@@ -2637,22 +2696,25 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersp
     {
         string filename = prefix + "_file_" + std::to_string(++totalfilecount);
         fs::path fp = p / fs::u8path(filename);
+        if (localPaths) localPaths->push_back(LocalPath::fromAbsolutePath(fp.u8string()));
         ofstream fs(fp.u8string(), std::ios::binary);
         char buffer[64 * 1024];
         fs.rdbuf()->pubsetbuf(buffer, sizeof(buffer));
 
+        int counter = totalfilecount;
         for (auto j = filesize / sizeof(int); j--; )
         {
-            fs.write((char*)&totalfilecount, sizeof(int));
+            fs.write((char*)&counter, sizeof(int));
+            ++counter;
         }
-        fs.write((char*)&totalfilecount, filesize % sizeof(int));
+        fs.write((char*)&counter, filesize % sizeof(int));
     }
 
     if (recurselevel > 1)
     {
         for (int i = 0; i < foldersperfolder; ++i)
         {
-            if (!buildLocalFolders(p, prefix + "_" + std::to_string(i), foldersperfolder, recurselevel - 1, filesperfolder, filesize, totalfilecount, totalfoldercount))
+            if (!buildLocalFolders(p, prefix + "_" + std::to_string(i), foldersperfolder, recurselevel - 1, filesperfolder, filesize, totalfilecount, totalfoldercount, nullptr))
                 return false;
         }
     }
@@ -2674,7 +2736,7 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     if (!p.empty())
     {
         int totalfilecount = 0, totalfoldercount = 0;
-        buildLocalFolders(p, nameprefix, folderwidth, folderdepth, filecount, filesize, totalfilecount, totalfoldercount);
+        buildLocalFolders(p, nameprefix, folderwidth, folderdepth, filecount, filesize, totalfilecount, totalfoldercount, nullptr);
         cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders" << endl;
     }
     else
@@ -2682,6 +2744,166 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
         cout << "invalid directory: " << p.u8string() << endl;
     }
 }
+
+map<string, int> cycleUploadChunkFails;
+map<string, int> cycleDownloadFails;
+
+void checkReportCycleFails()
+{
+    for (auto& i : cycleDownloadFails) cout << i.first << " " << i.second;
+    for (auto& i : cycleUploadChunkFails) cout << i.first << " " << i.second;
+}
+
+Node* cycleUploadDownload_cloudWorkingFolder = nullptr;
+void cycleDownload(LocalPath lp, int count);
+void cycleUpload(LocalPath lp, int count)
+{
+    checkReportCycleFails();
+    DBTableTransactionCommitter committer(client->tctable);
+
+    LocalPath upload_lp = lp;
+    upload_lp.append(LocalPath::fromRelativePath("_" + std::to_string(count)));
+    string leaf = upload_lp.leafName().toPath();
+
+    int total = 0;
+    uploadLocalPath(FILENODE, leaf, upload_lp, cycleUploadDownload_cloudWorkingFolder, "", committer, total, false, NoVersioning,
+        [lp, count](LocalPath)
+        {
+            return [lp, count]()
+                {
+                    cycleDownload(lp, count);
+                };
+        }, true);
+
+    // also delete the old remote file
+    if (count > 0)
+    {
+        string leaf2 = lp.leafName().toPath() + "_" + std::to_string(count-1);
+        if (Node* lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf2.c_str(), true))
+        {
+            client->unlink(lastuploaded, false, client->nextreqtag(), nullptr);
+        }
+    }
+
+}
+
+void cycleDownload(LocalPath lp, int count)
+{
+    checkReportCycleFails();
+
+    string leaf = lp.leafName().toPath() + "_" + std::to_string(count);
+
+    Node* uploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf.c_str(), true);
+
+    if (!uploaded)
+    {
+        cout << "Uploaded file " << leaf << " not found, cycle broken" << endl;
+        return;
+    }
+
+    LocalPath downloadName = lp;
+    downloadName.append(LocalPath::fromRelativePath("_" + std::to_string(count+1)));
+
+
+    string newleaf = lp.leafName().toPath();
+    newleaf += "_" + std::to_string(count + 1);
+
+    auto f = new AppFileGet(uploaded, NodeHandle(), NULL, -1, 0, &newleaf, NULL, lp.parentPath().toPath());
+    f->noRetries = true;
+
+    f->onCompleted = [lp, count]()
+    {
+        cycleUpload(lp, count+1);
+    };
+
+    f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+    DBTableTransactionCommitter committer(client->tctable);
+    client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+
+    // also delete the old local file
+    lp.append(LocalPath::fromRelativePath("_" + std::to_string(count)));
+    client->fsaccess->unlinklocal(lp);
+}
+
+int gap_resumed_uploads = 0;
+
+void exec_cycleUploadDownload(autocomplete::ACState& s)
+{
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onUploadChunkFailed = [](error e)
+        {
+            ++cycleUploadChunkFails["upload-chunk-err-" + std::to_string(int(e))];
+        };
+    globalMegaTestHooks.onDownloadFailed = [](error e)
+        {
+            if (e != API_EINCOMPLETE)
+            {
+                ++cycleDownloadFails["download-err-" + std::to_string(int(e))];
+            }
+        };
+
+    globalMegaTestHooks.onUploadChunkSucceeded = [](Transfer* t, DBTableTransactionCommitter& committer)
+        {
+            if (t->chunkmacs.hasUnfinishedGap(1024ll*1024*1024*1024*1024))
+            //if (t->pos > 5000000 && rand() % 2 == 0)
+            {
+                ++gap_resumed_uploads;
+
+                // simulate this transfer
+                string serialized;
+                t->serialize(&serialized);
+
+                // put the transfer in cachedtransfers so we can resume it
+                Transfer::unserialize(client, &serialized, client->cachedtransfers);
+
+                // prep to try to resume this upload after we get back to our main loop
+                auto fpstr = t->files.front()->localname.toPath();
+                auto countpos = fpstr.find_last_of('_');
+                auto count = atoi(fpstr.c_str() + countpos + 1);
+                fpstr.resize(countpos);
+
+                mainloopActions.push_back([fpstr, count](){ cycleUpload(LocalPath::fromAbsolutePath(fpstr), count); });
+
+                //terminate this transfer
+                t->failed(API_EINCOMPLETE, committer);
+                return false; // exit doio() for this transfer
+            }
+            return true;
+        };
+#endif
+
+    string param, nameprefix = "cycleUpDown";
+    int filecount = 10;
+    int64_t filesize = 305560;
+    if (s.extractflagparam("-filecount", param)) filecount = atoi(param.c_str());
+    if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
+    if (s.extractflagparam("-nameprefix", param)) nameprefix = param;
+
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
+    cycleUploadDownload_cloudWorkingFolder = nodeFromRemotePath(s.words[2].s);
+
+    if (!p.empty())
+    {
+        int totalfilecount = 0, totalfoldercount = 0;
+        vector<LocalPath> localPaths;
+        buildLocalFolders(p, nameprefix, 1, 1, filecount, filesize, totalfilecount, totalfoldercount, &localPaths);
+        cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders" << endl;
+
+        for (auto& fp : localPaths)
+        {
+            LocalPath startPath = fp;
+            startPath.append(LocalPath::fromRelativePath("_0"));
+            client->fsaccess->renamelocal(fp, startPath, true);
+            cycleUpload(fp, 0);
+        }
+    }
+    else
+    {
+        cout << "invalid directory: " << p.u8string() << endl;
+    }
+}
+
 
 void exec_generate_put_fileversions(autocomplete::ACState& s)
 {
@@ -3421,6 +3643,12 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_lreplace, sequence(text("lreplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content")));
     p->Add(exec_lrenamereplace, sequence(text("lrenamereplace"), either(flag("-file"), flag("-folder")), localFSPath("existing"), param("content"), localFSPath("renamed")));
 
+    p->Add(exec_cycleUploadDownload, sequence(text("cycleuploaddownload"),
+        repeat(either(
+            sequence(flag("-filecount"), param("count")),
+            sequence(flag("-filesize"), param("size")),
+            sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("localworkingfolder"), remoteFSFolder(client, &cwd, "remoteworkingfolder")));
+
 #endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
@@ -3443,6 +3671,11 @@ autocomplete::ACN autocompleteSyntax()
                     either(sequence(text("get"), localFSFolder()),
                            sequence(text("set"), localFSFolder(), opt(text("force"))))));
 
+    p->Add(exec_randomfile,
+           sequence(text("randomfile"),
+                    localFSPath("outputPath"),
+                    opt(param("lengthKB"))));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -3454,11 +3687,10 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
     {
         if (!folders)
         {
-            auto f = new AppFileGet(n, NodeHandle(), NULL, -1, 0, NULL, NULL, localpath.u8string());
-            f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
             DBTableTransactionCommitter committer(client->tctable);
-            client->startxfer(GET, f, committer, false, false, false, NoVersioning);
-            queued += 1;
+            auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
+            error result = startxfer(committer, std::move(file), *n);
+            queued += result == API_OK ? 1 : 0;
         }
     }
     else if (n->type == FOLDERNODE || n->type == ROOTNODE)
@@ -3504,10 +3736,9 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                 {
                     if (regex_search(string((*it)->displayname()), re))
                     {
-                        auto f = new AppFileGet(*it);
-                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                        client->startxfer(GET, f, committer, false, false, false, NoVersioning);
-                        queued += 1;
+                        auto file = ::mega::make_unique<AppFileGet>(*it);
+                        error result = startxfer(committer, std::move(file), **it);
+                        queued += result == API_OK ? 1 : 0;
                     }
                 }
             }
@@ -4266,9 +4497,8 @@ void exec_get(autocomplete::ACState& s)
                         cout << "Initiating download..." << endl;
 
                         DBTableTransactionCommitter committer(client->tctable);
-                        AppFileGet* f = new AppFileGet(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
-                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                        client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+                        auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
+                        startxfer(committer, std::move(file), *filename);
                     }
 
                     return true;
@@ -4316,7 +4546,7 @@ void exec_get(autocomplete::ACState& s)
                 // queue specified file...
                 if (n->type == FILENODE)
                 {
-                    auto f = new AppFileGet(n);
+                    auto f = ::mega::make_unique<AppFileGet>(n);
 
                     string::size_type index = s.words[1].s.find(":");
                     // node from public folder link
@@ -4331,8 +4561,7 @@ void exec_get(autocomplete::ACState& s)
                         memcpy(f->filekey, n->nodekey().data(), FILENODEKEYLENGTH);
                     }
 
-                    f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                    client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+                    startxfer(committer, std::move(f), *n);
                 }
                 else
                 {
@@ -4341,9 +4570,8 @@ void exec_get(autocomplete::ACState& s)
                     {
                         if ((*it)->type == FILENODE)
                         {
-                            auto f = new AppFileGet(*it);
-                            f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-                            client->startxfer(GET, f, committer, false, false, false, NoVersioning);
+                            auto f = ::mega::make_unique<AppFileGet>(*it);
+                            startxfer(committer, std::move(f), **it);
                         }
                     }
                 }
@@ -4383,7 +4611,9 @@ void exec_more(autocomplete::ACState& s)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo);
 
-void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo)
+void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
+    DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo,
+    std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries)
 {
 
     Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
@@ -4414,7 +4644,10 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             }
             fa.reset();
 
-            AppFile* f = new AppFilePut(localname, parent ? parent->nodeHandle() : NodeHandle(), targetuser.c_str());
+            AppFilePut* f = new AppFilePut(localname, parent ? parent->nodeHandle() : NodeHandle(), targetuser.c_str());
+            f->noRetries = noRetries;
+
+            if (onCompletedGenerator) f->onCompleted = onCompletedGenerator(localname);
             *static_cast<FileFingerprint*>(f) = fp;
             f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
             client->startxfer(PUT, f, committer, false, false, false, vo);
@@ -4464,6 +4697,48 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
 {
+#ifndef DONT_USE_SCAN_SERVICE
+
+    auto fa = client->fsaccess->newfileaccess();
+    fa->fopen(localname);
+    if (fa->type != FOLDERNODE)
+    {
+        cout << "Path is not a folder: " << localname.toPath();
+        return;
+    }
+
+    ScanService s(*client->waiter);
+    ScanService::RequestPtr r = s.queueScan(localname, fa->fsid, false, {});
+
+    while (!r->completed())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (r->completionResult() != SCAN_SUCCESS)
+    {
+        cout << "Scan failed: " << r->completionResult() << " for path: " << localname.toPath();
+        return;
+    }
+
+    std::vector<FSNode> results = r->resultNodes();
+
+    DBTableTransactionCommitter committer(client->tctable);
+    int total = 0;
+
+    for (auto& rr : results)
+    {
+        auto newpath = localname;
+        newpath.appendWithSeparator(rr.localname, true);
+        uploadLocalPath(rr.type, rr.localname.toPath(), newpath, cloudFolder, "", committer, total, true, vo, nullptr, false);
+    }
+
+    if (gVerboseMode)
+    {
+        cout << "Queued " << total << " more uploads from folder " << localname.toPath() << endl;
+    }
+
+#else
+
     auto da = client->fsaccess->newdiraccess();
 
     LocalPath lp(localname);
@@ -4484,13 +4759,14 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
             }
             auto newpath = lp;
             newpath.appendWithSeparator(itemlocalleafname, true);
-            uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true, vo);
+            uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true, vo, nullptr, true);
         }
         if (gVerboseMode)
         {
             cout << "Queued " << total << " more uploads from folder " << localpathToUtf8Leaf(localname) << endl;
         }
     }
+#endif
 }
 
 void exec_put(autocomplete::ACState& s)
@@ -4536,6 +4812,7 @@ void exec_put(autocomplete::ACState& s)
 
     auto da = client->fsaccess->newdiraccess();
 
+    // search with glob, eg *.txt
     if (da->dopen(&localname, NULL, true))
     {
         DBTableTransactionCommitter committer(client->tctable);
@@ -4550,7 +4827,7 @@ void exec_put(autocomplete::ACState& s)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo);
+            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo, nullptr, false);
         }
     }
 
@@ -6910,7 +7187,11 @@ void exec_mediainfo(autocomplete::ACState& s)
                     }
                 }
                 break;
-            case TYPE_UNKNOWN: break;
+            case TYPE_DONOTSYNC:
+            case TYPE_SPECIAL:
+            case TYPE_UNKNOWN:
+                cout << "node type is inappropriate for mediainfo: " << n->type << endl;
+                break;
             }
         }
         else
@@ -7131,6 +7412,54 @@ void exec_driveid(autocomplete::ACState& s)
          << " has been written to "
          << drivePath
          << endl;
+}
+
+void exec_randomfile(autocomplete::ACState& s)
+{
+    // randomfile path [length]
+    auto length = 2l;
+
+    if (s.words.size() > 2)
+        length = std::atol(s.words[2].s.c_str());
+
+    if (length <= 0)
+    {
+        std::cerr << "Invalid length specified: "
+                  << s.words[2].s
+                  << std::endl;
+        return;
+    }
+
+    constexpr auto flags =
+      std::ios::binary | std::ios::out | std::ios::trunc;
+
+    std::ofstream ostream(s.words[1].s, flags);
+
+    if (!ostream)
+    {
+        std::cerr << "Unable to open file for writing: "
+                  << s.words[1].s
+                  << std::endl;
+        return;
+    }
+
+    std::generate_n(std::ostream_iterator<char>(ostream),
+                    length << 10,
+                    []() { return (char)std::rand(); });
+
+    if (!ostream.flush())
+    {
+        std::cerr << "Encountered an error while writing: "
+                  << s.words[1].s
+                  << std::endl;
+        return;
+    }
+
+    std::cout << "Successfully wrote "
+              << length
+              << " kilobytes of random binary data to: "
+              << s.words[1].s
+              << std::endl;
 }
 
 #ifdef USE_DRIVE_NOTIFICATIONS
@@ -8586,6 +8915,7 @@ void megacli()
 
         // pass the CPU to the engine (nonblocking)
         client->exec();
+        if (clientFolder) clientFolder->exec();
 
         if (puts && !appxferq[PUT].size())
         {
@@ -8597,11 +8927,12 @@ void megacli()
             cout << "Downloads complete" << endl;
         }
 
-
-        if (clientFolder)
+        while (!mainloopActions.empty())
         {
-            clientFolder->exec();
+            mainloopActions.front()();
+            mainloopActions.pop_front();
         }
+
     }
 }
 
