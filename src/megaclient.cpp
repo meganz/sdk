@@ -3024,7 +3024,9 @@ void MegaClient::dispatchTransfers()
             return true;
         };
 
-    std::array<vector<Transfer*>, 6> nextInCategory = transferlist.nexttransfers(testAddTransferFunction, continueDirection);
+    DBTableTransactionCommitter committer(tctable);
+
+    std::array<vector<Transfer*>, 6> nextInCategory = transferlist.nexttransfers(testAddTransferFunction, continueDirection, committer);
 
     // Iterate the 4 combinations in this order:
     static const TransferCategory categoryOrder[] = {
@@ -3033,8 +3035,6 @@ void MegaClient::dispatchTransfers()
         TransferCategory(PUT, SMALLFILE),
         TransferCategory(GET, SMALLFILE),
     };
-
-    DBTableTransactionCommitter committer(tctable);
 
     for (auto category : categoryOrder)
     {
@@ -14832,11 +14832,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
-            // todo: replace this: looprequested = true;
-            transfer->finished = true;
-            transfer->state = TRANSFERSTATE_CANCELLED;
-            app->transfer_removed(transfer);
-            delete transfer;
+            transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
         }
         else
         {

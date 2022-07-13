@@ -1287,7 +1287,7 @@ bool MegaTransfer::getTargetOverride() const
     return false;
 }
 
-MegaCancelToken* MegaTransfer::getCancelToken() const
+MegaCancelToken* MegaTransfer::getCancelToken()
 {
     return NULL;
 }
@@ -3200,19 +3200,19 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *f
 {
     pImpl->startUpload(startFirst, localPath, parent, fileName, NULL /*targetUser*/, mtime,
                        0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
-                       false /*forceNewUpload*/, FS_UNKNOWN, cancelToken, listener);
+                       false /*forceNewUpload*/, FS_UNKNOWN, convertToCancelToken(cancelToken), listener);
 }
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener)
 {
     pImpl->startUpload(false /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
                        0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
-                       true /*forceNewUpload*/, FS_UNKNOWN, nullptr /*cancelToken*/, listener);
+                       true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
 }
 
 void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, cancelToken, listener);
+    pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -3886,42 +3886,42 @@ char *MegaApi::base32ToBase64(const char *base32)
 
 MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
-    return pImpl->search(n, searchString, nullptr, recursive, order);
+    return pImpl->search(n, searchString, CancelToken(), recursive, order);
 }
 
 MegaNodeList *MegaApi::search(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order)
 {
-    return pImpl->search(n, searchString, cancelToken, recursive, order);
+    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order);
 }
 
 MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(searchString, nullptr, order);
+    return pImpl->search(searchString, CancelToken(), order);
 }
 
 MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->search(searchString, cancelToken, order);
+    return pImpl->search(searchString, convertToCancelToken(cancelToken), order);
 }
 
 MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE);
+    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE);
 }
 
 MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE);
+    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE);
 }
 
 MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
+    return pImpl->search(nullptr, searchString, convertToCancelToken(cancelToken), true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
 }
 
 MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
 {
-    return pImpl->search(n, searchString, cancelToken, recursive, order, type, target);
+    return pImpl->search(n, searchString, convertToCancelToken(cancelToken), recursive, order, type, target);
 }
 
 long long MegaApi::getSize(MegaNode *n)
@@ -5705,6 +5705,20 @@ bool MegaGfxProcessor::getBitmapData(char* /*bitmapData*/, size_t /*size*/)
 
 void MegaGfxProcessor::freeBitmap() { }
 
+const char* MegaGfxProcessor::supportedImageFormats()
+{
+    // This special string will cause all files to be attempted
+    // (backwards compatibility for Android)
+    return "all";
+}
+
+const char* MegaGfxProcessor::supportedVideoFormats()
+{
+    // This special string will cause all files to be attempted
+    // (backwards compatibility for Android)
+    return "all";
+}
+
 MegaGfxProcessor::~MegaGfxProcessor() { }
 MegaPricing::~MegaPricing() { }
 
@@ -7007,7 +7021,7 @@ MegaPushNotificationSettings::MegaPushNotificationSettings()
 
 MegaCancelToken *MegaCancelToken::createInstance()
 {
-    return new MegaCancelTokenPrivate;
+    return new MegaCancelTokenPrivate(CancelToken(false));
 }
 
 MegaCancelToken::MegaCancelToken()
@@ -7018,16 +7032,6 @@ MegaCancelToken::MegaCancelToken()
 MegaCancelToken::~MegaCancelToken()
 {
 
-}
-
-void MegaCancelToken::cancel(bool)
-{
-
-}
-
-bool MegaCancelToken::isCancelled() const
-{
-    return false;
 }
 
 MegaIntegerList::~MegaIntegerList()
