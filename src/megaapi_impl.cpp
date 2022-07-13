@@ -3944,7 +3944,7 @@ MegaRecentActionBucketList* MegaRequestPrivate::getRecentActions() const
     return mRecentActions.get();
 }
 
-void MegaRequestPrivate::setRecentActionbucketList(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList)
+void MegaRequestPrivate::setRecentActions(std::unique_ptr<MegaRecentActionBucketList>&& recentActionBucketList)
 {
     if (recentActionBucketList)
     {
@@ -23172,8 +23172,8 @@ void MegaApiImpl::sendPendingRequests()
 
            m_time_t since = m_time() - days * 86400;
            recentactions_vector v = client->getRecentActions(maxnodes, since);
-           std::unique_ptr<MegaRecentActionBucketListPrivate> recentActions = make_unique<MegaRecentActionBucketListPrivate>(v, client);
-           request->setRecentActionbucketList(move(recentActions));
+           std::unique_ptr<MegaRecentActionBucketList> recentActions(new MegaRecentActionBucketListPrivate(v, client));
+           request->setRecentActions(std::move(recentActions));
            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
            break;
         }
