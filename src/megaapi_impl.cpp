@@ -23163,7 +23163,7 @@ void MegaApiImpl::sendPendingRequests()
                break;
            }
 
-           int days = request->getNumber();
+           int days = static_cast<int>(request->getNumber());
            if (days <= 0)
            {
                e = API_EARGS;
