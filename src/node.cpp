@@ -1785,6 +1785,12 @@ void LocalNode::propagateAnySubtreeFlags()
     if (syncAgain == TREE_ACTION_SUBTREE) syncAgain = TREE_ACTION_HERE;
 }
 
+static bool isDoNotSyncFileName(const string& name)
+{
+    return name == "desktop.ini"
+           || name == ".DS_Store"
+           || name == "Icon\x0d";
+}
 
 bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 {
@@ -1923,6 +1929,15 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
         else if (SCAN_SUCCESS == ourScanRequest->completionResult())
         {
             lastFolderScan.reset(new vector<FSNode>(ourScanRequest->resultNodes()));
+
+            for (auto& i : *lastFolderScan)
+            {
+                if (isDoNotSyncFileName(i.localname.toPath()))
+                {
+                    // These are special shell-generated files for win & mac, only relevant in the filesystem they were created
+                    i.type = TYPE_DONOTSYNC;
+                }
+            }
 
             LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath_utf8();
 
