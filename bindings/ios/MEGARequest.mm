@@ -263,7 +263,7 @@ using namespace mega;
 }
 
 - (NSArray *)recentActionsBuckets {
-    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaRequest->getRecentActionBucketList();
+    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaRequest->getRecentActions();
     int count = megaRecentActionBucketList->size();
     NSMutableArray *recentActionBucketMutableArray = [NSMutableArray.alloc initWithCapacity:(NSInteger)count];
     for (int i = 0; i < count; i++) {
