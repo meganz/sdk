@@ -812,6 +812,7 @@ TextChat::TextChat()
     ts = 0;
     flags = 0;
     publicchat = false;
+    chatOptions = 0;
 
     memset(&changed, 0, sizeof(changed));
 }
