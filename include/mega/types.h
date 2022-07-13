@@ -1115,6 +1115,38 @@ enum class PathProblem : unsigned short {
 const char* syncWaitReasonDebugString(SyncWaitReason r);
 const char* syncPathProblemDebugString(PathProblem r);
 
+class CancelToken
+{
+    // A small item with representation shared between many objects
+    // They can all be cancelled in one go by setting the token flag true
+    shared_ptr<bool> flag;
+
+public:
+
+    // invalid token, can't be cancelled.  No storage
+    CancelToken() {}
+
+    // create with a token available to be cancelled
+    explicit CancelToken(bool value)
+        : flag(std::make_shared<bool>(value))
+    {}
+
+    void cancel()
+    {
+        if (flag) *flag = true;
+    }
+
+    bool isCancelled() const
+    {
+        return !!flag && *flag;
+    }
+
+    bool exists()
+    {
+        return !!flag;
+    }
+};
+
 } // namespace mega
 
 #define MEGA_DISABLE_COPY(class_name) \

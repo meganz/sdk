@@ -43,6 +43,14 @@ bool GfxProc::isgfx(const LocalPath& localfilename)
         return false;
     }
 
+    if (0 == strcmp(supported, "all"))
+    {
+        // special case for client app provided MegaGfxProcessor
+        // and for our Android app.  If they don't supply a list
+        // of extensions, then we don't filter.
+        return true;
+    }
+
     string ext;
     if (client->fsaccess->getextension(localfilename, ext))
     {
@@ -65,6 +73,14 @@ bool GfxProc::isvideo(const LocalPath& localfilename)
     if (!(supported = mGfxProvider->supportedvideoformats()))
     {
         return false;
+    }
+
+    if (0 == strcmp(supported, "all"))
+    {
+        // special case for client app provided MegaGfxProcessor
+        // and for our Android app.  If they don't supply a list
+        // of extensions, then we don't filter.
+        return true;
     }
 
     string ext;
