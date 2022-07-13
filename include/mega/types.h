@@ -1086,12 +1086,38 @@ public:
 class CancelElement
 {
 public:
-    CancelElement(bool value)
-        : flag(value)
+    explicit CancelElement(bool value)
+        : cancelFlag(value)
     {
     }
-    bool flag;
+    mutex m;
+    bool cancelFlag;
+    bool completedFlag = false;
     std::function<void(void)> mCancelMethod;
+
+    void cancel()
+    {
+        lock_guard<mutex> g(m);
+        if (!cancelFlag)
+        {
+            cancelFlag = true;
+            if (mCancelMethod && !completedFlag)
+            {
+                mCancelMethod();
+            }
+        }
+    }
+
+    void setCompleted()
+    {
+        // If using mCancelMethod, this should be called once the operation completes,
+        // in order to ensure we don't invoke mCancelMethod() as we don't want to cancel some subsequent operation.
+        // Once this function returns, the caller can be sure that mCancelMethod will not be called afterward (from
+        // the perspective of this thread)
+        // We need the mutex in order to make that guarantee.
+        lock_guard<mutex> g(m);
+        completedFlag = true;
+    }
 };
 
 class CancelToken
@@ -1110,21 +1136,15 @@ public:
         : element(std::make_shared<CancelElement>(value))
     {}
 
+    // cancel() can be invoked from any thread
     void cancel()
     {
-        if (element && !element->flag)
-        {
-            element->flag = true;
-            if (element->mCancelMethod)
-            {
-                element->mCancelMethod();
-            }
-        }
+        if (element) element->cancel();
     }
 
     bool isCancelled() const
     {
-        return !!element && element->flag;
+        return element && element->cancelFlag;
     }
 
     bool exists()
@@ -1132,13 +1152,22 @@ public:
         return !!element;
     }
 
-    void setCancelMethod(std::function<void(void)> method)
+    void setCancelMethod(std::function<void(void)>&& method)
     {
         if (element)
         {
-            element->mCancelMethod = method;
+            element->mCancelMethod = move(method);
         }
     }
+
+    void setCompleted()
+    {
+        // If using mCancelMethod, this should be called once the operation completes,
+        // from the thread on which the operation ran,
+        // in order to ensure we don't invoke mCancelMethod() afterward from some other thread.
+        if (element) element->setCompleted();
+    }
+
 };
 
 } // namespace
