@@ -3232,7 +3232,7 @@ class MegaRequest
             TYPE_GET_FA_UPLOAD_URL                                          = 145,
             TYPE_EXECUTE_ON_THREAD                                          = 146,
             TYPE_GET_RECENT_ACTIONS                                         = 148,
-            TOTAL_OF_REQUEST_TYPES                                          = 147,
+            TOTAL_OF_REQUEST_TYPES                                          = 148,
         };
 
         virtual ~MegaRequest();
@@ -3620,7 +3620,7 @@ class MegaRequest
          * - MegaApi::setMaxConnections - Returns the direction of transfers
          * - MegaApi::dismissBanner - Returns the id of the banner
          * - MegaApi::sendBackupHeartbeat - Returns the number of backup files uploaded
-         * - MegaApi::getRecentActions - Returns the maximun number of nodes
+         * - MegaApi::getRecentActions - Returns the maximum number of nodes
          *
          * @return Type of parameter related to the request
          */
