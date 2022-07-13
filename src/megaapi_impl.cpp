@@ -11801,6 +11801,8 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
         }
     }
 
+    cancelToken.setCompleted();
+
     return nodeVector;
 }
 

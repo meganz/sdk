@@ -1090,14 +1090,14 @@ public:
         : cancelFlag(value)
     {
     }
-    mutex m;
+    std::mutex m;
     bool cancelFlag;
     bool completedFlag = false;
     std::function<void(void)> mCancelMethod;
 
     void cancel()
     {
-        lock_guard<mutex> g(m);
+        std::lock_guard<mutex> g(m);
         if (!cancelFlag)
         {
             cancelFlag = true;
@@ -1115,7 +1115,7 @@ public:
         // Once this function returns, the caller can be sure that mCancelMethod will not be called afterward (from
         // the perspective of this thread)
         // We need the mutex in order to make that guarantee.
-        lock_guard<mutex> g(m);
+        std::lock_guard<mutex> g(m);
         completedFlag = true;
     }
 };
