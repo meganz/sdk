@@ -3944,12 +3944,9 @@ MegaRecentActionBucketList* MegaRequestPrivate::getRecentActions() const
     return mRecentActions.get();
 }
 
-void MegaRequestPrivate::setRecentActions(std::unique_ptr<MegaRecentActionBucketList>&& recentActionBucketList)
+void MegaRequestPrivate::setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList)
 {
-    if (recentActionBucketList)
-    {
-        mRecentActions = move(recentActionBucketList);
-    }
+    mRecentActions.reset(recentActionBucketList.release());
 }
 
 const char *MegaRequestPrivate::getRequestString() const
