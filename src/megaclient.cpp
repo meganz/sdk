@@ -16725,9 +16725,9 @@ void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *
     reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom, chatOptions));
 }
 
-void MegaClient::setChatOptions(handle chatid, int chatOptions, bool add)
+void MegaClient::setChatOptions(handle chatid, const string_map* options)
 {
-    reqs.add(new CommandSetChatOptions(this, chatid, chatOptions, add));
+    reqs.add(new CommandSetChatOptions(this, chatid, options));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)

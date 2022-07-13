@@ -5144,9 +5144,9 @@ void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap 
     pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, chatOptions, listener);
 }
 
-void MegaApi::setChatOptions(MegaHandle chatid, int chatOptions, bool add, MegaRequestListener* listener)
+void MegaApi::setChatOptions(MegaHandle chatid, const MegaStringMap* options, MegaRequestListener* listener)
 {
-     pImpl->setChatOptions(chatid, chatOptions, add, listener);
+     pImpl->setChatOptions(chatid, options, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)

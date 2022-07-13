@@ -793,8 +793,8 @@ public:
     // create a new chat with multiple users and different privileges
     void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const string_map *userkeymap = NULL, const char *title = NULL, bool meetingRoom = false, int chatOptions = 0);
 
-    // enable disable one or multiple chat options (check ChatOptions struct at types.h)
-    void setChatOptions(handle chatid, int chatOptions, bool add);
+    // enable/disable one or multiple chat options
+    void setChatOptions(handle chatid, const string_map* options);
 
     // invite a user to a chat
     void inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey = NULL, const char *title = NULL);

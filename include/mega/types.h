@@ -1029,7 +1029,16 @@ typedef mega::byte ChatOptions_t;
 struct ChatOptions
 {
 public:
-    enum: ChatOptions_t {
+    enum
+    {   // enum to identify each one of the options (just used by sdk internal methods)
+        chat_option_open_invite    = 0,   /// Open invite
+        chat_option_speak_request  = 1,   /// Speak request
+        chat_option_waiting_room   = 2,   /// Waiting room
+        chat_option_max = chat_option_waiting_room
+    };
+
+    enum: ChatOptions_t
+    {   // bit position of each one of the options at mChatOptions
         kEmpty         = 0x00,
         kSpeakRequest  = 0x01,
         kWaitingRoom   = 0x02,
@@ -1059,8 +1068,21 @@ public:
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    static bool isEmpty(int options)        { return options == kEmpty; }
-    static bool isValid(int options)        { return options >= kEmpty && options <= 255; }
+    bool isValid()                          { return mChatOptions >= kEmpty && mChatOptions <= 255; }
+    bool isEmpty()                          { return mChatOptions == kEmpty; }
+
+    // just used by API commands related to chat options
+    static std::string toApiParamStr(int option)
+    {
+        std::string optstr;
+        switch (option)
+        {
+            case chat_option_open_invite:   optstr = "oi";  break;
+            case chat_option_speak_request: optstr = "sr";  break;
+            case chat_option_waiting_room:  optstr = "w";   break;
+        }
+        return optstr;
+    }
 
 protected:
     ChatOptions_t mChatOptions = kEmpty;

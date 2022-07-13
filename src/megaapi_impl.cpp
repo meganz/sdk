@@ -10202,12 +10202,11 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *
     waiter->notify();
 }
 
-void MegaApiImpl::setChatOptions(MegaHandle chatid, int chatOptions, bool add, MegaRequestListener* listener)
+void MegaApiImpl::setChatOptions(MegaHandle chatid, const MegaStringMap* options, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_CHAT_OPTIONS, listener);
     request->setNodeHandle(chatid);
-    request->setAccess(chatOptions);
-    request->setFlag(add);
+    request->setMegaStringMap(options);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -22217,15 +22216,13 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            int chatOptions = request->getAccess();
-            if (ChatOptions::isEmpty(chatOptions))
+            if (!request->getMegaStringMap())
             {
                 e = API_EARGS;
                 break;
             }
 
-            bool add = request->getFlag();
-            client->setChatOptions(chatid, chatOptions, add);
+            client->setChatOptions(chatid, ((MegaStringMapPrivate*)request->getMegaStringMap())->getMap());
             break;
         }
 

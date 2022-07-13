@@ -17815,32 +17815,33 @@ class MegaApi
         void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = 0, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Enable or disable a set of chat options for a Meeting room
+         * @brief Enable or disable one or multiple chat options for a Meeting room
          *
-         * This function allows to enable/disable one or more of the following Meeting room options:
+         * This function allows to enable or disable one or more of the following Meeting room options:
          * - OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
          * - SpeakRequest: during calls non-operator users must request permission to speak.
          * - WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
-         *
-         * Chat options are provided in a numeric format represented in 1 Byte, where each option is stored in 1 bit.
-         * Check ChatOptions struct at types.h
          *
          * The associated request type with this request is MegaChatRequest::TYPE_SET_CHAT_OPTIONS
          * Valid data in the MegaChatRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getAccess - Returns the chatOptions in a numeric format
          * - MegaRequest::getFlag -  Returns true if we want to enable options, otherwise returns false
+         * - MegaRequest::getMegaStringMap - Returns the chat options that we want to enable/disable with the format: [<key><value>]
+         *      + To check if speakRequest param was set true, MegaStringMap::get("speakRequest") will return true
+         *      + To check if waitingRoom param was set true, MegaStringMap::get("waitingRoom") will return true
+         *      + To check if openInvite param was set true, MegaStringMap::get("openInvite") will return true
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS  - If the chatid is invalid
-         * - MegaError::API_EARGS  - If chat options are empty
+         * - MegaError::API_EARGS  - If no MegaStringMap with chat options has been provided
          * - MegaError::API_ENOENT - If the chatroom does not exists
          *
          * @param chatid MegaHandle that identifies the chat room
-         * @param chatOptions Integer representing chatOptions in a numeric format (check ChatOptions at types.h)
+         * @param options MegaStringMap with the chat options that we want to enable/disable
          * @param listener MegaChatRequestListener to track this request
          */
-        void setChatOptions(MegaHandle chatid, int chatOptions, bool add, MegaRequestListener* listener = NULL);
+        void setChatOptions(MegaHandle chatid, const MegaStringMap* options, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

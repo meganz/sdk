@@ -1029,12 +1029,11 @@ public:
 class MEGA_API CommandSetChatOptions : public Command
 {
     handle mChatid;
-    ChatOptions mChatOptions;
-    bool mAdd;
+    string_map mChatOptions;
 
 public:
     bool procresult(Result) override;
-    CommandSetChatOptions(MegaClient*, handle, int, bool);
+    CommandSetChatOptions(MegaClient*, handle, const string_map* options);
 };
 
 class MEGA_API CommandChatInvite : public Command
