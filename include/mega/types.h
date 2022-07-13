@@ -1060,6 +1060,7 @@ public:
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
     static bool isEmpty(int options)        { return options == kEmpty; }
+    static bool isValid(int options)        { return options >= kEmpty && options <= 255; }
 
 protected:
     ChatOptions_t mChatOptions = kEmpty;
