@@ -3237,7 +3237,8 @@ class MegaRequest
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_FA_UPLOAD_URL                                          = 145,
             TYPE_EXECUTE_ON_THREAD                                          = 146,
-            TOTAL_OF_REQUEST_TYPES                                          = 147,
+            TYPE_GET_RECENT_ACTIONS                                         = 148,
+            TOTAL_OF_REQUEST_TYPES                                          = 148,
         };
 
         virtual ~MegaRequest();
@@ -3625,6 +3626,7 @@ class MegaRequest
          * - MegaApi::setMaxConnections - Returns the direction of transfers
          * - MegaApi::dismissBanner - Returns the id of the banner
          * - MegaApi::sendBackupHeartbeat - Returns the number of backup files uploaded
+         * - MegaApi::getRecentActions - Returns the maximum number of nodes
          *
          * @return Type of parameter related to the request
          */
@@ -3694,6 +3696,7 @@ class MegaRequest
          * - MegaApi::creditCardQuerySubscriptions - Returns the number of credit card subscriptions
          * - MegaApi::getPaymentMethods - Returns a bitfield with the available payment methods
          * - MegaApi::getCloudStorageUsed - Returns the sum of the sizes of file cloud nodes.
+         * - MegaApi::getRecentActions - Returns the number of days since nodes will be considerated
          *
          * @return Number related to this request
          */
@@ -4020,6 +4023,19 @@ class MegaRequest
          * @return MegaHandle list
          */
         virtual MegaHandleList* getMegaHandleList() const;
+
+        /**
+         * @brief Returns the recent actions bucket list
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::getRecentActions
+         *
+         * @return MegaRecentActionBucketList list
+         */
+        virtual MegaRecentActionBucketList *getRecentActions() const;
 };
 
 /**
@@ -16216,6 +16232,8 @@ class MegaApi
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
          *
+         * @deprecated use getRecentActionsAsync
+         *
          * @param days Age of actions since added/modified nodes will be considered (in days)
          * @param maxnodes Maximum amount of nodes to be considered
          *
@@ -16233,9 +16251,36 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
+         * @deprecated use getRecentActionsAsync
+         *
          * @return List of buckets containing nodes that were added/modifed as a set
          */
         MegaRecentActionBucketList* getRecentActions();
+
+
+        /**
+         * @brief Get a list of buckets, each bucket containing a list of recently added/modified nodes
+         *
+         * Each bucket contains files that were added/modified in a set, by a single user.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
+         * - MegaRequest::getParamType - Returns the maximun number of nodes
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getRecentsBucket - Returns buckets with a list of recently added/modified nodes
+         *
+         * The recommended values for the following parameters are to consider
+         * interactions during the last 30 days and maximum 500 nodes.
+         *
+         * @param days Age of actions since added/modified nodes will be considered (in days)
+         * @param maxnodes Maximum amount of nodes to be considered
+
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Process a node tree using a MegaTreeProcessor implementation
