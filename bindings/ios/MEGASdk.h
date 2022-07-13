@@ -7630,6 +7630,9 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 ///
 /// - [MEGARequest recentActionsBuckets] - Returns an array of buckets recently added/modified nodes
 ///
+/// The recommended values for the following parameters are to consider
+/// interactions during the last 30 days and maximum 500 nodes.
+///
 /// @param days Age of actions since added/modified nodes will be considered (in days)
 /// @param maxNodes Maximum amount of nodes to be considered
 /// @param delegate MEGARequestDelegate to track this request
@@ -7650,6 +7653,9 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 /// is MEGAErrorTypeApiOk:
 /// 
 /// - [MEGARequest recentActionsBuckets] - Returns an array of buckets recently added/modified nodes
+///
+/// The recommended values for the following parameters are to consider
+/// interactions during the last 30 days and maximum 500 nodes.
 ///
 /// @param days Age of actions since added/modified nodes will be considered (in days)
 /// @param maxNodes Maximum amount of nodes to be considered
