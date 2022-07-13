@@ -382,6 +382,19 @@ SymmCipher *Transfer::transfercipher()
     return client->getRecycledTemporaryTransferCipher(transferkey.data());
 }
 
+void Transfer::removeCancelledTransferFiles(DBTableTransactionCommitter* committer)
+{
+    // remove transfer files whose MegaTransfer associated has been cancelled (via cancel token)
+    for (file_list::iterator it = files.begin(); it != files.end();)
+    {
+        file_list::iterator auxit = it++;
+        if ((*auxit)->cancelToken.isCancelled())
+        {
+            removeTransferFile(API_EINCOMPLETE, *auxit, committer);
+        }
+    }
+}
+
 void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter* committer)
 {
     Transfer *transfer = f->transfer;
@@ -391,6 +404,17 @@ void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter*
     client->app->file_removed(f, e);
     f->transfer = NULL;
     f->terminated(e);
+}
+
+void Transfer::removeAndDeleteSelf(transferstate_t finalState)
+{
+    finished = true;
+    state = finalState;
+    client->app->transfer_removed(this);
+
+    // this will also remove the transfer from internal lists etc.
+    // those use a lazy delete (ie mark for later deletion) so that we don't invalidate iterators.
+    delete this;
 }
 
 // transfer attempt failed, notify all related files, collect request on
@@ -1955,7 +1979,8 @@ bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, 
 }
 
 std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction,
-                                                             std::function<bool(direction_t)>& directionContinuefunction)
+                                                             std::function<bool(direction_t)>& directionContinuefunction,
+                                                             DBTableTransactionCommitter& committer)
 {
     std::array<vector<Transfer*>, 6> chosenTransfers;
 
@@ -1965,6 +1990,17 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
     {
         for (Transfer *transfer : transfers[direction])
         {
+            if (!transfer->slot)
+            {
+                // check for cancellation here before we go to the trouble of requesting a download/upload URL
+                transfer->removeCancelledTransferFiles(&committer);
+                if (transfer->files.empty())
+                {
+                    transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
+                    continue;
+                }
+            }
+
             // don't traverse the whole list if we already have as many as we are going to get
             if (!directionContinuefunction(direction)) break;
 

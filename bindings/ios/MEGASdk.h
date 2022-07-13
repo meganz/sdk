@@ -5981,7 +5981,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
  * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
  * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
- * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
+ * instead of that, use [MEGACancelToken cancel] calling through MEGACancelToken instance associated to this transfer.
  *
  * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
  *
@@ -6004,7 +6004,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param startFirst puts the transfer on top of the upload queue
  *  + If you don't need this param provide false as value
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file upload process.
- * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
  */
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(nullable MEGACancelToken *)cancelToken;
@@ -6019,7 +6019,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
  * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
  * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
- * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
+ * instead of that, use [MEGACancelToken cancel] calling through MEGACancelToken instance associated to this transfer.
  *
  * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
  *
@@ -6042,7 +6042,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param startFirst puts the transfer on top of the upload queue
  *  + If you don't need this param provide false as value
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file upload process.
- * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
  * @param delegate MEGATransferDelegate to track this transfer
  */
@@ -6121,7 +6121,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
  * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
  * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
- * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
+ * instead of that, use [MEGACancelToken cancel] calling through MEGACancelToken instance associated to this transfer.
  *
  * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
  *
@@ -6139,7 +6139,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param startFirst puts the transfer on top of the download queue
  *  + If you don't need this param provide false as value
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
- * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
  */
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken;
@@ -6154,7 +6154,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
  * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
  * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
- * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
+ * instead of that, use [MEGACancelToken cancel] calling through MEGACancelToken instance associated to this transfer.
  *
  * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
  *
@@ -6172,7 +6172,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param startFirst puts the transfer on top of the download queue
  *  + If you don't need this param provide false as value
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
- * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
  * @param delegate Delegate to track this transfer.
  */
