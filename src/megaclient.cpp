@@ -12965,6 +12965,13 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
             {
+                LOG_warn << "Path already associated with a sync: "
+                         << newLocallyEncodedAbsolutePath
+                         << " "
+                         << toHandle(config.mBackupId)
+                         << " "
+                         << otherLocallyEncodedAbsolutePath;
+
                 if (syncError)
                 {
                     *syncError = LOCAL_PATH_SYNC_COLLISION;
