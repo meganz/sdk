@@ -657,7 +657,11 @@ int PartFetcher::onFailure()
                 }
                 else if (s->status == REQ_FAILURE)
                 {
-                    return -1;
+                    if (s->httpstatus == 0)
+                    {
+                        s->status = REQ_READY;
+                    }
+                    else return -1;
                 }
             }
         }
