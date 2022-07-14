@@ -301,7 +301,8 @@ static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFil
 
     if (client->startxfer(GET, file.get(), committer, false, false, false, NoVersioning, &result))
     {
-        file->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), file.release());
+        file->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), file.get());
+        file.release();
     }
     else
     {

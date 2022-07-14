@@ -1642,7 +1642,14 @@ public:
     /**
     * @brief Returns the handle of a user related to the alert
     *
-    * This value is valid for user related alerts.
+    * This value is valid for user related alerts: 
+    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
+    *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
+    *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
+    *  TYPE_CONTACTCHANGE_BLOCKEDYOU, TYPE_CONTACTCHANGE_DELETEDYOU,
+    *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
     *
     * @return the associated user's handle, otherwise UNDEF
     */
@@ -1652,6 +1659,8 @@ public:
     * @brief Returns the handle of a node related to the alert
     *
     * This value is valid for alerts that relate to a single node.
+    *  TYPE_NEWSHARE (folder handle), TYPE_DELETEDSHARE (folder handle), TYPE_NEWSHAREDNODES (parent handle), TYPE_TAKEDOWN (node handle),
+    *  TYPE_TAKEDOWN_REINSTATED (node handle)
     *
     * @return the relevant node handle, or UNDEF if this alert does not have one.
     */
@@ -1665,8 +1674,16 @@ public:
     * this function will return false and the client can request it via the userHandle.
     *
     * The SDK retains the ownership of the returned value. It will be valid until
-    * the MegaUserAlert object is deleted.
-    *
+    * the MegaUserAlert object is deleted.    
+    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU, 
+    *   TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_DELETEDYOU,
+    *   TYPE_DELETEDSHARE,
+    *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *   TYPE_NEWSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
+    *   TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
+    *   TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
+    * 
     * @return email string of the relevant user, or NULL if not available
     */
     virtual const char* getEmail() const;
@@ -1679,7 +1696,8 @@ public:
     *
     * This value is valid for those alerts that relate to a single path, provided
     * it could be looked up from the cached nodes at the time the alert arrived.
-    * Otherwise, it may be obtainable via the nodeHandle.
+    * Otherwise, it may be obtainable via the nodeHandle. 
+    *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
     *
     * @return the path string if relevant and available, otherwise NULL
     */
@@ -1693,7 +1711,8 @@ public:
      *
      * This value is valid for those alerts that relate to a single name, provided
      * it could be looked up from the cached nodes at the time the alert arrived.
-     * Otherwise, it may be obtainable via the nodeHandle.
+     * Otherwise, it may be obtainable via the nodeHandle. 
+     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
      *
      * @return the name string if relevant and available, otherwise NULL
      */
@@ -1729,11 +1748,11 @@ public:
     * @brief Returns a number related to this alert
     *
     * This value is valid for these alerts:
-    * TYPE_NEWSHAREDNODES (0: folder count 1: file count )
-    * TYPE_REMOVEDSHAREDNODES (0: item count )
-    * TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
-    *                       value 0 if someone left the folder)
-    *
+    *   TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
+    *                        value 0 if someone left the folder)
+    *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
+    *   TYPE_REMOVEDSHAREDNODES (0: item count)
+    * 
     * @return Number related to this request, or -1 if the index is invalid
     */
     virtual int64_t getNumber(unsigned index) const;
@@ -1764,8 +1783,8 @@ public:
     * the MegaUserAlert object is deleted.
     *
     * This value is currently only valid for
-    *   TYPE_PAYMENT_SUCCEEDED   index 0: the plan name
     *   TYPE_PAYMENT_FAILED      index 0: the plan name
+    *   TYPE_PAYMENT_SUCCEEDED   index 0: the plan name
     *
     * @return a pointer to the string if index is valid; otherwise NULL
     */
@@ -3212,7 +3231,8 @@ class MegaRequest
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_FA_UPLOAD_URL                                          = 145,
             TYPE_EXECUTE_ON_THREAD                                          = 146,
-            TOTAL_OF_REQUEST_TYPES                                          = 147,
+            TYPE_GET_RECENT_ACTIONS                                         = 148,
+            TOTAL_OF_REQUEST_TYPES                                          = 148,
         };
 
         virtual ~MegaRequest();
@@ -3600,6 +3620,7 @@ class MegaRequest
          * - MegaApi::setMaxConnections - Returns the direction of transfers
          * - MegaApi::dismissBanner - Returns the id of the banner
          * - MegaApi::sendBackupHeartbeat - Returns the number of backup files uploaded
+         * - MegaApi::getRecentActions - Returns the maximum number of nodes
          *
          * @return Type of parameter related to the request
          */
@@ -3669,6 +3690,7 @@ class MegaRequest
          * - MegaApi::creditCardQuerySubscriptions - Returns the number of credit card subscriptions
          * - MegaApi::getPaymentMethods - Returns a bitfield with the available payment methods
          * - MegaApi::getCloudStorageUsed - Returns the sum of the sizes of file cloud nodes.
+         * - MegaApi::getRecentActions - Returns the number of days since nodes will be considerated
          *
          * @return Number related to this request
          */
@@ -3995,6 +4017,19 @@ class MegaRequest
          * @return MegaHandle list
          */
         virtual MegaHandleList* getMegaHandleList() const;
+
+        /**
+         * @brief Returns the recent actions bucket list
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::getRecentActions
+         *
+         * @return MegaRecentActionBucketList list
+         */
+        virtual MegaRecentActionBucketList *getRecentActions() const;
 };
 
 /**
@@ -4589,12 +4624,9 @@ class MegaTransfer
          *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
          *    of those transfers.
          *
-         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
-         *    that shares the same cancel token instance.
-         *
-         * @return A pointer to the cancelToken instance associated to the transfer in case it exists
+         * @return A pointer to a cancelToken instance associated to the transfer in case it exists
          */
-        virtual MegaCancelToken* getCancelToken() const;
+        virtual MegaCancelToken* getCancelToken();
 
         /**
          * @brief Returns a string that identify the recursive operation stage
@@ -12672,7 +12704,7 @@ class MegaApi
          * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
          * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
          * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
-         * instead of that, use MegaCancelToken::cancel(true) calling through MegaCancelToken instance associated to this transfer.
+         * instead of that, use MegaCancelToken::cancel() calling through MegaCancelToken instance associated to this transfer.
          *
          * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
@@ -12758,7 +12790,7 @@ class MegaApi
          * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
          * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
          * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
-         * instead of that, use MegaCancelToken::cancel(true) calling through MegaCancelToken instance associated to this transfer.
+         * instead of that, use MegaCancelToken::cancel() calling through MegaCancelToken instance associated to this transfer.
          *
          * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
@@ -16194,6 +16226,8 @@ class MegaApi
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
          *
+         * @deprecated use getRecentActionsAsync
+         *
          * @param days Age of actions since added/modified nodes will be considered (in days)
          * @param maxnodes Maximum amount of nodes to be considered
          *
@@ -16211,9 +16245,36 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
+         * @deprecated use getRecentActionsAsync
+         *
          * @return List of buckets containing nodes that were added/modifed as a set
          */
         MegaRecentActionBucketList* getRecentActions();
+
+
+        /**
+         * @brief Get a list of buckets, each bucket containing a list of recently added/modified nodes
+         *
+         * Each bucket contains files that were added/modified in a set, by a single user.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
+         * - MegaRequest::getParamType - Returns the maximun number of nodes
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getRecentsBucket - Returns buckets with a list of recently added/modified nodes
+         *
+         * The recommended values for the following parameters are to consider
+         * interactions during the last 30 days and maximum 500 nodes.
+         *
+         * @param days Age of actions since added/modified nodes will be considered (in days)
+         * @param maxnodes Maximum amount of nodes to be considered
+
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Process a node tree using a MegaTreeProcessor implementation
@@ -20058,15 +20119,14 @@ public:
 
     /**
      * @brief Allows to set the value of the flag
-     * @param newValue True to force the cancelation of the processing. False to reset.
      */
-    virtual void cancel(bool newValue = true);
+    virtual void cancel() = 0;
 
     /**
      * @brief Returns the state of the flag
      * @return The state of the flag
      */
-    virtual bool isCancelled() const;
+    virtual bool isCancelled() const = 0;
 };
 
 }

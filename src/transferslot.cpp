@@ -571,21 +571,10 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
     transfer->state = TRANSFERSTATE_ACTIVE;
 
     // remove transfer files whose MegaTransfer associated has been cancelled (via cancel token)
-    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end();)
-    {
-        file_list::iterator auxit = it++;
-        if (transfer->client->app->file_isCancelled(*auxit))
-        {
-            transfer->removeTransferFile(API_EINCOMPLETE, *auxit, &committer);
-        }
-    }
-
+    transfer->removeCancelledTransferFiles(&committer);
     if (transfer->files.empty())
     {
-        transfer->finished = true;
-        transfer->state = TRANSFERSTATE_CANCELLED;
-        transfer->client->app->transfer_removed(transfer);
-        delete transfer;
+        transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
         return;
     }
 

@@ -104,12 +104,12 @@ void GfxProviderExternal::freebitmap()
 
 const char *GfxProviderExternal::supportedformats()
 {
-    return processor->supportedImageFormats();
+    return processor ? processor->supportedImageFormats() : nullptr;
 }
 
 const char *GfxProviderExternal::supportedvideoformats()
 {
-    return processor->supportedVideoFormats();
+    return processor ? processor->supportedVideoFormats() : nullptr;
 }
 
 } // namespace

@@ -2104,8 +2104,7 @@ TEST_F(SdkTest, SdkTestTransfers)
 
 
     // --- Cancel a transfer ---
-
-    mApi[0].requestFlags[MegaRequest::TYPE_CANCEL_TRANSFERS] = false;
+    TransferTracker ttc(megaApi[0].get());
     megaApi[0]->startUpload(filename1.c_str(),
                             rootnode,
                             nullptr /*fileName*/,
@@ -2113,13 +2112,11 @@ TEST_F(SdkTest, SdkTestTransfers)
                             nullptr /*appData*/,
                             false   /*isSourceTemporary*/,
                             false   /*startFirst*/,
-                            nullptr /*cancelToken*/);
+                            nullptr /*cancelToken*/,
+                            &ttc);
 
-    megaApi[0]->cancelTransfers(MegaTransfer::TYPE_UPLOAD);
-    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CANCEL_TRANSFERS]) )
-            << "Cancellation of transfers failed after " << maxTimeout << " seconds";
-    EXPECT_EQ(API_OK, mApi[0].lastError) << "Transfer cancellation failed (error: " << mApi[0].lastError << ")";
-
+    ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
+    ASSERT_EQ(API_EINCOMPLETE, ttc.waitForResult());
 
     // --- Upload a file (part 1) ---
     TransferTracker tt(megaApi[0].get());
