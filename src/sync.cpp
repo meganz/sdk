@@ -7637,6 +7637,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     {
         // This is the sort of thing that we should not sync, but not complain about either
         // consider it synced.
+        monitor.noResult();
         return true;
     }
     else // unknown/special
