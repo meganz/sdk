@@ -25139,9 +25139,9 @@ void MegaFolderUploadController::start(MegaNode*)
             // createNextFolderBatch is responsible for starting the transfers once all needed folders (if any) are created.
             notifyStage(MegaTransfer::STAGE_CREATE_TREE);
             vector<NewNode> newnodes;
-#ifdef DEBUG
+#ifndef NDEBUG
             batchResult r =
- #endif
+#endif
             createNextFolderBatch(mUploadTree, newnodes, true);
 
             assert(r == batchResult_cancelled ||
@@ -25363,7 +25363,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                 {
                     // start the next batch, if there are any left (or start transfers, if we are ready)
                     vector<NewNode> newnodes;
-#ifdef DEBUG
+#ifndef NDEBUG
                     batchResult r =
 #endif
                     createNextFolderBatch(mUploadTree, newnodes, true);
