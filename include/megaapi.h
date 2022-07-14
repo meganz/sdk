@@ -17797,6 +17797,7 @@ class MegaApi
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getNumber - Returns if chat room is a meeting room
          * - MegaRequest::getNumDetails - Returns the chatOptions in a numeric format
+         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap with the value of the creation chat options with the format: [<key><value>]
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -17809,10 +17810,10 @@ class MegaApi
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
          * @param meetingRoom Boolean indicating if room is a meeting room
-         * @param chatOptions Integer representing chatOptions (just valid for Meeting rooms) in a numeric format (check ChatOptions at types.h)
+         * @param chatOptions MegaStringMap that contains the chat options to create the chat (just for Meeting rooms)
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = 0, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, const MegaStringMap *options = 0, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Enable or disable one or multiple chat options for a Meeting room

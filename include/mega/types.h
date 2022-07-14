@@ -1071,19 +1071,6 @@ public:
     bool isValid()                          { return mChatOptions >= kEmpty && mChatOptions <= 255; }
     bool isEmpty()                          { return mChatOptions == kEmpty; }
 
-    // just used by API commands related to chat options
-    static std::string toApiParamStr(int option)
-    {
-        std::string optstr;
-        switch (option)
-        {
-            case chat_option_open_invite:   optstr = "oi";  break;
-            case chat_option_speak_request: optstr = "sr";  break;
-            case chat_option_waiting_room:  optstr = "w";   break;
-        }
-        return optstr;
-    }
-
 protected:
     ChatOptions_t mChatOptions = kEmpty;
 };

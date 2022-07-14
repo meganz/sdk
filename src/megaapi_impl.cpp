@@ -10188,7 +10188,7 @@ void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, unique
 
 #ifdef ENABLE_CHAT
 
-void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, int chatOptions, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, const MegaStringMap* options, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
@@ -10197,7 +10197,7 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *
     request->setText(title);
     request->setMegaStringMap(userKeyMap);
     request->setNumber(meetingRoom);
-    request->setNumDetails(chatOptions);
+    request->setMegaStringMap(options);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -22187,7 +22187,11 @@ void MegaApiImpl::sendPendingRequests()
 
             bool meetingRoom = static_cast<bool>(request->getNumber());
 
-            int chatOptions = request->getNumDetails();
+            if (!meetingRoom && request->getMegaStringMap())
+            {
+                e = API_EARGS;
+                break;
+            }
 
             const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
 
@@ -22197,7 +22201,7 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, chatOptions);
+            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, ((MegaStringMapPrivate*)request->getMegaStringMap())->getMap());
             break;
         }
         case MegaRequest::TYPE_SET_CHAT_OPTIONS:
