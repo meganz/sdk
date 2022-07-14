@@ -2541,6 +2541,15 @@ void StandardClient::setupSync_inThread(const string& drivePath,
 
         LOG_debug << "Asking engine to add the sync...";
 
+        LOG_debug << "Local sync root will be: "
+                  << config.mLocalPath.toPath();
+
+        if (!drivePath_.empty())
+        {
+            LOG_debug << "External drive will be: "
+                      << config.mExternalDrivePath.toPath();
+        }
+
         client.addsync(config, true, std::move(completion), rootPath + " ");
     };
 
