@@ -3365,7 +3365,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->backgroundMediaUpload = NULL;
     this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
     this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
-
+    this->mRecentActions.reset(request->mRecentActions ? request->mRecentActions->copy() : nullptr);
 #ifdef ENABLE_SYNC
     if (request->mSyncStallList)
         mSyncStallList.reset(request->mSyncStallList->copy());
@@ -3930,6 +3930,16 @@ void MegaRequestPrivate::setBanners(vector< tuple<int, string, string, string, s
     }
 }
 
+MegaRecentActionBucketList* MegaRequestPrivate::getRecentActions() const
+{
+    return mRecentActions.get();
+}
+
+void MegaRequestPrivate::setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList)
+{
+    mRecentActions.reset(recentActionBucketList.release());
+}
+
 const char *MegaRequestPrivate::getRequestString() const
 {
     switch(type)
@@ -4080,6 +4090,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
         case TYPE_GET_FA_UPLOAD_URL: return "GET_FA_UPLOAD_URL";
         case TYPE_EXECUTE_ON_THREAD: return "EXECUTE_ON_THREAD";
+        case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
     }
     return "UNKNOWN";
@@ -11027,6 +11038,15 @@ MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigne
     m_time_t since = m_time() - days * 86400;
     recentactions_vector v = client->getRecentActions(maxnodes, since);
     return new MegaRecentActionBucketListPrivate(v, client);
+}
+
+void MegaApiImpl::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTIONS, listener);
+    request->setNumber(days);
+    request->setParamType(maxnodes);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
@@ -22854,6 +22874,29 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
+        case MegaRequest::TYPE_GET_RECENT_ACTIONS:
+        {
+           int maxnodes = request->getParamType();
+           if (maxnodes <= 0)
+           {
+               e = API_EARGS;
+               break;
+           }
+
+           int days = static_cast<int>(request->getNumber());
+           if (days <= 0)
+           {
+               e = API_EARGS;
+               break;
+           }
+
+           m_time_t since = m_time() - days * 86400;
+           recentactions_vector v = client->getRecentActions(maxnodes, since);
+           std::unique_ptr<MegaRecentActionBucketList> recentActions(new MegaRecentActionBucketListPrivate(v, client));
+           request->setRecentActions(std::move(recentActions));
+           fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+           break;
+        }
         default:
         {
             e = API_EINTERNAL;

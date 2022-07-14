@@ -2847,6 +2847,18 @@ using namespace mega;
     return recentActionBucketMutableArray;
 }
 
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi != nil) {
+        self.megaApi->getRecentActionsAsync((int)days, (unsigned int)maxNodes, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes {
+    if (self.megaApi != nil) {
+        self.megaApi->getRecentActionsAsync((int)days, (unsigned int)maxNodes);
+    }
+}
+
 - (BOOL)processMEGANodeTree:(MEGANode *)node recursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate {
     if (self.megaApi == nil) return NO;
     return self.megaApi->processMegaTree(node.getCPtr, [self createMegaTreeProcessor:delegate], recursive);
