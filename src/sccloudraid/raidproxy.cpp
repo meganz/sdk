@@ -509,6 +509,8 @@ connest++;
             }
 
             // feed from network
+            do
+            {
             while (remfeed && inbuf->datalen())
             {
                 size_t t = inbuf->datalen();
@@ -623,6 +625,7 @@ connest++;
                     setremfeed(std::min(static_cast<unsigned>(NUMLINES*RAIDSECTOR), static_cast<unsigned>(inbuf->datalen())));
                 }
             }
+            } while (remfeed);
         }
         assert(s->status == REQ_READY || s->status == REQ_SUCCESS || s->status == REQ_INFLIGHT || s->status == REQ_FAILURE);
         if (s->status == REQ_READY || s->status == REQ_INFLIGHT || s->status == REQ_SUCCESS)
@@ -733,17 +736,14 @@ int PartFetcher::onFailure()
 void PartFetcher::cont(int numbytes)
 {
     assert(numbytes > 0);
-    if (pos < rr->paddedpartsize)
+    if (!connected && pos < rr->paddedpartsize)
     {
         setremfeed(static_cast<unsigned>(numbytes));
-        remfeed = numbytes;
-        if (rem < remfeed) remfeed = rem;
-        if (sourcesize-pos < remfeed) remfeed = sourcesize-pos; // we only read to the physical end of the part
 
         auto& s = rr->sockets[part];
 assert(s != nullptr);
-        //directTrigger();
-        rr->pendingio.push_back(s);
+        directTrigger();
+        //rr->pendingio.push_back(s);
     }
     else
     {
@@ -1033,11 +1033,13 @@ if (++current_readahead > highest_readahead) highest_readahead = (int)current_re
         }
     }
 
+    /*
     if (completed > old_completed && notifyeventfd >= 0)
     {
         uint64_t n = 1;
         write(notifyeventfd, &n, sizeof(n)); // signal eventfd to wake up writer thread's epoll_wait
     }
+    */
 }
 
 void RaidReq::shiftdata(off_t len)
@@ -1216,7 +1218,7 @@ void RaidReq::watchdog()
         {
             if (sockets[i]->status == REQ_INFLIGHT)
             {
-                if (fetcher[i].remfeed && ((currtime - sockets[i]->lastdata > 40) || (currtime - fetcher[i].lastdata > 200)) && !fetcher[i].isslow())
+                if (fetcher[i].remfeed && ((currtime - sockets[i]->lastdata > 50) || (currtime - fetcher[i].lastdata > 200)) && !fetcher[i].isslow())
                 {
                     hanging++;
                     hangingsource = i;
@@ -1325,7 +1327,7 @@ off_t RaidReq::readdata(byte* buf, off_t len)
         }
     }
 
-    handlependingio();
+    //handlependingio();
 
     return t;
 }
@@ -1362,7 +1364,7 @@ off_t RaidReq::senddata(byte* outbuf, off_t len)
         e = EAGAIN;
     }
 
-    handlependingio();
+    //handlependingio();
 
     errno = e;
     return t;
@@ -1389,37 +1391,21 @@ bool RaidReqPool::addScheduledio(raidTime scheduledFor, const HttpReqPtr& req)
 {
     if (scheduledFor == 0) return addDirectio(req);
     lock_guard<recursive_mutex> g(rrp_queuelock);
-    auto it = directio_set.insert(req);
-    if (it.second)
-    {
         auto itScheduled = scheduledio.insert(std::make_pair(scheduledFor, req));
         return itScheduled.second;
-    }
-    return false;
 }
 
 bool RaidReqPool::addDirectio(const HttpReqPtr& req)
 {
     lock_guard<recursive_mutex> g(rrp_queuelock);
-    auto it = directio_set.insert(req);
-    if (it.second)
-    {
-        if (req->status != REQ_INFLIGHT)
-        {
-            directio.emplace_front(req);
-        }
-        else
-        {
-            directio.emplace_back(req);
-        }
-    }
+    auto it = directio.insert(req);
     return it.second;
 }
 
 
 void* RaidReqPool::raidproxyiothread()
 {
-    std::deque<HttpReqPtr> events;
+    directsocket_queue events;
 
     while (isRunning.load())
     {
@@ -1440,29 +1426,40 @@ void* RaidReqPool::raidproxyiothread()
             auto itScheduled = scheduledio.begin();
             while (itScheduled != scheduledio.end() && itScheduled->first <= currtime)
             {
-                if (itScheduled->second->status != REQ_INFLIGHT)
+                switch (itScheduled->second->status)
                 {
-                    events.emplace_back(std::move(itScheduled->second));
-                    itScheduled = scheduledio.erase(itScheduled);
+                    case REQ_INFLIGHT:
+                        itScheduled++;
+                        continue;
+                    case REQ_READY:
+                        events.emplace_back(std::move(itScheduled->second));
+                        break;
+                    default:
+                        events.emplace_front(std::move(itScheduled->second));
+
                 }
-                else
-                {
-                    itScheduled++;
-                }
+                assert (itScheduled->second->status != REQ_INFLIGHT);
+                itScheduled = scheduledio.erase(itScheduled);
             }
+
 
             auto itDirect = directio.begin();
             while (itDirect != directio.end())
             {
-                if ((*itDirect)->status != REQ_INFLIGHT)
+                switch ((*itDirect)->status)
                 {
-                    events.emplace_back(std::move(*itDirect));
-                    itDirect = directio.erase(itDirect);
+                    case REQ_INFLIGHT:
+                        itDirect++;
+                        continue;
+                    case REQ_READY:
+                        events.emplace_back(std::move((*itDirect)));
+                        break;
+                    default:
+                        events.emplace_front(std::move((*itDirect)));
+
                 }
-                else
-                {
-                    itDirect++;
-                }
+                assert ((*itDirect)->status != REQ_INFLIGHT);
+                itDirect = directio.erase(itDirect);
             }
         }
         if (!events.empty())
@@ -1483,10 +1480,6 @@ void* RaidReqPool::raidproxyiothread()
                         std::unique_lock<mutex> g(rr->rr_lock, std::defer_lock);
                         if (g.try_lock())
                         {
-                            {
-                                lock_guard<recursive_mutex> g(rrp_queuelock);
-                                directio_set.erase(s);
-                            }
                             rr->dispatchio(s);
                             itEvent = events.erase(itEvent);
                         }
@@ -1513,18 +1506,8 @@ RaidReqPool::RaidReqPool(RaidReqPoolArray& ar)
     : array(ar)
 {
 
-    int err;
-
     isRunning.store(true);
     rrp_thread = std::thread(raidproxyiothreadstart, this);
-    /*
-    if ((err = pthread_create(&rrp_thread, NULL, raidproxyiothreadstart, this)))
-    {
-        LOGF("E 10806 CloudRAID proxy thread creation failed: %d", err);
-        isRunning.store(false);
-        exit(0);
-    }
-    */
 }
 
 RaidReqPool::~RaidReqPool()
@@ -1533,7 +1516,6 @@ RaidReqPool::~RaidReqPool()
     {
         lock_guard<recursive_mutex> g(rrp_lock); // Let other operations end
     }
-    //pthread_join(rrp_thread, NULL);
     rrp_thread.join();
 }
 

@@ -59,17 +59,14 @@ class PartFetcher
 {
     class RaidReq* rr;
 
-    //char hash[ChunkedHash::HASHLEN];
     std::string url;
-
     raidTime delayuntil;
 
-    struct sockaddr_in6 target;
     std::unique_ptr<HttpInputBuf> inbuf;
-    char outbuf[96];
 
     bool skip_setposrem;
     void setposrem();
+    bool setremfeed(unsigned = NUMLINES*RAIDSECTOR);
 
     char consecutive_errors;
 
@@ -77,7 +74,6 @@ public:
     char part;
     bool connected;
     unsigned remfeed;
-    std::chrono::time_point<std::chrono::system_clock> postTime;
 
     int errors;
 
@@ -152,12 +148,10 @@ class RaidReq
     short err_server = 0;
     int err_errno = 0;
 
-    bool allconnected();
+    bool allconnected(int = RAIDPARTS);
 
 public:
     size_t filesize;
-    short shard;
-
     enum errortype { NOERR, READERR, WRITEERR, CONNECTERR }; // largest is the one reported
 
     void procdata(int, byte*, off_t, int);
@@ -165,7 +159,7 @@ public:
     off_t readdata(byte*, off_t);
     off_t senddata(byte*, off_t);
 
-    void resumeall();
+    void resumeall(int = RAIDPARTS);
 
     void procreadahead();
     void watchdog();
@@ -215,20 +209,22 @@ class RaidReqPool
     recursive_mutex rrp_lock, rrp_queuelock;
     //pthread_t rrp_thread;
     std::thread rrp_thread;
-    int efd;
     std::atomic<bool> isRunning;
  
+    int64_t timeToSleep();
     void* raidproxyiothread();
     static void* raidproxyiothreadstart(void* arg);
     
-    std::map<RaidReq*, unique_ptr<RaidReq>> rrs;
+    static int64_t constexpr maxThreadSleepingTimeUs = 100;
+    map<RaidReq*, unique_ptr<RaidReq>> rrs;
 
     typedef set<pair<raidTime, HttpReqPtr>> timesocket_set;
     typedef set<HttpReqPtr> directsocket_set;
     typedef deque<HttpReqPtr> directsocket_queue;
     timesocket_set scheduledio;
-    directsocket_set directio_set;
-    directsocket_queue directio;
+    //directsocket_set directio_set;
+    //directsocket_queue directio;
+    directsocket_set directio;
 
 
 public:

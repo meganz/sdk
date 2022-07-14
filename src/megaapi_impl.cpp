@@ -16268,7 +16268,7 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 
 void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer)
 {
-    assert(threadId == std::this_thread::get_id());
+    //assert(threadId == std::this_thread::get_id());
     activeTransfer = transfer;
     activeError = e.get();
     notificationNumber++;
