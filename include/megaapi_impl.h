@@ -1338,6 +1338,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaBannerList* getMegaBannerList() const override;
         void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
 
+        MegaRecentActionBucketList *getRecentActions() const override;
+        void setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1384,6 +1387,7 @@ protected:
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
         unique_ptr<MegaStringList> mStringList;
         unique_ptr<MegaHandleList> mHandleList;
+        unique_ptr<MegaRecentActionBucketList> mRecentActions;
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
@@ -2884,7 +2888,8 @@ class MegaApiImpl : public MegaApp
 
         long long getBandwidthOverquotaDelay();
 
-        MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
+        MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 500);
+        void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
 
         MegaNodeList* search(MegaNode *node, const char *searchString, CancelToken cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);

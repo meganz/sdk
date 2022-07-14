@@ -1066,6 +1066,11 @@ MegaHandleList* MegaRequest::getMegaHandleList() const
     return nullptr;
 }
 
+MegaRecentActionBucketList *MegaRequest::getRecentActions() const
+{
+    return nullptr;
+}
+
 #ifdef ENABLE_SYNC
 
 MegaSyncStallList* MegaRequest::getMegaSyncStallList() const
@@ -3707,6 +3712,11 @@ MegaRecentActionBucketList* MegaApi::getRecentActions(unsigned days, unsigned ma
 MegaRecentActionBucketList* MegaApi::getRecentActions()
 {
     return pImpl->getRecentActions();
+}
+
+void MegaApi::getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener)
+{
+    return pImpl->getRecentActionsAsync(days, maxnodes, listener);
 }
 
 bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
