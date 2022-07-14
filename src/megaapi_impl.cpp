@@ -25123,13 +25123,6 @@ void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
     assert(mMainThreadId == std::this_thread::get_id());
     assert(transfer);
 
-    if (!startedTransferring &&
-        !transfer->accessCancelToken().isCancelled())
-    {
-        notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
-        startedTransferring = true;
-    }
-
     if (transfer)
     {
         transfer->setState(t->getState());
@@ -25357,6 +25350,11 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
             // so no more can be done here or we'll be using danging pointers etc
             pendingTransfers = transferQueue.size();
             megaApi->sendPendingTransfers(&transferQueue);
+
+            if (!isCancelledByFolderTransferToken())
+            {
+                notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
+            }
         }
 
         return batchResult_batchesComplete;
@@ -26647,6 +26645,10 @@ void MegaFolderDownloadController::start(MegaNode *node)
                         pendingTransfers = transferQueue.size();
                         megaApi->sendPendingTransfers(&transferQueue);
 
+                        if (!isCancelledByFolderTransferToken())
+                        {
+                            notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
+                        }
                         // complete() will finally be called when the last sub-transfer finishes
                     }
                 }
@@ -26807,13 +26809,6 @@ void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     assert(mMainThreadId == std::this_thread::get_id());
     assert(transfer);
-
-    if (!startedTransferring &&
-        !transfer->accessCancelToken().isCancelled())
-    {
-        notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
-        startedTransferring = true;
-    }
 
     if (transfer)
     {
