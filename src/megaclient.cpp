@@ -16720,7 +16720,7 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector* userpriv, const string_map* userkeymap, const char* title, bool meetingRoom, const string_map* options)
+void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector* userpriv, const string_map* userkeymap, const char* title, bool meetingRoom, const string_vector* options)
 {
     reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom, options));
 }
@@ -16910,6 +16910,28 @@ void MegaClient::extractChatOptionsFromMap(const string_map* options, int& speak
                 case ChatOptions::chat_option_speak_request:    speakRequest = optVal;  break;
                 case ChatOptions::chat_option_waiting_room:     waitingRoom = optVal;   break;
             }
+        }
+    }
+}
+
+void MegaClient::extractChatOptionsFromList(const string_vector* options, bool& speakRequest, bool& waitingRoom, bool& openInvite)
+{
+    // initialize by default all options to false
+    speakRequest = waitingRoom = openInvite = false;
+
+    if (!options)
+    {
+        return;
+    }
+
+    for (auto opt: *options)
+    {
+        int optVal = std::atoi(opt.c_str());
+        switch (optVal)
+        {
+            case ChatOptions::chat_option_open_invite:      openInvite = true;    break;
+            case ChatOptions::chat_option_speak_request:    speakRequest = true;  break;
+            case ChatOptions::chat_option_waiting_room:     waitingRoom = true;   break;
         }
     }
 }

@@ -6588,7 +6588,7 @@ bool CommandGetLocalSSLCertificate::procresult(Result r)
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, const string_map* options)
+CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, const string_vector* options)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
@@ -6596,9 +6596,10 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
     this->mTitle = title ? string(title) : "";
     this->mUnifiedKey = "";
     mMeeting = meetingRoom;
+
     if (options)
     {
-        mChatOptions.insert(options->begin(), options->end());
+        mChatOptions = *options;
     }
 
     cmd("mcc");
@@ -6629,15 +6630,15 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
     {
         arg("mr", 1);
 
-        // init chat options to default value [-1 (not updated) | 0 (remove) | 1 (add)]
-        int speakRequest = -1;
-        int waitingRoom = -1;
-        int openInvite = -1;
+        // retrieve chat options from a string_vector
+        bool speakRequest = false;
+        bool waitingRoom = false;
+        bool openInvite = false;
 
-        client->extractChatOptionsFromMap(&mChatOptions, speakRequest, speakRequest, openInvite);
-        if (speakRequest != -1) {arg("sr", speakRequest);}
-        if (waitingRoom != -1)  {arg("w", waitingRoom);}
-        if (openInvite != -1)   {arg("oi", openInvite);}
+        client->extractChatOptionsFromList(&mChatOptions, speakRequest, speakRequest, openInvite);
+        if (speakRequest) {arg("sr", 1);}
+        if (waitingRoom)  {arg("w", 1);}
+        if (openInvite)   {arg("oi", 1);}
     }
 
     beginarray("u");
@@ -6731,10 +6732,10 @@ bool CommandChatCreate::procresult(Result r)
                         chat->meeting = mMeeting;
 
                         // init chat options to default value [-1 (not updated) | 0 (remove) | 1 (add)]
-                        int speakRequest = -1;
-                        int waitingRoom = -1;
-                        int openInvite = -1;
-                        client->extractChatOptionsFromMap(&mChatOptions, speakRequest, speakRequest, openInvite);
+                        bool speakRequest = false;
+                        bool waitingRoom = false;
+                        bool openInvite = false;
+                        client->extractChatOptionsFromList(&mChatOptions, speakRequest, waitingRoom, openInvite);
                         chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
                         assert(chat->chatOptions <= 7); //JCHECK => don't push this assert just for development purposes
 

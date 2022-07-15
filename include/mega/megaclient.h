@@ -791,7 +791,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, bool publicchat, const userpriv_vector* userpriv = NULL, const string_map* userkeymap = NULL, const char* title = NULL, bool meetingRoom = false, const string_map* options = nullptr);
+    void createChat(bool group, bool publicchat, const userpriv_vector* userpriv = NULL, const string_map* userkeymap = NULL, const char* title = NULL, bool meetingRoom = false, const string_vector* options = nullptr);
 
     // enable/disable one or multiple chat options
     void setChatOptions(handle chatid, const string_map* options);
@@ -861,6 +861,9 @@ public:
 
     // extract chat options from a string map
     void extractChatOptionsFromMap(const string_map* options, int& speakRequest, int& waitingRoom, int& openInvite);
+
+    // extract chat options from a string vector
+    void extractChatOptionsFromList(const string_vector* options, bool& speakRequest, bool& waitingRoom, bool& openInvite);
 
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);

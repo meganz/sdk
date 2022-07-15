@@ -10188,7 +10188,7 @@ void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, unique
 
 #ifdef ENABLE_CHAT
 
-void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, const MegaStringMap* options, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char* title, bool meetingRoom, MegaStringList* options, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
@@ -10197,7 +10197,7 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *
     request->setText(title);
     request->setMegaStringMap(userKeyMap);
     request->setNumber(meetingRoom);
-    request->setMegaStringMap(options);
+    request->setMegaStringList(options);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -22186,12 +22186,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             bool meetingRoom = static_cast<bool>(request->getNumber());
-
-            if (!meetingRoom && request->getMegaStringMap())
+            if (!meetingRoom && request->getMegaStringList())
             {
                 e = API_EARGS;
                 break;
             }
+            string_vector opt = ((MegaStringListPrivate*)request->getMegaStringList())->getVector();
 
             const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
 
@@ -22201,7 +22201,7 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, ((MegaStringMapPrivate*)request->getMegaStringMap())->getMap());
+            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, request->getMegaStringList() ? &opt : nullptr);
             break;
         }
         case MegaRequest::TYPE_SET_CHAT_OPTIONS:
