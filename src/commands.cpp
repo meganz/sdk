@@ -6787,7 +6787,7 @@ CommandSetChatOptions::CommandSetChatOptions(MegaClient* client, handle chatid, 
     int waitingRoom = -1;
     int openInvite = -1;
 
-    client->extractChatOptionsFromMap(&mChatOptions, speakRequest, speakRequest, openInvite);
+    client->extractChatOptionsFromMap(&mChatOptions, speakRequest, waitingRoom, openInvite);
     if (speakRequest != -1) {arg("sr", speakRequest);}
     if (waitingRoom != -1)  {arg("w", waitingRoom);}
     if (openInvite != -1)   {arg("oi", openInvite);}
@@ -6811,7 +6811,7 @@ bool CommandSetChatOptions::procresult(Result r)
         int speakRequest = -1;
         int waitingRoom = -1;
         int openInvite = -1;
-        client->extractChatOptionsFromMap(&mChatOptions, speakRequest, speakRequest, openInvite);
+        client->extractChatOptionsFromMap(&mChatOptions, speakRequest, waitingRoom, openInvite);
 
         TextChat* chat = it->second;
         chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
