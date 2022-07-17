@@ -3315,33 +3315,32 @@ MegaNode *MegaApi::getSyncedNode(string *path)
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, nullptr, listener);
+    pImpl->syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, nullptr, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, nullptr, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, nullptr, listener);
+    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
     // deprecated
-    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, nullptr, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, nullptr, nullptr, listener);
 }
 
 
-void MegaApi::syncFolder(MegaSync::SyncType syncType, const char* localFolder, const char* name, MegaHandle megaHandle,
-    const char* driveRootIfExternal,
-    MegaRequestListener* listener)
+void MegaApi::syncFolder(MegaSync::SyncType syncType, const char* localFolder, const char* name, MegaHandle megaHandle, const char* driveRootIfExternal, MegaRequestListener* listener,
+                         const char* excludePath)
 {
-    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::Type(syncType), driveRootIfExternal, listener);
+    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::Type(syncType), driveRootIfExternal, excludePath, listener);
 }
 
 

@@ -2788,7 +2788,7 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerp
         });
 }
 
-void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(onSyncThread());
 
@@ -2879,6 +2879,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
     {
         DefaultFilterChain* filter = nullptr;
 
+        // What chain are we using as a template?
         if (us.mConfig.mLegacyExclusionsIneligigble)
         {
             filter = &mNewSyncFilterChain;
@@ -2888,6 +2889,22 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
         {
             filter = &mLegacyUpgradeFilterChain;
             LOG_debug << "Converting legacy exclusion rules to .megaignore for this sync";
+        }
+
+        // Create a new chain so that we can add custom rules if necessary.
+        DefaultFilterChain tempFilter;
+
+        // Do we have a custom rule to apply?
+        if (!excludedPath.empty())
+        {
+            // Then copy the template...
+            tempFilter = *filter;
+
+            // And add the new exclusion.
+            tempFilter.excludePath(excludedPath);
+
+            // Use the updated filter when generating a new ignore file.
+            filter = &tempFilter;
         }
 
         // Try and create the missing ignore file.
@@ -4532,7 +4549,7 @@ void Syncs::clear_inThread()
     mSyncsResumed = false;
 }
 
-void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
+void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath)
 {
     assert(!onSyncThread());
     assert(c.mBackupId != UNDEF);
@@ -4547,11 +4564,11 @@ void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, s
 
     queueSync([=]()
     {
-        appendNewSync_inThread(c, startSync, notifyApp, completionInClient ? clientCompletion : completion, logname);
+        appendNewSync_inThread(c, startSync, notifyApp, completionInClient ? clientCompletion : completion, logname, excludedPath);
     });
 }
 
-void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(onSyncThread());
 
@@ -4623,7 +4640,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, bool not
         return;
     }
 
-    enableSyncByBackupId_inThread(c.mBackupId, false, false, notifyApp, true, completion, logname);
+    enableSyncByBackupId_inThread(c.mBackupId, false, false, notifyApp, true, completion, logname, excludedPath);
 }
 
 Sync* Syncs::runningSyncByBackupIdForTests(handle backupId) const

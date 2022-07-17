@@ -48,6 +48,10 @@ class MEGA_API DefaultFilterChain
 public:
     explicit DefaultFilterChain();
 
+    DefaultFilterChain(DefaultFilterChain& other);
+
+    DefaultFilterChain& operator=(DefaultFilterChain& rhs);
+
     // Creates a new ignore file in the target directory.
     //
     // Note that this function only writes an ignore file if one does not
@@ -67,6 +71,9 @@ public:
 
     // Specify what paths should be excluded.
     void excludedPaths(const string_vector& paths);
+
+    // Specify that a given path should be excluded.
+    void excludePath(const string& path);
 
     // Specify the lower size limit.
     //

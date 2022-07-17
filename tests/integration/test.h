@@ -214,6 +214,14 @@ private:
     bool mFromRoot = false;
 }; // CloudItem
 
+struct SyncOptions
+{
+    string drivePath = string(1, '\0');
+    string excludePath;
+    bool isBackup = false;
+    bool uploadIgnoreFile = false;
+}; // SyncOptions
+
 struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
@@ -558,11 +566,13 @@ struct StandardClient : public MegaApp
                                 const bool uploadIgnoreFile,
                                 const string& drivePath = string(1, '\0'));
 
-    void setupSync_inThread(const string& drivePath,
-                            const string& rootPath,
+    handle setupSync_mainthread(const string& rootPath,
+                                const CloudItem& remoteItem,
+                                const SyncOptions& syncOptions);
+
+    void setupSync_inThread(const string& rootPath,
                             const CloudItem& remoteItem,
-                            const bool isBackup,
-                            const bool uploadIgnoreFile,
+                            const SyncOptions& syncOptions,
                             PromiseHandleSP result);
 
     void importSyncConfigs(string configs, PromiseBoolSP result);
