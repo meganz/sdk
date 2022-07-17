@@ -8707,7 +8707,7 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
     return MegaNodePrivate::fromNode(client->nodeByHandle(h));
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, const char* driveRootIfExternal, const char* excludePath, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
     request->setNodeHandle(megaHandle);
@@ -8729,6 +8729,11 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
     if (driveRootIfExternal)
     {
         request->setLink(driveRootIfExternal);  // for TYPE_BACKUP; continue in backupFolder_sendPendingRequest()
+    }
+
+    if (excludePath)
+    {
+        request->setText(excludePath);
     }
 
     requestQueue.push(request);
@@ -21225,6 +21230,15 @@ void MegaApiImpl::sendPendingRequests()
 
             const auto& drivePath = request->getLink() ? LocalPath::fromAbsolutePath(request->getLink()) : LocalPath();
 
+            string excludePath;
+
+            // Did the client specify a path for us to exclude?
+            if (auto* excludePath_ = request->getText())
+            {
+                // Yup so forward it to the engine.
+                excludePath = excludePath_;
+            }
+
             SyncConfig syncConfig(LocalPath::fromAbsolutePath(localPath),
                                   name, NodeHandle().set6byte(request->getNodeHandle()), remotePath.get(),
                                   0, drivePath);
@@ -21249,7 +21263,7 @@ void MegaApiImpl::sendPendingRequests()
                     request->setParentHandle(backupId);
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-            }, "");
+            }, "", std::move(excludePath));
             break;
         }
         case MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS:

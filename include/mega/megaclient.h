@@ -635,7 +635,7 @@ public:
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @param completion Completion function.  Completion function is the way to know success/failure.
      */
-    void addsync(SyncConfig& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void addsync(SyncConfig& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 

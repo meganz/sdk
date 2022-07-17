@@ -2,6 +2,7 @@
 #include <cctype>
 #include <cstdint>
 #include <limits>
+#include <mutex>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -236,6 +237,38 @@ DefaultFilterChain::DefaultFilterChain()
 {
 }
 
+DefaultFilterChain::DefaultFilterChain(DefaultFilterChain& other)
+  : DefaultFilterChain()
+{
+    lock_guard<mutex> guard(other.mLock);
+
+    mExcludedNames = other.mExcludedNames;
+    mExcludedPaths = other.mExcludedPaths;
+    mLowerLimit = other.mLowerLimit;
+    mUpperLimit = other.mUpperLimit;
+}
+
+DefaultFilterChain& DefaultFilterChain::operator=(DefaultFilterChain& rhs)
+{
+    if (this == &rhs)
+        return *this;
+
+    using std::adopt_lock;
+    using std::lock;
+
+    lock(mLock, rhs.mLock);
+
+    lock_guard<mutex> guardSelf(mLock, adopt_lock);
+    lock_guard<mutex> guardOther(rhs.mLock, adopt_lock);
+
+    mExcludedNames = rhs.mExcludedNames;
+    mExcludedPaths = rhs.mExcludedPaths;
+    mLowerLimit = rhs.mLowerLimit;
+    mUpperLimit = rhs.mUpperLimit;
+
+    return *this;
+}
+
 bool DefaultFilterChain::create(const LocalPath& targetPath, FileSystemAccess& fsAccess)
 {
     // Compute the path for the target's ignore file.
@@ -290,7 +323,26 @@ void DefaultFilterChain::excludedPaths(const string_vector& paths)
 
         mExcludedPaths.emplace_back(std::move(localPath));
     }
+
     LOG_debug << "Legacy excluded paths will be converted to .megaignore for pre-existing syncs that don't have .megaignore yet";
+}
+
+void DefaultFilterChain::excludePath(const string &path)
+{
+    lock_guard<mutex> guard(mLock);
+
+    auto temp = path;
+
+    LocalPath::utf8_normalize(&temp);
+
+    if (temp.empty())
+        return;
+
+    auto localPath = LocalPath::fromAbsolutePath(std::move(temp));
+
+    LOG_debug << "Excluded path: " << localPath.toPath();
+
+    mExcludedPaths.emplace_back(std::move(localPath));
 }
 
 void DefaultFilterChain::lowerLimit(std::uint64_t lower)

@@ -2400,16 +2400,25 @@ handle StandardClient::setupSync_mainthread(const string& rootPath,
                                             const bool uploadIgnoreFile,
                                             const string& drivePath)
 {
+    SyncOptions options;
+
+    options.drivePath = drivePath;
+    options.isBackup = isBackup;
+    options.uploadIgnoreFile = uploadIgnoreFile;
+
+    return setupSync_mainthread(rootPath, remoteItem, options);
+}
+
+handle StandardClient::setupSync_mainthread(const string& rootPath,
+                                            const CloudItem& remoteItem,
+                                            const SyncOptions& syncOptions)
+{
     auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
-        client.setupSync_inThread(drivePath,
-                                  rootPath,
-                                  remoteItem,
-                                  isBackup,
-                                  uploadIgnoreFile,
-                                  std::move(result));
+        client.setupSync_inThread(rootPath, remoteItem, syncOptions, std::move(result));
     });
 
-    auto status = result.wait_for(std::chrono::seconds(45));
+    auto status = result.wait_for(chrono::seconds(45));
+
     EXPECT_NE(status, future_status::timeout);
 
     if (status == future_status::timeout)
@@ -2418,11 +2427,9 @@ handle StandardClient::setupSync_mainthread(const string& rootPath,
     return result.get();
 }
 
-void StandardClient::setupSync_inThread(const string& drivePath,
-                                        const string& rootPath,
+void StandardClient::setupSync_inThread(const string& rootPath,
                                         const CloudItem& remoteItem,
-                                        const bool isBackup,
-                                        const bool uploadIgnoreFile,
+                                        const SyncOptions& syncOptions,
                                         PromiseHandleSP result)
 {
     // Helpful sentinel.
@@ -2460,10 +2467,10 @@ void StandardClient::setupSync_inThread(const string& drivePath,
     fs::path drivePath_;
 
     // Populate drive root if necessary.
-    if (drivePath != internalDrive)
+    if (syncOptions.drivePath != internalDrive)
     {
         // Path should be valid as syncs must be contained by their drive.
-        drivePath_ = fsBasePath / fs::u8path(drivePath);
+        drivePath_ = fsBasePath / fs::u8path(syncOptions.drivePath);
 
         // Read drive ID if present...
         auto fsAccess = client.fsaccess.get();
@@ -2481,7 +2488,16 @@ void StandardClient::setupSync_inThread(const string& drivePath,
         EXPECT_EQ(result_, API_OK);
     }
 
+    fs::path excludePath_;
+
+    // Translate exclude path if necessary.
+    if (!syncOptions.excludePath.empty())
+    {
+        excludePath_ = fsBasePath / fs::u8path(syncOptions.excludePath);
+    }
+
     // For purposes of capturing.
+    auto isBackup = syncOptions.isBackup;
     auto remoteHandle = remoteNode->nodeHandle();
     auto remoteIsShare = isShare(remoteNode);
     auto remotePath = string(remoteNode->displaypath());
@@ -2550,12 +2566,16 @@ void StandardClient::setupSync_inThread(const string& drivePath,
                       << config.mExternalDrivePath.toPath();
         }
 
-        client.addsync(config, true, std::move(completion), rootPath + " ");
+        client.addsync(config,
+                       true,
+                       std::move(completion),
+                       rootPath + " ",
+                       excludePath_.u8string());
     };
 
     // Do we need to upload an ignore file?
 //#if 0
-    if (uploadIgnoreFile)
+    if (syncOptions.uploadIgnoreFile)
     {
         auto ignorePath = fsBasePath / ".megaignore";
 
@@ -11580,7 +11600,8 @@ public:
     bool confirm(Client& client,
                  const handle id,
                  LocalFSModel& model,
-                 const bool ignoreDebris = true)
+                 const bool ignoreDebris = true,
+                 const bool ignoreIgnoreFile = false)
     {
         return client.confirmModel_mainthread(
                  model.root.get(),
@@ -11588,13 +11609,14 @@ public:
                  ignoreDebris,
                  StandardClient::CONFIRM_LOCALFS,
                  false,
-                 false);
+                 ignoreIgnoreFile);
     }
 
     bool confirm(Client& client,
                  const handle id,
                  LocalNodeModel& model,
-                 const bool ignoreDebris = true)
+                 const bool ignoreDebris = true,
+                 const bool ignoreIgnoreFile = false)
     {
         return client.confirmModel_mainthread(
                  model.root.get(),
@@ -11602,13 +11624,14 @@ public:
                  ignoreDebris,
                  StandardClient::CONFIRM_LOCALNODE,
                  false,
-                 false);
+                 ignoreIgnoreFile);
     }
 
     bool confirm(Client& client,
                  const handle id,
                  Model& model,
-                 const bool ignoreDebris = true)
+                 const bool ignoreDebris = true,
+                 const bool ignoreIgnoreFile = false)
     {
         return client.confirmModel_mainthread(
                  model.root.get(),
@@ -11616,13 +11639,14 @@ public:
                  ignoreDebris,
                  StandardClient::CONFIRM_ALL,
                  false,
-                 false);
+                 ignoreIgnoreFile);
     }
 
     bool confirm(Client& client,
                  const handle id,
                  RemoteNodeModel& model,
-                 const bool ignoreDebris = true)
+                 const bool ignoreDebris = true,
+                 const bool ignoreIgnoreFile = false)
     {
         return client.confirmModel_mainthread(
                  model.root.get(),
@@ -11630,7 +11654,7 @@ public:
                  ignoreDebris,
                  StandardClient::CONFIRM_REMOTE,
                  false,
-                 false);
+                 ignoreIgnoreFile);
     }
 
     string debrisFilePath(const string& debrisName,
@@ -11781,6 +11805,58 @@ TEST_F(FilterFixture, CaseSensitiveFilter)
     // Confirm models.
     ASSERT_TRUE(confirm(*cu, id, localFS));
     ASSERT_TRUE(confirm(*cu, id, remoteTree));
+}
+
+TEST_F(FilterFixture, ExclusionSpecifiedWhenSyncAdded)
+{
+    // Get our hands on a clean client.
+    auto c = g_clientManager->getCleanStandardClient(0, filterFixureTestRoot);
+
+    // Make sure the test directory in the cloud is clear.
+    ASSERT_TRUE(c->resetBaseFolderMulticlient());
+
+    // Make sure the sync root exists in the cloud.
+    ASSERT_TRUE(c->makeCloudSubdirs("s", 0, 0));
+
+    // Make sure we've received action packets before proceeding.
+    ASSERT_TRUE(CatchupClients(c));
+
+    // Convenience.
+    auto rootPath = c->fsBasePath / "s";
+
+    // Populate the local filesystem.
+    LocalFSModel localFS;
+
+    localFS.addfolder("q");
+    localFS.addfolder("r");
+    localFS.generate(rootPath);
+
+    // Setup the sync.
+    auto id = UNDEF;
+
+    {
+        SyncOptions options;
+
+        // s/q should be excluded by default.
+        options.excludePath = "s/q";
+
+        // Add and start the sync.
+        id = c->setupSync_mainthread("s", "s", options);
+        ASSERT_NE(id, UNDEF);
+    }
+
+    // Wait for the initial sync to complete.
+    waitOnSyncs(c);
+
+    // Make sure nothing's changed on disk.
+    ASSERT_TRUE(confirm(*c, id, localFS, true, true));
+
+    // Make sure s/q wasn't uploaded to the cloud.
+    RemoteNodeModel remoteTree;
+
+    remoteTree.addfolder("r");
+
+    ASSERT_TRUE(confirm(*c, id, remoteTree, true, true));
 }
 
 TEST_F(FilterFixture, FilterChangeWhileDownloading)

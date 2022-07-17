@@ -13819,9 +13819,7 @@ class MegaApi
          * @param driveRootIfExternal Only relevant for backups, and only if the backup is on an external disk. Otherwise use NULL.
          * @param listener MegaRequestListener to track this request
          */
-        void syncFolder(MegaSync::SyncType syncType, const char *localSyncRootFolder, const char *name, MegaHandle remoteSyncRootFolder,
-            const char* driveRootIfExternal,
-            MegaRequestListener *listener);
+        void syncFolder(MegaSync::SyncType syncType, const char *localSyncRootFolder, const char *name, MegaHandle remoteSyncRootFolder, const char* driveRootIfExternal, MegaRequestListener *listener, const char* excludePath = nullptr);
 
         /**
          * @brief Copy sync data to SDK cache.
