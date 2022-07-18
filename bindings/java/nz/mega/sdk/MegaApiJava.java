@@ -6247,6 +6247,34 @@ public class MegaApiJava {
     }
 
     /**
+     * Send events to the stats server
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_SEND_EVENT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the event type
+     * - MegaRequest::getText - Returns the event message
+     *
+     * @param eventType Event type
+     * @param message Event message
+     *
+     * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
+     * is sent to MEGA servers.
+     * </p>
+     * Event types are restricted to the following ranges:
+     *  - MEGAcmd:   [98900, 99000)
+     *  - MEGAchat:  [99000, 99150)
+     *  - Android:   [99200, 99300)
+     *  - iOS:       [99300, 99400)
+     *  - MEGA SDK:  [99400, 99500)
+     *  - MEGAsync:  [99500, 99600)
+     *  - Webclient: [99600, 99800]
+     */
+    @Deprecated
+    public void sendEvent(int eventType, String message) {
+        megaApi.sendEvent(eventType, message);
+    }
+
+    /**
      * Create a new ticket for support with attached description
      * <p>
      * The associated request type with this request is MegaRequest::TYPE_SUPPORT_TICKET
@@ -9668,6 +9696,55 @@ public class MegaApiJava {
      */
     public ArrayList<MegaRecentActionBucket> getRecentActions() {
         return recentActionsToArray(megaApi.getRecentActions());
+    }
+
+    /**
+     * Get a list of buckets, each bucket containing a list of recently added/modified nodes
+     *
+     * Each bucket contains files that were added/modified in a set, by a single user.
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
+     * - MegaRequest::getParamType - Returns the maximun number of nodes
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getRecentsBucket - Returns buckets with a list of recently added/modified nodes
+     *
+     * The recommended values for the following parameters are to consider
+     * interactions during the last 30 days and maximum 500 nodes.
+     *
+     * @param days Age of actions since added/modified nodes will be considered (in days)
+     * @param maxnodes Maximum amount of nodes to be considered
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getRecentActionsAsync(long days, long maxnodes, MegaRequestListenerInterface listener) {
+        megaApi.getRecentActionsAsync(days, maxnodes, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get a list of buckets, each bucket containing a list of recently added/modified nodes
+     *
+     * Each bucket contains files that were added/modified in a set, by a single user.
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
+     * - MegaRequest::getParamType - Returns the maximun number of nodes
+     *
+     * The recommended values for the following parameters are to consider
+     * interactions during the last 30 days and maximum 500 nodes.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getRecentsBucket - Returns buckets with a list of recently added/modified nodes
+     *
+     * @param days Age of actions since added/modified nodes will be considered (in days)
+     * @param maxnodes Maximum amount of nodes to be considered
+     */
+    public void getRecentActionsAsync(long days, long maxnodes) {
+        megaApi.getRecentActionsAsync(days, maxnodes);
     }
 
     /**

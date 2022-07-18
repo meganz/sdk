@@ -411,6 +411,7 @@ public:
     template<typename ... requestArgs> int doUpdateMegaElementOrder(unsigned apiIndex, MegaHandle* aid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateMegaElementOrder(args..., &rt); rt.waitForResult(); if (aid) *aid = rt.request->getTotalBytes(); return rt.result; }
     template<typename ... requestArgs> int doUpdateMegaElement(unsigned apiIndex, MegaHandle* aid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateMegaElement(args..., &rt); rt.waitForResult(); if (aid) *aid = rt.request->getTotalBytes(); return rt.result; }
     template<typename ... requestArgs> int doRemoveMegaElement(unsigned apiIndex, MegaHandle* aid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeMegaElement(args..., &rt); rt.waitForResult(); if (aid) *aid = rt.request->getTotalBytes(); return rt.result; }
+    template<typename ... requestArgs> int synchronousCancelTransfers(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->cancelTransfers(args..., &rt); return rt.waitForResult(); }
 
     bool createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);

@@ -6015,7 +6015,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
  * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
  * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
- * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
+ * instead of that, use [MEGACancelToken cancel] calling through MEGACancelToken instance associated to this transfer.
  *
  * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
  *
@@ -6038,10 +6038,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param startFirst puts the transfer on top of the upload queue
  *  + If you don't need this param provide false as value
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file upload process.
- * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(MEGACancelToken *)cancelToken;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(nullable MEGACancelToken *)cancelToken;
 
 /**
  * @brief Upload a file or a folder
@@ -6053,7 +6053,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
  * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
  * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
- * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
+ * instead of that, use [MEGACancelToken cancel] calling through MEGACancelToken instance associated to this transfer.
  *
  * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
  *
@@ -6076,11 +6076,11 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param startFirst puts the transfer on top of the upload queue
  *  + If you don't need this param provide false as value
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file upload process.
- * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
  * @param delegate MEGATransferDelegate to track this transfer
  */
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Upload a file or a folder
@@ -6155,7 +6155,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
  * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
  * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
- * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
+ * instead of that, use [MEGACancelToken cancel] calling through MEGACancelToken instance associated to this transfer.
  *
  * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
  *
@@ -6173,10 +6173,10 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param startFirst puts the transfer on top of the download queue
  *  + If you don't need this param provide false as value
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
- * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(MEGACancelToken *)cancelToken;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken;
 
 /**
  * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
@@ -6188,7 +6188,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * In case any other folder is being uploaded/downloaded, and [MEGATransfer stage] for that transfer returns
  * a value between the following stages: MEGATransferStageScan and MEGATransferStageProcessTransferQueue
  * both included, don't use [MEGASDK cancelTransfer] to cancel this transfer (it could generate a deadlock),
- * instead of that, use [MEGACancelToken cancelWithNewValue] calling through MEGACancelToken instance associated to this transfer.
+ * instead of that, use [MEGACancelToken cancel] calling through MEGACancelToken instance associated to this transfer.
  *
  * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
  *
@@ -6206,11 +6206,11 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param startFirst puts the transfer on top of the download queue
  *  + If you don't need this param provide false as value
  * @param cancelToken MEGACancelToken to be able to cancel a folder/file download process.
- * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancelWithNewValue]
+ * This param is required to be able to cancel the transfer safely by calling [MEGACancelToken cancel]
  * You preserve the ownership of this param.
  * @param delegate Delegate to track this transfer.
  */
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate;
 
 /**
  * @brief Start an streaming download for a file in MEGA
@@ -7613,6 +7613,53 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @return Array of buckets containing nodes that were added/modifed as a set
  */
 - (NSMutableArray *)recentActionsSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
+
+/// Get a list of buckets, each bucket containing a list of recently added/modified nodes
+///
+/// Each bucket contains files that were added/modified in a set, by a single user.
+///
+/// Valid data in the MEGARequest object received on callbacks:
+///
+/// - [MEGARequest number] - Returns the number of days since nodes will be considerated
+/// 
+/// - [MEGARequest paramType] - Returns the maximun number of nodes
+///
+/// The associated request type with this request is MEGARequestTypeGetRecentActions
+/// Valid data in the MegaRequest object received in onRequestFinish when the error code
+/// is MEGAErrorTypeApiOk:
+///
+/// - [MEGARequest recentActionsBuckets] - Returns an array of buckets recently added/modified nodes
+///
+/// The recommended values for the following parameters are to consider
+/// interactions during the last 30 days and maximum 500 nodes.
+///
+/// @param days Age of actions since added/modified nodes will be considered (in days)
+/// @param maxNodes Maximum amount of nodes to be considered
+/// @param delegate MEGARequestDelegate to track this request
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes delegate:(id<MEGARequestDelegate>)delegate;
+
+/// Get a list of buckets, each bucket containing a list of recently added/modified nodes
+///
+/// Each bucket contains files that were added/modified in a set, by a single user.
+///
+/// Valid data in the MEGARequest object received on callbacks:
+///
+/// - [MEGARequest number] - Returns the number of days since nodes will be considerated
+///
+/// - [MEGARequest paramType] - Returns the maximun number of nodes
+///
+/// The associated request type with this request is MEGARequestTypeGetRecentActions
+/// Valid data in the MegaRequest object received in onRequestFinish when the error code
+/// is MEGAErrorTypeApiOk:
+/// 
+/// - [MEGARequest recentActionsBuckets] - Returns an array of buckets recently added/modified nodes
+///
+/// The recommended values for the following parameters are to consider
+/// interactions during the last 30 days and maximum 500 nodes.
+///
+/// @param days Age of actions since added/modified nodes will be considered (in days)
+/// @param maxNodes Maximum amount of nodes to be considered
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
 
 /**
  * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
