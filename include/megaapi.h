@@ -3349,13 +3349,14 @@ class MegaRequest
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_FA_UPLOAD_URL                                          = 145,
             TYPE_EXECUTE_ON_THREAD                                          = 146,
-            TYPE_GET_RECENT_ACTIONS                                         = 147,
-            TYPE_PUT_SET                                                    = 148,
-            TYPE_REMOVE_SET                                                 = 149,
-            TYPE_FETCH_SET                                                  = 150,
-            TYPE_PUT_SET_ELEMENT                                            = 151,
-            TYPE_REMOVE_SET_ELEMENT                                         = 152,
-            TOTAL_OF_REQUEST_TYPES                                          = 153,
+            TYPE_DUMMY_UNUSED                                               = 147, // not used; added just to fill a gap in enum values
+            TYPE_GET_RECENT_ACTIONS                                         = 148,
+            TYPE_PUT_SET                                                    = 149,
+            TYPE_REMOVE_SET                                                 = 150,
+            TYPE_FETCH_SET                                                  = 151,
+            TYPE_PUT_SET_ELEMENT                                            = 152,
+            TYPE_REMOVE_SET_ELEMENT                                         = 153,
+            TOTAL_OF_REQUEST_TYPES                                          = 154,
         };
 
         virtual ~MegaRequest();
