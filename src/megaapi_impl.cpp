@@ -25050,7 +25050,6 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *api, MegaTra
     transfer = t;
     listener = t->getListener();
     recursive = 0;
-    pendingTransfers = 0;
     tag = transfer->getTag();
     mMainThreadId = std::this_thread::get_id();
 
@@ -25167,6 +25166,17 @@ void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
     assert(mMainThreadId == std::this_thread::get_id());
     assert(transfer);
 
+    ++transfersStartedCount;
+    if (transfersStartedCount == transfersTotalCount &&
+        !transfer->accessCancelToken().isCancelled() &&
+        !startedTransferring)
+    {
+        // Apps expect this one called when all sub-transfers have
+        // been queued in SDK core already
+        notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
+        startedTransferring = true;
+    }
+
     if (transfer)
     {
         transfer->setState(t->getState());
@@ -25196,7 +25206,7 @@ void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
     assert(mMainThreadId == std::this_thread::get_id());
-    pendingTransfers--;
+    ++transfersFinishedCount;
     assert(transfer);
     if (transfer)
     {
@@ -25212,7 +25222,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     {
         mIncompleteTransfers++;
     }
-    if (!pendingTransfers)
+    if (allSubtransfersResolved())
     {
         complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
     }
@@ -25392,13 +25402,8 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
             // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
             // if the cancel token is activated during sendPendingTransfers, it's possible this object is now deleted
             // so no more can be done here or we'll be using danging pointers etc
-            pendingTransfers = transferQueue.size();
+            transfersTotalCount = transferQueue.size();
             megaApi->sendPendingTransfers(&transferQueue);
-
-            if (!isCancelledByFolderTransferToken())
-            {
-                notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
-            }
         }
 
         return batchResult_batchesComplete;
@@ -26576,7 +26581,6 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *api, Meg
     transfer = t;
     listener = t->getListener();
     recursive = 0;
-    pendingTransfers = 0;
     tag = t->getTag();
     mMainThreadId = std::this_thread::get_id();
 }
@@ -26686,13 +26690,9 @@ void MegaFolderDownloadController::start(MegaNode *node)
                         // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
                         // if the cancel token is activated during sendPendingTransfers, it's possible this object is now deleted
                         // so no more can be done here or we'll be using danging pointers etc
-                        pendingTransfers = transferQueue.size();
+                        transfersTotalCount = transferQueue.size();
                         megaApi->sendPendingTransfers(&transferQueue);
 
-                        if (!isCancelledByFolderTransferToken())
-                        {
-                            notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
-                        }
                         // complete() will finally be called when the last sub-transfer finishes
                     }
                 }
@@ -26854,6 +26854,17 @@ void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
     assert(mMainThreadId == std::this_thread::get_id());
     assert(transfer);
 
+    ++transfersStartedCount;
+    if (transfersStartedCount == transfersTotalCount &&
+        !transfer->accessCancelToken().isCancelled() &&
+        !startedTransferring)
+    {
+        // Apps expect this one called when all sub-transfers have
+        // been queued in SDK core already
+        notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
+        startedTransferring = true;
+    }
+
     if (transfer)
     {
         transfer->setState(t->getState());
@@ -26881,7 +26892,7 @@ void MegaFolderDownloadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 
 void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
-    pendingTransfers--;
+    ++transfersFinishedCount;
     assert(transfer);
     if (transfer)
     {
@@ -26897,7 +26908,7 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
     {
         mIncompleteTransfers++;
     }
-    if (!pendingTransfers)
+    if (allSubtransfersResolved())
     {
         // Cancelled or not, there is always a onFinish callback.
         // If subtransfers were started, completion is always by the last subtransfer completing
