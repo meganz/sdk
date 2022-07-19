@@ -18041,8 +18041,6 @@ bool Set::serialize(string* d)
         r.serializestring(aa.second);
     }
 
-    r.serializeexpansionflags();
-
     size_t elemCount = mElements.size();
     r.serializeu32((uint32_t)elemCount);
 
@@ -18050,6 +18048,8 @@ bool Set::serialize(string* d)
     {
         e.second.serialize(d);
     }
+
+    r.serializeexpansionflags();
 
     return true;
 }
