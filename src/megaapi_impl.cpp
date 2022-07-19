@@ -15322,7 +15322,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                     string key{h};
                     string buffer;
 
-                    if (!tlv || !tlv->get(h, buffer) || buffer.size() != MegaClient::NODEHANDLE)
+                    if (!tlv || !tlv->get(key, buffer) || buffer.size() != MegaClient::NODEHANDLE)
                     {
                         e = API_ENOENT;
                         break;
