@@ -15329,7 +15329,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                     }
                     else
                     {
-                        request->setName(Base64::atob(buffer).c_str());
+                        request->setName(buffer.c_str());
                     }
                 }
                 break;
