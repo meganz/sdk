@@ -283,22 +283,37 @@ class Set : public Cacheable
 {
 public:
     Set() = default;
-    Set(handle id, string&& key, handle user, m_time_t ts, string&& name = string()) :
-        mId(id), mKey(move(key)), mUser(user), mTs(ts), mName(move(name)) {}
+    Set(handle id, string&& key, handle user, m_time_t ts, string&& encrAttrs) :
+        mId(id), mKey(move(key)), mUser(user), mTs(ts), mEncryptedAttrs(move(encrAttrs))
+    {
+        //TODO: decrypt attributes. Here or at caller's side?
+    }
+    Set(handle id, string&& key, handle user, m_time_t ts, map<string,string>&& attrs) :
+        mId(id), mKey(move(key)), mUser(user), mTs(ts), mAttrs(move(attrs)) {}
 
     const handle& id() const { return mId; }
     const string& key() const { return mKey; }
     const handle& user() const { return mUser; }
     const m_time_t& ts() const { return mTs; }
-    const string& name() const { return mName; }
+    const string& name() const { return getAttribute("name"); }
+    const string& getAttribute(const string& id) const
+    {
+        static const string value;
+        auto it = mAttrs.find(id);
+        assert(it != mAttrs.end());
+        return it != mAttrs.end() ? it->second : value;
+    }
     const map<handle, SetElement>& elements() const { return mElements; }
 
     void setId(handle id) { mId = id; }
     void setKey(string&& key) { mKey = move(key); }
     void setUser(handle uh) { mUser = uh; }
     void setTs(m_time_t ts) { mTs = ts; }
-    void setName(string&& name) { mName = move(name); }
-    void setUnusedAttrs(const map<string, string>& uattrs) { mUnusedAttrs = uattrs; }
+    void setName(string&& name) { setAttribute("name", name); }
+    void setAttribute(const string& id, const string& value)
+    {
+        mAttrs[id] = value;
+    }
 
     void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs = move(eattrs); }
     void setEncryptedAttrs(const string& eattrs) { mEncryptedAttrs = eattrs; }
@@ -325,13 +340,12 @@ private:
     string mKey;                        // new AES-128 key per set
     handle mUser = UNDEF;
     m_time_t mTs = 0;
-    string mName;                       // extracted from "at"
     map<handle, SetElement> mElements;
 
     bool markedForDbRemoval = false;
 
     string mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
-    map<string, string> mUnusedAttrs;   // leftovers from "at"
+    map<string, string> mAttrs;
 
     enum
     {
@@ -2087,7 +2101,7 @@ private:
 
 public:
     // generate "asp" command
-    void putSet(handle id, string&& name, std::function<void(Error, handle)> completion);
+    void putSet(handle id, const char *name, std::function<void(Error, handle)> completion);
 
     // generate "asr" command
     void removeSet(handle id, std::function<void(Error)> completion);

@@ -17035,7 +17035,7 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
 // Sets and Elements
 //
 
-void MegaClient::putSet(handle id, string&& name, std::function<void(Error, handle)> completion)
+void MegaClient::putSet(handle id, const char* name, std::function<void(Error, handle)> completion)
 {
     // Set key
     byte setKey[SymmCipher::KEYLENGTH];
@@ -17059,17 +17059,15 @@ void MegaClient::putSet(handle id, string&& name, std::function<void(Error, hand
     }
 
     // store attrs to TLV and encrypt with Set key
-    string encrAttrs;
-    if (!name.empty())
+    map<string, string> attrs;
+    if (name) attrs["name"] = name;
+
+    string encrAttrs = encryptAttrs(move(attrs), string((char*)setKey, sizeof(setKey)));
+    if (encrAttrs.empty())
     {
-        map<string, string> attrs { {"name", name} };
-        encrAttrs = encryptAttrs(move(attrs), string((char*)setKey, sizeof(setKey)));
-        if (encrAttrs.empty())
-        {
-            if (completion)
-                completion(API_EINTERNAL, id);
-            return;
-        }
+        if (completion)
+            completion(API_EINTERNAL, id);
+        return;
     }
 
     // encrypt Set key with master key (for new Set only)
@@ -17081,7 +17079,7 @@ void MegaClient::putSet(handle id, string&& name, std::function<void(Error, hand
         encrSetKey.assign((char*)setKey, sizeof(setKey));
     }
 
-    reqs.add(new CommandPutSet(this, id, move(decrSetKey), move(encrSetKey), move(name), move(encrAttrs), completion));
+    reqs.add(new CommandPutSet(this, id, move(decrSetKey), move(encrSetKey), move(encrAttrs), completion));
 }
 
 void MegaClient::removeSet(handle id, std::function<void(Error)> completion)
@@ -17380,6 +17378,7 @@ bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, map<st
 {
     if (attrs.empty())
     {
+        LOG_warn << "Sets: attempt to decrypt empty attributes -> attributes cleared";
         output.clear();
         return true;
     }
@@ -17676,6 +17675,9 @@ void MegaClient::sc_asp()
         if (!s.encryptedAttrs().empty())
         {
             existing.setEncryptedAttrs(move(s.encryptedAttrs()));
+            // TODO: cannot replace existing attributes by new attributes directly
+            // Instead, previous attrs need to be compared with new ones, in order to
+            // set the changed ones. Ie. if name has changed, set the corresponding flag
             auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
             if (!existing.decryptAttributes(decryptFunc))
             {
@@ -17913,13 +17915,9 @@ Set* MegaClient::unserializeSet(string* d)
         attrs[move(ak)] = move(av);
     }
 
-    string name = move(attrs["name"]);
-    attrs.erase("name");
-
     r.unserializeexpansionflags(expansionsS, 0);
 
-    Set s((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(name));
-    s.setUnusedAttrs(attrs);
+    Set s((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(attrs));
 
     uint32_t elCount = 0;
     r.unserializeu32(elCount);
@@ -17951,7 +17949,7 @@ Set* MegaClient::unserializeSet(string* d)
             attrs[move(ak)] = move(av);
         }
 
-        name = move(attrs["name"]);
+        string name = move(attrs["name"]);
         attrs.erase("name");
 
         r.unserializeexpansionflags(expansionsE, 0);
@@ -18030,12 +18028,8 @@ bool Set::serialize(string* d)
     r.serializebinary((byte*)&mTs, sizeof(mTs));
     r.serializestring(mKey);
 
-    auto allAttrs = mUnusedAttrs;
-    allAttrs["name"] = mName;
-    size_t aAttrsCount = allAttrs.size();
-    r.serializeu32((uint32_t)aAttrsCount);
-
-    for (auto& aa : allAttrs)
+    r.serializeu32((uint32_t)mAttrs.size());
+    for (auto& aa : mAttrs)
     {
         r.serializestring(aa.first);
         r.serializestring(aa.second);
@@ -18056,11 +18050,9 @@ bool Set::serialize(string* d)
 
 bool Set::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
 {
-    if (f(mEncryptedAttrs, mKey, mUnusedAttrs))
+    if (f(mEncryptedAttrs, mKey, mAttrs))
     {
         mEncryptedAttrs.clear();
-        mName = mUnusedAttrs["name"];
-        mUnusedAttrs.erase("name");
         return true;
     }
 
