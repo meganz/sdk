@@ -775,7 +775,7 @@ public:
 
     // return false if failed
     bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
-    void addOrUpdateChatOptions(int speakRequest = -1, int waitingRoom = -1, int openInvite = -1);
+    bool addOrUpdateChatOptions(int speakRequest = -1, int waitingRoom = -1, int openInvite = -1);
     bool setFlag(bool value, uint8_t offset = 0xFF);
     bool setFlags(byte newFlags);
     bool isFlagSet(uint8_t offset) const;
@@ -1045,6 +1045,9 @@ public:
         kOpenInvite    = 0x04,
     };
 
+    // update with new options added, to get the max value allowed, with regard to the existing options
+    static constexpr ChatOptions_t maxValidValue = kSpeakRequest | kWaitingRoom | kOpenInvite;
+
     ChatOptions(): mChatOptions(ChatOptions::kEmpty){}
     ChatOptions(ChatOptions_t options): mChatOptions(options){}
     ChatOptions(bool speakRequest, bool waitingRoom , bool openInvite)
@@ -1068,7 +1071,7 @@ public:
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return mChatOptions >= kEmpty && mChatOptions <= 255; }
+    bool isValid()                          { return mChatOptions >= kEmpty && mChatOptions <= maxValidValue; }
     bool isEmpty()                          { return mChatOptions == kEmpty; }
 
 protected:

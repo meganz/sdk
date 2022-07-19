@@ -1205,14 +1205,22 @@ bool TextChat::setMode(bool publicchat)
     return true;
 }
 
-void TextChat::addOrUpdateChatOptions(int speakRequest, int waitingRoom, int openInvite)
+bool TextChat::addOrUpdateChatOptions(int speakRequest, int waitingRoom, int openInvite)
 {
     ChatOptions currentOptions(static_cast<uint8_t>(chatOptions));
     if (speakRequest != -1) { currentOptions.updateSpeakRequest(speakRequest); }
     if (waitingRoom != -1)  { currentOptions.updateWaitingRoom(waitingRoom); }
     if (openInvite != -1)   { currentOptions.updateOpenInvite(openInvite); }
+
+    if (!currentOptions.isValid())
+    {
+        LOG_warn << "addOrUpdateChatOptions: options value (" << currentOptions.value() <<") is out of range";
+        assert(false);
+        return false;
+    }
     changed.options = true;
     chatOptions = currentOptions.value();
+    return true;
 }
 
 bool TextChat::setFlag(bool value, uint8_t offset)
