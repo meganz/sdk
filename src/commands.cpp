@@ -6731,13 +6731,12 @@ bool CommandChatCreate::procresult(Result r)
                         chat->publicchat = mPublicChat;
                         chat->meeting = mMeeting;
 
-                        // init chat options to default value [-1 (not updated) | 0 (remove) | 1 (add)]
+                        // init chat options to default value
                         bool speakRequest = false;
                         bool waitingRoom = false;
                         bool openInvite = false;
                         client->extractChatOptionsFromList(&mChatOptions, speakRequest, waitingRoom, openInvite);
                         chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
-                        assert(chat->chatOptions <= 7); //JCHECK => don't push this assert just for development purposes
 
                         chat->setTag(tag ? tag : -1);
                         if (chat->group && !mTitle.empty())

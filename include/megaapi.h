@@ -17796,7 +17796,6 @@ class MegaApi
          * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getNumber - Returns if chat room is a meeting room
-         * - MegaRequest::getNumDetails - Returns the chatOptions in a numeric format
          * - MegaRequest::getMegaStringList - Returns a MegaStringList with the chat options that will be enabled in creation
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
@@ -17829,9 +17828,6 @@ class MegaApi
          * - MegaRequest::getAccess - Returns the chatOptions in a numeric format
          * - MegaRequest::getFlag -  Returns true if we want to enable options, otherwise returns false
          * - MegaRequest::getMegaStringMap - Returns the chat options that we want to enable/disable with the format: [<key><value>]
-         *      + To check if speakRequest param was set true, MegaStringMap::get("speakRequest") will return true
-         *      + To check if waitingRoom param was set true, MegaStringMap::get("waitingRoom") will return true
-         *      + To check if openInvite param was set true, MegaStringMap::get("openInvite") will return true
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS  - If the chatid is invalid
