@@ -8223,13 +8223,40 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
             if (prevRoot->nodeHandle() != rubbishHandle &&
                 newRoot->nodeHandle() == rubbishHandle)
             {
-                // deleted node
-                char base64Handle[12];
-                Base64::btoa((byte*)&prevParent->nodehandle, MegaClient::NODEHANDLE, base64Handle);
-                if (strcmp(base64Handle, n->attrs.map[rrname].c_str()))
+                bool shouldSetRestoreHandle = true;
+
+                // avoid to set "rr" for nodes moved from Backups to SyncDebris, since they cannot be restored
+                if (syncs.backupRestrictionsEnabled() && prevRoot->nodeHandle() == rootnodes.vault)
                 {
-                    LOG_debug << "Adding rr attribute";
-                    attrUpdates[rrname] = base64Handle;
+                    const string* buf = ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
+                    if (buf)
+                    {
+                        handle h = 0;
+                        memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
+                        Node *n = p;
+                        while (n->parent)
+                        {
+                            if (n->nodehandle == h)
+                            {
+                                shouldSetRestoreHandle = false;
+                                LOG_debug << "Skip adding rr attribute for node from backups";
+                                break;
+                            }
+                            n = n->parent;
+                        }
+                    }
+                }
+
+                if (shouldSetRestoreHandle)
+                {
+                    // deleted node
+                    char base64Handle[12];
+                    Base64::btoa((byte*)&prevParent->nodehandle, MegaClient::NODEHANDLE, base64Handle);
+                    if (strcmp(base64Handle, n->attrs.map[rrname].c_str()))
+                    {
+                        LOG_debug << "Adding rr attribute";
+                        attrUpdates[rrname] = base64Handle;
+                    }
                 }
             }
             else if (prevRoot->nodeHandle() == rubbishHandle
