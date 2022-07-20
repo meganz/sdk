@@ -18201,7 +18201,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     break;
                 }
 
-                if (!transfer->fingerprint_onDisk.isvalid)
+                if (transfer->fingerprint_filetype == FILENODE && !transfer->fingerprint_onDisk.isvalid)
                 {
                     LOG_debug << "Upload had already failed to be fingerprinted before queueing";
                     e = API_EREAD;
