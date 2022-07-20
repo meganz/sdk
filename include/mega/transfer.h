@@ -118,6 +118,10 @@ struct MEGA_API Transfer : public FileFingerprint
     // remove file from transfer including in cache
     void removeTransferFile(error, File* f, DBTableTransactionCommitter* committer);
 
+    void removeCancelledTransferFiles(DBTableTransactionCommitter* committer);
+
+    void removeAndDeleteSelf(transferstate_t finalState);
+
     // previous wrong fingerprint
     FileFingerprint badfp;
 
@@ -203,7 +207,8 @@ public:
     transfer_list::iterator end(direction_t direction);
     bool getIterator(Transfer *transfer, transfer_list::iterator&, bool canHandleErasedElements = false);
     std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction,
-	                                               std::function<bool(direction_t)>& directionContinuefunction);
+	                                               std::function<bool(direction_t)>& directionContinuefunction,
+                                                   DBTableTransactionCommitter& committer);
     Transfer *transferat(direction_t direction, unsigned int position);
 
     std::array<transfer_list, 2> transfers;

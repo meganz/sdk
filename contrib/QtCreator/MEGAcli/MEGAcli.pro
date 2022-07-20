@@ -37,3 +37,11 @@ else {
 SOURCES += ../../../examples/megacli.cpp
 HEADERS += ../../../examples/megacli.h
 include(../../../bindings/qt/sdk.pri)
+
+
+macx{
+    vcpkg:CONFIG(USE_PDFIUM){
+        LIBS += -framework CoreGraphics
+    }
+    LIBS += -framework Cocoa
+}

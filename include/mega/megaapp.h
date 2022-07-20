@@ -44,9 +44,6 @@ struct MEGA_API MegaApp
     // login result
     virtual void login_result(error) { }
 
-    // logout result
-    virtual void logout_result(error) { }
-
     virtual void loggedInStateChanged(sessiontype_t, handle me) { }
 
     // user data result
@@ -267,7 +264,6 @@ struct MEGA_API MegaApp
     virtual void file_removed(File*, const Error&) { }
     virtual void file_complete(File*) { }
     virtual File* file_resume(string*, direction_t*) { return NULL; }
-    virtual bool file_isCancelled(File*) { return false; }
 
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
