@@ -17678,9 +17678,6 @@ void MegaClient::sc_asp()
         if (!s.encryptedAttrs().empty())
         {
             existing.setEncryptedAttrs(s.encryptedAttrs());
-            // TODO: cannot replace existing attributes by new attributes directly
-            // Instead, previous attrs need to be compared with new ones, in order to
-            // set the changed ones. Ie. if name has changed, set the corresponding flag
             auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
             if (!existing.decryptAttributes(decryptFunc))
             {
@@ -18051,9 +18048,48 @@ bool Set::serialize(string* d)
 
 bool Set::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
 {
-    if (f(mEncryptedAttrs, mKey, mAttrs))
+    map<string, string> newAttrs;
+
+    if (f(mEncryptedAttrs, mKey, newAttrs))
     {
+        vector<string> updates;
+
+        // compare attrs to see what changed
+        for (auto& a : newAttrs)
+        {
+            auto oldAttrIt = mAttrs.find(a.first);
+
+            if (oldAttrIt == mAttrs.end())
+            {
+                if (!a.second.empty())
+                {
+                    mAttrs[a.first] = move(a.second);
+                    updates.push_back(a.first);
+                }
+            }
+            else
+            {
+                if (a.second.empty())
+                {
+                    mAttrs.erase(oldAttrIt);
+                    updates.push_back(a.first);
+                }
+                else if (oldAttrIt->second != a.second)
+                {
+                    oldAttrIt->second = move(a.second);
+                    updates.push_back(a.first);
+                }
+            }
+        }
+
         mEncryptedAttrs.clear();
+
+        // mark changes
+        if (find(updates.begin(), updates.end(), "name") != updates.end())
+        {
+            setChangeName();
+        }
+
         return true;
     }
 
