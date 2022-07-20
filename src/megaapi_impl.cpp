@@ -25491,7 +25491,11 @@ void MegaRecursiveOperation::complete(Error e, bool cancelledByUser)
     // for both those cases, the thread must have completed already.
     assert(!mWorkerThread.joinable());
 
-    LOG_debug << "MegaRecursiveOperation finished - bytes: " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+    std::string logMsg = "MegaRecursiveOperation";
+    if (cancelledByUser) { logMsg.append(" (has been cancelled by user)"); }
+    e ? logMsg.append(" finished with error [").append(std::to_string(e).c_str()).append("]") : logMsg.append(" finished successfully");
+    LOG_debug << logMsg << " - bytes: " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+
     transfer->setState(cancelledByUser ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_COMPLETED);
     DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
     megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
