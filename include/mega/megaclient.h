@@ -234,22 +234,21 @@ public:
 
     const handle& id() const                { return mId; }
     const handle& node() const              { return mNodeHandle; }
-    const string& name() const              { return mName; }
+    const string& name() const              { return getAttribute("name"); }
     const int64_t& order() const            { return mOrder; }
     const m_time_t& ts() const              { return mTs; }
     const string& key() const               { return mKey; }
-    const map<string, string>& unusedAttrs() const { return mUnusedAttrs; }
-    map<string, string> allAttributes() const;
+    const map<string, string>& attrs() const { return mAttrs; }
 
     void setId(handle id)                   { mId = id; }
     void setNode(handle nh)                 { mNodeHandle = nh; }
-    void setName(string&& name)             { mName = move(name); mOpts[SE_NAME] = 1; }
-    void setName(const string& name)        { mName = name; mOpts[SE_NAME] = 1; }
+    void setName(string&& name)             { mAttrs["name"] = move(name); mOpts[SE_NAME] = 1; }
+    void setName(const string& name)        { mAttrs["name"] = name; mOpts[SE_NAME] = 1; }
     void setOrder(int64_t order)            { mOrder = order; mOpts[SE_ORDER] = 1; }
     void setTs(m_time_t ts)                 { mTs = ts; }
     void setKey(string&& key)               { mKey = move(key); }
     void setKey(const string& key)          { mKey = key; }
-    void setUnusedAttrs(const map<string, string>& uattrs) { mUnusedAttrs = uattrs; }
+    void setAttrs(const map<string, string>& attrs) { mAttrs = attrs; }
 
     bool hasAttrs() const                   { return mOpts[SE_NAME]; }
     bool hasOrder() const                   { return mOpts[SE_ORDER]; }
@@ -262,10 +261,17 @@ public:
 private:
     handle mId = UNDEF;
     handle mNodeHandle = UNDEF;
-    string mName;
     int64_t mOrder = 0;
     m_time_t mTs = 0;
     string mKey;
+
+    const string& getAttribute(const string& id) const
+    {
+        static const string value;
+        auto it = mAttrs.find(id);
+        assert(it != mAttrs.end());
+        return it != mAttrs.end() ? it->second : value;
+    }
 
     enum
     {
@@ -276,7 +282,7 @@ private:
     std::bitset<SE_SIZE> mOpts;
 
     string mEncryptedAttrs;
-    map<string, string> mUnusedAttrs;
+    map<string, string> mAttrs;
 };
 
 class Set : public Cacheable
@@ -2144,7 +2150,7 @@ private:
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;
     bool decryptAttrs(const string& attrs, const string& decrKey, map<string, string>& output);
-    string encryptAttrs(map<string, string>&& attrs, const string& encryptionKey);
+    string encryptAttrs(const map<string, string>& attrs, const string& encryptionKey);
 
     void sc_asp(); // AP after new or updated Set
     void sc_asr(); // AP after removed Set

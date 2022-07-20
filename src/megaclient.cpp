@@ -17063,7 +17063,7 @@ void MegaClient::putSet(handle id, const char* name, std::function<void(Error, h
     map<string, string> attrs;
     if (name) attrs["name"] = name;
 
-    string encrAttrs = encryptAttrs(map<string, string>(attrs), string((char*)setKey, sizeof(setKey)));
+    string encrAttrs = encryptAttrs(attrs, string((char*)setKey, sizeof(setKey)));
     if (encrAttrs.empty())
     {
         if (completion)
@@ -17170,7 +17170,7 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
     string encrAttrs;
     if (el.hasAttrs())
     {
-        encrAttrs = encryptAttrs(el.allAttributes(), el.key());
+        encrAttrs = encryptAttrs(el.attrs(), el.key());
         if (encrAttrs.empty())
         {
             if (completion)
@@ -17345,7 +17345,7 @@ string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
     return string((char*)decrKey.get(), k.size());
 }
 
-string MegaClient::encryptAttrs(map<string, string>&& attrs, const string& encryptionKey)
+string MegaClient::encryptAttrs(const map<string, string>& attrs, const string& encryptionKey)
 {
     if (attrs.empty())
     {
@@ -17359,9 +17359,9 @@ string MegaClient::encryptAttrs(map<string, string>&& attrs, const string& encry
     }
 
     TLVstore tlvRecords;
-    for (auto& a : attrs)
+    for (const auto& a : attrs)
     {
-        tlvRecords.set(a.first, move(a.second));
+        tlvRecords.set(a.first, a.second);
     }
 
     unique_ptr<string> encrAttrs(tlvRecords.tlvRecordsToContainer(rng, &tmpnodecipher));
@@ -17677,7 +17677,7 @@ void MegaClient::sc_asp()
 
         if (!s.encryptedAttrs().empty())
         {
-            existing.setEncryptedAttrs(move(s.encryptedAttrs()));
+            existing.setEncryptedAttrs(s.encryptedAttrs());
             // TODO: cannot replace existing attributes by new attributes directly
             // Instead, previous attrs need to be compared with new ones, in order to
             // set the changed ones. Ie. if name has changed, set the corresponding flag
@@ -17952,17 +17952,13 @@ Set* MegaClient::unserializeSet(string* d)
             attrs[move(ak)] = move(av);
         }
 
-        string name = move(attrs["name"]);
-        attrs.erase("name");
-
         r.unserializeexpansionflags(expansionsE, 0);
 
         SetElement el((h ? h : UNDEF), (id ? id : UNDEF));
-        el.setName(move(name));
         el.setOrder(o);
         el.setTs(ts);
         el.setKey(move(k));
-        el.setUnusedAttrs(attrs);
+        el.setAttrs(attrs);
 
         s.addOrUpdateElement(move(el));
     }
@@ -17996,9 +17992,11 @@ void Set::addOrUpdateElement(SetElement&& el)
     SetElement& existing = it->second;
     if (el.hasAttrs())
     {
-        existing.setName(el.name());
-        mChanges[CH_EL_NAME] = 1;
-        existing.setUnusedAttrs(el.unusedAttrs());
+        if (el.name() != existing.name())
+        {
+            mChanges[CH_EL_NAME] = 1;
+        }
+        existing.setAttrs(el.attrs());
     }
     if (el.hasOrder())
     {
@@ -18064,22 +18062,13 @@ bool Set::decryptAttributes(std::function<bool(const string&, const string&, map
 
 bool SetElement::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
 {
-    if (hasAttrs() && f(mEncryptedAttrs, mKey, mUnusedAttrs))
+    if (hasAttrs() && f(mEncryptedAttrs, mKey, mAttrs))
     {
         mEncryptedAttrs.clear();
-        mName = mUnusedAttrs["name"];
-        mUnusedAttrs.erase("name");
         return true;
     }
 
     return false;
-}
-
-map<string, string> SetElement::allAttributes() const
-{
-    map<string, string> a = mUnusedAttrs;
-    a["name"] = mName;
-    return a;
 }
 
 bool SetElement::serialize(string* d)
@@ -18092,11 +18081,9 @@ bool SetElement::serialize(string* d)
     r.serializebinary((byte*)&mTs, sizeof(mTs));
     r.serializestring(mKey);
 
-    auto allAttrs = allAttributes();
-    size_t uAttrsCount = allAttrs.size();
-    r.serializeu32((uint32_t)uAttrsCount);
+    r.serializeu32((uint32_t)mAttrs.size());
 
-    for (auto& aa : allAttrs)
+    for (auto& aa : mAttrs)
     {
         r.serializestring(aa.first);
         r.serializestring(aa.second);
