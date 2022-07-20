@@ -283,11 +283,6 @@ class Set : public Cacheable
 {
 public:
     Set() = default;
-    Set(handle id, string&& key, handle user, m_time_t ts, string&& encrAttrs) :
-        mId(id), mKey(move(key)), mUser(user), mTs(ts), mEncryptedAttrs(move(encrAttrs))
-    {
-        //TODO: decrypt attributes. Here or at caller's side?
-    }
     Set(handle id, string&& key, handle user, m_time_t ts, map<string,string>&& attrs) :
         mId(id), mKey(move(key)), mUser(user), mTs(ts), mAttrs(move(attrs)) {}
 
@@ -296,13 +291,6 @@ public:
     const handle& user() const { return mUser; }
     const m_time_t& ts() const { return mTs; }
     const string& name() const { return getAttribute("name"); }
-    const string& getAttribute(const string& id) const
-    {
-        static const string value;
-        auto it = mAttrs.find(id);
-        assert(it != mAttrs.end());
-        return it != mAttrs.end() ? it->second : value;
-    }
     const map<handle, SetElement>& elements() const { return mElements; }
 
     void setId(handle id) { mId = id; }
@@ -310,10 +298,6 @@ public:
     void setUser(handle uh) { mUser = uh; }
     void setTs(m_time_t ts) { mTs = ts; }
     void setName(string&& name) { setAttribute("name", name); }
-    void setAttribute(const string& id, const string& value)
-    {
-        mAttrs[id] = value;
-    }
 
     void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs = move(eattrs); }
     void setEncryptedAttrs(const string& eattrs) { mEncryptedAttrs = eattrs; }
@@ -346,6 +330,18 @@ private:
 
     string mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
     map<string, string> mAttrs;
+
+    const string& getAttribute(const string& id) const
+    {
+        static const string value;
+        auto it = mAttrs.find(id);
+        assert(it != mAttrs.end());
+        return it != mAttrs.end() ? it->second : value;
+    }
+    void setAttribute(const string& id, const string& value)
+    {
+        mAttrs[id] = value;
+    }
 
     enum
     {

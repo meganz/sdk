@@ -17055,6 +17055,7 @@ void MegaClient::putSet(handle id, const char* name, std::function<void(Error, h
             return;
         }
 
+        assert(sizeof(setKey) == it->second.key().size());
         copy_n(it->second.key().begin(), it->second.key().size(), setKey);
     }
 
@@ -17062,7 +17063,7 @@ void MegaClient::putSet(handle id, const char* name, std::function<void(Error, h
     map<string, string> attrs;
     if (name) attrs["name"] = name;
 
-    string encrAttrs = encryptAttrs(move(attrs), string((char*)setKey, sizeof(setKey)));
+    string encrAttrs = encryptAttrs(map<string, string>(attrs), string((char*)setKey, sizeof(setKey)));
     if (encrAttrs.empty())
     {
         if (completion)
@@ -17079,7 +17080,7 @@ void MegaClient::putSet(handle id, const char* name, std::function<void(Error, h
         encrSetKey.assign((char*)setKey, sizeof(setKey));
     }
 
-    reqs.add(new CommandPutSet(this, id, move(decrSetKey), move(encrSetKey), move(encrAttrs), completion));
+    reqs.add(new CommandPutSet(this, id, move(decrSetKey), move(attrs), move(encrSetKey), move(encrAttrs), completion));
 }
 
 void MegaClient::removeSet(handle id, std::function<void(Error)> completion)
@@ -17360,7 +17361,7 @@ string MegaClient::encryptAttrs(map<string, string>&& attrs, const string& encry
     TLVstore tlvRecords;
     for (auto& a : attrs)
     {
-        tlvRecords.set(move(a.first), move(a.second));
+        tlvRecords.set(a.first, move(a.second));
     }
 
     unique_ptr<string> encrAttrs(tlvRecords.tlvRecordsToContainer(rng, &tmpnodecipher));
@@ -17586,11 +17587,13 @@ void MegaClient::updateSet(handle id, string&& name, m_time_t ts)
     {
         if (it.second.id() == id)
         {
-            it.second.setName(move(name));
             it.second.setTs(ts);
-
-            it.second.setChangeName();
-            notifyset(&it.second);
+            if (it.second.name() != name)
+            {
+                it.second.setName(move(name));
+                it.second.setChangeName();
+                notifyset(&it.second);
+            }
 
             break;
         }

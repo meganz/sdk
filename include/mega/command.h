@@ -1492,14 +1492,14 @@ protected:
 class MEGA_API CommandPutSet : public CommandSE
 {
 public:
-    CommandPutSet(MegaClient*, handle setId, string&& decrKey, string&& encrKey, string&& encrAttrs,
+    CommandPutSet(MegaClient*, handle setId, string&& decrKey, map<string, string>&& attrs, string&& encrKey, string&& encrAttrs,
                   std::function<void(Error, handle)> completion);
     bool procresult(Result) override;
 
 private:
     handle mId = UNDEF;
-    string mDecrKey;   // decrypted Set key
-    string mEncrAttrs; // encrypted attributes
+    string mDecrKey;             // decrypted Set key
+    map<string, string> mAttrs;  // decrypted attributes
     std::function<void(Error, handle)> mCompletion;
 };
 

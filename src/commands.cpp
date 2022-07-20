@@ -8973,9 +8973,9 @@ bool CommandSE::procerrorcode(const Result& r, Error& e) const
     return false;
 }
 
-CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, string&& encrKey, string&& encrAttrs,
-                                 std::function<void(Error, handle)> completion)
-    : mId(setId), mDecrKey(move(decrKey)), mEncrAttrs(move(encrAttrs)), mCompletion(completion)
+CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, map<string, string>&& attrs,
+                             string&& encrKey, string&& encrAttrs, std::function<void(Error, handle)> completion)
+    : mId(setId), mDecrKey(move(decrKey)), mAttrs(move(attrs)), mCompletion(completion)
 {
     cmd("asp");
 
@@ -8988,9 +8988,9 @@ CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, str
         arg("id", (byte*)&setId, MegaClient::SETHANDLE);
     }
 
-    if (!mEncrAttrs.empty())
+    if (!encrAttrs.empty())
     {
-        arg("at", (byte*)mEncrAttrs.c_str(), (int)mEncrAttrs.size());
+        arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
     }
 
     notself(cl); // don't process its Action Packet after sending this
@@ -9012,14 +9012,13 @@ bool CommandPutSet::procresult(Result r)
     {
         if (mId == UNDEF) // add new
         {
-            Set s(setId, move(mDecrKey), user, ts, move(mEncrAttrs));
-            s.resetChanges();   // really needed?
+            Set s(setId, move(mDecrKey), user, ts, move(mAttrs));
             s.setChangeNew();
             client->addSet(move(s));
         }
         else // update existing
         {
-            client->updateSet(setId, move(mEncrAttrs), ts);
+            client->updateSet(setId, move(mAttrs["name"]), ts);
             assert(mId == setId);
         }
     }
