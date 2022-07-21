@@ -9017,9 +9017,14 @@ bool CommandPutSet::procresult(Result r)
             client->addSet(move(s));
         }
         else // update existing
-        {
-            client->updateSet(setId, move(mAttrs["name"]), ts);
+        {            
             assert(mId == setId);
+
+            if (!client->updateSet(setId, move(mAttrs), ts))
+            {
+                LOG_warn << "Sets: command 'asp' succeed, but Set was not found";
+                e = API_ENOENT;
+            }
         }
     }
 

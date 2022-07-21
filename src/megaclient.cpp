@@ -17581,23 +17581,20 @@ void MegaClient::addSet(Set&& a)
     }
 }
 
-void MegaClient::updateSet(handle id, string&& name, m_time_t ts)
+bool MegaClient::updateSet(handle id, map<std::string, std::string> &&attrs, m_time_t ts)
 {
-    for (auto& it : mSets)
+    auto it = mSets.find(id);
+    if (it != mSets.end())
     {
-        if (it.second.id() == id)
-        {
-            it.second.setTs(ts);
-            if (it.second.name() != name)
-            {
-                it.second.setName(move(name));
-                it.second.setChangeName();
-                notifyset(&it.second);
-            }
+        it->second.setAttributes(move(attrs));
+        it->second.setTs(ts);
 
-            break;
-        }
+        notifyset(&it->second);
+
+        return true;
     }
+
+    return false;
 }
 
 bool MegaClient::deleteSet(handle setId)
@@ -18044,6 +18041,18 @@ bool Set::serialize(string* d)
     }
 
     return true;
+}
+
+void Set::setAttributes(map<std::string, std::string> &&attrs)
+{
+    // check for changes
+    auto it = mAttrs.find("name");
+    const string& oldName = it != mAttrs.end() ? it->second : "";
+    it = mAttrs.find("name");
+    const string& newName = it != attrs.end() ? it-> second : "";
+    if (newName != oldName) setChangeName();
+
+    mAttrs = move(attrs);
 }
 
 bool Set::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)

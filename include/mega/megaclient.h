@@ -302,8 +302,8 @@ public:
     void setId(handle id) { mId = id; }
     void setKey(string&& key) { mKey = move(key); }
     void setUser(handle uh) { mUser = uh; }
-    void setTs(m_time_t ts) { mTs = ts; }
-    void setName(string&& name) { setAttribute("name", name); }
+    void setTs(m_time_t ts) { mTs = ts; }    
+    void setAttributes(map<string, string>&& attrs);
 
     void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs = move(eattrs); }
     void setEncryptedAttrs(const string& eattrs) { mEncryptedAttrs = eattrs; }
@@ -343,10 +343,6 @@ private:
         auto it = mAttrs.find(id);
         assert(it != mAttrs.end());
         return it != mAttrs.end() ? it->second : value;
-    }
-    void setAttribute(const string& id, const string& value)
-    {
-        mAttrs[id] = value;
     }
 
     enum
@@ -2130,7 +2126,7 @@ public:
     void addSet(Set&& a);
 
     // search for Set with the same id, and update its members
-    void updateSet(handle id, string&& name, m_time_t ts);
+    bool updateSet(handle id, map<string, string>&& attrs, m_time_t ts);
 
     // delete Set with elemId from local memory; return true if found and deleted
     bool deleteSet(handle setId);
