@@ -240,10 +240,9 @@ public:
     // check if user has cancelled recursive operation by using cancelToken of associated transfer
     bool isCancelledByFolderTransferToken();
 
-    bool allSubtransfersResolved()
-    {
-        return  transfersFinishedCount >= transfersTotalCount;
-    }
+    // check if we have received onTransferFinishCallback for every transfersTotalCount
+    bool allSubtransfersResolved()              { return  transfersFinishedCount >= transfersTotalCount; }
+
     // setter/getter for transfersTotalCount
     void setTransfersTotalCount (size_t count)  { transfersTotalCount = count; }
     size_t getTransfersTotalCount ()            { return transfersTotalCount; }
