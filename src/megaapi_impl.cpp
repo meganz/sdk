@@ -26939,6 +26939,9 @@ void StreamingBuffer::init(size_t capacity)
     assert(capacity > 0);
     if (capacity > maxBufferSize)
     {
+        LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize. "
+                 << " Capacity requested = " << capacity
+                 << ", maxBufferSize = " << maxBufferSize;
         capacity = maxBufferSize;
     }
 
@@ -26960,7 +26963,7 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
 
     if (free < len)
     {
-        LOG_debug << "Not enough available space";
+        LOG_debug << "[Streaming] Not enough available space";
         len = free;
     }
 
@@ -28072,23 +28075,24 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
     if (httpctx->lastBufferLen)
     {
         httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
-        httpctx->lastBufferLen = 0;
     }
 
     if (httpctx->pause)
     {
-        if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
+        size_t resumeCapacity = httpctx->lastBufferLen * 2; // If httpctx->lastBufferLen is 0, then it's ok if availableSpace is > 0 : this means freeData() has been called before for a similar len
+        if (httpctx->streamingBuffer.availableSpace() > resumeCapacity)
         {
             httpctx->pause = false;
             m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
             m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
 
-            LOG_debug << "Resuming streaming from " << start << " len: " << len
+            LOG_debug << "[Streaming] Resuming streaming from " << start << " len: " << len
                      << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
                      << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
             httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
         }
     }
+    httpctx->lastBufferLen = 0;
     uv_mutex_unlock(&httpctx->mutex);
 
     uv_async_send(&httpctx->asynchandle);
@@ -29875,7 +29879,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (httpctx->lastBuffer)
     {
-        LOG_verbose << "Skipping write due to another ongoing write";
+        LOG_verbose << "[Streaming] Skipping write due to another ongoing write";
         return;
     }
 
@@ -29888,7 +29892,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (httpctx->tcphandle.write_queue_size > httpctx->streamingBuffer.availableCapacity() / 8)
     {
-        LOG_warn << "Skipping write. Too much queued data";
+        LOG_warn << "[Streaming] Skipping write. Too much queued data";
         uv_mutex_unlock(&httpctx->mutex);
         return;
     }
@@ -29898,7 +29902,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (!resbuf.len)
     {
-        LOG_verbose << "Skipping write. No data available";
+        LOG_verbose << "[Streaming] Skipping write. No data available";
         return;
     }
 
@@ -29914,7 +29918,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
-            LOG_warn << "Finishing due to an error sending the response: " << err;
+            LOG_warn << "[Streaming] Finishing due to an error sending the response: " << err;
             evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
         }
     }
@@ -29927,7 +29931,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
             delete req;
-            LOG_warn << "Finishing due to an error in uv_write: " << err;
+            LOG_warn << "[Streaming] Finishing due to an error in uv_write: " << err;
             httpctx->finished = true;
             if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
             {
@@ -30005,7 +30009,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
     long long availableSpace = streamingBuffer.availableSpace();
     if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
     {
-        LOG_debug << "Buffer full: " << availableSpace << " of "
+        LOG_debug << "[Streaming] Buffer full: " << availableSpace << " of "
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
@@ -32062,23 +32066,24 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
         if (ftpdatactx->lastBufferLen)
         {
             ftpdatactx->streamingBuffer.freeData(ftpdatactx->lastBufferLen);
-            ftpdatactx->lastBufferLen = 0;
         }
 
         if (ftpdatactx->pause)
         {
-            if (ftpdatactx->streamingBuffer.availableSpace() > ftpdatactx->streamingBuffer.availableCapacity() / 2)
+            size_t resumeCapacity = ftpdatactx->lastBufferLen * 2; // If ftpdatactx->lastBufferLen is 0, then it's ok if availableSpace is > 0 : this means freeData() has been called before for a similar len
+            if (ftpdatactx->streamingBuffer.availableSpace() > resumeCapacity)
             {
                 ftpdatactx->pause = false;
                 m_off_t start = ftpdatactx->rangeStart + ftpdatactx->rangeWritten + ftpdatactx->streamingBuffer.availableData();
                 m_off_t len =  ftpdatactx->rangeEnd - ftpdatactx->rangeStart -  ftpdatactx->rangeWritten - ftpdatactx->streamingBuffer.availableData();
 
-                LOG_debug << "Resuming streaming from " << start << " len: " << len
+                LOG_debug << "[Streaming] Resuming streaming from " << start << " len: " << len
                          << " Buffer status: " << ftpdatactx->streamingBuffer.availableSpace()
                          << " of " << ftpdatactx->streamingBuffer.availableCapacity() << " bytes free";
                 ftpdatactx->megaApi->startStreaming(ftpdatactx->node, start, len, ftpdatactx);
             }
         }
+        ftpdatactx->lastBufferLen = 0;
         uv_mutex_unlock(&ftpdatactx->mutex);
 
         uv_async_send(&ftpdatactx->asynchandle);
@@ -32406,7 +32411,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (ftpdatactx->lastBuffer)
     {
-        LOG_verbose << "Skipping write due to another ongoing write";
+        LOG_verbose << "[Streaming] Skipping write due to another ongoing write";
         return;
     }
 
@@ -32419,7 +32424,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (ftpdatactx->tcphandle.write_queue_size > ftpdatactx->streamingBuffer.availableCapacity() / 8)
     {
-        LOG_warn << "Skipping write. Too much queued data";
+        LOG_warn << "[Streaming] Skipping write. Too much queued data";
         uv_mutex_unlock(&ftpdatactx->mutex);
         return;
     }
@@ -32429,7 +32434,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (!resbuf.len)
     {
-        LOG_verbose << "Skipping write. No data available." << " buffered = " << ftpdatactx->streamingBuffer.availableData();
+        LOG_verbose << "[Streaming] Skipping write. No data available." << " buffered = " << ftpdatactx->streamingBuffer.availableData();
         return;
     }
 
@@ -32445,7 +32450,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
         int err = evt_tls_write(ftpdatactx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
-            LOG_warn << "Finishing due to an error sending the response: " << err;
+            LOG_warn << "[Streaming] Finishing due to an error sending the response: " << err;
             closeConnection(ftpdatactx);
         }
     }
@@ -32458,7 +32463,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
         if (int err = uv_write(req, (uv_stream_t*)&ftpdatactx->tcphandle, &resbuf, 1, onWriteFinished))
         {
             delete req;
-            LOG_warn << "Finishing due to an error in uv_write: " << err;
+            LOG_warn << "[Streaming] Finishing due to an error in uv_write: " << err;
             closeTCPConnection(ftpdatactx);
         }
 #ifdef ENABLE_EVT_TLS
@@ -32523,7 +32528,7 @@ bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char 
     long long availableSpace = streamingBuffer.availableSpace();
     if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
     {
-        LOG_debug << "Buffer full: " << availableSpace << " of "
+        LOG_debug << "[Streaming] Buffer full: " << availableSpace << " of "
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
