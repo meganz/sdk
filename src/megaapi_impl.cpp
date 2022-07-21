@@ -8460,7 +8460,7 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
         transfer->fingerprint_filetype = FILENODE;
         transfer->fingerprint_onDisk = *preFingerprintedFile;
     }
-    else
+    else // if no fingerprint provided, calculate it, to avoid extra workload (and reduce mutex locking time) to SDK thread at sendPendingTransfers
     {
         lock_guard<mutex> g(fingerprintingFsAccessMutex);
         auto fa = fingerprintingFsAccess.newfileaccess();
@@ -8472,7 +8472,7 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
         }
         else
         {
-            transfer->fingerprint_filetype = fa->type;
+            transfer->fingerprint_filetype = fa->type; // => [FILENODE | FOLDERNODE]
 
             bool uploadToInbox = ISUNDEF(transfer->getParentHandle()) && transfer->getParentPath() && (strchr(transfer->getParentPath(), '@') || (strlen(transfer->getParentPath()) == 11));
 
@@ -8488,7 +8488,7 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
                 transfer->fingerprint_error = API_OK;
             }
 
-            if (fa->type == FILENODE)
+            if (fa->type == FILENODE) // just file nodes have a valid fingerprint
             {
                 transfer->fingerprint_onDisk.genfingerprint(fa.get());
             }
