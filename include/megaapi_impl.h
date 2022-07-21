@@ -244,13 +244,14 @@ public:
     {
         return  transfersFinishedCount >= transfersTotalCount;
     }
+    // setter/getter for transfersTotalCount
+    void setTransfersTotalCount (size_t count)  { transfersTotalCount = count; }
+    size_t getTransfersTotalCount ()            { return transfersTotalCount; }
 
     // ---- MegaTransferListener methods ---
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
     void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
-
-    size_t transfersTotalCount = 0;
 
 protected:
     MegaApiImpl *megaApi;
@@ -260,6 +261,7 @@ protected:
     int tag;
     uint64_t mIncompleteTransfers = 0;
 
+    size_t transfersTotalCount = 0;
     size_t transfersStartedCount = 0;
     size_t transfersFinishedCount = 0;
     bool startedTransferring = false;
