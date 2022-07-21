@@ -4240,7 +4240,7 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
             }
 
             // Do we need to perform a move (or unlink)?
-            if (!mSyncs.mBackupRestrictionsEnabled)
+            if (!mSyncs.mBackupRestrictionsEnabled || mDontMoveOrUnlink)
                 return mCompletion(API_OK);
 
             // Are we going to unlink the sync's content?
