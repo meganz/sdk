@@ -8225,6 +8225,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
             {
                 bool shouldSetRestoreHandle = true;
 
+#ifdef ENABLE_SYNC
                 // avoid to set "rr" for nodes moved from Backups to SyncDebris, since they cannot be restored
                 if (syncs.backupRestrictionsEnabled() && prevRoot->nodeHandle() == rootnodes.vault)
                 {
@@ -8246,6 +8247,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
                         }
                     }
                 }
+#endif
 
                 if (shouldSetRestoreHandle)
                 {
