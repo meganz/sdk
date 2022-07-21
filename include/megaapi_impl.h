@@ -258,11 +258,22 @@ protected:
     MegaTransferListener *listener;
     int recursive;
     int tag;
+
+    // number of sub-transfers finished with an error
     uint64_t mIncompleteTransfers = 0;
 
+    // number of sub-transfers expected to be transferred (size of TransferQueue provided to sendPendingTransfers)
+    // in case we detect that user cancelled recursive operation (via cancel token) at sendPendingTransfers,
+    // those sub-transfers not processed yet (startxfer not called) will be discounted from transfersTotalCount
     size_t transfersTotalCount = 0;
+
+    // number of sub-transfers started, onTransferStart received (startxfer called, and file injected into SDK transfer subsystem)
     size_t transfersStartedCount = 0;
+
+    // number of sub-transfers finished, onTransferFinish received
     size_t transfersFinishedCount = 0;
+
+    // flag to notify STAGE_TRANSFERRING_FILES to apps, when all sub-transfers have been queued in SDK core already
     bool startedTransferring = false;
 
     // If the thread was started, it queues a completion before exiting
