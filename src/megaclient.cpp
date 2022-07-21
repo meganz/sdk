@@ -8234,16 +8234,16 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
                     {
                         handle h = 0;
                         memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
-                        Node *n = p;
-                        while (n->parent)
+                        Node *nn = p;
+                        while (nn->parent)
                         {
-                            if (n->nodehandle == h)
+                            if (nn->nodehandle == h)
                             {
                                 shouldSetRestoreHandle = false;
                                 LOG_debug << "Skip adding rr attribute for node from backups";
                                 break;
                             }
-                            n = n->parent;
+                            nn = nn->parent;
                         }
                     }
                 }
