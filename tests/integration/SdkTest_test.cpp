@@ -6052,6 +6052,9 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     fs::create_directories(p);
     ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
 
+    int currentMaxUploadSpeed = megaApi[0]->getMaxUploadSpeed();
+    ASSERT_EQ(true, megaApi[0]->setMaxUploadSpeed(1)); // set a small value for max upload speed (bytes per second)
+
     // start uploading
     // uploadListener may have to live after this function exits if the logout test below fails
     auto uploadListener = std::make_shared<TransferTracker>(megaApi[0].get());
@@ -6079,6 +6082,10 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     int result = uploadListener->waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+
+    auto tracker = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    ASSERT_EQ(true, megaApi[0]->setMaxUploadSpeed(currentMaxUploadSpeed)); // restore previous max upload speed (bytes per second)
 }
 
 TEST_F(SdkTest, RecursiveDownloadWithLogout)
