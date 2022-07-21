@@ -26927,6 +26927,8 @@ StreamingBuffer::StreamingBuffer()
     this->free = 0;
     this->maxBufferSize = MAX_BUFFER_SIZE;
     this->maxOutputSize = MAX_OUTPUT_SIZE;
+    this->length = 0;
+    this->duration = 0;
 }
 
 StreamingBuffer::~StreamingBuffer()
@@ -26936,12 +26938,17 @@ StreamingBuffer::~StreamingBuffer()
 
 void StreamingBuffer::init(size_t capacity)
 {
+    assert(this->length > 0);
     assert(capacity > 0);
     if (capacity > maxBufferSize)
     {
         LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize. "
-                 << " Capacity requested = " << capacity
-                 << ", maxBufferSize = " << maxBufferSize;
+                 << " Capacity requested = " << capacity << " bytes"
+                 << ", truncated to  = " << maxBufferSize << " bytes"
+                 << " [file length = " << length << " bytes"
+                 << ", total duration = " << duration << " secs" << std::string(duration == 0 ? " (not a media file)" : "")
+                 << ", estimated duration in truncated buffer: " << (duration ? (maxBufferSize / getBitRate()) : 0) << " secs" << std::string(duration == 0 ? " (not a media file)" : "")
+                 << "]";
         capacity = maxBufferSize;
     }
 
@@ -26963,7 +26970,10 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
 
     if (free < len)
     {
-        LOG_debug << "[Streaming] Not enough available space";
+        LOG_debug << "[Streaming] Not enough available space, len will be truncated. "
+                  << " [requested = " << len
+                  << ", buffered = " << free
+                  << ", discarded = " << (len - free) << "]";
         len = free;
     }
 
@@ -26990,17 +27000,17 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     return len;
 }
 
-size_t StreamingBuffer::availableData()
+size_t StreamingBuffer::availableData() const
 {
     return size;
 }
 
-size_t StreamingBuffer::availableSpace()
+size_t StreamingBuffer::availableSpace() const
 {
     return free;
 }
 
-size_t StreamingBuffer::availableCapacity()
+size_t StreamingBuffer::availableCapacity() const
 {
     return capacity;
 }
@@ -27058,6 +27068,42 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
     {
         this->maxOutputSize = MAX_OUTPUT_SIZE;
     }
+}
+
+void StreamingBuffer::setLength(size_t length)
+{
+    this->length = length;
+}
+
+void StreamingBuffer::setDuration(size_t duration)
+{
+    this->duration = duration;
+}
+
+size_t StreamingBuffer::getBitRate() const
+{
+    if (!duration)
+    {
+        return 0;
+    }
+    return length / duration;
+}
+
+std::string StreamingBuffer::bufferStatus() const
+{
+    std::string bufferState;
+    bufferState.reserve(256);
+    bufferState.append("[|Buffer status| buffered = ")
+               .append(std::to_string(size));
+    if (duration) bufferState.append(" (").append(std::to_string(size / getBitRate())).append( " secs)");
+    bufferState.append(", free = ")
+               .append(std::to_string(free));
+    if (duration) bufferState.append(" (").append(std::to_string(size / getBitRate())).append( " secs)");
+    bufferState.append(", capacity = ")
+               .append(std::to_string(capacity));
+    if (duration) bufferState.append(" (").append(std::to_string(capacity / getBitRate())).append( " secs)");
+    bufferState.append("]");
+    return bufferState;
 }
 
 // http_parser settings
@@ -28087,8 +28133,7 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
             m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
 
             LOG_debug << "[Streaming] Resuming streaming from " << start << " len: " << len
-                     << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
-                     << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
+                      << " " << httpctx->streamingBuffer.bufferStatus();
             httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
         }
     }
@@ -29747,6 +29792,9 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         httpctx->transfer->setEndPos(end);
     }
 
+    httpctx->streamingBuffer.setLength(totalSize);
+    httpctx->streamingBuffer.setDuration(httpctx->node->getDuration());
+
     string resstr = response.str();
     if (httpctx->parser.method != HTTP_HEAD)
     {
@@ -29879,7 +29927,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (httpctx->lastBuffer)
     {
-        LOG_verbose << "[Streaming] Skipping write due to another ongoing write";
+        LOG_verbose << "[Streaming] Skipping write due to another ongoing write.";
         return;
     }
 
@@ -29892,7 +29940,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (httpctx->tcphandle.write_queue_size > httpctx->streamingBuffer.availableCapacity() / 8)
     {
-        LOG_warn << "[Streaming] Skipping write. Too much queued data";
+        LOG_warn << "[Streaming] Skipping write. Too much queued data. " << httpctx->streamingBuffer.bufferStatus();
         uv_mutex_unlock(&httpctx->mutex);
         return;
     }
@@ -29902,7 +29950,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (!resbuf.len)
     {
-        LOG_verbose << "[Streaming] Skipping write. No data available";
+        LOG_verbose << "[Streaming] Skipping write. No data available. " << httpctx->streamingBuffer.bufferStatus();
         return;
     }
 
@@ -29994,8 +30042,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
     LOG_verbose << "Streaming data received: " << transfer->getTransferredBytes()
                 << " Size: " << size
                 << " Queued: " << this->tcphandle.write_queue_size
-                << " Buffered: " << streamingBuffer.availableData()
-                << " Free: " << streamingBuffer.availableSpace();
+                << " " << streamingBuffer.bufferStatus();
 
     if (finished)
     {
@@ -30009,8 +30056,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
     long long availableSpace = streamingBuffer.availableSpace();
     if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
     {
-        LOG_debug << "[Streaming] Buffer full: " << availableSpace << " of "
-                 << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
+        LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
         pause = true;
     }
     streamingBuffer.append(buffer, size);
@@ -32066,24 +32112,22 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
         if (ftpdatactx->lastBufferLen)
         {
             ftpdatactx->streamingBuffer.freeData(ftpdatactx->lastBufferLen);
+            ftpdatactx->lastBufferLen = 0;
         }
 
         if (ftpdatactx->pause)
         {
-            size_t resumeCapacity = ftpdatactx->lastBufferLen * 2; // If ftpdatactx->lastBufferLen is 0, then it's ok if availableSpace is > 0 : this means freeData() has been called before for a similar len
-            if (ftpdatactx->streamingBuffer.availableSpace() > resumeCapacity)
+            if (ftpdatactx->streamingBuffer.availableSpace() > ftpdatactx->streamingBuffer.availableCapacity() / 2)
             {
                 ftpdatactx->pause = false;
                 m_off_t start = ftpdatactx->rangeStart + ftpdatactx->rangeWritten + ftpdatactx->streamingBuffer.availableData();
                 m_off_t len =  ftpdatactx->rangeEnd - ftpdatactx->rangeStart -  ftpdatactx->rangeWritten - ftpdatactx->streamingBuffer.availableData();
 
                 LOG_debug << "[Streaming] Resuming streaming from " << start << " len: " << len
-                         << " Buffer status: " << ftpdatactx->streamingBuffer.availableSpace()
-                         << " of " << ftpdatactx->streamingBuffer.availableCapacity() << " bytes free";
+                          << " " << ftpdatactx->streamingBuffer.bufferStatus();
                 ftpdatactx->megaApi->startStreaming(ftpdatactx->node, start, len, ftpdatactx);
             }
         }
-        ftpdatactx->lastBufferLen = 0;
         uv_mutex_unlock(&ftpdatactx->mutex);
 
         uv_async_send(&ftpdatactx->asynchandle);
@@ -32320,6 +32364,9 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             ftpdatactx->transfer->setEndPos(end); //This will actually be override later
             ftpdatactx->node = nodeToDownload->copy();
 
+            ftpdatactx->streamingBuffer.setLength(nodeToDownload->getSize());
+            ftpdatactx->streamingBuffer.setDuration(nodeToDownload->getDuration());
+
             ftpdatactx->streamingBuffer.init(len);
             ftpdatactx->size = len;
 
@@ -32411,7 +32458,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (ftpdatactx->lastBuffer)
     {
-        LOG_verbose << "[Streaming] Skipping write due to another ongoing write";
+        LOG_verbose << "[Streaming] Skipping write due to another ongoing write.";
         return;
     }
 
@@ -32424,7 +32471,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (ftpdatactx->tcphandle.write_queue_size > ftpdatactx->streamingBuffer.availableCapacity() / 8)
     {
-        LOG_warn << "[Streaming] Skipping write. Too much queued data";
+        LOG_warn << "[Streaming] Skipping write. Too much queued data. " << ftpdatactx->streamingBuffer.bufferStatus();
         uv_mutex_unlock(&ftpdatactx->mutex);
         return;
     }
@@ -32434,7 +32481,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (!resbuf.len)
     {
-        LOG_verbose << "[Streaming] Skipping write. No data available." << " buffered = " << ftpdatactx->streamingBuffer.availableData();
+        LOG_verbose << "[Streaming] Skipping write. No data available. " << ftpdatactx->streamingBuffer.bufferStatus();
         return;
     }
 
@@ -32528,8 +32575,7 @@ bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char 
     long long availableSpace = streamingBuffer.availableSpace();
     if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
     {
-        LOG_debug << "[Streaming] Buffer full: " << availableSpace << " of "
-                 << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
+        LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
         pause = true;
     }
     streamingBuffer.append(buffer, size);
