@@ -1679,6 +1679,7 @@ void LinuxDirNotify::removeWatch(WatchMapIterator entry)
 #define O_NOATIME 0x0
 #endif // !O_NOATIME
 
+#endif //ENABLE_SYNC
 // Used by directoryScan(...) below to avoid extra stat(...) calls.
 class UnixStreamAccess
     : public InputStreamAccess
@@ -1941,6 +1942,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
     return SCAN_SUCCESS;
 }
+#ifdef ENABLE_SYNC
 
 fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {

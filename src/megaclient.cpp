@@ -7047,7 +7047,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             else
             {
                 n = nodeByHandle(rootnodes.files);
-                assert(!n || n->type == ROOTNODE);
+                assert(!n || loggedIntoFolder() || n->type == ROOTNODE); //folder links root node type is not ROOTNODE
                 l = 1;
             }
         }

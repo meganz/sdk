@@ -15932,7 +15932,9 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e, bool callbackIsFromSyncThread)
 {
     assert(callbackIsFromSyncThread || threadId == std::this_thread::get_id());
+#ifdef ENABLE_SYNC
     assert(!callbackIsFromSyncThread || client->syncs.onSyncThread());
+#endif
     activeRequest = request;
     activeError = e.get();
 
