@@ -137,7 +137,7 @@ std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
-    DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo,
+    TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries);
 
 
@@ -295,7 +295,7 @@ ConsoleLock conlock(std::ostream& o)
     return ConsoleLock(o);
 }
 
-static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
+static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
 {
     error result = API_OK;
 
@@ -318,7 +318,7 @@ static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFil
     return result;
 }
 
-static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
+static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
 {
     return startxfer(committer, std::move(file), node.displaypath());
 }
@@ -2109,7 +2109,7 @@ void xferq(direction_t d, int cancel, bool showActive, bool showAll, bool showCo
     string name;
     int count = 0, activeCount = 0;
 
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     for (appfile_list::iterator it = appxferq[d].begin(); it != appxferq[d].end(); )
     {
         if (cancel < 0 || cancel == (*it)->seqno)
@@ -2645,7 +2645,7 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count)
         }
         cout << count << endl;
 
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
         int total = 0;
         auto lp = LocalPath::fromAbsolutePath(local_path);
         uploadLocalPath(FILENODE, lp.leafName().toPath(), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false);
@@ -2760,7 +2760,7 @@ void cycleDownload(LocalPath lp, int count);
 void cycleUpload(LocalPath lp, int count)
 {
     checkReportCycleFails();
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
 
     LocalPath upload_lp = lp;
     upload_lp.append(LocalPath::fromRelativePath("_" + std::to_string(count)));
@@ -2818,7 +2818,7 @@ void cycleDownload(LocalPath lp, int count)
     };
 
     f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     client->startxfer(GET, f, committer, false, false, false, NoVersioning);
 
     // also delete the old local file
@@ -2844,7 +2844,7 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
             }
         };
 
-    globalMegaTestHooks.onUploadChunkSucceeded = [](Transfer* t, DBTableTransactionCommitter& committer)
+    globalMegaTestHooks.onUploadChunkSucceeded = [](Transfer* t, TransferDbCommitter& committer)
         {
             if (t->chunkmacs.hasUnfinishedGap(1024ll*1024*1024*1024*1024))
             //if (t->pos > 5000000 && rand() % 2 == 0)
@@ -3688,7 +3688,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
     {
         if (!folders)
         {
-            DBTableTransactionCommitter committer(client->tctable);
+            TransferDbCommitter committer(client->tctable);
             auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
             error result = startxfer(committer, std::move(file), *n);
             queued += result == API_OK ? 1 : 0;
@@ -3730,7 +3730,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
 
         if (n->type == FOLDERNODE || n->type == ROOTNODE)
         {
-            DBTableTransactionCommitter committer(client->tctable);
+            TransferDbCommitter committer(client->tctable);
             for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
             {
                 if ((*it)->type == FILENODE)
@@ -4497,7 +4497,7 @@ void exec_get(autocomplete::ACState& s)
                     {
                         cout << "Initiating download..." << endl;
 
-                        DBTableTransactionCommitter committer(client->tctable);
+                        TransferDbCommitter committer(client->tctable);
                         auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename);
                     }
@@ -4542,7 +4542,7 @@ void exec_get(autocomplete::ACState& s)
             }
             else
             {
-                DBTableTransactionCommitter committer(client->tctable);
+                TransferDbCommitter committer(client->tctable);
 
                 // queue specified file...
                 if (n->type == FILENODE)
@@ -4613,7 +4613,7 @@ void exec_more(autocomplete::ACState& s)
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo);
 
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
-    DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo,
+    TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries)
 {
 
@@ -4723,7 +4723,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
 
     std::vector<FSNode> results = r->resultNodes();
 
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     int total = 0;
 
     for (auto& rr : results)
@@ -4745,7 +4745,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
     LocalPath lp(localname);
     if (da->dopen(&lp, NULL, false))
     {
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
 
         int total = 0;
         nodetype_t type;
@@ -4816,7 +4816,7 @@ void exec_put(autocomplete::ACState& s)
     // search with glob, eg *.txt
     if (da->dopen(&localname, NULL, true))
     {
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
 
         nodetype_t type;
         LocalPath itemlocalname;
@@ -5694,7 +5694,7 @@ void exec_pause(autocomplete::ACState& s)
         putarg = true;
     }
 
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
 
     if (getarg)
     {
