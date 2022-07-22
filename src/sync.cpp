@@ -3851,7 +3851,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
         // Who should we call when we're done?
         std::function<void(Error)> mCompletion;
 
-        // Should we move (or unlink) a backup's content?
+        // Whether we should we move (or unlink) the backup's content
         bool mDontMoveOrUnlink;
 
         // Where should we move a backup's content?
@@ -4386,7 +4386,7 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
         // Who we should call when we've completed our work.
         std::function<void(Error)> mCompletion;
 
-        // Whether we should move (or unlink) the sync's content.
+        // Whether we should move (or unlink) the backup's content
         bool mDontMoveOrUnlink;
 
         // The ID of the sync we want to remove.

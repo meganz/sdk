@@ -21553,7 +21553,7 @@ void MegaApiImpl::sendPendingRequests()
                   fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
               },
               NodeHandle().set6byte(backupTarget),
-              c.getType() != SyncConfig::TYPE_BACKUP);
+              !c.isBackup());
 
             break;
         }
