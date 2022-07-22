@@ -1135,15 +1135,15 @@ public:
 
     static std::atomic<uint32_t> tokensCancelledCount;
 
-    static bool haveAnyCancelsOccurredSince(uint32_t& n)
+    static bool haveAnyCancelsOccurredSince(uint32_t& lastKnownCancelCount)
     {
-        if (n == tokensCancelledCount.load())
+        if (lastKnownCancelCount == tokensCancelledCount.load())
         {
             return false;
         }
         else
         {
-            n = tokensCancelledCount.load();
+            lastKnownCancelCount = tokensCancelledCount.load();
             return true;
         }
     }
