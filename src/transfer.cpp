@@ -89,7 +89,9 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
-    TransferDbCommitter* committer = static_cast<TransferDbCommitter*>(client->tctable->getTransactionCommitter());
+    TransferDbCommitter* committer = client->tctable ?
+                         static_cast<TransferDbCommitter*>(client->tctable->getTransactionCommitter()) :
+                         nullptr;
 
     if (faputcompletion_it != client->faputcompletion.end())
     {
