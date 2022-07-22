@@ -26919,8 +26919,8 @@ void StreamingBuffer::init(size_t capacity)
                  << " Capacity requested = " << capacity << " bytes"
                  << ", truncated to  = " << maxBufferSize << " bytes"
                  << " [file length = " << length << " bytes"
-                 << ", total duration = " << duration << " secs" << std::string(duration == 0 ? " (not a media file)" : "")
-                 << ", estimated duration in truncated buffer: " << (duration ? (maxBufferSize / getBitRate()) : 0) << " secs" << std::string(duration == 0 ? " (not a media file)" : "")
+                 << ", total duration = " << duration << " secs" << std::string(duration ? "" : " (not a media file)")
+                 << ", estimated duration in truncated buffer: " << (duration ? (maxBufferSize / getBitRate()) : 0) << " secs" << std::string(duration ? "" : " (not a media file)")
                  << "]";
         capacity = maxBufferSize;
     }
@@ -27071,7 +27071,7 @@ std::string StreamingBuffer::bufferStatus() const
     if (duration) bufferState.append(" (").append(std::to_string(size / getBitRate())).append( " secs)");
     bufferState.append(", free = ")
                .append(std::to_string(free));
-    if (duration) bufferState.append(" (").append(std::to_string(size / getBitRate())).append( " secs)");
+    if (duration) bufferState.append(" (").append(std::to_string(free / getBitRate())).append( " secs)");
     bufferState.append(", capacity = ")
                .append(std::to_string(capacity));
     if (duration) bufferState.append(" (").append(std::to_string(capacity / getBitRate())).append( " secs)");
