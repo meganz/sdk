@@ -26919,8 +26919,8 @@ void StreamingBuffer::init(size_t capacity)
                  << " Capacity requested = " << capacity << " bytes"
                  << ", truncated to  = " << maxBufferSize << " bytes"
                  << " [file length = " << length << " bytes"
-                 << ", total duration = " << duration << " secs" << std::string(duration ? "" : " (not a media file)")
-                 << ", estimated duration in truncated buffer: " << (duration ? (maxBufferSize / getBitRate()) : 0) << " secs" << std::string(duration ? "" : " (not a media file)")
+                 << ", total duration = " << duration << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
+                 << ", estimated duration in truncated buffer: " << (duration ? (std::to_string(maxBufferSize / getBitRate()).append(" secs")) : "not a media file")
                  << "]";
         capacity = maxBufferSize;
     }
@@ -29900,7 +29900,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (httpctx->lastBuffer)
     {
-        LOG_verbose << "[Streaming] Skipping write due to another ongoing write.";
+        LOG_verbose << "[Streaming] Skipping write due to another ongoing write";
         return;
     }
 
@@ -32431,7 +32431,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (ftpdatactx->lastBuffer)
     {
-        LOG_verbose << "[Streaming] Skipping write due to another ongoing write.";
+        LOG_verbose << "[Streaming] Skipping write due to another ongoing write";
         return;
     }
 
