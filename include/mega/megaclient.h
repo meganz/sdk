@@ -493,9 +493,9 @@ public:
     void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause = nullptr);
-    void stopxfer(File* f, DBTableTransactionCommitter* committer);
-    void pausexfers(direction_t, bool pause, bool hard, DBTableTransactionCommitter& committer);
+    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause = nullptr);
+    void stopxfer(File* f, TransferDbCommitter* committer);
+    void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
 
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 6;
@@ -1198,7 +1198,7 @@ public:
     unique_ptr<DbTable> tctable;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
-    DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
+    TransferDbCommitter* mTctableRequestCommitter = nullptr;
 
     // status cache table for logged in user. For data pertaining status which requires immediate commits
     unique_ptr<DbTable> statusTable;
@@ -1314,6 +1314,7 @@ public:
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
     BackoffTimerGroupTracker transferRetryBackoffs[2];
+    uint32_t lastKnownCancelCount = 0;
 
     // transfer list to manage the priority of transfers
     TransferList transferlist;
@@ -1384,16 +1385,16 @@ public:
     void notifynode(Node*);
 
     // update transfer in the persistent cache
-    void transfercacheadd(Transfer*, DBTableTransactionCommitter*);
+    void transfercacheadd(Transfer*, TransferDbCommitter*);
 
     // remove a transfer from the persistent cache
-    void transfercachedel(Transfer*, DBTableTransactionCommitter* committer);
+    void transfercachedel(Transfer*, TransferDbCommitter* committer);
 
     // add a file to the persistent cache
-    void filecacheadd(File*, DBTableTransactionCommitter& committer);
+    void filecacheadd(File*, TransferDbCommitter& committer);
 
     // remove a file from the persistent cache
-    void filecachedel(File*, DBTableTransactionCommitter* committer);
+    void filecachedel(File*, TransferDbCommitter* committer);
 
 #ifdef ENABLE_CHAT
     textchat_map chatnotify;
@@ -1574,7 +1575,7 @@ public:
 #endif
 
     // recursively cancel transfers in a subtree
-    void stopxfers(LocalNode*, DBTableTransactionCommitter& committer);
+    void stopxfers(LocalNode*, TransferDbCommitter& committer);
 
     // update paths of all PUT transfers
     void updateputs();
