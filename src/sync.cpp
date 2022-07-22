@@ -3785,6 +3785,8 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
             // What's the ID of the sync we're about to remove?
             auto id = mSyncs.mSyncVec[index]->mConfig.mBackupId;
 
+            bool isBackup = mSyncs.mSyncVec[index]->mConfig.isBackup();
+
             // Leave a trail for debuggers.
             LOG_debug << "Attempting to remove sync: "
                       << toHandle(id);
@@ -3801,7 +3803,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
 
             // Try and remove the sync.
             mSyncs.removeSyncByIndex(std::move(completion),
-                                     mDontMoveOrUnlink,
+                                     isBackup && mDontMoveOrUnlink,
                                      index,
                                      mMoveTarget);
         }
@@ -3851,7 +3853,8 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
         // Who should we call when we're done?
         std::function<void(Error)> mCompletion;
 
-        // Whether we should we move (or unlink) the backup's content
+        // Whether we should move (or unlink) the backup's content
+        // (it only applies to backups, not to regular syncs)
         bool mDontMoveOrUnlink;
 
         // Where should we move a backup's content?
@@ -3982,7 +3985,8 @@ void Syncs::purgeSyncs(std::function<void(Error)> completion)
             completion(e);
         },
         NodeHandle(),
-        true);
+        true); // in this case, user is logging out. There's no chance to ask him about
+        // move or delete backup folders, so they will be kept (user can get rid of them in Backup Centre)
 }
 
 void Syncs::purgeSyncsLocal()

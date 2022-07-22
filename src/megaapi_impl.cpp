@@ -21511,7 +21511,8 @@ void MegaApiImpl::sendPendingRequests()
                         [](SyncConfig&, Sync*) { return true; },
                         [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); },
                         NodeHandle().set6byte(request->getNodeHandle()),
-                        false);
+                        false); // for backups, it should move backup-folder(s) to target destination or delete them
+                        // the Remover will check if the sync is a backup or a regular sync internally, and override for regular syncs
             break;
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
