@@ -44,6 +44,8 @@
 
 namespace mega {
 
+std::atomic<uint32_t> CancelToken::tokensCancelledCount{0};
+
 string toNodeHandle(handle nodeHandle)
 {
     char base64Handle[12];

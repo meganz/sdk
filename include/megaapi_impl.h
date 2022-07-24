@@ -2278,9 +2278,6 @@ class MegaApiImpl : public MegaApp
         void removeScheduledCopyListener(MegaScheduledCopyListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
 
-        void cancelPendingTransfersByFolderTag(int folderTag);
-
-
         MegaRequest *getCurrentRequest();
         MegaTransfer *getCurrentTransfer();
         MegaError *getCurrentError();
@@ -2959,7 +2956,7 @@ class MegaApiImpl : public MegaApp
         bool driveMonitorEnabled();
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
