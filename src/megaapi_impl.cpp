@@ -26919,7 +26919,7 @@ void StreamingBuffer::init(size_t capacity)
                  << " Capacity requested = " << capacity << " bytes"
                  << ", truncated to  = " << maxBufferSize << " bytes"
                  << " [file length = " << length << " bytes"
-                 << ", total duration = " << duration << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
+                 << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
                  << ", estimated duration in truncated buffer: " << (duration ? (std::to_string(maxBufferSize / getBitRate()).append(" secs")) : "not a media file")
                  << "]";
         capacity = maxBufferSize;
