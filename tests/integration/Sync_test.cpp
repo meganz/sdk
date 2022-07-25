@@ -11844,7 +11844,7 @@ TEST_F(FilterFixture, ExclusionSpecifiedWhenSyncAdded)
         SyncOptions options;
 
         // s/q should be excluded by default.
-        options.excludePath = "s/q";
+        options.excludePath = (fs::u8path("s") / fs::u8path("q")).u8string();
 
         // Add and start the sync.
         id = cdu->setupSync_mainthread("s", "s", options);
