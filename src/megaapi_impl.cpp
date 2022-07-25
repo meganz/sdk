@@ -15340,14 +15340,14 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                     string key{h};
                     string buffer;
 
-                    if (!tlv || !tlv->get("h", buffer) || buffer.size() != MegaClient::NODEHANDLE)
+                    if (!tlv || !tlv->get(key, buffer))
                     {
                         e = API_ENOENT;
                         break;
                     }
                     else
                     {
-                        request->setName(Base64::atob(buffer).c_str());
+                        request->setName(buffer.c_str());
                     }
                 }
                 break;
