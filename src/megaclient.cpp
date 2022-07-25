@@ -8234,7 +8234,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
                     {
                         handle h = 0;
                         memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
-                        Node *nn = p;
+                        Node *nn = prevParent;
                         while (nn->parent)
                         {
                             if (nn->nodehandle == h)
