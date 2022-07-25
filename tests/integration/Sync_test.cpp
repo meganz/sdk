@@ -2264,8 +2264,7 @@ void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
     client.syncs.removeSelectedSyncs(
       [=](SyncConfig& config, Sync*) { return config.mBackupId == backupId; },
       [=](Error error) { result->set_value(error == API_OK); },
-      NodeHandle(),
-      true);
+      false);
 }
 
 bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)

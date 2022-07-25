@@ -10048,8 +10048,8 @@ void exec_syncremove(autocomplete::ACState& s)
                 cout << "Sync - Failed to remove (" << error(e) << ": " << errorstring(e) << ')' << endl;
             }
         },
-        NodeHandle().set6byte(bkpDest),
-        !c.isBackup());
+        c.isBackup(),
+        NodeHandle().set6byte(bkpDest));
 }
 
 void exec_syncxable(autocomplete::ACState& s)
