@@ -10023,6 +10023,13 @@ void exec_syncremove(autocomplete::ACState& s)
         }
     }
 
+    SyncConfig c;
+    if (!client->syncs.syncConfigByBackupId(backupId, c))
+    {
+        cout << "Backup id not found: " << s.words[2].s << endl;
+        return;
+    }
+
     client->syncs.removeSelectedSync(
         [&](SyncConfig& config, Sync*) { return config.mBackupId == backupId; },
         [=](Error e)
@@ -10041,8 +10048,8 @@ void exec_syncremove(autocomplete::ACState& s)
                 cout << "Sync - Failed to remove (" << error(e) << ": " << errorstring(e) << ')' << endl;
             }
         },
-        NodeHandle().set6byte(bkpDest),
-        false);
+        c.isBackup(),
+        NodeHandle().set6byte(bkpDest));
 }
 
 void exec_syncxable(autocomplete::ACState& s)

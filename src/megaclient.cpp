@@ -7401,8 +7401,8 @@ void MegaClient::notifypurge(void)
                             setattr(n, attr_map(Node::sdsId(), value), 0, nullptr, nullptr, true);
                         }
                     },
-                    NodeHandle(),
-                    true);
+                    false); // the 'sds' attribute is set by BackupCenter, who should have already moved or deleted the backup-folder
+                    // here we only remove the 'sds' node's attr, don't need to move or delete.
             }
 
             //update sync root node location and trigger failing cases

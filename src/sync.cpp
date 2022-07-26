@@ -3736,8 +3736,8 @@ void Syncs::disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError
 
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
                                 std::function<void(Error)> completion,
-                                NodeHandle moveTarget,
-                                bool dontMoveOrUnlink)
+                                bool moveOrUnlink,
+                                NodeHandle moveTarget)
 {
     // Sanity.
     assert(completion);
@@ -3753,12 +3753,12 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     {
     public:
         Remover(std::function<void(Error)> &&completion,
-                bool dontMoveOrUnlink,
+                bool moveOrUnlink,
                 NodeHandle moveTarget,
                 vector<size_t> &&pending,
                 Syncs& syncs)
           : mCompletion(std::move(completion))
-          , mDontMoveOrUnlink(dontMoveOrUnlink)
+          , mMoveOrUnlink(moveOrUnlink)
           , mMoveTarget(moveTarget)
           , mNumProcessed(0u)
           , mPending(std::move(pending))
@@ -3785,6 +3785,8 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
             // What's the ID of the sync we're about to remove?
             auto id = mSyncs.mSyncVec[index]->mConfig.mBackupId;
 
+            bool isBackup = mSyncs.mSyncVec[index]->mConfig.isBackup();
+
             // Leave a trail for debuggers.
             LOG_debug << "Attempting to remove sync: "
                       << toHandle(id);
@@ -3801,7 +3803,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
 
             // Try and remove the sync.
             mSyncs.removeSyncByIndex(std::move(completion),
-                                     mDontMoveOrUnlink,
+                                     isBackup && mMoveOrUnlink,
                                      index,
                                      mMoveTarget);
         }
@@ -3851,8 +3853,9 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
         // Who should we call when we're done?
         std::function<void(Error)> mCompletion;
 
-        // Should we move (or unlink) a backup's content?
-        bool mDontMoveOrUnlink;
+        // Whether we should move (or unlink) the backup's content
+        // (it only applies to backups, not to regular syncs)
+        bool mMoveOrUnlink;
 
         // Where should we move a backup's content?
         NodeHandle mMoveTarget;
@@ -3873,7 +3876,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     // Create a context to track the removal process.
     auto remover = std::make_shared<Remover>(
                      std::move(completion),
-                     dontMoveOrUnlink,
+                     moveOrUnlink,
                      moveTarget,
                      selectedSyncs(std::move(selector)),
                      *this);
@@ -3884,8 +3887,8 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
 
 void Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector,
                                std::function<void(Error)> completion,
-                               NodeHandle moveTarget,
-                               bool dontMoveOrUnlink)
+                               bool moveOrUnlink,
+                               NodeHandle moveTarget)
 {
     // Sanity.
     assert(completion);
@@ -3925,7 +3928,7 @@ void Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector,
 
     // Remove the sync.
     removeSyncByIndex(std::move(completion),
-                      dontMoveOrUnlink,
+                      moveOrUnlink,
                       selected.back(),
                       moveTarget);
 }
@@ -3981,8 +3984,8 @@ void Syncs::purgeSyncs(std::function<void(Error)> completion)
             purgeSyncsLocal();
             completion(e);
         },
-        NodeHandle(),
-        true);
+        false); // in this case, user is logging out. There's no chance to ask him about
+        // move or delete backup folders, so they will be kept (user can get rid of them in Backup Centre)
 }
 
 void Syncs::purgeSyncsLocal()
@@ -4005,7 +4008,7 @@ void Syncs::purgeSyncsLocal()
 }
 
 void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
-                              bool dontMoveOrUnlink,
+                              bool moveOrUnlink,
                               size_t index,
                               NodeHandle moveTarget)
 {
@@ -4026,13 +4029,13 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
     {
     public:
         Remover(std::function<void(Error)>&& completion,
-                bool dontMoveOrUnlink,
+                bool moveOrUnlink,
                 size_t index,
                 NodeHandle moveTarget,
                 Syncs& syncs)
           : mClient(syncs.mClient)
           , mCompletion(std::move(completion))
-          , mDontMoveOrUnlink(dontMoveOrUnlink)
+          , mMoveOrUnlink(moveOrUnlink)
           , mID(syncs.mSyncVec[index]->mConfig.mBackupId)
           , mIndex(index)
           , mMoveTarget(moveTarget)
@@ -4240,7 +4243,7 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
             }
 
             // Do we need to perform a move (or unlink)?
-            if (!mSyncs.mBackupRestrictionsEnabled)
+            if (!mSyncs.mBackupRestrictionsEnabled || !mMoveOrUnlink)
                 return mCompletion(API_OK);
 
             // Are we going to unlink the sync's content?
@@ -4376,7 +4379,7 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
         bool willMove() const
         {
             return mSyncs.mBackupRestrictionsEnabled
-                   && !mDontMoveOrUnlink
+                   && mMoveOrUnlink
                    && !mMoveTarget.isUndef();
         }
 
@@ -4386,8 +4389,8 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
         // Who we should call when we've completed our work.
         std::function<void(Error)> mCompletion;
 
-        // Whether we should move (or unlink) the sync's content.
-        bool mDontMoveOrUnlink;
+        // Whether we should move (or unlink) the backup's content
+        bool mMoveOrUnlink;
 
         // The ID of the sync we want to remove.
         handle mID;
@@ -4410,7 +4413,7 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
 
     // Create context for removal.
     auto remover = std::make_shared<Remover>(std::move(completion),
-                                             dontMoveOrUnlink,
+                                             moveOrUnlink,
                                              index,
                                              moveTarget,
                                              *this);
