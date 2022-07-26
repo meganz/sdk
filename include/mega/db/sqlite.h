@@ -34,6 +34,7 @@ class MEGA_API SqliteDbTable : public DbTable
     LocalPath dbfile;
     FileSystemAccess *fsaccess;
     sqlite3_stmt* mDelStmt = nullptr;
+    sqlite3_stmt* mPutStmt = nullptr;
 
 public:
     void rewind() override;
