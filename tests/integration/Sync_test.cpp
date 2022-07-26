@@ -2497,6 +2497,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
     }
 
     // For purposes of capturing.
+    auto legacyExclusionsElligible = syncOptions.legacyExclusionsElligible;
     auto isBackup = syncOptions.isBackup;
     auto remoteHandle = remoteNode->nodeHandle();
     auto remoteIsShare = isShare(remoteNode);
@@ -2527,6 +2528,9 @@ void StandardClient::setupSync_inThread(const string& rootPath,
                      LocalPath(),
                      true,
                      isBackup ? BACKUP : TWOWAY);
+
+        // Do we need to migrate legacy exclusion rules?
+        config.mLegacyExclusionsIneligigble = !legacyExclusionsElligible;
 
         // Sanity check.
         EXPECT_TRUE(remoteIsShare || remotePath.substr(0, 1) == "/")
@@ -3673,6 +3677,10 @@ void StandardClient::cleanupForTestReuse()
         out() << "removeSelectedSyncs failed";
     }
 
+    // Nuke any custom exclusion rules.
+    client.syncs.mLegacyUpgradeFilterChain.reset();
+    client.syncs.mNewSyncFilterChain.reset();
+	
     // Make sure any throttles are reset.
     client.setmaxdownloadspeed(0);
     client.setmaxuploadspeed(0);
@@ -11698,9 +11706,15 @@ public:
     handle setupSync(StandardClient& client,
                      const string& localFolder,
                      const string& remoteFolder,
-                     bool uploadIgnoreFirst = true)
+                     bool uploadIgnoreFirst = true,
+                     bool legacyExclusionsElligible = false)
     {
-        return client.setupSync_mainthread(localFolder, remoteFolder, false, uploadIgnoreFirst);
+        SyncOptions options;
+
+        options.legacyExclusionsElligible = legacyExclusionsElligible;
+        options.uploadIgnoreFile = uploadIgnoreFirst;
+
+        return client.setupSync_mainthread(localFolder, remoteFolder, options);
     }
 
     string todaysDate() const
@@ -12037,6 +12051,113 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
     // Confirm models.
     ASSERT_TRUE(confirm(*cdu, id, localFS));
     ASSERT_TRUE(confirm(*cdu, id, remoteTree));
+}
+
+TEST_F(FilterFixture, MigrateLegacyFilters)
+{
+    // Useful constants.
+    m_off_t MINSIZE = 64;
+    m_off_t MAXSIZE = 128;
+
+    // Helpful aliases.
+    auto& oldExclusions = cu->client.syncs.mLegacyUpgradeFilterChain;
+    auto& fsAccess = *cu->client.fsaccess;
+    auto& newExclusions = cu->client.syncs.mNewSyncFilterChain;
+
+    // Convenience.
+    auto root = this->root(*cu) / "root";
+    auto rootPath = LocalPath::fromAbsolutePath(root);
+
+    // Prepare legacy exclusions.
+    {
+        // Set legacy name filters.
+        string_vector elements = {"fe"};
+
+        oldExclusions.excludedNames(elements, fsAccess);
+
+        // Set legacy path filters.
+        elements = {
+            (root / "dp" / "fi").u8string(),
+            (fs::u8path("bogus") / "path").u8string()
+        };
+
+        oldExclusions.excludedPaths(elements);
+
+        // Set legacy size exclusions.
+        oldExclusions.lowerLimit(MINSIZE);
+        oldExclusions.upperLimit(MAXSIZE);
+    }
+
+    // Prepare local filesystem.
+    LocalFSModel localFS;
+
+    localFS.addfile("dn/fi", randomData(MINSIZE));
+    localFS.addfile("dn/fe", randomData(MINSIZE));
+    localFS.addfile("dn/fs", randomData(MINSIZE - 1));
+    localFS.addfile("dn/fl", randomData(MAXSIZE + 1));
+    localFS.addfile("dp/fi", randomData(MINSIZE));
+    localFS.generate(root);
+    localFS.addfile(".megaignore", oldExclusions.generate(rootPath, fsAccess));
+
+    // Prepare remote model.
+    RemoteNodeModel remoteTree = localFS;
+
+    remoteTree.removenode("dn/fe");
+    remoteTree.removenode("dn/fs");
+    remoteTree.removenode("dn/fl");
+    remoteTree.removenode("dp/fi");
+
+    // Log in client.
+    ASSERT_TRUE(cu->makeCloudSubdirs("cu", 0, 0));
+    ASSERT_TRUE(CatchupClients(cd, cdu, cu));
+
+    // Add and start the sync.
+    auto id = setupSync(*cu, "root", "cu", false, true);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitOnSyncs(cu);
+
+    // Are the excluded things actually excluded?
+    ASSERT_TRUE(confirm(*cu, id, localFS));
+    ASSERT_TRUE(confirm(*cu, id, remoteTree));
+
+    // Remove the sync.
+    ASSERT_TRUE(cu->delSync_mainthread(id));
+
+    // Remove the ignore file from disk.
+    {
+        std::error_code result;
+
+        fs::remove(root / ".megaignore", result);
+        ASSERT_FALSE(result);
+
+        localFS.removenode(".megaignore");
+    }
+
+    // Remove the ignore file from the cloud.
+    {
+        remoteTree.removenode(".megaignore");
+
+        ASSERT_TRUE(cu->deleteremote("cu/.megaignore"));
+
+        auto predicate = SyncRemoteMatch("cu", remoteTree.root.get());
+        ASSERT_TRUE(cu->waitFor(predicate, DEFAULTWAIT));
+    }
+
+    // Restart the sync.
+    id = setupSync(*cu, "root", "cu", false);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitOnSyncs(cu);
+
+    // Make sure everything's uploaded as it should be.
+    Model model = localFS;
+
+    model.addfile(".megaignore", newExclusions.generate(rootPath, fsAccess));
+
+    ASSERT_TRUE(confirm(*cu, id, model));
 }
 
 TEST_F(FilterFixture, NameFilter)

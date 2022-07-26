@@ -156,7 +156,7 @@ public:
     SyncBackupState mBackupState;
 
     // Prevent applying old settings dialog based exclusion when creating .megaignore, for newer syncs.  We set this true for new syncs or after upgrade.
-    bool mLegacyExclusionsIneligigble = false;
+    bool mLegacyExclusionsIneligigble = true;
 
     // Whether recursiveSync() is called.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
     bool mTemporarilyPaused = false;

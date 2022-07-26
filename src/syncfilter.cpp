@@ -352,6 +352,16 @@ void DefaultFilterChain::lowerLimit(std::uint64_t lower)
     mLowerLimit = lower;
 }
 
+void DefaultFilterChain::reset()
+{
+    lock_guard<mutex> guard(mLock);
+
+    mExcludedNames = mPredefinedNameExclusions;
+    mExcludedPaths.clear();
+    mLowerLimit = 0u;
+    mUpperLimit = 0u;
+}
+
 void DefaultFilterChain::upperLimit(std::uint64_t limit)
 {
     lock_guard<mutex> guard(mLock);

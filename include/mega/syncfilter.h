@@ -75,10 +75,16 @@ public:
     // Specify that a given path should be excluded.
     void excludePath(const string& path);
 
+    // Generates the content for an ignore file.
+    string generate(const LocalPath& targetPath, FileSystemAccess& fsAccess) const;
+
     // Specify the lower size limit.
     //
     // Zero is valid and represents "no lower limit."
     void lowerLimit(std::uint64_t lower);
+
+    // Resets the chain to its default state.
+    void reset();
 
     // Specify the upper size limit.
     //
@@ -93,9 +99,6 @@ private:
     //
     // Note that the paths returned by this function are relative to target.
     vector<LocalPath> applicablePaths(LocalPath targetPath) const;
-
-    // Generates the content for an ignore file.
-    string generate(const LocalPath& targetPath, FileSystemAccess& fsAccess) const;
 
     // Returns a copy of strings where each individual string has been
     // normalized.
