@@ -7351,6 +7351,10 @@ void MegaClient::notifypurge(void)
             if (!n)
                 return;
 
+            // capture the value here, since removal of related backup is async
+            // and the node will be removed by the time completion is called
+            NodeHandle remoteHandle = us.mConfig.mRemoteNode;
+
             // check if the node has been tagged with 'sds' attribute for the backup-id related to this node
             // if so, the sync/backup should transition to the desired state and the pair backup-id:state should
             // be removed from node's attribute
@@ -7378,7 +7382,7 @@ void MegaClient::notifypurge(void)
 
                         return false;
                     },
-                    [&](Error e)
+                    [sdsBkps, backupId, remoteHandle, this](Error e)
                     {
                         if (e != API_OK)
                         {
@@ -7393,9 +7397,8 @@ void MegaClient::notifypurge(void)
                             return;
                         }
 
-                        assert(found);
-
-                        if (!n->changed.removed)   // avoid to update attributes if node was already removed (by BackupCenter)
+                        Node *n = nodeByHandle(remoteHandle);
+                        if (n && !n->changed.removed)   // avoid to update attributes if node was already removed (by BackupCenter)
                         {
                             const string& value = Node::toSdsString(sdsBkps);
                             setattr(n, attr_map(Node::sdsId(), value), 0, nullptr, nullptr, true);
