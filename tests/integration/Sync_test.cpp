@@ -3683,13 +3683,16 @@ void StandardClient::cleanupForTestReuse()
     mOnFileAdded = nullptr;
     mOnFileComplete = nullptr;
     mOnFilterError = nullptr;
-    mOnMoveBegin = nullptr;
-    mOnPutnodesBegin = nullptr;
     mOnStall = nullptr;
-    mOnSyncDebugNotification = nullptr;
     mOnSyncStateConfig = nullptr;
     mOnTransferAdded = nullptr;
     onTransferCompleted = nullptr;
+
+#ifdef DEBUG
+    mOnMoveBegin = nullptr;
+    mOnPutnodesBegin = nullptr;
+    mOnSyncDebugNotification = nullptr;
+#endif // DEBUG
 }
 
 bool StandardClient::login_reset_makeremotenodes(const string& prefix, int depth, int fanout, bool noCache)
@@ -11709,7 +11712,7 @@ public:
         time_t rawTime = time(nullptr);
         tm* localTime = localtime(&rawTime);
 
-        assert(strftime(&result[0], result.size(), "%F", localTime));
+        strftime(&result[0], result.size(), "%F", localTime);
         result.resize(minimumLength);
 
         return result;
