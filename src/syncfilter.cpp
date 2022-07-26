@@ -387,10 +387,10 @@ string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAcces
 
     // Size filters.
     if (mLowerLimit)
-        ostream << "minsize: " << mLowerLimit << "\n";
+        ostream << "exclude-smaller:" << mLowerLimit << "\n";
 
     if (mUpperLimit)
-        ostream << "maxsize: " << mUpperLimit << "\n";
+        ostream << "exclude-larger:" << mUpperLimit << "\n";
 
     // Name filters.
     for (auto& name : mExcludedNames)
@@ -828,6 +828,12 @@ bool add(const string& text, SizeFilterPtr& filter)
     {
         // Neither lower nor upper bound.
         return syntaxError(text);
+    }
+
+    // Skip leading whitespace.
+    while (std::isspace(istream.peek()))
+    {
+        istream.get();
     }
 
     // Is the limit a bare number?
