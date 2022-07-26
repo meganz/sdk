@@ -72,7 +72,7 @@ public:
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
     bool getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType) override;
-    bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor) override;
+    bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor, CancelToken cancelFlag) override;
     bool isNodeInDB(mega::NodeHandle node) override;
     uint64_t getNumberOfNodes() override;
     uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) override;
@@ -81,7 +81,6 @@ public:
     bool removeNodes() override;
     bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, std::set<NodeHandle>>& children) override;
 
-    void cancelQuery() override;
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
 
     void remove() override;
@@ -95,18 +94,13 @@ private:
     //     std::map<mega::NodeHandle, NodeSerialized>
     //     std::vector<std::pair<mega::NodeHandle, NodeSerialized>>
     // dbConnection is received as parameter to provide as much as possible information in case of error
-    bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, sqlite3* dbConnection);
+    bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
 
     sqlite3_stmt* mStmtPutNode = nullptr;
     sqlite3_stmt* mStmtUpdateNode = nullptr;
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
-
-    sqlite3* mDbSearchConnection = nullptr;
-
-    // Avoid race condition if search is cancelled and sql query hasn't started
-    // This flag is checked at progressHandler() that is called once the query has started
-    CancelToken mCancelFlag;
+    static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 10;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

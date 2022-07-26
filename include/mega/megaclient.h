@@ -295,7 +295,7 @@ public:
     size_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType);
 
     // true if 'node' is a child node of 'ancestor', false otherwise.
-    bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor);
+    bool isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelToken cancelFlag);
 
     // Clean 'changed' flag from all nodes
     void removeChanges();
@@ -359,9 +359,6 @@ public:
     void addChild(NodeHandle parent, NodeHandle child);
     // remove relationship between parent and child
     void removeChild(NodeHandle parent, NodeHandle child);
-
-    // Cancel all DB queries in progress in same sql connection
-    void cancelDbQuery();
 
     // Returns the number of versions for a node (including the current version)
     int getNumVersions(NodeHandle nodeHandle);
