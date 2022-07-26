@@ -2497,7 +2497,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
     }
 
     // For purposes of capturing.
-    auto legacyExclusionsElligible = syncOptions.legacyExclusionsElligible;
+    auto legacyExclusionsEligible = syncOptions.legacyExclusionsEligible;
     auto isBackup = syncOptions.isBackup;
     auto remoteHandle = remoteNode->nodeHandle();
     auto remoteIsShare = isShare(remoteNode);
@@ -2530,7 +2530,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
                      isBackup ? BACKUP : TWOWAY);
 
         // Do we need to migrate legacy exclusion rules?
-        config.mLegacyExclusionsIneligigble = !legacyExclusionsElligible;
+        config.mLegacyExclusionsIneligigble = !legacyExclusionsEligible;
 
         // Sanity check.
         EXPECT_TRUE(remoteIsShare || remotePath.substr(0, 1) == "/")
@@ -11707,11 +11707,11 @@ public:
                      const string& localFolder,
                      const string& remoteFolder,
                      bool uploadIgnoreFirst = true,
-                     bool legacyExclusionsElligible = false)
+                     bool legacyExclusionsEligible = false)
     {
         SyncOptions options;
 
-        options.legacyExclusionsElligible = legacyExclusionsElligible;
+        options.legacyExclusionsEligible = legacyExclusionsEligible;
         options.uploadIgnoreFile = uploadIgnoreFirst;
 
         return client.setupSync_mainthread(localFolder, remoteFolder, options);
