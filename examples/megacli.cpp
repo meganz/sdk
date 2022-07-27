@@ -3681,7 +3681,7 @@ autocomplete::ACN autocompleteSyntax()
         sequence(text("setsandelements"),
                  either(text("list"),
                         sequence(text("newset"), opt(param("name"))),
-                        sequence(text("updateset"), param("id"), param("name")),
+                        sequence(text("updateset"), param("id"), opt(param("name"))),
                         sequence(text("removeset"), param("id")),
                         sequence(text("fetchset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
