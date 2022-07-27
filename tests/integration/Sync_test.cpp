@@ -3063,7 +3063,7 @@ void StandardClient::getpubliclink(Node* n, int del, m_time_t expiry, bool writa
 }
 
 
-void StandardClient::clientwaitonsyncs(chrono::seconds d)
+void StandardClient::waitonsyncs(chrono::seconds d)
 {
     auto start = chrono::steady_clock::now();
     for (;;)
