@@ -3482,7 +3482,11 @@ autocomplete::ACN autocompleteSyntax()
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
 
-    p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
+    p->Add(exec_syncrename,
+           sequence(text("sync"),
+                    text("rename"),
+                    backupID(*client),
+                    param("newname")));
 
     p->Add(exec_syncclosedrive,
            sequence(text("sync"),
@@ -3510,24 +3514,27 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_syncremove,
            sequence(text("sync"),
                     text("remove"),
-                    param("id")));
+                    backupID(*client)));
 
     p->Add(exec_syncxable,
            sequence(text("sync"),
                     either(sequence(either(text("disable"), text("fail")),
-                                    param("id"),
+                                    backupID(*client),
                                     opt(param("error"))),
                            sequence(text("enable"),
-                                    param("id")))));
+                                    backupID(*client)))));
 
-    p->Add(exec_syncoutput, sequence(text("sync"), text("output"),
-        either(text("local_change_detection"),
-            text("remote_change_detection"),
-            text("transfer_activity"),
-            text("folder_sync_state"),
-            text("detail_log"),
-            text("all")),
-        either(text("on"), text("off"))));
+    p->Add(exec_syncoutput,
+           sequence(text("sync"),
+                    text("output"),
+                    either(text("local_change_detection"),
+                           text("remote_change_detection"),
+                           text("transfer_activity"),
+                           text("folder_sync_state"),
+                           text("detail_log"),
+                           text("all")),
+                    either(text("on"),
+                           text("off"))));
 
 #endif
 

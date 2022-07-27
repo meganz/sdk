@@ -220,6 +220,31 @@ namespace autocomplete {
         bool match(ACState& s) const override;
     };
 
+    class MEGA_API BackupID
+      : public ACNode
+    {
+    public:
+        BackupID(MegaClient& client, bool onlyActive);
+
+        bool addCompletions(ACState& state) override;
+
+        std::ostream& describe(std::ostream& ostream) const override;
+
+        bool match(ACState& state) const override;
+
+    private:
+        struct DontValidate {};
+
+        string_vector backupIDs() const;
+
+        string_vector& filter(string_vector& ids, const ACState& state) const;
+
+        bool match(const string_vector& ids, ACState& state) const;
+
+        MegaClient& mClient;
+        bool mOnlyActive;
+    }; // BackupID
+
     struct MEGA_API CompletionState
     {
         std::string line;
@@ -267,6 +292,7 @@ namespace autocomplete {
     ACN remoteFSFile(MegaClient*, ::mega::NodeHandle*, const std::string descriptionPrefix = "");
     ACN remoteFSFolder(MegaClient*, ::mega::NodeHandle*, const std::string descriptionPrefix = "");
     ACN contactEmail(MegaClient*);
+    ACN backupID(MegaClient& client, bool onlyActive = false);
 
 }} //namespaces
 #endif
