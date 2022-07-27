@@ -4840,10 +4840,6 @@ TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
     ASSERT_TRUE(CatchupClients(clientA1, clientA2));
 
-    //StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
-    //StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
-    //ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
-    //ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1->basefolderhandle, clientA2->basefolderhandle);
 
     Model model;
@@ -4893,10 +4889,6 @@ TEST_F(SyncTest, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 3, 3));
     ASSERT_TRUE(CatchupClients(clientA1, clientA2));
 
-    //StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
-    //StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
-    //ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 3, 3));
-    //ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1->basefolderhandle, clientA2->basefolderhandle);
 
     Model model;
@@ -5631,10 +5623,6 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 1, 1));
     ASSERT_TRUE(CatchupClients(clientA1, clientA2));
 
-    //StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
-    //StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
-    //ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
-    //ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1->basefolderhandle, clientA2->basefolderhandle);
 
     Model model;
@@ -5696,10 +5684,6 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 1, 1));
     ASSERT_TRUE(CatchupClients(clientA1, clientA2));
 
-    //StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
-    //StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
-    //ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
-    //ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1->basefolderhandle, clientA2->basefolderhandle);
 
     Model model;
@@ -5761,10 +5745,6 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
-    //StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
-    //StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
-    //ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "f", 1, 1));
-    //ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     
     auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
