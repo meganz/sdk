@@ -23,6 +23,7 @@
 #define MEGA_DB_H 1
 
 #include "filesystem.h"
+#include "logging.h"
 
 namespace mega {
 // generic host transactional database access interface
@@ -203,6 +204,30 @@ public:
 
 
     MEGA_DISABLE_COPY_MOVE(DBTableTransactionCommitter)
+};
+
+
+class MEGA_API TransferDbCommitter : public DBTableTransactionCommitter
+{
+public:
+
+    uint32_t addFileCount = 0;
+    uint32_t addTransferCount = 0;
+    uint32_t removeFileCount = 0;
+    uint32_t removeTransferCount = 0;
+
+    explicit TransferDbCommitter(unique_ptr<DbTable>& t) : DBTableTransactionCommitter(t) {}
+
+    ~TransferDbCommitter()
+    {
+        if (addFileCount || addTransferCount || removeFileCount || removeTransferCount)
+        {
+            LOG_debug << "Committed transfer db with new transfers : " << addTransferCount <<
+                            " and new transfer files: " << addFileCount <<
+                            " removed transfers: " << removeTransferCount <<
+                            " and removed transfer files: " << removeFileCount;
+        }
+    }
 };
 
 enum DbOpenFlag

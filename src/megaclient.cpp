@@ -2509,7 +2509,7 @@ void MegaClient::exec()
 
         if (!mBlocked) // handle active unpaused transfers
         {
-            DBTableTransactionCommitter committer(tctable);
+            TransferDbCommitter committer(tctable);
 
             while (slotit != tslots.end())
             {
@@ -2517,7 +2517,14 @@ void MegaClient::exec()
 
                 slotit++;
 
-                if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
+                // remove transfer files whose MegaTransfer associated has been cancelled (via cancel token)
+                (*it)->transfer->removeCancelledTransferFiles(&committer);
+                if ((*it)->transfer->files.empty())
+                {
+                    // this also removes it from slots
+                    (*it)->transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
+                }
+                else if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
                 {
                     (*it)->doio(this, committer);
                 }
@@ -2781,7 +2788,7 @@ void MegaClient::exec()
                                     // FIXME: defer this until RETRY queue is processed
                                     sync->scanseqno++;
 
-                                    DBTableTransactionCommitter committer(tctable);  //  just one db transaction to remove all the LocalNodes that get deleted
+                                    TransferDbCommitter committer(tctable);  //  just one db transaction to remove all the LocalNodes that get deleted
                                     sync->deletemissing(sync->localroot.get());
                                 }
                             }
@@ -2982,7 +2989,7 @@ void MegaClient::exec()
                                         if (sync->fullscan)
                                         {
                                             // recursively delete all LocalNodes that were deleted (not moved or renamed!)
-                                            DBTableTransactionCommitter committer(tctable);  //  just one db transaction to remove all the LocalNodes that get deleted
+                                            TransferDbCommitter committer(tctable);  //  just one db transaction to remove all the LocalNodes that get deleted
                                             sync->deletemissing(sync->localroot.get());
                                             sync->cachenodes();
                                         }
@@ -3643,6 +3650,31 @@ bool MegaClient::abortbackoff(bool includexfers)
 // activate enough queued transfers as necessary to keep the system busy - but not too busy
 void MegaClient::dispatchTransfers()
 {
+    if (CancelToken::haveAnyCancelsOccurredSince(lastKnownCancelCount))
+    {
+        // first deal with the possibility of cancelled transfers
+        // only do this if any cancel tokens were activated
+        // as walking the whole list on every exec() would be too expensive for large sets of transfers
+        static direction_t putget[] = { PUT, GET };
+        for (direction_t direction : putget)
+        {
+            TransferDbCommitter committer(tctable);
+            auto& directionList = transfers[direction];
+            for (auto i = directionList.begin(); i != directionList.end(); )
+            {
+                auto it = i++;  // in case this entry is removed
+                Transfer* transfer = it->second;
+
+                transfer->removeCancelledTransferFiles(&committer);
+                if (transfer->files.empty())
+                {
+                    // this also removes it from slots
+                    transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
+                }
+            }
+        }
+    }
+
     // do we have any transfer slots available?
     if (!slotavail())
     {
@@ -3730,7 +3762,7 @@ void MegaClient::dispatchTransfers()
             return true;
         };
 
-    DBTableTransactionCommitter committer(tctable);
+    TransferDbCommitter committer(tctable);
 
     std::array<vector<Transfer*>, 6> nextInCategory = transferlist.nexttransfers(testAddTransferFunction, continueDirection, committer);
 
@@ -4174,7 +4206,7 @@ void MegaClient::checkfacompletion(UploadHandle th, Transfer* t)
 // clear transfer queue
 void MegaClient::freeq(direction_t d)
 {
-    DBTableTransactionCommitter committer(tctable);
+    TransferDbCommitter committer(tctable);
     for (auto transferPtr : transfers[d])
     {
         transferPtr.second->mOptimizedDelete = true;  // so it doesn't remove itself from this list while deleting
@@ -4735,7 +4767,7 @@ bool MegaClient::procsc()
 
                         if (tctable && cachedfiles.size())
                         {
-                            DBTableTransactionCommitter committer(tctable);
+                            TransferDbCommitter committer(tctable);
                             for (unsigned int i = 0; i < cachedfiles.size(); i++)
                             {
                                 direction_t type = NONE;
@@ -10676,41 +10708,41 @@ void NodeManager::notifyNode(Node* n)
     }
 }
 
-void MegaClient::transfercacheadd(Transfer *transfer, DBTableTransactionCommitter* committer)
+void MegaClient::transfercacheadd(Transfer *transfer, TransferDbCommitter* committer)
 {
     if (tctable && !transfer->skipserialization)
     {
-        LOG_debug << "Caching transfer";
+        if (committer) committer->addTransferCount += 1;
         tctable->checkCommitter(committer);
         tctable->put(MegaClient::CACHEDTRANSFER, transfer, &tckey);
     }
 }
 
-void MegaClient::transfercachedel(Transfer *transfer, DBTableTransactionCommitter* committer)
+void MegaClient::transfercachedel(Transfer *transfer, TransferDbCommitter* committer)
 {
     if (tctable && transfer->dbid)
     {
-        LOG_debug << "Removing cached transfer";
+        if (committer) committer->removeTransferCount += 1;
         tctable->checkCommitter(committer);
         tctable->del(transfer->dbid);
     }
 }
 
-void MegaClient::filecacheadd(File *file, DBTableTransactionCommitter& committer)
+void MegaClient::filecacheadd(File *file, TransferDbCommitter& committer)
 {
     if (tctable && !file->syncxfer)
     {
-        LOG_debug << "Caching file";
+        committer.addFileCount += 1;
         tctable->checkCommitter(&committer);
         tctable->put(MegaClient::CACHEDFILE, file, &tckey);
     }
 }
 
-void MegaClient::filecachedel(File *file, DBTableTransactionCommitter* committer)
+void MegaClient::filecachedel(File *file, TransferDbCommitter* committer)
 {
     if (tctable && !file->syncxfer)
     {
-        LOG_debug << "Removing cached file";
+        if (committer) committer->removeFileCount += 1;
         tctable->checkCommitter(committer);
         tctable->del(file->dbid);
     }
@@ -12171,7 +12203,7 @@ void MegaClient::purgeOrphanTransfers(bool remove)
 
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
-        DBTableTransactionCommitter committer(tctable);
+        TransferDbCommitter committer(tctable);
         while (cachedtransfers[d].size())
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
@@ -12250,7 +12282,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
     {
-        DBTableTransactionCommitter committer(tctable); // needed in case of tctable->del()
+        TransferDbCommitter committer(tctable); // needed in case of tctable->del()
         while (tctable->next(&id, &data, &tckey))
         {
             switch (id & 15)
@@ -12289,7 +12321,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     // postpone the resumption until the filesystem is updated
     if ((!sid.size() && !loggedinfolderlink()) || statecurrent)
     {
-        DBTableTransactionCommitter committer(tctable);
+        TransferDbCommitter committer(tctable);
         for (unsigned int i = 0; i < cachedfiles.size(); i++)
         {
             direction_t type = NONE;
@@ -14045,7 +14077,7 @@ handle MegaClient::nextsyncid()
 }
 
 // recursively stop all transfers
-void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
+void MegaClient::stopxfers(LocalNode* l, TransferDbCommitter& committer)
 {
     if (l->type != FILENODE)
     {
@@ -14309,7 +14341,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     if (rit->second->localnode && rit->second->localnode->transfer)
                     {
                         LOG_debug << "Stopping an unneeded upload";
-                        DBTableTransactionCommitter committer(tctable);
+                        TransferDbCommitter committer(tctable);
                         stopxfer(rit->second->localnode, &committer);  // TODO: can we have one transaction for recursing through syncdown() ?
                     }
 
@@ -14391,7 +14423,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
                 if (l->sync->movetolocaldebris(localpath) || !fsaccess->transient_error)
                 {
-                    DBTableTransactionCommitter committer(tctable);
+                    TransferDbCommitter committer(tctable);
                     delete lit++->second;
                 }
                 else
@@ -14559,7 +14591,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
                             rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
                             nextreqtag();
-                            DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
+                            TransferDbCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
                             error result = API_OK;
 
                             startxfer(GET, rit->second->syncget, committer, false, false, false, UseLocalVersioningFlag, &result);
@@ -14843,7 +14875,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         if (rit->second->syncget)
                         {
                             LOG_debug << "Stopping unneeded download";
-                            DBTableTransactionCommitter committer(tctable);
+                            TransferDbCommitter committer(tctable);
                             delete rit->second->syncget;
                             rit->second->syncget = NULL;
                         }
@@ -14852,7 +14884,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         if (ll->transfer)
                         {
                             LOG_debug << "Stopping unneeded upload";
-                            DBTableTransactionCommitter committer(tctable);
+                            TransferDbCommitter committer(tctable);
                             stopxfer(ll, &committer);  // todo:  can we use just one commiter for all of the recursive syncup() calls?
                         }
 
@@ -15256,7 +15288,7 @@ void MegaClient::syncupdate()
         vector<NewNode> nn;
         nn.reserve(end - start);
 
-        DBTableTransactionCommitter committer(tctable);
+        TransferDbCommitter committer(tctable);
         for (i = start; i < end; i++)
         {
             n = NULL;
@@ -15738,7 +15770,7 @@ void MegaClient::putnodes_syncdebris_result(error, vector<NewNode>& nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause)
+bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause)
 {
     f->mVersioningOption = vo;
 
@@ -15868,7 +15900,6 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             it = cachedtransfers[d].find(f);
             if (it != cachedtransfers[d].end())
             {
-                LOG_debug << "Resumable transfer detected";
                 t = it->second;
                 bool hadAnyData = t->pos > 0;
                 if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
@@ -15892,7 +15923,11 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 {
                     if (d == PUT)
                     {
-                        LOG_warn << "Local file not found: " << localpath;
+                        if (!localpath.empty())
+                        {
+                            // if empty, we had not started the upload. The real path is in the first File
+                            LOG_warn << "Local file not found: " << localpath;
+                        }
                         // the transfer will be retried to ensure that the file
                         // is not just just temporarily blocked
                     }
@@ -15988,7 +16023,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
 }
 
 // remove file from transfer subsystem
-void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
+void MegaClient::stopxfer(File* f, TransferDbCommitter* committer)
 {
     if (f->transfer)
     {
@@ -16015,7 +16050,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 }
 
 // pause/unpause transfers
-void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransactionCommitter& committer)
+void MegaClient::pausexfers(direction_t d, bool pause, bool hard, TransferDbCommitter& committer)
 {
     xferpaused[d] = pause;
 
@@ -17857,7 +17892,7 @@ void NodeManager::notifyPurge()
          });
 #endif
 
-        DBTableTransactionCommitter committer(mClient.tctable);
+        TransferDbCommitter committer(mClient.tctable);
 
         // check all notified nodes for removed status and purge
         for (size_t i = 0; i < mNodeNotify.size(); i++)

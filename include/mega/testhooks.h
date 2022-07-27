@@ -43,14 +43,14 @@ namespace mega {
     class MEGA_API RaidBufferManager;
     class DebugTestHook;
     struct Transfer;
-    class DBTableTransactionCommitter;
+    class TransferDbCommitter;
 
     struct MegaTestHooks
     {
         std::function<bool(HttpReq*)> onHttpReqPost;
         std::function<void(RaidBufferManager*)> onSetIsRaid;
         std::function<void(error e)> onUploadChunkFailed;
-        std::function<bool(Transfer*, DBTableTransactionCommitter&)> onUploadChunkSucceeded;
+        std::function<bool(Transfer*, TransferDbCommitter&)> onUploadChunkSucceeded;
         std::function<void(error e)> onDownloadFailed;
     };
 
