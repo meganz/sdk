@@ -1816,6 +1816,7 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
             if (mayNeedDeleting)
             {
                 auto completion = [this, result](NodeHandle, Error e) {
+                    EXPECT_EQ(e, API_OK);
                     if (e) out() << "delete of test base folder reply reports: " << e;
                     deleteTestBaseFolder(false, true, result);
                 };
@@ -1861,7 +1862,7 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
             nn[0] = makeSubfolder("mega_test_sync");
 
             auto completion = BasicPutNodesCompletion([this, pb](const Error& e) {
-                e;
+                EXPECT_EQ(e, API_OK);
                 ensureTestBaseFolder(false, pb);
             });
 
@@ -3255,6 +3256,10 @@ void StandardClient::cleanupForTestReuse()
     {
         out() << "removeSelectedSyncs failed";
     }
+
+    // Remove any established anomaly reporter.
+    // TODO: Might need some kind of synchronization?
+    client.mFilenameAnomalyReporter = nullptr;
 }
 
 bool StandardClient::login_reset_makeremotenodes(const string& prefix, int depth, int fanout, bool noCache)
@@ -5694,7 +5699,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     handle backupId2 = clientA2->setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
 
-    waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
+    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
     clientA1->logcb = clientA2->logcb = true;
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
@@ -5709,7 +5714,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // let them catch up
-    waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
 
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
@@ -5730,7 +5735,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // Wait for the engine to synchronize changes.
-    waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
+    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
 
     model.findnode("f")->addkid(model.makeModelSubfile("linked"));
     model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
@@ -5761,7 +5766,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
     handle backupId2 = clientA2->setupSync_mainthread("sync2", "f", false, false);
     ASSERT_NE(backupId2, UNDEF);
 
-    waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
+    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
     clientA1->logcb = clientA2->logcb = true;
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
