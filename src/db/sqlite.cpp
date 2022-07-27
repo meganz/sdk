@@ -972,10 +972,8 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
         result = processSqlQueryNodes(stmt, nodes);
     }
 
-    if (cancelFlag.exists())
-    {
-        sqlite3_progress_handler(db, -1, nullptr, nullptr);
-    }
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
     if (sqlResult == SQLITE_ERROR)
     {
@@ -1218,10 +1216,8 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor, Cancel
         }
     }
 
-    if (cancelFlag.exists())
-    {
-        sqlite3_progress_handler(db, -1, nullptr, nullptr);
-    }
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
     if (sqlResult == SQLITE_ERROR)
     {
