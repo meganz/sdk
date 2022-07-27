@@ -1823,7 +1823,6 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
                 resultproc.prepresult(COMPLETION, ++next_request_tag,
                     [&](){ client.unlink(basenode, false, 0, std::move(completion)); },
                     nullptr);
-                //result->set_value(1); // ok
                 return;
             }
             out() << "base folder found, but not expected, failing";
