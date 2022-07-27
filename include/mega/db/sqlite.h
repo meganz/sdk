@@ -100,7 +100,9 @@ private:
     sqlite3_stmt* mStmtUpdateNode = nullptr;
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
-    static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 10;
+    // how many SQLite instructions will be executed between callbacks to the progress handler
+    // (tests with a value of 1000 results on a callback every 1.2ms on a desktop PC)
+    static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 1000;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess
