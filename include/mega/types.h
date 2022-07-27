@@ -577,6 +577,17 @@ public:
 
 };
 
+template <class T1, class T2> class mapWithLookupExisting : public map<T1, T2>
+{
+public:
+    T2* lookupExisting(T1 key)
+    {
+        auto i = find(key);
+        if (i == end()) return nullptr;
+        return &i->second;
+    }
+};
+
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
 
