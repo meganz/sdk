@@ -4505,7 +4505,7 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_NE(backupId22, UNDEF);
     handle backupId31 = clientA3->setupSync_mainthread("syncA3", "f", false, false);
     ASSERT_NE(backupId31, UNDEF);
-    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2, clientA3); // 021 8461231
+    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2, clientA3);
     clientA1->logcb = clientA2->logcb = clientA3->logcb = true;
 
     // check everything matches (model has expected state of remote and local)
