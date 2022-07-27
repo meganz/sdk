@@ -5934,7 +5934,7 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
 TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
 {
     const auto TESTROOT = makeNewTestRoot();
-    const auto TIMEOUT = std::chrono::seconds(4);
+    const auto TIMEOUT  = std::chrono::seconds(4);
 
     SyncConfig config0;
     SyncConfig config1;
@@ -6040,22 +6040,22 @@ TEST_F(SyncTest, BasicSync_ClientToSDKConfigMigration)
             // Let the waiter know the syncs are up.
             notify.set_value();
         };
-        })();
+    })();
 
-        // Fetch nodes (and resume syncs.)
-        ASSERT_TRUE(c1.fetchnodes());
+    // Fetch nodes (and resume syncs.)
+    ASSERT_TRUE(c1.fetchnodes());
 
-        // Wait for the syncs to be resumed.
-        notify.get_future().get();
+    // Wait for the syncs to be resumed.
+    notify.get_future().get();
 
-        // Wait for sync to complete.
-        waitonsyncs(TIMEOUT, &c1);
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &c1);
 
-        // Check that all files from the cloud were downloaded.
-        model.ensureLocalDebrisTmpLock("");
-        ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id0));
-        model.removenode(DEBRISFOLDER);
-        ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
+    // Check that all files from the cloud were downloaded.
+    model.ensureLocalDebrisTmpLock("");
+    ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id0));
+    model.removenode(DEBRISFOLDER);
+    ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
 }
 
 /*
@@ -6665,7 +6665,7 @@ private:
 TEST_F(SyncTest, AnomalousManualDownload)
 {
     auto TESTROOT = makeNewTestRoot();
-    auto TIMEOUT = chrono::seconds(4);
+    auto TIMEOUT  = chrono::seconds(4);
 
     StandardClientInUse cu = g_clientManager->getCleanStandardClient(0, TESTROOT);
     StandardClientInUse cd = g_clientManager->getCleanStandardClient(0, TESTROOT);
@@ -6681,6 +6681,7 @@ TEST_F(SyncTest, AnomalousManualDownload)
 
     // Upload two files for us to download.
     {
+
         // Create a sync so we can upload some files.
         auto id = cu->setupSync_mainthread("s", "s", false, false);
         ASSERT_NE(id, UNDEF);
@@ -6709,8 +6710,8 @@ TEST_F(SyncTest, AnomalousManualDownload)
 
     // Set anomalous filename reporter.
     AnomalyReporter* reporter =
-        new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()),
-            cd->gettestbasenode()->displaypath());
+      new AnomalyReporter(LocalPath::fromAbsolutePath(root.u8string()),
+                          cd->gettestbasenode()->displaypath());
 
     cd->client.mFilenameAnomalyReporter.reset(reporter);
 
@@ -7476,11 +7477,15 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
     auto TESTROOT = makeNewTestRoot();
     auto TIMEOUT = std::chrono::seconds(8);
 
-    // Create the client.
-    auto c = ::mega::make_unique<StandardClient>(TESTROOT, "c");
+    StandardClientInUse c = g_clientManager->getCleanStandardClient(0, TESTROOT);
 
-    // Log in the client, taking care to clear the cloud.
-    ASSERT_TRUE(c->login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 0, 0));
+    // Log callbacks.
+    c->logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(c->resetBaseFolderMulticlient());
+    ASSERT_TRUE(c->makeCloudSubdirs("s", 0, 0));
+    ASSERT_TRUE(CatchupClients(c));
 
     // Populate model.
     Model m;
@@ -7503,7 +7508,7 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
     ASSERT_NE(id, UNDEF);
 
     // Wait for the initial sync to complete.
-    waitonsyncs(TIMEOUT, c.get());
+    waitonsyncs(TIMEOUT, c);
 
     // Make sure the initial sync was successful.
     ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
@@ -7531,7 +7536,7 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
         //c->triggerFullScan(id);
 
         // Wait for the change to be synchronized.
-        waitonsyncs(TIMEOUT, c.get());
+        waitonsyncs(TIMEOUT, c);
 
         // Was the change correctly synchronized?
         ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
@@ -7562,7 +7567,7 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
         //c->triggerFullScan(id);
 
         // Wait for the change to be synchronized.
-        waitonsyncs(TIMEOUT, c.get());
+        waitonsyncs(TIMEOUT, c);
 
         // Was the change correctly synchronized?
         ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
@@ -7593,7 +7598,7 @@ TEST_F(SyncTest, RenameReplaceFileWithinSync)
         //c->triggerFullScan(id);
 
         // Wait for the change to be synchronized.
-        waitonsyncs(TIMEOUT, c.get());
+        waitonsyncs(TIMEOUT, c);
 
         // Was the change correctly synchronized?
         ASSERT_TRUE(c->confirmModel_mainthread(m.root.get(), id));
@@ -7722,7 +7727,7 @@ TEST_F(SyncTest, RenameReplaceFolderWithinSync)
     ASSERT_NE(id, UNDEF);
 
     // Populate local FS.
-    const auto SYNCROOT = c0->fsBasePath / "s0"; //  TESTROOT / "c0" 
+    const auto SYNCROOT = c0->fsBasePath / "s0";
 
     Model model;
 
