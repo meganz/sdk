@@ -676,7 +676,7 @@ struct StandardClient : public MegaApp
     void movenodetotrash(string path, PromiseBoolSP pb);
     void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
-    void waitonsyncs(chrono::seconds d = chrono::seconds(2));
+    void clientwaitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
     bool resetBaseFolderMulticlient(StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr);
     void cleanupForTestReuse();
