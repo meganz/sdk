@@ -11452,14 +11452,24 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
         ASSERT_NE(node, nullptr);
 
         {
+            c.received_node_actionpackets = false;
+
             // Move d to x/d.
             ASSERT_TRUE(cr.movenode("s/d", "s/x"));
+
+            // Wait for c to receive necessary action packets.
+            ASSERT_TRUE(c.waitForNodesUpdated(8));
 
             // Wait for c to stall.
             ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(8)));
 
+            c.received_node_actionpackets = false;
+
             // Remove the original x/d.
             ASSERT_TRUE(cr.deleteremote(node));
+
+            // Wait for c to receive cr's changes.
+            ASSERT_TRUE(c.waitForNodesUpdated(8));
 
             // Wait for c to recover from the stall.
             ASSERT_TRUE(c.waitFor(SyncStallState(false), chrono::seconds(8)));
