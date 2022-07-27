@@ -6635,7 +6635,7 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
         bool waitingRoom = false;
         bool openInvite = false;
 
-        client->extractChatOptionsFromList(&mChatOptions, speakRequest, speakRequest, openInvite);
+        client->extractChatOptionsFromList(&mChatOptions, speakRequest, waitingRoom, openInvite);
         if (speakRequest) {arg("sr", 1);}
         if (waitingRoom)  {arg("w", 1);}
         if (openInvite)   {arg("oi", 1);}
