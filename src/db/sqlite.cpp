@@ -1100,8 +1100,8 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
         if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHanlde.as8byte())) == SQLITE_OK)
         {
             // if nodeType is unknown, no need to bind the value, but to proceed to sqlite3_step()
-            if ((nodeType == TYPE_UNKNOWN) 
-                || (sqlResult = sqlite3_bind_int64(stmt, 2, nodeType) == SQLITE_OK))
+            if (nodeType == TYPE_UNKNOWN
+                || (sqlResult = sqlite3_bind_int64(stmt, 2, nodeType)) == SQLITE_OK)
             {
                 if((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
                 {
@@ -1331,7 +1331,7 @@ bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, s
     int sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, fingerprint, parenthandle, type FROM nodes", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        while ((sqlResult = sqlite3_step(stmt) == SQLITE_ROW))
+        while ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
         {
             NodeHandle nodeHandle;
             nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
