@@ -86,14 +86,14 @@ public:
     void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
     virtual ~SqliteAccountState();
+
+    // Callback registered by some long-time running queries, so they can be canceled
+    // If the progress callback returns non-zero, the operation is interrupted
     static int progressHandler(void *);
 
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
-    //     std::map<mega::NodeHandle, NodeSerialized>
-    //     std::vector<std::pair<mega::NodeHandle, NodeSerialized>>
-    // dbConnection is received as parameter to provide as much as possible information in case of error
     bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
 
     sqlite3_stmt* mStmtPutNode = nullptr;
