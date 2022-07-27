@@ -582,9 +582,9 @@ template <class T1, class T2> class mapWithLookupExisting : public map<T1, T2>
 public:
     T2* lookupExisting(T1 key)
     {
-        auto i = find(key);
-        if (i == end()) return nullptr;
-        return &i->second;
+        auto it = this->find(key);
+        if (it == this->end()) return nullptr;
+        return &it->second;
     }
 };
 
