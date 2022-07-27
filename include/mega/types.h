@@ -1083,48 +1083,11 @@ public:
     void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
 };
 
-class CancelElement
-{
-public:
-    explicit CancelElement(bool value)
-        : cancelFlag(value)
-    {
-    }
-    std::mutex m;
-    bool cancelFlag;
-    bool completedFlag = false;
-    std::function<void(void)> mCancelMethod;
-
-    void cancel()
-    {
-        std::lock_guard<mutex> g(m);
-        if (!cancelFlag)
-        {
-            cancelFlag = true;
-            if (mCancelMethod && !completedFlag)
-            {
-                mCancelMethod();
-            }
-        }
-    }
-
-    void setCompleted()
-    {
-        // If using mCancelMethod, this should be called once the operation completes,
-        // in order to ensure we don't invoke mCancelMethod() as we don't want to cancel some subsequent operation.
-        // Once this function returns, the caller can be sure that mCancelMethod will not be called afterward (from
-        // the perspective of this thread)
-        // We need the mutex in order to make that guarantee.
-        std::lock_guard<mutex> g(m);
-        completedFlag = true;
-    }
-};
-
 class CancelToken
 {
     // A small item with representation shared between many objects
     // They can all be cancelled in one go by setting the token flag true
-    shared_ptr<CancelElement> element;
+    shared_ptr<bool> flag;
 
 public:
 
@@ -1133,41 +1096,24 @@ public:
 
     // create with a token available to be cancelled
     explicit CancelToken(bool value)
-        : element(std::make_shared<CancelElement>(value))
+        : flag(std::make_shared<bool>(value))
     {}
 
     // cancel() can be invoked from any thread
     void cancel()
     {
-        if (element) element->cancel();
+        if (flag) *flag = true;
     }
 
     bool isCancelled() const
     {
-        return element && element->cancelFlag;
+        return !!flag && *flag;
     }
 
     bool exists()
     {
-        return !!element;
+        return !!flag;
     }
-
-    void setCancelMethod(std::function<void(void)>&& method)
-    {
-        if (element)
-        {
-            element->mCancelMethod = move(method);
-        }
-    }
-
-    void setCompleted()
-    {
-        // If using mCancelMethod, this should be called once the operation completes,
-        // from the thread on which the operation ran,
-        // in order to ensure we don't invoke mCancelMethod() afterward from some other thread.
-        if (element) element->setCompleted();
-    }
-
 };
 
 } // namespace

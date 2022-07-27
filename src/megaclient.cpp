@@ -17430,7 +17430,7 @@ size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_
     return mTable->getNumberOfChildrenByType(parentHandle, nodeType);
 }
 
-bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)
+bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelToken cancelFlag)
 {
     if (!mTable)
     {
@@ -17438,7 +17438,7 @@ bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor)
         return false;
     }
 
-    return mTable->isAncestor(nodehandle, ancestor);
+    return mTable->isAncestor(nodehandle, ancestor, cancelFlag);
 }
 
 void NodeManager::removeChanges()
@@ -18022,17 +18022,6 @@ bool NodeManager::isRootNode(NodeHandle h) const
             || h == mClient.mNodeManager.getRootNodeRubbish();
 }
 
-void NodeManager::cancelDbQuery()
-{
-    if (!mTable)
-    {
-        assert(false);
-        return;
-    }
-
-    mTable->cancelQuery();
-}
-
 int NodeManager::getNumVersions(NodeHandle nodeHandle)
 {
     Node *node = getNodeByHandle(nodeHandle);
@@ -18262,7 +18251,7 @@ node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle
         if (!ancestorHandle.isUndef())  // filter results by subtree (nodeHandle)
         {
             bool skip = n ? !n->isAncestor(ancestorHandle)
-                          : !isAncestor(nodeIt.first, ancestorHandle);
+                          : !isAncestor(nodeIt.first, ancestorHandle, cancelFlag);
 
             if (skip) continue;
         }

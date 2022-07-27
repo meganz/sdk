@@ -72,7 +72,7 @@ public:
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
     bool getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
     bool getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType) override;
-    bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor) override;
+    bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor, CancelToken cancelFlag) override;
     bool isNodeInDB(mega::NodeHandle node) override;
     uint64_t getNumberOfNodes() override;
     uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) override;
@@ -81,32 +81,28 @@ public:
     bool removeNodes() override;
     bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, std::set<NodeHandle>>& children) override;
 
-    void cancelQuery() override;
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
 
     void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);
     virtual ~SqliteAccountState();
+
+    // Callback registered by some long-time running queries, so they can be canceled
+    // If the progress callback returns non-zero, the operation is interrupted
     static int progressHandler(void *);
 
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
-    //     std::map<mega::NodeHandle, NodeSerialized>
-    //     std::vector<std::pair<mega::NodeHandle, NodeSerialized>>
-    // dbConnection is received as parameter to provide as much as possible information in case of error
-    bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, sqlite3* dbConnection);
+    bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
 
     sqlite3_stmt* mStmtPutNode = nullptr;
     sqlite3_stmt* mStmtUpdateNode = nullptr;
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
-
-    sqlite3* mDbSearchConnection = nullptr;
-
-    // Avoid race condition if search is cancelled and sql query hasn't started
-    // This flag is checked at progressHandler() that is called once the query has started
-    CancelToken mCancelFlag;
+    // how many SQLite instructions will be executed between callbacks to the progress handler
+    // (tests with a value of 1000 results on a callback every 1.2ms on a desktop PC)
+    static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 1000;
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

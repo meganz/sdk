@@ -570,33 +570,6 @@ void SqliteDbTable::remove()
 SqliteAccountState::SqliteAccountState(PrnGen &rng, sqlite3 *pdb, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted)
     : SqliteDbTable(rng, pdb, fsAccess, path, checkAlwaysTransacted)
 {
-    int result = sqlite3_open_v2(path.toPath().c_str(), &mDbSearchConnection,
-        SQLITE_OPEN_READONLY // The database is opened for reading
-        | SQLITE_OPEN_FULLMUTEX // The new database connection will use the "Serialized" threading mode. This means that multiple threads can be used without restriction
-        | SQLITE_OPEN_SHAREDCACHE  // Allow shared uncommited data between connections
-        , nullptr);
-
-    if (result)
-    {
-        string err = sqlite3_errmsg(mDbSearchConnection) ? sqlite3_errmsg(mDbSearchConnection) : std::to_string(result);
-        LOG_err << "Failure opening DB connection for search. Error: " <<  err;
-        if (mDbSearchConnection)
-        {
-            sqlite3_close(mDbSearchConnection);
-            mDbSearchConnection = nullptr;
-        }
-        assert(!"Failure opening DB connection for search");
-    }
-
-    result = sqlite3_exec(mDbSearchConnection, "PRAGMA read_uncommitted=1;", nullptr, nullptr, nullptr);
-    if (result)
-    {
-        string err = sqlite3_errmsg(mDbSearchConnection) ? sqlite3_errmsg(mDbSearchConnection) : std::to_string(result);
-        LOG_err << "Failure setting read_uncommitted at DB connection for search. Error: " <<  err;
-        sqlite3_close(mDbSearchConnection);
-        mDbSearchConnection = nullptr;
-        assert(!"Failure setting read_uncommitted at DB connection for search");
-    }
 }
 
 SqliteAccountState::~SqliteAccountState()
@@ -605,28 +578,15 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtUpdateNode);
     sqlite3_finalize(mStmtTypeAndSizeNode);
     sqlite3_finalize(mStmtGetNode);
-
-    if (mDbSearchConnection)
-    {
-        sqlite3_close(mDbSearchConnection);
-    }
 }
 
 int SqliteAccountState::progressHandler(void *param)
 {
-    SqliteAccountState* db = static_cast<SqliteAccountState*>(param);
-    // Check pointer and value
-    if (db->mCancelFlag.isCancelled())
-    {
-        sqlite3_interrupt(db->mDbSearchConnection);
-    }
-
-    sqlite3_progress_handler(db->mDbSearchConnection, -1, nullptr, nullptr);
-
-    return 0;
+    CancelToken* cancelFlag = static_cast<CancelToken*>(param);
+    return cancelFlag->isCancelled();
 }
 
-bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, sqlite3* dbConnection)
+bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes)
 {
     assert(stmt);
     int sqlResult = SQLITE_ERROR;
@@ -658,7 +618,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
     if (sqlResult == SQLITE_ERROR)
     {
         // In case of interrupt db query, it will finish with (expected) error
-        string err = string(" Error: ") + (sqlite3_errmsg(dbConnection) ? sqlite3_errmsg(dbConnection) : std::to_string(sqlResult));
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_debug << "Unable to processSqlQueryNodes from database (maybe query has been interrupted): " << dbfile << err;
     }
 
@@ -707,16 +667,6 @@ bool SqliteAccountState::removeNodes()
     }
 
     return sqlResult == SQLITE_OK;
-}
-
-void SqliteAccountState::cancelQuery()
-{
-    if (!mDbSearchConnection)
-    {
-        return;
-    }
-
-    sqlite3_interrupt(mDbSearchConnection);
 }
 
 void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob)
@@ -769,9 +719,6 @@ void SqliteAccountState::remove()
 
     sqlite3_finalize(mStmtGetNode);
     mStmtGetNode = nullptr;
-
-    sqlite3_close(mDbSearchConnection);
-    mDbSearchConnection = nullptr;
 
     SqliteDbTable::remove();
 }
@@ -917,7 +864,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
     {
         if ((sqlResult = sqlite3_bind_blob(stmt, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
         {
-            result = processSqlQueryNodes(stmt, nodes, db);
+            result = processSqlQueryNodes(stmt, nodes);
         }
     }
 
@@ -949,7 +896,7 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
         {
             if ((sqlResult = sqlite3_bind_int(stmt, 2, nodetype_t::RUBBISHNODE)) == SQLITE_OK)
             {
-                result = processSqlQueryNodes(stmt, nodes, db);
+                result = processSqlQueryNodes(stmt, nodes);
             }
         }
     }
@@ -980,7 +927,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     {
         if ((sqlResult = sqlite3_bind_int(stmt, 1, static_cast<int>(shareType))) == SQLITE_OK)
         {
-            result = processSqlQueryNodes(stmt, nodes, db);
+            result = processSqlQueryNodes(stmt, nodes);
         }
     }
 
@@ -998,16 +945,9 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
 
 bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag)
 {
-    if (!mDbSearchConnection)
+    if (!db)
     {
         return false;
-    }
-
-    if (cancelFlag.exists())
-    {
-        mCancelFlag = cancelFlag;
-        // Add a callback to be called inside db query to check if we should interrupt it
-        sqlite3_progress_handler(mDbSearchConnection, 15, SqliteAccountState::progressHandler, static_cast<void*>(this));
     }
 
     // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
@@ -1019,19 +959,25 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
     // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
     // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
 
-    sqlite3_stmt *stmt = nullptr;
-    bool result = false;
-    int sqlResult = sqlite3_prepare(mDbSearchConnection, sqlQuery.c_str(), -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
+    if (cancelFlag.exists())
     {
-        result = processSqlQueryNodes(stmt, nodes, mDbSearchConnection);
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
     }
 
-    mCancelFlag = CancelToken();
+    sqlite3_stmt *stmt = nullptr;
+    bool result = false;
+    int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    if (sqlResult == SQLITE_OK)
+    {
+        result = processSqlQueryNodes(stmt, nodes);
+    }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
     if (sqlResult == SQLITE_ERROR)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(mDbSearchConnection) ? sqlite3_errmsg(mDbSearchConnection) : std::to_string(sqlResult));
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get nodes by name from database: " << dbfile << err;
         assert(!"Unable to get nodes by name from database.");
     }
@@ -1075,7 +1021,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
         sqlResult = sqlite3_bind_int64(stmt, 1, since);
         if (sqlResult == SQLITE_OK)
         {
-            stepResult = processSqlQueryNodes(stmt, nodes, db);
+            stepResult = processSqlQueryNodes(stmt, nodes);
         }
     }
 
@@ -1235,7 +1181,7 @@ bool SqliteAccountState::getNodeSizeAndType(NodeHandle node, m_off_t& size, node
     return sqlResult != SQLITE_ERROR;
 }
 
-bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
+bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor, CancelToken cancelFlag)
 {
     bool result = false;
     if (!db)
@@ -1248,6 +1194,11 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
             "UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE "
             "AS E ON (A.nodehandle = E.parenthandle)) "
             "SELECT * FROM nodesCTE WHERE parenthandle = ?";
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
+    }
 
     sqlite3_stmt *stmt = nullptr;
     int sqlResult = sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL);
@@ -1265,11 +1216,13 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor)
         }
     }
 
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
     if (sqlResult == SQLITE_ERROR)
     {
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get `isAncestor` from database: " << dbfile << err;
-        assert(!"Unable to get `isAncestor` from database.");
+        LOG_debug << "Unable to get `isAncestor` from database (maybe query has been interrupted): " << dbfile << err;
     }
 
     sqlite3_finalize(stmt);

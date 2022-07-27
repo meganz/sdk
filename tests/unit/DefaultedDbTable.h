@@ -91,7 +91,7 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    bool isAncestor(mega::NodeHandle, mega::NodeHandle) override
+    bool isAncestor(mega::NodeHandle, mega::NodeHandle, mega::CancelToken) override
     {
         return false;
     }
@@ -102,10 +102,6 @@ public:
     uint64_t getNumberOfChildrenByType(mega::NodeHandle parentHandle, mega::nodetype_t nodeType) override
     {
       return 0;
-    }
-    void cancelQuery() override
-    {
-
     }
     void updateCounter(mega::NodeHandle, const std::string&) override
     {

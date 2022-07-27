@@ -11804,11 +11804,6 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
         return nodeVector;
     }
 
-    cancelToken.setCancelMethod([this]()
-    {
-        client->mNodeManager.cancelDbQuery();
-    });
-
     nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelToken);
 
     auto it = nodeVector.begin();
@@ -11821,8 +11816,6 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
             nodeVector.erase(itNode);
         }
     }
-
-    cancelToken.setCompleted();
 
     return nodeVector;
 }

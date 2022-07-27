@@ -122,7 +122,7 @@ public:
 
     virtual bool isNodeInDB(NodeHandle node) = 0;
 
-    virtual bool isAncestor(NodeHandle node, NodeHandle ancestror) = 0;
+    virtual bool isAncestor(NodeHandle node, NodeHandle ancestror, CancelToken cancelFlag) = 0;
 
     // Get all fingerprints with their asociated NodeHandle
     virtual bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, std::set<NodeHandle>>& children) = 0;
@@ -137,8 +137,6 @@ public:
     // -- get node properties --
 
     virtual bool getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType) = 0;
-
-    virtual void cancelQuery() = 0;
 
     virtual void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) = 0;
 
