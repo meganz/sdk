@@ -1055,7 +1055,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
         }
     }
 
-    if (sqlResult != SQLITE_DONE)
+    if (sqlResult != SQLITE_DONE && sqlResult != SQLITE_ROW)
     {
         string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to get favourites from database: " << dbfile << err;
@@ -1064,7 +1064,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
 
     sqlite3_finalize(stmt);
 
-    return sqlResult == SQLITE_DONE;
+    return sqlResult == SQLITE_DONE || sqlResult == SQLITE_ROW;
 }
 
 bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized> &node)
