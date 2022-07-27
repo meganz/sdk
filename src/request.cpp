@@ -86,7 +86,7 @@ bool Request::processCmdJSON(Command* cmd)
 
 void Request::process(MegaClient* client)
 {
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     client->mTctableRequestCommitter = &committer;
 
     client->json = json;

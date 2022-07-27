@@ -324,7 +324,7 @@ TEST(Crypto, SymmCipher_xorblock_block_aligned)
 
     byte dest[SymmCipher::BLOCKSIZE];
     n = 100;
-    std::generate(dest, dest + sizeof(src), [&n]() {return n += 3; });
+    std::generate(dest, dest + sizeof(src), [&n]() { return n = static_cast<byte>(n + 3); });
     ASSERT_EQ(ptrdiff_t((ptrdiff_t)dest % sizeof(ptrdiff_t)), (ptrdiff_t)0);
 
     byte result[SymmCipher::BLOCKSIZE];
@@ -346,7 +346,7 @@ TEST(Crypto, SymmCipher_xorblock_block_unaligned)
     alignDest += alignSrc; // force use of vars only existing for alignment
     byte dest[SymmCipher::BLOCKSIZE];
     n = 100;
-    std::generate(dest, dest + sizeof(dest), [&n]() {return n += 3; });
+    std::generate(dest, dest + sizeof(dest), [&n]() { return n = static_cast<byte>(n + 3); });
 
     byte result[SymmCipher::BLOCKSIZE];
     byte* output = result;

@@ -408,7 +408,7 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
     return false;
 }
 
-bool TransferSlot::checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client)
+bool TransferSlot::checkDownloadTransferFinished(TransferDbCommitter& committer, MegaClient* client)
 {
     if (transfer->progresscompleted == transfer->size)
     {
@@ -496,7 +496,7 @@ bool TransferSlot::testForSlowRaidConnection(unsigned connectionNum, bool& incre
 }
 
 // file transfer state machine
-void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committer)
+void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 {
     CodeCounter::ScopeTimer pbt(client->performanceStats.transferslotDoio);
 
@@ -539,25 +539,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
     retrying = false;
     retrybt.reset();  // in case we don't delete the slot, and in case retrybt.next=1
     transfer->state = TRANSFERSTATE_ACTIVE;
-
-    // remove transfer files whose MegaTransfer associated has been cancelled (via cancel token)
-    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end();)
-    {
-        file_list::iterator auxit = it++;
-        if (transfer->client->app->file_isCancelled(*auxit))
-        {
-            transfer->removeTransferFile(API_EINCOMPLETE, *auxit, &committer);
-        }
-    }
-
-    if (transfer->files.empty())
-    {
-        transfer->finished = true;
-        transfer->state = TRANSFERSTATE_CANCELLED;
-        transfer->client->app->transfer_removed(transfer);
-        delete transfer;
-        return;
-    }
 
     if (!createconnectionsonce())   // don't use connections, reqs, or asyncIO before this point.
     {
