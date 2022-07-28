@@ -17672,7 +17672,11 @@ void MegaClient::sc_asp()
     {
         Set& existing = it->second;
 
-        if (!s.encryptedAttrs().empty())
+        if (s.encryptedAttrs().empty())
+        {
+            existing.setAttributes(string_map());
+        }
+        else
         {
             existing.setEncryptedAttrs(s.encryptedAttrs());
             auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
@@ -18048,8 +18052,8 @@ void Set::setAttributes(map<std::string, std::string> &&attrs)
     // check for changes
     auto it = mAttrs.find("name");
     const string& oldName = it != mAttrs.end() ? it->second : "";
-    it = mAttrs.find("name");
-    const string& newName = it != attrs.end() ? it-> second : "";
+    auto it2 = attrs.find("name");
+    const string& newName = it2 != attrs.end() ? it2->second : "";
     if (newName != oldName) setChangeName();
 
     mAttrs = move(attrs);

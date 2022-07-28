@@ -7865,6 +7865,19 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->ts(), s1p->ts());
     ASSERT_EQ(s2p->user(), s1p->user());
 
+    // Clear Set name
+    differentApiDtls.setUpdated = false;
+    err = doUpdateMegaSetName(0, nullptr, sh, "");
+    ASSERT_EQ(err, API_OK);
+    unique_ptr<MegaSet> s1clearname(megaApi[0]->getMegaSet(sh));
+    ASSERT_NE(s1clearname, nullptr);
+    ASSERT_STREQ(s1clearname->name(), "");
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set update AP not received after " << maxTimeout << " seconds";
+    s2p.reset(differentApi.getMegaSet(sh));
+    ASSERT_NE(s2p, nullptr);
+    ASSERT_STREQ(s2p->name(), "");
+
     // 2. Update Set name
     MegaHandle shu = INVALID_HANDLE;
     name += " updated";
