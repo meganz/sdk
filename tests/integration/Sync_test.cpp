@@ -1847,32 +1847,37 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
     {
         if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
         {
+            out() << "ensureTestBaseFolder node found"; // @Gene
             if (basenode->type == FOLDERNODE)
             {
                 basefolderhandle = basenode->nodehandle;
                 //out() << clientname << " Base folder: " << Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
                 //parentofinterest = Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
+                out() << "ensureTestBaseFolder ok"; // @Gene
                 pb->set_value(true);
                 return;
             }
         }
         else if (mayneedmaking)
         {
+            out() << "ensureTestBaseFolder mayneedmaking"; // @Gene
             vector<NewNode> nn(1);
             nn[0] = makeSubfolder("mega_test_sync");
 
             auto completion = BasicPutNodesCompletion([this, pb](const Error& e) {
                 EXPECT_EQ(e, API_OK);
+                out() << "ensureTestBaseFolder running false"; // @Gene
                 ensureTestBaseFolder(false, pb);
             });
 
             resultproc.prepresult(COMPLETION, ++next_request_tag,
                 [&](){ client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, 0, std::move(completion)); },
                 nullptr);
-
+            out() << "ensureTestBaseFolder done"; // @Gene
             return;
         }
     }
+    out() << "ensureTestBaseFolder failed"; // @Gene
     pb->set_value(false);
 }
 
