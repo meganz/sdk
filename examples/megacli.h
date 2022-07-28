@@ -147,6 +147,8 @@ struct DemoApp : public MegaApp
     void account_updated() override;
     void notify_confirmation(const char *email) override;
 
+    void sequencetag_update(const string&) override;
+
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error) override;
     void chatinvite_result(error) override;

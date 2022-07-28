@@ -1183,6 +1183,9 @@ void MegaClient::init()
     mPriorSeqTag.clear();
     mCurrentSeqtagSeen = false;
     mCurrentSeqtagCmdtag = 0;
+
+    mSeqTagForDb.clear();
+    mLastReceivedScSeqTag.clear();
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
@@ -4333,6 +4336,11 @@ void MegaClient::initsc()
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
 
+        if (complete && !mSeqTagForDb.empty())
+        {
+            complete = sctable->put(CACHEDSEQTAG, &mSeqTagForDb);
+        }
+
         if (complete)
         {
             // 2. write all users
@@ -4440,6 +4448,11 @@ void MegaClient::updatesc()
         // 1. update associated scsn
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
+
+        if (complete && !mSeqTagForDb.empty())
+        {
+            complete = sctable->put(CACHEDSEQTAG, &mSeqTagForDb);
+        }
 
         if (complete)
         {
@@ -4802,10 +4815,20 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
             LOG_verbose << clientname << "st tag exhausted for " << mCurrentSeqtag;
             reqs.continueProcessing(this);
         }
+
+        if (!mLastReceivedScSeqTag.empty())
+        {
+            // we've reached the end of a set of actionpackets, with a latest st to report
+            app->sequencetag_update(mLastReceivedScSeqTag);
+            mSeqTagForDb = mLastReceivedScSeqTag;
+            mLastReceivedScSeqTag.clear();
+        }
         return true;
     }
     else
     {
+        mLastReceivedScSeqTag = tag;
+
         for (;;)
         {
             if (mCurrentSeqtag.empty())
@@ -11431,6 +11454,13 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
 #endif
                 break;
+
+            case CACHEDSEQTAG:
+                {
+                    mSeqTagForDb = data;
+                }
+                break;
+
         }
         hasNext = sctable->next(&id, &data, &key);
     }
@@ -11448,6 +11478,11 @@ bool MegaClient::fetchsc(DbTable* sctable)
     }
 
     mergenewshares(0);
+
+    if (!mSeqTagForDb.empty())
+    {
+        app->sequencetag_update(mSeqTagForDb);
+    }
 
     return true;
 }

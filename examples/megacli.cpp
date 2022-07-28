@@ -91,7 +91,7 @@ MegaClient* clientFolder;
 int gNextClientTag = 1;
 std::map<int, std::function<void(Node*)>> gOnPutNodeTag;
 
-bool gVerboseMode = false;
+bool gVerboseMode = true;
 
 // new account signup e-mail address and name
 static string signupemail, signupname;
@@ -502,7 +502,7 @@ void DemoApp::sync_added(const SyncConfig& config)
 {
     handle backupId = config.mBackupId;
     conlock(cout) << "Sync - added " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
-        << config.getEnabled() << " syncError: " << config.mError << " " << int(config.mRunState);
+        << config.getEnabled() << " syncError: " << config.mError << " " << int(config.mRunState) << endl;
 }
 
 void DemoApp::sync_removed(const SyncConfig& config)
@@ -8374,6 +8374,14 @@ void DemoApp::notify_confirmation(const char *email)
     if (client->loggedin() == EPHEMERALACCOUNT || client->loggedin() == EPHEMERALACCOUNTPLUSPLUS)
     {
         LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
+    }
+}
+
+void DemoApp::sequencetag_update(const string& st)
+{
+    if(gVerboseMode)
+    {
+        conlock(cout) << "Latest seqTag: " << st << endl;
     }
 }
 

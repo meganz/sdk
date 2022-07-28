@@ -1228,7 +1228,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT} sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSEQTAG } sctablerectype;
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
@@ -1254,11 +1254,15 @@ public:
     // MegaClient-Server response JSON
     JSON json;
 
-    // actionpacket sequence tags
+    // actionpacket sequence tags (current refers to the one expected by the Requests)
     string mCurrentSeqtag;
     string mPriorSeqTag;
     bool mCurrentSeqtagSeen = false;
     int mCurrentSeqtagCmdtag = 0;
+
+    // sc received seqtags to report to app (not tied to requests in this client)
+    string mLastReceivedScSeqTag;
+    string mSeqTagForDb;
 
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
