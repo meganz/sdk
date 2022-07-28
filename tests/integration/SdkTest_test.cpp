@@ -1156,45 +1156,6 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
     ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << err << ")";
 }
 
-#ifdef __linux__
-std::string exec(const char* cmd) {
-    // Open pipe for reading.
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-
-    // Make sure the pipe was actually created.
-    if (!pipe) throw std::runtime_error("popen() failed!");
-
-    std::string result;
-
-    // Read from the pipe until we hit EOF or encounter an error.
-    for (std::array<char, 128> buffer; ; )
-    {
-        // Read from the pipe.
-        auto nRead = fread(buffer.data(), 1, buffer.size(), pipe.get());
-
-        // Were we able to extract any data?
-        if (nRead > 0)
-        {
-            // If so, add it to our result buffer.
-            result.append(buffer.data(), nRead);
-        }
-
-        // Have we extracted as much as we can?
-        if (nRead < buffer.size()) break;
-    }
-
-    // Were we able to extract all of the data?
-    if (feof(pipe.get()))
-    {
-        // Then return the result.
-        return result;
-    }
-
-    // Otherwise, let the caller know we couldn't read the pipe.
-    throw std::runtime_error("couldn't read all data from the pipe!");
-}
-#endif
-
 void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail = nullptr, const char* filePreview = nullptr)
 {
     // Create a "media upload" instance
@@ -5254,6 +5215,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 }
 #endif
 
+#ifndef __APPLE__ // todo: enable for Mac (needs work in synchronousMediaUploadComplete)
 TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
@@ -5279,6 +5241,7 @@ TEST_F(SdkTest, SdkMediaUploadTest)
     synchronousMediaUpload(apiIndex, fileSize, filename.c_str(), DOWNFILE.c_str(), outputFile);
 
 }
+#endif
 
 TEST_F(SdkTest, SdkGetPricing)
 {

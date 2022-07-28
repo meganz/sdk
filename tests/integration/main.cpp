@@ -44,6 +44,45 @@ void WaitMillisec(unsigned n)
 #endif
 }
 
+#ifdef __linux__
+std::string exec(const char* cmd) {
+    // Open pipe for reading.
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+
+    // Make sure the pipe was actually created.
+    if (!pipe) throw std::runtime_error("popen() failed!");
+
+    std::string result;
+
+    // Read from the pipe until we hit EOF or encounter an error.
+    for (std::array<char, 128> buffer; ; )
+    {
+        // Read from the pipe.
+        auto nRead = fread(buffer.data(), 1, buffer.size(), pipe.get());
+
+        // Were we able to extract any data?
+        if (nRead > 0)
+        {
+            // If so, add it to our result buffer.
+            result.append(buffer.data(), nRead);
+        }
+
+        // Have we extracted as much as we can?
+        if (nRead < buffer.size()) break;
+    }
+
+    // Were we able to extract all of the data?
+    if (feof(pipe.get()))
+    {
+        // Then return the result.
+        return result;
+    }
+
+    // Otherwise, let the caller know we couldn't read the pipe.
+    throw std::runtime_error("couldn't read all data from the pipe!");
+}
+#endif
+
 string loadfile(const string& filename)
 {
     string filedata;
@@ -161,9 +200,13 @@ void synchronousHttpPOSTFile(const string& url, const string& filepath, string& 
 #ifdef WIN32
     synchronousHttpPOSTData(url, loadfile(filepath), responsedata);
 #else
+#ifdef __APPLE__
+    // tbd
+#else
     string command = "curl -s --data-binary @";
     command.append(filepath).append(" ").append(url.c_str());
     responsedata = exec(command.c_str());
+#endif
 #endif
 }
 
