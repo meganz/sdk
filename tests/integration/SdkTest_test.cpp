@@ -7951,7 +7951,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // Clear Element name
     differentApiDtls.setUpdated = false;
-    err = doUpdateMegaElement(0, nullptr, eh, optionFlags, 0, "");
+    err = doUpdateMegaElementName(0, nullptr, eh, "");
     ASSERT_EQ(err, API_OK);
     unique_ptr<MegaElement> elclearname(megaApi[0]->getMegaElement(eh, sh));
     ASSERT_NE(elclearname, nullptr);
