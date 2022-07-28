@@ -1250,7 +1250,7 @@ public:
 
     // File Attribute upload system.  These can come from:
     //  - upload transfers
-    //  - app requests to attach a thumbnail/prevew to a node
+    //  - app requests to attach a thumbnail/preview to a node
     //  - app requests for media upload (which return the fa handle)
     // initially added to queuedfa, and up to 10 moved to activefa.
     putfa_list queuedfa;
@@ -1325,6 +1325,7 @@ public:
     // mapping of pending contact handles to their structure
     handlepcr_map pcrindex;
 
+    // A record of which file attributes are needed (or now available) per upload transfer
     FileAttributesPending fileAttributesUploading;
 
     // file attribute fetch channels
