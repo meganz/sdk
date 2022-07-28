@@ -3514,7 +3514,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_syncremove,
            sequence(text("sync"),
                     text("remove"),
-                    backupID(*client)));
+                    either(backupID(*client),
+                           sequence(flag("-by-local-path"),
+                                    localFSFolder()),
+                           sequence(flag("-by-remote-path"),
+                                    remoteFSFolder(client, &cwd)))));
 
     p->Add(exec_syncxable,
            sequence(text("sync"),
@@ -9613,29 +9617,68 @@ void exec_syncremove(autocomplete::ACState& s)
         return;
     }
 
-    // sync remove id
-    handle backupId = 0;
-    Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
+    string localPath;
+    string remotePath;
+    bool byLocal = s.extractflagparam("-by-local-path", localPath);
+    bool byRemote = s.extractflagparam("-by-remote-path", remotePath);
 
-    // Try and remove the config.
+    std::function<bool(SyncConfig&, Sync*)> predicate;
     bool found = false;
 
-    client->syncs.removeSelectedSyncs(
-      [&](SyncConfig& config, Sync*)
-      {
-          auto matched = config.mBackupId == backupId;
+    if (byLocal)
+    {
+        predicate = [&](SyncConfig& config, Sync*) {
+            auto matched = config.mLocalPath.toPath() == localPath;
 
-          found |= matched;
+            found = found || matched;
 
-          return matched;
-      });
+            return matched;
+        };
+    }
+    else if (byRemote)
+    {
+        predicate = [&](SyncConfig& config, Sync*) {
+            auto matched = config.mOriginalPathOfRemoteRootNode == remotePath;
+
+            found = found || matched;
+
+            return matched;
+        };
+    }
+    else
+    {
+        predicate = [&](SyncConfig& config, Sync*) {
+            auto id = toHandle(config.mBackupId);
+            auto matched = id == s.words[2].s;
+
+            found = found || matched;
+
+            return matched;
+        };
+    }
+
+    client->syncs.removeSelectedSyncs(std::move(predicate));
 
     if (!found)
     {
-        cerr << "No sync config exists with the backupId "
-             << Base64Str<sizeof(handle)>(backupId)
-             << endl;
-        return;
+        ostringstream ostream;
+
+        ostream << "No sync config found with the ";
+
+        if (byLocal)
+        {
+            ostream << "local path: " << localPath;
+        }
+        else if (byRemote)
+        {
+            ostream << "remote path: " << remotePath;
+        }
+        else
+        {
+            ostream << "backup ID: " << s.words[2].s;
+        }
+
+        cerr << ostream.str() << endl;
     }
 }
 
