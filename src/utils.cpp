@@ -1209,6 +1209,13 @@ bool TextChat::setMode(bool publicchat)
 
 bool TextChat::addOrUpdateChatOptions(int speakRequest, int waitingRoom, int openInvite)
 {
+    if (!group)
+    {
+        LOG_err << "addOrUpdateChatOptions: trying to update chat options for a non groupal chat: " << toNodeHandle(id);
+        assert(false);
+        return false;
+    }
+
     ChatOptions currentOptions(static_cast<uint8_t>(chatOptions));
     if (speakRequest != -1) { currentOptions.updateSpeakRequest(speakRequest); }
     if (waitingRoom != -1)  { currentOptions.updateWaitingRoom(waitingRoom); }
@@ -1216,7 +1223,7 @@ bool TextChat::addOrUpdateChatOptions(int speakRequest, int waitingRoom, int ope
 
     if (!currentOptions.isValid())
     {
-        LOG_warn << "addOrUpdateChatOptions: options value (" << currentOptions.value() <<") is out of range";
+        LOG_err << "addOrUpdateChatOptions: options value (" << currentOptions.value() <<") is out of range";
         assert(false);
         return false;
     }

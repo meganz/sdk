@@ -17814,6 +17814,7 @@ class MegaApi
          * - MegaRequest::getAccess - Returns zero (private mode)
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
          * - MegaRequest::getText - Returns the title of the chat.
+         * - MegaRequest::getMegaStringList - Returns a MegaStringList with the chat options that will be enabled in creation
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -17821,6 +17822,7 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If more than 1 peer is provided for a 1on1 chatroom.
+         * - MegaError::API_EARGS   - If options param is provided for a 1on1 chat
          *
          * @note If peers list contains only one person, group chat is not set and a permament chat already
          * exists with that person, then this call will return the information for the existing chat, rather
@@ -17829,9 +17831,10 @@ class MegaApi
          * @param group Flag to indicate if the chat is a group chat or not
          * @param peers MegaTextChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
+         * @param chatOptions MegaStringList that contains the chat options to create the chat
          * @param listener MegaRequestListener to track this request
          */
-        void createChat(bool group, MegaTextChatPeerList *peers, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createChat(bool group, MegaTextChatPeerList* peers, const char* title = NULL, MegaStringList* options = NULL, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Creates a public chatroom for multiple participants (groupchat)
@@ -17870,15 +17873,15 @@ class MegaApi
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
          * @param meetingRoom Boolean indicating if room is a meeting room
-         * @param chatOptions MegaStringList that contains the chat options to create the chat (just for Meeting rooms)
+         * @param chatOptions MegaStringList that contains the chat options to create the chat
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, MegaStringList* options = 0, MegaRequestListener* listener = NULL);
+        void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, MegaStringList* options = NULL, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Enable or disable one or multiple chat options for a Meeting room
+         * @brief Enable or disable one or multiple chat options for a chatroom
          *
-         * This function allows to enable or disable one or more of the following Meeting room options:
+         * This function allows to enable or disable one or more of the following chatroom options:
          * - OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
          * - SpeakRequest: during calls non-operator users must request permission to speak.
          * - WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
@@ -17892,6 +17895,7 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS  - If the chatid is invalid
+         * - MegaError::API_EARGS  - If this method is called for a 1on1 chat
          * - MegaError::API_EARGS  - If no MegaStringMap with chat options has been provided
          * - MegaError::API_ENOENT - If the chatroom does not exists
          *

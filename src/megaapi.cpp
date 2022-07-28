@@ -5144,9 +5144,9 @@ char *MegaApi::getMimeType(const char *extension)
 }
 
 #ifdef ENABLE_CHAT
-void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
+void MegaApi::createChat(bool group, MegaTextChatPeerList* peers, const char* title, MegaStringList* options, MegaRequestListener* listener)
 {
-    pImpl->createChat(group, false, peers, NULL, title, false, 0/*chatOptions*/, listener);
+    pImpl->createChat(group, false, peers, NULL, title, false, options, listener);
 }
 
 void MegaApi::createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char* title, bool meetingRoom, MegaStringList* options, MegaRequestListener* listener)

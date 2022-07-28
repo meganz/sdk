@@ -22200,12 +22200,17 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             bool meetingRoom = static_cast<bool>(request->getNumber());
-            if (!meetingRoom && request->getMegaStringList())
+            if (!group && request->getMegaStringList())
             {
                 e = API_EARGS;
                 break;
             }
-            string_vector opt = ((MegaStringListPrivate*)request->getMegaStringList())->getVector();
+
+            std::unique_ptr<string_vector> opt;
+            if (request->getMegaStringList())
+            {
+                opt.reset(new string_vector(((MegaStringListPrivate *)request->getMegaStringList())->getVector()));
+            }
 
             const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
 
@@ -22215,7 +22220,7 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, request->getMegaStringList() ? &opt : nullptr);
+            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, opt.get());
             break;
         }
         case MegaRequest::TYPE_SET_CHAT_OPTIONS:
@@ -22231,6 +22236,13 @@ void MegaApiImpl::sendPendingRequests()
             if (it == client->chats.end())
             {
                 e = API_ENOENT;
+                break;
+            }
+
+            TextChat* chat = it->second;
+            if (!chat->group)
+            {
+                e = API_EARGS;
                 break;
             }
 
