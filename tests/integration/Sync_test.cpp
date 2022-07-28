@@ -12076,7 +12076,7 @@ TEST_F(FilterFixture, MigrateLegacyFilters)
 
     // Convenience.
     auto root = this->root(*cu) / "root";
-    auto rootPath = LocalPath::fromAbsolutePath(root);
+    auto rootPath = LocalPath::fromAbsolutePath(root.u8string());
 
     // Prepare legacy exclusions.
     {
