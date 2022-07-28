@@ -1718,6 +1718,10 @@ void MegaClient::exec()
                             }
                         }
                         break;
+
+                    default:
+                        // other cases are not relevant for this one
+                        break;
                 }
             }
         }

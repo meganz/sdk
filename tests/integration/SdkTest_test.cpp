@@ -1230,16 +1230,14 @@ void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, co
 
     std::unique_ptr<MegaNode> rootnode(megaApi[apiIndex]->getRootNode());
 
+    string finalurl(url.get());
+    if (suffix) finalurl.append(suffix.get());
+
     string binaryUploadToken;
-    synchronousHttpPOSTFile(url.get(), fileEncrypted, binaryUploadToken);
+    synchronousHttpPOSTFile(finalurl, fileEncrypted, binaryUploadToken);
 
     ASSERT_NE(binaryUploadToken.size(), 0u);
     ASSERT_GT(binaryUploadToken.size(), 3u) << "POST failed, fa server error: " << binaryUploadToken;
-
-    //string command = "curl -s --data-binary @";
-    //command.append(fileEncrypted).append(" ").append(url.get());
-    //if (suffix) command.append(suffix.get());
-    //auto uploadToken = exec(command.c_str());
 
     std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(binaryUploadToken.data(), binaryUploadToken.length()));
 

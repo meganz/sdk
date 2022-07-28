@@ -162,8 +162,7 @@ void synchronousHttpPOSTFile(const string& url, const string& filepath, string& 
     synchronousHttpPOSTData(url, loadfile(filepath), responsedata);
 #else
     string command = "curl -s --data-binary @";
-    command.append(fileEncrypted).append(" ").append(url.get());
-    if (suffix) command.append(suffix.get());
+    command.append(filepath).append(" ").append(url.c_str());
     responsedata = exec(command.c_str());
 #endif
 }
