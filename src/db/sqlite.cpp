@@ -1150,6 +1150,7 @@ bool SqliteAccountState::getNodeSizeAndType(NodeHandle node, m_off_t& size, node
     }
 
     int sqlResult = SQLITE_OK;
+    if (!mStmtTypeAndSizeNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "SELECT type, size FROM nodes WHERE nodehandle = ?", -1, &mStmtTypeAndSizeNode, NULL);
     }
