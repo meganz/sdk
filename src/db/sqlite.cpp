@@ -617,9 +617,15 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
 
     if (sqlResult != SQLITE_DONE)
     {
-        // In case of interrupt db query, it will finish with (expected) error
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_debug << "Unable to processSqlQueryNodes from database (maybe query has been interrupted): " << dbfile << err;
+        if (sqlResult == SQLITE_INTERRUPT)
+        {
+            LOG_debug << "Unable to processSqlQueryNodes, running the query has been interrupted";
+        }
+        else
+        {
+            string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+            LOG_err << "Unable to processSqlQueryNodes for database: " << dbfile << err;
+        }
     }
 
     return sqlResult == SQLITE_DONE;
@@ -1212,8 +1218,15 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor, Cancel
 
     if (sqlResult != SQLITE_ROW && sqlResult != SQLITE_DONE)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_debug << "Unable to get `isAncestor` from database (maybe query has been interrupted): " << dbfile << err;
+        if (sqlResult == SQLITE_INTERRUPT)
+        {
+            LOG_debug << "Unable to get `isAncestor`, running the query has been interrupted";
+        }
+        else
+        {
+            string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+            LOG_err << "Unable to get `isAncestor` from database: " << dbfile << err;
+        }
     }
 
     sqlite3_finalize(stmt);
