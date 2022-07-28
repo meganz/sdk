@@ -1248,10 +1248,12 @@ public:
     // have we just completed fetching new nodes?  (ie, caught up on all the historic actionpackets since the fetchnodes)
     bool statecurrent;
 
-    // pending file attribute writes
+    // File Attribute upload system.  These can come from:
+    //  - upload transfers
+    //  - app requests to attach a thumbnail/prevew to a node
+    //  - app requests for media upload (which return the fa handle)
+    // initially added to queuedfa, and up to 10 moved to activefa.
     putfa_list queuedfa;
-
-    // current file attributes being sent
     putfa_list activefa;
 
     // API request queue double buffering:

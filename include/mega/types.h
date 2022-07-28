@@ -162,7 +162,7 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
+typedef enum { REQ_READY, REQ_GET_URL, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
                REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED,
                REQ_INFLIGHT,
                REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO,
@@ -579,11 +579,12 @@ public:
 
 template <class T1, class T2> class mapWithLookupExisting : public map<T1, T2>
 {
+    typedef map<T1, T2> base; // helps older gcc
 public:
     T2* lookupExisting(T1 key)
     {
-        auto it = this->find(key);
-        if (it == this->end()) return nullptr;
+        auto it = base::find(key);
+        if (it == base::end()) return nullptr;
         return &it->second;
     }
 };

@@ -27,6 +27,10 @@ extern string_vector envVarPass;
 std::string logTime();
 void WaitMillisec(unsigned n);
 
+// platform specific Http POST
+void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata);
+void synchronousHttpPOSTData(const string& url, const string& senddata, string& responsedata);
+
 class LogStream
 {
 public:

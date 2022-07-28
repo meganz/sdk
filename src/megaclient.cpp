@@ -1590,6 +1590,10 @@ void MegaClient::exec()
             while (curfa != activefa.end())
             {
                 HttpReqCommandPutFA* fa = *curfa;
+
+                auto erasePos = curfa;
+                ++curfa;
+
                 m_off_t p = fa->transferred(this);
                 if (fa->progressreported < p)
                 {
@@ -1677,7 +1681,7 @@ void MegaClient::exec()
                         }
 
                         delete fa;
-                        curfa = activefa.erase(curfa);
+                        activefa.erase(erasePos);
                         LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
                         btpfa.reset();
                         faretrying = false;
@@ -1686,7 +1690,7 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         // repeat request with exponential backoff
                         LOG_warn << "Error setting file attribute";
-                        curfa = activefa.erase(curfa);
+                        activefa.erase(erasePos);
                         fa->status = REQ_READY;
                         queuedfa.push_back(fa);
                         btpfa.backoff();
@@ -1694,11 +1698,9 @@ void MegaClient::exec()
                         break;
 
                     case REQ_INFLIGHT:
-                        // check if the transfer/file was cancelled while we were waiting for fa response
+                        // check if the transfer/file was cancelled while we were waiting for fa response (only for file uploads, not Node updates or app-requested fa put)
+                        if (!fa->th.isNodeHandle())
                         {
-                            auto erasePos = curfa;
-                            ++curfa;
-
                             if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(fa->th.uploadHandle()))
                             {
                                 uploadFAPtr->transfer->removeCancelledTransferFiles(&committer);
@@ -1716,9 +1718,6 @@ void MegaClient::exec()
                             }
                         }
                         break;
-
-                    default:
-                        curfa++;
                 }
             }
         }
@@ -1735,7 +1734,7 @@ void MegaClient::exec()
                 activefa.push_back(fa);
 
                 LOG_debug << "Adding file attribute to the request queue";
-                fa->status = REQ_INFLIGHT;
+                fa->status = REQ_GET_URL;   // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
                 reqs.add(fa);
             }
         }
@@ -5429,7 +5428,8 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
     }
 }
 
-// attach file attribute to a file (th can be upload or node handle)
+// Upload file attribute data to fa servers. node handle can be UNDEF if we are giving fa handle back to the app
+// Used for attaching file attribute to a Node, or prepping for Node creation after upload, or getting fa handle for app.
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
 void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag, std::unique_ptr<string> data)
 {
@@ -5447,7 +5447,7 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
         HttpReqCommandPutFA *fa = *curfa;
         queuedfa.erase(curfa);
         activefa.push_back(fa);
-        fa->status = REQ_INFLIGHT;
+        fa->status = REQ_GET_URL;  // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
         reqs.add(fa);
     }
 }
