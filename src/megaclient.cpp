@@ -6859,17 +6859,14 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 break;
 
             case 'w': // waiting room
-                assert(readingPublicChat);
                 waitingRoom = jsonsc.getbool();
                 break;
 
             case MAKENAMEID2('s','r'): // speak request
-                assert(readingPublicChat);
                 speakRequest = jsonsc.getbool();
                 break;
 
             case MAKENAMEID2('o','i'): // open invite
-                assert(readingPublicChat);
                 openInvite = jsonsc.getbool();
                 break;
 
@@ -11174,17 +11171,14 @@ void MegaClient::procmcf(JSON *j)
 
                             case 'w':   // waiting room
                                 waitingRoom = static_cast<int>(j->getint());
-                                assert(readingPublicChats);
                                 break;
 
                             case MAKENAMEID2('s','r'): // speak request
                                 speakRequest = static_cast<int>(j->getint());
-                                assert(readingPublicChats);
                                 break;
 
                             case MAKENAMEID2('o','i'): // open invite
                                 openInvite = static_cast<int>(j->getint());
-                                assert(readingPublicChats);
                                 break;
 
                             case EOO:
