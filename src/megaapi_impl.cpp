@@ -23157,8 +23157,8 @@ void MegaApiImpl::update()
               << " " << client->syncfslockretry << " " << client->syncfsopsfailed
               << " " << client->syncnagleretry << " " << client->syncscanfailed
               << " " << client->syncops << " " << client->syncscanstate
-              << " " << client->faputcompletion.size() << " " << client->synccreate.size()
-              << " " << client->fetchingnodes << " " << client->pendingfa.size()
+              << " " << client->fileAttributesUploading.size() << " " << client->synccreate.size()
+              << " " << client->fetchingnodes
               << " " << client->xferpaused[0] << " " << client->xferpaused[1]
               << " " << client->transfers[0].size() << " " << client->transfers[1].size()
               << " " << client->syncscanstate << " " << client->statecurrent
