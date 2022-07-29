@@ -18077,43 +18077,8 @@ bool Set::decryptAttributes(std::function<bool(const string&, const string&, map
 
     if (f(mEncryptedAttrs, mKey, newAttrs))
     {
-        vector<string> updates;
-
-        // compare attrs to see what changed
-        for (auto& a : newAttrs)
-        {
-            auto oldAttrIt = mAttrs.find(a.first);
-
-            if (oldAttrIt == mAttrs.end())
-            {
-                if (!a.second.empty())
-                {
-                    mAttrs[a.first] = move(a.second);
-                    updates.push_back(a.first);
-                }
-            }
-            else
-            {
-                if (a.second.empty())
-                {
-                    mAttrs.erase(oldAttrIt);
-                    updates.push_back(a.first);
-                }
-                else if (oldAttrIt->second != a.second)
-                {
-                    oldAttrIt->second = move(a.second);
-                    updates.push_back(a.first);
-                }
-            }
-        }
-
         mEncryptedAttrs.clear();
-
-        // mark changes
-        if (find(updates.begin(), updates.end(), "name") != updates.end())
-        {
-            setChangeName();
-        }
+        setAttributes(move(newAttrs));
 
         return true;
     }
