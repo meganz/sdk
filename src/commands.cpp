@@ -6741,7 +6741,11 @@ bool CommandChatCreate::procresult(Result r)
                         bool waitingRoom = false;
                         bool openInvite = false;
                         client->extractChatOptionsFromList(&mChatOptions, speakRequest, waitingRoom, openInvite);
-                        chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+
+                        if (group)
+                        {
+                            chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+                        }
 
                         chat->setTag(tag ? tag : -1);
                         if (chat->group && !mTitle.empty())

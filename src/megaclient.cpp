@@ -6912,7 +6912,11 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
                     }
                     chat->meeting = meeting;
-                    chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+
+                    if (group)
+                    {
+                        chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+                    }
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -11197,7 +11201,11 @@ void MegaClient::procmcf(JSON *j)
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
                                     chat->meeting = meeting;
-                                    chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+
+                                    if (group)
+                                    {
+                                        chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+                                    }
 
                                     if (readingPublicChats)
                                     {
