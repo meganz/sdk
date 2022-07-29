@@ -6056,6 +6056,9 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     fs::create_directories(p);
     ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
 
+    int currentMaxUploadSpeed = megaApi[0]->getMaxUploadSpeed();
+    ASSERT_EQ(true, megaApi[0]->setMaxUploadSpeed(1)); // set a small value for max upload speed (bytes per second)
+
     // start uploading
     // uploadListener may have to live after this function exits if the logout test below fails
     auto uploadListener = std::make_shared<TransferTracker>(megaApi[0].get());
@@ -6083,6 +6086,10 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     int result = uploadListener->waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
+
+    auto tracker = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    ASSERT_EQ(true, megaApi[0]->setMaxUploadSpeed(currentMaxUploadSpeed)); // restore previous max upload speed (bytes per second)
 }
 
 TEST_F(SdkTest, RecursiveDownloadWithLogout)
@@ -6119,6 +6126,9 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
+    int currentMaxDownloadSpeed = megaApi[0]->getMaxDownloadSpeed();
+    ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(1)); // set a small value for max download speed (bytes per second)
+
     // ok now try the download
     TransferTracker downloadListener(megaApi[0].get());
     megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"),
@@ -6146,6 +6156,10 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
     fs::remove_all(uploadpath, ec);
     fs::remove_all(downloadpath, ec);
+
+    auto tracker = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(currentMaxDownloadSpeed)); // restore previous max download speed (bytes per second)
 }
 
 #ifdef ENABLE_SYNC

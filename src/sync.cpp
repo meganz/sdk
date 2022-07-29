@@ -950,7 +950,7 @@ Sync::~Sync()
         TreeProcDelSyncGet tdsg;
         // Create a committer to ensure we update the transfer database in an efficient single commit,
         // if there are transactions in progress.
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
         client->proctree(localroot->node, &tdsg);
     }
 
@@ -962,7 +962,7 @@ Sync::~Sync()
     {
         // Create a committer and recursively delete all the associated LocalNodes, and their associated transfer and file objects.
         // If any have transactions in progress, the committer will ensure we update the transfer database in an efficient single commit.
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
         localroot.reset();
     }
 }
@@ -1691,7 +1691,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                             LOG_debug << "Sync - local file change detected: " << path;
 
-                            DBTableTransactionCommitter committer(client->tctable);
+                            TransferDbCommitter committer(client->tctable);
                             client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                             l->bumpnagleds();
                             l->deleted = false;
@@ -2012,7 +2012,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     else if (changed)
                     {
                         LOG_debug << "Sync - local file change detected: " << path;
-                        DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+                        TransferDbCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                         client->stopxfer(l, &committer);
                     }
 
@@ -2055,7 +2055,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // immediately stop outgoing transfer, if any
             if (l->transfer)
             {
-                DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+                TransferDbCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
                 client->stopxfer(l, &committer);
             }
 
