@@ -13691,7 +13691,6 @@ class MegaApi
          * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
          * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
          * or device name was empty.
-         * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
          *
          * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
          * @param localSyncRootFolder Path of the Local folder to sync/backup.
