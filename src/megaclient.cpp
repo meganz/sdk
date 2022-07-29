@@ -17182,13 +17182,15 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
     string encrAttrs;
     if (el.hasAttrs())
     {
-        encrAttrs = encryptAttrs(el.attrs(), el.key());
-        if (encrAttrs.empty())
+        string_map attrs;
+        for (auto it = el.attrs().begin(); it != el.attrs().end(); ++it)
         {
-            if (completion)
-                completion(API_EINTERNAL, el.id(), UNDEF);
-            return;
+            if (!it->second.empty())
+            {
+                attrs.emplace(*it);
+            }
         }
+        encrAttrs = encryptAttrs(attrs, el.key());
     }
 
     reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), existingSet->id(), completion));

@@ -269,7 +269,6 @@ private:
     {
         static const string value;
         auto it = mAttrs.find(id);
-        assert(it != mAttrs.end());
         return it != mAttrs.end() ? it->second : value;
     }
 
