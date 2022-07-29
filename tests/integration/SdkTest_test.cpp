@@ -1156,45 +1156,6 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
     ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << err << ")";
 }
 
-#ifdef __linux__
-std::string exec(const char* cmd) {
-    // Open pipe for reading.
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-
-    // Make sure the pipe was actually created.
-    if (!pipe) throw std::runtime_error("popen() failed!");
-
-    std::string result;
-
-    // Read from the pipe until we hit EOF or encounter an error.
-    for (std::array<char, 128> buffer; ; )
-    {
-        // Read from the pipe.
-        auto nRead = fread(buffer.data(), 1, buffer.size(), pipe.get());
-
-        // Were we able to extract any data?
-        if (nRead > 0)
-        {
-            // If so, add it to our result buffer.
-            result.append(buffer.data(), nRead);
-        }
-
-        // Have we extracted as much as we can?
-        if (nRead < buffer.size()) break;
-    }
-
-    // Were we able to extract all of the data?
-    if (feof(pipe.get()))
-    {
-        // Then return the result.
-        return result;
-    }
-
-    // Otherwise, let the caller know we couldn't read the pipe.
-    throw std::runtime_error("couldn't read all data from the pipe!");
-}
-#endif
-
 void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail = nullptr, const char* filePreview = nullptr)
 {
     // Create a "media upload" instance
@@ -1213,35 +1174,37 @@ void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, co
     std::unique_ptr<char[]> suffix(req->encryptFile(filename, 0, &fileSize, fileEncrypted, false));
     ASSERT_NE(nullptr, suffix) << "Got NULL suffix after encryption";
 
-    std::unique_ptr<char[]> fingreprint(megaApi[apiIndex]->getFingerprint(fileEncrypted));
-    std::unique_ptr<char[]> fingreprintOrig(megaApi[apiIndex]->getFingerprint(filename));
+    std::unique_ptr<char[]> fingerprint(megaApi[apiIndex]->getFingerprint(fileEncrypted));
+    std::unique_ptr<char[]> fingerprintOrig(megaApi[apiIndex]->getFingerprint(filename));
 
     // PUT thumbnail and preview if params exists
     if (fileThumbnail)
     {
+        ASSERT_EQ(true, megaApi[apiIndex]->createThumbnail(filename, fileThumbnail));
         ASSERT_EQ(API_OK, doPutThumbnail(apiIndex, req.get(), fileThumbnail)) << "ERROR putting thumbnail";
     }
     if (filePreview)
     {
+        ASSERT_EQ(true, megaApi[apiIndex]->createPreview(filename, filePreview));
         ASSERT_EQ(API_OK, doPutPreview(apiIndex, req.get(), filePreview)) << "ERROR putting preview";
     }
 
     std::unique_ptr<MegaNode> rootnode(megaApi[apiIndex]->getRootNode());
 
-#ifdef __linux__
-    string command = "curl -s --data-binary @";
-    command.append(fileEncrypted).append(" ").append(url.get());
-    if (suffix) command.append(suffix.get());
-    auto uploadToken = exec(command.c_str());
-    std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(uploadToken.data(), uploadToken.length()));
+    string finalurl(url.get());
+    if (suffix) finalurl.append(suffix.get());
 
-    err = synchronousMediaUploadComplete(apiIndex, req.get(), fileOutput, rootnode.get(), fingreprint.get(), fingreprintOrig.get(), base64UploadToken.get(), nullptr);
+    string binaryUploadToken;
+    synchronousHttpPOSTFile(finalurl, fileEncrypted, binaryUploadToken);
+
+    ASSERT_NE(binaryUploadToken.size(), 0u);
+    ASSERT_GT(binaryUploadToken.size(), 3u) << "POST failed, fa server error: " << binaryUploadToken;
+
+    std::unique_ptr<char[]> base64UploadToken(megaApi[0]->binaryToBase64(binaryUploadToken.data(), binaryUploadToken.length()));
+
+    err = synchronousMediaUploadComplete(apiIndex, req.get(), fileOutput, rootnode.get(), fingerprint.get(), fingerprintOrig.get(), base64UploadToken.get(), nullptr);
 
     ASSERT_EQ(API_OK, err) << "Cannot complete media upload (error: " << err << ")";
-#else
-    ASSERT_ANY_THROW(true) << "Not linux, cannot complete test.";
-#endif
-
 }
 
 string runProgram(const string& command)
@@ -5252,10 +5215,7 @@ TEST_F(SdkTest, SdkHttpReqCommandPutFATest)
 }
 #endif
 
-#ifdef __linux__
-
-// synchronousMediaUpload has only been properly written for linux.  todo: implement properly for win/mac
-
+#ifndef __APPLE__ // todo: enable for Mac (needs work in synchronousMediaUploadComplete)
 TEST_F(SdkTest, SdkMediaImageUploadTest)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
