@@ -1262,7 +1262,7 @@ public:
 
     // sc received seqtags to report to app (not tied to requests in this client)
     string mLastReceivedScSeqTag;
-    string mSeqTagForDb;
+    SimpleCacheableString mSeqTagForDb;
 
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;

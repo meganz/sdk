@@ -593,6 +593,16 @@ struct CacheableReader
     bool hasdataleft() { return end > ptr; }
 };
 
+class SimpleCacheableString : public Cacheable
+{
+public:
+    string str;
+
+    bool serialize(string* data) override;
+
+    static SimpleCacheableString unserialize(const std::string& data);
+};
+
 template<typename T, typename U>
 void hashCombine(T& seed, const U& v)
 {

@@ -5814,7 +5814,7 @@ bool CommandFetchNodes::procresult(Result r)
                     string st;
                     if (!client->json.storeobject(&st)) return false;
                     client->app->sequencetag_update(st);
-                    client->mSeqTagForDb = st;
+                    client->mSeqTagForDb.str = st;
                 }
                 break;
 

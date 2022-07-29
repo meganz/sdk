@@ -1184,7 +1184,7 @@ void MegaClient::init()
     mCurrentSeqtagSeen = false;
     mCurrentSeqtagCmdtag = 0;
 
-    mSeqTagForDb.clear();
+    mSeqTagForDb = SimpleCacheableString();
     mLastReceivedScSeqTag.clear();
 }
 
@@ -4336,9 +4336,10 @@ void MegaClient::initsc()
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
 
-        if (complete && !mSeqTagForDb.empty())
+        if (complete && !mSeqTagForDb.str.empty())
         {
-            complete = sctable->put(CACHEDSEQTAG, &mSeqTagForDb);
+            complete = sctable->put(CACHEDSEQTAG, &mSeqTagForDb, &key);
+            LOG_debug << "saving seqtag in db: " << mSeqTagForDb.str;
         }
 
         if (complete)
@@ -4449,9 +4450,10 @@ void MegaClient::updatesc()
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
 
-        if (complete && !mSeqTagForDb.empty())
+        if (complete && !mSeqTagForDb.str.empty())
         {
-            complete = sctable->put(CACHEDSEQTAG, &mSeqTagForDb);
+            complete = sctable->put(CACHEDSEQTAG, &mSeqTagForDb, &key);
+            LOG_debug << "saving seqtag in db: " << mSeqTagForDb.str;
         }
 
         if (complete)
@@ -4820,7 +4822,8 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
         {
             // we've reached the end of a set of actionpackets, with a latest st to report
             app->sequencetag_update(mLastReceivedScSeqTag);
-            mSeqTagForDb = mLastReceivedScSeqTag;
+            mSeqTagForDb.str = mLastReceivedScSeqTag;
+            LOG_debug << "updated seqtag: " << mSeqTagForDb.str;
             mLastReceivedScSeqTag.clear();
         }
         return true;
@@ -11457,7 +11460,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
             case CACHEDSEQTAG:
                 {
-                    mSeqTagForDb = data;
+                    mSeqTagForDb = SimpleCacheableString::unserialize(data);
+                    mSeqTagForDb.dbid = id;
+                    LOG_debug << "reloaded seqtag from db: " << mSeqTagForDb.str;
                 }
                 break;
 
@@ -11479,9 +11484,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     mergenewshares(0);
 
-    if (!mSeqTagForDb.empty())
+    if (!mSeqTagForDb.str.empty())
     {
-        app->sequencetag_update(mSeqTagForDb);
+        app->sequencetag_update(mSeqTagForDb.str);
     }
 
     return true;
