@@ -17061,10 +17061,22 @@ void MegaClient::putSet(handle id, const char* name, std::function<void(Error, h
 
     // store attrs to TLV and encrypt with Set key
     map<string, string> attrs;
-    if (name) attrs["name"] = name;
+    std::unique_ptr<string> encrAttrs;
+    if (name)
+    {
+        if (*name)
+        {
+            attrs["name"] = name;
+        }
+        else
+        {
+            attrs.erase("name");
+        }
 
-    string encrAttrs = encryptAttrs(attrs, string((char*)setKey, sizeof(setKey)));
-    if (encrAttrs.empty())
+        encrAttrs.reset(new string(encryptAttrs(attrs, string((char*)setKey, sizeof(setKey)))));
+    }
+
+    if (!encrAttrs)
     {
         if (completion)
             completion(API_EINTERNAL, id);
