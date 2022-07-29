@@ -6631,7 +6631,10 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
     if (meetingRoom)
     {
         arg("mr", 1);
+    }
 
+    if (group)
+    {
         // retrieve chat options from a string_vector
         bool speakRequest = false;
         bool waitingRoom = false;
