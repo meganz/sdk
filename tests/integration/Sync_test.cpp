@@ -1876,6 +1876,12 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
             out() << "ensureTestBaseFolder done"; // @Gene
             return;
         }
+        else {
+            out() << "harmless"; // @Gene
+        }
+    }
+    else {
+        out() << "no file root handle"; // @Gene
     }
     out() << "ensureTestBaseFolder failed"; // @Gene
     pb->set_value(false);
