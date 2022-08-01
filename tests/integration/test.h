@@ -27,6 +27,14 @@ extern string_vector envVarPass;
 std::string logTime();
 void WaitMillisec(unsigned n);
 
+#ifdef __linux__
+std::string exec(const char* cmd);
+#endif
+
+// platform specific Http POST
+void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata);
+void synchronousHttpPOSTData(const string& url, const string& senddata, string& responsedata);
+
 class LogStream
 {
 public:
@@ -492,14 +500,14 @@ struct StandardClient : public MegaApp
 
     bool uploadFolderTree(fs::path p, Node* n2);
 
-    void uploadFile(const fs::path& path, const string& name, const Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo = NoVersioning);
+    void uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, VersioningOption vo = NoVersioning);
     void uploadFile(const fs::path& path, const string& name, const Node* parent, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 
     bool uploadFile(const fs::path& path, const string& name, const CloudItem& parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
 
     bool uploadFile(const fs::path& path, const CloudItem& parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
 
-    void uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo);
+    void uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, TransferDbCommitter& committer, VersioningOption vo);
     bool uploadFilesInTree(fs::path p, const CloudItem& n2, VersioningOption vo = NoVersioning);
     void uploadFilesInTree(fs::path p, const CloudItem& n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 

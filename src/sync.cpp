@@ -790,7 +790,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             statecacheadd(l);
             if (insertq.size() > 50000)
             {
-                DBTableTransactionCommitter committer(statecachetable);
+                TransferDbCommitter committer(statecachetable);
                 cachenodes();  // periodically output updated nodes with shortname updates, so people who restart megasync still make progress towards a fast startup
             }
         }
@@ -902,7 +902,7 @@ void Sync::cachenodes()
     {
         LOG_debug << syncname << "Saving LocalNode database with " << insertq.size() << " additions";
 
-        DBTableTransactionCommitter committer(statecachetable);
+        TransferDbCommitter committer(statecachetable);
 
         // additions - we iterate until completion or until we get stuck
         bool added;
@@ -1825,7 +1825,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                         bool inshareFlag = inshare;
                         auto deleteHandle = row.cloudNode->handle;
-                        simultaneousMoveReplacedNodeToDebris = [deleteHandle, inshareFlag, deletePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        simultaneousMoveReplacedNodeToDebris = [deleteHandle, inshareFlag, deletePtr](MegaClient& mc, TransferDbCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(deleteHandle))
                                 {
@@ -1902,7 +1902,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " to " << newName  << logTriplet(row, fullPath);
 
                         auto renameHandle = sourceCloudNode.handle;
-                        syncs.queueClient([renameHandle, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([renameHandle, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin](MegaClient& mc, TransferDbCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(renameHandle))
                                 {
@@ -1944,7 +1944,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " into " << targetCloudNodePath
                                   << (newName.empty() ? "" : (" as " + newName).c_str()) << logTriplet(row, fullPath);
 
-                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin](MegaClient& mc, TransferDbCommitter& committer)
                         {
                             if (signalMoveBegin)
                                 signalMoveBegin(mc);
@@ -2322,7 +2322,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
             {
                 auto remotePath = fullPath.cloudPath;
                 auto localPath = fullPath.localPath;
-                syncs.queueClient([type, localPath, remotePath](MegaClient& mc, DBTableTransactionCommitter& committer)
+                syncs.queueClient([type, localPath, remotePath](MegaClient& mc, TransferDbCommitter& committer)
                     {
                         mc.filenameAnomalyDetected(type, localPath, remotePath);
                     });
@@ -2776,7 +2776,7 @@ void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerp
 
     auto clientCompletion = [=](error e, SyncError se, handle)
         {
-            queueClient([completion, e, se, backupId](MegaClient&, DBTableTransactionCommitter&)
+            queueClient([completion, e, se, backupId](MegaClient&, TransferDbCommitter&)
                 {
                     if (completion) completion(e, se, backupId);
                 });
@@ -3107,7 +3107,7 @@ void Syncs::getSyncProblems(std::function<void(SyncProblems&)> completion,
                             bool completionInClient)
 {
     using MC = MegaClient;
-    using DBTC = DBTableTransactionCommitter;
+    using DBTC = TransferDbCommitter;
 
     if (completionInClient)
     {
@@ -3222,7 +3222,7 @@ void Syncs::getSyncStatusInfo(handle backupID,
         return;
 
     // Convenience.
-    using DBTC = DBTableTransactionCommitter;
+    using DBTC = TransferDbCommitter;
     using MC = MegaClient;
     using SV = vector<SyncStatusInfo>;
 
@@ -3325,7 +3325,7 @@ void Syncs::getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> comp
         bool completionInClient)
 {
     using MC = MegaClient;
-    using DBTC = DBTableTransactionCommitter;
+    using DBTC = TransferDbCommitter;
 
     if (completionInClient)
     {
@@ -3403,7 +3403,7 @@ void Syncs::backupCloseDrive(LocalPath drivePath, std::function<void(Error)> cli
     queueSync([this, drivePath, clientCallback]()
         {
             Error e = backupCloseDrive_inThread(drivePath);
-            queueClient([clientCallback, e](MegaClient& mc, DBTableTransactionCommitter& committer)
+            queueClient([clientCallback, e](MegaClient& mc, TransferDbCommitter& committer)
                 {
                     clientCallback(e);
                 });
@@ -3456,7 +3456,7 @@ void Syncs::backupOpenDrive(LocalPath drivePath, std::function<void(Error)> clie
     queueSync([this, drivePath, clientCallback]()
         {
             Error e = backupOpenDrive_inThread(drivePath);
-            queueClient([clientCallback, e](MegaClient& mc, DBTableTransactionCommitter& committer)
+            queueClient([clientCallback, e](MegaClient& mc, TransferDbCommitter& committer)
                 {
                     clientCallback(e);
                 });
@@ -4556,7 +4556,7 @@ void Syncs::appendNewSync(const SyncConfig& c, bool startSync, bool notifyApp, s
 
     auto clientCompletion = [this, completion](error e, SyncError se, handle backupId)
     {
-        queueClient([e, se, backupId, completion](MegaClient& mc, DBTableTransactionCommitter& committer)
+        queueClient([e, se, backupId, completion](MegaClient& mc, TransferDbCommitter& committer)
             {
                 if (completion) completion(e, se, backupId);
             });
@@ -4754,7 +4754,7 @@ void Syncs::renameSync(handle backupId, const string& newname, std::function<voi
 
     auto clientCompletion = [this, completion](Error e)
     {
-        queueClient([completion, e](MegaClient& mc, DBTableTransactionCommitter& committer)
+        queueClient([completion, e](MegaClient& mc, TransferDbCommitter& committer)
             {
                 completion(e);
             });
@@ -4996,7 +4996,7 @@ void Syncs::removeSyncByIndex(size_t index, bool notifyApp, bool unregisterHeart
         if (unregisterHeartbeat)
         {
             // unregister this sync/backup from API (backup center)
-            queueClient([configCopy](MegaClient& mc, DBTableTransactionCommitter& committer)
+            queueClient([configCopy](MegaClient& mc, TransferDbCommitter& committer)
                 {
                     mc.reqs.add(new CommandBackupRemove(&mc, configCopy.mBackupId));
 
@@ -5175,7 +5175,7 @@ void Sync::purgeStaleDownloads()
 {
     // Convenience.
     using MC = MegaClient;
-    using DBTC = DBTableTransactionCommitter;
+    using DBTC = TransferDbCommitter;
 
     // Make sure we're running on the right thread.
     assert(syncs.onSyncThread());
@@ -7547,7 +7547,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 }
             }
 
-            syncs.queueClient([existingUpload, displaceHandle, noDebris, signalFilenameAnomaly, signalPutnodesBegin](MegaClient& mc, DBTableTransactionCommitter& committer)
+            syncs.queueClient([existingUpload, displaceHandle, noDebris, signalFilenameAnomaly, signalPutnodesBegin](MegaClient& mc, TransferDbCommitter& committer)
                 {
                     // Signal detected anomaly, if any.
                     if (signalFilenameAnomaly)
@@ -7610,7 +7610,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                         auto lp = fullPath.localPath;
                         auto rp = fullPath.cloudPath;
 
-                        syncs.queueClient([type, lp, rp](MegaClient& mc, DBTableTransactionCommitter& committer)
+                        syncs.queueClient([type, lp, rp](MegaClient& mc, TransferDbCommitter& committer)
                             {
                                 mc.filenameAnomalyDetected(type, lp, rp);
                             });
@@ -7623,7 +7623,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 NodeHandle targethandle = parentRow.cloudNode->handle;
                 auto createFolderPtr = std::make_shared<LocalNode::RareFields::CreateFolderInProgress>();
                 row.syncNode->rare().createFolderHere = createFolderPtr;
-                syncs.queueClient([foldername, targethandle, createFolderPtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                syncs.queueClient([foldername, targethandle, createFolderPtr](MegaClient& mc, TransferDbCommitter& committer)
                     {
                         vector<NewNode> nn(1);
                         mc.putnodes_prepareOneFolder(&nn[0], foldername);
@@ -7705,7 +7705,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath
         auto remotePath = path.cloudPath;
 
         // Report the anomaly.
-        syncs.queueClient([=](MegaClient& client, DBTableTransactionCommitter&) {
+        syncs.queueClient([=](MegaClient& client, TransferDbCommitter&) {
             client.filenameAnomalyDetected(type, localPath, remotePath);
         });
     };
@@ -8484,7 +8484,7 @@ bool Sync::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
         }
         else
         {
-            syncs.queueClient([](MegaClient& mc, DBTableTransactionCommitter& committer)
+            syncs.queueClient([](MegaClient& mc, TransferDbCommitter& committer)
                 {
                     mc.sendevent(99438, "Timeout waiting for file update", 0);
                 });
@@ -8594,7 +8594,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                     auto deletePtr = std::make_shared<LocalNode::RareFields::DeleteToDebrisInProgress>();
                     deletePtr->pathDeleting = fullPath.cloudPath;
 
-                    syncs.queueClient([debrisNodeHandle, fromInshare, deletePtr](MegaClient& mc, DBTableTransactionCommitter& committer)
+                    syncs.queueClient([debrisNodeHandle, fromInshare, deletePtr](MegaClient& mc, TransferDbCommitter& committer)
                         {
                             if (auto n = mc.nodeByHandle(debrisNodeHandle, true))
                             {
@@ -9972,7 +9972,7 @@ void Syncs::syncLoop()
                         // later we can make this lock much finer-grained
                         std::lock_guard<std::timed_mutex> g(mLocalNodeChangeMutex);
 
-                        DBTableTransactionCommitter committer(sync->statecachetable);
+                        TransferDbCommitter committer(sync->statecachetable);
 
                         if (!sync->recursiveSync(row, pathBuffer, false, false, 0))
                         {
@@ -10286,7 +10286,7 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
     auto clientCompletion = [this, completion](list<NameConflict>&& nc)
     {
         shared_ptr<list<NameConflict>> ncptr(new list<NameConflict>(move(nc)));
-        queueClient([completion, ncptr](MegaClient& mc, DBTableTransactionCommitter& committer)
+        queueClient([completion, ncptr](MegaClient& mc, TransferDbCommitter& committer)
             {
                 if (completion) completion(move(*ncptr));
             });
@@ -10575,7 +10575,7 @@ void Syncs::queueSync(std::function<void()>&& f)
     waiter.notify();
 }
 
-void Syncs::queueClient(std::function<void(MegaClient&, DBTableTransactionCommitter&)>&& f)
+void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
 {
     assert(onSyncThread());
     clientThreadActions.pushBack(move(f));

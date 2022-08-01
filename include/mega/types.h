@@ -162,7 +162,7 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
+typedef enum { REQ_READY, REQ_GET_URL, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
                REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED,
                REQ_INFLIGHT,
                REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO,
@@ -606,6 +606,18 @@ public:
     void insert(iterator i, T t)                         { applyErase(); mDeque.insert(i, E(t)); }
     T& operator[](size_t n)                              { applyErase(); return mDeque[n]; }
 
+};
+
+template <class T1, class T2> class mapWithLookupExisting : public map<T1, T2>
+{
+    typedef map<T1, T2> base; // helps older gcc
+public:
+    T2* lookupExisting(T1 key)
+    {
+        auto it = base::find(key);
+        if (it == base::end()) return nullptr;
+        return &it->second;
+    }
 };
 
 // map a request tag with pending dbids of transfers and files
@@ -1129,11 +1141,20 @@ public:
     // create with a token available to be cancelled
     explicit CancelToken(bool value)
         : flag(std::make_shared<bool>(value))
-    {}
+    {
+        if (value)
+        {
+            ++tokensCancelledCount;
+        }
+    }
 
     void cancel()
     {
-        if (flag) *flag = true;
+        if (flag)
+        {
+            *flag = true;
+            ++tokensCancelledCount;
+        }
     }
 
     bool isCancelled() const
@@ -1144,6 +1165,21 @@ public:
     bool exists()
     {
         return !!flag;
+    }
+
+    static std::atomic<uint32_t> tokensCancelledCount;
+
+    static bool haveAnyCancelsOccurredSince(uint32_t& lastKnownCancelCount)
+    {
+        if (lastKnownCancelCount == tokensCancelledCount.load())
+        {
+            return false;
+        }
+        else
+        {
+            lastKnownCancelCount = tokensCancelledCount.load();
+            return true;
+        }
     }
 };
 

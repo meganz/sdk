@@ -65,7 +65,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     client = cclient;
     size = 0;
     failcount = 0;
-    minfa = 0;
     pos = 0;
     ctriv = 0;
     metamac = 0;
@@ -82,7 +81,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 
     skipserialization = false;
 
-    faputcompletion_it = client->faputcompletion.end();
     transfers_it = client->transfers[type].end();
 }
 
@@ -91,9 +89,13 @@ Transfer::~Transfer()
 {
     auto keepDownloadTarget = false;
 
-    if (faputcompletion_it != client->faputcompletion.end())
+    TransferDbCommitter* committer = client->tctable ?
+                         static_cast<TransferDbCommitter*>(client->tctable->getTransactionCommitter()) :
+                         nullptr;
+
+    if (!uploadhandle.isUndef())
     {
-        client->faputcompletion.erase(faputcompletion_it);
+        client->fileAttributesUploading.erase(uploadhandle);
     }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
@@ -163,7 +165,7 @@ Transfer::~Transfer()
             if (!keepDownloadTarget)
                 client->fsaccess->unlinklocal(localfilename);
         }
-        client->transfercachedel(this, nullptr);
+        client->transfercachedel(this, committer);
     }
 }
 
@@ -414,7 +416,7 @@ SymmCipher *Transfer::transfercipher()
     return client->getRecycledTemporaryTransferCipher(transferkey.data());
 }
 
-void Transfer::removeCancelledTransferFiles(DBTableTransactionCommitter* committer)
+void Transfer::removeCancelledTransferFiles(TransferDbCommitter* committer)
 {
     // remove transfer files whose MegaTransfer associated has been cancelled (via cancel token)
     for (file_list::iterator it = files.begin(); it != files.end();)
@@ -427,7 +429,7 @@ void Transfer::removeCancelledTransferFiles(DBTableTransactionCommitter* committ
     }
 }
 
-void Transfer::removeTransferFile(error e, File* f, DBTableTransactionCommitter* committer)
+void Transfer::removeTransferFile(error e, File* f, TransferDbCommitter* committer)
 {
     Transfer *transfer = f->transfer;
     client->filecachedel(f, committer);
@@ -451,7 +453,7 @@ void Transfer::removeAndDeleteSelf(transferstate_t finalState)
 
 // transfer attempt failed, notify all related files, collect request on
 // whether to abort the transfer, kill transfer if unanimous
-void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, dstime timeleft)
+void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime timeleft)
 {
     bool defer = false;
 
@@ -645,7 +647,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 
             if (type == PUT)
             {
-                minfa += client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle);
+                client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle, this);
             }
             else
             {
@@ -658,7 +660,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 
 // transfer completion: copy received file locally, set timestamp(s), verify
 // fingerprint, notify app, notify files
-void Transfer::complete(DBTableTransactionCommitter& committer)
+void Transfer::complete(TransferDbCommitter& committer)
 {
     CodeCounter::ScopeTimer ccst(client->performanceStats.transferComplete);
 
@@ -982,7 +984,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             slot->retrybt.backoff(11);
         }
     }
-    else
+    else // type == PUT
     {
         LOG_debug << client->clientname << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
 
@@ -1066,7 +1068,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         }
 
         // if this transfer is put on hold, do not complete
-        client->checkfacompletion(uploadhandle, this);
+        client->checkfacompletion(uploadhandle, this, true);
         return;
     }
 }
@@ -1616,7 +1618,7 @@ TransferList::TransferList()
     currentpriority = PRIORITY_START;
 }
 
-void TransferList::addtransfer(Transfer *transfer, DBTableTransactionCommitter& committer, bool startFirst)
+void TransferList::addtransfer(Transfer *transfer, TransferDbCommitter& committer, bool startFirst)
 {
     if (transfer->state != TRANSFERSTATE_PAUSED)
     {
@@ -1661,7 +1663,7 @@ void TransferList::removetransfer(Transfer *transfer)
     }
 }
 
-void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer, DBTableTransactionCommitter& committer)
+void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer, TransferDbCommitter& committer)
 {
     transfer_list::iterator dstit;
     if (getIterator(prevTransfer, dstit))
@@ -1670,7 +1672,7 @@ void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer, DBTa
     }
 }
 
-void TransferList::movetransfer(Transfer *transfer, unsigned int position, DBTableTransactionCommitter& committer)
+void TransferList::movetransfer(Transfer *transfer, unsigned int position, TransferDbCommitter& committer)
 {
     transfer_list::iterator dstit;
     if (position >= transfers[transfer->type].size())
@@ -1689,7 +1691,7 @@ void TransferList::movetransfer(Transfer *transfer, unsigned int position, DBTab
     }
 }
 
-void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
+void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dstit, TransferDbCommitter& committer)
 {
     transfer_list::iterator it;
     if (getIterator(transfer, it))
@@ -1698,7 +1700,7 @@ void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dsti
     }
 }
 
-void TransferList::movetransfer(transfer_list::iterator it, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
+void TransferList::movetransfer(transfer_list::iterator it, transfer_list::iterator dstit, TransferDbCommitter& committer)
 {
     if (it == dstit)
     {
@@ -1786,29 +1788,29 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     client->app->transfer_update(transfer);
 }
 
-void TransferList::movetofirst(Transfer *transfer, DBTableTransactionCommitter& committer)
+void TransferList::movetofirst(Transfer *transfer, TransferDbCommitter& committer)
 {
     movetransfer(transfer, transfers[transfer->type].begin(), committer);
 }
 
-void TransferList::movetofirst(transfer_list::iterator it, DBTableTransactionCommitter& committer)
+void TransferList::movetofirst(transfer_list::iterator it, TransferDbCommitter& committer)
 {
     Transfer *transfer = (*it);
     movetransfer(it, transfers[transfer->type].begin(), committer);
 }
 
-void TransferList::movetolast(Transfer *transfer, DBTableTransactionCommitter& committer)
+void TransferList::movetolast(Transfer *transfer, TransferDbCommitter& committer)
 {
     movetransfer(transfer, transfers[transfer->type].end(), committer);
 }
 
-void TransferList::movetolast(transfer_list::iterator it, DBTableTransactionCommitter& committer)
+void TransferList::movetolast(transfer_list::iterator it, TransferDbCommitter& committer)
 {
     Transfer *transfer = (*it);
     movetransfer(it, transfers[transfer->type].end(), committer);
 }
 
-void TransferList::moveup(Transfer *transfer, DBTableTransactionCommitter& committer)
+void TransferList::moveup(Transfer *transfer, TransferDbCommitter& committer)
 {
     transfer_list::iterator it;
     if (getIterator(transfer, it))
@@ -1822,7 +1824,7 @@ void TransferList::moveup(Transfer *transfer, DBTableTransactionCommitter& commi
     }
 }
 
-void TransferList::moveup(transfer_list::iterator it, DBTableTransactionCommitter& committer)
+void TransferList::moveup(transfer_list::iterator it, TransferDbCommitter& committer)
 {
     if (it == transfers[it->transfer->type].begin())
     {
@@ -1833,7 +1835,7 @@ void TransferList::moveup(transfer_list::iterator it, DBTableTransactionCommitte
     movetransfer(it, dstit, committer);
 }
 
-void TransferList::movedown(Transfer *transfer, DBTableTransactionCommitter& committer)
+void TransferList::movedown(Transfer *transfer, TransferDbCommitter& committer)
 {
     transfer_list::iterator it;
     if (getIterator(transfer, it))
@@ -1850,7 +1852,7 @@ void TransferList::movedown(Transfer *transfer, DBTableTransactionCommitter& com
     }
 }
 
-void TransferList::movedown(transfer_list::iterator it, DBTableTransactionCommitter& committer)
+void TransferList::movedown(transfer_list::iterator it, TransferDbCommitter& committer)
 {
     if (it == transfers[it->transfer->type].end())
     {
@@ -1861,7 +1863,7 @@ void TransferList::movedown(transfer_list::iterator it, DBTableTransactionCommit
     movetransfer(it, dstit, committer);
 }
 
-error TransferList::pause(Transfer *transfer, bool enable, DBTableTransactionCommitter& committer)
+error TransferList::pause(Transfer *transfer, bool enable, TransferDbCommitter& committer)
 {
     if (!transfer)
     {
@@ -1948,7 +1950,7 @@ bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, 
 
 std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(Transfer*)>& continuefunction,
                                                              std::function<bool(direction_t)>& directionContinuefunction,
-                                                             DBTableTransactionCommitter& committer)
+                                                             TransferDbCommitter& committer)
 {
     std::array<vector<Transfer*>, 6> chosenTransfers;
 
@@ -2016,7 +2018,7 @@ Transfer *TransferList::transferat(direction_t direction, unsigned int position)
     return NULL;
 }
 
-void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator /*srcit*/, transfer_list::iterator dstit, DBTableTransactionCommitter& committer)
+void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator /*srcit*/, transfer_list::iterator dstit, TransferDbCommitter& committer)
 {
     assert(transfer->type == PUT || transfer->type == GET);
     if (dstit == transfers[transfer->type].end())

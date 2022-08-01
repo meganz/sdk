@@ -134,7 +134,7 @@ std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
-    DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo,
+    TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries);
 
 
@@ -292,7 +292,7 @@ ConsoleLock conlock(std::ostream& o)
     return ConsoleLock(o);
 }
 
-static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
+static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
 {
     error result = API_OK;
 
@@ -315,7 +315,7 @@ static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFil
     return result;
 }
 
-static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
+static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
 {
     return startxfer(committer, std::move(file), node.displaypath());
 }
@@ -2139,7 +2139,7 @@ void xferq(direction_t d, int cancel, bool showActive, bool showAll, bool showCo
     string name;
     int count = 0, activeCount = 0;
 
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     for (appfile_list::iterator it = appxferq[d].begin(); it != appxferq[d].end(); )
     {
         if (cancel < 0 || cancel == (*it)->seqno)
@@ -2295,6 +2295,124 @@ static byte pwkeybuf[SymmCipher::KEYLENGTH];
 static byte newpwkey[SymmCipher::KEYLENGTH];
 static string newpassword;
 
+#ifndef NO_READLINE
+
+// Where our command history will be recorded.
+string historyFile;
+
+void exec_history(autocomplete::ACState& s)
+{
+    // history clear
+    // history list
+    // history read file
+    // history record file
+    // history write file
+
+    // What does the user want to do?
+    const auto& command = s.words[1].s;
+
+    // Does the user want to clear their recorded history?
+    if (command == "clear")
+    {
+        if (!historyFile.empty()
+            && history_truncate_file(historyFile.c_str(), 0))
+        {
+            cerr << "Unable to clear recorded history."
+                 << endl;
+            return;
+        }
+        
+        // Clear recorded history.
+        clear_history();
+
+        // We're done.
+        return;
+    }
+
+    // Is the user interested in viewing their recorded history?
+    if (command == "list")
+    {
+        auto** history = history_list();
+
+        if (!history)
+        {
+            cout << "No history has been recorded."
+                 << endl;
+            return;
+        }
+
+        for (auto i = 0; history[i]; ++i)
+        {
+            cout << i + history_base
+                 << ": "
+                 << history[i]->line
+                 << endl;
+        }
+
+        return;
+    }
+
+    // Does the user want to load their history from a file?
+    if (command == "read")
+    {
+        if (read_history(s.words[2].s.c_str()))
+        {
+            cerr << "Unable to read history from: "
+                 << s.words[2].s
+                 << endl;
+
+            return;
+        }
+
+        cout << "Successfully loaded history from: "
+             << s.words[2].s
+             << endl;
+
+        return;
+    }
+
+    // User wants to record history to a file?
+    if (command == "record")
+    {
+        // Clear recorded history.
+        clear_history();
+
+        // Truncate history file.
+        if (write_history(s.words[2].s.c_str()))
+        {
+            cerr << "Unable to truncate history file: "
+                 << s.words[2].s.c_str();
+            return;
+        }
+
+        // Remember where we should write the history to.
+        historyFile = s.words[2].s;
+
+        cout << "Now recording history to: "
+             << historyFile
+             << endl;
+
+        return;
+    }
+    
+    // Only branch left.
+    assert(command == "write");
+
+    if (write_history(s.words[2].s.c_str()))
+    {
+        cerr << "Unable to write history to: "
+             << s.words[2].s.c_str();
+
+        return;
+    }
+
+    cout << "History written to: "
+         << s.words[2].s
+         << endl;
+}
+
+#endif // ! NO_READLINE
+
 // readline callback - exit if EOF, add to history unless password
 #if !defined(WIN32) || !defined(NO_READLINE)
 static void store_line(char* l)
@@ -2312,7 +2430,35 @@ static void store_line(char* l)
 #ifndef NO_READLINE
     if (*l && prompt == COMMAND)
     {
-        add_history(l);
+        char* expansion = nullptr;
+
+        auto result = history_expand(l, &expansion);
+
+        if (result < 0 || result == 2)
+        {
+            if (result < 0)
+            {
+                cerr << "Failed to expand history: "
+                     << result
+                     << endl;
+            }
+
+            return;
+        }
+
+        add_history(expansion);
+
+        if (!historyFile.empty() && write_history(historyFile.c_str()))
+        {
+            cerr << "Failed to update history file: "
+                 << historyFile
+                 << endl;
+        }
+
+        line = expansion;
+        free(l);
+
+        return;
     }
 #endif
 
@@ -2675,7 +2821,7 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count)
         }
         cout << count << endl;
 
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
         int total = 0;
         auto lp = LocalPath::fromAbsolutePath(local_path);
         uploadLocalPath(FILENODE, lp.leafName().toPath(), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false);
@@ -2790,7 +2936,7 @@ void cycleDownload(LocalPath lp, int count);
 void cycleUpload(LocalPath lp, int count)
 {
     checkReportCycleFails();
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
 
     LocalPath upload_lp = lp;
     upload_lp.append(LocalPath::fromRelativePath("_" + std::to_string(count)));
@@ -2848,7 +2994,7 @@ void cycleDownload(LocalPath lp, int count)
     };
 
     f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     client->startxfer(GET, f, committer, false, false, false, NoVersioning);
 
     // also delete the old local file
@@ -2874,7 +3020,7 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
             }
         };
 
-    globalMegaTestHooks.onUploadChunkSucceeded = [](Transfer* t, DBTableTransactionCommitter& committer)
+    globalMegaTestHooks.onUploadChunkSucceeded = [](Transfer* t, TransferDbCommitter& committer)
         {
             if (t->chunkmacs.hasUnfinishedGap(1024ll*1024*1024*1024*1024))
             //if (t->pos > 5000000 && rand() % 2 == 0)
@@ -3519,7 +3665,11 @@ autocomplete::ACN autocompleteSyntax()
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
 
-    p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
+    p->Add(exec_syncrename,
+           sequence(text("sync"),
+                    text("rename"),
+                    backupID(*client),
+                    param("newname")));
 
     p->Add(exec_syncclosedrive,
            sequence(text("sync"),
@@ -3547,7 +3697,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_syncremove,
            sequence(text("sync"),
                     text("remove"),
-                    param("id")));
+                    either(backupID(*client),
+                           sequence(flag("-by-local-path"),
+                                    localFSFolder()),
+                           sequence(flag("-by-remote-path"),
+                                    remoteFSFolder(client, &cwd)))));
 
     p->Add(exec_syncstatus,
            sequence(text("sync"),
@@ -3561,14 +3715,17 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_syncrescan, sequence(text("sync"), text("rescan"), param("id")));
 
-    p->Add(exec_syncoutput, sequence(text("sync"), text("output"),
-        either(text("local_change_detection"),
-            text("remote_change_detection"),
-            text("transfer_activity"),
-            text("folder_sync_state"),
-            text("detail_log"),
-            text("all")),
-        either(text("on"), text("off"))));
+    p->Add(exec_syncoutput,
+           sequence(text("sync"),
+                    text("output"),
+                    either(text("local_change_detection"),
+                           text("remote_change_detection"),
+                           text("transfer_activity"),
+                           text("folder_sync_state"),
+                           text("detail_log"),
+                           text("all")),
+                    either(text("on"),
+                           text("off"))));
 
 #endif
 
@@ -3659,6 +3816,15 @@ autocomplete::ACN autocompleteSyntax()
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_autocomplete, sequence(text("autocomplete"), opt(either(text("unix"), text("dos")))));
     p->Add(exec_history, sequence(text("history")));
+#elif !defined(NO_READLINE)
+    p->Add(exec_history,
+           sequence(text("history"),
+                    either(text("clear"),
+                           text("list"),
+                           sequence(either(text("read"),
+                                           text("record"),
+                                           text("write")),
+                                    localFSFile("history")))));
 #endif
     p->Add(exec_help, either(text("help"), text("h"), text("?")));
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
@@ -3727,9 +3893,9 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 {
     if (n->type == FILENODE)
     {
-            if (!folders)
+        if (!folders)
         {
-            DBTableTransactionCommitter committer(client->tctable);
+            TransferDbCommitter committer(client->tctable);
             auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
             error result = startxfer(committer, std::move(file), *n);
             queued += result == API_OK ? 1 : 0;
@@ -3771,7 +3937,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
 
         if (n->type == FOLDERNODE || n->type == ROOTNODE)
         {
-            DBTableTransactionCommitter committer(client->tctable);
+            TransferDbCommitter committer(client->tctable);
             for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
             {
                 if ((*it)->type == FILENODE)
@@ -4538,7 +4704,7 @@ void exec_get(autocomplete::ACState& s)
                     {
                         cout << "Initiating download..." << endl;
 
-                        DBTableTransactionCommitter committer(client->tctable);
+                        TransferDbCommitter committer(client->tctable);
                         auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename);
                     }
@@ -4583,7 +4749,7 @@ void exec_get(autocomplete::ACState& s)
             }
             else
             {
-                DBTableTransactionCommitter committer(client->tctable);
+                TransferDbCommitter committer(client->tctable);
 
                 // queue specified file...
                 if (n->type == FILENODE)
@@ -4654,7 +4820,7 @@ void exec_more(autocomplete::ACState& s)
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo);
 
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
-    DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo,
+    TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
     std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries)
 {
 
@@ -4764,7 +4930,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
 
     std::vector<FSNode> results = r->resultNodes();
 
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     int total = 0;
 
     for (auto& rr : results)
@@ -4786,7 +4952,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
     LocalPath lp(localname);
     if (da->dopen(&lp, NULL, false))
     {
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
 
         int total = 0;
         nodetype_t type;
@@ -4857,7 +5023,7 @@ void exec_put(autocomplete::ACState& s)
     // search with glob, eg *.txt
     if (da->dopen(&localname, NULL, true))
     {
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
 
         nodetype_t type;
         LocalPath itemlocalname;
@@ -5743,7 +5909,7 @@ void exec_pause(autocomplete::ACState& s)
         putarg = true;
     }
 
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
 
     if (getarg)
     {
@@ -8793,6 +8959,9 @@ void megacli()
 
     rl_save_prompt();
 
+    // Initialize history.
+    using_history();
+
 #elif defined(WIN32) && defined(NO_READLINE)
 
     static_cast<WinConsole*>(console)->setShellConsole(CP_UTF8, GetConsoleOutputCP());
@@ -9830,7 +9999,6 @@ void exec_syncstatus(autocomplete::ACState& s)
 
     // Retrieve status information from the engine.
     client->syncs.getSyncStatusInfo(id, [&](SV info) {
-        waiter.set_value(std::move(info));
     }, false);
 
     // Wait for the engine to gather our information.

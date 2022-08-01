@@ -1331,7 +1331,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
 
     if (oldsync)
     {
-        DBTableTransactionCommitter committer(oldsync->statecachetable);
+        TransferDbCommitter committer(oldsync->statecachetable);
 
         // prepare localnodes for a sync change or/and a copy operation
         LocalTreeProcMove tp(parent->sync);
@@ -2367,7 +2367,7 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
 {
     resetTransfer(upload);
 
-    sync->syncs.queueClient([upload, vo, queueFirst](MegaClient& mc, DBTableTransactionCommitter& committer)
+    sync->syncs.queueClient([upload, vo, queueFirst](MegaClient& mc, TransferDbCommitter& committer)
         {
             upload->transferTag = mc.nextreqtag();
             upload->selfKeepAlive = upload;
@@ -2380,7 +2380,7 @@ void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download, 
 {
     resetTransfer(download);
 
-    sync->syncs.queueClient([download, queueFirst](MegaClient& mc, DBTableTransactionCommitter& committer)
+    sync->syncs.queueClient([download, queueFirst](MegaClient& mc, TransferDbCommitter& committer)
         {
             mc.nextreqtag();
             download->selfKeepAlive = download;
@@ -2403,7 +2403,7 @@ void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
 
             // also queue an operation on the client thread to cancel it if it's queued
             auto tsp = transferSP;
-            sync->syncs.queueClient([tsp](MegaClient& mc, DBTableTransactionCommitter& committer)
+            sync->syncs.queueClient([tsp](MegaClient& mc, TransferDbCommitter& committer)
                 {
                     mc.nextreqtag();
                     mc.stopxfer(tsp.get(), &committer);
