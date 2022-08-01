@@ -3193,22 +3193,5 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
     return std::min(1.0, progress);
 }
 
-bool SimpleCacheableString::serialize(string* s)
-{
-    CacheableWriter w(*s);
-    w.serializestring(str);
-    return s;
-}
-
-SimpleCacheableString SimpleCacheableString::unserialize(const std::string& data)
-{
-    SimpleCacheableString result;
-    CacheableReader reader(data);
-    reader.unserializestring(result.str);
-    return result;
-}
-
-
-
 } // namespace mega
 

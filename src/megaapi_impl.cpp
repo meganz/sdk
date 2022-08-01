@@ -13370,6 +13370,17 @@ void MegaApiImpl::pcrs_updated(PendingContactRequest **r, int count)
     delete requestList;
 }
 
+void MegaApiImpl::sequencetag_update(const string& seqTag)
+{
+    assert(threadId == std::this_thread::get_id());
+
+    // no need for a separate MegaApiImpl::fireOnSeqTagUpdate (but mentioning it here for search purposes)
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
+    {
+        (*it++)->onSeqTagUpdate(api, &seqTag);
+    }
+}
+
 void MegaApiImpl::unlink_result(handle h, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;

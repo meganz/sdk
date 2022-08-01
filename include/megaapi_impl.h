@@ -3370,6 +3370,7 @@ protected:
         void useralerts_updated(UserAlert::Base**, int) override;
         void account_updated() override;
         void pcrs_updated(PendingContactRequest**, int) override;
+        void sequencetag_update(const string&) override;
 
         // password change result
         void changepw_result(error) override;

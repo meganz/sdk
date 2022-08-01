@@ -1184,7 +1184,7 @@ void MegaClient::init()
     mCurrentSeqtagSeen = false;
     mCurrentSeqtagCmdtag = 0;
 
-    mSeqTagForDb = SimpleCacheableString();
+    mScDbStateRecord = ScDbStateRecord();
     mLastReceivedScSeqTag.clear();
 }
 
@@ -4336,10 +4336,10 @@ void MegaClient::initsc()
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
 
-        if (complete && !mSeqTagForDb.str.empty())
+        if (complete && !mScDbStateRecord.seqTag.empty())
         {
-            complete = sctable->put(CACHEDSEQTAG, &mSeqTagForDb, &key);
-            LOG_debug << "saving seqtag in db: " << mSeqTagForDb.str;
+            complete = sctable->put(CACHEDDBSTATE, &mScDbStateRecord, &key);
+            LOG_debug << "saving seqtag in db: " << mScDbStateRecord.seqTag;
         }
 
         if (complete)
@@ -4450,10 +4450,10 @@ void MegaClient::updatesc()
         handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
 
-        if (complete && !mSeqTagForDb.str.empty())
+        if (complete && !mScDbStateRecord.seqTag.empty())
         {
-            complete = sctable->put(CACHEDSEQTAG, &mSeqTagForDb, &key);
-            LOG_debug << "saving seqtag in db: " << mSeqTagForDb.str;
+            complete = sctable->put(CACHEDDBSTATE, &mScDbStateRecord, &key);
+            LOG_debug << "saving seqtag in db: " << mScDbStateRecord.seqTag;
         }
 
         if (complete)
@@ -4822,8 +4822,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
         {
             // we've reached the end of a set of actionpackets, with a latest st to report
             app->sequencetag_update(mLastReceivedScSeqTag);
-            mSeqTagForDb.str = mLastReceivedScSeqTag;
-            LOG_debug << "updated seqtag: " << mSeqTagForDb.str;
+            LOG_debug << "updated seqtag: " << mLastReceivedScSeqTag;
             mLastReceivedScSeqTag.clear();
         }
         return true;
@@ -4831,6 +4830,9 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
     else
     {
         mLastReceivedScSeqTag = tag;
+
+        // Also prep this one to be committed to db (if we delay until time to notify the app, we're too late for the commit)
+        mScDbStateRecord.seqTag = mLastReceivedScSeqTag;
 
         for (;;)
         {
@@ -11458,11 +11460,11 @@ bool MegaClient::fetchsc(DbTable* sctable)
 #endif
                 break;
 
-            case CACHEDSEQTAG:
+            case CACHEDDBSTATE:
                 {
-                    mSeqTagForDb = SimpleCacheableString::unserialize(data);
-                    mSeqTagForDb.dbid = id;
-                    LOG_debug << "reloaded seqtag from db: " << mSeqTagForDb.str;
+                    mScDbStateRecord = ScDbStateRecord::unserialize(data);
+                    mScDbStateRecord.dbid = id;
+                    LOG_debug << "reloaded seqtag from db: " << mScDbStateRecord.seqTag;
                 }
                 break;
 
@@ -11484,9 +11486,9 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     mergenewshares(0);
 
-    if (!mSeqTagForDb.str.empty())
+    if (!mScDbStateRecord.seqTag.empty())
     {
-        app->sequencetag_update(mSeqTagForDb.str);
+        app->sequencetag_update(mScDbStateRecord.seqTag);
     }
 
     return true;
@@ -15833,5 +15835,28 @@ void FetchNodesStats::toJsonArray(string *json)
         << timeToTransfersResumed << "," << cache << "]";
     json->append(oss.str());
 }
+
+bool ScDbStateRecord::serialize(string* s)
+{
+    CacheableWriter w(*s);
+    w.serializestring(seqTag);
+    w.serializeexpansionflags();
+    return s;
+}
+
+ScDbStateRecord ScDbStateRecord::unserialize(const std::string& data)
+{
+    unsigned char ef[8] = {0, };
+    ScDbStateRecord result;
+    CacheableReader reader(data);
+    if (reader.unserializestring(result.seqTag) &&
+        reader.unserializeexpansionflags(ef, 0))
+    {
+        // future fields processed here
+    }
+
+    return result;
+}
+
 
 } // namespace

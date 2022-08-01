@@ -1644,9 +1644,9 @@ public:
     /**
     * @brief Returns the handle of a user related to the alert
     *
-    * This value is valid for user related alerts: 
+    * This value is valid for user related alerts:
     *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
@@ -1676,16 +1676,16 @@ public:
     * this function will return false and the client can request it via the userHandle.
     *
     * The SDK retains the ownership of the returned value. It will be valid until
-    * the MegaUserAlert object is deleted.    
-    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU, 
+    * the MegaUserAlert object is deleted.
+    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU,
     *   TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_DELETEDYOU,
     *   TYPE_DELETEDSHARE,
     *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *   TYPE_NEWSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
     *   TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *   TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
-    * 
+    *
     * @return email string of the relevant user, or NULL if not available
     */
     virtual const char* getEmail() const;
@@ -1698,7 +1698,7 @@ public:
     *
     * This value is valid for those alerts that relate to a single path, provided
     * it could be looked up from the cached nodes at the time the alert arrived.
-    * Otherwise, it may be obtainable via the nodeHandle. 
+    * Otherwise, it may be obtainable via the nodeHandle.
     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
     *
     * @return the path string if relevant and available, otherwise NULL
@@ -1713,7 +1713,7 @@ public:
      *
      * This value is valid for those alerts that relate to a single name, provided
      * it could be looked up from the cached nodes at the time the alert arrived.
-     * Otherwise, it may be obtainable via the nodeHandle. 
+     * Otherwise, it may be obtainable via the nodeHandle.
      *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
      *
      * @return the name string if relevant and available, otherwise NULL
@@ -1754,7 +1754,7 @@ public:
     *                        value 0 if someone left the folder)
     *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
     *   TYPE_REMOVEDSHAREDNODES (0: item count)
-    * 
+    *
     * @return Number related to this request, or -1 if the index is invalid
     */
     virtual int64_t getNumber(unsigned index) const;
@@ -6854,6 +6854,17 @@ class MegaGlobalListener
          * @param api MegaApi object connected to the account
          */
         virtual void onReloadNeeded(MegaApi* api);
+
+        /**
+         * @brief This function is called when seqTag updates.
+         *
+         * Used for synchronization of state between webclient and app on the same device
+         * Subject to significatnt alterations in future as this is based on internal implementation details.
+         *
+         * @param api MegaApi object connected to the account
+         * @param seqTag The string representing the sequence tag. (ownership stays with the SDK)
+         */
+        virtual void onSeqTagUpdate(MegaApi* api, const std::string* seqTag);
 
 #ifdef ENABLE_SYNC
         /**
