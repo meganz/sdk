@@ -17876,5 +17876,233 @@ TEST_F(SyncTest, LocalVerticalMoveCycle)
     EXPECT_EQ(zh, client->getNodeHandle("s/0/1/z.txt"));
 }
 
+class ContradictoryMoveFixture
+  : public ::testing::Test
+{
+public:
+    ContradictoryMoveFixture()
+      : Test()
+      , c(g_clientManager->getCleanStandardClient(0, makeNewTestRoot()))
+      , mc()
+      , mf()
+      , id(UNDEF)
+    {
+    }
+
+    void SetUp() override
+    {
+        // Make sure the cloud's clean.
+        ASSERT_TRUE(c->resetBaseFolderMulticlient());
+
+        // Make sure we have something to sync against in the cloud.
+        ASSERT_TRUE(c->makeCloudSubdirs("s", 0, 0));
+
+        // Populate local model.
+        mf.addfolder("da");
+        mf.addfolder("db");
+        mf.addfolder("dc");
+        mf.addfile(".megaignore", "#");
+        mf.generate(c->fsBasePath / "s");
+
+        // Initially cloud matches disk.
+        mc = mf;
+
+        // Add and start a new sync.
+        id = c->setupSync_mainthread("s", "s", false, false);
+        ASSERT_NE(id, UNDEF);
+
+        // Wait for the initial sync to complete.
+        waitonsyncs(DEFAULTWAIT, c);
+
+        // Make sure everything made it safely to the cloud.
+        ASSERT_TRUE(c->confirmModel_mainthread(mc.root.get(), id));
+
+        // Create a contradictory move scenario.
+        {
+            ScopedSyncPauser pauser(*c, id);
+
+            // Remotely move da -> db.
+            mc.movenode("da", "db");
+
+            ASSERT_TRUE(c->movenode("s/da", "s/db"));
+            ASSERT_TRUE(c->waitFor(SyncRemoteMatch("s", mc.root.get()), DEFAULTWAIT));
+
+            // Locally move db -> da.
+            std::error_code result;
+
+            mf.movenode("db", "da");
+
+            fs::rename(c->fsBasePath / "s" / "db",
+                       c->fsBasePath / "s" / "da" / "db",
+                       result);
+
+            ASSERT_FALSE(result);
+        }
+
+        // Wait for a stall to be signalled.
+        ASSERT_TRUE(c->waitFor(SyncStallState(true), DEFAULTWAIT));
+    }
+
+    // Client we're using to perform the tests.
+    StandardClientInUse c;
+
+    // Models representing the state of our client.
+    Model mc;
+    Model mf;
+
+    // ID of the sync we're using to perform our test.
+    handle id;
+}; // ContradictoryMoveFixture
+
+TEST_F(ContradictoryMoveFixture, MoveLocally)
+{
+    {
+        ScopedSyncPauser pauser(*c, id);
+        std::error_code result;
+
+        // Move da -> dc/da.
+        mf.movenode("da", "dc");
+
+        fs::rename(c->fsBasePath / "s" / "da",
+                   c->fsBasePath / "s" / "dc" / "da",
+                   result);
+
+        ASSERT_FALSE(result);
+    }
+
+    // Wait for the stall to temporarily resolve.
+    ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the engine to become idle.
+    auto result = waitonsyncs(DEFAULTWAIT, c);
+
+    // Engine should've signalled another stall.
+    EXPECT_FALSE(result.front().syncStalled);
+
+    // Neither disk nor cloud should've changed.
+    EXPECT_TRUE(c->confirmModel_mainthread(mc.root.get(),
+                                           id,
+                                           false,
+                                           StandardClient::CONFIRM_REMOTE,
+                                           false,
+                                           false));
+
+    EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(),
+                                           id,
+                                           false,
+                                           StandardClient::CONFIRM_LOCALFS,
+                                           false,
+                                           false));
+}
+
+TEST_F(ContradictoryMoveFixture, MoveRemotely)
+{
+    {
+        ScopedSyncPauser pauser(*c, id);
+
+        // Move db -> dc/db.
+        mc.movenode("db", "dc");
+
+        ASSERT_TRUE(c->movenode("s/db", "s/dc"));
+        ASSERT_TRUE(c->waitFor(SyncRemoteMatch("s", mc.root.get()), DEFAULTWAIT));
+    }
+
+    // Wait for the stall to temporarily resolve.
+    ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the engine to become idle.
+    auto result = waitonsyncs(DEFAULTWAIT, c);
+
+    // Engine should've signalled another stall.
+    EXPECT_TRUE(result.front().syncStalled);
+
+    // Neither disk nor cloud should've changed.
+    EXPECT_TRUE(c->confirmModel_mainthread(mc.root.get(),
+                                           id,
+                                           false,
+                                           StandardClient::CONFIRM_REMOTE,
+                                           false,
+                                           false));
+
+    EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(),
+                                           id,
+                                           false,
+                                           StandardClient::CONFIRM_LOCALFS,
+                                           false,
+                                           false));
+}
+
+TEST_F(ContradictoryMoveFixture, ResolveLocally)
+{
+    // Manually make the disk look like the cloud.
+    {
+        ScopedSyncPauser pauser(*c, id);
+        std::error_code result;
+
+        // Move da/db -> db.
+        mf.movenode("da/db", "");
+
+        fs::rename(c->fsBasePath / "s" / "da" / "db",
+                   c->fsBasePath / "s" / "db",
+                   result);
+
+        ASSERT_FALSE(result);
+
+        // Move da -> db/da.
+        mf.movenode("da", "db");
+
+        fs::rename(c->fsBasePath / "s" / "da",
+                   c->fsBasePath / "s" / "db" / "da",
+                   result);
+
+        ASSERT_FALSE(result);
+    }
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the engine to idle.
+    auto result = waitonsyncs(DEFAULTWAIT, c);
+
+    // Make sure no stalls were detected.
+    EXPECT_FALSE(result.front().syncStalled);
+
+    // Make sure the state of the sync is as we expect.
+    EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(), id));
+}
+
+TEST_F(ContradictoryMoveFixture, ResolveRemotely)
+{
+    // Manually make the cloud look like the disk.
+    {
+        ScopedSyncPauser pauser(*c, id);
+
+        // Move db/da -> da.
+        mc.movenode("db/da", "");
+
+        ASSERT_TRUE(c->movenode("s/db/da", "s"));
+
+        // Move db -> da/db.
+        mc.movenode("db", "da");
+
+        ASSERT_TRUE(c->movenode("s/db", "s/da"));
+
+        // Wait for the client to receive our changes.
+        ASSERT_TRUE(c->waitFor(SyncRemoteMatch("s", mc.root.get()), DEFAULTWAIT));
+    }
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the engine to idle.
+    auto result = waitonsyncs(DEFAULTWAIT, c);
+
+    // Make sure no stalls were detected.
+    EXPECT_FALSE(result.front().syncStalled);
+
+    // Make sure the state of the sync is as we expect.
+    EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(), id));
+}
+
 #endif
 
