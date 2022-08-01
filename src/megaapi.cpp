@@ -1697,6 +1697,8 @@ void MegaGlobalListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
 void MegaGlobalListener::onDrivePresenceChanged(MegaApi* api, bool present, const char* rootPathInUtf8)
 { }
+void MegaGlobalListener::onSeqTagUpdate(MegaApi* api, const std::string* seqTag)
+{ }
 MegaGlobalListener::~MegaGlobalListener()
 { }
 
