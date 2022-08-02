@@ -110,7 +110,7 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk)
 
 void Request::process(MegaClient* client)
 {
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     client->mTctableRequestCommitter = &committer;
 
     client->json = json;

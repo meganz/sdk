@@ -208,6 +208,8 @@ SqliteDbTable::~SqliteDbTable()
     }
 
     sqlite3_finalize(pStmt);
+    sqlite3_finalize(mDelStmt);
+    sqlite3_finalize(mPutStmt);
 
     if (inTransaction())
     {
@@ -336,38 +338,37 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 
     checkTransaction();
 
-    sqlite3_stmt *stmt;
-    bool result = false;
-
-    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL);
-    if (rc == SQLITE_OK)
+    int sqlResult = SQLITE_OK;
+    if (!mPutStmt)
     {
-        rc = sqlite3_bind_int(stmt, 1, index);
-        if (rc == SQLITE_OK)
-        {
-            rc = sqlite3_bind_blob(stmt, 2, data, len, SQLITE_STATIC);
-            if (rc == SQLITE_OK)
-            {
+        sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &mPutStmt, nullptr);
+    }
 
-                rc = sqlite3_step(stmt);
-                if (rc == SQLITE_DONE)
-                {
-                    result = true;
-                }
+    if (sqlResult == SQLITE_OK)
+    {
+        sqlResult = sqlite3_bind_int(mPutStmt, 1, index);
+        if (sqlResult == SQLITE_OK)
+        {
+            sqlResult = sqlite3_bind_blob(mPutStmt, 2, data, len, SQLITE_STATIC);
+            if (sqlResult == SQLITE_OK)
+            {
+                sqlResult = sqlite3_step(mPutStmt);
             }
         }
     }
 
-    sqlite3_finalize(stmt);
+    bool ok = sqlResult == SQLITE_DONE;
 
-    if (!result)
+    if (!ok)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
         LOG_err << "Unable to put record into database: " << dbfile << err;
         assert(!"Unable to put record into database.");
     }
 
-    return result;
+    sqlite3_reset(mPutStmt);
+
+    return ok;
 }
 
 // delete record by index
@@ -380,21 +381,33 @@ bool SqliteDbTable::del(uint32_t index)
 
     checkTransaction();
 
-    char buf[64];
-
-    sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
-
-    int rc = sqlite3_exec(db, buf, 0, 0, nullptr);
-    if (rc != SQLITE_OK)
+    int sqlResult = SQLITE_OK;
+    if (!mDelStmt)
     {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
-        LOG_err << "Unable to delete record from database: " << dbfile << err;
-        assert(!"Unable to delete record from database.");
-
-        return false;
+        sqlResult = sqlite3_prepare_v2(db, "DELETE FROM statecache WHERE id = ?", -1, &mDelStmt, nullptr);
     }
 
-    return true;
+    if (sqlResult == SQLITE_OK)
+    {
+        sqlResult = sqlite3_bind_int(mDelStmt, 1, index);
+        if (sqlResult == SQLITE_OK)
+        {
+            sqlResult = sqlite3_step(mDelStmt); // tipically SQLITE_DONE, but could be SQLITE_ROW if implementation returned removed row count
+        }
+    }
+
+    bool ok = sqlResult == SQLITE_DONE || sqlResult == SQLITE_ROW;
+
+    if (!ok)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to delete record from database: " << dbfile << err;
+        assert(!"Unable to delete record from database.");
+    }
+
+    sqlite3_reset(mDelStmt);
+
+    return ok;
 }
 
 // truncate table
@@ -480,6 +493,11 @@ void SqliteDbTable::remove()
     }
 
     sqlite3_finalize(pStmt);
+    pStmt = nullptr;
+    sqlite3_finalize(mDelStmt);
+    mDelStmt = nullptr;
+    sqlite3_finalize(mPutStmt);
+    mPutStmt = nullptr;
 
     if (inTransaction())
     {

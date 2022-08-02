@@ -224,6 +224,40 @@ struct SyncdownContext
     bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
 
+
+// Class to help with upload of file attributes
+struct UploadWaitingForFileAttributes
+{
+    struct FileAttributeValues {
+        handle fileAttributeHandle = UNDEF;
+        bool valueIsSet = false;
+    };
+
+    mapWithLookupExisting<fatype, FileAttributeValues> pendingfa;
+
+    // The transfer must always be known, so we can check for cancellation
+    Transfer* transfer = nullptr;
+
+    // This flag is set true if its data upload completes, and we removed it from transfers[]
+    // In which case, this is now the "owning" object for the transfer
+    bool uploadCompleted = false;
+};
+
+// Class to help with upload of file attributes
+// One entry for each active upload that has file attribute involvement
+// Should the transfer be cancelled, this data structure is easily cleaned.
+struct FileAttributesPending : public mapWithLookupExisting<UploadHandle, UploadWaitingForFileAttributes>
+{
+    void setFileAttributePending(UploadHandle h, fatype type, Transfer* t, bool alreadyavailable = false)
+    {
+        auto& entry = operator[](h);
+        entry.pendingfa[type].valueIsSet = alreadyavailable;
+        assert(entry.transfer == t || entry.transfer == nullptr);
+        entry.transfer = t;
+    }
+};
+
+
 class MEGA_API MegaClient
 {
 public:
@@ -497,9 +531,9 @@ public:
     void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause = nullptr);
-    void stopxfer(File* f, DBTableTransactionCommitter* committer);
-    void pausexfers(direction_t, bool pause, bool hard, DBTableTransactionCommitter& committer);
+    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause = nullptr);
+    void stopxfer(File* f, TransferDbCommitter* committer);
+    void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
 
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 6;
@@ -553,7 +587,7 @@ public:
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
 
     // notify delayed upload completion subsystem about new file attribute
-    void checkfacompletion(UploadHandle, Transfer* = NULL);
+    void checkfacompletion(UploadHandle, Transfer* = NULL, bool uploadCompleted = false);
 
     // attach/update/delete a user attribute
     void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0,
@@ -1190,7 +1224,7 @@ public:
     unique_ptr<DbTable> tctable;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
-    DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
+    TransferDbCommitter* mTctableRequestCommitter = nullptr;
 
     // status cache table for logged in user. For data pertaining status which requires immediate commits
     unique_ptr<DbTable> statusTable;
@@ -1209,10 +1243,12 @@ public:
     // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
     bool actionpacketsCurrent;
 
-    // pending file attribute writes
+    // File Attribute upload system.  These can come from:
+    //  - upload transfers
+    //  - app requests to attach a thumbnail/preview to a node
+    //  - app requests for media upload (which return the fa handle)
+    // initially added to queuedfa, and up to 10 moved to activefa.
     putfa_list queuedfa;
-
-    // current file attributes being sent
     putfa_list activefa;
 
     // API request queue double buffering:
@@ -1290,11 +1326,8 @@ public:
     // mapping of pending contact handles to their structure
     handlepcr_map pcrindex;
 
-    // pending file attributes
-    fa_map pendingfa;
-
-    // upload waiting for file attributes
-    uploadhandletransfer_map faputcompletion;
+    // A record of which file attributes are needed (or now available) per upload transfer
+    FileAttributesPending fileAttributesUploading;
 
     // file attribute fetch channels
     fafc_map fafcs;
@@ -1315,7 +1348,7 @@ public:
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
     BackoffTimerGroupTracker transferRetryBackoffs[2];
-
+    uint32_t lastKnownCancelCount = 0;
 #ifdef ENABLE_SYNC
     // track puts that may need finishing if sync abandoned before putnodes happens
     TransferBackstop transferBackstop;
@@ -1390,16 +1423,16 @@ public:
     void notifynode(Node*);
 
     // update transfer in the persistent cache
-    void transfercacheadd(Transfer*, DBTableTransactionCommitter*);
+    void transfercacheadd(Transfer*, TransferDbCommitter*);
 
     // remove a transfer from the persistent cache
-    void transfercachedel(Transfer*, DBTableTransactionCommitter* committer);
+    void transfercachedel(Transfer*, TransferDbCommitter* committer);
 
     // add a file to the persistent cache
-    void filecacheadd(File*, DBTableTransactionCommitter& committer);
+    void filecacheadd(File*, TransferDbCommitter& committer);
 
     // remove a file from the persistent cache
-    void filecachedel(File*, DBTableTransactionCommitter* committer);
+    void filecachedel(File*, TransferDbCommitter* committer);
 
 #ifdef ENABLE_CHAT
     textchat_map chatnotify;
@@ -1550,9 +1583,6 @@ public:
 
     // returns if the current pendingcs includes a fetch nodes command
     bool isFetchingNodesPendingCS();
-
-    // upload handle -> node handle map (filled by upload completion)
-    set<pair<UploadHandle, NodeHandle>> uhnh;
 
     // transfer chunk failed
     void setchunkfailed(string*);

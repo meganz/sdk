@@ -1799,7 +1799,7 @@ void StandardClient::downloadFile(const CloudItem& item, const fs::path& destina
 
     reinterpret_cast<FileFingerprint&>(*file) = *node;
 
-    DBTableTransactionCommitter committer(client.tctable);
+    TransferDbCommitter committer(client.tctable);
 
     error r = API_OK;
 
@@ -1840,7 +1840,7 @@ bool StandardClient::uploadFolderTree(fs::path p, Node* n2)
     return future.get();
 }
 
-void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo)
+void StandardClient::uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, VersioningOption vo)
 {
     unique_ptr<File> file(new FilePut());
 
@@ -1859,7 +1859,7 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
                             ++next_request_tag,
                             [&]()
                             {
-                                DBTableTransactionCommitter committer(client.tctable);
+                                TransferDbCommitter committer(client.tctable);
                                 uploadFile(path, name, parent, committer, vo);
                             },
                             [pb](error e)
@@ -1893,7 +1893,7 @@ bool StandardClient::uploadFile(const fs::path& path, const CloudItem& parent, i
     return uploadFile(path, path.filename().u8string(), parent, timeoutSeconds, vo);
 }
 
-void StandardClient::uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo)
+void StandardClient::uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, TransferDbCommitter& committer, VersioningOption vo)
 {
     if (fs::is_regular_file(p))
     {
@@ -1946,7 +1946,7 @@ void StandardClient::uploadFilesInTree(fs::path p, const CloudItem& n2, std::ato
 
     resultproc.prepresult(PUTNODES, ++next_request_tag,
         [&](){
-            DBTableTransactionCommitter committer(client.tctable);
+            TransferDbCommitter committer(client.tctable);
             uploadFilesInTree_recurse(targetNode, p, inprogress, committer, vo);
         },
         [pb, &inprogress](error e)
@@ -2026,7 +2026,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
     file->name = targetName;
     file->setLocalname(LocalPath::fromAbsolutePath(sourcePath.u8string()));
     // Kick off the upload. Client takes ownership of file.
-    DBTableTransactionCommitter committer(client.tctable);
+    TransferDbCommitter committer(client.tctable);
 
     error result = API_OK;
 

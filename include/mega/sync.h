@@ -1063,7 +1063,7 @@ public:
     list<weak_ptr<LocalNode::RareFields::ScanBlocked>> scanBlockedPaths;
     list<weak_ptr<LocalNode::RareFields::BadlyFormedIgnore>> badlyFormedIgnoreFilePaths;
 
-    typedef std::function<void(MegaClient&, DBTableTransactionCommitter&)> QueuedClientFunc;
+    typedef std::function<void(MegaClient&, TransferDbCommitter&)> QueuedClientFunc;
     ThreadSafeDeque<QueuedClientFunc> clientThreadActions;
     ThreadSafeDeque<std::function<void()>> syncThreadActions;
 
