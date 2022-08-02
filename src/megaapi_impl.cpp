@@ -25129,7 +25129,15 @@ void MegaFolderUploadController::start(MegaNode*)
 
     // if folder node already exists in remote, set it as new subtree's megaNode, otherwise call putnodes_prepareOneFolder
     newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));
-    if (!newTreeNode->megaNode)
+
+    if (newTreeNode->megaNode && newTreeNode->megaNode->getType() == MegaNode::TYPE_FILE)
+    {
+        // there's a node (TYPE_FILE) with the same name in the destination path, we will make fail transfer
+        transfer->setState(MegaTransfer::STATE_FAILED);
+        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EARGS));
+        return;
+    }
+    else if (!newTreeNode->megaNode) // there's no other node with the same name in the destination path
     {
         newTreeNode->folderName = leaf;
         newTreeNode->fsType = fsaccess->getlocalfstype(path);
@@ -25138,6 +25146,7 @@ void MegaFolderUploadController::start(MegaNode*)
         newTreeNode->newnode.nodehandle = nextUploadId();
         newTreeNode->newnode.parenthandle = UNDEF;
     }
+    // else => if there's another node (TYPE_FOLDER) with the same name, in the destination path, the content of both folders will be merged
 
     // add the tree above, to subtrees vector for root tree
     mUploadTree.subtrees.push_back(std::move(newTreeNode));
