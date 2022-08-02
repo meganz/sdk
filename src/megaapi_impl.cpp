@@ -26702,6 +26702,14 @@ void MegaFolderDownloadController::start(MegaNode *node)
          ? LocalPath::fromRelativeName(node->getName(), *megaapiThreadClient()->fsaccess, fsType)
          : LocalPath::fromRelativeName(transfer->getFileName(), *megaapiThreadClient()->fsaccess, fsType);
 
+    Error res = searchNodeName(path, name, FILENODE);
+    if (res != API_OK)
+    {
+        // destination path could not be open or there's a node (TYPE_FILE) with the same name in the destination path
+        complete(res);
+        return;
+    }
+
     path.appendWithSeparator(name, true);
     transfer->setPath(path.toPath().c_str());
 
@@ -26844,6 +26852,29 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
     }
     recursive--;
     return scanFolder_succeeded;
+}
+
+Error MegaFolderDownloadController::searchNodeName(LocalPath& path, const LocalPath& nodeName, nodetype_t type)
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    unique_ptr<DirAccess> da(fsaccess->newdiraccess());
+    if (!da->dopen(&path, nullptr, false))
+    {
+        LOG_err << "Can't open local directory" << path.toPath();
+        return API_EACCESS;
+    }
+
+    LocalPath localname;
+    nodetype_t dirEntryType;
+    while (da->dnext(path, localname, false, &dirEntryType))
+    {
+        if (dirEntryType == type && localname == nodeName)
+        {
+            return API_EEXIST;
+        }
+    }
+
+    return API_OK;
 }
 
 Error MegaFolderDownloadController::createFolder()
