@@ -10161,8 +10161,8 @@ void Syncs::syncLoop()
             if (stalled != syncStallState)
             {
                 assert(onSyncThread());
-                mClient.app->syncupdate_stalled(stalled);
                 syncStallState = stalled;
+                mClient.app->syncupdate_stalled(stalled);
                 LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
             }
         }
