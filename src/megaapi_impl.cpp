@@ -18214,12 +18214,25 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         fp_forCloud.mtime = mtime;
                     }
 
-                    Node *previousNode = client->childnodebyname(parent, fileName, true);
+                    Node *previousNode = client->childnodebyname(parent, fileName, false);
 
                     bool forceToUpload = false;
-                    if (previousNode && previousNode->type == FILENODE)
+                    if (previousNode)
                     {
-                        if (fp_forCloud.isvalid && previousNode->isvalid && fp_forCloud == *((FileFingerprint *)previousNode))
+                        if (previousNode->type == FOLDERNODE)
+                        {
+                            if (!recursiveTransfer) // file upload, but not sub-file inside a folder
+                            {
+                                e = API_EARGS;
+                                break;
+                            }
+                            /* else => in case we found a folder (in cloud drive) with a duplicate name for any subfile of the folder we are trying to upload
+                             * SDK core will resolve the name conflict
+                             *   - If versioning is enabled, it creates a new version.
+                             *   - If versioning is disabled, it overwrites the file (old one is deleted permanently).
+                             */
+                        }
+                        else if (fp_forCloud.isvalid && previousNode->isvalid && fp_forCloud == *((FileFingerprint *)previousNode))
                         {
                             forceToUpload= hasToForceUpload(*previousNode, *transfer);
                             if (!forceToUpload)
