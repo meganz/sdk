@@ -720,6 +720,7 @@ struct StandardClient : public MegaApp
     void match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result);
     bool waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
+    bool makeremotenodes(const string& prefix, int depth, int fanout);
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
 

@@ -4072,6 +4072,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_FA_UPLOAD_URL: return "GET_FA_UPLOAD_URL";
         case TYPE_EXECUTE_ON_THREAD: return "EXECUTE_ON_THREAD";
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
+        case TYPE_CHECK_RECOVERY_KEY: return "TYPE_CHECK_RECOVERY_KEY";
         case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
     }
     return "UNKNOWN";
@@ -6396,6 +6397,15 @@ void MegaApiImpl::confirmResetPasswordLink(const char *link, const char *newPwd,
     request->setLink(link);
     request->setPassword(newPwd);
     request->setPrivateKey(masterKey);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::checkRecoveryKey(const char* link, const char* recoveryKey, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHECK_RECOVERY_KEY, listener);
+    request->setLink(link);
+    request->setPrivateKey(recoveryKey);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9691,21 +9701,21 @@ void MegaApiImpl::httpServerRemoveListener(MegaTransferListener *listener)
 
 void MegaApiImpl::fireOnStreamingStart(MegaTransferPrivate *transfer)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(httpServer && httpServer->isCurrentThread());
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferStart(api, transfer);
 }
 
 void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(httpServer && httpServer->isCurrentThread());
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferTemporaryError(api, transfer, e.get());
 }
 
 void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(httpServer && httpServer->isCurrentThread());
     if(e->getErrorCode())
     {
         LOG_warn << "Streaming request finished with error: " << e->getErrorString();
@@ -12653,7 +12663,7 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK && request->getType() != MegaRequest::TYPE_CHECK_RECOVERY_KEY)) return;
 
     if (e)
     {
@@ -12688,6 +12698,11 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
     if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, int(len_privk)))
     {
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EKEY));
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_CHECK_RECOVERY_KEY) {
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
         return;
     }
 
@@ -20663,6 +20678,25 @@ void MegaApiImpl::sendPendingRequests()
 
             // concatenate query + confirm requests
             client->queryrecoverylink(code);
+            break;
+        }
+        case MegaRequest::TYPE_CHECK_RECOVERY_KEY:
+        {
+            const char* link = request->getLink();
+
+            const char* code;
+            if (link && (code = strstr(link, MegaClient::recoverLinkPrefix())))
+            {
+                code += strlen(MegaClient::recoverLinkPrefix());
+            }
+            else
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            // concatenate query + confirm requests
+            client->getprivatekey(code);
             break;
         }
         case MegaRequest::TYPE_GET_CANCEL_LINK:
