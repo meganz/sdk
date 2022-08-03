@@ -226,6 +226,7 @@ struct SyncOptions
 {
     string drivePath = string(1, '\0');
     string excludePath;
+    bool legacyExclusionsEligible = false;
     bool isBackup = false;
     bool uploadIgnoreFile = false;
 }; // SyncOptions

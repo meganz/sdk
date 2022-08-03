@@ -9537,6 +9537,9 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
     const auto TYPE_TARGET_PATH     = MAKENAMEID2('t', 'p');
     const auto TYPE_LEGACY_INELIGIB = MAKENAMEID2('l', 'i');
 
+    // Assume legacy exclusions are eligible.
+    config.mLegacyExclusionsIneligigble = false;
+
     for ( ; ; )
     {
         switch (reader.getnameid())
@@ -10158,8 +10161,8 @@ void Syncs::syncLoop()
             if (stalled != syncStallState)
             {
                 assert(onSyncThread());
-                mClient.app->syncupdate_stalled(stalled);
                 syncStallState = stalled;
+                mClient.app->syncupdate_stalled(stalled);
                 LOG_warn << mClient.clientname << "Stall state app notified: " << stalled;
             }
         }

@@ -352,6 +352,16 @@ void DefaultFilterChain::lowerLimit(std::uint64_t lower)
     mLowerLimit = lower;
 }
 
+void DefaultFilterChain::reset()
+{
+    lock_guard<mutex> guard(mLock);
+
+    mExcludedNames = mPredefinedNameExclusions;
+    mExcludedPaths.clear();
+    mLowerLimit = 0u;
+    mUpperLimit = 0u;
+}
+
 void DefaultFilterChain::upperLimit(std::uint64_t limit)
 {
     lock_guard<mutex> guard(mLock);
@@ -387,10 +397,10 @@ string DefaultFilterChain::generate(const LocalPath& targetPath, FileSystemAcces
 
     // Size filters.
     if (mLowerLimit)
-        ostream << "minsize: " << mLowerLimit << "\n";
+        ostream << "exclude-smaller:" << mLowerLimit << "\n";
 
     if (mUpperLimit)
-        ostream << "maxsize: " << mUpperLimit << "\n";
+        ostream << "exclude-larger:" << mUpperLimit << "\n";
 
     // Name filters.
     for (auto& name : mExcludedNames)
@@ -828,6 +838,12 @@ bool add(const string& text, SizeFilterPtr& filter)
     {
         // Neither lower nor upper bound.
         return syntaxError(text);
+    }
+
+    // Skip leading whitespace.
+    while (std::isspace(istream.peek()))
+    {
+        istream.get();
     }
 
     // Is the limit a bare number?
