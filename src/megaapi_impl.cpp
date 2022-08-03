@@ -18214,12 +18214,25 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         fp_forCloud.mtime = mtime;
                     }
 
-                    Node *previousNode = client->childnodebyname(parent, fileName, true);
+                    Node *previousNode = client->childnodebyname(parent, fileName, false);
 
                     bool forceToUpload = false;
-                    if (previousNode && previousNode->type == FILENODE)
+                    if (previousNode)
                     {
-                        if (fp_forCloud.isvalid && previousNode->isvalid && fp_forCloud == *((FileFingerprint *)previousNode))
+                        if (previousNode->type == FOLDERNODE)
+                        {
+                            if (!recursiveTransfer) // file upload, but not sub-file inside a folder
+                            {
+                                e = API_EARGS;
+                                break;
+                            }
+                            /* else => in case we found a folder (in cloud drive) with a duplicate name for any subfile of the folder we are trying to upload
+                             * SDK core will resolve the name conflict
+                             *   - If versioning is enabled, it creates a new version.
+                             *   - If versioning is disabled, it overwrites the file (old one is deleted permanently).
+                             */
+                        }
+                        else if (fp_forCloud.isvalid && previousNode->isvalid && fp_forCloud == *((FileFingerprint *)previousNode))
                         {
                             forceToUpload= hasToForceUpload(*previousNode, *transfer);
                             if (!forceToUpload)
@@ -25129,7 +25142,15 @@ void MegaFolderUploadController::start(MegaNode*)
 
     // if folder node already exists in remote, set it as new subtree's megaNode, otherwise call putnodes_prepareOneFolder
     newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));
-    if (!newTreeNode->megaNode)
+
+    if (newTreeNode->megaNode && newTreeNode->megaNode->getType() == MegaNode::TYPE_FILE)
+    {
+        // there's a node (TYPE_FILE) with the same name in the destination path, we will make fail transfer
+        transfer->setState(MegaTransfer::STATE_FAILED);
+        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EARGS));
+        return;
+    }
+    else if (!newTreeNode->megaNode) // there's no other node with the same name in the destination path
     {
         newTreeNode->folderName = leaf;
         newTreeNode->fsType = fsaccess->getlocalfstype(path);
@@ -25138,6 +25159,7 @@ void MegaFolderUploadController::start(MegaNode*)
         newTreeNode->newnode.nodehandle = nextUploadId();
         newTreeNode->newnode.parenthandle = UNDEF;
     }
+    // else => if there's another node (TYPE_FOLDER) with the same name, in the destination path, the content of both folders will be merged
 
     // add the tree above, to subtrees vector for root tree
     mUploadTree.subtrees.push_back(std::move(newTreeNode));
@@ -26693,6 +26715,14 @@ void MegaFolderDownloadController::start(MegaNode *node)
          ? LocalPath::fromRelativeName(node->getName(), *megaapiThreadClient()->fsaccess, fsType)
          : LocalPath::fromRelativeName(transfer->getFileName(), *megaapiThreadClient()->fsaccess, fsType);
 
+    Error res = searchNodeName(path, name, FILENODE);
+    if (res != API_OK)
+    {
+        // destination path could not be open or there's a node (TYPE_FILE) with the same name in the destination path
+        complete(res);
+        return;
+    }
+
     path.appendWithSeparator(name, true);
     transfer->setPath(path.toPath().c_str());
 
@@ -26835,6 +26865,29 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
     }
     recursive--;
     return scanFolder_succeeded;
+}
+
+Error MegaFolderDownloadController::searchNodeName(LocalPath& path, const LocalPath& nodeName, nodetype_t type)
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    unique_ptr<DirAccess> da(fsaccess->newdiraccess());
+    if (!da->dopen(&path, nullptr, false))
+    {
+        LOG_err << "Can't open local directory" << path.toPath();
+        return API_EACCESS;
+    }
+
+    LocalPath localname;
+    nodetype_t dirEntryType;
+    while (da->dnext(path, localname, false, &dirEntryType))
+    {
+        if (dirEntryType == type && localname == nodeName)
+        {
+            return API_EEXIST;
+        }
+    }
+
+    return API_OK;
 }
 
 Error MegaFolderDownloadController::createFolder()
