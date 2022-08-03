@@ -3755,7 +3755,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
         Remover(std::function<void(Error)> &&completion,
                 bool moveOrUnlink,
                 NodeHandle moveTarget,
-                vector<size_t> &&pending,
+                vector<SyncConfig> &&pending,
                 Syncs& syncs)
           : mCompletion(std::move(completion))
           , mMoveOrUnlink(moveOrUnlink)
@@ -3778,18 +3778,13 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
                 // Nope so tell our continuation that we're done.
                 return mCompletion(mResult);
             }
-
-            // What's the index of the sync we're about to remove?
-            auto index = mPending.back();
-
-            // What's the ID of the sync we're about to remove?
-            auto id = mSyncs.mSyncVec[index]->mConfig.mBackupId;
-
-            bool isBackup = mSyncs.mSyncVec[index]->mConfig.isBackup();
+            
+            // What config describes the sync we're about to remove?
+            const auto& config = mPending.back();
 
             // Leave a trail for debuggers.
             LOG_debug << "Attempting to remove sync: "
-                      << toHandle(id);
+                      << toHandle(config.mBackupId);
 
             using std::bind;
             using std::placeholders::_1;
@@ -3797,15 +3792,15 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
             // Make ourselves look like a continuation.
             auto completion = std::bind(&Remover::removed,
                                         this,
-                                        id,
+                                        config.mBackupId,
                                         remover,
                                         _1);
 
             // Try and remove the sync.
-            mSyncs.removeSyncByIndex(std::move(completion),
-                                     isBackup && mMoveOrUnlink,
-                                     index,
-                                     mMoveTarget);
+            mSyncs.removeSyncByConfig(std::move(completion),
+                                      config.isBackup() && mMoveOrUnlink,
+                                      config,
+                                      mMoveTarget);
         }
 
     private:
@@ -3864,7 +3859,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
         unsigned mNumProcessed;
 
         // What syncs need to be removed?
-        vector<size_t> mPending;
+        vector<SyncConfig> mPending;
 
         // What's the overall result of the removal process?
         Error mResult;
@@ -3878,7 +3873,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
                      std::move(completion),
                      moveOrUnlink,
                      moveTarget,
-                     selectedSyncs(std::move(selector)),
+                     selectedSyncConfigs(std::move(selector)),
                      *this);
 
     // Kick off the removal process.
@@ -3895,14 +3890,14 @@ void Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector,
     assert(selector);
 
     // Is any sync elligible for removal?
-    auto selected = selectedSyncs(std::move(selector), 1);
+    auto selected = selectedSyncConfigs(std::move(selector), 1);
 
     // Was any sync actually elligble?
     if (selected.empty())
         return completion(API_ENOENT);
 
     // What's the ID of the sync we are going to remove?
-    auto id = selected.back();
+    auto id = selected.back().mBackupId;
 
     // Wrap the completion function.
     completion = [completion, id](Error result) {
@@ -3927,21 +3922,21 @@ void Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector,
     };
 
     // Remove the sync.
-    removeSyncByIndex(std::move(completion),
-                      moveOrUnlink,
-                      selected.back(),
-                      moveTarget);
+    removeSyncByConfig(std::move(completion),
+                       moveOrUnlink,
+                       selected.back(),
+                       moveTarget);
 }
 
-vector<size_t> Syncs::selectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, size_t maxCount) const
+vector<SyncConfig> Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync*)> selector, size_t maxCount) const
 {
-    vector<size_t> selected;
+    vector<SyncConfig> selected;
 
     for (size_t i = 0; i < mSyncVec.size(); ++i)
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
-            selected.push_back(i);
+            selected.emplace_back(mSyncVec[i]->mConfig);
 
             if (maxCount && maxCount == mSyncVec.size())
             {
@@ -4007,17 +4002,13 @@ void Syncs::purgeSyncsLocal()
     }
 }
 
-void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
-                              bool moveOrUnlink,
-                              size_t index,
-                              NodeHandle moveTarget)
+void Syncs::removeSyncByConfig(std::function<void(Error)> completion,
+                               bool moveOrUnlink,
+                               const SyncConfig& config,
+                               NodeHandle moveTarget)
 {
     // Sanity.
     assert(completion);
-
-    // Have we been given an invalid index?
-    if (index >= mSyncVec.size())
-        return completion(API_EARGS);
 
     // Convenience.
     class Remover;
@@ -4030,17 +4021,14 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
     public:
         Remover(std::function<void(Error)>&& completion,
                 bool moveOrUnlink,
-                size_t index,
+                const SyncConfig& config,
                 NodeHandle moveTarget,
                 Syncs& syncs)
           : mClient(syncs.mClient)
           , mCompletion(std::move(completion))
+          , mConfig(config)
           , mMoveOrUnlink(moveOrUnlink)
-          , mID(syncs.mSyncVec[index]->mConfig.mBackupId)
-          , mIndex(index)
           , mMoveTarget(moveTarget)
-          , mName(syncs.mSyncVec[index]->mConfig.mName)
-          , mRemoteNode(syncs.mSyncVec[index]->mConfig.mRemoteNode)
           , mSyncs(syncs)
         {
         }
@@ -4053,7 +4041,7 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
 
             // Leave a trail for debuggers.
             LOG_debug << "Attempting to deregister backup ID: "
-                      << mID;
+                      << toHandle(mConfig.mBackupId);
 
             // Make ourselves look like a continuation.
             using std::bind;
@@ -4067,7 +4055,7 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
             // Try and deregister this sync's backup ID.
             mClient.reqs.add(
               new CommandBackupRemove(&mClient,
-                                      mID,
+                                      mConfig.mBackupId,
                                       std::move(completion)));
         }
 
@@ -4093,16 +4081,16 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
             // DRY.
             std::ostringstream ostream;
 
-            ostream << toHandle(mID)
+            ostream << toHandle(mConfig.mBackupId)
                     << ": "
-                    << toHandle(mRemoteNode.as8byte());
+                    << toHandle(mConfig.mRemoteNode.as8byte());
 
             // Leave a trail for debugging.
             LOG_debug << "Attempting to move backup folder: "
                       << ostream.str();
 
             // Try and locate the sync's remote node.
-            auto* remoteNode = mClient.nodeByHandle(mRemoteNode);
+            auto* remoteNode = mClient.nodeByHandle(mConfig.mRemoteNode);
 
             // Does the remote still exist?
             if (!remoteNode)
@@ -4115,15 +4103,16 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
             if (!moveTarget)
                 return moved({}, std::move(remover), API_ENOENT, "Client");
 
+            string storage;
             const char* name = nullptr;
 
             // Generate a unique name if necessary.
-            if (!isUnique(*moveTarget, mName))
+            if (!isUnique(*moveTarget, mConfig.mName))
             {
-                auto previousName = std::move(mName);
+                auto previousName = mConfig.mName;
 
-                mName = makeUnique(*moveTarget, previousName);
-                name = mName.c_str();
+                storage = makeUnique(*moveTarget, previousName);
+                name = storage.c_str();
 
                 LOG_warn << "Backup folder "
                          << previousName
@@ -4133,7 +4122,7 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
                 LOG_warn << "Will rename "
                          << previousName
                          << " to "
-                         << mName;
+                         << name;
             }
 
             using std::bind;
@@ -4172,9 +4161,9 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
             // DRY.
             std::ostringstream ostream;
 
-            ostream << toHandle(mID)
+            ostream << toHandle(mConfig.mBackupId)
                     << ": "
-                    << toHandle(mRemoteNode.as8byte());
+                    << toHandle(mConfig.mRemoteNode.as8byte());
 
             // Were we able to move the node?
             if (result == API_OK)
@@ -4208,23 +4197,34 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
             // Is it safe to unload the sync from memory?
             if (result == API_OK || result == API_ENOENT)
             {
-                const auto& config = mSyncs.mSyncVec[mIndex]->mConfig;
+                LOG_debug << "Attempting to unload sync "
+                          << toHandle(mConfig.mBackupId)
+                          << " from memory...";
 
-                // Let the app know we're removing a sync.
-                mClient.app->sync_removed(config);
+                // Try and remove the sync from memory.
+                if (mSyncs.unloadSyncByBackupID(mConfig.mBackupId))
+                {
+                    LOG_debug << "Sync unloaded: "
+                              << toHandle(mConfig.mBackupId);
 
-                // Make sure any config changes are flushed to disk.
-                mSyncs.mSyncConfigStore->markDriveDirty(config.mExternalDrivePath);
+                    // Let the app know we've removed a sync.
+                    mClient.app->sync_removed(mConfig);
 
-                // Remove the sync from memory.
-                mSyncs.unloadSyncByIndex(mIndex);
+                    // Make sure any config changes are flushed to disk.
+                    mSyncs.mSyncConfigStore->markDriveDirty(mConfig.mExternalDrivePath);
+                }
+                else
+                {
+                    LOG_warn << "Sync was already unloaded: "
+                             << toHandle(mConfig.mBackupId);
+                }
             }
 
             // Was the ID already deregistered?
             if (result == API_ENOENT)
             {
                 LOG_warn << "Backup ID was already deregistered: "
-                         << toHandle(mID);
+                         << toHandle(mConfig.mBackupId);
 
                 // backup was already deregistered, so better to not touch the backup folder
                 // (it could have been moved to the cloud or deleted by the backup center already)
@@ -4235,7 +4235,7 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
             if (result != API_OK)
             {
                 LOG_err << "Unable to deregister backup ID: "
-                        << toHandle(mID)
+                        << toHandle(mConfig.mBackupId)
                         << ". Error was: "
                         << result;
 
@@ -4259,16 +4259,16 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
             // DRY.
             std::ostringstream ostream;
 
-            ostream << toHandle(mID)
+            ostream << toHandle(mConfig.mBackupId)
                     << ": "
-                    << toHandle(mRemoteNode.as8byte());
+                    << toHandle(mConfig.mRemoteNode.as8byte());
 
             // Leave a trail.
             LOG_debug << "Attempting to unlink backup folder: "
                       << ostream.str();
 
             // Make sure the node still exists.
-            auto* remoteNode = mClient.nodeByHandle(mRemoteNode);
+            auto* remoteNode = mClient.nodeByHandle(mConfig.mRemoteNode);
 
             // Does the node still exist?
             if (!remoteNode)
@@ -4314,9 +4314,9 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
             // DRY.
             std::ostringstream ostream;
 
-            ostream << toHandle(mID)
+            ostream << toHandle(mConfig.mBackupId)
                     << ": "
-                    << toHandle(mRemoteNode.as8byte());
+                    << toHandle(mConfig.mRemoteNode.as8byte());
 
             // Were we able to unlink the sync's remote node?
             if (result == API_OK)
@@ -4389,23 +4389,14 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
         // Who we should call when we've completed our work.
         std::function<void(Error)> mCompletion;
 
+        // The config describing the sync we want to remove.
+        const SyncConfig mConfig;
+
         // Whether we should move (or unlink) the backup's content
         bool mMoveOrUnlink;
 
-        // The ID of the sync we want to remove.
-        handle mID;
-
-        // The index of the sync we want to remove.
-        size_t mIndex;
-
         // Where we are going to move the sync's content.
         NodeHandle mMoveTarget;
-
-        // The name of the sync we want to remove.
-        string mName;
-
-        // The handle of the sync's root node.
-        NodeHandle mRemoteNode;
 
         // Who owns the sync we're removing.
         Syncs& mSyncs;
@@ -4414,12 +4405,26 @@ void Syncs::removeSyncByIndex(std::function<void(Error)> completion,
     // Create context for removal.
     auto remover = std::make_shared<Remover>(std::move(completion),
                                              moveOrUnlink,
-                                             index,
+                                             config,
                                              moveTarget,
                                              *this);
 
     // Kick off the removal process.
     remover->remove(remover);
+}
+
+bool Syncs::unloadSyncByBackupID(handle id)
+{
+    for (auto i = mSyncVec.size(); i--; )
+    {
+        if (mSyncVec[i]->mConfig.mBackupId == id)
+        {
+            unloadSyncByIndex(i);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void Syncs::unloadSyncByIndex(size_t index)

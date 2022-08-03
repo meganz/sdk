@@ -7378,66 +7378,129 @@ void MegaClient::notifypurge(void)
 
         // check for renamed/moved sync root folders
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
-
+            // Try and locate the sync's cloud root.
             Node* n = nodeByHandle(us.mConfig.mRemoteNode);
+
+            // Sync's root is no longer present in memory.
             if (!n)
                 return;
 
-            // capture the value here, since removal of related backup is async
-            // and the node will be removed by the time completion is called
-            NodeHandle remoteHandle = us.mConfig.mRemoteNode;
+            // Has this node received any commands from the backup center?
+            auto commands = n->getSdsBackups();
 
-            // check if the node has been tagged with 'sds' attribute for the backup-id related to this node
-            // if so, the sync/backup should transition to the desired state and the pair backup-id:state should
-            // be removed from node's attribute
-            auto sdsBkps = n->getSdsBackups();
-            if (!sdsBkps.empty())
+            // Are any of the commands applicable to this sync?
+            for (auto& command : commands)
             {
-                bool found = false;
-                handle backupId = UNDEF;
-                syncs.removeSelectedSyncs(
-                    [&sdsBkps, &found, &backupId](SyncConfig& c, Sync*)
-                    {
-                        auto it = find_if(sdsBkps.begin(), sdsBkps.end(),
-                            [&c](const pair<handle, int>& e)
-                            {
-                                return e.first == c.mBackupId && e.second == CommandBackupPut::DELETED;
-                            });
+                // Command entry isn't applicable to us.
+                if (command.first != us.mConfig.mBackupId)
+                    continue;
 
-                        if (it != sdsBkps.end())
-                        {
-                            sdsBkps.erase(it);                            
-                            backupId = c.mBackupId;
-                            found = true;
-                            return true;
-                        }
+                // Command entry isn't telling us to remove this sync.
+                if (command.second != CommandBackupPut::DELETED)
+                    continue;
 
-                        return false;
-                    },
-                    [sdsBkps, backupId, remoteHandle, this](Error e)
+                // For purposes of capture.
+                auto id = us.mConfig.mBackupId;
+                auto remoteNode = us.mConfig.mRemoteNode;
+
+                auto completion = [id, remoteNode, this](Error result) {
+                    // Had the sync already been removed?
+                    if (result == API_ENOENT)
                     {
-                        if (e != API_OK)
+                        LOG_debug << "SDS: Sync "
+                                  << toHandle(id)
+                                  << " no longer present for the node "
+                                  << remoteNode;
+                        return;
+                    }
+
+                    // Was there any error removing the sync?
+                    if (result != API_OK)
+                    {
+                        LOG_err << "SDS: Unable to remove sync "
+                                << toHandle(id)
+                                << " associated with the node "
+                                << remoteNode
+                                << " due to error "
+                                << result;
+                        return;
+                    }
+
+                    // Locate this sync's root node.
+                    auto* node = nodeByHandle(remoteNode);
+
+                    // Is the node still present in memory?
+                    if (!node)
+                    {
+                        LOG_warn << "SDS: Unable to update attribute as "
+                                 << remoteNode
+                                 << " is no longer present in memory.";
+                        return;
+                    }
+
+                    // Is it worth updating the node's SDS attribute?
+                    if (node->changed.removed)
+                    {
+                        LOG_debug << "SDS: Skipping attribute update as "
+                                  << remoteNode
+                                  << " has been removed.";
+                        return;
+                    }
+
+                    auto commands = node->getSdsBackups();
+                    auto updated = false;
+
+                    // Update the attribute's value.
+                    for (auto i = commands.size(); i--; )
+                    {
+                        auto& command = commands[i];
+
+                        if (command.first != id
+                            || command.second != CommandBackupPut::DELETED)
+                            continue;
+
+                        commands.erase(commands.begin() + i);
+                        updated = true;
+                    }
+
+                    // Do we really need to update the attribute?
+                    if (!updated)
+                    {
+                        LOG_warn << "SDS: Skipping no-op attribute update: "
+                                 << remoteNode;
+                        return;
+                    }
+
+                    auto completion = [](NodeHandle handle, Error result) {
+                        // Were we unable to update the SDS attribute?
+                        if (result != API_OK)
                         {
-                            if (e == API_ENOENT)
-                            {
-                                LOG_debug << "'sds' attribute changed, but no sync/backup related to the node";
-                            }
-                            else
-                            {
-                                LOG_err << "Failed to remove the backup " << Base64Str<MegaClient::BACKUPHANDLE>(backupId) << " in result of 'sds' attribute";
-                            }
+                            LOG_warn << "SDS: Unable to update attribute on "
+                                     << handle
+                                     << " due to error "
+                                     << result;
                             return;
                         }
 
-                        Node *n = nodeByHandle(remoteHandle);
-                        if (n && !n->changed.removed)   // avoid to update attributes if node was already removed (by BackupCenter)
-                        {
-                            const string& value = Node::toSdsString(sdsBkps);
-                            setattr(n, attr_map(Node::sdsId(), value), 0, nullptr, nullptr, true);
-                        }
-                    },
-                    false); // the 'sds' attribute is set by BackupCenter, who should have already moved or deleted the backup-folder
-                    // here we only remove the 'sds' node's attr, don't need to move or delete.
+                        // Update was successful.
+                        LOG_debug << "SDS: Attribute updated on "
+                                  << handle;
+                    };
+
+                    // Update the attribute.
+                    setattr(node,
+                            attr_map(Node::sdsId(), Node::toSdsString(commands)),
+                            0,
+                            nullptr,
+                            std::move(completion),
+                            true);
+                };
+
+                // Try and remove the sync.
+                syncs.removeSyncByConfig(std::move(completion),
+                                         false,
+                                         us.mConfig,
+                                         NodeHandle());
             }
 
             //update sync root node location and trigger failing cases
