@@ -1107,11 +1107,20 @@ public:
     // create with a token available to be cancelled
     explicit CancelToken(bool value)
         : flag(std::make_shared<bool>(value))
-    {}
+    {
+        if (value)
+        {
+            ++tokensCancelledCount;
+        }
+    }
 
     void cancel()
     {
-        if (flag) *flag = true;
+        if (flag)
+        {
+            *flag = true;
+            ++tokensCancelledCount;
+        }
     }
 
     bool isCancelled() const
@@ -1122,6 +1131,21 @@ public:
     bool exists()
     {
         return !!flag;
+    }
+
+    static std::atomic<uint32_t> tokensCancelledCount;
+
+    static bool haveAnyCancelsOccurredSince(uint32_t& lastKnownCancelCount)
+    {
+        if (lastKnownCancelCount == tokensCancelledCount.load())
+        {
+            return false;
+        }
+        else
+        {
+            lastKnownCancelCount = tokensCancelledCount.load();
+            return true;
+        }
     }
 };
 
