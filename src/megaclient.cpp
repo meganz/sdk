@@ -13299,9 +13299,6 @@ void MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
     assert(config.mLocalPath.isAbsolute());
 
-    // new syncs do not need to worry about upgrading old rules to .megaignore
-    config.mLegacyExclusionsIneligigble = true;
-
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
     bool inshare, isnetwork;

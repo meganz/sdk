@@ -2510,6 +2510,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
     }
 
     // For purposes of capturing.
+    auto legacyExclusionsEligible = syncOptions.legacyExclusionsEligible;
     auto isBackup = syncOptions.isBackup;
     auto remoteHandle = remoteNode->nodeHandle();
     auto remoteIsShare = isShare(remoteNode);
@@ -2540,6 +2541,9 @@ void StandardClient::setupSync_inThread(const string& rootPath,
                      LocalPath(),
                      true,
                      isBackup ? BACKUP : TWOWAY);
+
+        // Do we need to migrate legacy exclusion rules?
+        config.mLegacyExclusionsIneligigble = !legacyExclusionsEligible;
 
         // Sanity check.
         EXPECT_TRUE(remoteIsShare || remotePath.substr(0, 1) == "/")
@@ -3691,6 +3695,11 @@ void StandardClient::cleanupForTestReuse()
     // TODO: Might need some kind of synchronization?
     client.mFilenameAnomalyReporter = nullptr;
 
+
+    // Nuke any custom exclusion rules.
+    client.syncs.mLegacyUpgradeFilterChain.reset();
+    client.syncs.mNewSyncFilterChain.reset();
+	
     // Make sure any throttles are reset.
     client.setmaxdownloadspeed(0);
     client.setmaxuploadspeed(0);
@@ -11742,14 +11751,24 @@ TEST_F(SyncTest, RemoteReplaceDirectory)
         ASSERT_NE(node, nullptr);
 
         {
+            c.received_node_actionpackets = false;
+
             // Move d to x/d.
             ASSERT_TRUE(cr.movenode("s/d", "s/x"));
+
+            // Wait for c to receive necessary action packets.
+            ASSERT_TRUE(c.waitForNodesUpdated(8));
 
             // Wait for c to stall.
             ASSERT_TRUE(c.waitFor(SyncStallState(true), chrono::seconds(8)));
 
+            c.received_node_actionpackets = false;
+
             // Remove the original x/d.
             ASSERT_TRUE(cr.deleteremote(node));
+
+            // Wait for c to receive cr's changes.
+            ASSERT_TRUE(c.waitForNodesUpdated(8));
 
             // Wait for c to recover from the stall.
             ASSERT_TRUE(c.waitFor(SyncStallState(false), chrono::seconds(8)));
@@ -11996,9 +12015,15 @@ public:
     handle setupSync(StandardClient& client,
                      const string& localFolder,
                      const string& remoteFolder,
-                     bool uploadIgnoreFirst = true)
+                     bool uploadIgnoreFirst = true,
+                     bool legacyExclusionsEligible = false)
     {
-        return client.setupSync_mainthread(localFolder, remoteFolder, false, uploadIgnoreFirst);
+        SyncOptions options;
+
+        options.legacyExclusionsEligible = legacyExclusionsEligible;
+        options.uploadIgnoreFile = uploadIgnoreFirst;
+
+        return client.setupSync_mainthread(localFolder, remoteFolder, options);
     }
 
     string todaysDate() const
@@ -12335,6 +12360,113 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
     // Confirm models.
     ASSERT_TRUE(confirm(*cdu, id, localFS));
     ASSERT_TRUE(confirm(*cdu, id, remoteTree));
+}
+
+TEST_F(FilterFixture, MigrateLegacyFilters)
+{
+    // Useful constants.
+    m_off_t MINSIZE = 64;
+    m_off_t MAXSIZE = 128;
+
+    // Helpful aliases.
+    auto& oldExclusions = cu->client.syncs.mLegacyUpgradeFilterChain;
+    auto& fsAccess = *cu->client.fsaccess;
+    auto& newExclusions = cu->client.syncs.mNewSyncFilterChain;
+
+    // Convenience.
+    auto root = this->root(*cu) / "root";
+    auto rootPath = LocalPath::fromAbsolutePath(root.u8string());
+
+    // Prepare legacy exclusions.
+    {
+        // Set legacy name filters.
+        string_vector elements = {"fe"};
+
+        oldExclusions.excludedNames(elements, fsAccess);
+
+        // Set legacy path filters.
+        elements = {
+            (root / "dp" / "fi").u8string(),
+            (fs::u8path("bogus") / "path").u8string()
+        };
+
+        oldExclusions.excludedPaths(elements);
+
+        // Set legacy size exclusions.
+        oldExclusions.lowerLimit(MINSIZE);
+        oldExclusions.upperLimit(MAXSIZE);
+    }
+
+    // Prepare local filesystem.
+    LocalFSModel localFS;
+
+    localFS.addfile("dn/fi", randomData(MINSIZE));
+    localFS.addfile("dn/fe", randomData(MINSIZE));
+    localFS.addfile("dn/fs", randomData(MINSIZE - 1));
+    localFS.addfile("dn/fl", randomData(MAXSIZE + 1));
+    localFS.addfile("dp/fi", randomData(MINSIZE));
+    localFS.generate(root);
+    localFS.addfile(".megaignore", oldExclusions.generate(rootPath, fsAccess));
+
+    // Prepare remote model.
+    RemoteNodeModel remoteTree = localFS;
+
+    remoteTree.removenode("dn/fe");
+    remoteTree.removenode("dn/fs");
+    remoteTree.removenode("dn/fl");
+    remoteTree.removenode("dp/fi");
+
+    // Log in client.
+    ASSERT_TRUE(cu->makeCloudSubdirs("cu", 0, 0));
+    ASSERT_TRUE(CatchupClients(cd, cdu, cu));
+
+    // Add and start the sync.
+    auto id = setupSync(*cu, "root", "cu", false, true);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitOnSyncs(cu);
+
+    // Are the excluded things actually excluded?
+    ASSERT_TRUE(confirm(*cu, id, localFS));
+    ASSERT_TRUE(confirm(*cu, id, remoteTree));
+
+    // Remove the sync.
+    ASSERT_TRUE(cu->delSync_mainthread(id));
+
+    // Remove the ignore file from disk.
+    {
+        std::error_code result;
+
+        fs::remove(root / ".megaignore", result);
+        ASSERT_FALSE(result);
+
+        localFS.removenode(".megaignore");
+    }
+
+    // Remove the ignore file from the cloud.
+    {
+        remoteTree.removenode(".megaignore");
+
+        ASSERT_TRUE(cu->deleteremote("cu/.megaignore"));
+
+        auto predicate = SyncRemoteMatch("cu", remoteTree.root.get());
+        ASSERT_TRUE(cu->waitFor(predicate, DEFAULTWAIT));
+    }
+
+    // Restart the sync.
+    id = setupSync(*cu, "root", "cu", false);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the initial sync to complete.
+    waitOnSyncs(cu);
+
+    // Make sure everything's uploaded as it should be.
+    Model model = localFS;
+
+    model.addfile(".megaignore", newExclusions.generate(rootPath, fsAccess));
+
+    ASSERT_TRUE(confirm(*cu, id, model));
 }
 
 TEST_F(FilterFixture, NameFilter)
@@ -18174,6 +18306,234 @@ TEST_F(SyncTest, LocalVerticalMoveCycle)
     EXPECT_EQ(xh, client->getNodeHandle("s/x.txt"));
     EXPECT_EQ(yh, client->getNodeHandle("s/0/y.txt"));
     EXPECT_EQ(zh, client->getNodeHandle("s/0/1/z.txt"));
+}
+
+class ContradictoryMoveFixture
+  : public ::testing::Test
+{
+public:
+    ContradictoryMoveFixture()
+      : Test()
+      , c(g_clientManager->getCleanStandardClient(0, makeNewTestRoot()))
+      , mc()
+      , mf()
+      , id(UNDEF)
+    {
+    }
+
+    void SetUp() override
+    {
+        // Make sure the cloud's clean.
+        ASSERT_TRUE(c->resetBaseFolderMulticlient());
+
+        // Make sure we have something to sync against in the cloud.
+        ASSERT_TRUE(c->makeCloudSubdirs("s", 0, 0));
+
+        // Populate local model.
+        mf.addfolder("da");
+        mf.addfolder("db");
+        mf.addfolder("dc");
+        mf.addfile(".megaignore", "#");
+        mf.generate(c->fsBasePath / "s");
+
+        // Initially cloud matches disk.
+        mc = mf;
+
+        // Add and start a new sync.
+        id = c->setupSync_mainthread("s", "s", false, false);
+        ASSERT_NE(id, UNDEF);
+
+        // Wait for the initial sync to complete.
+        waitonsyncs(DEFAULTWAIT, c);
+
+        // Make sure everything made it safely to the cloud.
+        ASSERT_TRUE(c->confirmModel_mainthread(mc.root.get(), id));
+
+        // Create a contradictory move scenario.
+        {
+            ScopedSyncPauser pauser(*c, id);
+
+            // Remotely move da -> db.
+            mc.movenode("da", "db");
+
+            ASSERT_TRUE(c->movenode("s/da", "s/db"));
+            ASSERT_TRUE(c->waitFor(SyncRemoteMatch("s", mc.root.get()), DEFAULTWAIT));
+
+            // Locally move db -> da.
+            std::error_code result;
+
+            mf.movenode("db", "da");
+
+            fs::rename(c->fsBasePath / "s" / "db",
+                       c->fsBasePath / "s" / "da" / "db",
+                       result);
+
+            ASSERT_FALSE(result);
+        }
+
+        // Wait for a stall to be signalled.
+        ASSERT_TRUE(c->waitFor(SyncStallState(true), DEFAULTWAIT));
+    }
+
+    // Client we're using to perform the tests.
+    StandardClientInUse c;
+
+    // Models representing the state of our client.
+    Model mc;
+    Model mf;
+
+    // ID of the sync we're using to perform our test.
+    handle id;
+}; // ContradictoryMoveFixture
+
+TEST_F(ContradictoryMoveFixture, MoveLocally)
+{
+    {
+        ScopedSyncPauser pauser(*c, id);
+        std::error_code result;
+
+        // Move da -> dc/da.
+        mf.movenode("da", "dc");
+
+        fs::rename(c->fsBasePath / "s" / "da",
+                   c->fsBasePath / "s" / "dc" / "da",
+                   result);
+
+        ASSERT_FALSE(result);
+    }
+
+    // Wait for the stall to temporarily resolve.
+    ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the engine to become idle.
+    auto result = waitonsyncs(DEFAULTWAIT, c);
+
+    // Engine should've signalled another stall.
+    EXPECT_FALSE(result.front().syncStalled);
+
+    // Neither disk nor cloud should've changed.
+    EXPECT_TRUE(c->confirmModel_mainthread(mc.root.get(),
+                                           id,
+                                           false,
+                                           StandardClient::CONFIRM_REMOTE,
+                                           false,
+                                           false));
+
+    EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(),
+                                           id,
+                                           false,
+                                           StandardClient::CONFIRM_LOCALFS,
+                                           false,
+                                           false));
+}
+
+TEST_F(ContradictoryMoveFixture, MoveRemotely)
+{
+    {
+        ScopedSyncPauser pauser(*c, id);
+
+        // Move db -> dc/db.
+        mc.movenode("db", "dc");
+
+        ASSERT_TRUE(c->movenode("s/db", "s/dc"));
+        ASSERT_TRUE(c->waitFor(SyncRemoteMatch("s", mc.root.get()), DEFAULTWAIT));
+    }
+
+    // Wait for the stall to temporarily resolve.
+    ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the engine to become idle.
+    auto result = waitonsyncs(DEFAULTWAIT, c);
+
+    // Engine should've signalled another stall.
+    EXPECT_TRUE(result.front().syncStalled);
+
+    // Neither disk nor cloud should've changed.
+    EXPECT_TRUE(c->confirmModel_mainthread(mc.root.get(),
+                                           id,
+                                           false,
+                                           StandardClient::CONFIRM_REMOTE,
+                                           false,
+                                           false));
+
+    EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(),
+                                           id,
+                                           false,
+                                           StandardClient::CONFIRM_LOCALFS,
+                                           false,
+                                           false));
+}
+
+TEST_F(ContradictoryMoveFixture, ResolveLocally)
+{
+    // Manually make the disk look like the cloud.
+    {
+        ScopedSyncPauser pauser(*c, id);
+        std::error_code result;
+
+        // Move da/db -> db.
+        mf.movenode("da/db", "");
+
+        fs::rename(c->fsBasePath / "s" / "da" / "db",
+                   c->fsBasePath / "s" / "db",
+                   result);
+
+        ASSERT_FALSE(result);
+
+        // Move da -> db/da.
+        mf.movenode("da", "db");
+
+        fs::rename(c->fsBasePath / "s" / "da",
+                   c->fsBasePath / "s" / "db" / "da",
+                   result);
+
+        ASSERT_FALSE(result);
+    }
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the engine to idle.
+    auto result = waitonsyncs(DEFAULTWAIT, c);
+
+    // Make sure no stalls were detected.
+    EXPECT_FALSE(result.front().syncStalled);
+
+    // Make sure the state of the sync is as we expect.
+    EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(), id));
+}
+
+TEST_F(ContradictoryMoveFixture, ResolveRemotely)
+{
+    // Manually make the cloud look like the disk.
+    {
+        ScopedSyncPauser pauser(*c, id);
+
+        // Move db/da -> da.
+        mc.movenode("db/da", "");
+
+        ASSERT_TRUE(c->movenode("s/db/da", "s"));
+
+        // Move db -> da/db.
+        mc.movenode("db", "da");
+
+        ASSERT_TRUE(c->movenode("s/db", "s/da"));
+
+        // Wait for the client to receive our changes.
+        ASSERT_TRUE(c->waitFor(SyncRemoteMatch("s", mc.root.get()), DEFAULTWAIT));
+    }
+
+    // Wait for the stall to be resolved.
+    ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the engine to idle.
+    auto result = waitonsyncs(DEFAULTWAIT, c);
+
+    // Make sure no stalls were detected.
+    EXPECT_FALSE(result.front().syncStalled);
+
+    // Make sure the state of the sync is as we expect.
+    EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(), id));
 }
 
 #endif
