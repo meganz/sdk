@@ -2343,6 +2343,19 @@ class MegaSyncStallPrivate : public MegaSyncStall
             return -1;
         }
 
+        bool couldSuggestIgnoreThisPath(bool cloudSide, int index) const override
+        {
+            if (info.reason != SyncWaitReason::FileIssue) return false;
+
+            int problem = pathProblem(cloudSide, index);
+
+            return problem == DetectedHardLink ||
+                   problem == DetectedSymlink ||
+                   problem == DetectedSpecialFile ||
+                   problem == FilesystemErrorListingFolder ||
+                   problem == FilesystemErrorIdentifyingFolderContent;
+        }
+
         const char* reasonDebugString() const override
         {
             return reasonDebugString(reason());
@@ -2424,6 +2437,11 @@ public:
     int pathProblem(bool, int) const override
     {
         return -1;
+    }
+
+    bool couldSuggestIgnoreThisPath(bool cloudSide, int index) const override
+    {
+        return false;
     }
 
     const char* reasonDebugString() const override
