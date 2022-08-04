@@ -20492,7 +20492,7 @@ void MegaApiImpl::sendPendingRequests()
 
             string fileattrstring = fa ? string(fa) : node->fileattrstring;
 
-            e = client->getfa(h, &fileattrstring, NULL, (fatype) type, 1);
+            e = client->getfa(h, &fileattrstring, string(), (fatype) type, 1);
             if (!e)
             {
                 std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();
