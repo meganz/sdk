@@ -238,6 +238,8 @@ struct StandardClient : public MegaApp
     string clientname;
     std::function<void()> nextfunctionMC;
     std::function<void()> nextfunctionSC;
+    string nextfunctionMC_sourcefile, nextfunctionSC_sourcefile;
+    int nextfunctionMC_sourceline = -1, nextfunctionSC_sourceline = -1;
     std::condition_variable functionDone;
     std::mutex functionDoneMutex;
     std::string salt;
@@ -371,11 +373,13 @@ struct StandardClient : public MegaApp
     static bool debugging;  // turn this on to prevent the main thread timing out when stepping in the MegaClient
 
     template <class PROMISE_VALUE>
-    future<PROMISE_VALUE> thread_do(std::function<void(MegaClient&, shared_promise<PROMISE_VALUE>)> f)
+    future<PROMISE_VALUE> thread_do(std::function<void(MegaClient&, shared_promise<PROMISE_VALUE>)> f, string sf, int sl)
     {
         unique_lock<mutex> guard(functionDoneMutex);
         std::shared_ptr<promise<PROMISE_VALUE>> promiseSP(new promise<PROMISE_VALUE>());
         nextfunctionMC = [this, promiseSP, f](){ f(this->client, promiseSP); };
+        nextfunctionMC_sourcefile = sf;
+        nextfunctionMC_sourceline = sl;
         waiter.notify();
         while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionMC; }))
         {
@@ -389,11 +393,13 @@ struct StandardClient : public MegaApp
     }
 
     template <class PROMISE_VALUE>
-    future<PROMISE_VALUE> thread_do(std::function<void(StandardClient&, shared_promise<PROMISE_VALUE>)> f)
+    future<PROMISE_VALUE> thread_do(std::function<void(StandardClient&, shared_promise<PROMISE_VALUE>)> f, string sf, int sl)
     {
         unique_lock<mutex> guard(functionDoneMutex);
         std::shared_ptr<promise<PROMISE_VALUE>> promiseSP(new promise<PROMISE_VALUE>());
-        nextfunctionMC = [this, promiseSP, f]() { f(*this, promiseSP); };
+        nextfunctionSC_sourcefile = sf;
+        nextfunctionSC_sourceline = sl;
+        nextfunctionSC = [this, promiseSP, f]() { f(*this, promiseSP); };
         waiter.notify();
         while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionSC; }))
         {
