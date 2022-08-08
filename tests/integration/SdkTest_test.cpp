@@ -6101,7 +6101,8 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
             nullptr  /*cancelToken*/,
             &downloadListener);
 
-    WaitMillisec(1000);
+
+    for (int i = 1000; i-- && !downloadListener.started; ) WaitMillisec(1);
     ASSERT_TRUE(downloadListener.started);
     ASSERT_TRUE(!downloadListener.finished);
 
