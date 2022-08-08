@@ -7771,3 +7771,42 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
     ASSERT_TRUE(node->hasPreview() && node->hasThumbnail());
 }
 #endif
+
+/*
+TEST_F(SdkTest, CheckRecoveryKey_MANUAL)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    const char* email = megaApi[0]->getMyEmail();
+    cout << "email: " << email << endl;
+    const char* masterKey = megaApi[0]->getMyRSAPrivateKey();
+
+    mApi[0].requestFlags[MegaRequest::TYPE_GET_RECOVERY_LINK] = false;
+    megaApi[0]->resetPassword(email, true);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_GET_RECOVERY_LINK]))
+        << "get recovery link/reset password failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(mApi[0].lastError, MegaError::API_OK);
+
+    cout << "input link: ";
+    string link;
+    getline(cin, link);
+
+    cout << "input recovery key: ";
+    string recoverykey;
+    getline(cin, recoverykey);
+
+    mApi[0].requestFlags[MegaRequest::TYPE_CHECK_RECOVERY_KEY] = false;
+    megaApi[0]->checkRecoveryKey(link.c_str(), recoverykey.c_str());
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHECK_RECOVERY_KEY]))
+        << "check recovery key failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(mApi[0].lastError, MegaError::API_OK); // API_EKEY
+
+    // set to the same password
+    const char* password = getenv("MEGA_PWD");
+    ASSERT_TRUE(password);
+    mApi[0].requestFlags[MegaRequest::TYPE_CONFIRM_RECOVERY_LINK] = false; 
+    megaApi[0]->confirmResetPassword(link.c_str(), password, masterKey);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CONFIRM_RECOVERY_LINK]))
+        << "confirm recovery link failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(mApi[0].lastError, MegaError::API_OK);
+}
+*/

@@ -4373,7 +4373,7 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
     // if logging out and syncs won't be kept...
     if (!keepSyncConfigsFile)
     {
-        // Unregister from API and clean up backup-names
+        // Unregister from API
         syncs.purgeSyncs([=](Error) { reqs.add(request); });
         return;
     }
