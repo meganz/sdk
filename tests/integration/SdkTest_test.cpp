@@ -6065,6 +6065,12 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_TRUE(!fs::exists(uploadpath));
     ASSERT_TRUE(!fs::exists(downloadpath));
     fs::create_directories(uploadpath);
+
+    if (fs::exists(downloadpath))
+    {
+        LOG_debug << "removing the last run's version of these files: " << downloadpath;
+        fs::remove_all(downloadpath);
+    }
     fs::create_directories(downloadpath);
 
     ASSERT_TRUE(buildLocalFolders(uploadpath.u8string().c_str(), "newkid", 3, 2, 10));
@@ -7799,7 +7805,7 @@ TEST_F(SdkTest, CheckRecoveryKey_MANUAL)
     // set to the same password
     const char* password = getenv("MEGA_PWD");
     ASSERT_TRUE(password);
-    mApi[0].requestFlags[MegaRequest::TYPE_CONFIRM_RECOVERY_LINK] = false; 
+    mApi[0].requestFlags[MegaRequest::TYPE_CONFIRM_RECOVERY_LINK] = false;
     megaApi[0]->confirmResetPassword(link.c_str(), password, masterKey);
     ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CONFIRM_RECOVERY_LINK]))
         << "confirm recovery link failed after " << maxTimeout << " seconds";
