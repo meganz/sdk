@@ -539,6 +539,9 @@ protected:
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
     scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
 
+    // check if exists another node with the same name (and provided type) in the provided path
+    Error searchNodeName(LocalPath& path, const LocalPath &nodeName, nodetype_t type);
+
     // Create all local directories in one shot. This happens on the worker thread.
     Error createFolder();
 
@@ -2356,6 +2359,7 @@ class MegaApiImpl : public MegaApp
         void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
         void queryRecoveryLink(const char *link, MegaRequestListener *listener = NULL);
         void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+        void checkRecoveryKey(const char* link, const char* masterKey, MegaRequestListener* listener = NULL);
         void cancelAccount(MegaRequestListener *listener = NULL);
         void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
         void resendVerificationEmail(MegaRequestListener *listener = NULL);
@@ -3673,6 +3677,9 @@ public:
     bool isHandleAllowed(handle h);
     void clearAllowedHandles();
     char* getLink(MegaNode *node, std::string protocol = "http");
+    bool isCurrentThread() {
+        return thread->isCurrentThread();
+    }
 
     set<handle> getAllowedHandles();
     void removeAllowedHandle(MegaHandle handle);
