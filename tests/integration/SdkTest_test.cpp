@@ -5359,6 +5359,9 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_TRUE(!deviceIdFromNode || !*deviceIdFromNode);
 
     unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(newSyncRootNodeHandle) };
+    // TODO: always verify the remote path was created as expected,
+    // even if it needs to create a new public interface that allows
+    // to retrieve the handle of the device-folder
     if (deviceNameWasSetByCurrentTest)
     {
         // Verify that the remote path was created as expected.
