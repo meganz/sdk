@@ -4691,7 +4691,7 @@ TEST_F(SyncTest, BasicSync_AddLocalFolder)
 // it's too slow because we wait for the cloud before processing the next layer of files+folders.
 // So if we add enough changes to exercise the notification queue, we can't check the results because
 // it's far too slow at the syncing stage.
-TEST_F(SyncTest, RUN__BasicSync_MassNotifyFromLocalFolderTree)
+TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot();
@@ -4857,7 +4857,7 @@ TEST_F(SyncTest, BasicSync_MAX_NEWNODES2)
 }
 */
 
-TEST_F(SyncTest, RUN__BasicSync_MoveExistingIntoNewLocalFolder)
+TEST_F(SyncTest, BasicSync_MoveExistingIntoNewLocalFolder)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot();
