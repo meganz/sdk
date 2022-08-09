@@ -967,7 +967,7 @@ bool BackupID::match(const string_vector& ids, ACState& state) const
 {
     auto& word = state.words[state.i];
 
-    if (!word.q.quoted && word.s[0] != '-')
+    if (word.s.empty() || (!word.q.quoted && word.s[0] == '-'))
         return false;
 
     auto i = find(ids.begin(), ids.end(), word.s);
