@@ -893,6 +893,8 @@ bool MegaContactEmail::match(ACState& s) const
     return false;
 }
 
+#ifdef ENABLE_SYNC
+
 BackupID::BackupID(MegaClient& client, bool onlyActive)
   : mClient(client)
   , mOnlyActive(onlyActive)
@@ -975,6 +977,13 @@ bool BackupID::match(const string_vector& ids, ACState& state) const
 
     return false;
 }
+
+ACN backupID(MegaClient& client, bool onlyActive)
+{
+    return make_shared<BackupID>(client, onlyActive);
+}
+
+#endif // ENABLE_SYNC
 
 std::ostream& MegaContactEmail::describe(std::ostream& s) const
 {
@@ -1451,11 +1460,6 @@ ACN remoteFSFolder(MegaClient* client, ::mega::NodeHandle* cwd, const std::strin
 ACN contactEmail(MegaClient* client)
 {
     return ACN(new MegaContactEmail(client));
-}
-
-ACN backupID(MegaClient& client, bool onlyActive)
-{
-    return make_shared<BackupID>(client, onlyActive);
 }
 
 }}; //namespaces
