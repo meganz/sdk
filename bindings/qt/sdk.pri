@@ -49,6 +49,7 @@ SOURCES += src/attrmap.cpp \
     src/pubkeyaction.cpp \
     src/request.cpp \
     src/serialize64.cpp \
+    src/setandelement.cpp \
     src/share.cpp \
     src/sharenodekeys.cpp \
     src/sync.cpp \
@@ -482,6 +483,7 @@ HEADERS  += include/mega.h \
             include/mega/pubkeyaction.h \
             include/mega/request.h \
             include/mega/serialize64.h \
+            include/mega/setandelement.h \
             include/mega/share.h \
             include/mega/sharenodekeys.h \
             include/mega/sync.h \
