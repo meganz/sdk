@@ -3557,7 +3557,7 @@ void Syncs::forEachRunningSyncContainingNode(Node* node, std::function<void(Sync
         if (s->mSync)
         {
             if (s->mSync->localroot->node &&
-                node->isbelow(s->mSync->localroot->node))
+                s->mSync->localroot->node->isbelow(node))
             {
                 f(s->mSync.get());
             }
