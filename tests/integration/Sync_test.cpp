@@ -1859,43 +1859,39 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
     {
         if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
         {
-            out() << "ensureTestBaseFolder node found"; // @Gene
+            out() << clientname << "ensureTestBaseFolder node found";
             if (basenode->type == FOLDERNODE)
             {
                 basefolderhandle = basenode->nodehandle;
                 //out() << clientname << " Base folder: " << Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
                 //parentofinterest = Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
-                out() << "ensureTestBaseFolder ok"; // @Gene
+                out() << clientname << "ensureTestBaseFolder ok";
                 pb->set_value(true);
                 return;
             }
         }
         else if (mayneedmaking)
         {
-            out() << "ensureTestBaseFolder mayneedmaking"; // @Gene
             vector<NewNode> nn(1);
             nn[0] = makeSubfolder("mega_test_sync");
 
-            auto completion = BasicPutNodesCompletion([this, pb](const Error& e) {
-                EXPECT_EQ(e, API_OK);
-                out() << "ensureTestBaseFolder running false"; // @Gene
-                ensureTestBaseFolder(false, pb);
-            });
-
-            resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [&](){ client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, 0, std::move(completion)); },
-                nullptr);
-            out() << "ensureTestBaseFolder done"; // @Gene
+            resultproc.prepresult(PUTNODES, ++next_request_tag,
+                [&](){
+                    client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, client.reqtag, nullptr);
+                },
+                [pb, this](error e){
+                    out() << clientname << "ensureTestBaseFolder putnodes completed with: " << e;
+                    ensureTestBaseFolder(false, pb);
+                    return true;
+                });
+            out() << clientname << "ensureTestBaseFolder sending putnodes";
             return;
         }
-        else {
-            out() << "harmless"; // @Gene
-        }
+        out() << clientname << "ensureTestBaseFolder unexpected case";
     }
     else {
-        out() << "no file root handle"; // @Gene
+        out() << clientname << "no file root handle";
     }
-    out() << "ensureTestBaseFolder failed"; // @Gene
     pb->set_value(false);
 }
 

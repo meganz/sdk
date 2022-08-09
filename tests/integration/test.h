@@ -269,6 +269,7 @@ struct StandardClient : public MegaApp
         recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
         map<resultprocenum, map<int, id_callback>> m;
 
+        // f is to return true if no more callbacks are expected, and the expected-entry will be removed
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF);
         void processresult(resultprocenum rpe, error e, handle h = UNDEF);
     } resultproc;
