@@ -1887,7 +1887,7 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
             out() << clientname << "ensureTestBaseFolder sending putnodes";
             return;
         }
-        out() << clientname << "ensureTestBaseFolder unexpected case";
+        out() << clientname << "ensureTestBaseFolder unexpected case"; // but can occur if we look too early because a late actionpacket from prior tests made us think it was time to check
     }
     else {
         out() << clientname << "no file root handle";
@@ -3236,31 +3236,43 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
         return false;
     }
 
-    auto checkOtherClient = [this](StandardClient* c) {
+    auto checkOtherClient = [this](StandardClient* c, bool finalcheck) {
         if (c)
         {
             auto p1 = c->thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); }, __FILE__, __LINE__);
             if (!waitonresults(&p1)) {
-                out() << "ensureTestBaseFolder c2 failed";
+                if (finalcheck) { out() << "ensureTestBaseFolder c2 failed"; }
                 return false;
             }
             if (c->basefolderhandle != basefolderhandle)
             {
-                out() << "base folder handle mismatch with c2";
+                if (finalcheck) { out() << "base folder handle mismatch with c2"; }
                 return false;
             }
         }
         return true;
     };
 
-    if (!checkOtherClient(c2)) return false;
-    if (!checkOtherClient(c3)) return false;
-    if (!checkOtherClient(c4)) return false;
+    // although we waited for actionpackets, it's possible that wait was satisfied by some late actionpacket from a prior test.
+    // wait a bit longer if it's not there already
+    for (int i = 60; i--; )
+    {
+        if (checkOtherClient(c2, false) &&
+            checkOtherClient(c3, false) &&
+            checkOtherClient(c4, false))
+            return true;
+        WaitMillisec(1000);
+    }
+
+    if (!checkOtherClient(c2, true)) return false;
+    if (!checkOtherClient(c3, true)) return false;
+    if (!checkOtherClient(c4, true)) return false;
     return true;
 }
 
 void StandardClient::cleanupForTestReuse()
 {
+    LOG_debug << clientname << "cleaning syncs for client reuse";
     future<bool> p1;
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
 
@@ -3279,6 +3291,51 @@ void StandardClient::cleanupForTestReuse()
     // Remove any established anomaly reporter.
     // TODO: Might need some kind of synchronization?
     client.mFilenameAnomalyReporter = nullptr;
+
+
+    LOG_debug << clientname << "cleaning transfers for client reuse";
+
+    future<bool> p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
+
+        CancelToken cancelled(true);
+        int direction[] = { PUT, GET };
+        for (int d = 0; d < 2; ++d)
+        {
+            for (auto& it : sc.client.transfers[direction[d]])
+            {
+                for (auto& it2 : it.second->files)
+                {
+                    if (!it2->syncxfer)
+                    {
+                        it2->cancelToken = cancelled;
+                    }
+                }
+            }
+        }
+
+        pb->set_value(true);
+    }, __FILE__, __LINE__);
+    if (!waitonresults(&p2))
+    {
+        out() << "transfer removal failed";
+    }
+
+    for (int i = 30000; i-- && !client.transfers[GET].empty(); ) WaitMillisec(1);
+    for (int i = 30000; i-- && !client.transfers[PUT].empty(); ) WaitMillisec(1);
+    LOG_debug << clientname << "transfers cleaned";
+
+    // wait further for reqs to finish if any are queued
+    for (int i = 30000; i-- && !client.transfers[PUT].empty(); ) WaitMillisec(1);
+    LOG_debug << clientname << "transfers cleaned";
+
+    if (client.reqs.cmdspending())
+    {
+        LOG_debug << clientname << "waiting for requests to finish";
+        for (int i = 120000; i-- && client.reqs.cmdspending(); ) WaitMillisec(1);
+    }
+    LOG_debug << clientname << "requests pending: " << client.reqs.cmdspending();
+
+
 }
 
 bool StandardClient::login_reset_makeremotenodes(const string& prefix, int depth, int fanout, bool noCache)
