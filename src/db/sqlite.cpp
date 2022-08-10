@@ -1081,10 +1081,7 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
         return success;
     }
 
-    // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase
-    // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
-    // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
-    std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND LOWER(name) LIKE LOWER(";
+    std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND name =";
     sqlQuery.append("'")
             .append(name)
             .append("')");
