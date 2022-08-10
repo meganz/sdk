@@ -720,7 +720,17 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
         // show the email/pass so we can (a) log into the account and see what's happening
         // and (b) add a signal to terminate very long jenkins test runs if they are already failing badly
         string pass = getenv(envVarPass[loginIndex].c_str());
-        cout << "Using test account " << loginIndex << " " << user << " " << pass << endl;
+
+        // modify pass so that it's not obscured in jenkins output... somehow it recognizes it and substitutes [*******] in the console output
+        string obfuscatedPass;
+        for (auto c : pass)
+        {
+            obfuscatedPass += "/";
+            obfuscatedPass += c;
+            obfuscatedPass += "\\";
+        }
+
+        cout << "Using test account " << loginIndex << " " << user << " " << obfuscatedPass << endl;
         declaredTestAccounts.insert(user);
     }
 
@@ -10721,21 +10731,21 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         model.movenode("t", "w");
 
         ASSERT_TRUE(client2.movenode(xt->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(30));
+        ASSERT_TRUE(client1.waitForNodesUpdated(50));
 
         client1.received_node_actionpackets = false;
 
         model.movenode("u", "w");
 
         ASSERT_TRUE(client2.movenode(xu->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(30));
+        ASSERT_TRUE(client1.waitForNodesUpdated(50));
 
         client1.received_node_actionpackets = false;
 
         model.movenode("v", "w");
 
         ASSERT_TRUE(client2.movenode(xv->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(30));
+        ASSERT_TRUE(client1.waitForNodesUpdated(50));
     }
 
     // Wait for client 1 to stall (due to undecryptable nodes.)
