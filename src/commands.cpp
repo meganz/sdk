@@ -6791,9 +6791,9 @@ CommandSetChatOptions::CommandSetChatOptions(MegaClient* client, handle chatid, 
     arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
     switch (option)
     {
-        case ChatOptions::chat_option_open_invite:      arg("oi", enabled);  break;
-        case ChatOptions::chat_option_speak_request:    arg("sr", enabled);  break;
-        case ChatOptions::chat_option_waiting_room:     arg("w", enabled);   break;
+        case ChatOptions::kOpenInvite:      arg("oi", enabled);  break;
+        case ChatOptions::kSpeakRequest:    arg("sr", enabled);  break;
+        case ChatOptions::kWaitingRoom:     arg("w", enabled);   break;
         default:                                                             break;
     }
 
@@ -6813,9 +6813,9 @@ bool CommandSetChatOptions::procresult(Result r)
         }
 
         // chat options: [-1 (not updated) | 0 (remove) | 1 (add)]
-        int speakRequest = mOption == ChatOptions::chat_option_speak_request ? mEnabled : -1;
-        int waitingRoom  = mOption == ChatOptions::chat_option_waiting_room  ? mEnabled : -1;
-        int openInvite   = mOption == ChatOptions::chat_option_open_invite   ? mEnabled : -1;
+        int speakRequest = mOption == ChatOptions::kSpeakRequest ? mEnabled : -1;
+        int waitingRoom  = mOption == ChatOptions::kWaitingRoom  ? mEnabled : -1;
+        int openInvite   = mOption == ChatOptions::kOpenInvite   ? mEnabled : -1;
 
         TextChat* chat = it->second;
         chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);

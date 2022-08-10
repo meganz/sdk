@@ -1029,15 +1029,8 @@ typedef mega::byte ChatOptions_t;
 struct ChatOptions
 {
 public:
-    enum
-    {   // enum to identify each one of the options (just used by sdk internal methods)
-        chat_option_open_invite    = 0,   /// Open invite
-        chat_option_speak_request  = 1,   /// Speak request
-        chat_option_waiting_room   = 2,   /// Waiting room
-    };
-
     enum: ChatOptions_t
-    {   // bit position of each one of the options at mChatOptions
+    {
         kEmpty         = 0x00,
         kSpeakRequest  = 0x01,
         kWaitingRoom   = 0x02,
