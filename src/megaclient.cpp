@@ -17206,6 +17206,21 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
         return nullptr;
     }
 
+    auto it = mNodeChildren.find(parentHandle);
+    if (it == mNodeChildren.end())
+    {
+        return nullptr;
+    }
+
+    for (const auto& itHandleNode : it->second)
+    {
+        Node* node = itHandleNode.second;
+        if (node && (name == node->displayname()))
+        {
+            return node;
+        }
+    }
+
     std::pair<NodeHandle, NodeSerialized> nodeSerialized;
     if (!mTable->getNodeByNameAtFirstLevel(parentHandle, name, nodeType, nodeSerialized))
     {
