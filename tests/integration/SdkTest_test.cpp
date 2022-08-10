@@ -5594,7 +5594,7 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     ASSERT_EQ(favNode->getName(), UPFILE) << "synchronousGetFavourites failed with node passed nullptr";
 }
 
-TEST_F(SdkTest, DISABLED_SdkDeviceNames)
+TEST_F(SdkTest, SdkDeviceNames)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
@@ -5703,7 +5703,7 @@ MegaHandle SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
     return mh;
 }
 
-TEST_F(SdkTest, DISABLED_SdkUserAlias)
+TEST_F(SdkTest, SdkUserAlias)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkUserAlias___";
@@ -5726,7 +5726,7 @@ TEST_F(SdkTest, DISABLED_SdkUserAlias)
 
     // test setter/getter
     string alias = "UserAliasTest";
-    auto err = synchronousSetUserAlias(0, uh, Base64::btoa(alias).c_str());
+    auto err = synchronousSetUserAlias(0, uh, alias.c_str());
     ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
     err = synchronousGetUserAlias(0, uh);
     ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
