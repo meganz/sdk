@@ -17215,7 +17215,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     for (const auto& itHandleNode : it->second)
     {
         Node* node = itHandleNode.second;
-        if (node && (name == node->displayname()))
+        if (node && node->type == nodeType && name == node->displayname())
         {
             return node;
         }
