@@ -356,7 +356,7 @@ public:
     uint64_t getNumberNodesInRam() const;
 
     // Add new relationship between parent and child
-    void addChild(NodeHandle parent, NodeHandle child);
+    void addChild(NodeHandle parent, NodeHandle child, Node *node);
     // remove relationship between parent and child
     void removeChild(NodeHandle parent, NodeHandle child);
 
@@ -430,7 +430,7 @@ private:
     Node* getNodeFromNodeSerialized(const NodeSerialized& nodeSerialized);
 
     // returns the counter for the specified node, calculating it recursively and accessing to DB if it's neccesary
-    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
+    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
@@ -450,7 +450,7 @@ private:
     unique_ptr<Node> mNodeToWriteInDb;
 
     // store relationship between nodes and their children (nodes without children are not in the map)
-    std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
+    std::map<NodeHandle, std::map<NodeHandle, Node*>> mNodeChildren;
 };
 
 class MEGA_API MegaClient
