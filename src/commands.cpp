@@ -6590,7 +6590,7 @@ bool CommandGetLocalSSLCertificate::procresult(Result r)
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, const string_vector* options)
+CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool publicchat, const userpriv_vector* upl, const string_map* ukm, const char* title, bool meetingRoom, int chatOptions)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
@@ -6599,10 +6599,6 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
     this->mUnifiedKey = "";
     mMeeting = meetingRoom;
 
-    if (options)
-    {
-        mChatOptions = *options;
-    }
 
     cmd("mcc");
     arg("g", (group) ? 1 : 0);
@@ -6635,15 +6631,10 @@ CommandChatCreate::CommandChatCreate(MegaClient* client, bool group, bool public
 
     if (group)
     {
-        // retrieve chat options from a string_vector
-        bool speakRequest = false;
-        bool waitingRoom = false;
-        bool openInvite = false;
-
-        client->extractChatOptionsFromList(&mChatOptions, speakRequest, waitingRoom, openInvite);
-        if (speakRequest) {arg("sr", 1);}
-        if (waitingRoom)  {arg("w", 1);}
-        if (openInvite)   {arg("oi", 1);}
+        mChatOptions.set(static_cast<ChatOptions_t>(chatOptions));
+        if (mChatOptions.speakRequest()) {arg("sr", 1);}
+        if (mChatOptions.waitingRoom())  {arg("w", 1);}
+        if (mChatOptions.openInvite())   {arg("oi", 1);}
     }
 
     beginarray("u");
@@ -6736,15 +6727,9 @@ bool CommandChatCreate::procresult(Result r)
                         chat->publicchat = mPublicChat;
                         chat->meeting = mMeeting;
 
-                        // init chat options to default value
-                        bool speakRequest = false;
-                        bool waitingRoom = false;
-                        bool openInvite = false;
-                        client->extractChatOptionsFromList(&mChatOptions, speakRequest, waitingRoom, openInvite);
-
                         if (group)
                         {
-                            chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+                            chat->addOrUpdateChatOptions(mChatOptions.speakRequest(), mChatOptions.waitingRoom(), mChatOptions.openInvite());
                         }
 
                         chat->setTag(tag ? tag : -1);

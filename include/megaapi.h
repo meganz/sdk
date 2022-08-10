@@ -7946,6 +7946,7 @@ class MegaApi
         };
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
+        static constexpr int CHAT_OPTIONS_EMPTY = 0;
 
         /**
          * @brief Constructor suitable for most applications
@@ -17814,7 +17815,7 @@ class MegaApi
          * - MegaRequest::getAccess - Returns zero (private mode)
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
          * - MegaRequest::getText - Returns the title of the chat.
-         * - MegaRequest::getMegaStringList - Returns a MegaStringList with the chat options that will be enabled in creation
+         * - MegaRequest::getAccess - Returns a Bitmask with the chat options that will be enabled in creation
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -17822,7 +17823,7 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If more than 1 peer is provided for a 1on1 chatroom.
-         * - MegaError::API_EARGS   - If options param is provided for a 1on1 chat
+         * - MegaError::API_EARGS   - If chatOptions param is provided for a 1on1 chat
          *
          * @note If peers list contains only one person, group chat is not set and a permament chat already
          * exists with that person, then this call will return the information for the existing chat, rather
@@ -17831,10 +17832,10 @@ class MegaApi
          * @param group Flag to indicate if the chat is a group chat or not
          * @param peers MegaTextChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
-         * @param chatOptions MegaStringList that contains the chat options to create the chat
+         * @param chatOptions Bitmask that contains the chat options to create the chat
          * @param listener MegaRequestListener to track this request
          */
-        void createChat(bool group, MegaTextChatPeerList* peers, const char* title = NULL, MegaStringList* options = NULL, MegaRequestListener* listener = NULL);
+        void createChat(bool group, MegaTextChatPeerList* peers, const char* title = NULL, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Creates a public chatroom for multiple participants (groupchat)
@@ -17860,7 +17861,7 @@ class MegaApi
          * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getNumber - Returns if chat room is a meeting room
-         * - MegaRequest::getMegaStringList - Returns a MegaStringList with the chat options that will be enabled in creation
+         * - MegaRequest::getAccess - Returns a Bitmask with the chat options that will be enabled in creation
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -17873,10 +17874,10 @@ class MegaApi
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
          * @param meetingRoom Boolean indicating if room is a meeting room
-         * @param chatOptions MegaStringList that contains the chat options to create the chat
+         * @param chatOptions Bitmask that contains the chat options to create the chat
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, MegaStringList* options = NULL, MegaRequestListener* listener = NULL);
+        void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Enable or disable one or multiple chat options for a chatroom
