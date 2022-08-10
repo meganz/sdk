@@ -13623,8 +13623,11 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
 
     // any active syncs below?
     bool anyBelow = false;
-    syncs.forEachRunningSyncContainingNode(remotenode, [&](Sync* sync) {
-        anyBelow = true;
+    syncs.forEachRunningSync([&](Sync* sync) {
+        if (sync->localroot->node && sync->localroot->node->isbelow(remotenode))
+        {
+            anyBelow = true;
+        }
     });
 
     if (anyBelow)
