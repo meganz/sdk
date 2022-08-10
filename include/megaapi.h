@@ -17881,29 +17881,28 @@ class MegaApi
         /**
          * @brief Enable or disable one or multiple chat options for a chatroom
          *
-         * This function allows to enable or disable one or more of the following chatroom options:
-         * - OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
-         * - SpeakRequest: during calls non-operator users must request permission to speak.
-         * - WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
+         * This function allows to enable or disable one of the following chatroom options:
+         * - 0:  OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
+         * - 1:  SpeakRequest: during calls non-operator users must request permission to speak.
+         * - 2:  WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
          *
          * The associated request type with this request is MegaChatRequest::TYPE_SET_CHAT_OPTIONS
          * Valid data in the MegaChatRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
-         * - MegaRequest::getAccess - Returns the chatOptions in a numeric format
-         * - MegaRequest::getFlag -  Returns true if we want to enable options, otherwise returns false
-         * - MegaRequest::getMegaStringMap - Returns the chat options that we want to enable/disable with the format: [<key><value>]
+         * - MegaRequest::Access  - Returns the chat option we want to enable disable
+         * - MegaRequest::getFlag - Returns true if enabled was set true, otherwise it will return false
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS  - If the chatid is invalid
          * - MegaError::API_EARGS  - If this method is called for a 1on1 chat
-         * - MegaError::API_EARGS  - If no MegaStringMap with chat options has been provided
          * - MegaError::API_ENOENT - If the chatroom does not exists
          *
          * @param chatid MegaHandle that identifies the chat room
-         * @param options MegaStringMap with the chat options that we want to enable/disable
+         * @param option Chat option that we want to enable/disable
+         * @param enabled True if we want to enable the option, otherwise false.
          * @param listener MegaChatRequestListener to track this request
          */
-        void setChatOptions(MegaHandle chatid, const MegaStringMap* options, MegaRequestListener* listener = NULL);
+        void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

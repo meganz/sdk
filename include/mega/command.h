@@ -1026,14 +1026,17 @@ public:
     CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, const string_vector* options = nullptr);
 };
 
+typedef std::function<void(Error)> CommandSetChatOptionsCompletion;
 class MEGA_API CommandSetChatOptions : public Command
 {
     handle mChatid;
-    string_map mChatOptions;
+    int mOption;
+    bool mEnabled;
+    CommandSetChatOptionsCompletion mCompletion;
 
 public:
     bool procresult(Result) override;
-    CommandSetChatOptions(MegaClient*, handle, const string_map* options);
+    CommandSetChatOptions(MegaClient*, handle, int option, bool enabled, CommandSetChatOptionsCompletion completion);
 };
 
 class MEGA_API CommandChatInvite : public Command
