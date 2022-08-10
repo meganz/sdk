@@ -692,6 +692,8 @@ Node* CloudItem::resolve(StandardClient& client) const
     return client.drillchildnodebyname(root, mPath);
 }
 
+std::set<string> declaredTestAccounts;
+
 StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::path workingFolder)
 {
     assert(loginIndex >= 0 && loginIndex < 3);
@@ -700,7 +702,7 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
     {
         if (!i->inUse)
         {
-            i->ptr->cleanupForTestReuse();
+            i->ptr->cleanupForTestReuse(loginIndex);
             i->ptr->fsBasePath = i->ptr->ensureDir(workingFolder / fs::u8path(i->name));
             return StandardClientInUse(i);
         }
@@ -712,10 +714,20 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
     shared_ptr<StandardClient> c(
             new StandardClient(localAccountRoot, "client" + clientname, workingFolder));
 
-    clients[loginIndex].push_back(StandardClientInUseEntry(false, c, clientname));
+    string user = getenv(envVarAccount[loginIndex].c_str());
+    if (declaredTestAccounts.find(user) == declaredTestAccounts.end())
+    {
+        // show the email/pass so we can (a) log into the account and see what's happening
+        // and (b) add a signal to terminate very long jenkins test runs if they are already failing badly
+        string pass = getenv(envVarPass[loginIndex].c_str());
+        cout << "Using test account " << loginIndex << " " << user << " " << pass << endl;
+        declaredTestAccounts.insert(user);
+    }
+
+    clients[loginIndex].push_back(StandardClientInUseEntry(false, c, clientname, loginIndex));
     c->login_reset(envVarAccount[loginIndex], envVarPass[loginIndex], false, false);
 
-    c->cleanupForTestReuse();
+    c->cleanupForTestReuse(loginIndex);
 
     return StandardClientInUse(--clients[loginIndex].end());
 }
@@ -3270,8 +3282,18 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
     return true;
 }
 
-void StandardClient::cleanupForTestReuse()
+void StandardClient::cleanupForTestReuse(int loginIndex)
 {
+
+    if (client.nodeByPath("/abort_jenkins_test_run"))
+    {
+        string user = getenv(envVarAccount[loginIndex].c_str());
+        cout << "Detected node /abort_jenkins_test_run in account " << user << ", aborting test run" << endl;
+        out() << "Detected node /abort_jenkins_test_run in account " << user << ", aborting test run";
+        WaitMillisec(100);
+        exit(1);
+    }
+
     LOG_debug << clientname << "cleaning syncs for client reuse";
     future<bool> p1;
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {

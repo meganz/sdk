@@ -694,7 +694,7 @@ struct StandardClient : public MegaApp
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
     bool resetBaseFolderMulticlient(StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr);
-    void cleanupForTestReuse();
+    void cleanupForTestReuse(int loginIndex);
     bool login_reset_makeremotenodes(const string& prefix, int depth = 0, int fanout = 0, bool noCache = false);
     bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false);
     void ensureSyncUserAttributes(PromiseBoolSP result);
@@ -771,11 +771,13 @@ struct StandardClientInUseEntry
     bool inUse = false;
     shared_ptr<StandardClient> ptr;
     string name;
+    int loginIndex;
 
-    StandardClientInUseEntry(bool iu, shared_ptr<StandardClient> sp, string n)
+    StandardClientInUseEntry(bool iu, shared_ptr<StandardClient> sp, string n, int index)
     : inUse(iu)
     , ptr(sp)
     , name(n)
+    , loginIndex(index)
     {}
 };
 
@@ -795,7 +797,7 @@ public:
 
     ~StandardClientInUse()
     {
-        entry->ptr->cleanupForTestReuse();
+        entry->ptr->cleanupForTestReuse(entry->loginIndex);
         entry->inUse = false;
     }
 
