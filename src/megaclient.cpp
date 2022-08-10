@@ -16917,54 +16917,6 @@ void MegaClient::getwelcomepdf()
     reqs.add(new CommandGetWelcomePDF(this));
 }
 
-void MegaClient::extractChatOptionsFromMap(const string_map* options, int& speakRequest, int& waitingRoom, int& openInvite)
-{
-    // initialize by default all options to -1 (not modified)
-    speakRequest = waitingRoom = openInvite = -1;
-
-    if (!options)
-    {
-        return;
-    }
-
-    for (int i = ChatOptions::chat_option_open_invite; i <= ChatOptions::chat_option_max; i++)
-    {
-        string_map::const_iterator it = options->find(std::to_string(i));
-        if (it != options->end())
-        {
-            int optVal = std::atoi(it->second.c_str());
-            switch (i)
-            {
-                case ChatOptions::chat_option_open_invite:      openInvite = optVal;    break;
-                case ChatOptions::chat_option_speak_request:    speakRequest = optVal;  break;
-                case ChatOptions::chat_option_waiting_room:     waitingRoom = optVal;   break;
-            }
-        }
-    }
-}
-
-void MegaClient::extractChatOptionsFromList(const string_vector* options, bool& speakRequest, bool& waitingRoom, bool& openInvite)
-{
-    // initialize by default all options to false
-    speakRequest = waitingRoom = openInvite = false;
-
-    if (!options)
-    {
-        return;
-    }
-
-    for (auto opt: *options)
-    {
-        int optVal = std::atoi(opt.c_str());
-        switch (optVal)
-        {
-            case ChatOptions::chat_option_open_invite:      openInvite = true;    break;
-            case ChatOptions::chat_option_speak_request:    speakRequest = true;  break;
-            case ChatOptions::chat_option_waiting_room:     waitingRoom = true;   break;
-        }
-    }
-}
-
 bool MegaClient::startDriveMonitor()
 {
 #ifdef USE_DRIVE_NOTIFICATIONS

@@ -1034,7 +1034,6 @@ public:
         chat_option_open_invite    = 0,   /// Open invite
         chat_option_speak_request  = 1,   /// Speak request
         chat_option_waiting_room   = 2,   /// Waiting room
-        chat_option_max = chat_option_waiting_room
     };
 
     enum: ChatOptions_t

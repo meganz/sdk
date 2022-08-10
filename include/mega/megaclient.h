@@ -856,12 +856,6 @@ public:
     // get welcome pdf
     void getwelcomepdf();
 
-    // extract chat options from a string map
-    void extractChatOptionsFromMap(const string_map* options, int& speakRequest, int& waitingRoom, int& openInvite);
-
-    // extract chat options from a string vector
-    void extractChatOptionsFromList(const string_vector* options, bool& speakRequest, bool& waitingRoom, bool& openInvite);
-
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
     void reportevent(const char*, const char*, int tag);
