@@ -17698,7 +17698,7 @@ MegaNode* MegaApiImpl::getChildNodeOfType(MegaNode *parent, const char *name, in
         return nullptr;
     }
 
-    return MegaNodePrivate::fromNode(client->childNodeTypeByName(parentNode, name, static_cast<nodetype_t>(type)));
+    return MegaNodePrivate::fromNode(client->childnodebynametype(parentNode, name, static_cast<nodetype_t>(type)));
 }
 
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)

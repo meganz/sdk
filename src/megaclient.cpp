@@ -1123,32 +1123,6 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
     return found;
 }
 
-Node* MegaClient::childNodeTypeByName(Node *p, const char *name, nodetype_t type)
-{
-    if (!name || !p || p->type == FILENODE)   // parent't can't be a file (or we're looking at versions), but could be FOLDERNODE, ROOTNODE, etc
-    {
-        return nullptr;
-    }
-
-    Node *found = nullptr;
-    string nname = name;
-    LocalPath::utf8_normalize(&nname);
-
-    // TODO: a DB query could return the matching child nodes directly, avoiding to load all
-    // children
-    node_list nodeList = getChildren(p);
-    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
-    {
-        // if name and node type matches
-        if (((*it)->type == type) && !strcmp(nname.c_str(), (*it)->displayname()))
-        {
-            found = *it;
-            break;
-        }
-    }
-    return found;
-}
-
 void MegaClient::init()
 {
     warned = false;

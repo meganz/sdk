@@ -14750,6 +14750,8 @@ class MegaApi
          * If the node doesn't exist, this function returns NULL
          * It's possible to have multiple nodes with the same name.
          * This function will return one of them.
+         * Folder nodes take precedence over file nodes.
+         * If you want a node of specific type, @see getChildNodeOfType
          *
          * You take the ownership of the returned value
          *

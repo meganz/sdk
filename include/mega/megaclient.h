@@ -1861,12 +1861,12 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node *childnodebyname(const Node *, const char*, bool = false);
-    Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
-    Node* childnodebyattribute(Node*, nameid, const char*);
+    Node *childnodebyname(const Node *parent, const char* name, bool skipFolders = false);
+    node_vector childnodesbyname(Node* parent, const char* name, bool skipFolders = false);
+    Node* childnodebynametype(Node* parent, const char* name, nodetype_t mustBeType);
+    Node* childnodebyattribute(Node* parent, nameid attrId, const char* attrValue);
+
     static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
-    vector<Node*> childnodesbyname(Node*, const char*, bool = false);
-    Node* childNodeTypeByName(Node *p, const char *name, nodetype_t type);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc(bool keepOwnUser);
