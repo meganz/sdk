@@ -1084,7 +1084,7 @@ bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, cons
     std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND name = ";
     sqlQuery.append("'")
             .append(name)
-            .append("')");
+            .append("'");
     if (nodeType == FILENODE || nodeType == FOLDERNODE)
     {
         sqlQuery.append(" AND type = ?");
