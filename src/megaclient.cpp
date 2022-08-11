@@ -8115,6 +8115,11 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 // modify the 'n' attribute)
 error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c)
 {
+    if (mBizStatus <= BIZ_STATUS_INACTIVE)
+    {
+        return API_EACCESS;
+    }
+
     error e;
 
     if ((e = checkmove(n, p)))
@@ -8236,7 +8241,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
-    if (!n->inshare && !checkaccess(n, FULL))
+    if (mBizStatus <= BIZ_STATUS_INACTIVE || (!n->inshare && !checkaccess(n, FULL)))
     {
         return API_EACCESS;
     }
