@@ -17042,6 +17042,7 @@ node_list NodeManager::getChildren(const Node *parent)
             {
                 assert(!getNodeInRAM(child.first));
                 Node* n = getNodeFromDataBase(child.first);
+                assert(n);
                 if (n)
                 {
                     childrenList.push_back(n);
@@ -17212,17 +17213,24 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
         return nullptr;
     }
 
+    bool allChildrenLoaded = true;
     for (const auto& itHandleNode : it->second)
     {
         Node* node = itHandleNode.second;
-        if (node && node->type == nodeType && name == node->displayname())
+        if (!node)
+        {
+            allChildrenLoaded = false;
+            continue;
+        }
+
+        if (node->type == nodeType && name == node->displayname())
         {
             return node;
         }
     }
 
     std::pair<NodeHandle, NodeSerialized> nodeSerialized;
-    if (!mTable->getNodeByNameAtFirstLevel(parentHandle, name, nodeType, nodeSerialized))
+    if (allChildrenLoaded || !mTable->getNodeByNameAtFirstLevel(parentHandle, name, nodeType, nodeSerialized))
     {
         return nullptr;
     }
