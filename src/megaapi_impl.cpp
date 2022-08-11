@@ -10223,7 +10223,7 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList* 
     request->setText(title);
     request->setMegaStringMap(userKeyMap);
     request->setNumber(meetingRoom);
-    request->setAccess(chatOptions);
+    request->setParamType(chatOptions);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -22215,7 +22215,7 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, request->getAccess() /*chat options value*/);
+            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, request->getParamType() /*chat options value*/);
             break;
         }
         case MegaRequest::TYPE_SET_CHAT_OPTIONS:

@@ -17815,7 +17815,7 @@ class MegaApi
          * - MegaRequest::getAccess - Returns zero (private mode)
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
          * - MegaRequest::getText - Returns the title of the chat.
-         * - MegaRequest::getAccess - Returns a Bitmask with the chat options that will be enabled in creation
+         * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -17861,7 +17861,7 @@ class MegaApi
          * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getNumber - Returns if chat room is a meeting room
-         * - MegaRequest::getAccess - Returns a Bitmask with the chat options that will be enabled in creation
+         * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
