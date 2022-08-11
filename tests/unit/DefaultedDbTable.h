@@ -78,7 +78,7 @@ public:
     {
         return false;
     }
-    bool getNodeByNameAtFirstLevel(mega::NodeHandle, const std::string& name, mega::nodetype_t, std::pair<mega::NodeHandle, mega::NodeSerialized>&) override
+    bool childNodeByNameType(mega::NodeHandle, const std::string& name, mega::nodetype_t, std::pair<mega::NodeHandle, mega::NodeSerialized>&) override
     {
         return false;
     }

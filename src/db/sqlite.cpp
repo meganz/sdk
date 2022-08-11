@@ -1073,7 +1073,7 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
     return sqlResult == SQLITE_DONE || sqlResult == SQLITE_ROW;
 }
 
-bool SqliteAccountState::getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized> &node)
+bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized> &node)
 {
     bool success = false;
     if (!db)

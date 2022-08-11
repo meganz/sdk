@@ -279,7 +279,7 @@ public:
     // Check first nodes that are loaded in RAM, if there are children not loaded in RAM, then check at DB
     // In case of call this method several times over same folder, to improve the performance, getChildren
     // should be called before the first call to this method
-    Node* getNodeByNameFirstLevel(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
+    Node* childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
 
     // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE (In case of logged into folder link returns only ROOTNODE)
     // Load from DB if it's necessary

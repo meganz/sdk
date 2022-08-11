@@ -1033,12 +1033,12 @@ Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfold
 
     if (!skipfolders)
     {
-        node = mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, FOLDERNODE);
+        node = mNodeManager.childNodeByNameType(p->nodeHandle(), nname, FOLDERNODE);
     }
 
     if (!node)
     {
-        node = mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, FILENODE);
+        node = mNodeManager.childNodeByNameType(p->nodeHandle(), nname, FILENODE);
     }
 
     return node;
@@ -1060,7 +1060,7 @@ Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t must
 
     LocalPath::utf8_normalize(&nname);
 
-     return mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, mustBeType);
+     return mNodeManager.childNodeByNameType(p->nodeHandle(), nname, mustBeType);
 }
 
 // returns a matching child node that has the given attribute with the given value
@@ -17205,7 +17205,7 @@ Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
     return nullptr;
 }
 
-Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::string &name, nodetype_t nodeType)
+Node *NodeManager::childNodeByNameType(NodeHandle parentHandle, const std::string &name, nodetype_t nodeType)
 {
     if (!mTable)
     {
@@ -17236,7 +17236,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     }
 
     std::pair<NodeHandle, NodeSerialized> nodeSerialized;
-    if (allChildrenLoaded || !mTable->getNodeByNameAtFirstLevel(parentHandle, name, nodeType, nodeSerialized))
+    if (allChildrenLoaded || !mTable->childNodeByNameType(parentHandle, name, nodeType, nodeSerialized))
     {
         return nullptr;
     }
