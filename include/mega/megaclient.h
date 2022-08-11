@@ -275,10 +275,9 @@ public:
     Node *getNodeByFingerprint(const FileFingerprint& fingerprint);
 
     // Return a first level child node whose name matches with 'name'
-    // Valid values for nodeType: FILENODE, FOLDERNODE, TYPE_UNKNOWN (when unknown, it returns both files and folders)
-    // Check first nodes that are loaded in RAM, if there are children not loaded in RAM, then check at DB
-    // In case of call this method several times over same folder, to improve the performance, getChildren
-    // should be called before the first call to this method
+    // Valid values for nodeType: FILENODE, FOLDERNODE
+    // Note: if not found among children loaded in RAM (and not all children are loaded), it will search in DB
+    // Hint: ensure all children are loaded if this method is called for all children of a folder
     Node* childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
 
     // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE (In case of logged into folder link returns only ROOTNODE)

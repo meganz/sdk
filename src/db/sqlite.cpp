@@ -1082,29 +1082,17 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
     }
 
     std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND name = ";
-    sqlQuery.append("'")
-            .append(name)
-            .append("'");
-    if (nodeType == FILENODE || nodeType == FOLDERNODE)
-    {
-        sqlQuery.append(" AND type = ?");
-    }
-    else
-    {
-        assert(nodeType == TYPE_UNKNOWN);
-    }
-
+    sqlQuery.append("'" + name + "'");
+    sqlQuery.append(" AND type = ?");
     sqlQuery.append(" limit 1");
 
     sqlite3_stmt *stmt = nullptr;
     int sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHanlde.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
         {
-            // if nodeType is unknown, no need to bind the value, but to proceed to sqlite3_step()
-            if (nodeType == TYPE_UNKNOWN
-                || (sqlResult = sqlite3_bind_int64(stmt, 2, nodeType)) == SQLITE_OK)
+            if ((sqlResult = sqlite3_bind_int64(stmt, 2, nodeType)) == SQLITE_OK)
             {
                 if((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
                 {
