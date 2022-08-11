@@ -450,7 +450,7 @@ private:
     unique_ptr<Node> mNodeToWriteInDb;
 
     // store relationship between nodes and their children (nodes without children are not in the map)
-    std::map<NodeHandle, std::map<NodeHandle, Node*>> mNodeChildren;
+    std::map<NodeHandle, nodePtr_map> mNodeChildren;
 };
 
 class MEGA_API MegaClient

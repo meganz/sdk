@@ -126,7 +126,7 @@ public:
     virtual bool isAncestor(NodeHandle node, NodeHandle ancestror, CancelToken cancelFlag) = 0;
 
     // Get all fingerprints with their asociated NodeHandle
-    virtual bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, std::map<NodeHandle, Node*>>& children) = 0;
+    virtual bool loadFingerprintsAndChildren(std::map<FileFingerprint, nodePtr_map, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, nodePtr_map>& children) = 0;
 
     // count of items in 'nodes' table. Returns 0 if error
     virtual uint64_t getNumberOfNodes() = 0;

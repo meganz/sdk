@@ -1331,7 +1331,7 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
     return count;
 }
 
-bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node *>, FileFingerprintCmp> &fingerprints, std::map<NodeHandle, std::map<NodeHandle, Node*>> &children)
+bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, nodePtr_map, FileFingerprintCmp> &fingerprints, std::map<NodeHandle, nodePtr_map> &children)
 {
     if (!db)
     {

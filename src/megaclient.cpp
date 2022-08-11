@@ -17416,7 +17416,7 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
         }
     }
 
-    std::map<NodeHandle, Node*> children;
+    nodePtr_map children;
     auto it = mNodeChildren.find(nodehandle);
     if (it != mNodeChildren.end())
     {
@@ -18175,7 +18175,7 @@ mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
         else
         {
             std::pair<NodeHandle, Node*> pair = std::make_pair(node->nodeHandle(), n);
-            return mFingerPrints.emplace(*node, std::map<NodeHandle, Node*>{pair}).first;
+            return mFingerPrints.emplace(*node, nodePtr_map{pair}).first;
         }
     }
 
