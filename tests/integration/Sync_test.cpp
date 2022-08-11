@@ -952,44 +952,6 @@ private:
     map<uint32_t, StateCacheNodePtr> mNodeMap;
 }; // StateCacheValidator
 
-StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::path workingFolder)
-{
-    assert(loginIndex >= 0 && loginIndex < 3);
-
-    for (auto i = clients[loginIndex].begin(); i != clients[loginIndex].end(); ++i)
-    {
-        if (!i->inUse)
-        {
-            i->ptr->cleanupForTestReuse();
-            i->ptr->fsBasePath = i->ptr->ensureDir(workingFolder / fs::u8path(i->name));
-            return StandardClientInUse(i);
-        }
-    }
-
-    // otherwise, make a new one
-    string clientname = std::to_string(loginIndex) + "_" + std::to_string(clients[loginIndex].size());
-    fs::path localAccountRoot = makeReusableClientFolder(clientname);
-    shared_ptr<StandardClient> c(
-            new StandardClient(localAccountRoot, "client" + clientname, workingFolder));
-
-    clients[loginIndex].push_back(StandardClientInUseEntry(false, c, clientname));
-    c->login_reset(envVarAccount[loginIndex], envVarPass[loginIndex], false, false);
-
-    c->cleanupForTestReuse();
-
-    return StandardClientInUse(--clients[loginIndex].end());
-}
-
-ClientManager::~ClientManager()
-{
-    while (clients.size())
-    {
-        LOG_debug << "Shutting down ClientManager, remaining: " << clients.size();
-        clients.erase(clients.begin());
-    }
-    LOG_debug << "ClientManager shutdown complete";
-}
-
 CloudItem::CloudItem(const Node* node)
   : CloudItem(*node)
 {
@@ -1039,6 +1001,66 @@ Node* CloudItem::resolve(StandardClient& client) const
         root = client.getcloudrootnode();
 
     return client.drillchildnodebyname(root, mPath);
+}
+
+std::set<string> declaredTestAccounts;
+
+StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::path workingFolder)
+{
+    assert(loginIndex >= 0 && loginIndex < 3);
+
+    for (auto i = clients[loginIndex].begin(); i != clients[loginIndex].end(); ++i)
+    {
+        if (!i->inUse)
+        {
+            i->ptr->cleanupForTestReuse(loginIndex);
+            i->ptr->fsBasePath = i->ptr->ensureDir(workingFolder / fs::u8path(i->name));
+            return StandardClientInUse(i);
+        }
+    }
+
+    // otherwise, make a new one
+    string clientname = std::to_string(loginIndex) + "_" + std::to_string(clients[loginIndex].size());
+    fs::path localAccountRoot = makeReusableClientFolder(clientname);
+    shared_ptr<StandardClient> c(
+            new StandardClient(localAccountRoot, "client" + clientname, workingFolder));
+
+    string user = getenv(envVarAccount[loginIndex].c_str());
+    if (declaredTestAccounts.find(user) == declaredTestAccounts.end())
+    {
+        // show the email/pass so we can (a) log into the account and see what's happening
+        // and (b) add a signal to terminate very long jenkins test runs if they are already failing badly
+        string pass = getenv(envVarPass[loginIndex].c_str());
+
+        // modify pass so that it's not obscured in jenkins output... somehow it recognizes it and substitutes [*******] in the console output
+        string obfuscatedPass;
+        for (auto c : pass)
+        {
+            obfuscatedPass += "/";
+            obfuscatedPass += c;
+            obfuscatedPass += "\\";
+        }
+
+        cout << "Using test account " << loginIndex << " " << user << " " << obfuscatedPass << endl;
+        declaredTestAccounts.insert(user);
+    }
+
+    clients[loginIndex].push_back(StandardClientInUseEntry(false, c, clientname, loginIndex));
+    c->login_reset(envVarAccount[loginIndex], envVarPass[loginIndex], false, false);
+
+    c->cleanupForTestReuse(loginIndex);
+
+    return StandardClientInUse(--clients[loginIndex].end());
+}
+
+ClientManager::~ClientManager()
+{
+    while (clients.size())
+    {
+        LOG_debug << "Shutting down ClientManager, remaining: " << clients.size();
+        clients.erase(clients.begin());
+    }
+    LOG_debug << "ClientManager shutdown complete";
 }
 
 void StandardClient::ResultProc::prepresult(StandardClient::resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h)
@@ -1191,7 +1213,8 @@ void StandardClient::localLogout()
                         {
                             mc.locallogout(false, true);
                             result->set_value(true);
-                        });
+                        },
+                        __FILE__, __LINE__);
 
     // Make sure logout completes before we escape.
     result.get();
@@ -1203,7 +1226,7 @@ bool StandardClient::logout(bool keepSyncsConfigFile)
         client.logout(keepSyncsConfigFile, [=](error e) {
             result->set_value(e == API_OK);
         });
-    });
+    }, __FILE__, __LINE__);
 
     if (result.wait_for(DEFAULTWAIT) == future_status::timeout)
         return false;
@@ -1481,8 +1504,14 @@ void StandardClient::threadloop()
             client.waiter->bumpds();
             auto start = client.waiter->ds;
             std::lock_guard<mutex> g(functionDoneMutex);
+            string sourcefile;
+            int sourceline = -1;
             if (nextfunctionMC)
             {
+                sourcefile = nextfunctionMC_sourcefile;
+                sourceline = nextfunctionMC_sourceline;
+                nextfunctionMC_sourcefile = "";
+                nextfunctionMC_sourceline = -1;
                 nextfunctionMC();
                 nextfunctionMC = nullptr;
                 functionDone.notify_all();
@@ -1490,6 +1519,10 @@ void StandardClient::threadloop()
             }
             if (nextfunctionSC)
             {
+                sourcefile = nextfunctionSC_sourcefile;
+                sourceline = nextfunctionSC_sourceline;
+                nextfunctionSC_sourcefile = "";
+                nextfunctionSC_sourceline = -1;
                 nextfunctionSC();
                 nextfunctionSC = nullptr;
                 functionDone.notify_all();
@@ -1499,8 +1532,10 @@ void StandardClient::threadloop()
             auto end = client.waiter->ds;
             if (end - start > 200)
             {
-                LOG_err << "test functions passed to be executed on the client thread should queue work but not wait for the results themselves";
-                assert(false);
+                // note that in Debug builds (for windows at least), prep for logging in can take 15 seconds in pbkdf2.DeriveKey
+                LOG_err << "test functions passed to be executed on the client thread should queue work but not wait for the results themselves. Waited ms: "
+                        << end-start << " in " << sourcefile << " line " << sourceline;
+                //assert(false);
             }
         }
 
@@ -1595,7 +1630,7 @@ bool StandardClient::copy(const CloudItem& source,
 {
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
         client.copy(source, target, name, std::move(result), versioningPolicy);
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(std::chrono::minutes(2));
 
@@ -1709,7 +1744,7 @@ bool StandardClient::putnodes(const CloudItem& parent,
                         versioningPolicy,
                         std::move(nodes),
                         std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(std::chrono::seconds(40));
 
@@ -1818,7 +1853,7 @@ bool StandardClient::downloadFile(const CloudItem& item, const fs::path& destina
         thread_do<bool>([&](StandardClient& client, PromiseBoolSP result)
                         {
                             client.downloadFile(item, destination, result);
-                        });
+                        }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
 
@@ -1877,7 +1912,7 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, const 
             return pb->set_value(false);
 
         client.uploadFile(path, name, parentNode, pb, vo);
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(std::chrono::seconds(timeoutSeconds));
     EXPECT_NE(status, future_status::timeout);
@@ -2094,7 +2129,7 @@ bool StandardClient::fetchnodes(bool noCache)
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                         {
                             client.fetchnodes(noCache, result);
-                        });
+                        }, __FILE__, __LINE__);
 
     auto status = result.wait_for(std::chrono::seconds(180));
     EXPECT_NE(status, future_status::timeout);
@@ -2151,7 +2186,7 @@ unsigned StandardClient::deleteTestBaseFolder(bool mayNeedDeleting)
 {
     auto result = thread_do<unsigned>([=](StandardClient& client, PromiseUnsignedSP result) {
         client.deleteTestBaseFolder(mayNeedDeleting, false, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -2196,43 +2231,39 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
     {
         if (Node* basenode = client.childnodebyname(root, "mega_test_sync", false))
         {
-            out() << "ensureTestBaseFolder node found"; // @Gene
+            out() << clientname << "ensureTestBaseFolder node found";
             if (basenode->type == FOLDERNODE)
             {
                 basefolderhandle = basenode->nodehandle;
                 //out() << clientname << " Base folder: " << Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
                 //parentofinterest = Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
-                out() << "ensureTestBaseFolder ok"; // @Gene
+                out() << clientname << "ensureTestBaseFolder ok";
                 pb->set_value(true);
                 return;
             }
         }
         else if (mayneedmaking)
         {
-            out() << "ensureTestBaseFolder mayneedmaking"; // @Gene
             vector<NewNode> nn(1);
             nn[0] = makeSubfolder("mega_test_sync");
 
-            auto completion = BasicPutNodesCompletion([this, pb](const Error& e) {
-                EXPECT_EQ(e, API_OK);
-                out() << "ensureTestBaseFolder running false"; // @Gene
-                ensureTestBaseFolder(false, pb);
-            });
-
-            resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [&](){ client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, 0, std::move(completion)); },
-                nullptr);
-            out() << "ensureTestBaseFolder done"; // @Gene
+            resultproc.prepresult(PUTNODES, ++next_request_tag,
+                [&](){
+                    client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, client.reqtag, nullptr);
+                },
+                [pb, this](error e){
+                    out() << clientname << "ensureTestBaseFolder putnodes completed with: " << e;
+                    ensureTestBaseFolder(false, pb);
+                    return true;
+                });
+            out() << clientname << "ensureTestBaseFolder sending putnodes";
             return;
         }
-        else {
-            out() << "harmless"; // @Gene
-        }
+        out() << clientname << "ensureTestBaseFolder unexpected case"; // but can occur if we look too early because a late actionpacket from prior tests made us think it was time to check
     }
     else {
-        out() << "no file root handle"; // @Gene
+        out() << clientname << "no file root handle";
     }
-    out() << "ensureTestBaseFolder failed"; // @Gene
     pb->set_value(false);
 }
 
@@ -2259,7 +2290,7 @@ bool StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                         {
                             client.makeCloudSubdirs(prefix, depth, fanout, result);
-                        });
+                        }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -2428,7 +2459,7 @@ handle StandardClient::setupSync_mainthread(const string& rootPath,
 {
     auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
         client.setupSync_inThread(rootPath, remoteItem, syncOptions, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(chrono::seconds(45));
 
@@ -2631,7 +2662,7 @@ bool StandardClient::importSyncConfigs(string configs)
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                         {
                             client.importSyncConfigs(configs, result);
-                        });
+                        }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -2643,7 +2674,7 @@ string StandardClient::exportSyncConfigs()
                         {
                             auto configs = client.syncs.exportSyncConfigs();
                             result->set_value(configs);
-                        });
+                        }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -3101,7 +3132,7 @@ bool StandardClient::enableSyncByBackupId(handle id, const string& logname)
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                         {
                             client.enableSyncByBackupId(id, result, logname);
-                        });
+                        }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -3125,7 +3156,7 @@ bool StandardClient::confirmModel_mainthread(handle id, Model::ModelNode* mRoot,
         [=](StandardClient& client, PromiseBoolSP result)
         {
             result->set_value(client.confirmModel(id, mRoot, rRoot, expectFail, skipIgnoreFile));
-        });
+        }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -3137,7 +3168,7 @@ bool StandardClient::confirmModel_mainthread(handle id, Model::ModelNode* mRoot,
         [=](StandardClient& client, PromiseBoolSP result)
         {
             result->set_value(client.confirmModel(id, mRoot, lRoot, expectFail, skipIgnoreFile));
-        });
+        }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -3149,7 +3180,7 @@ bool StandardClient::confirmModel_mainthread(handle id, Model::ModelNode* mRoot,
         [=](StandardClient& client, PromiseBoolSP result)
         {
             result->set_value(client.confirmModel(id, mRoot, lRoot, ignoreDebris, expectFail, skipIgnoreFile));
-        });
+        }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -3285,7 +3316,7 @@ bool StandardClient::setattr(const CloudItem& item, attr_map&& updates)
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) mutable
         {
             client.setattr(std::move(item), std::move(updates), result);
-        });
+        }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -3348,7 +3379,7 @@ bool StandardClient::disableSync(handle id, SyncError error, bool enabled, bool 
         thread_do<bool>([=](StandardClient& client, PromiseBoolSP result)
                         {
                             client.disableSync(id, error, enabled, keepSyncDB, result);
-                        });
+                        }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -3368,7 +3399,7 @@ bool StandardClient::deleteremote(const CloudItem& item)
 {
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
         client.deleteremote(item, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -3425,7 +3456,7 @@ bool StandardClient::movenode(const CloudItem& source,
 {
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
         client.movenode(source, target, newName, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -3514,7 +3545,7 @@ void StandardClient::waitonsyncs(chrono::seconds d)
                     any_add_del = true;
                 }
                 pb->set_value(true);
-            }).get();
+            }, __FILE__, __LINE__).get();
 
         if (any_add_del || debugging)
         {
@@ -3556,19 +3587,19 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
     received_user_alerts = false;
 
     future<bool> p1;
-    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
+    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p1))
     {
         out() << "preloginFromEnv failed";
         return false;
     }
-    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
+    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p1))
     {
         out() << "loginFromEnv failed";
         return false;
     }
-    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); });
+    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p1)) {
         out() << "fetchnodes failed";
         return false;
@@ -3585,7 +3616,7 @@ bool StandardClient::login_reset(const string& user, const string& pw, bool noCa
             return false;
         }
 
-        p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
+        p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); }, __FILE__, __LINE__);
         if (!waitonresults(&p1)) {
             out() << "ensureTestBaseFolder failed";
             return false;
@@ -3639,7 +3670,7 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
 
     resetActionPacketFlags();
 
-    auto p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); });
+    auto p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(true, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p1)) {
         out() << "ensureTestBaseFolder failed";
         return false;
@@ -3651,31 +3682,53 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
         return false;
     }
 
-    auto checkOtherClient = [this](StandardClient* c) {
+    auto checkOtherClient = [this](StandardClient* c, bool finalcheck) {
         if (c)
         {
-            auto p1 = c->thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); });
+            auto p1 = c->thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); }, __FILE__, __LINE__);
             if (!waitonresults(&p1)) {
-                out() << "ensureTestBaseFolder c2 failed";
+                if (finalcheck) { out() << "ensureTestBaseFolder c2 failed"; }
                 return false;
             }
             if (c->basefolderhandle != basefolderhandle)
             {
-                out() << "base folder handle mismatch with c2";
+                if (finalcheck) { out() << "base folder handle mismatch with c2"; }
                 return false;
             }
         }
         return true;
     };
 
-    if (!checkOtherClient(c2)) return false;
-    if (!checkOtherClient(c3)) return false;
-    if (!checkOtherClient(c4)) return false;
+    // although we waited for actionpackets, it's possible that wait was satisfied by some late actionpacket from a prior test.
+    // wait a bit longer if it's not there already
+    for (int i = 60; i--; )
+    {
+        if (checkOtherClient(c2, false) &&
+            checkOtherClient(c3, false) &&
+            checkOtherClient(c4, false))
+            return true;
+        WaitMillisec(1000);
+    }
+
+    if (!checkOtherClient(c2, true)) return false;
+    if (!checkOtherClient(c3, true)) return false;
+    if (!checkOtherClient(c4, true)) return false;
     return true;
 }
 
-void StandardClient::cleanupForTestReuse()
+void StandardClient::cleanupForTestReuse(int loginIndex)
 {
+
+    if (client.nodeByPath("/abort_jenkins_test_run"))
+    {
+        string user = getenv(envVarAccount[loginIndex].c_str());
+        cout << "Detected node /abort_jenkins_test_run in account " << user << ", aborting test run" << endl;
+        out() << "Detected node /abort_jenkins_test_run in account " << user << ", aborting test run";
+        WaitMillisec(100);
+        exit(1);
+    }
+
+    LOG_debug << clientname << "cleaning syncs for client reuse";
     future<bool> p1;
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
 
@@ -3685,7 +3738,7 @@ void StandardClient::cleanupForTestReuse()
             false, true);
 
         pb->set_value(true);
-    });
+    }, __FILE__, __LINE__);
     if (!waitonresults(&p1))
     {
         out() << "removeSelectedSyncs failed";
@@ -3699,7 +3752,7 @@ void StandardClient::cleanupForTestReuse()
     // Nuke any custom exclusion rules.
     client.syncs.mLegacyUpgradeFilterChain.reset();
     client.syncs.mNewSyncFilterChain.reset();
-	
+
     // Make sure any throttles are reset.
     client.setmaxdownloadspeed(0);
     client.setmaxuploadspeed(0);
@@ -3720,6 +3773,51 @@ void StandardClient::cleanupForTestReuse()
     mOnPutnodesBegin = nullptr;
     mOnSyncDebugNotification = nullptr;
 #endif // DEBUG
+
+
+    LOG_debug << clientname << "cleaning transfers for client reuse";
+
+    future<bool> p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
+
+        CancelToken cancelled(true);
+        int direction[] = { PUT, GET };
+        for (int d = 0; d < 2; ++d)
+        {
+            for (auto& it : sc.client.transfers[direction[d]])
+            {
+                for (auto& it2 : it.second->files)
+                {
+                    if (!it2->syncxfer)
+                    {
+                        it2->cancelToken = cancelled;
+                    }
+                }
+            }
+        }
+
+        pb->set_value(true);
+    }, __FILE__, __LINE__);
+    if (!waitonresults(&p2))
+    {
+        out() << "transfer removal failed";
+    }
+
+    for (int i = 30000; i-- && !client.transfers[GET].empty(); ) WaitMillisec(1);
+    for (int i = 30000; i-- && !client.transfers[PUT].empty(); ) WaitMillisec(1);
+    LOG_debug << clientname << "transfers cleaned";
+
+    // wait further for reqs to finish if any are queued
+    for (int i = 30000; i-- && !client.transfers[PUT].empty(); ) WaitMillisec(1);
+    LOG_debug << clientname << "transfers cleaned";
+
+    if (client.reqs.cmdspending())
+    {
+        LOG_debug << clientname << "waiting for requests to finish";
+        for (int i = 120000; i-- && client.reqs.cmdspending(); ) WaitMillisec(1);
+    }
+    LOG_debug << clientname << "requests pending: " << client.reqs.cmdspending();
+
+
 }
 
 bool StandardClient::login_reset_makeremotenodes(const string& prefix, int depth, int fanout, bool noCache)
@@ -3734,7 +3832,7 @@ bool StandardClient::login_reset_makeremotenodes(const string& user, const strin
         out() << "login_reset failed";
         return false;
     }
-    future<bool> p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.makeCloudSubdirs(prefix, depth, fanout, pb); });
+    future<bool> p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.makeCloudSubdirs(prefix, depth, fanout, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p1))
     {
         out() << "makeCloudSubdirs failed";
@@ -3755,7 +3853,7 @@ bool StandardClient::ensureSyncUserAttributes()
         thread_do<bool>([](StandardClient& client, PromiseBoolSP result)
                         {
                             client.ensureSyncUserAttributes(result);
-                        });
+                        }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -3777,7 +3875,7 @@ handle StandardClient::copySyncConfig(const SyncConfig& config)
         thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
                         {
                             client.copySyncConfig(config, result);
-                        });
+                        }, __FILE__, __LINE__);
 
     return result.get();
 }
@@ -3785,9 +3883,9 @@ handle StandardClient::copySyncConfig(const SyncConfig& config)
 bool StandardClient::login(const string& user, const string& pw)
 {
     future<bool> p;
-    p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
+    p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p)) return false;
-    p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
+    p = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); }, __FILE__, __LINE__);
     return waitonresults(&p);
 }
 
@@ -3796,17 +3894,17 @@ bool StandardClient::login_fetchnodes(const string& user, const string& pw, bool
     received_user_alerts = false;
 
     future<bool> p2;
-    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
+    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
-    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
+    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
-    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); });
+    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
 
     received_user_alerts = false;
     EXPECT_TRUE(waitForUserAlertsUpdated(30));
 
-    p2 = thread_do<bool>([makeBaseFolder](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); });
+    p2 = thread_do<bool>([makeBaseFolder](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
     return true;
 }
@@ -3816,22 +3914,22 @@ bool StandardClient::login_fetchnodes(const string& session)
     received_user_alerts = false;
 
     future<bool> p2;
-    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromSession(session, pb); });
+    p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromSession(session, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
-    p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, pb); });
+    p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
 
     received_user_alerts = false;
     EXPECT_TRUE(waitForUserAlertsUpdated(30));
 
-    p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); });
+    p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
     return true;
 }
 
 bool StandardClient::delSync_mainthread(handle backupId)
 {
-    future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId)); });
+    future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId)); }, __FILE__, __LINE__);
     return fb.get();
 }
 
@@ -3839,7 +3937,7 @@ bool StandardClient::confirmModel_mainthread(Model::ModelNode* mnode, handle bac
 {
     return thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
         pb->set_value(sc.confirmModel(backupId, mnode, confirm, ignoreDebris, expectFail, skipIgnoreFile));
-    }).get();
+    }, __FILE__, __LINE__).get();
 }
 
 bool StandardClient::match(handle id, const Model::ModelNode* source)
@@ -3848,7 +3946,7 @@ bool StandardClient::match(handle id, const Model::ModelNode* source)
 
     auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
         client.match(id, source, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
 
@@ -3880,7 +3978,7 @@ bool StandardClient::match(NodeHandle handle, const Model::ModelNode* source)
 {
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
         client.match(handle, source, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -4102,7 +4200,7 @@ handle StandardClient::getNodeHandle(const CloudItem& item)
 {
     auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
         client.getNodeHandle(item, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -4188,7 +4286,7 @@ bool StandardClient::ipcr(handle id, ipcactions_t action)
 {
     auto result = thread_do<bool>([=](StandardClient& client, PromiseBoolSP result) {
         client.ipcr(id, action, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -4206,7 +4304,7 @@ bool StandardClient::ipcr(handle id)
         auto j = client.client.pcrindex.end();
 
         result->set_value(i != j && !i->second->isoutgoing);
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -4235,7 +4333,7 @@ handle StandardClient::opcr(const string& email, opcactions_t action)
 {
     auto result = thread_do<handle>([&](StandardClient& client, PromiseHandleSP result) {
         client.opcr(email, action, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -4256,7 +4354,7 @@ bool StandardClient::opcr(const string& email)
         }
 
         result->set_value(false);
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -4277,7 +4375,7 @@ bool StandardClient::iscontact(const string& email)
         }
 
         result->set_value(false);
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -4299,7 +4397,7 @@ bool StandardClient::rmcontact(const string& email)
 {
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
         client.rmcontact(email, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -4333,7 +4431,7 @@ bool StandardClient::share(const CloudItem& item, const string& email, accesslev
 {
     auto result = thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
         client.share(item, email, permissions, std::move(result));
-    });
+    }, __FILE__, __LINE__);
 
     auto status = result.wait_for(DEFAULTWAIT);
     EXPECT_NE(status, future_status::timeout);
@@ -4383,7 +4481,7 @@ SyncWaitPredicate SyncRemoteMatch(const CloudItem& item, const Model::ModelNode*
             if (auto* node = item.resolve(client))
                 return client.match(node->nodeHandle(), source, std::move(result));
             result->set_value(false);
-        }).get();
+        }, __FILE__, __LINE__).get();
     };
 }
 
@@ -4397,7 +4495,7 @@ SyncWaitPredicate SyncRemoteNodePresent(const CloudItem& item)
     return [item](StandardClient& client) {
         return client.thread_do<bool>([&](StandardClient& client, PromiseBoolSP result) {
             result->set_value(item.resolve(client));
-        }).get();
+        }, __FILE__, __LINE__).get();
     };
 }
 
@@ -4474,7 +4572,7 @@ vector<SyncWaitResult> waitonsyncs(std::function<bool(int64_t millisecNoActivity
                     }
 
                     pb->set_value(true);
-                }).get();
+                }, __FILE__, __LINE__).get();
         }
 
         if (!any_running_at_all)
@@ -5299,7 +5397,7 @@ TEST_F(SyncTest, BasicSync_MassNotifyFromLocalFolderTree)
             remaining += sc.client.syncs.syncscanstate ? 1 : 0;
 
             p->set_value(true);
-        });
+        }, __FILE__, __LINE__);
         result0.get();
         if (!remaining) break;
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -5725,7 +5823,7 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     pclientA1->localLogout();
 
     out() << "*********************  add remote folders via A2";
-    future<bool> p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.makeCloudSubdirs("newremote", 2, 2, pb, "f/f_1/f_1_0"); });
+    future<bool> p1 = clientA2.thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.makeCloudSubdirs("newremote", 2, 2, pb, "f/f_1/f_1_0"); }, __FILE__, __LINE__);
     model1.findnode("f/f_1/f_1_0")->addkid(model1.buildModelSubdirs("newremote", 2, 2, 0));
     model2.findnode("f/f_1/f_1_0")->addkid(model2.buildModelSubdirs("newremote", 2, 2, 0));
     ASSERT_TRUE(waitonresults(&p1));
@@ -5917,7 +6015,7 @@ TEST_F(SyncTest, CmdChecks_RRAttributeAfterMoveNode)
 
     // make sure there are no 'f' in the rubbish
     auto fv = pclientA1->drillchildnodesbyname(pclientA1->getcloudrubbishnode(), "f");
-    future<bool> fb = pclientA1->thread_do<bool>([&fv](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremotenodes(fv, pb); });
+    future<bool> fb = pclientA1->thread_do<bool>([&fv](StandardClient& sc, PromiseBoolSP pb) { sc.deleteremotenodes(fv, pb); }, __FILE__, __LINE__);
     ASSERT_TRUE(waitonresults(&fb));
 
     f = pclientA1->drillchildnodebyname(pclientA1->getcloudrubbishnode(), "f");
@@ -5928,7 +6026,7 @@ TEST_F(SyncTest, CmdChecks_RRAttributeAfterMoveNode)
     future<bool> p1 = pclientA1->thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb)
         {
             sc.movenodetotrash("f", pb);
-        });
+        }, __FILE__, __LINE__);
     ASSERT_TRUE(waitonresults(&p1));
 
     WaitMillisec(3000);  // allow for attribute delivery too
@@ -6183,7 +6281,7 @@ TEST_F(SyncTest, DISABLED_ExerciseCommands)
     // disallow or shortcut.
 
     // make sure it's a brand new folder
-    future<bool> p1 = standardclient.thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.makeCloudSubdirs("testlinkfolder_brandnew3", 1, 1, pb); });
+    future<bool> p1 = standardclient.thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.makeCloudSubdirs("testlinkfolder_brandnew3", 1, 1, pb); }, __FILE__, __LINE__);
     ASSERT_TRUE(waitonresults(&p1));
 
     assert(standardclient.lastPutnodesResultFirstHandle != UNDEF);
@@ -7095,7 +7193,7 @@ TEST_F(SyncTest, RemotesWithControlCharactersSynchronizeCorrectly)
     // Populate cloud.
     {
         // Log in client and clear remote contents.
-        
+
         auto* node = cu->drillchildnodebyname(cu->gettestbasenode(), "x");
         ASSERT_TRUE(!!node);
 
@@ -11606,21 +11704,21 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
         model.movenode("t", "w");
 
         ASSERT_TRUE(client2.movenode(xt->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(30));
+        ASSERT_TRUE(client1.waitForNodesUpdated(50));
 
         client1.received_node_actionpackets = false;
 
         model.movenode("u", "w");
 
         ASSERT_TRUE(client2.movenode(xu->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(30));
+        ASSERT_TRUE(client1.waitForNodesUpdated(50));
 
         client1.received_node_actionpackets = false;
 
         model.movenode("v", "w");
 
         ASSERT_TRUE(client2.movenode(xv->nodehandle, xw->nodehandle));
-        ASSERT_TRUE(client1.waitForNodesUpdated(30));
+        ASSERT_TRUE(client1.waitForNodesUpdated(50));
     }
 
     // Wait for client 1 to stall (due to undecryptable nodes.)
@@ -16914,8 +17012,8 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
     // Log in client.
     ASSERT_TRUE(c->resetBaseFolderMulticlient());
     ASSERT_TRUE(c->makeCloudSubdirs("s", 0, 0));
-    ASSERT_TRUE(CatchupClients(c)); 
-    
+    ASSERT_TRUE(CatchupClients(c));
+
     // Populate local tree.
     Model local;
 

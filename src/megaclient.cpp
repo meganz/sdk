@@ -4601,6 +4601,9 @@ void MegaClient::finalizesc(bool complete)
 // queue node file attribute for retrieval or cancel retrieval
 error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey, fatype t, int cancel)
 {
+    assert((cancel && nodekey.empty()) ||
+          (!cancel && !nodekey.empty()));
+
     // locate this file attribute type in the nodes's attribute string
     handle fah;
     int p, pp;
