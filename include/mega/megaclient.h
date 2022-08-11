@@ -276,6 +276,9 @@ public:
 
     // Return a first level child node whose name matches with 'name'
     // Valid values for nodeType: FILENODE, FOLDERNODE, TYPE_UNKNOWN (when unknown, it returns both files and folders)
+    // Check first nodes that are loaded in RAM, if there are children not loaded in RAM, then check at DB
+    // In case of call this method several times over same folder, to improve the performance, getChildren
+    // should be called before the first call to this method
     Node* getNodeByNameFirstLevel(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
 
     // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE (In case of logged into folder link returns only ROOTNODE)
@@ -356,7 +359,7 @@ public:
     uint64_t getNumberNodesInRam() const;
 
     // Add new relationship between parent and child
-    void addChild(NodeHandle parent, NodeHandle child);
+    void addChild(NodeHandle parent, NodeHandle child, Node *node);
     // remove relationship between parent and child
     void removeChild(NodeHandle parent, NodeHandle child);
 
@@ -430,7 +433,7 @@ private:
     Node* getNodeFromNodeSerialized(const NodeSerialized& nodeSerialized);
 
     // returns the counter for the specified node, calculating it recursively and accessing to DB if it's neccesary
-    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType);
+    NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node);
 
     // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
     FingerprintMap mFingerPrints;
@@ -450,7 +453,7 @@ private:
     unique_ptr<Node> mNodeToWriteInDb;
 
     // store relationship between nodes and their children (nodes without children are not in the map)
-    std::map<NodeHandle, std::set<NodeHandle>> mNodeChildren;
+    std::map<NodeHandle, nodePtr_map> mNodeChildren;
 };
 
 class MEGA_API MegaClient

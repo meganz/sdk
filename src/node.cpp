@@ -841,7 +841,7 @@ bool Node::setparent(Node* p, bool updateNodeCounters)
     parent = p;
     if (parent)
     {
-        client->mNodeManager.addChild(parent->nodeHandle(), nodeHandle());
+        client->mNodeManager.addChild(parent->nodeHandle(), nodeHandle(), this);
     }
 
     if (updateNodeCounters)

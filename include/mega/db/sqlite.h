@@ -80,7 +80,7 @@ public:
     bool put(Node* node) override;
     bool remove(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
-    bool loadFingerprintsAndChildren(std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, std::set<NodeHandle>>& children) override;
+    bool loadFingerprintsAndChildren(std::map<FileFingerprint, nodePtr_map, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, nodePtr_map>& children) override;
 
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
 

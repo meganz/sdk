@@ -1140,6 +1140,8 @@ public:
     }
 };
 
+typedef std::map<NodeHandle, Node*> nodePtr_map;
+
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \

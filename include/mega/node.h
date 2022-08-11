@@ -114,7 +114,7 @@ struct NodeCounter
     NodeCounter() = default;
 };
 
-typedef std::map<FileFingerprint, std::map<NodeHandle, Node*>, FileFingerprintCmp> FingerprintMap;
+typedef std::map<FileFingerprint, nodePtr_map, FileFingerprintCmp> FingerprintMap;
 typedef FingerprintMap::iterator FingerprintMapPosition;
 
 // filesystem node

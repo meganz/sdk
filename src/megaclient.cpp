@@ -1015,6 +1015,9 @@ void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
+// To improve performance, if this method is called several times over same folder
+// getChildren should be call before the first call to this method,
+// watch NodeManager::getNodeByNameFirstLevel
 Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfolders)
 {
     string nname = name;
@@ -1043,6 +1046,9 @@ Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfold
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
+// To improve performance, if this method is called several times over same folder
+// getChildren should be call before the first call to this method,
+// watch NodeManager::getNodeByNameFirstLevel
 Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t mustBeType)
 {
     string nname = name;
@@ -16985,7 +16991,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
         mNodeToWriteInDb.reset(node);
 
         // when keepNodeInMemory is true, NodeManager::addChild is called by Node::setParent (from NodeManager::saveNodeInRAM)
-        addChild(node->parentHandle(), node->nodeHandle());
+        addChild(node->parentHandle(), node->nodeHandle(), nullptr);
     }
 
     return true;
@@ -17032,13 +17038,21 @@ node_list NodeManager::getChildren(const Node *parent)
     auto it = mNodeChildren.find(parent->nodeHandle());
     if (it != mNodeChildren.end())
     {
-        std::set<NodeHandle>& children = it->second;
-        for (const auto &childHandle : children)
+        for (const auto &child : it->second)
         {
-            Node* n = getNodeByHandle(childHandle);
-            if (n)
+            if (child.second)
             {
-                childrenList.push_back(n);
+                childrenList.push_back(child.second);
+            }
+            else
+            {
+                assert(!getNodeInRAM(child.first));
+                Node* n = getNodeFromDataBase(child.first);
+                assert(n);
+                if (n)
+                {
+                    childrenList.push_back(n);
+                }
             }
         }
     }
@@ -17199,19 +17213,36 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
         return nullptr;
     }
 
-    std::pair<NodeHandle, NodeSerialized> nodeSerialized;
-    if (!mTable->getNodeByNameAtFirstLevel(parentHandle, name, nodeType, nodeSerialized))
+    auto it = mNodeChildren.find(parentHandle);
+    if (it == mNodeChildren.end())
     {
         return nullptr;
     }
 
-    Node* n = getNodeInRAM(nodeSerialized.first);
-    if (!n) // not loaded yet
+    bool allChildrenLoaded = true;
+    for (const auto& itHandleNode : it->second)
     {
-        n = getNodeFromNodeSerialized(nodeSerialized.second);
+        Node* node = itHandleNode.second;
+        if (!node)
+        {
+            allChildrenLoaded = false;
+            continue;
+        }
+
+        if (node->type == nodeType && name == node->displayname())
+        {
+            return node;
+        }
     }
 
-    return n;
+    std::pair<NodeHandle, NodeSerialized> nodeSerialized;
+    if (allChildrenLoaded || !mTable->getNodeByNameAtFirstLevel(parentHandle, name, nodeType, nodeSerialized))
+    {
+        return nullptr;
+    }
+
+    assert(!getNodeInRAM(nodeSerialized.first));  // not loaded yet
+    return getNodeFromNodeSerialized(nodeSerialized.second);
 }
 
 node_vector NodeManager::getRootNodes()
@@ -17366,7 +17397,7 @@ void NodeManager::updateTreeCounter(Node *origin, NodeCounter nc, OperationType 
     }
 }
 
-NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType)
+NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, nodetype_t parentType, Node* node)
 {
     NodeCounter nc;
     if (!mTable)
@@ -17375,7 +17406,6 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
         return nc;
     }
 
-    Node* node = getNodeInRAM(nodehandle);
     m_off_t nodeSize = 0u;
     nodetype_t nodeType = TYPE_UNKNOWN;
     if (node)
@@ -17392,16 +17422,16 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
         }
     }
 
-    std::set<NodeHandle> children;
+    nodePtr_map children;
     auto it = mNodeChildren.find(nodehandle);
     if (it != mNodeChildren.end())
     {
         children = it->second;
     }
 
-    for (const NodeHandle &h : children)
+    for (const auto &itNode : children)
     {
-        nc += calculateNodeCounter(h, nodeType);
+        nc += calculateNodeCounter(itNode.first, nodeType, itNode.second);
     }
 
     if (nodeType == FILENODE)
@@ -18084,7 +18114,7 @@ void NodeManager::initializeCounters()
     node_vector rootNodes = getRootNodesAndInshares();
     for (Node* node : rootNodes)
     {
-        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN);
+        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node);
     }
 }
 
@@ -18151,7 +18181,7 @@ mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
         else
         {
             std::pair<NodeHandle, Node*> pair = std::make_pair(node->nodeHandle(), n);
-            return mFingerPrints.emplace(*node, std::map<NodeHandle, Node*>{pair}).first;
+            return mFingerPrints.emplace(*node, nodePtr_map{pair}).first;
         }
     }
 
@@ -18221,9 +18251,9 @@ uint64_t NodeManager::getNumberNodesInRam() const
     return mNodes.size();
 }
 
-void NodeManager::addChild(NodeHandle parent, NodeHandle child)
+void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)
 {
-    mNodeChildren[parent].insert(child);
+    mNodeChildren[parent][child] = node;
 }
 
 void NodeManager::removeChild(NodeHandle parent, NodeHandle child)
