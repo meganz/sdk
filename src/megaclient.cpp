@@ -8117,7 +8117,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
 {
     if (mBizStatus <= BIZ_STATUS_INACTIVE)
     {
-        return API_EACCESS;
+        return API_EBUSINESSPASTDUE;
     }
 
     error e;
@@ -8241,7 +8241,12 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
-    if (mBizStatus <= BIZ_STATUS_INACTIVE || (!n->inshare && !checkaccess(n, FULL)))
+    if (mBizStatus <= BIZ_STATUS_INACTIVE)
+    {
+        return API_EBUSINESSPASTDUE;
+    }
+
+    if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
     }
