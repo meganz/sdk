@@ -356,7 +356,7 @@ protected:
      * This happens on the worker thread.
      */
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
-    scanFolder_result scanFolder(Tree& tree, LocalPath& localPath);
+    scanFolder_result scanFolder(Tree& tree, LocalPath& localPath, uint32_t& foldercount, uint32_t& filecount);
 
     // Gathers up enough (but not too many) newnode records that are all descendants of a single folder
     // and can be created in a single operation.
@@ -2959,6 +2959,7 @@ class MegaApiImpl : public MegaApp
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
+        void fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, uint32_t foldercount, uint32_t filecount, const LocalPath& currentFolder, const LocalPath* currentFileLeafname);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
 

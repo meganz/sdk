@@ -16395,6 +16395,23 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
     activeTransfer = NULL;
 }
 
+void MegaApiImpl::fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, uint32_t foldercount, uint32_t filecount, const LocalPath& currentFolder, const LocalPath* currentFileLeafname)
+{
+    // this occurs on scanning thread only
+    assert(threadId != std::this_thread::get_id());
+
+    notificationNumber++;
+    transfer->setNotificationNumber(notificationNumber);
+
+    // This one is defined to only be called back on the listener for the transfer
+    // not any of the global or megaapi listeners
+    if (MegaTransferListener* listener = transfer->getListener())
+    {
+        listener->onFolderTransferUpdate(api, transfer, foldercount, filecount, currentFolder.toPath().c_str(),
+                    currentFileLeafname ? currentFileLeafname->toPath().c_str() : nullptr);
+    }
+}
+
 bool MegaApiImpl::fireOnTransferData(MegaTransferPrivate *transfer)
 {
     assert(threadId == std::this_thread::get_id());
@@ -25170,8 +25187,10 @@ void MegaFolderUploadController::start(MegaNode*)
     mWorkerThread = std::thread ([this, path]() {
         // recurse all subfolders on disk, building up tree structure to match
         // not yet existing folders get a temporary upload id instead of a handle
+        uint32_t foldercount = 0;
+        uint32_t filecount = 0;
         LocalPath lp = path;
-        scanFolder_result scanResult = scanFolder(*mUploadTree.subtrees.front(), lp);
+        scanFolder_result scanResult = scanFolder(*mUploadTree.subtrees.front(), lp, foldercount, filecount);
 
         // if the thread runs, we always queue a function to execute on MegaApi thread for onFinish()
         // we keep a pointer to it in case we need to execute it early and directly on cancel()
@@ -25305,7 +25324,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
     //we shouldn't need to detach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
-MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
+MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath, uint32_t& foldercount, uint32_t& filecount)
 {
     recursive++;
     unique_ptr<DirAccess> da(fsaccess->newdiraccess());
@@ -25315,6 +25334,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
         recursive--;
         return scanFolder_failed;
     }
+
+    megaApi->fireOnFolderTransferUpdate(transfer, foldercount, filecount, localPath, nullptr);
 
     LocalPath localname;
     nodetype_t dirEntryType;
@@ -25332,6 +25353,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             return scanFolder_cancelled;
         }
 
+        megaApi->fireOnFolderTransferUpdate(transfer, foldercount, filecount, localPath, &localname);
+
         ScopedLengthRestore restoreLen(localPath);
         localPath.appendWithSeparator(localname, false);
         if (dirEntryType == FILENODE)
@@ -25346,6 +25369,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
 
             // if we couldn't get the fingerprint, !isvalid and we'll fail the transfer
             tree.files.emplace_back(localPath, fp);
+
+            filecount += 1;
         }
         else if (dirEntryType == FOLDERNODE)
         {
@@ -25361,13 +25386,15 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             newTreeNode->newnode.nodehandle = nextUploadId();
             newTreeNode->newnode.parenthandle = tree.newnode.nodehandle;
 
-            scanFolder_result sr = scanFolder(*newTreeNode, localPath);
+            scanFolder_result sr = scanFolder(*newTreeNode, localPath, foldercount, filecount);
             if (sr != scanFolder_succeeded)
             {
                 recursive--;
                 return sr;
             }
             tree.subtrees.push_back(std::move(newTreeNode));
+
+            foldercount += 1;
         }
     }
     recursive--;

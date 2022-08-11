@@ -1606,6 +1606,8 @@ void MegaTransferListener::onTransferFinish(MegaApi*, MegaTransfer *, MegaError*
 { }
 void MegaTransferListener::onTransferUpdate(MegaApi *, MegaTransfer *)
 { }
+void MegaTransferListener::onFolderTransferUpdate(MegaApi *, MegaTransfer *, uint32_t foldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname)
+{ }
 bool MegaTransferListener::onTransferData(MegaApi *, MegaTransfer *, char *, size_t)
 { return true; }
 void MegaTransferListener::onTransferTemporaryError(MegaApi *, MegaTransfer *, MegaError*)

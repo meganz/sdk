@@ -1642,9 +1642,9 @@ public:
     /**
     * @brief Returns the handle of a user related to the alert
     *
-    * This value is valid for user related alerts: 
+    * This value is valid for user related alerts:
     *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
@@ -1674,16 +1674,16 @@ public:
     * this function will return false and the client can request it via the userHandle.
     *
     * The SDK retains the ownership of the returned value. It will be valid until
-    * the MegaUserAlert object is deleted.    
-    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU, 
+    * the MegaUserAlert object is deleted.
+    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU,
     *   TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_DELETEDYOU,
     *   TYPE_DELETEDSHARE,
     *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *   TYPE_NEWSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
     *   TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *   TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
-    * 
+    *
     * @return email string of the relevant user, or NULL if not available
     */
     virtual const char* getEmail() const;
@@ -1696,7 +1696,7 @@ public:
     *
     * This value is valid for those alerts that relate to a single path, provided
     * it could be looked up from the cached nodes at the time the alert arrived.
-    * Otherwise, it may be obtainable via the nodeHandle. 
+    * Otherwise, it may be obtainable via the nodeHandle.
     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
     *
     * @return the path string if relevant and available, otherwise NULL
@@ -1711,7 +1711,7 @@ public:
      *
      * This value is valid for those alerts that relate to a single name, provided
      * it could be looked up from the cached nodes at the time the alert arrived.
-     * Otherwise, it may be obtainable via the nodeHandle. 
+     * Otherwise, it may be obtainable via the nodeHandle.
      *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
      *
      * @return the name string if relevant and available, otherwise NULL
@@ -1752,7 +1752,7 @@ public:
     *                        value 0 if someone left the folder)
     *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
     *   TYPE_REMOVEDSHAREDNODES (0: item count)
-    * 
+    *
     * @return Number related to this request, or -1 if the index is invalid
     */
     virtual int64_t getNumber(unsigned index) const;
@@ -6479,6 +6479,32 @@ class MegaTransferListener
          * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
          */
         virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+
+        /**
+         * @brief This function is called to inform about the progress of a folder transfer
+         *
+         * The SDK retains the ownership of all parameters.
+         * Don't use any after this functions returns.
+         *
+         * The api object is the one created by the application, it will be valid until
+         * the application deletes it.
+         *
+         * This callback is only made for folder transfers, and only to the listener for that
+         * transfer, not for any globally registered listeners.  The callback is only made
+         * during the scanning phase.
+         *
+         * This function can be used to give feedback to the user as to how scanning is progressing,
+         * since scanning may take a while and the appliation may be showing a modal dialog during
+         * this time.
+         *
+         * @param api MegaApi object that started the transfer
+         * @param transfer Information about the transfer
+         * @param foldercount The count of folders scanned so far
+         * @param filecount The count of files scanned (and fingerprinted) so far
+         * @param currentFolder The path of the folder currently being scanned
+         * @param currentFileLeafname The leaft name o fthe file currently being fingrprinted (can be NULL for the first call in a new folder)
+         */
+        virtual void onFolderTransferUpdate(MegaApi *api, MegaTransfer *transfer, uint32_t foldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname);
 
         /**
          * @brief This function is called when there is a temporary error processing a transfer
