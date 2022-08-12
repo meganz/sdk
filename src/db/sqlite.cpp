@@ -578,6 +578,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtUpdateNode);
     sqlite3_finalize(mStmtTypeAndSizeNode);
     sqlite3_finalize(mStmtGetNode);
+    sqlite3_finalize(mStmtChildNode);
 }
 
 int SqliteAccountState::progressHandler(void *param)
@@ -723,6 +724,9 @@ void SqliteAccountState::remove()
 
     sqlite3_finalize(mStmtGetNode);
     mStmtGetNode = nullptr;
+
+    sqlite3_finalize(mStmtChildNode);
+    mStmtChildNode = nullptr;
 
     SqliteDbTable::remove();
 }
@@ -1086,23 +1090,27 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
     sqlQuery.append(" AND type = ?");
     sqlQuery.append(" limit 1");
 
-    sqlite3_stmt *stmt = nullptr;
-    int sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    int sqlResult = SQLITE_OK;
+    if (!mStmtChildNode)
+    {
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtChildNode, NULL);
+    }
+
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtChildNode, 1, parentHandle.as8byte())) == SQLITE_OK)
         {
-            if ((sqlResult = sqlite3_bind_int64(stmt, 2, nodeType)) == SQLITE_OK)
+            if ((sqlResult = sqlite3_bind_int64(mStmtChildNode, 2, nodeType)) == SQLITE_OK)
             {
-                if((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+                if((sqlResult = sqlite3_step(mStmtChildNode)) == SQLITE_ROW)
                 {
-                    node.first.set6byte(sqlite3_column_int64(stmt, 0));
+                    node.first.set6byte(sqlite3_column_int64(mStmtChildNode, 0));
 
-                    const void* dataNodeCounter = sqlite3_column_blob(stmt, 1);
-                    int sizeNodeCounter = sqlite3_column_bytes(stmt, 1);
+                    const void* dataNodeCounter = sqlite3_column_blob(mStmtChildNode, 1);
+                    int sizeNodeCounter = sqlite3_column_bytes(mStmtChildNode, 1);
 
-                    const void* dataNodeSerialized = sqlite3_column_blob(stmt, 2);
-                    int sizeNodeSerialized = sqlite3_column_bytes(stmt, 2);
+                    const void* dataNodeSerialized = sqlite3_column_blob(mStmtChildNode, 2);
+                    int sizeNodeSerialized = sqlite3_column_bytes(mStmtChildNode, 2);
 
                     if (dataNodeCounter && sizeNodeCounter && dataNodeSerialized && sizeNodeSerialized)
                     {
@@ -1122,7 +1130,7 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
         assert(!"Unable to get node by name from database (Only search at first level).");
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(mStmtChildNode);
 
     return success;
 }
