@@ -578,6 +578,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtUpdateNode);
     sqlite3_finalize(mStmtTypeAndSizeNode);
     sqlite3_finalize(mStmtGetNode);
+    sqlite3_finalize(mStmtNodeByName);
     sqlite3_finalize(mStmtChildNode);
     sqlite3_finalize(mStmtIsAncestor);
     sqlite3_finalize(mStmtNumChild);
@@ -727,6 +728,9 @@ void SqliteAccountState::remove()
 
     sqlite3_finalize(mStmtGetNode);
     mStmtGetNode = nullptr;
+
+    sqlite3_finalize(mStmtNodeByName);
+    mStmtNodeByName = nullptr;
 
     sqlite3_finalize(mStmtChildNode);
     mStmtChildNode = nullptr;
@@ -980,12 +984,16 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
         sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
     }
 
-    sqlite3_stmt *stmt = nullptr;
+    int sqlResult = SQLITE_OK;
+    if (!mStmtNodeByName)
+    {
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByName, NULL);
+    }
+
     bool result = false;
-    int sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        result = processSqlQueryNodes(stmt, nodes);
+        result = processSqlQueryNodes(mStmtNodeByName, nodes);
     }
 
     // unregister the handler (no-op if not registered)
@@ -998,7 +1006,7 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
         assert(!"Unable to get nodes by name from database.");
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(mStmtNodeByName);
 
     return result;
 }

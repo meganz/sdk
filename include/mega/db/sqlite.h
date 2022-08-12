@@ -100,6 +100,7 @@ private:
     sqlite3_stmt* mStmtUpdateNode = nullptr;
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
+    sqlite3_stmt* mStmtNodeByName = nullptr;
     sqlite3_stmt* mStmtChildNode = nullptr;
     sqlite3_stmt* mStmtIsAncestor = nullptr;
     sqlite3_stmt* mStmtNumChild = nullptr;
