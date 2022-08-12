@@ -22291,8 +22291,12 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            ChatOptions chatOptions(static_cast<ChatOptions_t>(chat->chatOptions));
+            if (!chat->group
+                    || chat->priv < PRIV_STANDARD
+                    || (chat->priv != PRIV_MODERATOR && !chatOptions.openInvite()))
             {
+                // only allowed moderators or participants with standard permissions just if openInvite is enabled
                 e = API_EACCESS;
                 break;
             }
