@@ -6477,8 +6477,6 @@ TEST_F(SyncTest, BasicSync_CreateRenameAndDeleteLink)
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 }
 
-#ifndef WIN32
-
 // what is supposed to happen for this one?  It seems that the `linked` symlink is no longer ignored on windows?  client2 is affected!
 
 TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
@@ -6489,7 +6487,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     auto clientA1 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     auto clientA2 = g_clientManager->getCleanStandardClient(0, localtestroot); // user 1 client 2
     ASSERT_TRUE(clientA1->resetBaseFolderMulticlient(clientA2));
-    ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 1, 1));
+    ASSERT_TRUE(clientA1->makeCloudSubdirs("f", 1, 2));
     ASSERT_TRUE(CatchupClients(clientA1, clientA2));
 
     ASSERT_EQ(clientA1->basefolderhandle, clientA2->basefolderhandle);
@@ -6518,10 +6516,10 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
     clientA1->triggerPeriodicScanEarly(backupId1);
 
     // let them catch up
-    waitonsyncs(DEFAULTWAIT, clientA1, clientA2);
+    waitonsyncs(std::chrono::seconds(4), clientA1, clientA2);
 
     // Wait for the engine to detect a stall.
-    ASSERT_TRUE(clientA1->waitFor(SyncStallState(true), DEFAULTWAIT));
+    ASSERT_TRUE(clientA1->waitFor(SyncStallState(true), std::chrono::seconds(4)));
 
     // Make sure the client stalled for the reason we think.
     {
@@ -6579,7 +6577,6 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkLocally)
 
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 }
-
 
 TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
 {
@@ -6653,8 +6650,6 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
     // Check A1 has downloaded A2's upload.
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
 }
-#endif
-
 #endif
 
 TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
@@ -18485,7 +18480,7 @@ public:
     handle id;
 }; // ContradictoryMoveFixture
 
-TEST_F(ContradictoryMoveFixture, MoveLocally)
+TEST_F(ContradictoryMoveFixture, DISABLED_MoveLocally)
 {
     {
         ScopedSyncPauser pauser(*c, id);
@@ -18526,7 +18521,7 @@ TEST_F(ContradictoryMoveFixture, MoveLocally)
                                            false));
 }
 
-TEST_F(ContradictoryMoveFixture, MoveRemotely)
+TEST_F(ContradictoryMoveFixture, DISABLED_MoveRemotely)
 {
     {
         ScopedSyncPauser pauser(*c, id);
@@ -18563,7 +18558,7 @@ TEST_F(ContradictoryMoveFixture, MoveRemotely)
                                            false));
 }
 
-TEST_F(ContradictoryMoveFixture, ResolveLocally)
+TEST_F(ContradictoryMoveFixture, DISABLED_ResolveLocally)
 {
     // Manually make the disk look like the cloud.
     {
@@ -18602,7 +18597,7 @@ TEST_F(ContradictoryMoveFixture, ResolveLocally)
     EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(), id));
 }
 
-TEST_F(ContradictoryMoveFixture, ResolveRemotely)
+TEST_F(ContradictoryMoveFixture, DISABLED_ResolveRemotely)
 {
     // Manually make the cloud look like the disk.
     {
