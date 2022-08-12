@@ -102,6 +102,7 @@ private:
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
     sqlite3_stmt* mStmtChildNode = nullptr;
+    sqlite3_stmt* mStmtIsAncestor = nullptr;
 
     // how many SQLite instructions will be executed between callbacks to the progress handler
     // (tests with a value of 1000 results on a callback every 1.2ms on a desktop PC)

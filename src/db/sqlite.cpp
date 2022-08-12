@@ -579,6 +579,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtTypeAndSizeNode);
     sqlite3_finalize(mStmtGetNode);
     sqlite3_finalize(mStmtChildNode);
+    sqlite3_finalize(mStmtIsAncestor);
 }
 
 int SqliteAccountState::progressHandler(void *param)
@@ -727,6 +728,9 @@ void SqliteAccountState::remove()
 
     sqlite3_finalize(mStmtChildNode);
     mStmtChildNode = nullptr;
+
+    sqlite3_finalize(mStmtIsAncestor);
+    mStmtIsAncestor = nullptr;
 
     SqliteDbTable::remove();
 }
@@ -1191,15 +1195,19 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor, Cancel
         sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
     }
 
-    sqlite3_stmt *stmt = nullptr;
-    int sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    int sqlResult = SQLITE_OK;
+    if (!mStmtIsAncestor)
+    {
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtIsAncestor, NULL);
+    }
+
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtIsAncestor, 1, node.as8byte())) == SQLITE_OK)
         {
-            if ((sqlResult = sqlite3_bind_int64(stmt, 2, ancestor.as8byte())) == SQLITE_OK)
+            if ((sqlResult = sqlite3_bind_int64(mStmtIsAncestor, 2, ancestor.as8byte())) == SQLITE_OK)
             {
-                if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+                if ((sqlResult = sqlite3_step(mStmtIsAncestor)) == SQLITE_ROW)
                 {
                     result = true;
                 }
@@ -1223,7 +1231,7 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor, Cancel
         }
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(mStmtIsAncestor);
 
     return result;
 }
