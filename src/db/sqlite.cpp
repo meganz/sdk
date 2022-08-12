@@ -580,6 +580,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtGetNode);
     sqlite3_finalize(mStmtChildNode);
     sqlite3_finalize(mStmtIsAncestor);
+    sqlite3_finalize(mStmtNumChild);
 }
 
 int SqliteAccountState::progressHandler(void *param)
@@ -731,6 +732,9 @@ void SqliteAccountState::remove()
 
     sqlite3_finalize(mStmtIsAncestor);
     mStmtIsAncestor = nullptr;
+
+    sqlite3_finalize(mStmtNumChild);
+    mStmtNumChild = nullptr;
 
     SqliteDbTable::remove();
 }
@@ -1274,17 +1278,21 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
         return count;
     }
 
-    sqlite3_stmt *stmt = nullptr;
-    int sqlResult = sqlite3_prepare_v2(db, "SELECT count(*) FROM nodes where parenthandle = ? AND type = ?", -1, &stmt, NULL);
+    int sqlResult = SQLITE_OK;
+    if (!mStmtNumChild)
+    {
+        sqlResult = sqlite3_prepare_v2(db, "SELECT count(*) FROM nodes where parenthandle = ? AND type = ?", -1, &mStmtNumChild, NULL);
+    }
+
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, parentHandle.as8byte())) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_int64(mStmtNumChild, 1, parentHandle.as8byte())) == SQLITE_OK)
         {
-            if ((sqlResult = sqlite3_bind_int(stmt, 2, nodeType)) == SQLITE_OK)
+            if ((sqlResult = sqlite3_bind_int(mStmtNumChild, 2, nodeType)) == SQLITE_OK)
             {
-                if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
+                if ((sqlResult = sqlite3_step(mStmtNumChild)) == SQLITE_ROW)
                 {
-                    count = sqlite3_column_int64(stmt, 0);
+                    count = sqlite3_column_int64(mStmtNumChild, 0);
                 }
             }
         }
@@ -1297,7 +1305,7 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
         assert(!"Unable to get number of children of type from database.");
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(mStmtNumChild);
 
     return count;
 }
