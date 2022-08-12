@@ -581,6 +581,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtChildNode);
     sqlite3_finalize(mStmtIsAncestor);
     sqlite3_finalize(mStmtNumChild);
+    sqlite3_finalize(mStmtRecents);
 }
 
 int SqliteAccountState::progressHandler(void *param)
@@ -735,6 +736,9 @@ void SqliteAccountState::remove()
 
     sqlite3_finalize(mStmtNumChild);
     mStmtNumChild = nullptr;
+
+    sqlite3_finalize(mStmtRecents);
+    mStmtRecents = nullptr;
 
     SqliteDbTable::remove();
 }
@@ -1024,16 +1028,19 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
         sqlQuery += " LIMIT " + std::to_string(maxcount);
     }
 
-    sqlite3_stmt *stmt = nullptr;
+    int sqlResult = SQLITE_OK;
+    if (!mStmtRecents)
+    {
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtRecents, NULL);
+    }
 
     bool stepResult = false;
-    int sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
-        sqlResult = sqlite3_bind_int64(stmt, 1, since);
+        sqlResult = sqlite3_bind_int64(mStmtRecents, 1, since);
         if (sqlResult == SQLITE_OK)
         {
-            stepResult = processSqlQueryNodes(stmt, nodes);
+            stepResult = processSqlQueryNodes(mStmtRecents, nodes);
         }
     }
 
@@ -1043,7 +1050,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
         LOG_err << "Unable to get recent nodes from database: " << dbfile << err;
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(mStmtRecents);
 
     return stepResult;
 }
