@@ -86,11 +86,6 @@ public:
     {
         return false;
     }
-    bool isNodeInDB(mega::NodeHandle) override
-    {
-        return false;
-        //throw NotImplemented{__func__};
-    }
     bool isAncestor(mega::NodeHandle, mega::NodeHandle, mega::CancelToken) override
     {
         return false;

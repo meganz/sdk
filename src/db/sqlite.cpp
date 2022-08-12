@@ -1236,39 +1236,6 @@ bool SqliteAccountState::isAncestor(NodeHandle node, NodeHandle ancestor, Cancel
     return result;
 }
 
-bool SqliteAccountState::isNodeInDB(NodeHandle node)
-{
-    bool inDb = false;
-    if (!db)
-    {
-        return inDb;
-    }
-
-    sqlite3_stmt *stmt = nullptr;
-    int sqlResult = sqlite3_prepare_v2(db, "SELECT count(*) FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL);
-    if (sqlResult == SQLITE_OK)
-    {
-        if ((sqlResult = sqlite3_bind_int64(stmt, 1, node.as8byte())) == SQLITE_OK)
-        {
-            if ((sqlResult = sqlite3_step(stmt)) == SQLITE_ROW)
-            {
-               inDb = sqlite3_column_int(stmt, 0);
-            }
-        }
-    }
-
-    if (sqlResult != SQLITE_ROW)
-    {
-        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
-        LOG_err << "Unable to get `isNodeInDB` from database: " << dbfile << err;
-        assert(!"Unable to get `isNodeInDB` from database.");
-    }
-
-    sqlite3_finalize(stmt);
-
-    return inDb;
-}
-
 uint64_t SqliteAccountState::getNumberOfNodes()
 {
     uint64_t count = 0;

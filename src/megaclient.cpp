@@ -16979,7 +16979,10 @@ bool NodeManager::updateNode(Node *node)
         return false;
     }
 
-    assert(mTable->isNodeInDB(node->nodeHandle()));
+#ifdef DEBUG
+    NodeSerialized nodeSerialized;
+    assert(mTable->getNode(node->nodeHandle(), nodeSerialized));
+#endif
     mTable->put(node);
 
     return true;
