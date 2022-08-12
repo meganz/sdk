@@ -6802,6 +6802,8 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     bool publicchat = false;
     string unifiedkey;
     bool meeting = false;
+
+    // chat options: [-1 (not updated) | 0 (remove) | 1 (add)]
     int waitingRoom = -1;
     int openInvite = -1;
     int speakRequest = -1;
@@ -11121,6 +11123,8 @@ void MegaClient::procmcf(JSON *j)
                         m_time_t ts = -1;
                         bool publicchat = false;
                         bool meeting = false;
+
+                        // chat options: [-1 (not updated) | 0 (remove) | 1 (add)]
                         int waitingRoom = -1;
                         int openInvite = -1;
                         int speakRequest = -1;
