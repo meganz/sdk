@@ -6803,10 +6803,10 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     string unifiedkey;
     bool meeting = false;
 
-    // chat options: [-1 (not updated) | 0 (remove) | 1 (add)]
-    int waitingRoom = -1;
-    int openInvite = -1;
-    int speakRequest = -1;
+    // chat options: [0 (remove) | 1 (add)], if chat option is not included on action packet, that option is disabled
+    int waitingRoom = 0;
+    int openInvite = 0;
+    int speakRequest = 0;
 
     bool done = false;
     while (!done)
@@ -11124,10 +11124,10 @@ void MegaClient::procmcf(JSON *j)
                         bool publicchat = false;
                         bool meeting = false;
 
-                        // chat options: [-1 (not updated) | 0 (remove) | 1 (add)]
-                        int waitingRoom = -1;
-                        int openInvite = -1;
-                        int speakRequest = -1;
+                        // chat options: [0 (remove) | 1 (add)], if chat option is not included on action packet, that option is disabled
+                        int waitingRoom = 0;
+                        int openInvite = 0;
+                        int speakRequest = 0;
 
                         bool readingChat = true;
                         while(readingChat) // read the chat information
