@@ -579,6 +579,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtTypeAndSizeNode);
     sqlite3_finalize(mStmtGetNode);
     sqlite3_finalize(mStmtNodeByName);
+    sqlite3_finalize(mStmtNodeByOrigFp);
     sqlite3_finalize(mStmtChildNode);
     sqlite3_finalize(mStmtIsAncestor);
     sqlite3_finalize(mStmtNumChild);
@@ -732,6 +733,9 @@ void SqliteAccountState::remove()
     sqlite3_finalize(mStmtNodeByName);
     mStmtNodeByName = nullptr;
 
+    sqlite3_finalize(mStmtNodeByOrigFp);
+    mStmtNodeByOrigFp = nullptr;
+
     sqlite3_finalize(mStmtChildNode);
     mStmtChildNode = nullptr;
 
@@ -877,14 +881,18 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
         return false;
     }
 
-    sqlite3_stmt *stmt = nullptr;
-    bool result = false;
-    int sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE origfingerprint = ?", -1, &stmt, NULL);
+    int sqlResult = SQLITE_OK;
+    if (!mStmtNodeByOrigFp)
+    {
+        sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE origfingerprint = ?", -1, &mStmtNodeByOrigFp, NULL);
+    }
+
+    bool result = false;    
     if (sqlResult == SQLITE_OK)
     {
-        if ((sqlResult = sqlite3_bind_blob(stmt, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
+        if ((sqlResult = sqlite3_bind_blob(mStmtNodeByOrigFp, 1, fingerprint.data(), (int)fingerprint.size(), SQLITE_STATIC)) == SQLITE_OK)
         {
-            result = processSqlQueryNodes(stmt, nodes);
+            result = processSqlQueryNodes(mStmtNodeByOrigFp, nodes);
         }
     }
 
@@ -895,7 +903,7 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
         assert(!"Unable to get nodes by origfingerprint from database.");
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(mStmtNodeByOrigFp);
 
     return result;
 }
