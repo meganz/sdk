@@ -16162,11 +16162,6 @@ static bool nodes_ctime_greater(const Node* a, const Node* b)
     return a->ctime > b->ctime;
 }
 
-node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since)
-{
-    return mNodeManager.getRecentNodes(maxcount, since);
-}
-
 
 namespace action_bucket_compare
 {
@@ -16330,7 +16325,7 @@ bool MegaClient::nodeIsDocument(const Node *n) const
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
     recentactions_vector rav;
-    node_vector v = getRecentNodes(maxcount, since);
+    node_vector v = mNodeManager.getRecentNodes(maxcount, since);
 
     for (node_vector::iterator i = v.begin(); i != v.end(); )
     {

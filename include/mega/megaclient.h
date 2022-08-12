@@ -261,7 +261,8 @@ public:
     // read children from DB and load them in memory
     node_list getChildren(const Node *parent);
 
-    // read recent nodes from DB and load them in memory
+    // get up to "maxcount" nodes, not older than "since", ordered by creation time
+    // Note: nodes are read from DB and loaded in memory
     node_vector getRecentNodes(unsigned maxcount, m_time_t since);
 
     // Search nodes containing 'searchString' in its name
@@ -1647,9 +1648,6 @@ public:
 #ifdef ENABLE_SYNC
     Node* nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
-
-    // get up to "maxcount" nodes, not older than "since", ordered by creation time
-    node_vector getRecentNodes(unsigned maxcount, m_time_t since);
 
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
