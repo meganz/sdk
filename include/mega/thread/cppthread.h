@@ -42,6 +42,7 @@ public:
     CppThread();
     virtual void start(void *(*start_routine)(void*), void *parameter);
     virtual void join();
+    virtual bool isCurrentThread();
     virtual ~CppThread();
 
     static unsigned long long currentThreadId();

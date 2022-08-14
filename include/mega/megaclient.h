@@ -223,6 +223,40 @@ struct SyncdownContext
     bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
 
+
+// Class to help with upload of file attributes
+struct UploadWaitingForFileAttributes
+{
+    struct FileAttributeValues {
+        handle fileAttributeHandle = UNDEF;
+        bool valueIsSet = false;
+    };
+
+    mapWithLookupExisting<fatype, FileAttributeValues> pendingfa;
+
+    // The transfer must always be known, so we can check for cancellation
+    Transfer* transfer = nullptr;
+
+    // This flag is set true if its data upload completes, and we removed it from transfers[]
+    // In which case, this is now the "owning" object for the transfer
+    bool uploadCompleted = false;
+};
+
+// Class to help with upload of file attributes
+// One entry for each active upload that has file attribute involvement
+// Should the transfer be cancelled, this data structure is easily cleaned.
+struct FileAttributesPending : public mapWithLookupExisting<UploadHandle, UploadWaitingForFileAttributes>
+{
+    void setFileAttributePending(UploadHandle h, fatype type, Transfer* t, bool alreadyavailable = false)
+    {
+        auto& entry = operator[](h);
+        entry.pendingfa[type].valueIsSet = alreadyavailable;
+        assert(entry.transfer == t || entry.transfer == nullptr);
+        entry.transfer = t;
+    }
+};
+
+
 class MEGA_API MegaClient
 {
 public:
@@ -549,7 +583,7 @@ public:
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
 
     // notify delayed upload completion subsystem about new file attribute
-    void checkfacompletion(UploadHandle, Transfer* = NULL);
+    void checkfacompletion(UploadHandle, Transfer* = NULL, bool uploadCompleted = false);
 
     // attach/update/delete a user attribute
     void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0,
@@ -1238,10 +1272,12 @@ public:
     // have we just completed fetching new nodes?  (ie, caught up on all the historic actionpackets since the fetchnodes)
     bool statecurrent;
 
-    // pending file attribute writes
+    // File Attribute upload system.  These can come from:
+    //  - upload transfers
+    //  - app requests to attach a thumbnail/preview to a node
+    //  - app requests for media upload (which return the fa handle)
+    // initially added to queuedfa, and up to 10 moved to activefa.
     putfa_list queuedfa;
-
-    // current file attributes being sent
     putfa_list activefa;
 
     // API request queue double buffering:
@@ -1313,11 +1349,8 @@ public:
     // mapping of pending contact handles to their structure
     handlepcr_map pcrindex;
 
-    // pending file attributes
-    fa_map pendingfa;
-
-    // upload waiting for file attributes
-    uploadhandletransfer_map faputcompletion;
+    // A record of which file attributes are needed (or now available) per upload transfer
+    FileAttributesPending fileAttributesUploading;
 
     // file attribute fetch channels
     fafc_map fafcs;
@@ -1617,9 +1650,6 @@ public:
 
     // returns if the current pendingcs includes a fetch nodes command
     bool isFetchingNodesPendingCS();
-
-    // upload handle -> node handle map (filled by upload completion)
-    set<pair<UploadHandle, NodeHandle>> uhnh;
 
     // transfer chunk failed
     void setchunkfailed(string*);
