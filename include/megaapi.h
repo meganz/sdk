@@ -17883,9 +17883,9 @@ class MegaApi
          * @brief Enable or disable a option for a chatroom
          *
          * This function allows to enable or disable one of the following chatroom options:
-         * - 0:  OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
-         * - 1:  SpeakRequest: during calls non-operator users must request permission to speak.
-         * - 2:  WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
+         * - 0x01:  SpeakRequest: during calls non-operator users must request permission to speak.
+         * - 0x02:  WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
+         * - 0x04:  OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
          *
          * The associated request type with this request is MegaChatRequest::TYPE_SET_CHAT_OPTIONS
          * Valid data in the MegaChatRequest object received on callbacks:
