@@ -1038,12 +1038,7 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
     std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node, (" + isInRubbish + ") isinrubbish FROM nodes n1 "
         "LEFT JOIN nodes n2 on n2.nodehandle = n1.parenthandle"
         " where n1.type = " + filenode + " AND n1.ctime >= ? AND n2.type != " + filenode + " AND isinrubbish = 0"
-        " ORDER BY n1.ctime DESC";
-
-    if (maxcount)
-    {
-        sqlQuery += " LIMIT " + std::to_string(maxcount);
-    }
+        " ORDER BY n1.ctime DESC LIMIT ?";
 
     int sqlResult = SQLITE_OK;
     if (!mStmtRecents)
@@ -1054,10 +1049,14 @@ bool SqliteAccountState::getRecentNodes(unsigned maxcount, m_time_t since, std::
     bool stepResult = false;
     if (sqlResult == SQLITE_OK)
     {
-        sqlResult = sqlite3_bind_int64(mStmtRecents, 1, since);
-        if (sqlResult == SQLITE_OK)
+        if (sqlResult == sqlite3_bind_int64(mStmtRecents, 1, since))
         {
-            stepResult = processSqlQueryNodes(mStmtRecents, nodes);
+            // LIMIT expression evaluates to a negative value, then there is no upper bound on the number of rows returned
+            int64_t nodeCount = (maxcount > 0) ? static_cast<int64_t>(maxcount) : -1;
+            if (sqlResult == sqlite3_bind_int64(mStmtRecents, 2, nodeCount))
+            {
+                stepResult = processSqlQueryNodes(mStmtRecents, nodes);
+            }
         }
     }
 
