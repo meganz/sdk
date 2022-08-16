@@ -1227,8 +1227,12 @@ bool TextChat::addOrUpdateChatOptions(int speakRequest, int waitingRoom, int ope
         assert(false);
         return false;
     }
-    changed.options = true;
-    chatOptions = currentOptions.value();
+
+    if (chatOptions != currentOptions.value()) // just set as changed if value is different`
+    {
+        chatOptions = currentOptions.value();
+        changed.options = true;
+    }
     return true;
 }
 
