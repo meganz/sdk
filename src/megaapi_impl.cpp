@@ -13205,15 +13205,6 @@ void MegaApiImpl::setchatretentiontime_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::setchatoptions_result(error e)
-{
-    if (requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate *request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_SET_CHAT_OPTIONS)) return;
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
 void MegaApiImpl::chats_updated(textchat_map *chats, int count)
 {
     if (chats)

@@ -6793,7 +6793,7 @@ bool CommandSetChatOptions::procresult(Result r)
         auto it = client->chats.find(mChatid);
         if (it == client->chats.end())
         {
-            client->app->setchatoptions_result(API_EINTERNAL);
+            mCompletion(API_EINTERNAL);
             return true;
         }
 
@@ -6808,7 +6808,7 @@ bool CommandSetChatOptions::procresult(Result r)
         client->notifychat(chat);
     }
 
-    client->app->setchatoptions_result(r.errorOrOK());
+    mCompletion(r.errorOrOK());
     return r.wasErrorOrOK();
 }
 

@@ -3322,7 +3322,6 @@ protected:
         void registerpushnotification_result(error) override;
         void archivechat_result(error) override;
         void setchatretentiontime_result(error) override;
-        void setchatoptions_result(error) override;
 
         void chats_updated(textchat_map *, int) override;
         void richlinkrequest_result(string*, error) override;
