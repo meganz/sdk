@@ -138,6 +138,7 @@ RaidBufferManager::RaidBufferManager()
     : is_raid(false)
     , raidKnown(false)
     , raidLinesPerChunk(16 * 1024)
+    //, minPartsChunk(RaidBufferManager::MIN_DELIVERY_CHUNK)
     , unusedRaidConnection(0)
     , raidpartspos(0)
     , outputfilepos(0)
@@ -189,6 +190,9 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
     startfilepos = resumepos;
     if (is_raid)
     {
+        //minPartsChunk = RaidBufferManager::MIN_DELIVERY_CHUNK / (RAIDPARTS - 1);
+        //minPartsChunk -= minPartsChunk % RAIDSECTOR;
+
         raidpartspos = resumepos / (RAIDPARTS - 1);
         raidpartspos -= raidpartspos % RAIDSECTOR;
         resumewastedbytes = size_t(outputfilepos - raidpartspos * (RAIDPARTS - 1));
@@ -199,10 +203,10 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
         }
 
         // How much buffer space can we use.  Assuming two chunk sets incoming, one outgoing
-        raidLinesPerChunk = unsigned(maxRequestSize / (RAIDPARTS * 3 * RAIDSECTOR));
+        raidLinesPerChunk = unsigned(maxRequestSize / ((RAIDPARTS) * 3 * RAIDSECTOR));
         raidLinesPerChunk -= raidLinesPerChunk % 1024;
-        raidLinesPerChunk = std::min<unsigned>(raidLinesPerChunk, 64 * 1024);
-        raidLinesPerChunk = std::max<unsigned>(raidLinesPerChunk, 8 * 1024);
+        raidLinesPerChunk = std::min<unsigned>(raidLinesPerChunk, 256 * 1024); // max 256K * RAIDSECTOR * 5
+        raidLinesPerChunk = std::max<unsigned>(raidLinesPerChunk, 64 * 1024); // min 64K * RAIDSECTOR * 5
 
         unusedRaidConnection = g_faultyServers.selectWorstServer(tempurls);
     }
@@ -373,7 +377,16 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
             connectionPaused[connectionNum] = false;
         }
 
-        m_off_t npos = std::min<m_off_t>(curpos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead, maxpos);
+        LOG_debug << "DEVEL| raidLinesPerChunk = " << raidLinesPerChunk << ", curpos = " << curpos << ", maxpos = " << maxpos << " (acquirelimitpos = " << acquirelimitpos << ")";
+        m_off_t npos = curpos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead;
+        if ((npos < maxpos) && ((maxpos - npos) < (10*1024*1024))) // Dont leave a chunk smaller than 10MB for the last request
+        {
+            npos = maxpos;
+        }
+        else
+        {
+            npos = std::min<m_off_t>(curpos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead, maxpos);
+        }
         if (unusedRaidConnection == connectionNum && npos > curpos)
         {
             submitBuffer(connectionNum, new RaidBufferManager::FilePiece(curpos, new HttpReq::http_buf_t(NULL, 0, size_t(npos - curpos))));
@@ -434,16 +447,23 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
     assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
 
     size_t partslen = 0x10000000, sumdatalen = 0, xorlen = 0;
+    int minPartLen = -1;
     for (unsigned i = RAIDPARTS; i--; )
     {
         if (raidinputparts[i].empty())
         {
+            LOG_debug << "DEVEL| combineRaidParts -> raidinputparts[ " << i << "].empty() -> partslen = 0 (unusedRaidConnection = " << unusedRaidConnection << ")";
             partslen = 0;
         }
         else
         {
             FilePiece& r = *raidinputparts[i].front();
             assert(r.pos == raidpartspos);  // check all are in sync at the front
+            if (r.buf.datalen() < partslen)
+            {
+                minPartLen = i;
+            }
+            LOG_debug << "DEVEL| combineRaidParts -> raidinputparts[ " << i << "] r.buf.datalen = " << r.buf.datalen() << " (unusedRaidConnection = " << unusedRaidConnection << ")";
             partslen = std::min<size_t>(partslen, r.buf.datalen());
             (i > 0 ? sumdatalen : xorlen) += r.buf.datalen();
         }
@@ -458,11 +478,12 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
 
     assert(!partslen || !processToEnd || sumdatalen - partslen * (RAIDPARTS - 1) <= RAIDLINE);
 
-    if (partslen > 0 || processToEnd)
+    if (partslen > 0 /*minPartsChunk || (minPartLen == unusedRaidConnection) || (transferPos(minPartLen) == transferSize(minPartLen))*/ || processToEnd)
     {
         m_off_t macchunkpos = calcOutputChunkPos(newdatafilepos + partslen * (RAIDPARTS - 1));
 
         size_t buflen = static_cast<size_t>(processToEnd ? sumdatalen : partslen * (RAIDPARTS - 1));
+        LOG_debug << "DEVEL| COMBINING combineRaidParts -> partslen = " << partslen << ", buflen = " << buflen << ", outputfilepos = " << outputfilepos << ", leftoverchunk = " << leftoverchunk.buf.datalen() << " (minPartLen = " << minPartLen << ")";
         FilePiece* outputrec = combineRaidParts(partslen, buflen, outputfilepos, leftoverchunk);  // includes a bit of extra space for non-full sectors if we are at the end of the file
         rollInputBuffers(partslen);
         raidpartspos += partslen;
@@ -518,6 +539,10 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
         {
             delete outputrec;  // this would happen if we got some data to process on all connections, but not enough to reach the next chunk boundary yet (and combined data is in leftoverchunk)
         }
+    }
+    else
+    {
+        LOG_debug << "DEVEL| combineRaidParts -> WILL NOT COMBINE -> partslen = " << partslen  << " (minPartLen = " << minPartLen << ") (transferPos(minPartLen) = " << (minPartLen >= 0 ? transferPos(minPartLen) : -1) << ", transferSize(minPartLen) = " << (minPartLen >= 0 ? transferSize(minPartLen) : -1) << ") unusedRaidConnection = " << unusedRaidConnection;
     }
 }
 
@@ -785,6 +810,27 @@ bool RaidBufferManager::detectSlowestRaidConnection(unsigned thisConnection, uns
     return false;
 }
 
+bool RaidBufferManager::setUnusedRaidConnection(unsigned newUnusedRaidConnection)
+{
+    LOG_debug << "DEVEL| setUnusedRaidConnection -> unusedRaidConnection = " << unusedRaidConnection << ", newUnusedRaidConnection = " << newUnusedRaidConnection;
+    if (isRaid() && newUnusedRaidConnection < RAIDPARTS)
+    {
+        if (unusedRaidConnection < RAIDPARTS) clearOwningFilePieces(raidinputparts[unusedRaidConnection]);
+        clearOwningFilePieces(raidinputparts[newUnusedRaidConnection]);
+        if (unusedRaidConnection < RAIDPARTS) raidrequestpartpos[unusedRaidConnection] = raidpartspos;
+        raidrequestpartpos[newUnusedRaidConnection] = raidpartspos;
+        unusedRaidConnection = newUnusedRaidConnection;
+        LOG_debug << "DEVEL| setUnusedRaidConnection ->  return true";
+        return true;
+    }
+    LOG_debug << "DEVEL| setUnusedRaidConnection ->  return false";
+    return false;
+}
+
+unsigned RaidBufferManager::getUnusedRaidConnection()
+{
+    return unusedRaidConnection;
+}
 
 m_off_t RaidBufferManager::progress() const
 {
@@ -804,6 +850,13 @@ m_off_t RaidBufferManager::progress() const
 
     return reportPos;
 }
+
+/*
+const m_off_t& RaidBufferManager::getMinPartsChunk() const
+{
+    return minPartsChunk;
+}
+*/
 
 
 TransferBufferManager::TransferBufferManager()

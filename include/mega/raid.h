@@ -42,6 +42,9 @@ namespace mega {
     {
     public:
 
+        //static constexpr unsigned MIN_DELIVERY_CHUNK = 5*1024*1024 - (5*1024*1024 % RAIDSECTOR); // 5 MB per assembled part to deliver
+        //static constexpr unsigned MIN_DELIVERY_CHUNK = 512*1024; // 5 MB per assembled part to deliver
+
         struct FilePiece {
             m_off_t pos;
             HttpReq::http_buf_t buf;  // owned here
@@ -111,8 +114,15 @@ namespace mega {
         // indicate that this connection has responded with headers, and see if we now know which is the slowest connection, and make that the unused one
         bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
 
+        bool setUnusedRaidConnection(unsigned newUnusedRaidConnection);
+
+        unsigned getUnusedRaidConnection();
+
         // returns how far we are through the file on average, including uncombined data
         m_off_t progress() const;
+
+        // returns the min chunk size needed to combine parts
+        //const m_off_t& getMinPartsChunk() const;
 
         RaidBufferManager();
         ~RaidBufferManager();
@@ -129,6 +139,7 @@ namespace mega {
         m_off_t deliverlimitpos;   // end of the data that the client requested
         m_off_t acquirelimitpos;   // end of the data that we need to deliver that (can be up to the next raidline boundary)
         m_off_t fullfilesize;      // end of the file
+        //m_off_t minPartsChunk;     // min chunk to combine parts
 
         // controls buffer sizes used
         unsigned raidLinesPerChunk;

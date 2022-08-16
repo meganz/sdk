@@ -224,16 +224,30 @@ struct MEGA_API DirectReadSlot
     static const int MIN_BYTES_PER_SECOND = 1024 * 15;
     static const int TIMEOUT_DS = 100;
     static const int TEMPURL_TIMEOUT_DS = 3000;
+    static constexpr unsigned MIN_DELIVERY_CHUNK = 5 * 1024 * 1024; // 5 MB per assembled part to delive
+    static constexpr unsigned MIN_START_DELIVERY_CHUNK = 2 * 1024 * 1024; // 2 MB
+    static constexpr unsigned MIN_COMPARABLE_THROUGHPUT = MIN_DELIVERY_CHUNK; // 5 MB
+    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 0; // 2 SWITCHES
+    static constexpr bool WAIT_FOR_PARTS_IN_FLIGHT = true;
 
     DirectRead* dr;
-    std::vector<HttpReq*> reqs;
+    std::vector<std::shared_ptr<HttpReq>> reqs;
+    std::vector<std::pair<unsigned, int64_t>> throughput;
+    std::pair<unsigned, int64_t> slotThroughput;
+    std::chrono::system_clock::time_point slotStartTime;
+    size_t unusedRaidConnection;
+    unsigned numSlowConnectionsSwitches;
+    unsigned numReqsInflight;
 
     drs_list::iterator drs_it;
     SpeedController speedController;
     m_off_t speed;
     m_off_t meanSpeed;
+    unsigned minChunk;
 
     bool doio();
+    bool waitForPartsInFlight();
+    unsigned usedConnections();
 
     DirectReadSlot(DirectRead*);
     ~DirectReadSlot();
@@ -241,6 +255,8 @@ struct MEGA_API DirectReadSlot
 private:
     std::string adjustURLPort(std::string url);
     bool processAnyOutputPieces();
+
+    bool waitForParts;
 };
 
 struct MEGA_API DirectRead
