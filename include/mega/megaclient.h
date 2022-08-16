@@ -261,7 +261,8 @@ public:
     // read children from DB and load them in memory
     node_list getChildren(const Node *parent);
 
-    // read recent nodes from DB and load them in memory
+    // get up to "maxcount" nodes, not older than "since", ordered by creation time
+    // Note: nodes are read from DB and loaded in memory
     node_vector getRecentNodes(unsigned maxcount, m_time_t since);
 
     // Search nodes containing 'searchString' in its name
@@ -275,11 +276,10 @@ public:
     Node *getNodeByFingerprint(const FileFingerprint& fingerprint);
 
     // Return a first level child node whose name matches with 'name'
-    // Valid values for nodeType: FILENODE, FOLDERNODE, TYPE_UNKNOWN (when unknown, it returns both files and folders)
-    // Check first nodes that are loaded in RAM, if there are children not loaded in RAM, then check at DB
-    // In case of call this method several times over same folder, to improve the performance, getChildren
-    // should be called before the first call to this method
-    Node* getNodeByNameFirstLevel(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
+    // Valid values for nodeType: FILENODE, FOLDERNODE
+    // Note: if not found among children loaded in RAM (and not all children are loaded), it will search in DB
+    // Hint: ensure all children are loaded if this method is called for all children of a folder
+    Node* childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
 
     // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE (In case of logged into folder link returns only ROOTNODE)
     // Load from DB if it's necessary
@@ -1649,9 +1649,6 @@ public:
     Node* nodebyfingerprint(LocalNode*);
 #endif /* ENABLE_SYNC */
 
-    // get up to "maxcount" nodes, not older than "since", ordered by creation time
-    node_vector getRecentNodes(unsigned maxcount, m_time_t since);
-
     // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
 
@@ -1862,12 +1859,12 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node *childnodebyname(const Node *, const char*, bool = false);
-    Node* childnodebynametype(Node*, const char*, nodetype_t mustBeType);
-    Node* childnodebyattribute(Node*, nameid, const char*);
+    Node *childnodebyname(const Node *parent, const char* name, bool skipFolders = false);
+    node_vector childnodesbyname(Node* parent, const char* name, bool skipFolders = false);
+    Node* childnodebynametype(Node* parent, const char* name, nodetype_t mustBeType);
+    Node* childnodebyattribute(Node* parent, nameid attrId, const char* attrValue);
+
     static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
-    vector<Node*> childnodesbyname(Node*, const char*, bool = false);
-    Node* childNodeTypeByName(Node *p, const char *name, nodetype_t type);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc(bool keepOwnUser);

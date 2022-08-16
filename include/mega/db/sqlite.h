@@ -71,10 +71,9 @@ public:
     bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>> &nodes, CancelToken cancelFlag) override;
     bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) override;
     bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) override;
-    bool getNodeByNameAtFirstLevel(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
+    bool childNodeByNameType(NodeHandle parentHanlde, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) override;
     bool getNodeSizeAndType(NodeHandle node, m_off_t& size, nodetype_t& nodeType) override;
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor, CancelToken cancelFlag) override;
-    bool isNodeInDB(mega::NodeHandle node) override;
     uint64_t getNumberOfNodes() override;
     uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) override;
     bool put(Node* node) override;
@@ -101,6 +100,13 @@ private:
     sqlite3_stmt* mStmtUpdateNode = nullptr;
     sqlite3_stmt* mStmtTypeAndSizeNode = nullptr;
     sqlite3_stmt* mStmtGetNode = nullptr;
+    sqlite3_stmt* mStmtNodeByName = nullptr;
+    sqlite3_stmt* mStmtNodeByOrigFp = nullptr;
+    sqlite3_stmt* mStmtChildNode = nullptr;
+    sqlite3_stmt* mStmtIsAncestor = nullptr;
+    sqlite3_stmt* mStmtNumChild = nullptr;
+    sqlite3_stmt* mStmtRecents = nullptr;
+
     // how many SQLite instructions will be executed between callbacks to the progress handler
     // (tests with a value of 1000 results on a callback every 1.2ms on a desktop PC)
     static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 1000;

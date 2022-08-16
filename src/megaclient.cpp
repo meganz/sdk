@@ -1033,12 +1033,12 @@ Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfold
 
     if (!skipfolders)
     {
-        node = mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, FOLDERNODE);
+        node = mNodeManager.childNodeByNameType(p->nodeHandle(), nname, FOLDERNODE);
     }
 
     if (!node)
     {
-        node = mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, FILENODE);
+        node = mNodeManager.childNodeByNameType(p->nodeHandle(), nname, FILENODE);
     }
 
     return node;
@@ -1060,7 +1060,7 @@ Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t must
 
     LocalPath::utf8_normalize(&nname);
 
-     return mNodeManager.getNodeByNameFirstLevel(p->nodeHandle(), nname, mustBeType);
+     return mNodeManager.childNodeByNameType(p->nodeHandle(), nname, mustBeType);
 }
 
 // returns a matching child node that has the given attribute with the given value
@@ -1120,32 +1120,6 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
         }
     }
 
-    return found;
-}
-
-Node* MegaClient::childNodeTypeByName(Node *p, const char *name, nodetype_t type)
-{
-    if (!name || !p || p->type == FILENODE)   // parent't can't be a file (or we're looking at versions), but could be FOLDERNODE, ROOTNODE, etc
-    {
-        return nullptr;
-    }
-
-    Node *found = nullptr;
-    string nname = name;
-    LocalPath::utf8_normalize(&nname);
-
-    // TODO: a DB query could return the matching child nodes directly, avoiding to load all
-    // children
-    node_list nodeList = getChildren(p);
-    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
-    {
-        // if name and node type matches
-        if (((*it)->type == type) && !strcmp(nname.c_str(), (*it)->displayname()))
-        {
-            found = *it;
-            break;
-        }
-    }
     return found;
 }
 
@@ -16188,11 +16162,6 @@ static bool nodes_ctime_greater(const Node* a, const Node* b)
     return a->ctime > b->ctime;
 }
 
-node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since)
-{
-    return mNodeManager.getRecentNodes(maxcount, since);
-}
-
 
 namespace action_bucket_compare
 {
@@ -16356,7 +16325,7 @@ bool MegaClient::nodeIsDocument(const Node *n) const
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
     recentactions_vector rav;
-    node_vector v = getRecentNodes(maxcount, since);
+    node_vector v = mNodeManager.getRecentNodes(maxcount, since);
 
     for (node_vector::iterator i = v.begin(); i != v.end(); )
     {
@@ -17204,7 +17173,7 @@ Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
     return nullptr;
 }
 
-Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::string &name, nodetype_t nodeType)
+Node *NodeManager::childNodeByNameType(NodeHandle parentHandle, const std::string &name, nodetype_t nodeType)
 {
     if (!mTable)
     {
@@ -17235,7 +17204,7 @@ Node *NodeManager::getNodeByNameFirstLevel(NodeHandle parentHandle, const std::s
     }
 
     std::pair<NodeHandle, NodeSerialized> nodeSerialized;
-    if (allChildrenLoaded || !mTable->getNodeByNameAtFirstLevel(parentHandle, name, nodeType, nodeSerialized))
+    if (allChildrenLoaded || !mTable->childNodeByNameType(parentHandle, name, nodeType, nodeSerialized))
     {
         return nullptr;
     }

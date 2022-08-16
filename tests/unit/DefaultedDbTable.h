@@ -78,18 +78,13 @@ public:
     {
         return false;
     }
-    bool getNodeByNameAtFirstLevel(mega::NodeHandle, const std::string& name, mega::nodetype_t, std::pair<mega::NodeHandle, mega::NodeSerialized>&) override
+    bool childNodeByNameType(mega::NodeHandle, const std::string& name, mega::nodetype_t, std::pair<mega::NodeHandle, mega::NodeSerialized>&) override
     {
         return false;
     }
     bool getNodeSizeAndType(mega::NodeHandle node, m_off_t& size, mega::nodetype_t& nodeType) override
     {
         return false;
-    }
-    bool isNodeInDB(mega::NodeHandle) override
-    {
-        return false;
-        //throw NotImplemented{__func__};
     }
     bool isAncestor(mega::NodeHandle, mega::NodeHandle, mega::CancelToken) override
     {
