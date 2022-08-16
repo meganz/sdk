@@ -203,7 +203,7 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
         }
 
         // How much buffer space can we use.  Assuming two chunk sets incoming, one outgoing
-        raidLinesPerChunk = unsigned(maxRequestSize / ((RAIDPARTS) * 3 * RAIDSECTOR));
+        raidLinesPerChunk = static_cast<unsigned>(maxRequestSize / ((RAIDPARTS) * 3 * RAIDSECTOR));
         raidLinesPerChunk -= raidLinesPerChunk % 1024;
         raidLinesPerChunk = std::min<unsigned>(raidLinesPerChunk, 256 * 1024); // max 256K * RAIDSECTOR * 5
         raidLinesPerChunk = std::max<unsigned>(raidLinesPerChunk, 64 * 1024); // min 64K * RAIDSECTOR * 5
