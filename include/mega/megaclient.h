@@ -302,7 +302,7 @@ public:
     void setId(handle id) { mId = id; }
     void setKey(string&& key) { mKey = move(key); }
     void setUser(handle uh) { mUser = uh; }
-    void setTs(m_time_t ts) { mTs = ts; }    
+    void setTs(m_time_t ts) { mTs = ts; }
     void setAttributes(map<string, string>&& attrs);
 
     void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs = move(eattrs); }
