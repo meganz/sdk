@@ -17880,7 +17880,7 @@ class MegaApi
         void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Enable or disable one or multiple chat options for a chatroom
+         * @brief Enable or disable a option for a chatroom
          *
          * This function allows to enable or disable one of the following chatroom options:
          * - 0:  OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
