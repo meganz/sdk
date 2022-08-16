@@ -1890,6 +1890,7 @@ void MegaClient::exec()
                                 {
                                     LOG_debug << "Executing postponed DB commit 2";
                                     sctable->commit();
+                                    assert(!sctable->inTransaction());
                                     sctable->begin();
                                     app->notify_dbcommit();
                                     pendingsccommit = false;
@@ -3978,6 +3979,7 @@ bool MegaClient::procsc()
                         if (!reqs.cmdsInflight())
                         {
                             sctable->commit();
+                            assert(!sctable->inTransaction());
                             sctable->begin();
                             app->notify_dbcommit();
                             pendingsccommit = false;
@@ -4003,6 +4005,7 @@ bool MegaClient::procsc()
                             if (sctable)
                             {
                                 sctable->commit();
+                                assert(!sctable->inTransaction());
                                 sctable->begin();
                                 pendingsccommit = false;
                             }
@@ -4117,6 +4120,7 @@ bool MegaClient::procsc()
                     {
                         LOG_debug << "Executing postponed DB commit 1";
                         sctable->commit();
+                        assert(!sctable->inTransaction());
                         sctable->begin();
                         app->notify_dbcommit();
                         pendingsccommit = false;
@@ -4426,6 +4430,7 @@ void MegaClient::initsc()
             // We have the data, and we have the corresponding scsn, all from fetchnodes finishing just now.
             // Commit now, otherwise we'll have to do fetchnodes again (on restart) if no actionpackets arrive.
             sctable->commit();
+            assert(!sctable->inTransaction());
             sctable->begin();
             pendingsccommit = false;
         }
@@ -4504,15 +4509,17 @@ void MegaClient::updatesc()
 
         if (complete)
         {
+            unsigned removed = 0;
+            unsigned added = 0;
+
             // 3. write new or modified nodes, purge deleted nodes
             for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
             {
-                char base64[12];
                 if ((*it)->changed.removed)
                 {
                     if ((*it)->dbid)
                     {
-                        LOG_verbose << clientname << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                        removed += 1;
                         if (!(complete = sctable->del((*it)->dbid)))
                         {
                             break;
@@ -4521,12 +4528,20 @@ void MegaClient::updatesc()
                 }
                 else
                 {
-                    LOG_verbose << clientname << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    added += 1;
                     if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
                     {
                         break;
                     }
                 }
+            }
+            if (removed)
+            {
+                LOG_verbose << clientname << "Removed " << removed << " nodes from database";
+            }
+            if (added)
+            {
+                LOG_verbose << clientname << "Added " << added << " nodes to database";
             }
         }
 
