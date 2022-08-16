@@ -17035,7 +17035,7 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
 // Sets and Elements
 //
 
-void MegaClient::putSet(handle id, string&& name, std::function<void(Error, handle)> completion)
+void MegaClient::putSet(handle id, const char* name, std::function<void(Error, handle)> completion)
 {
     // Set key
     byte setKey[SymmCipher::KEYLENGTH];
@@ -17055,21 +17055,20 @@ void MegaClient::putSet(handle id, string&& name, std::function<void(Error, hand
             return;
         }
 
+        assert(sizeof(setKey) == it->second.key().size());
         copy_n(it->second.key().begin(), it->second.key().size(), setKey);
     }
 
     // store attrs to TLV and encrypt with Set key
-    string encrAttrs;
-    if (!name.empty())
+    map<string, string> attrs;
+    if (name) attrs["name"] = name;
+
+    string encrAttrs = encryptAttrs(attrs, string((char*)setKey, sizeof(setKey)));
+    if (encrAttrs.empty())
     {
-        map<string, string> attrs { {"name", name} };
-        encrAttrs = encryptAttrs(move(attrs), string((char*)setKey, sizeof(setKey)));
-        if (encrAttrs.empty())
-        {
-            if (completion)
-                completion(API_EINTERNAL, id);
-            return;
-        }
+        if (completion)
+            completion(API_EINTERNAL, id);
+        return;
     }
 
     // encrypt Set key with master key (for new Set only)
@@ -17081,7 +17080,7 @@ void MegaClient::putSet(handle id, string&& name, std::function<void(Error, hand
         encrSetKey.assign((char*)setKey, sizeof(setKey));
     }
 
-    reqs.add(new CommandPutSet(this, id, move(decrSetKey), move(encrSetKey), move(name), move(encrAttrs), completion));
+    reqs.add(new CommandPutSet(this, id, move(decrSetKey), move(attrs), move(encrSetKey), move(encrAttrs), completion));
 }
 
 void MegaClient::removeSet(handle id, std::function<void(Error)> completion)
@@ -17171,7 +17170,7 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
     string encrAttrs;
     if (el.hasAttrs())
     {
-        encrAttrs = encryptAttrs(el.allAttributes(), el.key());
+        encrAttrs = encryptAttrs(el.attrs(), el.key());
         if (encrAttrs.empty())
         {
             if (completion)
@@ -17346,7 +17345,7 @@ string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
     return string((char*)decrKey.get(), k.size());
 }
 
-string MegaClient::encryptAttrs(map<string, string>&& attrs, const string& encryptionKey)
+string MegaClient::encryptAttrs(const map<string, string>& attrs, const string& encryptionKey)
 {
     if (attrs.empty())
     {
@@ -17360,9 +17359,9 @@ string MegaClient::encryptAttrs(map<string, string>&& attrs, const string& encry
     }
 
     TLVstore tlvRecords;
-    for (auto& a : attrs)
+    for (const auto& a : attrs)
     {
-        tlvRecords.set(move(a.first), move(a.second));
+        tlvRecords.set(a.first, a.second);
     }
 
     unique_ptr<string> encrAttrs(tlvRecords.tlvRecordsToContainer(rng, &tmpnodecipher));
@@ -17380,6 +17379,7 @@ bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, map<st
 {
     if (attrs.empty())
     {
+        LOG_warn << "Sets: attempt to decrypt empty attributes -> attributes cleared";
         output.clear();
         return true;
     }
@@ -17581,21 +17581,20 @@ void MegaClient::addSet(Set&& a)
     }
 }
 
-void MegaClient::updateSet(handle id, string&& name, m_time_t ts)
+bool MegaClient::updateSet(handle id, map<std::string, std::string> &&attrs, m_time_t ts)
 {
-    for (auto& it : mSets)
+    auto it = mSets.find(id);
+    if (it != mSets.end())
     {
-        if (it.second.id() == id)
-        {
-            it.second.setName(move(name));
-            it.second.setTs(ts);
+        it->second.setAttributes(move(attrs));
+        it->second.setTs(ts);
 
-            it.second.setChangeName();
-            notifyset(&it.second);
+        notifyset(&it->second);
 
-            break;
-        }
+        return true;
     }
+
+    return false;
 }
 
 bool MegaClient::deleteSet(handle setId)
@@ -17675,7 +17674,7 @@ void MegaClient::sc_asp()
 
         if (!s.encryptedAttrs().empty())
         {
-            existing.setEncryptedAttrs(move(s.encryptedAttrs()));
+            existing.setEncryptedAttrs(s.encryptedAttrs());
             auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
             if (!existing.decryptAttributes(decryptFunc))
             {
@@ -17913,13 +17912,9 @@ Set* MegaClient::unserializeSet(string* d)
         attrs[move(ak)] = move(av);
     }
 
-    string name = move(attrs["name"]);
-    attrs.erase("name");
-
     r.unserializeexpansionflags(expansionsS, 0);
 
-    Set s((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(name));
-    s.setUnusedAttrs(attrs);
+    Set s((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(attrs));
 
     uint32_t elCount = 0;
     r.unserializeu32(elCount);
@@ -17951,17 +17946,13 @@ Set* MegaClient::unserializeSet(string* d)
             attrs[move(ak)] = move(av);
         }
 
-        name = move(attrs["name"]);
-        attrs.erase("name");
-
         r.unserializeexpansionflags(expansionsE, 0);
 
         SetElement el((h ? h : UNDEF), (id ? id : UNDEF));
-        el.setName(move(name));
         el.setOrder(o);
         el.setTs(ts);
         el.setKey(move(k));
-        el.setUnusedAttrs(attrs);
+        el.setAttrs(attrs);
 
         s.addOrUpdateElement(move(el));
     }
@@ -17995,9 +17986,11 @@ void Set::addOrUpdateElement(SetElement&& el)
     SetElement& existing = it->second;
     if (el.hasAttrs())
     {
-        existing.setName(el.name());
-        mChanges[CH_EL_NAME] = 1;
-        existing.setUnusedAttrs(el.unusedAttrs());
+        if (el.name() != existing.name())
+        {
+            mChanges[CH_EL_NAME] = 1;
+        }
+        existing.setAttrs(el.attrs());
     }
     if (el.hasOrder())
     {
@@ -18030,12 +18023,8 @@ bool Set::serialize(string* d)
     r.serializebinary((byte*)&mTs, sizeof(mTs));
     r.serializestring(mKey);
 
-    auto allAttrs = mUnusedAttrs;
-    allAttrs["name"] = mName;
-    size_t aAttrsCount = allAttrs.size();
-    r.serializeu32((uint32_t)aAttrsCount);
-
-    for (auto& aa : allAttrs)
+    r.serializeu32((uint32_t)mAttrs.size());
+    for (auto& aa : mAttrs)
     {
         r.serializestring(aa.first);
         r.serializestring(aa.second);
@@ -18054,13 +18043,62 @@ bool Set::serialize(string* d)
     return true;
 }
 
+void Set::setAttributes(map<std::string, std::string> &&attrs)
+{
+    // check for changes
+    auto it = mAttrs.find("name");
+    const string& oldName = it != mAttrs.end() ? it->second : "";
+    it = mAttrs.find("name");
+    const string& newName = it != attrs.end() ? it-> second : "";
+    if (newName != oldName) setChangeName();
+
+    mAttrs = move(attrs);
+}
+
 bool Set::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
 {
-    if (f(mEncryptedAttrs, mKey, mUnusedAttrs))
+    map<string, string> newAttrs;
+
+    if (f(mEncryptedAttrs, mKey, newAttrs))
     {
+        vector<string> updates;
+
+        // compare attrs to see what changed
+        for (auto& a : newAttrs)
+        {
+            auto oldAttrIt = mAttrs.find(a.first);
+
+            if (oldAttrIt == mAttrs.end())
+            {
+                if (!a.second.empty())
+                {
+                    mAttrs[a.first] = move(a.second);
+                    updates.push_back(a.first);
+                }
+            }
+            else
+            {
+                if (a.second.empty())
+                {
+                    mAttrs.erase(oldAttrIt);
+                    updates.push_back(a.first);
+                }
+                else if (oldAttrIt->second != a.second)
+                {
+                    oldAttrIt->second = move(a.second);
+                    updates.push_back(a.first);
+                }
+            }
+        }
+
         mEncryptedAttrs.clear();
-        mName = mUnusedAttrs["name"];
-        mUnusedAttrs.erase("name");
+
+        // mark changes
+        if (find(updates.begin(), updates.end(), "name") != updates.end())
+        {
+            setChangeName();
+        }
+
         return true;
     }
 
@@ -18069,22 +18107,13 @@ bool Set::decryptAttributes(std::function<bool(const string&, const string&, map
 
 bool SetElement::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
 {
-    if (hasAttrs() && f(mEncryptedAttrs, mKey, mUnusedAttrs))
+    if (hasAttrs() && f(mEncryptedAttrs, mKey, mAttrs))
     {
         mEncryptedAttrs.clear();
-        mName = mUnusedAttrs["name"];
-        mUnusedAttrs.erase("name");
         return true;
     }
 
     return false;
-}
-
-map<string, string> SetElement::allAttributes() const
-{
-    map<string, string> a = mUnusedAttrs;
-    a["name"] = mName;
-    return a;
 }
 
 bool SetElement::serialize(string* d)
@@ -18097,11 +18126,9 @@ bool SetElement::serialize(string* d)
     r.serializebinary((byte*)&mTs, sizeof(mTs));
     r.serializestring(mKey);
 
-    auto allAttrs = allAttributes();
-    size_t uAttrsCount = allAttrs.size();
-    r.serializeu32((uint32_t)uAttrsCount);
+    r.serializeu32((uint32_t)mAttrs.size());
 
-    for (auto& aa : allAttrs)
+    for (auto& aa : mAttrs)
     {
         r.serializestring(aa.first);
         r.serializestring(aa.second);
