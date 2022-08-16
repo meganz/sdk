@@ -1609,10 +1609,15 @@ void MegaClient::exec()
         // file attribute puts (handled sequentially as a FIFO)
         if (activefa.size())
         {
+            TransferDbCommitter committer(tctable);
             putfa_list::iterator curfa = activefa.begin();
             while (curfa != activefa.end())
             {
                 HttpReqCommandPutFA* fa = *curfa;
+
+                auto erasePos = curfa;
+                ++curfa;
+
                 m_off_t p = fa->transferred(this);
                 if (fa->progressreported < p)
                 {
@@ -1638,57 +1643,45 @@ void MegaClient::exec()
                             }
                             else
                             {
-                                NodeHandle h;
-
                                 // do we have a valid upload handle?
                                 if (fa->th.isNodeHandle())
                                 {
-                                    // we were originally generating file attributes for an existing node
-                                    h = fa->th.nodeHandle();
-                                }
-                                else
-                                {
-                                    // we were generating file attributes for an upload
-                                    // but we already completed the upload and now we need the resulting node handle
-                                    // TODO: we may have a gap here when the putnodes is already in-flight
-                                    auto it = uhnh.lower_bound(pair<UploadHandle, NodeHandle>
-                                        (fa->th.uploadHandle(), NodeHandle().setImpossibleValue(0)));
-
-                                    if (it != uhnh.end() && it->first == fa->th.uploadHandle())
+                                    if (Node* n = nodeByHandle(fa->th.nodeHandle()))
                                     {
-                                        h = it->second;
-                                    }
-                                }
-
-                                // are we updating a live node? issue command directly.
-                                // otherwise, queue for processing upon upload
-                                // completion.
-                                if (Node* n = nodeByHandle(h))
-                                {
-                                    LOG_debug << "Attaching file attribute";
-                                    reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
-                                }
-                                else
-                                {
-                                    // TODO: possibly another gap here where we were generating for an existing Node, but now it's not found
-
-                                    if (fa->th.isNodeHandle())
-                                    {
-                                        LOG_warn << "Can't attach file attribute to no longer existing node";
+                                        LOG_debug << "Attaching file attribute to Node";
+                                        reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
                                     }
                                     else
                                     {
-                                        pendingfa[pair<UploadHandle, fatype>(fa->th.uploadHandle(), fa->type)] = pair<handle, int>(fah, fa->tag);
-                                        LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
-                                        checkfacompletion(fa->th.uploadHandle());
+                                        LOG_debug << "Node to attach file attribute to no longer exists";
+                                    }
+                                }
+                                else
+                                {
+                                    if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(fa->th.uploadHandle()))
+                                    {
+                                        if (auto waitingFAPtr = uploadFAPtr->pendingfa.lookupExisting(fa->type))
+                                        {
+                                            waitingFAPtr->fileAttributeHandle = fah;
+                                            waitingFAPtr->valueIsSet = true;
+
+                                            LOG_debug << "File attribute, type " << fa->type << " for upload handle " << fa->th << " received: " << toHandle(fah);
+                                            checkfacompletion(fa->th.uploadHandle());
+                                        }
+                                        else
+                                        {
+                                            LOG_debug << "File attribute, type " << fa->type << " for upload handle " << fa->th << " received, but that type was no longer needed";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        LOG_debug << "File attribute, type " << fa->type << " for upload handle " << fa->th << " received, but the upload was previously resolved";
                                     }
                                 }
                             }
                         }
                         else
                         {
-                            LOG_warn << "Error attaching attribute";
-
                             if (fa->th.isNodeHandle())
                             {
                                 // TODO: possibly another gap here where we were generating for an existing Node, code only dealt with the upload-in-progress case
@@ -1696,42 +1689,23 @@ void MegaClient::exec()
                             }
                             else
                             {
-                                Transfer *transfer = NULL;
-                                uploadhandletransfer_map::iterator htit = faputcompletion.find(fa->th.uploadHandle());
-                                if (htit != faputcompletion.end())
+                                if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(fa->th.uploadHandle()))
                                 {
-                                    // the failed attribute belongs to a pending upload
-                                    transfer = htit->second;
+                                    LOG_debug << "File attribute, type " << fa->type << " for upload handle " << fa->th << " failed. Discarding the need for it";
+                                    uploadFAPtr->pendingfa.erase(fa->type);
                                 }
                                 else
                                 {
-                                    // check if the failed attribute belongs to an active upload
-                                    for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
-                                    {
-                                        if (it->second->uploadhandle == fa->th.uploadHandle())
-                                        {
-                                            transfer = it->second;
-                                            break;
-                                        }
-                                    }
+                                    LOG_debug << "File attribute, type " << fa->type << " for upload handle " << fa->th << " failed, but the upload was previously resolved";
                                 }
 
-                                if (transfer)
-                                {
-                                    // reduce the number of required attributes to let the upload continue
-                                    transfer->minfa--;
-                                    checkfacompletion(fa->th.uploadHandle());
-                                    sendevent(99407,"Attribute attach failed during active upload", 0);
-                                }
-                                else
-                                {
-                                    LOG_debug << "Transfer related to failed attribute not found: " << fa->th;
-                                }
+                                checkfacompletion(fa->th.uploadHandle());
+                                sendevent(99407,"Attribute attach failed during active upload", 0);
                             }
                         }
 
                         delete fa;
-                        curfa = activefa.erase(curfa);
+                        activefa.erase(erasePos);
                         LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
                         btpfa.reset();
                         faretrying = false;
@@ -1740,15 +1714,38 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         // repeat request with exponential backoff
                         LOG_warn << "Error setting file attribute";
-                        curfa = activefa.erase(curfa);
+                        activefa.erase(erasePos);
                         fa->status = REQ_READY;
                         queuedfa.push_back(fa);
                         btpfa.backoff();
                         faretrying = true;
                         break;
 
+                    case REQ_INFLIGHT:
+                        // check if the transfer/file was cancelled while we were waiting for fa response (only for file uploads, not Node updates or app-requested fa put)
+                        if (!fa->th.isNodeHandle())
+                        {
+                            if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(fa->th.uploadHandle()))
+                            {
+                                uploadFAPtr->transfer->removeCancelledTransferFiles(&committer);
+                                if (uploadFAPtr->transfer->files.empty())
+                                {
+                                    // this also removes it from slots and fileAttributesUploading
+                                    activefa.erase(erasePos);
+                                    uploadFAPtr->transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
+                                }
+                            }
+                            else
+                            {
+                                LOG_debug << "activefa for " << fa->th.uploadHandle() << " has been orphaned, discarding";
+                                activefa.erase(erasePos);
+                            }
+                        }
+                        break;
+
                     default:
-                        curfa++;
+                        // other cases are not relevant for this one
+                        break;
                 }
             }
         }
@@ -1765,7 +1762,7 @@ void MegaClient::exec()
                 activefa.push_back(fa);
 
                 LOG_debug << "Adding file attribute to the request queue";
-                fa->status = REQ_INFLIGHT;
+                fa->status = REQ_GET_URL;   // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
                 reqs.add(fa);
             }
         }
@@ -4008,7 +4005,17 @@ void MegaClient::dispatchTransfers()
                             if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename))
                             {
                                 // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename, NodeOrUploadHandle(nexttransfer->uploadhandle), nexttransfer->transfercipher(), -1);
+                                int bitmask = gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename, NodeOrUploadHandle(nexttransfer->uploadhandle), nexttransfer->transfercipher(), -1);
+
+                                if (bitmask & (1 << GfxProc::THUMBNAIL))
+                                {
+                                    fileAttributesUploading.setFileAttributePending(nexttransfer->uploadhandle, GfxProc::THUMBNAIL, nexttransfer);
+                                }
+
+                                if (bitmask & (1 << GfxProc::PREVIEW))
+                                {
+                                    fileAttributesUploading.setFileAttributePending(nexttransfer->uploadhandle, GfxProc::PREVIEW, nexttransfer);
+                                }
                             }
                         }
                     }
@@ -4148,58 +4155,52 @@ void MegaClient::dispatchTransfers()
 }
 
 // do we have an upload that is still waiting for file attributes before being completed?
-void MegaClient::checkfacompletion(UploadHandle th, Transfer* t)
+void MegaClient::checkfacompletion(UploadHandle th, Transfer* t, bool uploadCompleted)
 {
-    if (!th.isUndef())
+    // For any particular transfer, this is called first with t supplied, when the file's data upload completes.
+    // Calls after that are with !t, to check if we have all the file attributes yet, so we can make the putnodes call
+    assert(!th.isUndef());
+
+    if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(th))
     {
-        bool delayedcompletion;
-        uploadhandletransfer_map::iterator htit;
+        assert(!t || uploadFAPtr->transfer == t);
+        t = uploadFAPtr->transfer;
 
-        if ((delayedcompletion = !t))
+        if (uploadCompleted)
         {
-            // abort if upload still running
-            if ((htit = faputcompletion.find(th)) == faputcompletion.end())
-            {
-                LOG_debug << "Upload still running checking a file attribute - " << th;
-                return;
-            }
+            uploadFAPtr->uploadCompleted = true;
 
-            t = htit->second;
+            transfers[t->type].erase(t->transfers_it);
+            t->transfers_it = transfers[t->type].end();
+
+            delete t->slot;
+            t->slot = NULL;
         }
 
-        int facount = 0;
-
-        // do we have the pre-set threshold number of file attributes available? complete upload.
-        for (fa_map::iterator it = pendingfa.lower_bound(pair<UploadHandle, fatype>(th, fatype(0)));
-             it != pendingfa.end() && it->first.first == th; it++)
+        // abort if upload still running
+        if (!uploadFAPtr->uploadCompleted)
         {
-            facount++;
+            LOG_debug << "Upload still running checking a file attribute - " << th;
+            return;
         }
 
-        if (facount < t->minfa)
+        assert(uploadFAPtr->transfer && uploadFAPtr->transfer->type == PUT);
+
+        // do we have all the required the file attributes available? complete upload.
+        int numUnresolvedFA = 0;
+        for (auto& i : uploadFAPtr->pendingfa)
         {
-            LOG_debug << "Pending file attributes for upload - " << th <<  " : " << (t->minfa < facount);
-            if (!delayedcompletion)
-            {
-                // we have insufficient file attributes available: remove transfer and put on hold
-                t->faputcompletion_it = faputcompletion.insert(pair<UploadHandle, Transfer*>(th, t)).first;
+            if (!i.second.valueIsSet) ++numUnresolvedFA;  // todo: fa_media
+        }
 
-                transfers[t->type].erase(t->transfers_it);
-                t->transfers_it = transfers[t->type].end();
-
-                delete t->slot;
-                t->slot = NULL;
-
-                LOG_debug << "Transfer put on hold. Total: " << faputcompletion.size();
-            }
-
+        if (numUnresolvedFA)
+        {
+            LOG_debug << "Pending file attributes for upload - " << th <<  " : " << numUnresolvedFA;
             return;
         }
     }
-    else
-    {
-        LOG_warn << "NULL file attribute handle";
-    }
+
+    if (!t) return;
 
     LOG_debug << "Transfer finished, sending callbacks - " << th;
     t->state = TRANSFERSTATE_COMPLETED;
@@ -4477,7 +4478,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     fafcs.clear();
 
-    pendingfa.clear();
+    fileAttributesUploading.clear();
 
     // erase keys & session ID
     resetKeyring();
@@ -5292,6 +5293,9 @@ void MegaClient::finalizesc(bool complete)
 // queue node file attribute for retrieval or cancel retrieval
 error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey, fatype t, int cancel)
 {
+    assert((cancel && nodekey.empty()) ||
+          (!cancel && !nodekey.empty()));
+
     // locate this file attribute type in the nodes's attribute string
     handle fah;
     int p, pp;
@@ -5393,21 +5397,23 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
 {
     char buf[128];
 
-    for (fa_map::iterator it = pendingfa.lower_bound(pair<UploadHandle, fatype>(h, fatype(0)));
-         it != pendingfa.end() && it->first.first == h; )
+    if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(h))
     {
-        if (it->first.second != fa_media)
+        for (auto& it : uploadFAPtr->pendingfa)
         {
-            sprintf(buf, "/%u*", (unsigned)it->first.second);
-            Base64::btoa((byte*)&it->second.first, sizeof(it->second.first), strchr(buf + 3, 0));
-            fa->append(buf + !fa->size());
-            LOG_debug << "Added file attribute to putnodes. Remaining: " << pendingfa.size()-1;
+            if (it.first != fa_media)
+            {
+                sprintf(buf, "/%u*", (unsigned)it.first);
+                Base64::btoa((byte*)&it.second.fileAttributeHandle, sizeof(it.second.fileAttributeHandle), strchr(buf + 3, 0));
+                fa->append(buf + !fa->size());
+                LOG_debug << "Added file attribute " << it.first << " to putnodes";
+            }
         }
-        pendingfa.erase(it++);
     }
 }
 
-// attach file attribute to a file (th can be upload or node handle)
+// Upload file attribute data to fa servers. node handle can be UNDEF if we are giving fa handle back to the app
+// Used for attaching file attribute to a Node, or prepping for Node creation after upload, or getting fa handle for app.
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
 void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag, std::unique_ptr<string> data)
 {
@@ -5425,7 +5431,7 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
         HttpReqCommandPutFA *fa = *curfa;
         queuedfa.erase(curfa);
         activefa.push_back(fa);
-        fa->status = REQ_INFLIGHT;
+        fa->status = REQ_GET_URL;  // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
         reqs.add(fa);
     }
 }
@@ -7971,6 +7977,11 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 // modify the 'n' attribute)
 error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparenthandle, const char *newName, CommandMoveNode::Completion&& c)
 {
+    if (mBizStatus == BIZ_STATUS_EXPIRED)
+    {
+        return API_EBUSINESSPASTDUE;
+    }
+
     error e;
 
     if ((e = checkmove(n, p)))
@@ -8092,6 +8103,11 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
+    if (mBizStatus == BIZ_STATUS_EXPIRED)
+    {
+        return API_EBUSINESSPASTDUE;
+    }
+
     if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
@@ -8654,22 +8670,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         }
                     }
 #endif
-
-                    if (nn_nni.source == NEW_UPLOAD)
-                    {
-                        UploadHandle uh = nn_nni.uploadhandle;
-
-                        // do we have pending file attributes for this upload? set them.
-                        for (fa_map::iterator it = pendingfa.lower_bound(pair<UploadHandle, fatype>(uh, fatype(0)));
-                             it != pendingfa.end() && it->first.first == uh; )
-                        {
-                            reqs.add(new CommandAttachFA(this, h, it->first.second, it->second.first, it->second.second));
-                            pendingfa.erase(it++);
-                        }
-
-                        // FIXME: only do this for in-flight FA writes
-                        uhnh.insert(pair<UploadHandle, NodeHandle>(uh, NodeHandle().set6byte(h)));
-                    }
                 }
             }
 
@@ -15814,6 +15814,14 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
     {
         if (d == PUT)
         {
+            if (!nodeByHandle(f->h))
+            {
+                // the folder to upload is unknown - perhaps this is a resumed transfer
+                // and the folder was deleted in the meantime
+                *cause = API_EARGS;
+                return false;
+            }
+
             if (!f->isvalid)    // (sync LocalNodes always have this set)
             {
                 // missing FileFingerprint for local file - generate

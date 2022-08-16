@@ -58,7 +58,7 @@ void TreeProcDel::proc(MegaClient* client, Node* n)
     client->notifynode(n);
     if (n->owner != client->me)
     {
-        client->useralerts.noteSharedNode(n->owner, n->type, 0, NULL);
+        client->useralerts.noteSharedNode(n->owner, n->type, 0, n);
     }
 }
 
