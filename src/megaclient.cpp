@@ -8678,16 +8678,16 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 n->applykey();
             }
 
-            n->setattr();
-
             if (notify)
             {
+                // node is save in DB at notifypurge
                 notifynode(n);
             }
+            else // Only need to save in DB if node is not notified
+            {
+                mNodeManager.saveNodeInDb(n);
+            }
 
-            // do not wait for notifypurge() to dump to disk / DB, since
-            // some operations rely on DB queries
-            mNodeManager.saveNodeInDb(n);
             n = nullptr;    // ownership is taken by NodeManager upon addNode()
         }
     }
@@ -17005,7 +17005,6 @@ bool NodeManager::updateNode(Node *node)
         return false;
     }
 
-    assert(mTable->isNodeInDB(node->nodeHandle()));
     mTable->put(node);
 
     return true;
