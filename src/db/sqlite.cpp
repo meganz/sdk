@@ -1116,10 +1116,7 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
         return success;
     }
 
-    std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND name = ";
-    sqlQuery.append("'" + name + "'");
-    sqlQuery.append(" AND type = ?");
-    sqlQuery.append(" limit 1");
+    std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND name = ? AND type = ? limit 1";
 
     int sqlResult = SQLITE_OK;
     if (!mStmtChildNode)
@@ -1131,23 +1128,26 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
     {
         if ((sqlResult = sqlite3_bind_int64(mStmtChildNode, 1, parentHandle.as8byte())) == SQLITE_OK)
         {
-            if ((sqlResult = sqlite3_bind_int64(mStmtChildNode, 2, nodeType)) == SQLITE_OK)
+            if ((sqlResult = sqlite3_bind_text(mStmtChildNode, 2, name.c_str(), static_cast<int>(name.length()), SQLITE_STATIC)) == SQLITE_OK)
             {
-                if((sqlResult = sqlite3_step(mStmtChildNode)) == SQLITE_ROW)
+                if ((sqlResult = sqlite3_bind_int64(mStmtChildNode, 3, nodeType)) == SQLITE_OK)
                 {
-                    node.first.set6byte(sqlite3_column_int64(mStmtChildNode, 0));
-
-                    const void* dataNodeCounter = sqlite3_column_blob(mStmtChildNode, 1);
-                    int sizeNodeCounter = sqlite3_column_bytes(mStmtChildNode, 1);
-
-                    const void* dataNodeSerialized = sqlite3_column_blob(mStmtChildNode, 2);
-                    int sizeNodeSerialized = sqlite3_column_bytes(mStmtChildNode, 2);
-
-                    if (dataNodeCounter && sizeNodeCounter && dataNodeSerialized && sizeNodeSerialized)
+                    if((sqlResult = sqlite3_step(mStmtChildNode)) == SQLITE_ROW)
                     {
-                        node.second.mNodeCounter.assign(static_cast<const char*>(dataNodeCounter), sizeNodeCounter);
-                        node.second.mNode.assign(static_cast<const char*>(dataNodeSerialized), sizeNodeSerialized);
-                        success = true;
+                        node.first.set6byte(sqlite3_column_int64(mStmtChildNode, 0));
+
+                        const void* dataNodeCounter = sqlite3_column_blob(mStmtChildNode, 1);
+                        int sizeNodeCounter = sqlite3_column_bytes(mStmtChildNode, 1);
+
+                        const void* dataNodeSerialized = sqlite3_column_blob(mStmtChildNode, 2);
+                        int sizeNodeSerialized = sqlite3_column_bytes(mStmtChildNode, 2);
+
+                        if (dataNodeCounter && sizeNodeCounter && dataNodeSerialized && sizeNodeSerialized)
+                        {
+                            node.second.mNodeCounter.assign(static_cast<const char*>(dataNodeCounter), sizeNodeCounter);
+                            node.second.mNode.assign(static_cast<const char*>(dataNodeSerialized), sizeNodeSerialized);
+                            success = true;
+                        }
                     }
                 }
             }
