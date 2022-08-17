@@ -17914,28 +17914,40 @@ Set* MegaClient::unserializeSet(string* d)
     unsigned char expansionsS[8];
 
     CacheableReader r(*d);
-    r.unserializehandle(id);
-    r.unserializehandle(u);
-    r.unserializebinary((byte*)&ts, sizeof(ts));
-    r.unserializestring(k);
-    r.unserializeu32(attrCount);
+    if (!r.unserializehandle(id) ||
+        !r.unserializehandle(u) ||
+        !r.unserializebinary((byte*)&ts, sizeof(ts)) ||
+        !r.unserializestring(k) ||
+        !r.unserializeu32(attrCount))
+    {
+        return nullptr;
+    }
 
     // get all attrs
     map<string, string> attrs;
     for (uint32_t i = 0; i < attrCount; ++i)
     {
         string ak, av;
-        r.unserializestring(ak);
-        r.unserializestring(av);
+        if (!r.unserializestring(ak) ||
+            !r.unserializestring(av))
+        {
+            return nullptr;
+        }
         attrs[move(ak)] = move(av);
     }
 
-    r.unserializeexpansionflags(expansionsS, 0);
+    if (!r.unserializeexpansionflags(expansionsS, 0))
+    {
+        return nullptr;
+    }
 
     Set s((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(attrs));
 
     uint32_t elCount = 0;
-    r.unserializeu32(elCount);
+    if (!r.unserializeu32(elCount))
+    {
+        return nullptr;
+    }
 
     // unserialize Elements
     for (uint32_t i = 0; i < elCount; ++i)
@@ -17947,24 +17959,33 @@ Set* MegaClient::unserializeSet(string* d)
         attrCount = 0;
         unsigned char expansionsE[8];
 
-        r.unserializehandle(id);
-        r.unserializenodehandle(h);
-        r.unserializei64(o);
-        r.unserializebinary((byte*)&ts, sizeof(ts));
-        r.unserializestring(k);
-        r.unserializeu32(attrCount);
+        if (!r.unserializehandle(id) ||
+            !r.unserializenodehandle(h) ||
+            !r.unserializei64(o) ||
+            !r.unserializebinary((byte*)&ts, sizeof(ts)) ||
+            !r.unserializestring(k) ||
+            !r.unserializeu32(attrCount))
+        {
+            return nullptr;
+        }
 
         // get all attrs
         attrs.clear();
         for (size_t j = 0; j < attrCount; ++j)
         {
             string ak, av;
-            r.unserializestring(ak);
-            r.unserializestring(av);
+            if (!r.unserializestring(ak) ||
+                !r.unserializestring(av))
+            {
+                return nullptr;
+            }
             attrs[move(ak)] = move(av);
         }
 
-        r.unserializeexpansionflags(expansionsE, 0);
+        if (!r.unserializeexpansionflags(expansionsE, 0))
+        {
+            return nullptr;
+        }
 
         SetElement el((h ? h : UNDEF), (id ? id : UNDEF));
         el.setOrder(o);
