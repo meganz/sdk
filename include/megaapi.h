@@ -19140,7 +19140,7 @@ class MegaApi
         void updateMegaSetName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
         void removeMegaSet(MegaHandle id, MegaRequestListener* listener = nullptr);
         void fetchMegaSet(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void createMegaElement(MegaHandle setId, MegaHandle node, int optionFlags, int64_t order = 0, const char* name = nullptr, MegaRequestListener* listener = nullptr);
+        void createMegaElement(MegaHandle setId, MegaHandle node, const char* name = nullptr, MegaRequestListener* listener = nullptr);
         void updateMegaElementName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
         void updateMegaElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener = nullptr);
         void removeMegaElement(MegaHandle id, MegaRequestListener* listener = nullptr);

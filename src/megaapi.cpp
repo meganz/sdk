@@ -5552,9 +5552,9 @@ void MegaApi::fetchMegaSet(MegaHandle id, MegaRequestListener* listener)
     pImpl->fetchSet(id, listener);
 }
 
-void MegaApi::createMegaElement(MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
+void MegaApi::createMegaElement(MegaHandle setId, MegaHandle node, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putSetElement(INVALID_HANDLE, setId, node, optionFlags, order, name, listener);
+    pImpl->putSetElement(INVALID_HANDLE, setId, node, 2, 0, name, listener);
 }
 
 void MegaApi::updateMegaElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener)

@@ -7945,10 +7945,9 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 4. Add Element
     MegaHandle eh = INVALID_HANDLE;
-    string elattrs = "element attributes";
-    int optionFlags = 2; // set attributes
+    string elattrs = "element name";
     differentApiDtls.setUpdated = false;
-    err = doCreateMegaElement(0, &eh, sh, uploadedNode, optionFlags, 0, elattrs.c_str());
+    err = doCreateMegaElement(0, &eh, sh, uploadedNode, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(eh, INVALID_HANDLE);
 
@@ -8083,9 +8082,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 9. Add another element
     eh = 0;
-    optionFlags = 2; // set attributes
     elattrs += " again";
-    err = doCreateMegaElement(0, &eh, sh, uploadedNode, optionFlags, 0, elattrs.c_str());
+    err = doCreateMegaElement(0, &eh, sh, uploadedNode, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(eh, INVALID_HANDLE);
     unique_ptr<MegaElement> elp_b4lo(megaApi[0]->getMegaElement(eh, sh));

@@ -23671,13 +23671,13 @@ void MegaApiImpl::fetchSet(MegaHandle id, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::putSetElement(MegaHandle id, MegaHandle setId, MegaHandle node, int optionMask, int64_t order, const char* name, MegaRequestListener* listener)
+void MegaApiImpl::putSetElement(MegaHandle id, MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENT, listener);
     request->setParentHandle(id);
     request->setTotalBytes(setId);
     request->setNodeHandle(node);
-    request->setParamType(optionMask);
+    request->setParamType(optionFlags);
     request->setNumber(order);
     request->setText(name);
     requestQueue.push(request);
