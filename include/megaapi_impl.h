@@ -334,6 +334,9 @@ protected:
         // It also becomes set after we have created a cloud node for this folder
         unique_ptr<MegaNode> megaNode;
 
+        // true when children nodes of 'megaNode' are pre-loaded already
+        bool childrenLoaded = false;
+
         // Otherwise this is the record we will send to create this folder
         NewNode newnode;
 
