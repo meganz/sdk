@@ -25102,6 +25102,16 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
+    // preload children for this level (optimization to speed up searches by name/type)
+    // (done here instead of at scanFolder() to avoid locking the mutex from the worker)
+    if (!tree.childrenLoaded && tree.megaNode)
+    {
+        Node* parent = megaApi->client->nodebyhandle(tree.megaNode->getHandle());
+        assert(parent);
+        megaApi->client->getChildren(parent);
+        tree.childrenLoaded = true;
+    }
+
     // recurse until we find nodes not yet created
     for (auto& t : tree.subtrees)
     {
