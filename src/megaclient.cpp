@@ -17673,15 +17673,12 @@ void MegaClient::sc_asp()
     {
         Set& existing = it->second;
 
-        if (!s.encryptedAttrs().empty())
+        existing.setEncryptedAttrs(move(s.encryptedAttrs()));
+        auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
+        if (!existing.decryptAttributes(decryptFunc))
         {
-            existing.setEncryptedAttrs(move(s.encryptedAttrs()));
-            auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
-            if (!existing.decryptAttributes(decryptFunc))
-            {
-                LOG_err << "Sets: Failed to parse `asp` action packet";
-                return;
-            }
+            LOG_err << "Sets: Failed to parse `asp` action packet";
+            return;
         }
 
         existing.setTs(s.ts());
