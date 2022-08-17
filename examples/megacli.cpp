@@ -3681,13 +3681,13 @@ autocomplete::ACN autocompleteSyntax()
         sequence(text("setsandelements"),
                  either(text("list"),
                         sequence(text("newset"), opt(param("name"))),
-                        sequence(text("updateset"), param("id"), opt(param("name"))),
+                        sequence(text("updateset"), param("id"), sequence(flag("-n"), opt(param("name")))),
                         sequence(text("removeset"), param("id")),
                         sequence(text("fetchset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
                                  opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
                         sequence(text("updateelement"), param("id"),
-                                 opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
+                                 opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-o"), param("order")))),
                         sequence(text("removeelement"), param("id"))
                         )));
 
@@ -9784,7 +9784,12 @@ void exec_setsandelements(autocomplete::ACState& s)
     {
         handle id = 0; // must have remaining bits set to 0
         Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
-        string name = (s.words.size() == 4) ? s.words[3].s : string();
+        string name;
+        if (!s.extractflagparam("-n", name) && !s.extractflag("-n"))
+        {
+            cerr << "Missing -n" << endl;
+            return;
+        }
 
         client->putSet(id, move(name), [id](Error e, handle setId)
             {
@@ -9871,7 +9876,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         SetElement el(node, elemId);
 
         string param;
-        if (s.extractflagparam("-n", param))
+        if (s.extractflagparam("-n", param) || s.extractflag("-n"))
         {
             el.setName(param);
         }
