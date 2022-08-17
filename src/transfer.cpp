@@ -1452,6 +1452,32 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(int connectionNum)
     return false;
 }
 
+void DirectReadSlot::decreaseReqsInflight()
+{
+    assert(numReqsInflight > 0);
+    numReqsInflight--;
+    if (numReqsInflight == (static_cast<int>(RAIDPARTS) - usedConnections()))
+    {
+        numReqsInflight = 0;
+    }
+    if (numReqsInflight == 0)
+    {
+        assert(!DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT || waitForParts);
+        waitForParts = false;
+    }
+}
+
+void DirectReadSlot::increaseReqsInflight()
+{
+    assert(numReqsInflight < RAIDPARTS);
+    numReqsInflight++;
+    if (numReqsInflight == RAIDPARTS)
+    {
+        assert(!waitForParts);
+        waitForParts = true;
+    }
+}
+
 bool DirectReadSlot::doio()
 {
     for (int connectionNum = unsigned(reqs.size()); connectionNum--; )
@@ -1464,18 +1490,13 @@ bool DirectReadSlot::doio()
             if (req->httpio && dr->drbuf.detectSlowestRaidConnection(connectionNum, slowestStartConnection))
             {
                 LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] -> Connection " << slowestStartConnection << " is the slowest to reply, using the other 5. [slowestStartConnection->status = " << reqs[slowestStartConnection]->status << "]";
+                unusedRaidConnection = static_cast<unsigned>(slowestStartConnection);
                 if (reqs[slowestStartConnection]->status == REQ_INFLIGHT)
                 {
-                    numReqsInflight--;
-                    if (numReqsInflight == 0)
-                    {
-                        assert(!DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT || waitForParts);
-                        waitForParts = false;
-                    }
+                    decreaseReqsInflight();
                 }
                 reqs[slowestStartConnection] = nullptr;
                 dr->drbuf.resetPart(slowestStartConnection);
-                unusedRaidConnection = static_cast<unsigned>(slowestStartConnection);
             }
             else if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
             {
@@ -1545,13 +1566,7 @@ bool DirectReadSlot::doio()
                 if (req->status == REQ_SUCCESS)
                 {
                     req->status = REQ_READY;
-                    assert(numReqsInflight > 0);
-                    numReqsInflight--;
-                    if (numReqsInflight == 0)
-                    {
-                        assert(!DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT || waitForParts);
-                        waitForParts = false;
-                    }
+                    decreaseReqsInflight();
                 }
             }
         }
@@ -1569,9 +1584,10 @@ bool DirectReadSlot::doio()
 
                 if (newBufferSupplied)
                 {
-                    if ((numReqsInflight == static_cast<unsigned>(RAIDPARTS - 1)) && (static_cast<unsigned>(connectionNum) == unusedRaidConnection) && !waitForParts)
+                    if (static_cast<unsigned>(connectionNum) == unusedRaidConnection)
                     {
-                        waitForParts = true;
+                        // Count the "unused connection" (restored by parity) as a req inflight, so we avoid to exec this piece of code needlessly
+                        increaseReqsInflight();
                     }
                     LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] (newBufferSupplied) -> processAnyOutputPieces()";
                     // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
@@ -1627,12 +1643,7 @@ bool DirectReadSlot::doio()
                         LOG_debug << "DEVEL| ALERT DirectReadSlot [" << connectionNum << "] req->post -> req->status = " << req->status;
 
                         dr->drbuf.transferPos(connectionNum) = posrange.second;
-                        numReqsInflight++;
-                        if (numReqsInflight == RAIDPARTS)
-                        {
-                            assert(!waitForParts);
-                            waitForParts = true;
-                        }
+                        increaseReqsInflight();
                     }
                 }
             }
@@ -1641,12 +1652,7 @@ bool DirectReadSlot::doio()
         if (req && req->status == REQ_FAILURE)
         {
             LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] ALERT !!!! req->status == REQ_FAILURE !!!!!!!!!!!!!!!!!!! [req->status = " << req->status << ", req->httpstatus = " << req->httpstatus << "]";
-            numReqsInflight--;
-            if (numReqsInflight == 0)
-            {
-                assert(!DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT || waitForParts);
-                waitForParts = false;
-            }
+            decreaseReqsInflight();
             if (req->httpstatus == 509)
             {
                 LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
