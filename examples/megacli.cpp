@@ -9764,9 +9764,9 @@ void exec_setsandelements(autocomplete::ACState& s)
 
     else if (command == "newset")
     {
-        string name = (s.words.size() == 3) ? s.words[2].s : string();
+        const char* name = (s.words.size() == 3) ? s.words[2].s.c_str() : nullptr;
 
-        client->putSet(UNDEF, move(name), [](Error e, handle id)
+        client->putSet(UNDEF, name, [](Error e, handle id)
             {
                 if (e == API_OK)
                 {
@@ -9784,14 +9784,13 @@ void exec_setsandelements(autocomplete::ACState& s)
     {
         handle id = 0; // must have remaining bits set to 0
         Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
-        string name;
-        if (!s.extractflagparam("-n", name) && !s.extractflag("-n"))
-        {
-            cerr << "Missing -n" << endl;
-            return;
-        }
 
-        client->putSet(id, move(name), [id](Error e, handle setId)
+        string buf;
+        bool updateName = s.extractflagparam("-n", buf);
+        bool cleanName = !updateName && s.extractflag("-n");
+        const char* name = (updateName || cleanName) ? buf.c_str() : nullptr;
+
+        client->putSet(id, name, [id](Error e, handle setId)
             {
                 if (e == API_OK)
                 {

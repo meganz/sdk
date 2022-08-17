@@ -8973,25 +8973,24 @@ bool CommandSE::procerrorcode(const Result& r, Error& e) const
     return false;
 }
 
-CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, string&& encrKey, string&& name, string&& encrAttrs,
-                                 std::function<void(Error, handle)> completion)
-    : mId(setId), mDecrKey(move(decrKey)), mName(move(name)), mCompletion(completion)
+CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, map<string, string>&& attrs,
+                             string&& encrKey, unique_ptr<string> encrAttrs, std::function<void(Error, handle)> completion)
+    : mId(setId), mDecrKey(move(decrKey)), mAttrs(move(attrs)), mCompletion(completion)
 {
     cmd("asp");
 
     if (setId == UNDEF) // create new
     {
         arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
-        if (!encrAttrs.empty())
-        {
-            arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
-        }
     }
-
     else // update
     {
         arg("id", (byte*)&setId, MegaClient::SETHANDLE);
-        arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
+    }
+
+    if (encrAttrs)
+    {
+        arg("at", (byte*)encrAttrs->c_str(), (int)encrAttrs->size());
     }
 
     notself(cl); // don't process its Action Packet after sending this
@@ -9013,15 +9012,19 @@ bool CommandPutSet::procresult(Result r)
     {
         if (mId == UNDEF) // add new
         {
-            Set s(setId, move(mDecrKey), user, ts, move(mName));
-            s.resetChanges();
+            Set s(setId, move(mDecrKey), user, ts, move(mAttrs));
             s.setChangeNew();
             client->addSet(move(s));
         }
         else // update existing
-        {
-            client->updateSet(setId, move(mName), ts);
+        {            
             assert(mId == setId);
+
+            if (!client->updateSet(setId, move(mAttrs), ts))
+            {
+                LOG_warn << "Sets: command 'asp' succeed, but Set was not found";
+                e = API_ENOENT;
+            }
         }
     }
 
