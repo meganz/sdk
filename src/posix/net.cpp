@@ -1444,7 +1444,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 {
     CurlHttpIO* httpio = httpctx->httpio;
     HttpReq* req = httpctx->req;
-    //LOG_debug << "DEVEL| WATCHH CurlHttpIO::send_request req->status = " << req->status;
     auto len = httpctx->len;
     const char* data = httpctx->data;
 
@@ -1469,7 +1468,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         }
     }
 
-    //LOG_debug << "DEVEL| WATCHH CurlHttpIO::send_request req->status = " << req->status;
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
     httpctx->posturl = req->posturl;
 
@@ -1509,7 +1507,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         case METHOD_POST:
             curl_easy_setopt(curl, CURLOPT_POST, 1L);
             curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data ? len : req->out->size());
-            //LOG_debug << "DEVEL| WATCHH CurlHttpIO::send_request req->status = " << req->status;
             break;
         case METHOD_GET:
             curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
@@ -1553,13 +1550,13 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
-            //LOG_debug << "DEVEL| MAXALERT -> (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400) -> USING SMALL BUFFERSIZE";
+            LOG_debug << "DEVEL| MAXALERT -> (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400) -> USING SMALL BUFFERSIZE";
             //curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096L);
         }
 
         if (req->minspeed)
         {
-            //LOG_debug << "DEVEL| MAXALERT -> (req->minspeed) -> SETTING LOW SPEED TIME";
+            LOG_debug << "DEVEL| MAXALERT -> (req->minspeed) -> SETTING LOW SPEED TIME";
             //curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
             //curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 30L);
         }
@@ -1649,7 +1646,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             }
         }
 
-        //LOG_debug << "DEVEL| WATCHH CurlHttpIO::send_request req->status = " << req->status;
         httpio->numconnections[httpctx->d]++;
         curl_multi_add_handle(httpio->curlm[httpctx->d], curl);
         httpctx->curl = curl;
@@ -1671,7 +1667,6 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
 
     httpio->statechange = true;
-    //LOG_debug << "DEVEL| WATCHH CurlHttpIO::send_request req->status = " << req->status;
 }
 
 void CurlHttpIO::request_proxy_ip()
@@ -1864,7 +1859,6 @@ int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t siz
 // POST request to URL
 void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 {
-    //LOG_debug << "DEVEL| WATCHH CurlHttpIO::post req->status = " << req->status;
     CurlHttpContext* httpctx = new CurlHttpContext;
     httpctx->curl = NULL;
     httpctx->httpio = this;
@@ -1969,14 +1963,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         lastdnspurge = Waiter::ds;
     }
 
-    //LOG_debug << "DEVEL| WATCHH CurlHttpIO::post req->status = " << req->status << " [" << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" : req->status == REQ_SUCCESS ? "REQ_SUCCES" : "REQ_SOMETHING") << "]";
     req->in.clear();
-    //LOG_debug << "DEVEL| WATCHH CurlHttpIO::post req->status = " << req->status << " [" << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" : req->status == REQ_SUCCESS ? "REQ_SUCCES" : "REQ_SOMETHING") << "]";
     req->status = REQ_INFLIGHT;
-    //LOG_debug << "DEVEL| WATCHH CurlHttpIO::post req->status = " << req->status << " [" << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" : req->status == REQ_SUCCESS ? "REQ_SUCCES" : "REQ_SOMETHING") << "]";
-    //req->postStartTime = Waiter::ds;
     req->postStartTime = std::chrono::system_clock::now();
-    //LOG_debug << "DEVEL| WATCHH CurlHttpIO::post req->status = " << req->status << " [" << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" : req->status == REQ_SUCCESS ? "REQ_SUCCES" : "REQ_SOMETHING") << "]";
 
     if (proxyip.size() && req->method != METHOD_NONE)
     {
@@ -2156,7 +2145,6 @@ m_off_t CurlHttpIO::postpos(void* handle)
 // process events
 bool CurlHttpIO::doio()
 {
-    //LOG_debug << "CURL| DEVEL| CurlHttpIO::doio [Waiter::ds = " << Waiter::ds << "]";
     bool result;
     statechange = false;
 

@@ -271,7 +271,6 @@ struct MEGA_API CurlHttpContext
     string posturl;
     unsigned len;
     const char* data;
-    dstime postStartTime;
 #ifdef MEGA_USE_C_ARES
     int ares_pending;
 #endif

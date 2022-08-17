@@ -225,9 +225,8 @@ struct MEGA_API DirectReadSlot
     static const int TIMEOUT_DS = 100;
     static const int TEMPURL_TIMEOUT_DS = 3000;
     static constexpr unsigned MIN_DELIVERY_CHUNK = 5 * 1024 * 1024; // 5 MB per assembled part to delive
-    static constexpr unsigned MIN_START_DELIVERY_CHUNK = 2 * 1024 * 1024; // 2 MB
     static constexpr unsigned MIN_COMPARABLE_THROUGHPUT = MIN_DELIVERY_CHUNK; // 5 MB
-    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 0; // 2 SWITCHES
+    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 0; // 1 SWITCHES
     static constexpr bool WAIT_FOR_PARTS_IN_FLIGHT = true;
 
     DirectRead* dr;
@@ -248,6 +247,7 @@ struct MEGA_API DirectReadSlot
     bool doio();
     bool waitForPartsInFlight();
     unsigned usedConnections();
+    bool searchAndDisconnectSlowestConnection(int connectionNum = 0);
 
     DirectReadSlot(DirectRead*);
     ~DirectReadSlot();

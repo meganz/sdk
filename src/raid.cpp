@@ -138,7 +138,6 @@ RaidBufferManager::RaidBufferManager()
     : is_raid(false)
     , raidKnown(false)
     , raidLinesPerChunk(16 * 1024)
-    //, minPartsChunk(RaidBufferManager::MIN_DELIVERY_CHUNK)
     , unusedRaidConnection(0)
     , raidpartspos(0)
     , outputfilepos(0)
@@ -190,9 +189,6 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
     startfilepos = resumepos;
     if (is_raid)
     {
-        //minPartsChunk = RaidBufferManager::MIN_DELIVERY_CHUNK / (RAIDPARTS - 1);
-        //minPartsChunk -= minPartsChunk % RAIDSECTOR;
-
         raidpartspos = resumepos / (RAIDPARTS - 1);
         raidpartspos -= raidpartspos % RAIDSECTOR;
         resumewastedbytes = size_t(outputfilepos - raidpartspos * (RAIDPARTS - 1));
@@ -478,7 +474,7 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
 
     assert(!partslen || !processToEnd || sumdatalen - partslen * (RAIDPARTS - 1) <= RAIDLINE);
 
-    if (partslen > 0 /*minPartsChunk || (minPartLen == unusedRaidConnection) || (transferPos(minPartLen) == transferSize(minPartLen))*/ || processToEnd)
+    if (partslen > 0 || processToEnd)
     {
         m_off_t macchunkpos = calcOutputChunkPos(newdatafilepos + partslen * (RAIDPARTS - 1));
 
@@ -850,14 +846,6 @@ m_off_t RaidBufferManager::progress() const
 
     return reportPos;
 }
-
-/*
-const m_off_t& RaidBufferManager::getMinPartsChunk() const
-{
-    return minPartsChunk;
-}
-*/
-
 
 TransferBufferManager::TransferBufferManager()
     : transfer(NULL)

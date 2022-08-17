@@ -2878,9 +2878,9 @@ void MegaTransferPrivate::setStartTime(int64_t startTime)
     }
 }
 
-void MegaTransferPrivate::setTransferredBytes(long long _transferredBytes)
+void MegaTransferPrivate::setTransferredBytes(long long transferredBytes)
 {
-    this->transferredBytes = _transferredBytes;
+    this->transferredBytes = transferredBytes;
 }
 
 void MegaTransferPrivate::setTotalBytes(long long totalBytes)
@@ -3832,9 +3832,9 @@ void MegaRequestPrivate::setTotalBytes(long long totalBytes)
     this->totalBytes = totalBytes;
 }
 
-void MegaRequestPrivate::setTransferredBytes(long long _transferredBytes)
+void MegaRequestPrivate::setTransferredBytes(long long transferredBytes)
 {
-    this->transferredBytes = _transferredBytes;
+    this->transferredBytes = transferredBytes;
 }
 
 void MegaRequestPrivate::setTag(int tag)
@@ -30086,7 +30086,7 @@ void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
 
 bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
 {
-    LOG_verbose << "DEVEL| onTransferData -> Streaming data received: " << transfer->getTransferredBytes()
+    LOG_verbose << "Streaming data received: " << transfer->getTransferredBytes()
                 << " Size: " << size
                 << " Queued: " << this->tcphandle.write_queue_size
                 << " " << streamingBuffer.bufferStatus();
