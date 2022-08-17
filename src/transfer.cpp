@@ -1434,19 +1434,53 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(int connectionNum)
         {
             unsigned slowestConnectionThroughput = static_cast<unsigned>(throughput[slowestConnection].first) / static_cast<unsigned>(throughput[slowestConnection].second);
             unsigned fastestConnectionThroughput = static_cast<unsigned>(throughput[fastestConnection].first) / static_cast<unsigned>(throughput[fastestConnection].second);
-            if (fastestConnectionThroughput * 4 > slowestConnectionThroughput * 5)
+            if (fastestConnectionThroughput * 3 > slowestConnectionThroughput * 4)
             {
-                LOG_warn << "DEVEL| DirectReadSlot [" << connectionNum << "] Connection " << slowestConnection << " is slow, trying the other 5 cloudraid connections [slowest = " << ((slowestConnectionThroughput * 10 / 1024)) << " KB/s, fastest = " << ((fastestConnectionThroughput * 10 / 1024)) << " KB/s] [numSlowConnectionsSwitches = " << numSlowConnectionsSwitches << "] [current unusedRaidConnection = " << unusedRaidConnection << "]";
+                LOG_warn << "DEVEL| DirectReadSlot [" << connectionNum << "] Connection " << slowestConnection << " is slow, trying the other 5 cloudraid connections [slowest = " << ((slowestConnectionThroughput * 1000 / 1024)) << " KB/s, fastest = " << ((fastestConnectionThroughput * 1000 / 1024)) << " KB/s] [numSlowConnectionsSwitches = " << numSlowConnectionsSwitches << "] [current unusedRaidConnection = " << unusedRaidConnection << "]";
                 if (dr->drbuf.setUnusedRaidConnection(slowestConnection))
                 {
                     unusedRaidConnection = slowestConnection;
                     numSlowConnectionsSwitches++;
                     LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] Continuing after setting slow connection [numSlowConnectionsSwitches = " << numSlowConnectionsSwitches << "]";
-                    reqs[unusedRaidConnection] = nullptr;
+                    reqs[unusedRaidConnection]->disconnect();
                     dr->drbuf.resetPart(unusedRaidConnection);
                     return true;
                 }
             }
+        }
+    }
+    return false;
+}
+
+bool DirectReadSlot::detectSlowestStartConnection(int connectionNum)
+{
+    if (unusedRaidConnection == static_cast<unsigned>(RAIDPARTS))
+    {
+        std::shared_ptr<HttpReq>& req = reqs[connectionNum];
+        unsigned slowestStartConnection;
+        if (req && req->httpio && (req->in.size() >= minChunk) && dr->drbuf.detectSlowestRaidConnection(connectionNum, slowestStartConnection))
+        {
+            LOG_debug << "DirectReadSlot [" << connectionNum << "] -> Connection " << slowestStartConnection << " is the slowest to reply, using the other 5";
+            unusedRaidConnection = static_cast<unsigned>(slowestStartConnection);
+            if (reqs[slowestStartConnection])
+            {
+                LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] -> New unusedRaidConnection = slowestStartConnection = " << unusedRaidConnection << " [slowestStartConnection->status = " << reqs[slowestStartConnection]->status << "]";
+                if (reqs[slowestStartConnection]->status == REQ_INFLIGHT)
+                {
+                    decreaseReqsInflight();
+                    if (numReqsInflight == static_cast<unsigned>(RAIDPARTS - 1))
+                    {
+                        // If this happens, numReqsInflight was RAIDPARTS before this.
+                        // Hence, waitForParts should be true, but we need the disconnected part to process the new buffer it will have after it's been reset (so it can be combined with the others by using parity)
+                        assert(!DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT || waitForParts == true);
+                        LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] -> unusedRaidConnection " << unusedRaidConnection << " was in flight and waitForParts was true, setting waitForParts to false";
+                        waitForParts = false;
+                    }
+                }
+                reqs[slowestStartConnection]->disconnect();
+            }
+            dr->drbuf.resetPart(slowestStartConnection);
+            return true;
         }
     }
     return false;
@@ -1462,6 +1496,7 @@ void DirectReadSlot::decreaseReqsInflight()
     }
     if (numReqsInflight == 0)
     {
+        LOG_debug << "DEVEL| decreaseReqsInflight -> numReqsInflight == 0 -> waitForParts = false";
         assert(!DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT || waitForParts);
         waitForParts = false;
     }
@@ -1473,6 +1508,7 @@ void DirectReadSlot::increaseReqsInflight()
     numReqsInflight++;
     if (numReqsInflight == RAIDPARTS)
     {
+        LOG_debug << "DEVEL| increaseReqsInflight -> numReqsInflight == RAIDPARTS -> waitForParts = true";
         assert(!waitForParts);
         waitForParts = true;
     }
@@ -1480,25 +1516,14 @@ void DirectReadSlot::increaseReqsInflight()
 
 bool DirectReadSlot::doio()
 {
-    for (int connectionNum = unsigned(reqs.size()); connectionNum--; )
+    for (int connectionNum = static_cast<int>(reqs.size()); connectionNum--; )
     {
-        std::shared_ptr<HttpReq>& req = reqs[connectionNum];
+        detectSlowestStartConnection(connectionNum);
 
-        if (reqs[connectionNum])
+        std::shared_ptr<HttpReq>& req = reqs[connectionNum];
+        if (req && (static_cast<unsigned>(connectionNum) != unusedRaidConnection))
         {
-            unsigned slowestStartConnection;
-            if (req->httpio && dr->drbuf.detectSlowestRaidConnection(connectionNum, slowestStartConnection))
-            {
-                LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] -> Connection " << slowestStartConnection << " is the slowest to reply, using the other 5. [slowestStartConnection->status = " << reqs[slowestStartConnection]->status << "]";
-                unusedRaidConnection = static_cast<unsigned>(slowestStartConnection);
-                if (reqs[slowestStartConnection]->status == REQ_INFLIGHT)
-                {
-                    decreaseReqsInflight();
-                }
-                reqs[slowestStartConnection] = nullptr;
-                dr->drbuf.resetPart(slowestStartConnection);
-            }
-            else if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
+            if (req->status == REQ_INFLIGHT || req->status == REQ_SUCCESS)
             {
                 if (req->in.size())
                 {
@@ -1527,14 +1552,14 @@ bool DirectReadSlot::doio()
                         }
                     }
 
-
                     if (n)
                     {
                         throughput[connectionNum].first += n;
                         auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - req->postStartTime).count();
                         throughput[connectionNum].second = lastDataTime;
-                        LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] -> WATCHH serving n = " << n << ", req->in.size = " << req->in.size() << ", req->in.capacity = " << req->in.capacity() << " [minChunk = " << minChunk << ", reqs.size = " << reqs.size() << ", req->status = " << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" : req->status == REQ_SUCCESS ? "REQ_SUCCESS" : "REQ_SOMETHING") << ", req->httpstatus = " << req->httpstatus << ", req->contentlength = " << req->contentlength << "] [chunk throughput = " << (lastDataTime ? (((throughput[connectionNum].first / static_cast<unsigned>(lastDataTime)) * 1000) / 1024) : 0) << " KB/s]";
-                        RaidBufferManager::FilePiece* np = new RaidBufferManager::FilePiece(req->pos, n);
+                        LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] -> FilePiece's going to be submitted: n = " << n << ", req->in.size = " << req->in.size() << ", req->in.capacity = " << req->in.capacity() << " [minChunk = " << minChunk << ", reqs.size = " << reqs.size() << ", req->status = " << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" : req->status == REQ_SUCCESS ? "REQ_SUCCESS" : "REQ_SOMETHING")
+                                  << ", req->httpstatus = " << req->httpstatus << ", req->contentlength = " << req->contentlength << "] [numReqsInflight = " << numReqsInflight << "] [chunk throughput = " << (lastDataTime ? (((throughput[connectionNum].first / static_cast<unsigned>(lastDataTime)) * 1000) / 1024) : 0) << " KB/s]";
+                        RaidBufferManager::FilePiece *np = new RaidBufferManager::FilePiece(req->pos, n);
                         memcpy(np->buf.datastart(), req->in.c_str(), n);
 
                         req->in.erase(0, n);
@@ -1552,7 +1577,6 @@ bool DirectReadSlot::doio()
 
                         dr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
 
-
                         // we might have a raid-reassembled block to write now, or this very block in non-raid
                         if (!processAnyOutputPieces())
                         {
@@ -1565,8 +1589,8 @@ bool DirectReadSlot::doio()
 
                 if (req->status == REQ_SUCCESS)
                 {
-                    req->status = REQ_READY;
                     decreaseReqsInflight();
+                    req->status = REQ_READY;
                 }
             }
         }
@@ -1577,7 +1601,7 @@ bool DirectReadSlot::doio()
             {
                 if (searchAndDisconnectSlowestConnection(connectionNum))
                 {
-                    LOG_warn << "DirectReadSlot [" << connectionNum << "] Continue DirectReadSlot loop after disconnecting slow connection " << connectionNum;
+                    LOG_warn << "DirectReadSlot [" << connectionNum << "] Continue DirectReadSlot loop after disconnecting slow connection " << unusedRaidConnection;
                 }
                 bool newBufferSupplied = false, pauseForRaid = false;
                 std::pair<m_off_t, m_off_t> posrange = dr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
@@ -1595,9 +1619,13 @@ bool DirectReadSlot::doio()
                 }
                 else if (!pauseForRaid)
                 {
-                    if (posrange.first >= posrange.second && req)
+                    if (posrange.first >= posrange.second)
                     {
-                        req->status = REQ_DONE;
+                        if (req)
+                        {
+                            LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] req->status = REQ_DONE!";
+                            req->status = REQ_DONE;
+                        }
                         bool allDone = true;
                         for (size_t i = reqs.size(); i--;)
                         {
@@ -1608,6 +1636,7 @@ bool DirectReadSlot::doio()
                         }
                         if (allDone)
                         {
+                             LOG_debug << "DEVEL| DirectReadSlot [" << connectionNum << "] ALL REQS ARE DONE -> Remove and delete DirectRead";
                             dr->drn->schedule(DirectReadSlot::TEMPURL_TIMEOUT_DS);
 
                             // remove and delete completed read request, then remove slot

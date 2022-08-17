@@ -375,9 +375,16 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
 
         LOG_debug << "DEVEL| raidLinesPerChunk = " << raidLinesPerChunk << ", curpos = " << curpos << ", maxpos = " << maxpos << " (acquirelimitpos = " << acquirelimitpos << ")";
         m_off_t npos = curpos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead;
-        if ((npos < maxpos) && ((maxpos - npos) < (10*1024*1024))) // Dont leave a chunk smaller than 10MB for the last request
+        static constexpr size_t MIN_LAST_CHUNK = 10 * 1024 * 1024;
+        static constexpr size_t MAX_LAST_CHUNK = 16 * 1024 * 1024;
+        size_t nextChunkSize = (npos < maxpos) ? static_cast<size_t>(maxpos - npos) : static_cast<size_t>(0);
+        if ((nextChunkSize > 0) && (nextChunkSize < MIN_LAST_CHUNK)) // Dont leave a chunk smaller than 10MB for the last request
         {
-            npos = maxpos;
+            // If this chunk and the last one are greater or equal than +16 MB, we'll ask for two chunks of +8 MB.
+            // Otherwise, we'll request the remaining: -15 MB
+            npos = (nextChunkSize >= MAX_LAST_CHUNK) ?
+                        (npos + (nextChunkSize / 2)) :
+                        maxpos;
         }
         else
         {
