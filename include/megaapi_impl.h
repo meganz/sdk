@@ -3474,6 +3474,8 @@ public:
     ~StreamingBuffer();
     // Allocate buffer and reset class members
     void init(size_t capacity);
+    // Reset positions for body writting ("forgets" buffered external data such as headers, which use the same buffer)
+    void reset();
     // Add data to the buffer. This will mainly come from the Transfer (or from a cache file if it's included someday).
     size_t append(const char *buf, size_t len);
     // Get buffered data size

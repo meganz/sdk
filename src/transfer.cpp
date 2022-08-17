@@ -1433,6 +1433,15 @@ bool DirectReadSlot::doio()
                     {
                         //unsigned fixedChunkSize = (unsigned)dr->progress < DirectReadSlot::MIN_START_DELIVERY_CHUNK ? DirectReadSlot::MIN_START_DELIVERY_CHUNK : minChunk;
                         unsigned fixedChunkSize = minChunk;
+                        n = (n / fixedChunkSize) * fixedChunkSize;
+                        if (dr->drbuf.isRaid())
+                        {
+                            if (n)
+                            {
+                                n -= n % RAIDSECTOR;
+                            }
+                        }
+                        /*
                         if (dr->drbuf.isRaid())
                         {
                             n = (n / fixedChunkSize) * fixedChunkSize;
@@ -1445,6 +1454,7 @@ bool DirectReadSlot::doio()
                         {
                             n = 0;
                         }
+                        */
 
                         if (!n)
                         {

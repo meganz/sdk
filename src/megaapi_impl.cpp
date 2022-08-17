@@ -26964,9 +26964,12 @@ void StreamingBuffer::init(size_t capacity)
 {
     assert(this->length > 0);
     assert(capacity > 0);
-    size_t bufferSizeFor10Seconds = 10 * getBitRate();
-    maxBufferSize = std::max(maxBufferSize, bufferSizeFor10Seconds);
-    maxOutputSize = std::max(getBitRate(), bufferSizeFor10Seconds / 2);
+    size_t minMaxBitRateCapacityInSeconds = 10;
+    size_t bufferSizeForMinMaxSeconds_timesMinDeliveryChunk = (minMaxBitRateCapacityInSeconds * getBitRate()) / static_cast<size_t>(DirectReadSlot::MIN_DELIVERY_CHUNK);
+    size_t bufferSizeForMinMaxSeconds_modMinDeliveryChunk = (minMaxBitRateCapacityInSeconds * getBitRate()) % static_cast<size_t>(DirectReadSlot::MIN_DELIVERY_CHUNK);
+    size_t bufferSizeForMinMaxSeconds = (bufferSizeForMinMaxSeconds_timesMinDeliveryChunk + (bufferSizeForMinMaxSeconds_modMinDeliveryChunk != 0)) * static_cast<size_t>(DirectReadSlot::MIN_DELIVERY_CHUNK);
+    maxBufferSize = std::max(maxBufferSize, bufferSizeForMinMaxSeconds);
+    maxOutputSize = std::min(std::max(getBitRate(), static_cast<size_t>(DirectReadSlot::MIN_DELIVERY_CHUNK)), capacity);
     if (capacity > maxBufferSize)
     {
         LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize. "
@@ -26974,13 +26977,24 @@ void StreamingBuffer::init(size_t capacity)
                  << ", truncated to  = " << maxBufferSize << " bytes"
                  << " [file length = " << length << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / getBitRate()).append(" secs")) : "")
+                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / getBitRate())).append(" secs")
+                                    .append(", max length to be served: ").append(std::to_string(maxOutputSize / getBitRate())).append(" secs")
+                                : "")
                  << "]";
         capacity = maxBufferSize;
     }
 
     this->capacity = static_cast<unsigned>(capacity);
     this->buffer = new char[this->capacity];
+    this->inpos = 0;
+    this->outpos = 0;
+    this->size = 0;
+    this->free = this->capacity;
+}
+
+void StreamingBuffer::reset()
+{
+    LOG_warn << "[Streaming] Reset streaming buffer. Actual size: " << size << ", free: " << free << " [capacity = " << capacity << "]";
     this->inpos = 0;
     this->outpos = 0;
     this->size = 0;
@@ -27020,6 +27034,8 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     else
     {
         size_t num = static_cast<size_t>(static_cast<int>(len) - remaining);
+        LOG_debug << "[Streaming] Length exceeds limits of circular buffer. Writting a piece of " << num << " bytes to the end and the others " << remaining << " bytes from the beginning"
+                    << " [currentIndex = " << currentIndex << ", len = " << len << ", capacity = " << capacity << "]";
         memcpy(buffer + currentIndex, buf, num);
         memcpy(buffer, buf + num, static_cast<size_t>(remaining));
     }
@@ -27055,6 +27071,9 @@ uv_buf_t StreamingBuffer::nextBuffer()
     size_t len = size < maxOutputSize ? size : maxOutputSize;
     if (outpos + len > capacity)
     {
+        LOG_debug << "[Streaming] Available length exceeds limits of circular buffer: "
+                    << "Truncating output buffer length to " << (capacity-outpos) << " bytes"
+                    << " [outpos = " << outpos << ", len = " << len << ", capacity = " << capacity << "]";
         len = capacity - outpos;
     }
 
@@ -29825,7 +29844,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     string resstr = response.str();
     if (httpctx->parser.method != HTTP_HEAD)
     {
-        httpctx->streamingBuffer.init(len + resstr.size());
+        httpctx->streamingBuffer.init(std::max(static_cast<size_t>(len), resstr.size()));
         httpctx->size = len;
     }
 
@@ -29839,6 +29858,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     httpctx->rangeWritten = 0;
     if (start || len)
     {
+        httpctx->streamingBuffer.reset();
         httpctx->megaApi->startStreaming(node, start, len, httpctx);
     }
     else
