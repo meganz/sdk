@@ -8974,7 +8974,7 @@ bool CommandSE::procerrorcode(const Result& r, Error& e) const
 }
 
 CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, map<string, string>&& attrs,
-                             string&& encrKey, string&& encrAttrs, std::function<void(Error, handle)> completion)
+                             string&& encrKey, unique_ptr<string> encrAttrs, std::function<void(Error, handle)> completion)
     : mId(setId), mDecrKey(move(decrKey)), mAttrs(move(attrs)), mCompletion(completion)
 {
     cmd("asp");
@@ -8988,9 +8988,9 @@ CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, map
         arg("id", (byte*)&setId, MegaClient::SETHANDLE);
     }
 
-    if (!encrAttrs.empty())
+    if (encrAttrs)
     {
-        arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
+        arg("at", (byte*)encrAttrs->c_str(), (int)encrAttrs->size());
     }
 
     notself(cl); // don't process its Action Packet after sending this

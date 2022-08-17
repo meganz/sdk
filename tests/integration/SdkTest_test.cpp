@@ -7865,6 +7865,19 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->ts(), s1p->ts());
     ASSERT_EQ(s2p->user(), s1p->user());
 
+    // Clear Set name
+    differentApiDtls.setUpdated = false;
+    err = doUpdateMegaSetName(0, nullptr, sh, "");
+    ASSERT_EQ(err, API_OK);
+    unique_ptr<MegaSet> s1clearname(megaApi[0]->getMegaSet(sh));
+    ASSERT_NE(s1clearname, nullptr);
+    ASSERT_STREQ(s1clearname->name(), "");
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set update AP not received after " << maxTimeout << " seconds";
+    s2p.reset(differentApi.getMegaSet(sh));
+    ASSERT_NE(s2p, nullptr);
+    ASSERT_STREQ(s2p->name(), "");
+
     // 2. Update Set name
     MegaHandle shu = INVALID_HANDLE;
     name += " updated";
@@ -7936,6 +7949,19 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elp2->ts(), elp->ts());
     ASSERT_EQ(elp2->order(), elp->order());
 
+    // Clear Element name
+    differentApiDtls.setUpdated = false;
+    err = doUpdateMegaElementName(0, nullptr, eh, "");
+    ASSERT_EQ(err, API_OK);
+    unique_ptr<MegaElement> elclearname(megaApi[0]->getMegaElement(eh, sh));
+    ASSERT_NE(elclearname, nullptr);
+    ASSERT_STREQ(elclearname->name(), "");
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Element update AP not received after " << maxTimeout << " seconds";
+    elp2.reset(differentApi.getMegaElement(eh, sh));
+    ASSERT_NE(elp2, nullptr);
+    ASSERT_STREQ(elp2->name(), "");
+
     // 5. Fetch Set
     err = doFetchMegaSet(0, sh); // will replace the one stored in memory
     ASSERT_EQ(err, API_OK);
@@ -7951,9 +7977,9 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elfp, nullptr);
     ASSERT_EQ(elfp->id(), eh);
     ASSERT_EQ(elfp->node(), uploadedNode);
-    ASSERT_EQ(elfp->name(), elattrs);
-    ASSERT_EQ(elfp->ts(), elp->ts());
-    ASSERT_EQ(elfp->order(), elp->order());
+    ASSERT_STREQ(elfp->name(), "");
+    ASSERT_EQ(elfp->ts(), elp2->ts());
+    ASSERT_EQ(elfp->order(), elp2->order());
 
     // 6. Update Element order
     MegaHandle shu1 = INVALID_HANDLE;
@@ -7967,7 +7993,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elu1p, nullptr);
     ASSERT_EQ(elu1p->id(), eh);
     ASSERT_EQ(elu1p->node(), uploadedNode);
-    ASSERT_EQ(elu1p->name(), elattrs);
+    ASSERT_STREQ(elu1p->name(), "");
     ASSERT_EQ(elu1p->order(), order);
     ASSERT_NE(elu1p->ts(), 0);
 

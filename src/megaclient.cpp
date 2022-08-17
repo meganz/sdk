@@ -17061,10 +17061,22 @@ void MegaClient::putSet(handle id, const char* name, std::function<void(Error, h
 
     // store attrs to TLV and encrypt with Set key
     map<string, string> attrs;
-    if (name) attrs["name"] = name;
+    std::unique_ptr<string> encrAttrs;
+    if (name)
+    {
+        if (*name)
+        {
+            attrs["name"] = name;
+        }
+        else
+        {
+            attrs.erase("name");
+        }
 
-    string encrAttrs = encryptAttrs(attrs, string((char*)setKey, sizeof(setKey)));
-    if (encrAttrs.empty())
+        encrAttrs.reset(new string(encryptAttrs(attrs, string((char*)setKey, sizeof(setKey)))));
+    }
+
+    if (!encrAttrs)
     {
         if (completion)
             completion(API_EINTERNAL, id);
@@ -17170,13 +17182,15 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
     string encrAttrs;
     if (el.hasAttrs())
     {
-        encrAttrs = encryptAttrs(el.attrs(), el.key());
-        if (encrAttrs.empty())
+        string_map attrs;
+        for (auto it = el.attrs().begin(); it != el.attrs().end(); ++it)
         {
-            if (completion)
-                completion(API_EINTERNAL, el.id(), UNDEF);
-            return;
+            if (!it->second.empty())
+            {
+                attrs.emplace(*it);
+            }
         }
+        encrAttrs = encryptAttrs(attrs, el.key());
     }
 
     reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), existingSet->id(), completion));
@@ -17672,7 +17686,11 @@ void MegaClient::sc_asp()
     {
         Set& existing = it->second;
 
-        if (!s.encryptedAttrs().empty())
+        if (s.encryptedAttrs().empty())
+        {
+            existing.setAttributes(string_map());
+        }
+        else
         {
             existing.setEncryptedAttrs(s.encryptedAttrs());
             auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
@@ -18048,8 +18066,8 @@ void Set::setAttributes(map<std::string, std::string> &&attrs)
     // check for changes
     auto it = mAttrs.find("name");
     const string& oldName = it != mAttrs.end() ? it->second : "";
-    it = mAttrs.find("name");
-    const string& newName = it != attrs.end() ? it-> second : "";
+    auto it2 = attrs.find("name");
+    const string& newName = it2 != attrs.end() ? it2->second : "";
     if (newName != oldName) setChangeName();
 
     mAttrs = move(attrs);
@@ -18061,43 +18079,8 @@ bool Set::decryptAttributes(std::function<bool(const string&, const string&, map
 
     if (f(mEncryptedAttrs, mKey, newAttrs))
     {
-        vector<string> updates;
-
-        // compare attrs to see what changed
-        for (auto& a : newAttrs)
-        {
-            auto oldAttrIt = mAttrs.find(a.first);
-
-            if (oldAttrIt == mAttrs.end())
-            {
-                if (!a.second.empty())
-                {
-                    mAttrs[a.first] = move(a.second);
-                    updates.push_back(a.first);
-                }
-            }
-            else
-            {
-                if (a.second.empty())
-                {
-                    mAttrs.erase(oldAttrIt);
-                    updates.push_back(a.first);
-                }
-                else if (oldAttrIt->second != a.second)
-                {
-                    oldAttrIt->second = move(a.second);
-                    updates.push_back(a.first);
-                }
-            }
-        }
-
         mEncryptedAttrs.clear();
-
-        // mark changes
-        if (find(updates.begin(), updates.end(), "name") != updates.end())
-        {
-            setChangeName();
-        }
+        setAttributes(move(newAttrs));
 
         return true;
     }
