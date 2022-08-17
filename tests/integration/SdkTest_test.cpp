@@ -8035,10 +8035,9 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 7. Update Element name
     MegaHandle shu2 = INVALID_HANDLE;
-    optionFlags = 2; // update attributes
     elattrs += " updated";
     differentApiDtls.setUpdated = false;
-    err = doUpdateMegaElement(0, &shu2, eh, optionFlags, 0, elattrs.c_str());
+    err = doUpdateMegaElementName(0, &shu2, eh, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_EQ(shu2, sh);
 
