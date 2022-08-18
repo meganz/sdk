@@ -8080,6 +8080,18 @@ class MegaApi
             RESUME_EPLUSPLUS_ACCOUNT    = 4,
         };
 
+        enum
+        {
+            CREATE_SET                  = (1 << 0),
+            OPTION_SET_NAME             = (1 << 1),
+        };
+        enum
+        {
+            CREATE_ELEMENT              = (1 << 0),
+            OPTION_ELEMENT_NAME         = (1 << 1),
+            OPTION_ELEMENT_ORDER        = (1 << 2),
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
 
         /**
@@ -19136,20 +19148,19 @@ class MegaApi
          */
         bool driveMonitorEnabled();
 
-        void createMegaSet(const char* name = nullptr, MegaRequestListener* listener = nullptr);
-        void updateMegaSetName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
-        void removeMegaSet(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void fetchMegaSet(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void createMegaElement(MegaHandle setId, MegaHandle node, int optionFlags, int64_t order = 0, const char* name = nullptr, MegaRequestListener* listener = nullptr);
-        void updateMegaElement(MegaHandle id, int optionFlags, int64_t order, const char* name = nullptr, MegaRequestListener* listener = nullptr);
-        void updateMegaElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener = nullptr);
-        void updateMegaElementName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
-        void removeMegaElement(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void createSet(const char* name = nullptr, MegaRequestListener* listener = nullptr);
+        void updateSetName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
+        void removeSet(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void fetchSet(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void createSetElement(MegaHandle setId, MegaHandle node, const char* name = nullptr, MegaRequestListener* listener = nullptr);
+        void updateSetElementName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
+        void updateSetElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener = nullptr);
+        void removeSetElement(MegaHandle id, MegaRequestListener* listener = nullptr);
 
-        MegaSetList* getMegaSets();
-        MegaSet* getMegaSet(MegaHandle sid);
-        MegaElementList* getMegaElements(MegaHandle sid);
-        MegaElement* getMegaElement(MegaHandle eid, MegaHandle sid);
+        MegaSetList* getSets();
+        MegaSet* getSet(MegaHandle sid);
+        MegaElementList* getSetElements(MegaHandle sid);
+        MegaElement* getSetElement(MegaHandle eid, MegaHandle sid);
 
  private:
         MegaApiImpl *pImpl = nullptr;
