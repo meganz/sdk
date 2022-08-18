@@ -18957,9 +18957,13 @@ void MegaApiImpl::sendPendingRequests()
         {
             SetElement el(request->getNodeHandle(), request->getParentHandle());
             if (request->getParamType() & MegaApi::UPDATE_ELEMENT_ORDER)
+            {
                 el.setOrder(request->getNumber());
+            }
             if (request->getParamType() & MegaApi::UPDATE_ELEMENT_NAME)
+            {
                 el.setName(request->getText() ? request->getText() : string());
+            }    
             client->putSetElement(move(el), request->getTotalBytes(),
                 [this, request](Error e, handle id, handle setId)
                 {
