@@ -2833,6 +2833,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
 
     us.mConfig.mError = NO_SYNC_ERROR;
     us.mConfig.mRunState = SyncRunState::Loading;
+    us.mConfig.mTemporarilyPaused = paused;
 
     if (resetFingerprint)
     {
@@ -3001,7 +3002,9 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     us.mSync->purgeStaleDownloads();
 
-    us.mConfig.mRunState = SyncRunState::Run;
+    // this was already set in the Sync constructor
+    assert(us.mConfig.mRunState == (us.mConfig.mTemporarilyPaused ? SyncRunState::Pause : SyncRunState::Run));
+
     us.changedConfigState(false, true);
 
     // Assume we'll encounter an error.
