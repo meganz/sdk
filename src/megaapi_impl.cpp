@@ -18926,7 +18926,7 @@ void MegaApiImpl::sendPendingRequests()
         {
         case MegaRequest::TYPE_PUT_SET:
         {
-            const char* name = (request->getParamType() & MegaApi::UPDATE_SET_NAME) ? request->getText() : nullptr;
+            const char* name = (request->getParamType() & MegaApi::OPTION_SET_NAME) ? request->getText() : nullptr;
             client->putSet(request->getParentHandle(), name,
                 [this, request](Error e, handle id)
                 {
@@ -18956,11 +18956,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_PUT_SET_ELEMENT:
         {
             SetElement el(request->getNodeHandle(), request->getParentHandle());
-            if (request->getParamType() & MegaApi::UPDATE_ELEMENT_ORDER)
+            if (request->getParamType() & MegaApi::OPTION_ELEMENT_ORDER)
             {
                 el.setOrder(request->getNumber());
             }
-            if (request->getParamType() & MegaApi::UPDATE_ELEMENT_NAME)
+            if (request->getParamType() & MegaApi::OPTION_ELEMENT_NAME)
             {
                 el.setName(request->getText() ? request->getText() : string());
             }    
