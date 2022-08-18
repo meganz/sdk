@@ -48,6 +48,9 @@ bool g_disablepkp_default = false;
 std::mutex g_APIURL_default_mutex;
 string g_APIURL_default = "https://g.api.mega.co.nz/";
 
+// user handle for customer support user
+const string MegaClient::SUPPORT_USER_HANDLE = "pGTOqu7_Fek";
+
 // root URL for chat stats
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
@@ -7504,6 +7507,11 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 // modify the 'n' attribute)
 error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& completion)
 {
+    if (mBizStatus == BIZ_STATUS_EXPIRED)
+    {
+        return API_EBUSINESSPASTDUE;
+    }
+
     error e;
 
     if ((e = checkmove(n, p)))
@@ -7614,6 +7622,11 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
+    if (mBizStatus == BIZ_STATUS_EXPIRED)
+    {
+        return API_EBUSINESSPASTDUE;
+    }
+
     if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
@@ -14647,7 +14660,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
     {
         if (d == PUT)
         {
-            if (!nodeByHandle(f->h))
+            if (!nodeByHandle(f->h) && (f->targetuser != SUPPORT_USER_HANDLE))
             {
                 // the folder to upload is unknown - perhaps this is a resumed transfer
                 // and the folder was deleted in the meantime
