@@ -8820,13 +8820,37 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         }
     }
 
-    // any child nodes that arrived before their parents?
+    // any child nodes arrived before their parents?
+    size_t count = 0;
+    node_vector orphans;
     for (size_t i = dp.size(); i--; )
     {
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
+            ++count;
         }
+        else if (dp[i]->type < ROOTNODE)    // rootnodes have no parent
+        {
+            orphans.push_back(dp[i]);
+        }
+    }
+
+    mergenewshares(0);
+
+    // detect if there's any orphan node and report to API
+    for (auto orphan : orphans)
+    {
+        // top-level inshares have no parent (nested ones have)
+        if (orphan->inshare)
+        {
+            ++count;
+        }
+    }
+    if (dp.size() != count)
+    {
+       LOG_err << "Detected orphan nodes: " << dp.size() - count;
+       sendevent(99455, "Orphan node(s) detected");
     }
 
     return j->leavearray();
