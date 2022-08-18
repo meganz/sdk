@@ -4165,8 +4165,6 @@ class MegaTransfer
             STAGE_NONE = 0,
             STAGE_SCAN,
             STAGE_CREATE_TREE,
-            STAGE_GEN_TRANSFERS,
-            STAGE_PROCESS_TRANSFER_QUEUE,
             STAGE_TRANSFERRING_FILES,
             STAGE_MAX = STAGE_TRANSFERRING_FILES,
         };
@@ -4364,15 +4362,15 @@ class MegaTransfer
          * This method can return the following values:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
-         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
-         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
-         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
          * Any other returned value, must be ignored.
          *
          * The value returned by this method, can only be considered as valid, when we receive MegaTransferListener::onTransferUpdate
          * or MegaListener::onTransferUpdate, and the returned value is in between the range specified above.
          *
          * Note: any specific stage can only be notified once at most.
+         *
+         * @deprecated use the stage in the onFolderTransferUpdate callback instead
          *
          * @return The current stage for a folder upload/download operation
          */
@@ -6468,9 +6466,7 @@ class MegaTransferListener
          * This method returns the following values:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
-         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
-         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
-         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
          * For more information about stages refer to MegaTransfer::getStage
          *
          * @param api MegaApi object that started the transfer
@@ -6497,14 +6493,19 @@ class MegaTransferListener
          * since scanning may take a while and the appliation may be showing a modal dialog during
          * this time.
          *
+         * Note that this function could be called from a variety of threads during the
+         * overall operation, so proper thread safety should be observed.
+         *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
+         * @stage MegaTransfer::STAGE_SCAN or a later value in that enum
          * @param foldercount The count of folders scanned so far
-         * @param filecount The count of files scanned (and fingerprinted) so far
-         * @param currentFolder The path of the folder currently being scanned
-         * @param currentFileLeafname The leaft name o fthe file currently being fingrprinted (can be NULL for the first call in a new folder)
+         * @param foldercount The count of folders created so far (only relevant in MegaTransfer::STAGE_CREATE_TREE)
+         * @param filecount The count of files scanned (and fingerprinted) so far.  0 if not in scanning stage
+         * @param currentFolder The path of the folder currently being scanned (NULL except in the scan stage)
+         * @param currentFileLeafname The leaft name o fthe file currently being fingrprinted (can be NULL for the first call in a new folder, and when not scanning anymore)
          */
-        virtual void onFolderTransferUpdate(MegaApi *api, MegaTransfer *transfer, uint32_t foldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname);
+        virtual void onFolderTransferUpdate(MegaApi *api, MegaTransfer *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname);
 
         /**
          * @brief This function is called when there is a temporary error processing a transfer
@@ -7042,9 +7043,7 @@ class MegaListener
          * This method returns the following values:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
-         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
-         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
-         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
          * For more information about stages refer to MegaTransfer::getStage
          *
          * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
@@ -12741,11 +12740,6 @@ class MegaApi
          *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
          *    that shares the same cancel token instance.
          *
-         * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
-         * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
-         * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
-         * instead of that, use MegaCancelToken::cancel() calling through MegaCancelToken instance associated to this transfer.
-         *
          * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
          * @param localPath Local path of the file or folder
@@ -12826,11 +12820,6 @@ class MegaApi
          *
          *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
          *    that shares the same cancel token instance.
-         *
-         * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
-         * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
-         * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
-         * instead of that, use MegaCancelToken::cancel() calling through MegaCancelToken instance associated to this transfer.
          *
          * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *

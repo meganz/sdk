@@ -1295,8 +1295,6 @@ const char* MegaTransfer::stageToString(unsigned stage)
         case MegaTransfer::STAGE_NONE:                      return "Not initialized stage";
         case MegaTransfer::STAGE_SCAN:                      return "Scan stage";
         case MegaTransfer::STAGE_CREATE_TREE:               return "Create tree stage";
-        case MegaTransfer::STAGE_GEN_TRANSFERS:             return "Generating file transfers stage";
-        case MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE:    return "Processing transfers queue stage";
         case MegaTransfer::STAGE_TRANSFERRING_FILES:        return "Transferring files stage";
         default:                                            return "Invalid stage";
     }
@@ -1606,7 +1604,7 @@ void MegaTransferListener::onTransferFinish(MegaApi*, MegaTransfer *, MegaError*
 { }
 void MegaTransferListener::onTransferUpdate(MegaApi *, MegaTransfer *)
 { }
-void MegaTransferListener::onFolderTransferUpdate(MegaApi *, MegaTransfer *, uint32_t foldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname)
+void MegaTransferListener::onFolderTransferUpdate(MegaApi *, MegaTransfer *, int stage, uint32_t foldercount, uint32_t filecount, uint32_t createdfoldercount, const char* currentFolder, const char* currentFileLeafname)
 { }
 bool MegaTransferListener::onTransferData(MegaApi *, MegaTransfer *, char *, size_t)
 { return true; }

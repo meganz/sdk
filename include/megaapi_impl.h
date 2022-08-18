@@ -347,6 +347,13 @@ protected:
 
         // subfolders
         vector<unique_ptr<Tree>> subtrees;
+
+        void recursiveCountFolders(unsigned& existing, unsigned& total)
+        {
+            total += 1;
+            existing += megaNode ? 1 : 0;
+            for (auto& n : subtrees) { n->recursiveCountFolders(existing, total); }
+        }
     };
     Tree mUploadTree;
 
@@ -537,7 +544,7 @@ protected:
 
     // Scan entire tree recursively, and retrieve folder structure and files to be downloaded.
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
-    scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
+    scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType, unsigned& fileAddedCount);
 
     // Create all local directories in one shot. This happens on the worker thread.
     Error createFolder();
@@ -2959,7 +2966,7 @@ class MegaApiImpl : public MegaApp
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
-        void fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, uint32_t foldercount, uint32_t filecount, const LocalPath& currentFolder, const LocalPath* currentFileLeafname);
+        void fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const LocalPath* currentFolder, const LocalPath* currentFileLeafname);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
 
