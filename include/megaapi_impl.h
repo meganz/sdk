@@ -2625,7 +2625,7 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
         //Sets and Elements
-        void putSet(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
+        void putSet(MegaHandle id, int optionFlags, const char* name, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle id, MegaRequestListener* listener = nullptr);
         void fetchSet(MegaHandle id, MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle id, MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);

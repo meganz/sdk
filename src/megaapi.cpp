@@ -5534,12 +5534,13 @@ bool MegaApi::driveMonitorEnabled()
 
 void MegaApi::createMegaSet(const char* name, MegaRequestListener* listener)
 {
-    pImpl->putSet(INVALID_HANDLE, name, listener);
+    int options = CREATE_SET | (name ? UPDATE_SET_NAME : 0);
+    pImpl->putSet(INVALID_HANDLE, options, name, listener);
 }
 
 void MegaApi::updateMegaSetName(MegaHandle id, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putSet(id, name, listener);
+    pImpl->putSet(id, UPDATE_SET_NAME, name, listener);
 }
 
 void MegaApi::removeMegaSet(MegaHandle id, MegaRequestListener* listener)
@@ -5554,17 +5555,18 @@ void MegaApi::fetchMegaSet(MegaHandle id, MegaRequestListener* listener)
 
 void MegaApi::createMegaElement(MegaHandle setId, MegaHandle node, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putSetElement(INVALID_HANDLE, setId, node, 2, 0, name, listener);
+    int options = CREATE_ELEMENT | (name ? UPDATE_ELEMENT_NAME : 0);
+    pImpl->putSetElement(INVALID_HANDLE, setId, node, options, 0, name, listener);
 }
 
 void MegaApi::updateMegaElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener)
 {
-    pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, 1, order, nullptr, listener);
+    pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, UPDATE_ELEMENT_ORDER, order, nullptr, listener);
 }
 
 void MegaApi::updateMegaElementName(MegaHandle id, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, 2, 0, name, listener);
+    pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, UPDATE_ELEMENT_NAME, 0, name, listener);
 }
 
 void MegaApi::removeMegaElement(MegaHandle id, MegaRequestListener* listener)

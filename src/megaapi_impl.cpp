@@ -18926,7 +18926,7 @@ void MegaApiImpl::sendPendingRequests()
         {
         case MegaRequest::TYPE_PUT_SET:
         {
-            const char* name = request->getText();
+            const char* name = (request->getParamType() & MegaApi::UPDATE_SET_NAME) ? request->getText() : nullptr;
             client->putSet(request->getParentHandle(), name,
                 [this, request](Error e, handle id)
                 {
@@ -18956,9 +18956,9 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_PUT_SET_ELEMENT:
         {
             SetElement el(request->getNodeHandle(), request->getParentHandle());
-            if (request->getParamType() & 1)
+            if (request->getParamType() & MegaApi::UPDATE_ELEMENT_ORDER)
                 el.setOrder(request->getNumber());
-            if (request->getParamType() & 2)
+            if (request->getParamType() & MegaApi::UPDATE_ELEMENT_NAME)
                 el.setName(request->getText() ? request->getText() : string());
             client->putSetElement(move(el), request->getTotalBytes(),
                 [this, request](Error e, handle id, handle setId)
@@ -23646,11 +23646,12 @@ void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRo
 // Sets and Elements
 //
 
-void MegaApiImpl::putSet(MegaHandle id, const char* name, MegaRequestListener* listener)
+void MegaApiImpl::putSet(MegaHandle id, int optionFlags, const char* name, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET, listener);
     request->setParentHandle(id);
     request->setText(name);
+    request->setParamType(optionFlags);
     requestQueue.push(request);
     waiter->notify();
 }

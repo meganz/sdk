@@ -8080,6 +8080,18 @@ class MegaApi
             RESUME_EPLUSPLUS_ACCOUNT    = 4,
         };
 
+        enum
+        {
+            CREATE_SET                  = (1 << 0),
+            UPDATE_SET_NAME             = (1 << 1),
+        };
+        enum
+        {
+            CREATE_ELEMENT              = (1 << 0),
+            UPDATE_ELEMENT_NAME         = (1 << 1),
+            UPDATE_ELEMENT_ORDER        = (1 << 2),
+        };
+
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
 
         /**
