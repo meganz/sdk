@@ -67,7 +67,7 @@ using namespace mega;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
-- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate;
+- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate  queueType:(ListenerQueueType)queueType;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 - (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
 
@@ -282,8 +282,12 @@ using namespace mega;
 }
 
 - (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
+    [self addMEGAGlobalDelegate:delegate queueType:ListenerQueueTypeMain];
+}
+
+- (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate queueType:(ListenerQueueType)queueType {
     if (self.megaApi) {
-        self.megaApi->addGlobalListener([self createDelegateMEGAGlobalListener:delegate]);
+        self.megaApi->addGlobalListener([self createDelegateMEGAGlobalListener:delegate queueType:queueType]);
     }
 }
 
@@ -3455,10 +3459,11 @@ using namespace mega;
     return delegateListener;
 }
 
-- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate {
+- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate
+                                               queueType:(ListenerQueueType)queueType {
     if (delegate == nil) return nil;
     
-    DelegateMEGAGlobalListener *delegateListener = new DelegateMEGAGlobalListener(self, delegate);
+    DelegateMEGAGlobalListener *delegateListener = new DelegateMEGAGlobalListener(self, delegate, queueType);
     pthread_mutex_lock(&listenerMutex);
     _activeGlobalListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);

@@ -20354,7 +20354,7 @@ void MegaApiImpl::sendPendingRequests()
 
             string fileattrstring = fa ? string(fa) : node->fileattrstring;
 
-            e = client->getfa(h, &fileattrstring, NULL, (fatype) type, 1);
+            e = client->getfa(h, &fileattrstring, string(), (fatype) type, 1);
             if (!e)
             {
                 std::map<int, MegaRequestPrivate*>::iterator it = requestMap.begin();
@@ -25054,7 +25054,7 @@ void MegaFolderUploadController::start(MegaNode*)
     {
         // there's a node (TYPE_FILE) with the same name in the destination path, we will make fail transfer
         transfer->setState(MegaTransfer::STATE_FAILED);
-        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EARGS));
+        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EEXIST));
         return;
     }
     else if (!newTreeNode->megaNode) // there's no other node with the same name in the destination path
@@ -26622,16 +26622,17 @@ void MegaFolderDownloadController::start(MegaNode *node)
          ? LocalPath::fromRelativeName(node->getName(), *megaapiThreadClient()->fsaccess, fsType)
          : LocalPath::fromRelativeName(transfer->getFileName(), *megaapiThreadClient()->fsaccess, fsType);
 
-    Error res = searchNodeName(path, name, FILENODE);
-    if (res != API_OK)
-    {
-        // destination path could not be open or there's a node (TYPE_FILE) with the same name in the destination path
-        complete(res);
-        return;
-    }
-
     path.appendWithSeparator(name, true);
     transfer->setPath(path.toPath().c_str());
+
+    // check we are not overwriting file with folder:
+    auto tmpfileaccess = fsaccess->newfileaccess();
+    if (tmpfileaccess->isfile(path))
+    {
+        // destination path could not be open or there's a node (TYPE_FILE) with the same name in the destination path
+        complete(API_EEXIST);
+        return;
+    }
 
     notifyStage(MegaTransfer::STAGE_SCAN);
     // for download scan is just checking nodes, we can do this all in one quick pass
@@ -26772,29 +26773,6 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
     }
     recursive--;
     return scanFolder_succeeded;
-}
-
-Error MegaFolderDownloadController::searchNodeName(LocalPath& path, const LocalPath& nodeName, nodetype_t type)
-{
-    assert(mMainThreadId == std::this_thread::get_id());
-    unique_ptr<DirAccess> da(fsaccess->newdiraccess());
-    if (!da->dopen(&path, nullptr, false))
-    {
-        LOG_err << "Can't open local directory" << path.toPath();
-        return API_EACCESS;
-    }
-
-    LocalPath localname;
-    nodetype_t dirEntryType;
-    while (da->dnext(path, localname, false, &dirEntryType))
-    {
-        if (dirEntryType == type && localname == nodeName)
-        {
-            return API_EEXIST;
-        }
-    }
-
-    return API_OK;
 }
 
 Error MegaFolderDownloadController::createFolder()

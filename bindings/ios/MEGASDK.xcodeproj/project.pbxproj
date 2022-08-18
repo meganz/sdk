@@ -540,6 +540,8 @@
 				A873E86526E23AF000CBB174 /* MEGACurrency.mm */,
 				A88120A32742B2500079B31B /* MEGAPaymentMethod.h */,
 				A8E1D8EE277F3466009093C5 /* MEGALogLevel.h */,
+				B6DBB54725BE99AB005F46A5 /* ListenerDispatch.h */,
+				B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */,
 			);
 			name = bindings;
 			sourceTree = "<group>";
@@ -705,8 +707,6 @@
 				B622FC762174261F00CF707C /* MEGABackgroundMediaUpload+init.h */,
 				A8FD7335230AC42B0070A5E8 /* MEGACancelToken+init.h */,
 				BFD7F5182341B3B50039A6EE /* MEGAPushNotificationSettings+init.h */,
-				B6DBB54725BE99AB005F46A5 /* ListenerDispatch.h */,
-				B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */,
 				A873E86726E23CB800CBB174 /* MEGACurrency+init.h */,
 			);
 			path = Private;
