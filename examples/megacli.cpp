@@ -3681,13 +3681,13 @@ autocomplete::ACN autocompleteSyntax()
         sequence(text("setsandelements"),
                  either(text("list"),
                         sequence(text("newset"), opt(param("name"))),
-                        sequence(text("updateset"), param("id"), param("name")),
+                        sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name"))))),
                         sequence(text("removeset"), param("id")),
                         sequence(text("fetchset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
                                  opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
                         sequence(text("updateelement"), param("id"),
-                                 opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
+                                 opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-o"), param("order")))),
                         sequence(text("removeelement"), param("id"))
                         )));
 
@@ -9784,7 +9784,11 @@ void exec_setsandelements(autocomplete::ACState& s)
     {
         handle id = 0; // must have remaining bits set to 0
         Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
-        const char* name = (s.words.size() == 4) ? s.words[3].s.c_str() : nullptr;
+
+        string buf;
+        bool updateName = s.extractflagparam("-n", buf);
+        bool cleanName = !updateName && s.extractflag("-n");
+        const char* name = (updateName || cleanName) ? buf.c_str() : nullptr;
 
         client->putSet(id, name, [id](Error e, handle setId)
             {
@@ -9871,7 +9875,7 @@ void exec_setsandelements(autocomplete::ACState& s)
         SetElement el(node, elemId);
 
         string param;
-        if (s.extractflagparam("-n", param))
+        if (s.extractflagparam("-n", param) || s.extractflag("-n"))
         {
             el.setName(param);
         }

@@ -17911,7 +17911,6 @@ Set* MegaClient::unserializeSet(string* d)
     m_time_t ts = 0;
     string k;
     uint32_t attrCount = 0;
-    unsigned char expansionsS[8];
 
     CacheableReader r(*d);
     if (!r.unserializehandle(id) ||
@@ -17934,11 +17933,6 @@ Set* MegaClient::unserializeSet(string* d)
             return nullptr;
         }
         attrs[move(ak)] = move(av);
-    }
-
-    if (!r.unserializeexpansionflags(expansionsS, 0))
-    {
-        return nullptr;
     }
 
     Set s((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(attrs));
@@ -17994,6 +17988,12 @@ Set* MegaClient::unserializeSet(string* d)
         el.setAttrs(attrs);
 
         s.addOrUpdateElement(move(el));
+    }
+
+    unsigned char expansionsS[8];
+    if (!r.unserializeexpansionflags(expansionsS, 0))
+    {
+        return nullptr;
     }
 
     Set& addedSet = mSets[s.id()] = move(s);
