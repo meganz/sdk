@@ -3351,12 +3351,13 @@ class MegaRequest
             TYPE_EXECUTE_ON_THREAD                                          = 146,
             TYPE_DUMMY_UNUSED                                               = 147, // not used; added just to fill a gap in enum values
             TYPE_GET_RECENT_ACTIONS                                         = 148,
-            TYPE_PUT_SET                                                    = 149,
-            TYPE_REMOVE_SET                                                 = 150,
-            TYPE_FETCH_SET                                                  = 151,
-            TYPE_PUT_SET_ELEMENT                                            = 152,
-            TYPE_REMOVE_SET_ELEMENT                                         = 153,
-            TOTAL_OF_REQUEST_TYPES                                          = 154,
+            TYPE_CHECK_RECOVERY_KEY                                         = 149,
+            TYPE_PUT_SET                                                    = 150,
+            TYPE_REMOVE_SET                                                 = 151,
+            TYPE_FETCH_SET                                                  = 152,
+            TYPE_PUT_SET_ELEMENT                                            = 153,
+            TYPE_REMOVE_SET_ELEMENT                                         = 154,
+            TOTAL_OF_REQUEST_TYPES                                          = 155,
         };
 
         virtual ~MegaRequest();
@@ -9457,6 +9458,19 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void confirmResetPassword(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Check that the provided recovery key (master key) is correct
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHECK_RECOVERY_KEY
+         * No data in the MegaRequest object received on all callbacks
+         *
+         * @param link The recovery link sent to the user's email address.
+         * @param recoveryKey Base64-encoded string containing the recoveryKey (masterKey).
+         * @param listener MegaRequestListener to track this request
+         */
+        void checkRecoveryKey(const char* link, const char* recoveryKey, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Initialize the cancellation of an account.
