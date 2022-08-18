@@ -6490,7 +6490,7 @@ class MegaTransferListener
          * during the scanning phase.
          *
          * This function can be used to give feedback to the user as to how scanning is progressing,
-         * since scanning may take a while and the appliation may be showing a modal dialog during
+         * since scanning may take a while and the application may be showing a modal dialog during
          * this time.
          *
          * Note that this function could be called from a variety of threads during the
@@ -6503,7 +6503,7 @@ class MegaTransferListener
          * @param foldercount The count of folders created so far (only relevant in MegaTransfer::STAGE_CREATE_TREE)
          * @param filecount The count of files scanned (and fingerprinted) so far.  0 if not in scanning stage
          * @param currentFolder The path of the folder currently being scanned (NULL except in the scan stage)
-         * @param currentFileLeafname The leaft name o fthe file currently being fingrprinted (can be NULL for the first call in a new folder, and when not scanning anymore)
+         * @param currentFileLeafname The leaft name of the file currently being fingerprinted (can be NULL for the first call in a new folder, and when not scanning anymore)
          */
         virtual void onFolderTransferUpdate(MegaApi *api, MegaTransfer *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname);
 

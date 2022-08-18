@@ -16397,8 +16397,11 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 
 void MegaApiImpl::fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const LocalPath* currentFolder, const LocalPath* currentFileLeafname)
 {
-    // this occurs on scanning thread for scanning, main thread for folder creation.
-    assert(threadId != std::this_thread::get_id() || threadId == std::this_thread::get_id());
+    // this occurs on worker thread for scanning stage (for uploads) and create tree (for downloads), and on SDK thread for the rest of calls
+    assert((threadId != std::this_thread::get_id()
+                && ((stage == MegaTransfer::STAGE_SCAN && transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+                        || (stage == MegaTransfer::STAGE_CREATE_TREE && transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)))
+            || threadId == std::this_thread::get_id());
 
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
