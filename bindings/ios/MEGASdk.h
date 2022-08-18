@@ -50,6 +50,7 @@
 #import "MEGAPushNotificationSettings.h"
 #import "MEGAPaymentMethod.h"
 #import "MEGALogLevel.h"
+#import "ListenerDispatch.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -588,6 +589,16 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @param delegate Delegate that will receive global events.
  */
 - (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate;
+
+/**
+ * @brief Register a delegate to receive global events.
+ *
+ * You can use [MEGASdk removeMEGAGlobalDelegate:] to stop receiving events.
+ *
+ * @param delegate Delegate that will receive global events.
+ * @param queueType ListenerQueueType to receive the global events on.
+ */
+- (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate queueType:(ListenerQueueType)queueType;
 
 /**
  * @brief Unregister a delegate.
