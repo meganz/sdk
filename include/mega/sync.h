@@ -623,6 +623,12 @@ struct Syncs
                             bool moveOrUnlink,
                             NodeHandle moveTarget = NodeHandle());
 
+    // Remove the sync described by the specified config.
+    void removeSyncByConfig(std::function<void(Error)> completion,
+                            bool moveOrUnlink,
+                            const SyncConfig& config,
+                            NodeHandle moveTarget);
+
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
 
@@ -753,18 +759,12 @@ private:
     mutable mutex mSyncVecMutex;  // will be relevant for sync rework
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
-    // collect sync indexes picked up by the given selector
-    vector<size_t> selectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, size_t maxCount = 0) const;
-
-    // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
-    void removeSyncByIndex(std::function<void(Error)> completion,
-                           bool moveOrUnlink,
-                           size_t index,
-                           NodeHandle moveTarget);
+    // Collect configs satisfying the specified selector.
+    vector<SyncConfig> selectedSyncConfigs(std::function<bool(SyncConfig&, Sync*)> selector, size_t maxCount = 0) const;
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
+    bool unloadSyncByBackupID(handle id);
     void unloadSyncByIndex(size_t index);
-
 
     bool mDownloadsPaused = false;
     bool mUploadsPaused = false;

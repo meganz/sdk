@@ -5279,6 +5279,7 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // look for Device Name attr
     string deviceName;
+    bool deviceNameWasSetByCurrentTest = false;
     if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
     {
         deviceName = attributeValue;
@@ -5292,6 +5293,7 @@ TEST_F(SdkTest, SdkBackupFolder)
         int err = synchronousGetDeviceName(0);
         ASSERT_TRUE(err == API_OK) << "Getting device name attr failed (error: " << err << ")";
         ASSERT_EQ(deviceName, attributeValue) << "Getting device name attr failed (wrong value)";
+        deviceNameWasSetByCurrentTest = true;
     }
 
 #ifdef ENABLE_SYNC
@@ -5316,11 +5318,19 @@ TEST_F(SdkTest, SdkBackupFolder)
     const char* deviceIdFromNode = backupNode->getDeviceId();
     ASSERT_TRUE(!deviceIdFromNode || !*deviceIdFromNode);
 
-    // Verify that the remote path was created as expected
-    unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
-    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + backupName;
     unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(newSyncRootNodeHandle) };
-    ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
+    // TODO: always verify the remote path was created as expected,
+    // even if it needs to create a new public interface that allows
+    // to retrieve the handle of the device-folder
+    if (deviceNameWasSetByCurrentTest)
+    {
+        // Verify that the remote path was created as expected.
+        // Only check this if current test has actually set the device name, otherwise the device name may have changed
+        // since the backup folder has been created.
+        unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
+        string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + backupName;
+        ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
+    }
 
     // Verify that the sync was added
     unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
