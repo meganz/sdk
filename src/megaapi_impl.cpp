@@ -23697,7 +23697,7 @@ void MegaApiImpl::removeSetElement(MegaHandle id, MegaRequestListener* listener)
     waiter->notify();
 }
 
-MegaSetList* MegaApiImpl::getMegaSets()
+MegaSetList* MegaApiImpl::getSets()
 {
     SdkMutexGuard g(sdkMutex);
 
@@ -23711,7 +23711,7 @@ MegaSetList* MegaApiImpl::getMegaSets()
     return sList;
 }
 
-MegaSet* MegaApiImpl::getMegaSet(MegaHandle sid)
+MegaSet* MegaApiImpl::getSet(MegaHandle sid)
 {
     SdkMutexGuard g(sdkMutex);
 
@@ -23719,7 +23719,7 @@ MegaSet* MegaApiImpl::getMegaSet(MegaHandle sid)
     return s ? new MegaSetPrivate(s->id(), s->user(), s->ts(), s->name()) : nullptr;
 }
 
-MegaElementList* MegaApiImpl::getMegaElements(MegaHandle sid)
+MegaElementList* MegaApiImpl::getSetElements(MegaHandle sid)
 {
     SdkMutexGuard g(sdkMutex);
 
@@ -23738,7 +23738,7 @@ MegaElementList* MegaApiImpl::getMegaElements(MegaHandle sid)
     return eList;
 }
 
-MegaElement* MegaApiImpl::getMegaElement(MegaHandle eid, MegaHandle sid)
+MegaElement* MegaApiImpl::getSetElement(MegaHandle eid, MegaHandle sid)
 {
     SdkMutexGuard g(sdkMutex);
 

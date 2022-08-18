@@ -2631,10 +2631,10 @@ class MegaApiImpl : public MegaApp
         void putSetElement(MegaHandle id, MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
         void removeSetElement(MegaHandle id, MegaRequestListener* listener = nullptr);
 
-        MegaSetList* getMegaSets();
-        MegaSet* getMegaSet(MegaHandle sid);
-        MegaElementList* getMegaElements(MegaHandle sid);
-        MegaElement* getMegaElement(MegaHandle eid, MegaHandle sid);
+        MegaSetList* getSets();
+        MegaSet* getSet(MegaHandle sid);
+        MegaElementList* getSetElements(MegaHandle sid);
+        MegaElement* getSetElement(MegaHandle eid, MegaHandle sid);
 
 #ifdef ENABLE_SYNC
         //Sync

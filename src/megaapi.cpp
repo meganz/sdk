@@ -5532,66 +5532,66 @@ bool MegaApi::driveMonitorEnabled()
     return pImpl->driveMonitorEnabled();
 }
 
-void MegaApi::createMegaSet(const char* name, MegaRequestListener* listener)
+void MegaApi::createSet(const char* name, MegaRequestListener* listener)
 {
     int options = CREATE_SET | (name ? OPTION_SET_NAME : 0);
     pImpl->putSet(INVALID_HANDLE, options, name, listener);
 }
 
-void MegaApi::updateMegaSetName(MegaHandle id, const char* name, MegaRequestListener* listener)
+void MegaApi::updateSetName(MegaHandle id, const char* name, MegaRequestListener* listener)
 {
     pImpl->putSet(id, OPTION_SET_NAME, name, listener);
 }
 
-void MegaApi::removeMegaSet(MegaHandle id, MegaRequestListener* listener)
+void MegaApi::removeSet(MegaHandle id, MegaRequestListener* listener)
 {
     pImpl->removeSet(id, listener);
 }
 
-void MegaApi::fetchMegaSet(MegaHandle id, MegaRequestListener* listener)
+void MegaApi::fetchSet(MegaHandle id, MegaRequestListener* listener)
 {
     pImpl->fetchSet(id, listener);
 }
 
-void MegaApi::createMegaElement(MegaHandle setId, MegaHandle node, const char* name, MegaRequestListener* listener)
+void MegaApi::createSetElement(MegaHandle setId, MegaHandle node, const char* name, MegaRequestListener* listener)
 {
     int options = CREATE_ELEMENT | (name ? OPTION_ELEMENT_NAME : 0);
     pImpl->putSetElement(INVALID_HANDLE, setId, node, options, 0, name, listener);
 }
 
-void MegaApi::updateMegaElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener)
+void MegaApi::updateSetElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener)
 {
     pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, OPTION_ELEMENT_ORDER, order, nullptr, listener);
 }
 
-void MegaApi::updateMegaElementName(MegaHandle id, const char* name, MegaRequestListener* listener)
+void MegaApi::updateSetElementName(MegaHandle id, const char* name, MegaRequestListener* listener)
 {
     pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, OPTION_ELEMENT_NAME, 0, name, listener);
 }
 
-void MegaApi::removeMegaElement(MegaHandle id, MegaRequestListener* listener)
+void MegaApi::removeSetElement(MegaHandle id, MegaRequestListener* listener)
 {
     pImpl->removeSetElement(id, listener);
 }
 
-MegaSetList* MegaApi::getMegaSets()
+MegaSetList* MegaApi::getSets()
 {
-    return pImpl->getMegaSets();
+    return pImpl->getSets();
 }
 
-MegaSet* MegaApi::getMegaSet(MegaHandle sid)
+MegaSet* MegaApi::getSet(MegaHandle sid)
 {
-    return pImpl->getMegaSet(sid);
+    return pImpl->getSet(sid);
 }
 
-MegaElementList* MegaApi::getMegaElements(MegaHandle sid)
+MegaElementList* MegaApi::getSetElements(MegaHandle sid)
 {
-    return pImpl->getMegaElements(sid);
+    return pImpl->getSetElements(sid);
 }
 
-MegaElement* MegaApi::getMegaElement(MegaHandle eid, MegaHandle sid)
+MegaElement* MegaApi::getSetElement(MegaHandle eid, MegaHandle sid)
 {
-    return pImpl->getMegaElement(eid, sid);
+    return pImpl->getSetElement(eid, sid);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
