@@ -14511,14 +14511,13 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
             return API_EACCESS;
         }
 
-        // restriction below is disabled, since it's decided that duplicated device-folder are allowed
-//        // make sure there is no folder with the same name as the backup
-//        Node* backupNameNode = childnodebyname(deviceNameNode, backupName.c_str());
-//        if (backupNameNode)
-//        {
-//            LOG_err << "Add backup: a backup with the same name (" << backupName << ") already existed";
-//            return API_EACCESS;
-//        }
+        // make sure there is no folder with the same name as the backup
+        Node* backupNameNode = childnodebyname(deviceNameNode, backupName.c_str());
+        if (backupNameNode)
+        {
+            LOG_err << "Add backup: a backup with the same name (" << backupName << ") already existed";
+            return API_EACCESS;
+        }
     }
     else // create `DEVICE_NAME` remote dir
     {
@@ -14544,14 +14543,13 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
             return API_EINCOMPLETE;
         }
 
-        // restriction below is disabled, since it's decided that duplicated device-folder are allowed
-//        // is there a folder with the same device-name already?
-//        deviceNameNode = childnodebyname(myBackupsNode, deviceName.c_str());
-//        if (deviceNameNode)
-//        {
-//            LOG_err << "Add backup: new device, but a folder with the same device-name (" << deviceName << ") already existed";
-//            return API_EEXIST;
-//        }
+        // is there a folder with the same device-name already?
+        deviceNameNode = childnodebyname(myBackupsNode, deviceName.c_str());
+        if (deviceNameNode)
+        {
+            LOG_err << "Add backup: new device, but a folder with the same device-name (" << deviceName << ") already existed";
+            return API_EEXIST;
+        }
 
         // add a new node for it
         newnodes.emplace_back();
