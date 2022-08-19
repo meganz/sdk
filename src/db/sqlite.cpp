@@ -1348,21 +1348,24 @@ bool SqliteAccountState::loadFingerprintsAndChildren(std::map<FileFingerprint, n
         {
             NodeHandle nodeHandle;
             nodeHandle.set6byte(sqlite3_column_int64(stmt, 0));
-            std::string fingerPrintString;
-            const void* data = sqlite3_column_blob(stmt, 1);
-            int size = sqlite3_column_bytes(stmt, 1);
-            NodeHandle parentHandle;
-            parentHandle.set6byte(sqlite3_column_int64(stmt, 2));
-            nodetype_t nodeType = (nodetype_t)sqlite3_column_int(stmt, 3);
 
-            if (data && size && nodeType == FILENODE)
+            nodetype_t nodeType = (nodetype_t)sqlite3_column_int(stmt, 3);
+            if (nodeType == FILENODE)
             {
-                fingerPrintString = std::string(static_cast<const char*>(data), size);
-                std::unique_ptr<FileFingerprint> fingerprint;
-                fingerprint.reset(FileFingerprint::unserialize(&fingerPrintString));
-                fingerprints[*fingerprint].insert(std::pair<NodeHandle, Node*>(nodeHandle, nullptr));
+                std::string fingerPrintString;
+                const void* data = sqlite3_column_blob(stmt, 1);
+                int size = sqlite3_column_bytes(stmt, 1);
+                if (data && size)
+                {
+                    fingerPrintString = std::string(static_cast<const char*>(data), size);
+                    std::unique_ptr<FileFingerprint> fingerprint;
+                    fingerprint.reset(FileFingerprint::unserialize(&fingerPrintString));
+                    fingerprints[*fingerprint].insert(std::pair<NodeHandle, Node*>(nodeHandle, nullptr));
+                }
             }
 
+            NodeHandle parentHandle;
+            parentHandle.set6byte(sqlite3_column_int64(stmt, 2));
             children[parentHandle].insert(std::pair<NodeHandle, Node*>(nodeHandle, nullptr));
         }
     }
