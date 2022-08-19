@@ -1197,6 +1197,9 @@ public:
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
 
+    // user handle for customer support user
+    static const string SUPPORT_USER_HANDLE;
+
     // root URL for chat stats
     static const string SFUSTATSURL;
 

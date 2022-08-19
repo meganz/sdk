@@ -2389,33 +2389,37 @@ static void store_line(char* l)
     {
         char* expansion = nullptr;
 
+        // Try and expand any "event designators."
         auto result = history_expand(l, &expansion);
 
-        if (result < 0 || result == 2)
+        // Was the designator bogus?
+        if (result < 0)
         {
-            if (result < 0)
-            {
-                cerr << "Failed to expand history: "
-                     << result
-                     << endl;
-            }
+            add_history(l);
 
-            return;
+            // Then assume it's a normal command.
+            return line = l, void();
         }
 
+        // Otherwise, we have a valid expansion.
         add_history(expansion);
 
-        if (!historyFile.empty() && write_history(historyFile.c_str()))
+        // Flush the history to disk.
+        if (!historyFile.empty())
+            write_history(historyFile.c_str());
+
+        // Display but don't execute the expansion.
+        if (result == 2)
         {
-            cerr << "Failed to update history file: "
-                 << historyFile
-                 << endl;
+            cout << expansion << endl;
+            return free(expansion);
         }
 
+        // Execute the expansion.
         line = expansion;
-        free(l);
 
-        return;
+        // Release the input string.
+        return free(l);
     }
 #endif
 
