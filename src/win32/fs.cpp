@@ -1894,7 +1894,11 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
         std::wstring name = nameArg->localpath;
         if (!glob)
         {
-            name.append(L"\\*");
+            if (!name.empty() && name.back() != L'\\')
+            {
+                name.append(L"\\");
+            }
+            name.append(L"*");
         }
 
         hFind = FindFirstFileW(name.c_str(), &ffd);
