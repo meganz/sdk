@@ -3635,16 +3635,16 @@ bool StandardClient::resetBaseFolderMulticlient(StandardClient* c2, StandardClie
     };
 
     auto waitForActionPackets = [this, c2, c3, c4]() {
-        if (!waitForNodesUpdated(30))
+        if (!waitForNodesUpdated(45))
             return false;
 
-        if (c2 && !c2->waitForNodesUpdated(30))
+        if (c2 && !c2->waitForNodesUpdated(45))
             return false;
 
-        if (c3 && !c3->waitForNodesUpdated(30))
+        if (c3 && !c3->waitForNodesUpdated(45))
             return false;
 
-        if (c4 && !c4->waitForNodesUpdated(30))
+        if (c4 && !c4->waitForNodesUpdated(45))
             return false;
 
         return true;
