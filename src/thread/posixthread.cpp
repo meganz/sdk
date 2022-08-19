@@ -56,6 +56,10 @@ void PosixThread::join()
     pthread_join(*thread, NULL);
 }
 
+bool PosixThread::isCurrentThread() {
+    return *thread == pthread_self();
+}
+
 unsigned long long PosixThread::currentThreadId()
 {
 #if defined(_WIN32) && !defined(__WINPTHREADS_VERSION)

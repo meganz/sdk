@@ -27,6 +27,7 @@
 #include "account.h"
 #include "http.h"
 #include "json.h"
+#include "textchat.h"
 
 namespace mega {
 

@@ -2269,6 +2269,7 @@ class MegaApiImpl : public MegaApp
         void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
         void queryRecoveryLink(const char *link, MegaRequestListener *listener = NULL);
         void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+        void checkRecoveryKey(const char* link, const char* masterKey, MegaRequestListener* listener = NULL);
         void cancelAccount(MegaRequestListener *listener = NULL);
         void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
         void resendVerificationEmail(MegaRequestListener *listener = NULL);
@@ -3588,6 +3589,9 @@ public:
     bool isHandleAllowed(handle h);
     void clearAllowedHandles();
     char* getLink(MegaNode *node, std::string protocol = "http");
+    bool isCurrentThread() {
+        return thread->isCurrentThread();
+    }
 
     set<handle> getAllowedHandles();
     void removeAllowedHandle(MegaHandle handle);

@@ -139,7 +139,7 @@ struct MEGA_API MediaFileInfo
     void addUploadMediaFileAttributes(UploadHandle fh, std::string* s);
 
     // we figured out the properties, now attach them to a file.  Queues the action if we don't have the MediaCodecs yet.  Works for uploaded or downloaded files.
-    unsigned queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, UploadHandle uploadHandle);
+    unsigned queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, UploadHandle uploadHandle, Transfer*);
     void sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, NodeHandle fileHandle);
 
     // Check if we should retry video property extraction, due to previous failure with older library
