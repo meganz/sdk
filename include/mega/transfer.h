@@ -90,14 +90,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // upload handle for file attribute attachment (only set if file attribute queued)
     UploadHandle uploadhandle;
 
-    // minimum number of file attributes that need to be posted before a PUT transfer can complete
-    int minfa;
-
     // position in transfers[type]
     transfer_map::iterator transfers_it;
-
-    // position in faputcompletion[uploadhandle]
-    uploadhandletransfer_map::iterator faputcompletion_it;
 
     // upload result
     unique_ptr<UploadToken> ultoken;

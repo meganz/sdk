@@ -539,6 +539,9 @@ protected:
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
     scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
 
+    // check if exists another node with the same name (and provided type) in the provided path
+    Error searchNodeName(LocalPath& path, const LocalPath &nodeName, nodetype_t type);
+
     // Create all local directories in one shot. This happens on the worker thread.
     Error createFolder();
 
@@ -2356,6 +2359,7 @@ class MegaApiImpl : public MegaApp
         void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
         void queryRecoveryLink(const char *link, MegaRequestListener *listener = NULL);
         void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+        void checkRecoveryKey(const char* link, const char* masterKey, MegaRequestListener* listener = NULL);
         void cancelAccount(MegaRequestListener *listener = NULL);
         void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
         void resendVerificationEmail(MegaRequestListener *listener = NULL);
@@ -3471,28 +3475,58 @@ class StreamingBuffer
 public:
     StreamingBuffer();
     ~StreamingBuffer();
+    // Allocate buffer and reset class members
     void init(size_t capacity);
+    // Add data to the buffer. This will mainly come from the Transfer (or from a cache file if it's included someday).
     size_t append(const char *buf, size_t len);
-    size_t availableData();
-    size_t availableSpace();
-    size_t availableCapacity();
+    // Get buffered data size
+    size_t availableData() const;
+    // Get free space available in buffer
+    size_t availableSpace() const;
+    // Get total buffer capacity
+    size_t availableCapacity() const;
+    // Get the uv_buf_t for the consumer with as much buffered data as possible
     uv_buf_t nextBuffer();
+    // Increase the free data counter
     void freeData(size_t len);
+    // Set upper bound limit for capacity
     void setMaxBufferSize(unsigned int bufferSize);
+    // Set upper bound limit for chunk size to write to the consumer
     void setMaxOutputSize(unsigned int outputSize);
+    // Set file length in bytes
+    void setLength(size_t length);
+    // Set file length in seconds (for media files)
+    void setDuration(size_t duration);
+    // Bit Rate in seconds (length in bytes / length in seconds) -> only for media files
+    size_t getBitRate() const;
+    // Get the actual buffer state for debugging purposes
+    std::string bufferStatus() const;
 
     static const unsigned int MAX_BUFFER_SIZE = 2097152;
     static const unsigned int MAX_OUTPUT_SIZE = MAX_BUFFER_SIZE / 10;
 
 protected:
-    char *buffer;
+    // Circular buffer to store data to feed the consumer
+    char* buffer;
+    // Total buffer size
     size_t capacity;
+    // Buffered data size
     size_t size;
+    // Available free space in buffer
     size_t free;
+    // Index for last buffered data
     size_t inpos;
+    // Index for last written data (to the consumer)
     size_t outpos;
+    // Upper bound limit for capacity
     size_t maxBufferSize;
+    // Upper bound limit for chunk size to write to the consumer
     size_t maxOutputSize;
+
+    // Length in bytes
+    size_t length;
+    // Length in seconds (for media files)
+    size_t duration;
 };
 
 class MegaTCPServer;
@@ -3642,6 +3676,9 @@ public:
     bool isHandleAllowed(handle h);
     void clearAllowedHandles();
     char* getLink(MegaNode *node, std::string protocol = "http");
+    bool isCurrentThread() {
+        return thread->isCurrentThread();
+    }
 
     set<handle> getAllowedHandles();
     void removeAllowedHandle(MegaHandle handle);

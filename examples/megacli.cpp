@@ -2265,6 +2265,124 @@ static byte pwkeybuf[SymmCipher::KEYLENGTH];
 static byte newpwkey[SymmCipher::KEYLENGTH];
 static string newpassword;
 
+#ifndef NO_READLINE
+
+// Where our command history will be recorded.
+string historyFile;
+
+void exec_history(autocomplete::ACState& s)
+{
+    // history clear
+    // history list
+    // history read file
+    // history record file
+    // history write file
+
+    // What does the user want to do?
+    const auto& command = s.words[1].s;
+
+    // Does the user want to clear their recorded history?
+    if (command == "clear")
+    {
+        if (!historyFile.empty()
+            && history_truncate_file(historyFile.c_str(), 0))
+        {
+            cerr << "Unable to clear recorded history."
+                 << endl;
+            return;
+        }
+        
+        // Clear recorded history.
+        clear_history();
+
+        // We're done.
+        return;
+    }
+
+    // Is the user interested in viewing their recorded history?
+    if (command == "list")
+    {
+        auto** history = history_list();
+
+        if (!history)
+        {
+            cout << "No history has been recorded."
+                 << endl;
+            return;
+        }
+
+        for (auto i = 0; history[i]; ++i)
+        {
+            cout << i + history_base
+                 << ": "
+                 << history[i]->line
+                 << endl;
+        }
+
+        return;
+    }
+
+    // Does the user want to load their history from a file?
+    if (command == "read")
+    {
+        if (read_history(s.words[2].s.c_str()))
+        {
+            cerr << "Unable to read history from: "
+                 << s.words[2].s
+                 << endl;
+
+            return;
+        }
+
+        cout << "Successfully loaded history from: "
+             << s.words[2].s
+             << endl;
+
+        return;
+    }
+
+    // User wants to record history to a file?
+    if (command == "record")
+    {
+        // Clear recorded history.
+        clear_history();
+
+        // Truncate history file.
+        if (write_history(s.words[2].s.c_str()))
+        {
+            cerr << "Unable to truncate history file: "
+                 << s.words[2].s.c_str();
+            return;
+        }
+
+        // Remember where we should write the history to.
+        historyFile = s.words[2].s;
+
+        cout << "Now recording history to: "
+             << historyFile
+             << endl;
+
+        return;
+    }
+    
+    // Only branch left.
+    assert(command == "write");
+
+    if (write_history(s.words[2].s.c_str()))
+    {
+        cerr << "Unable to write history to: "
+             << s.words[2].s.c_str();
+
+        return;
+    }
+
+    cout << "History written to: "
+         << s.words[2].s
+         << endl;
+}
+
+#endif // ! NO_READLINE
+
 // readline callback - exit if EOF, add to history unless password
 #if !defined(WIN32) || !defined(NO_READLINE)
 static void store_line(char* l)
@@ -2282,7 +2400,35 @@ static void store_line(char* l)
 #ifndef NO_READLINE
     if (*l && prompt == COMMAND)
     {
-        add_history(l);
+        char* expansion = nullptr;
+
+        auto result = history_expand(l, &expansion);
+
+        if (result < 0 || result == 2)
+        {
+            if (result < 0)
+            {
+                cerr << "Failed to expand history: "
+                     << result
+                     << endl;
+            }
+
+            return;
+        }
+
+        add_history(expansion);
+
+        if (!historyFile.empty() && write_history(historyFile.c_str()))
+        {
+            cerr << "Failed to update history file: "
+                 << historyFile
+                 << endl;
+        }
+
+        line = expansion;
+        free(l);
+
+        return;
     }
 #endif
 
@@ -3482,7 +3628,11 @@ autocomplete::ACN autocompleteSyntax()
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
 
-    p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
+    p->Add(exec_syncrename,
+           sequence(text("sync"),
+                    text("rename"),
+                    backupID(*client),
+                    param("newname")));
 
     p->Add(exec_syncclosedrive,
            sequence(text("sync"),
@@ -3510,24 +3660,31 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_syncremove,
            sequence(text("sync"),
                     text("remove"),
-                    param("id")));
+                    either(backupID(*client),
+                           sequence(flag("-by-local-path"),
+                                    localFSFolder()),
+                           sequence(flag("-by-remote-path"),
+                                    remoteFSFolder(client, &cwd)))));
 
     p->Add(exec_syncxable,
            sequence(text("sync"),
                     either(sequence(either(text("disable"), text("fail")),
-                                    param("id"),
+                                    backupID(*client),
                                     opt(param("error"))),
                            sequence(text("enable"),
-                                    param("id")))));
+                                    backupID(*client)))));
 
-    p->Add(exec_syncoutput, sequence(text("sync"), text("output"),
-        either(text("local_change_detection"),
-            text("remote_change_detection"),
-            text("transfer_activity"),
-            text("folder_sync_state"),
-            text("detail_log"),
-            text("all")),
-        either(text("on"), text("off"))));
+    p->Add(exec_syncoutput,
+           sequence(text("sync"),
+                    text("output"),
+                    either(text("local_change_detection"),
+                           text("remote_change_detection"),
+                           text("transfer_activity"),
+                           text("folder_sync_state"),
+                           text("detail_log"),
+                           text("all")),
+                    either(text("on"),
+                           text("off"))));
 
 #endif
 
@@ -3618,6 +3775,15 @@ autocomplete::ACN autocompleteSyntax()
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_autocomplete, sequence(text("autocomplete"), opt(either(text("unix"), text("dos")))));
     p->Add(exec_history, sequence(text("history")));
+#elif !defined(NO_READLINE)
+    p->Add(exec_history,
+           sequence(text("history"),
+                    either(text("clear"),
+                           text("list"),
+                           sequence(either(text("read"),
+                                           text("record"),
+                                           text("write")),
+                                    localFSFile("history")))));
 #endif
     p->Add(exec_help, either(text("help"), text("h"), text("?")));
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
@@ -8744,6 +8910,9 @@ void megacli()
 
     rl_save_prompt();
 
+    // Initialize history.
+    using_history();
+
 #elif defined(WIN32) && defined(NO_READLINE)
 
     static_cast<WinConsole*>(console)->setShellConsole(CP_UTF8, GetConsoleOutputCP());
@@ -9606,29 +9775,68 @@ void exec_syncremove(autocomplete::ACState& s)
         return;
     }
 
-    // sync remove id
-    handle backupId = 0;
-    Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
+    string localPath;
+    string remotePath;
+    bool byLocal = s.extractflagparam("-by-local-path", localPath);
+    bool byRemote = s.extractflagparam("-by-remote-path", remotePath);
 
-    // Try and remove the config.
+    std::function<bool(SyncConfig&, Sync*)> predicate;
     bool found = false;
 
-    client->syncs.removeSelectedSyncs(
-      [&](SyncConfig& config, Sync*)
-      {
-          auto matched = config.mBackupId == backupId;
+    if (byLocal)
+    {
+        predicate = [&](SyncConfig& config, Sync*) {
+            auto matched = config.mLocalPath.toPath() == localPath;
 
-          found |= matched;
+            found = found || matched;
 
-          return matched;
-      });
+            return matched;
+        };
+    }
+    else if (byRemote)
+    {
+        predicate = [&](SyncConfig& config, Sync*) {
+            auto matched = config.mOriginalPathOfRemoteRootNode == remotePath;
+
+            found = found || matched;
+
+            return matched;
+        };
+    }
+    else
+    {
+        predicate = [&](SyncConfig& config, Sync*) {
+            auto id = toHandle(config.mBackupId);
+            auto matched = id == s.words[2].s;
+
+            found = found || matched;
+
+            return matched;
+        };
+    }
+
+    client->syncs.removeSelectedSyncs(std::move(predicate));
 
     if (!found)
     {
-        cerr << "No sync config exists with the backupId "
-             << Base64Str<sizeof(handle)>(backupId)
-             << endl;
-        return;
+        ostringstream ostream;
+
+        ostream << "No sync config found with the ";
+
+        if (byLocal)
+        {
+            ostream << "local path: " << localPath;
+        }
+        else if (byRemote)
+        {
+            ostream << "remote path: " << remotePath;
+        }
+        else
+        {
+            ostream << "backup ID: " << s.words[2].s;
+        }
+
+        cerr << ostream.str() << endl;
     }
 }
 

@@ -27,6 +27,14 @@ extern string_vector envVarPass;
 std::string logTime();
 void WaitMillisec(unsigned n);
 
+#ifdef __linux__
+std::string exec(const char* cmd);
+#endif
+
+// platform specific Http POST
+void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata);
+void synchronousHttpPOSTData(const string& url, const string& senddata, string& responsedata);
+
 class LogStream
 {
 public:
@@ -697,6 +705,7 @@ struct StandardClient : public MegaApp
     void match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result);
     bool waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
+    bool makeremotenodes(const string& prefix, int depth, int fanout);
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
 

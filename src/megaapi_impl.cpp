@@ -4081,6 +4081,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_FA_UPLOAD_URL: return "GET_FA_UPLOAD_URL";
         case TYPE_EXECUTE_ON_THREAD: return "EXECUTE_ON_THREAD";
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
+        case TYPE_CHECK_RECOVERY_KEY: return "TYPE_CHECK_RECOVERY_KEY";
     }
     return "UNKNOWN";
 }
@@ -6404,6 +6405,15 @@ void MegaApiImpl::confirmResetPasswordLink(const char *link, const char *newPwd,
     waiter->notify();
 }
 
+void MegaApiImpl::checkRecoveryKey(const char* link, const char* recoveryKey, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_CHECK_RECOVERY_KEY, listener);
+    request->setLink(link);
+    request->setPrivateKey(recoveryKey);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::cancelAccount(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CANCEL_LINK, listener);
@@ -8519,7 +8529,7 @@ void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* 
 
 void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener)
 {
-    MegaTransferPrivate* transfer = createUploadTransfer(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, nullptr, isSourceFileTemporary, false, fsType, CancelToken(), listener);
+    MegaTransferPrivate* transfer = createUploadTransfer(true, localPath, nullptr, nullptr, MegaClient::SUPPORT_USER_HANDLE.c_str(), MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, nullptr, isSourceFileTemporary, false, fsType, CancelToken(), listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
@@ -9861,21 +9871,21 @@ void MegaApiImpl::httpServerRemoveListener(MegaTransferListener *listener)
 
 void MegaApiImpl::fireOnStreamingStart(MegaTransferPrivate *transfer)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(httpServer && httpServer->isCurrentThread());
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferStart(api, transfer);
 }
 
 void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(httpServer && httpServer->isCurrentThread());
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferTemporaryError(api, transfer, e.get());
 }
 
 void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
-    assert(threadId == std::this_thread::get_id());
+    assert(httpServer && httpServer->isCurrentThread());
     if(e->getErrorCode())
     {
         LOG_warn << "Streaming request finished with error: " << e->getErrorString();
@@ -12832,7 +12842,7 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK && request->getType() != MegaRequest::TYPE_CHECK_RECOVERY_KEY)) return;
 
     if (e)
     {
@@ -12867,6 +12877,11 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
     if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, int(len_privk)))
     {
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_EKEY));
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_CHECK_RECOVERY_KEY) {
+        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
         return;
     }
 
@@ -18199,12 +18214,25 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         fp_forCloud.mtime = mtime;
                     }
 
-                    Node *previousNode = client->childnodebyname(parent, fileName, true);
+                    Node *previousNode = client->childnodebyname(parent, fileName, false);
 
                     bool forceToUpload = false;
-                    if (previousNode && previousNode->type == FILENODE)
+                    if (previousNode)
                     {
-                        if (fp_forCloud.isvalid && previousNode->isvalid && fp_forCloud == *((FileFingerprint *)previousNode))
+                        if (previousNode->type == FOLDERNODE)
+                        {
+                            if (!recursiveTransfer) // file upload, but not sub-file inside a folder
+                            {
+                                e = API_EARGS;
+                                break;
+                            }
+                            /* else => in case we found a folder (in cloud drive) with a duplicate name for any subfile of the folder we are trying to upload
+                             * SDK core will resolve the name conflict
+                             *   - If versioning is enabled, it creates a new version.
+                             *   - If versioning is disabled, it overwrites the file (old one is deleted permanently).
+                             */
+                        }
+                        else if (fp_forCloud.isvalid && previousNode->isvalid && fp_forCloud == *((FileFingerprint *)previousNode))
                         {
                             forceToUpload= hasToForceUpload(*previousNode, *transfer);
                             if (!forceToUpload)
@@ -20897,6 +20925,25 @@ void MegaApiImpl::sendPendingRequests()
             client->queryrecoverylink(code);
             break;
         }
+        case MegaRequest::TYPE_CHECK_RECOVERY_KEY:
+        {
+            const char* link = request->getLink();
+
+            const char* code;
+            if (link && (code = strstr(link, MegaClient::recoverLinkPrefix())))
+            {
+                code += strlen(MegaClient::recoverLinkPrefix());
+            }
+            else
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            // concatenate query + confirm requests
+            client->getprivatekey(code);
+            break;
+        }
         case MegaRequest::TYPE_GET_CANCEL_LINK:
         {
             if (client->loggedin() != FULLACCOUNT)
@@ -23250,8 +23297,8 @@ void MegaApiImpl::update()
               << " " << client->syncfslockretry << " " << client->syncfsopsfailed
               << " " << client->syncnagleretry << " " << client->syncscanfailed
               << " " << client->syncops << " " << client->syncscanstate
-              << " " << client->faputcompletion.size() << " " << client->synccreate.size()
-              << " " << client->fetchingnodes << " " << client->pendingfa.size()
+              << " " << client->fileAttributesUploading.size() << " " << client->synccreate.size()
+              << " " << client->fetchingnodes
               << " " << client->xferpaused[0] << " " << client->xferpaused[1]
               << " " << client->transfers[0].size() << " " << client->transfers[1].size()
               << " " << client->syncscanstate << " " << client->statecurrent
@@ -25095,7 +25142,15 @@ void MegaFolderUploadController::start(MegaNode*)
 
     // if folder node already exists in remote, set it as new subtree's megaNode, otherwise call putnodes_prepareOneFolder
     newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));
-    if (!newTreeNode->megaNode)
+
+    if (newTreeNode->megaNode && newTreeNode->megaNode->getType() == MegaNode::TYPE_FILE)
+    {
+        // there's a node (TYPE_FILE) with the same name in the destination path, we will make fail transfer
+        transfer->setState(MegaTransfer::STATE_FAILED);
+        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EARGS));
+        return;
+    }
+    else if (!newTreeNode->megaNode) // there's no other node with the same name in the destination path
     {
         newTreeNode->folderName = leaf;
         newTreeNode->fsType = fsaccess->getlocalfstype(path);
@@ -25104,6 +25159,7 @@ void MegaFolderUploadController::start(MegaNode*)
         newTreeNode->newnode.nodehandle = nextUploadId();
         newTreeNode->newnode.parenthandle = UNDEF;
     }
+    // else => if there's another node (TYPE_FOLDER) with the same name, in the destination path, the content of both folders will be merged
 
     // add the tree above, to subtrees vector for root tree
     mUploadTree.subtrees.push_back(std::move(newTreeNode));
@@ -26659,6 +26715,14 @@ void MegaFolderDownloadController::start(MegaNode *node)
          ? LocalPath::fromRelativeName(node->getName(), *megaapiThreadClient()->fsaccess, fsType)
          : LocalPath::fromRelativeName(transfer->getFileName(), *megaapiThreadClient()->fsaccess, fsType);
 
+    Error res = searchNodeName(path, name, FILENODE);
+    if (res != API_OK)
+    {
+        // destination path could not be open or there's a node (TYPE_FILE) with the same name in the destination path
+        complete(res);
+        return;
+    }
+
     path.appendWithSeparator(name, true);
     transfer->setPath(path.toPath().c_str());
 
@@ -26803,6 +26867,29 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
     return scanFolder_succeeded;
 }
 
+Error MegaFolderDownloadController::searchNodeName(LocalPath& path, const LocalPath& nodeName, nodetype_t type)
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    unique_ptr<DirAccess> da(fsaccess->newdiraccess());
+    if (!da->dopen(&path, nullptr, false))
+    {
+        LOG_err << "Can't open local directory" << path.toPath();
+        return API_EACCESS;
+    }
+
+    LocalPath localname;
+    nodetype_t dirEntryType;
+    while (da->dnext(path, localname, false, &dirEntryType))
+    {
+        if (dirEntryType == type && localname == nodeName)
+        {
+            return API_EEXIST;
+        }
+    }
+
+    return API_OK;
+}
+
 Error MegaFolderDownloadController::createFolder()
 {
     // Create all local directories in one shot (on the download worker thread)
@@ -26874,6 +26961,8 @@ StreamingBuffer::StreamingBuffer()
     this->free = 0;
     this->maxBufferSize = MAX_BUFFER_SIZE;
     this->maxOutputSize = MAX_OUTPUT_SIZE;
+    this->length = 0;
+    this->duration = 0;
 }
 
 StreamingBuffer::~StreamingBuffer()
@@ -26883,9 +26972,17 @@ StreamingBuffer::~StreamingBuffer()
 
 void StreamingBuffer::init(size_t capacity)
 {
+    assert(this->length > 0);
     assert(capacity > 0);
     if (capacity > maxBufferSize)
     {
+        LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize. "
+                 << " Capacity requested = " << capacity << " bytes"
+                 << ", truncated to  = " << maxBufferSize << " bytes"
+                 << " [file length = " << length << " bytes"
+                 << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
+                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / getBitRate()).append(" secs")) : "")
+                 << "]";
         capacity = maxBufferSize;
     }
 
@@ -26907,7 +27004,10 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
 
     if (free < len)
     {
-        LOG_debug << "Not enough available space";
+        LOG_debug << "[Streaming] Not enough available space, len will be truncated. "
+                  << " [requested = " << len
+                  << ", buffered = " << free
+                  << ", discarded = " << (len - free) << "]";
         len = free;
     }
 
@@ -26934,17 +27034,17 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     return len;
 }
 
-size_t StreamingBuffer::availableData()
+size_t StreamingBuffer::availableData() const
 {
     return size;
 }
 
-size_t StreamingBuffer::availableSpace()
+size_t StreamingBuffer::availableSpace() const
 {
     return free;
 }
 
-size_t StreamingBuffer::availableCapacity()
+size_t StreamingBuffer::availableCapacity() const
 {
     return capacity;
 }
@@ -27002,6 +27102,42 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
     {
         this->maxOutputSize = MAX_OUTPUT_SIZE;
     }
+}
+
+void StreamingBuffer::setLength(size_t length)
+{
+    this->length = length;
+}
+
+void StreamingBuffer::setDuration(size_t duration)
+{
+    this->duration = duration;
+}
+
+size_t StreamingBuffer::getBitRate() const
+{
+    if (!duration)
+    {
+        return 0;
+    }
+    return length / duration;
+}
+
+std::string StreamingBuffer::bufferStatus() const
+{
+    std::string bufferState;
+    bufferState.reserve(256);
+    bufferState.append("[|Buffer status| buffered = ")
+               .append(std::to_string(size));
+    if (duration) bufferState.append(" (").append(std::to_string(size / getBitRate())).append( " secs)");
+    bufferState.append(", free = ")
+               .append(std::to_string(free));
+    if (duration) bufferState.append(" (").append(std::to_string(free / getBitRate())).append( " secs)");
+    bufferState.append(", capacity = ")
+               .append(std::to_string(capacity));
+    if (duration) bufferState.append(" (").append(std::to_string(capacity / getBitRate())).append( " secs)");
+    bufferState.append("]");
+    return bufferState;
 }
 
 // http_parser settings
@@ -28019,23 +28155,23 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
     if (httpctx->lastBufferLen)
     {
         httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
-        httpctx->lastBufferLen = 0;
     }
 
     if (httpctx->pause)
     {
-        if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
+        size_t resumeCapacity = httpctx->lastBufferLen * 2; // If httpctx->lastBufferLen is 0, then it's ok if availableSpace is > 0 : this means freeData() has been called before for a similar len
+        if (httpctx->streamingBuffer.availableSpace() > resumeCapacity)
         {
             httpctx->pause = false;
             m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
             m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
 
-            LOG_debug << "Resuming streaming from " << start << " len: " << len
-                     << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
-                     << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
+            LOG_debug << "[Streaming] Resuming streaming from " << start << " len: " << len
+                      << " " << httpctx->streamingBuffer.bufferStatus();
             httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
         }
     }
+    httpctx->lastBufferLen = 0;
     uv_mutex_unlock(&httpctx->mutex);
 
     uv_async_send(&httpctx->asynchandle);
@@ -29690,6 +29826,9 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         httpctx->transfer->setEndPos(end);
     }
 
+    httpctx->streamingBuffer.setLength(totalSize);
+    httpctx->streamingBuffer.setDuration(httpctx->node->getDuration());
+
     string resstr = response.str();
     if (httpctx->parser.method != HTTP_HEAD)
     {
@@ -29822,7 +29961,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (httpctx->lastBuffer)
     {
-        LOG_verbose << "Skipping write due to another ongoing write";
+        LOG_verbose << "[Streaming] Skipping write due to another ongoing write";
         return;
     }
 
@@ -29835,7 +29974,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (httpctx->tcphandle.write_queue_size > httpctx->streamingBuffer.availableCapacity() / 8)
     {
-        LOG_warn << "Skipping write. Too much queued data";
+        LOG_warn << "[Streaming] Skipping write. Too much queued data. " << httpctx->streamingBuffer.bufferStatus();
         uv_mutex_unlock(&httpctx->mutex);
         return;
     }
@@ -29845,7 +29984,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (!resbuf.len)
     {
-        LOG_verbose << "Skipping write. No data available";
+        LOG_verbose << "[Streaming] Skipping write. No data available. " << httpctx->streamingBuffer.bufferStatus();
         return;
     }
 
@@ -29861,7 +30000,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
-            LOG_warn << "Finishing due to an error sending the response: " << err;
+            LOG_warn << "[Streaming] Finishing due to an error sending the response: " << err;
             evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
         }
     }
@@ -29874,7 +30013,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
             delete req;
-            LOG_warn << "Finishing due to an error in uv_write: " << err;
+            LOG_warn << "[Streaming] Finishing due to an error in uv_write: " << err;
             httpctx->finished = true;
             if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
             {
@@ -29937,8 +30076,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
     LOG_verbose << "Streaming data received: " << transfer->getTransferredBytes()
                 << " Size: " << size
                 << " Queued: " << this->tcphandle.write_queue_size
-                << " Buffered: " << streamingBuffer.availableData()
-                << " Free: " << streamingBuffer.availableSpace();
+                << " " << streamingBuffer.bufferStatus();
 
     if (finished)
     {
@@ -29952,8 +30090,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
     long long availableSpace = streamingBuffer.availableSpace();
     if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
     {
-        LOG_debug << "Buffer full: " << availableSpace << " of "
-                 << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
+        LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
         pause = true;
     }
     streamingBuffer.append(buffer, size);
@@ -32020,9 +32157,8 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
                 m_off_t start = ftpdatactx->rangeStart + ftpdatactx->rangeWritten + ftpdatactx->streamingBuffer.availableData();
                 m_off_t len =  ftpdatactx->rangeEnd - ftpdatactx->rangeStart -  ftpdatactx->rangeWritten - ftpdatactx->streamingBuffer.availableData();
 
-                LOG_debug << "Resuming streaming from " << start << " len: " << len
-                         << " Buffer status: " << ftpdatactx->streamingBuffer.availableSpace()
-                         << " of " << ftpdatactx->streamingBuffer.availableCapacity() << " bytes free";
+                LOG_debug << "[Streaming] Resuming streaming from " << start << " len: " << len
+                          << " " << ftpdatactx->streamingBuffer.bufferStatus();
                 ftpdatactx->megaApi->startStreaming(ftpdatactx->node, start, len, ftpdatactx);
             }
         }
@@ -32262,6 +32398,9 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             ftpdatactx->transfer->setEndPos(end); //This will actually be override later
             ftpdatactx->node = nodeToDownload->copy();
 
+            ftpdatactx->streamingBuffer.setLength(nodeToDownload->getSize());
+            ftpdatactx->streamingBuffer.setDuration(nodeToDownload->getDuration());
+
             ftpdatactx->streamingBuffer.init(len);
             ftpdatactx->size = len;
 
@@ -32353,7 +32492,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (ftpdatactx->lastBuffer)
     {
-        LOG_verbose << "Skipping write due to another ongoing write";
+        LOG_verbose << "[Streaming] Skipping write due to another ongoing write";
         return;
     }
 
@@ -32366,7 +32505,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (ftpdatactx->tcphandle.write_queue_size > ftpdatactx->streamingBuffer.availableCapacity() / 8)
     {
-        LOG_warn << "Skipping write. Too much queued data";
+        LOG_warn << "[Streaming] Skipping write. Too much queued data. " << ftpdatactx->streamingBuffer.bufferStatus();
         uv_mutex_unlock(&ftpdatactx->mutex);
         return;
     }
@@ -32376,7 +32515,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (!resbuf.len)
     {
-        LOG_verbose << "Skipping write. No data available." << " buffered = " << ftpdatactx->streamingBuffer.availableData();
+        LOG_verbose << "[Streaming] Skipping write. No data available. " << ftpdatactx->streamingBuffer.bufferStatus();
         return;
     }
 
@@ -32392,7 +32531,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
         int err = evt_tls_write(ftpdatactx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
-            LOG_warn << "Finishing due to an error sending the response: " << err;
+            LOG_warn << "[Streaming] Finishing due to an error sending the response: " << err;
             closeConnection(ftpdatactx);
         }
     }
@@ -32405,7 +32544,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
         if (int err = uv_write(req, (uv_stream_t*)&ftpdatactx->tcphandle, &resbuf, 1, onWriteFinished))
         {
             delete req;
-            LOG_warn << "Finishing due to an error in uv_write: " << err;
+            LOG_warn << "[Streaming] Finishing due to an error in uv_write: " << err;
             closeTCPConnection(ftpdatactx);
         }
 #ifdef ENABLE_EVT_TLS
@@ -32470,8 +32609,7 @@ bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char 
     long long availableSpace = streamingBuffer.availableSpace();
     if (remaining > availableSpace && availableSpace < (2 * m_off_t(size)))
     {
-        LOG_debug << "Buffer full: " << availableSpace << " of "
-                 << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
+        LOG_debug << "[Streaming] Buffer full: Pausing streaming. " << streamingBuffer.bufferStatus();
         pause = true;
     }
     streamingBuffer.append(buffer, size);
