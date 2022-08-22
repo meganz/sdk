@@ -247,6 +247,7 @@ struct MEGA_API DirectReadSlot
     bool doio();
     bool waitForPartsInFlight();
     unsigned usedConnections();
+    bool resetConnection(unsigned connectionNum = 0);
     bool detectSlowestStartConnection(int connectionNum);
     bool searchAndDisconnectSlowestConnection(int connectionNum = 0);
     void decreaseReqsInflight();

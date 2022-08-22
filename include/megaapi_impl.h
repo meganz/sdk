@@ -3474,8 +3474,8 @@ public:
     ~StreamingBuffer();
     // Allocate buffer and reset class members
     void init(size_t capacity);
-    // Reset positions for body writting ("forgets" buffered external data such as headers, which use the same buffer)
-    void reset();
+    // Reset positions for body writting ("forgets" buffered external data such as headers, which use the same buffer) [Default: 0 -> the whole buffer]
+    void reset(bool freeData, size_t sizeToReset = 0);
     // Add data to the buffer. This will mainly come from the Transfer (or from a cache file if it's included someday).
     size_t append(const char *buf, size_t len);
     // Get buffered data size
@@ -3498,6 +3498,10 @@ public:
     void setDuration(size_t duration);
     // Bit Rate in seconds (length in bytes / length in seconds) -> only for media files
     size_t getBitRate() const;
+    // Get upper bound limit for capacity
+    unsigned getMaxBufferSize();
+    // Get upper bound limit for chunk size to write to the consumer
+    unsigned getMaxOutputSize();
     // Get the actual buffer state for debugging purposes
     std::string bufferStatus() const;
 

@@ -26964,17 +26964,17 @@ void StreamingBuffer::init(size_t capacity)
 {
     assert(this->length > 0);
     assert(capacity > 0);
-    size_t minMaxBitRateCapacityInSeconds = 10;
-    size_t bufferSizeForMinMaxSeconds_timesMinDeliveryChunk = (minMaxBitRateCapacityInSeconds * getBitRate()) / static_cast<size_t>(DirectReadSlot::MIN_DELIVERY_CHUNK);
-    size_t bufferSizeForMinMaxSeconds_modMinDeliveryChunk = (minMaxBitRateCapacityInSeconds * getBitRate()) % static_cast<size_t>(DirectReadSlot::MIN_DELIVERY_CHUNK);
-    size_t bufferSizeForMinMaxSeconds = (bufferSizeForMinMaxSeconds_timesMinDeliveryChunk + (bufferSizeForMinMaxSeconds_modMinDeliveryChunk != 0)) * static_cast<size_t>(DirectReadSlot::MIN_DELIVERY_CHUNK);
-    maxBufferSize = std::max(maxBufferSize, bufferSizeForMinMaxSeconds);
-    maxOutputSize = std::min(std::max(getBitRate(), static_cast<size_t>(DirectReadSlot::MIN_DELIVERY_CHUNK)), capacity);
+    size_t bitRate = getBitRate();
+    size_t minMaxBufferCapacityInSeconds = 10 * bitRate;
+    size_t minDeliveryChunk = static_cast<size_t>(DirectReadSlot::MIN_DELIVERY_CHUNK);
+    maxBufferSize = (std::max(maxBufferSize, minMaxBufferCapacityInSeconds) / minDeliveryChunk) * minDeliveryChunk;
+    size_t deliveryChunksPerBitRate = (bitRate / minDeliveryChunk) + ((bitRate % minDeliveryChunk != 0) ? 1 : 0);
+    maxOutputSize = std::min(deliveryChunksPerBitRate * minDeliveryChunk, capacity);
     if (capacity > maxBufferSize)
     {
         LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize. "
                  << " Capacity requested = " << capacity << " bytes"
-                 << ", truncated to  = " << maxBufferSize << " bytes"
+                 << ", truncated to = " << maxBufferSize << " bytes"
                  << " [file length = " << length << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
                  << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / getBitRate())).append(" secs")
@@ -26992,13 +26992,24 @@ void StreamingBuffer::init(size_t capacity)
     this->free = this->capacity;
 }
 
-void StreamingBuffer::reset()
+void StreamingBuffer::reset(bool freeData, size_t sizeToReset)
 {
-    LOG_warn << "[Streaming] Reset streaming buffer. Actual size: " << size << ", free: " << free << " [capacity = " << capacity << "]";
-    this->inpos = 0;
-    this->outpos = 0;
-    this->size = 0;
-    this->free = this->capacity;
+    if (!sizeToReset || sizeToReset > size)
+    {
+        sizeToReset = size;
+    }
+    LOG_warn << "[Streaming] Reset streaming buffer. Actual size: " << size << ", free: " << free << ", capacity = " << capacity << ", size to reset: " << sizeToReset << "] [inpos = " << inpos << ", outpos = " << outpos << "]";
+    this->inpos = this->inpos >= sizeToReset ?
+                        this->inpos - sizeToReset :
+                        this->capacity - (sizeToReset - this->inpos);
+    this->outpos = this->outpos >= sizeToReset ?
+                        this->outpos - sizeToReset :
+                        this->capacity - (sizeToReset - this->outpos);
+    this->size -= sizeToReset;
+    if (freeData)
+    {
+        this->free += sizeToReset;
+    }
 }
 
 size_t StreamingBuffer::append(const char *buf, size_t len)
@@ -27133,6 +27144,20 @@ size_t StreamingBuffer::getBitRate() const
         return 0;
     }
     return length / duration;
+}
+
+unsigned StreamingBuffer::getMaxBufferSize()
+{
+    return this->maxBufferSize ?
+                this->maxBufferSize :
+                StreamingBuffer::MAX_BUFFER_SIZE;
+}
+
+unsigned StreamingBuffer::getMaxOutputSize()
+{
+    return this->maxOutputSize ?
+                this->maxOutputSize :
+                StreamingBuffer::MAX_OUTPUT_SIZE;
 }
 
 std::string StreamingBuffer::bufferStatus() const
@@ -29845,6 +29870,8 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     if (httpctx->parser.method != HTTP_HEAD)
     {
         httpctx->streamingBuffer.init(std::max(static_cast<size_t>(len), resstr.size()));
+        httpctx->server->setMaxBufferSize(httpctx->streamingBuffer.getMaxBufferSize());
+        httpctx->server->setMaxOutputSize(httpctx->streamingBuffer.getMaxOutputSize());
         httpctx->size = len;
     }
 
@@ -29858,7 +29885,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     httpctx->rangeWritten = 0;
     if (start || len)
     {
-        httpctx->streamingBuffer.reset();
+        httpctx->streamingBuffer.reset(!httpctx->lastBufferLen, resstr.size());
         httpctx->megaApi->startStreaming(node, start, len, httpctx);
     }
     else
@@ -29997,7 +30024,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (!resbuf.len)
     {
-        LOG_verbose << "[Streaming] Skipping write. No data available. " << httpctx->streamingBuffer.bufferStatus();
+        LOG_warn << "[Streaming] Skipping write. No data available. " << httpctx->streamingBuffer.bufferStatus();
         return;
     }
 
