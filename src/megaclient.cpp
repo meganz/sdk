@@ -11124,7 +11124,7 @@ void MegaClient::procmcf(JSON *j)
                         bool publicchat = false;
                         bool meeting = false;
 
-                        // chat options: [0 (remove) | 1 (add)], if chat option is not included on action packet, that option is disabled
+                        // chat options: [0 (remove) | 1 (add)], if chat option is not included, that option is disabled
                         int waitingRoom = 0;
                         int openInvite = 0;
                         int speakRequest = 0;
