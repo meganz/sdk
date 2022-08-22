@@ -4265,6 +4265,62 @@ MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStrin
     delete keys;
 }
 
+MegaIntegerMapPrivate::MegaIntegerMapPrivate()
+{
+}
+
+MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIntegerMap)
+    :mIntegerMap(megaIntegerMap && megaIntegerMap->getMap() ? *megaIntegerMap->getMap() : integer_map())
+{
+}
+
+MegaIntegerMapPrivate::~MegaIntegerMapPrivate()
+{
+}
+
+MegaIntegerMap* MegaIntegerMapPrivate::copy() const
+{
+    return new MegaIntegerMapPrivate(this);
+}
+
+bool MegaIntegerMapPrivate::get(const long long& key, long long& value) const
+{
+    integer_map::const_iterator it = mIntegerMap.find(key);
+
+    if (it != mIntegerMap.end())
+    {
+        value = it->second;
+        return true;
+    }
+    return false;
+}
+
+MegaIntegerList* MegaIntegerMapPrivate::getKeys() const
+{
+    vector<int64_t> keys;
+    for (auto& it : mIntegerMap)
+    {
+        keys.push_back(it.first);
+    }
+
+    return new MegaIntegerListPrivate(keys);
+}
+
+unsigned long long MegaIntegerMapPrivate::size() const
+{
+    return mIntegerMap.size();
+}
+
+void MegaIntegerMapPrivate::set(const long long& key, const long long& value)
+{
+    mIntegerMap[key] = value;
+}
+
+const integer_map* MegaIntegerMapPrivate::getMap() const
+{
+    return &mIntegerMap;
+}
+
 MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
     : mList(move(v))
 {

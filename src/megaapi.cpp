@@ -6589,6 +6589,40 @@ int MegaStringMap::size() const
     return 0;
 }
 
+MegaIntegerMap* MegaIntegerMap::createInstance()
+{
+    return new MegaIntegerMapPrivate();
+}
+
+MegaIntegerMap::~MegaIntegerMap()
+{
+}
+
+MegaIntegerMap* MegaIntegerMap::copy() const
+{
+    return NULL;
+}
+
+bool MegaIntegerMap::get(const long long& /*key*/, long long& /*value*/) const
+{
+    return false;
+}
+
+MegaIntegerList* MegaIntegerMap::getKeys() const
+{
+    return NULL;
+}
+
+void MegaIntegerMap::set(const long long& /*key*/, const long long& /*value*/)
+{
+
+}
+
+unsigned long long MegaIntegerMap::size() const
+{
+    return 0;
+}
+
 MegaTransferData::~MegaTransferData()
 {
 

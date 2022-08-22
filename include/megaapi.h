@@ -2357,6 +2357,57 @@ public:
 };
 
 /**
+ * @brief Map of integer values with integer keys (map<long long, long long>)
+ */
+class MegaIntegerMap
+{
+public:
+    /**
+     * @brief Creates a new instance of MegaIntegerMap
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaIntegerMap* createInstance();
+    virtual ~MegaIntegerMap();
+    virtual MegaIntegerMap* copy() const;
+
+    /**
+     * @brief Returns true, if the key is found in the MegaIntegerMap, otherwise returns false.
+     * If key is found it's associated value will be copied in second parameter (value)
+     *
+     * @param key Key of the string that you want to get from the map
+     * @param value The value associated to the key will be copied in this param
+     * @return True, if the key is found in the MegaIntegerMap, otherwise returns false.
+     */
+    virtual bool get(const long long& /*key*/, long long& /*value*/) const;
+
+    /**
+     * @brief Returns the list of keys in the MegaIntegerMap
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A MegaIntegerList containing the keys present in the MegaIntegerMap
+     */
+    virtual MegaIntegerList* getKeys() const;
+
+    /**
+     * @brief Sets a value in the map for the given key.
+     *
+     * If the key already exists, the value will be overwritten by the
+     * new value.
+     *
+     * @param key The key in the map.
+     * @param value The new value for the key in the map.
+     */
+    virtual void set(const long long& /*key*/, const long long& /*value*/);
+
+    /**
+     * @brief Returns the number of (long long, long long) pairs in the map
+     * @return Number of pairs in the map
+     */
+    virtual unsigned long long size() const;
+};
+
+/**
  * @brief List of strings
  *
  * A MegaStringList has the ownership of the strings that it contains, so they will be

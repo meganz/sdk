@@ -1813,6 +1813,22 @@ protected:
     string_map strMap;
 };
 
+class MegaIntegerMapPrivate : public MegaIntegerMap
+{
+public:
+    MegaIntegerMapPrivate();
+    virtual ~MegaIntegerMapPrivate();
+    virtual MegaIntegerMap* copy() const;
+    virtual bool get(const long long& key, long long& value) const;
+    virtual MegaIntegerList* getKeys() const;
+    virtual unsigned long long size() const;
+    virtual void set(const long long& key, const long long& value);
+
+private:
+    MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIntegerMap);
+    const integer_map* getMap() const;
+    integer_map mIntegerMap;
+};
 
 class MegaStringListPrivate : public MegaStringList
 {
