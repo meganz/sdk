@@ -56,6 +56,7 @@ struct TextChat : public Cacheable
     attachments_map attachedNodes;
     bool publicchat;  // whether the chat is public or private
     bool meeting;     // chat is meeting room
+    byte chatOptions; // each chat option is represented in 1 bit (check ChatOptions struct at types.h)
 
 private:        // use setter to modify these members
     byte flags;     // currently only used for "archive" flag at first bit
@@ -78,10 +79,12 @@ public:
         bool attachments : 1;
         bool flags : 1;
         bool mode : 1;
+        bool options : 1;
     } changed;
 
     // return false if failed
     bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
+    bool addOrUpdateChatOptions(int speakRequest = -1, int waitingRoom = -1, int openInvite = -1);
     bool setFlag(bool value, uint8_t offset = 0xFF);
     bool setFlags(byte newFlags);
     bool isFlagSet(uint8_t offset) const;
