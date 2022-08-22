@@ -1451,7 +1451,7 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(int connectionNum)
         {
             unsigned slowestConnectionThroughput = static_cast<unsigned>(throughput[slowestConnection].first) / static_cast<unsigned>(throughput[slowestConnection].second);
             unsigned fastestConnectionThroughput = static_cast<unsigned>(throughput[fastestConnection].first) / static_cast<unsigned>(throughput[fastestConnection].second);
-            if (fastestConnectionThroughput * 3 > slowestConnectionThroughput * 4)
+            if (fastestConnectionThroughput * 4 > slowestConnectionThroughput * 5)
             {
                 LOG_warn << "DEVEL| DirectReadSlot [" << connectionNum << "] Connection " << slowestConnection << " is slow, trying the other 5 cloudraid connections [slowest = " << ((slowestConnectionThroughput * 1000 / 1024)) << " KB/s, fastest = " << ((fastestConnectionThroughput * 1000 / 1024)) << " KB/s] [numSlowConnectionsSwitches = " << numSlowConnectionsSwitches << "] [current unusedRaidConnection = " << unusedRaidConnection << "]";
                 if (dr->drbuf.setUnusedRaidConnection(slowestConnection))
