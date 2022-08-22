@@ -2287,6 +2287,11 @@ void MegaApi::confirmResetPassword(const char *link, const char *newPwd, const c
     pImpl->confirmResetPasswordLink(link, newPwd, masterKey, listener);
 }
 
+void MegaApi::checkRecoveryKey(const char* link, const char* recoveryKey, MegaRequestListener* listener)
+{
+    pImpl->checkRecoveryKey(link, recoveryKey, listener);
+}
+
 void MegaApi::cancelAccount(MegaRequestListener *listener)
 {
     pImpl->cancelAccount(listener);

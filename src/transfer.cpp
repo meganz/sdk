@@ -65,7 +65,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     client = cclient;
     size = 0;
     failcount = 0;
-    minfa = 0;
     pos = 0;
     ctriv = 0;
     metamac = 0;
@@ -82,7 +81,6 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 
     skipserialization = false;
 
-    faputcompletion_it = client->faputcompletion.end();
     transfers_it = client->transfers[type].end();
 }
 
@@ -93,9 +91,9 @@ Transfer::~Transfer()
                          static_cast<TransferDbCommitter*>(client->tctable->getTransactionCommitter()) :
                          nullptr;
 
-    if (faputcompletion_it != client->faputcompletion.end())
+    if (!uploadhandle.isUndef())
     {
-        client->faputcompletion.erase(faputcompletion_it);
+        client->fileAttributesUploading.erase(uploadhandle);
     }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
@@ -624,7 +622,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
 
             if (type == PUT)
             {
-                minfa += client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle);
+                client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle, this);
             }
             else
             {
@@ -1016,7 +1014,7 @@ void Transfer::complete(TransferDbCommitter& committer)
             slot->retrybt.backoff(11);
         }
     }
-    else
+    else // type == PUT
     {
         LOG_debug << client->clientname << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
 
@@ -1115,7 +1113,7 @@ void Transfer::complete(TransferDbCommitter& committer)
         }
 
         // if this transfer is put on hold, do not complete
-        client->checkfacompletion(uploadhandle, this);
+        client->checkfacompletion(uploadhandle, this, true);
         return;
     }
 }

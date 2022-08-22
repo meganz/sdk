@@ -3250,7 +3250,8 @@ class MegaRequest
             TYPE_EXECUTE_ON_THREAD                                          = 146,
             TYPE_SET_CHAT_OPTIONS                                           = 147,
             TYPE_GET_RECENT_ACTIONS                                         = 148,
-            TOTAL_OF_REQUEST_TYPES                                          = 149,
+            TYPE_CHECK_RECOVERY_KEY                                         = 149,
+            TOTAL_OF_REQUEST_TYPES                                          = 150,
         };
 
         virtual ~MegaRequest();
@@ -9324,6 +9325,19 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void confirmResetPassword(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Check that the provided recovery key (master key) is correct
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHECK_RECOVERY_KEY
+         * No data in the MegaRequest object received on all callbacks
+         *
+         * @param link The recovery link sent to the user's email address.
+         * @param recoveryKey Base64-encoded string containing the recoveryKey (masterKey).
+         * @param listener MegaRequestListener to track this request
+         */
+        void checkRecoveryKey(const char* link, const char* recoveryKey, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Initialize the cancellation of an account.

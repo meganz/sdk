@@ -162,7 +162,7 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
+typedef enum { REQ_READY, REQ_GET_URL, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
                REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED,
                REQ_INFLIGHT,
                REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO,
@@ -577,6 +577,18 @@ public:
 
 };
 
+template <class T1, class T2> class mapWithLookupExisting : public map<T1, T2>
+{
+    typedef map<T1, T2> base; // helps older gcc
+public:
+    T2* lookupExisting(T1 key)
+    {
+        auto it = base::find(key);
+        if (it == base::end()) return nullptr;
+        return &it->second;
+    }
+};
+
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
 
@@ -723,68 +735,6 @@ typedef enum {
 } encryptionsetting_t;
 
 typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
-
-#ifdef ENABLE_CHAT
-typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
-typedef pair<handle, privilege_t> userpriv_pair;
-typedef vector< userpriv_pair > userpriv_vector;
-typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cacheable
-{
-    enum {
-        FLAG_OFFSET_ARCHIVE = 0
-    };
-
-    handle id;
-    privilege_t priv;
-    int shard;
-    userpriv_vector *userpriv;
-    bool group;
-    string title;        // byte array
-    string unifiedKey;   // byte array
-    handle ou;
-    m_time_t ts;     // creation time
-    attachments_map attachedNodes;
-    bool publicchat;  // whether the chat is public or private
-    bool meeting;     // chat is meeting room
-    byte chatOptions; // each chat option is represented in 1 bit (check ChatOptions struct at types.h)
-
-private:        // use setter to modify these members
-    byte flags;     // currently only used for "archive" flag at first bit
-
-public:
-    int tag;    // source tag, to identify own changes
-
-    TextChat();
-    ~TextChat();
-
-    bool serialize(string *d);
-    static TextChat* unserialize(class MegaClient *client, string *d);
-
-    void setTag(int tag);
-    int getTag();
-    void resetTag();
-
-    struct
-    {
-        bool attachments : 1;
-        bool flags : 1;
-        bool mode : 1;
-        bool options : 1;
-    } changed;
-
-    // return false if failed
-    bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
-    bool addOrUpdateChatOptions(int speakRequest = -1, int waitingRoom = -1, int openInvite = -1);
-    bool setFlag(bool value, uint8_t offset = 0xFF);
-    bool setFlags(byte newFlags);
-    bool isFlagSet(uint8_t offset) const;
-    bool setMode(bool publicchat);
-
-};
-typedef vector<TextChat*> textchat_vector;
-typedef map<handle, TextChat*> textchat_map;
-#endif
 
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
 
