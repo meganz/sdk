@@ -224,7 +224,7 @@ struct MEGA_API DirectReadSlot
     static const int MIN_BYTES_PER_SECOND = 1024 * 15;
     static const int TIMEOUT_DS = 100;
     static const int TEMPURL_TIMEOUT_DS = 3000;
-    static constexpr unsigned MIN_DELIVERY_CHUNK = 5 * 1024 * 1024; // 5 MB per assembled part to delive
+    static constexpr unsigned MIN_DELIVERY_CHUNK = 5 * 1024 * 1024; // 5 MB per assembled part to deliver
     static constexpr unsigned MIN_COMPARABLE_THROUGHPUT = MIN_DELIVERY_CHUNK; // 5 MB
     static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 3; // 3 SWITCHES
     static constexpr bool WAIT_FOR_PARTS_IN_FLIGHT = true;
