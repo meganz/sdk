@@ -4266,7 +4266,8 @@ namespace mega
 
             unsigned oldvalue = tbm->raidLinesPerChunk;
             tbm->raidLinesPerChunk /= 4;
-            LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk;
+            tbm->setAvoidSmallLastRequest(false);
+            LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk << " and set AvoidSmallLastRequest flag to false";
         }
 
         static bool  onHttpReqPost509(HttpReq* req)
@@ -4327,6 +4328,7 @@ namespace mega
         {
             isRaid = tbm->isRaid();
             isRaidKnown = true;
+            onSetIsRaid_morechunks(tbm);
         }
 
         static bool resetForTests()

@@ -1369,7 +1369,7 @@ bool DirectReadSlot::processAnyOutputPieces()
         slotThroughput.first += static_cast<unsigned>(len);
         auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - slotStartTime).count();
         slotThroughput.second = static_cast<m_off_t>(lastDataTime);
-        LOG_verbose << "Delivering assembled part -> len = " << len << ", speed = " << speed << ", meanSpeed = " << (meanSpeed / 1024) << " KB/s, slotThroughput = " << (lastDataTime ? (((slotThroughput.first / static_cast<m_off_t>(lastDataTime)) * 1000) / 1024) : 0) << " KB/s]";
+        LOG_verbose << "Delivering assembled part -> len = " << len << ", speed = " << speed << ", meanSpeed = " << (meanSpeed / 1024) << " KB/s, slotThroughput = " << (lastDataTime ? ((((slotThroughput.first * 1000) / static_cast<m_off_t>(lastDataTime))) / 1024) : 0) << " KB/s]";
         continueDirectRead = dr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, pos, speed, meanSpeed, dr->appdata);
 
         dr->drbuf.bufferWriteCompleted(0, true);
@@ -1392,8 +1392,8 @@ bool DirectReadSlot::waitForPartsInFlight()
 
 unsigned DirectReadSlot::usedConnections()
 {
-    assert(dr->drbuf.isRaid() && reqs.size() == RAIDPARTS);
-    return static_cast<unsigned>(RAIDPARTS) - ((unusedRaidConnection != static_cast<unsigned>(RAIDPARTS)) ? 1 : 0);
+    assert(!dr->drbuf.isRaid() || reqs.size() == RAIDPARTS);
+    return static_cast<unsigned>(reqs.size()) - ((unusedRaidConnection != static_cast<unsigned>(reqs.size())) ? 1 : 0);
 }
 
 bool DirectReadSlot::resetConnection(size_t connectionNum)
@@ -1507,13 +1507,15 @@ void DirectReadSlot::decreaseReqsInflight()
     LOG_verbose << "Decreasing counter of total requests inflight: " << numReqsInflight << " - 1";
     assert(numReqsInflight > 0);
     numReqsInflight--;
-    if (numReqsInflight == (static_cast<int>(RAIDPARTS) - usedConnections()))
+    if ((unusedRaidConnection < reqs.size()) &&
+        (reqs[unusedRaidConnection]->status != REQ_DONE) &&
+        (numReqsInflight == (static_cast<unsigned>(reqs.size()) - usedConnections())))
     {
         numReqsInflight = 0;
     }
     if (numReqsInflight == 0)
     {
-        assert(!DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT || waitForParts);
+        // waitForParts could be true at this point if there were connections with REQ_DONE status which didn't increase the inflight counter
         waitForParts = false;
     }
 }
@@ -1521,9 +1523,9 @@ void DirectReadSlot::decreaseReqsInflight()
 void DirectReadSlot::increaseReqsInflight()
 {
     LOG_verbose << "Increasing counter of total requests inflight: " << numReqsInflight << " + 1";
-    assert(numReqsInflight < RAIDPARTS);
+    assert(numReqsInflight < reqs.size());
     numReqsInflight++;
-    if (numReqsInflight == RAIDPARTS)
+    if (numReqsInflight == static_cast<unsigned>(reqs.size()))
     {
         assert(!waitForParts);
         waitForParts = true;
@@ -1574,7 +1576,7 @@ bool DirectReadSlot::doio()
                         auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - req->postStartTime).count();
                         throughput[connectionNum].second = static_cast<m_off_t>(lastDataTime);;
                         LOG_verbose << "DirectReadSlot [conn " << connectionNum << "] -> FilePiece's going to be submitted: n = " << n << ", req->in.size = " << req->in.size() << ", req->in.capacity = " << req->in.capacity() << " [minChunk = " << minChunk << ", reqs.size = " << reqs.size() << ", req->status = " << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" : req->status == REQ_SUCCESS ? "REQ_SUCCESS" : "REQ_SOMETHING")
-                                  << ", req->httpstatus = " << req->httpstatus << ", req->contentlength = " << req->contentlength << "] [numReqsInflight = " << numReqsInflight << "] [chunk throughput = " << (lastDataTime ? (((throughput[connectionNum].first / static_cast<m_off_t>(lastDataTime)) * 1000) / 1024) : 0) << " KB/s]";
+                                  << ", req->httpstatus = " << req->httpstatus << ", req->contentlength = " << req->contentlength << "] [numReqsInflight = " << numReqsInflight << ", unusedRaidConnection = " << unusedRaidConnection << "] [chunk throughput = " << (lastDataTime ? ((((throughput[connectionNum].first * 1000) / static_cast<m_off_t>(lastDataTime))) / 1024) : 0) << " KB/s]";
                         RaidBufferManager::FilePiece *np = new RaidBufferManager::FilePiece(req->pos, n);
                         memcpy(np->buf.datastart(), req->in.c_str(), n);
 

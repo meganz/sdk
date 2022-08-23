@@ -60,6 +60,13 @@ namespace mega {
 
         };
 
+        // Min last request chunk (to avoid small chunks to be requested)
+        static constexpr size_t MIN_LAST_CHUNK = 10 * 1024 * 1024;
+        // Max last request chunk (otherwise split it in two)
+        static constexpr size_t MAX_LAST_CHUNK = 16 * 1024 * 1024;
+        // Default value to activate min/max last request values
+        static constexpr bool AVOID_SMALL_SIZE_LAST_REQUEST = true;
+
         // call this before starting a transfer. Extracts the vector content
         void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize);
 
@@ -111,8 +118,16 @@ namespace mega {
         // indicate that this connection has responded with headers, and see if we now know which is the slowest connection, and make that the unused one
         bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
 
+        // Activate/Deactivate whether a last small chunk can be requested (Activated by default: deactivate for slower throughput)
+        void setAvoidSmallLastRequest(bool value = AVOID_SMALL_SIZE_LAST_REQUEST);
+
+        // Indicate if a small last request is being avoided
+        bool getAvoidSmallLastRequest();
+
+        // Set the unused raid connection [0 - RAIDPARTS)
         bool setUnusedRaidConnection(unsigned newUnusedRaidConnection);
 
+        // Which raid connection is not being used for downloading
         unsigned getUnusedRaidConnection();
 
         // returns how far we are through the file on average, including uncombined data
@@ -130,6 +145,7 @@ namespace mega {
 
         bool is_raid;
         bool raidKnown;
+        bool avoidSmallLastRequest;
         m_off_t deliverlimitpos;   // end of the data that the client requested
         m_off_t acquirelimitpos;   // end of the data that we need to deliver that (can be up to the next raidline boundary)
         m_off_t fullfilesize;      // end of the file
