@@ -3847,7 +3847,7 @@ autocomplete::ACN autocompleteSyntax()
         sequence(text("setsandelements"),
                  either(text("list"),
                         sequence(text("newset"), opt(param("name"))),
-                        sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name"))))),
+                        sequence(text("updateset"), param("id"), opt(either(sequence(flag("-n"), opt(param("name"))), sequence(flag("-c"), opt(param("cover")))))),
                         sequence(text("removeset"), param("id")),
                         sequence(text("fetchset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
@@ -9929,17 +9929,19 @@ void printSetAndElements(const Set* s)
         return;
     }
 
-    cout << "Set " << toHandle(s->id()) << endl;
+    cout << "Set " << Base64Str<MegaClient::SETHANDLE>(s->id()) << endl;
     cout << "\tkey: " << Base64::btoa(s->key()) << endl;
     cout << "\tuser: " << toHandle(s->user()) << endl;
     cout << "\tts: " << s->ts() << endl;
     cout << "\tname: " << s->name() << endl;
+    handle cover = s->cover();
+    cout << "\tcover: " << (cover == UNDEF ? "(no cover)" : Base64Str<MegaClient::SETELEMENTHANDLE>(cover).chars) << endl;
 
     const auto& elems = s->elements();
     for (const auto& p : elems)
     {
         const SetElement& el = p.second;
-        cout << "\t\telement " << toHandle(el.id()) << endl;
+        cout << "\t\telement " << Base64Str<MegaClient::SETELEMENTHANDLE>(el.id()) << endl;
         cout << "\t\t\tnode: " << Base64Str<MegaClient::NODEHANDLE>(el.node()) << endl;
         cout << "\t\t\tname: " << el.name() << endl;
         cout << "\t\t\torder: " << el.order() << endl;
@@ -9998,17 +10000,28 @@ void exec_setsandelements(autocomplete::ACState& s)
         handle id = 0; // must have remaining bits set to 0
         Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
 
-        string buf;
-        bool updateName = s.extractflagparam("-n", buf);
-        bool cleanName = !updateName && s.extractflag("-n");
-        const char* name = (updateName || cleanName) ? buf.c_str() : nullptr;
-
         Set updset;
         updset.setId(id);
-        if (name)
+        string buf;
+        bool updateName = s.extractflagparam("-n", buf) || s.extractflag("-n");
+        if (updateName)
         {
-            updset.setName(name);
+            updset.setName(move(buf));
         }
+        else if (s.extractflagparam("-c", buf) || s.extractflag("-c"))
+        {
+            if (buf.empty())
+            {
+                updset.setCover(UNDEF);
+            }
+            else
+            {
+                handle hc = 0;
+                Base64::atob(buf.c_str(), (byte*)&hc, MegaClient::SETELEMENTHANDLE); // What should be used instead of this "deprecated" feature?
+                updset.setCover(hc);
+            }
+        }
+
         client->putSet(move(updset), [id](Error e, handle setId)
             {
                 if (e == API_OK)
