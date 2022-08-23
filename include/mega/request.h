@@ -81,6 +81,8 @@ public:
 
     bool cmdspending() const;
 
+    bool cmdsinflight() const { return inflightreq.size(); }
+
     /**
      * @brief get the set of commands to be sent to the server (could be a retry)
      * @param suppressSID
