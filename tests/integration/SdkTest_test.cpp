@@ -4265,7 +4265,7 @@ namespace mega
         {
 
             unsigned oldvalue = tbm->raidLinesPerChunk;
-            tbm->raidLinesPerChunk /= 4;
+            tbm->raidLinesPerChunk /= 6;
             tbm->setAvoidSmallLastRequest(false);
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk << " and set AvoidSmallLastRequest flag to false";
         }
