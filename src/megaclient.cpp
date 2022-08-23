@@ -566,7 +566,7 @@ bool MegaClient::isPrivateNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode == rootnodes.files || rootnode == rootnodes.inbox || rootnode == rootnodes.rubbish);
+    return rootnodes.isRootNode(rootnode);
 }
 
 bool MegaClient::isForeignNode(NodeHandle h)
@@ -578,7 +578,7 @@ bool MegaClient::isForeignNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode != rootnodes.files && rootnode != rootnodes.inbox && rootnode != rootnodes.rubbish);
+    return !rootnodes.isRootNode(rootnode);
 }
 
 SCSN::SCSN()
@@ -3184,7 +3184,7 @@ void MegaClient::exec()
     NodeCounter storagesum;
     for (auto& nc : mNodeCounters)
     {
-        if (nc.first == rootnodes.files || nc.first == rootnodes.inbox || nc.first == rootnodes.rubbish)
+        if (rootnodes.isRootNode(nc.first))
         {
             storagesum += nc.second;
         }

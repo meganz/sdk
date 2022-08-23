@@ -270,6 +270,10 @@ public:
         NodeHandle files;
         NodeHandle inbox;
         NodeHandle rubbish;
+
+        // returns true if the 'h' provided matches any of the rootnodes.
+        // (when logged into folder links, the handle of the folder is set to 'files')
+        bool isRootNode(NodeHandle h) { return (h == files || h == inbox || h == rubbish); }
     } rootnodes;
 
 
