@@ -17100,7 +17100,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
 
         if (s.hasAttrs())
         {
-            string enc = s.encryptAttributes([this](const map<string, string>& a, const string& k) { return encryptAttrs(a, k); });
+            string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
             encrAttrs.reset(new string(move(enc)));
         }
     }
@@ -17131,7 +17131,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         s.setUser(setToBeUpdated->user());
 
         s.rebaseAttrsOn(*setToBeUpdated);
-        string enc = s.encryptAttributes([this](const map<string, string>& a, const string& k) { return encryptAttrs(a, k); });
+        string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
         encrAttrs.reset(new string(move(enc)));
     }
 
@@ -17364,7 +17364,7 @@ error MegaClient::decryptSetData(Set& s)
     s.setKey(decryptKey(s.key(), key));
 
     // decrypt attrs
-    auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
+    auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
     if (!s.decryptAttributes(decryptFunc))
     {
         LOG_err << "Sets: Unable to decrypt Set attrs";
@@ -17386,7 +17386,7 @@ error MegaClient::decryptElementData(SetElement& el, const string& setKey)
     el.setKey(decryptKey(el.key(), tmpnodecipher));
 
     // decrypt attrs
-    auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
+    auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
     if (el.hasAttrs() && !el.decryptAttributes(decryptFunc))
     {
         return API_EINTERNAL;
@@ -17403,7 +17403,7 @@ string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
     return string((char*)decrKey.get(), k.size());
 }
 
-string MegaClient::encryptAttrs(const map<string, string>& attrs, const string& encryptionKey)
+string MegaClient::encryptAttrs(const string_map& attrs, const string& encryptionKey)
 {
     if (attrs.empty())
     {
@@ -17433,7 +17433,7 @@ string MegaClient::encryptAttrs(const map<string, string>& attrs, const string& 
     return *encrAttrs;
 }
 
-bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, map<string, string>& output)
+bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, string_map& output)
 {
     if (attrs.empty())
     {
@@ -17622,6 +17622,8 @@ error MegaClient::readElement(JSON& j, SetElement& el, handle& setId)
     }
 }
 
+const string CommonSE::nameTag = "n";
+
 const Set* MegaClient::getSet(handle id) const
 {
     auto it = mSets.find(id);
@@ -17740,7 +17742,7 @@ void MegaClient::sc_asp()
         {
             s.setKey(existing.key());
 
-            auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
+            auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
             if (!s.decryptAttributes(decryptFunc))
             {
                 LOG_err << "Sets: Failed to decrypt Set attributes from `asp` action packet";
@@ -17971,7 +17973,7 @@ Set* MegaClient::unserializeSet(string* d)
     }
 
     // get all attrs
-    map<string, string> attrs;
+    string_map attrs;
     for (uint32_t i = 0; i < attrCount; ++i)
     {
         string ak, av;
@@ -18052,14 +18054,14 @@ Set* MegaClient::unserializeSet(string* d)
 
 void Set::setName(string&& name)
 {
-    setAttr("name", move(name));
+    setAttr(nameTag, move(name));
 }
 
 void Set::setAttr(const string& tag, string&& value)
 {
     if (!mAttrs)
     {
-        mAttrs.reset(new map<string, string>());
+        mAttrs.reset(new string_map());
     }
     (*mAttrs)[tag] = move(value);
 }
@@ -18157,7 +18159,7 @@ void Set::rebaseAttrsOn(const Set& s)
 
     if (!mAttrs)
     {
-        mAttrs.reset(new map<string, string>());
+        mAttrs.reset(new string_map());
     }
 
     // copy missing attributes
@@ -18167,7 +18169,7 @@ void Set::rebaseAttrsOn(const Set& s)
     }
     else
     {
-        map<string, string> rebased = *s.mAttrs;
+        string_map rebased = *s.mAttrs;
         for (auto it = mAttrs->begin(); it != mAttrs->end(); ++it)
         {
             if (it->second.empty())
@@ -18191,12 +18193,12 @@ void Set::rebaseAttrsOn(const Set& s)
 void Set::takeAttrsFrom(Set&& s)
 {
     // check for changes
-    if (hasAttrChanged("name", s.mAttrs)) setChangeName();
+    if (hasAttrChanged(nameTag, s.mAttrs)) setChangeName();
 
     mAttrs.swap(s.mAttrs);
 }
 
-bool Set::hasAttrChanged(const string& tag, const unique_ptr<map<string, string>>& otherAttrs) const
+bool Set::hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherAttrs) const
 {
     string otherValue;
     if (otherAttrs)
@@ -18209,7 +18211,7 @@ bool Set::hasAttrChanged(const string& tag, const unique_ptr<map<string, string>
     return value != otherValue;
 }
 
-bool Set::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
+bool Set::decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f)
 {
     if (!mEncryptedAttrs) // 'at' was not received
     {
@@ -18219,12 +18221,12 @@ bool Set::decryptAttributes(std::function<bool(const string&, const string&, map
 
     if (mEncryptedAttrs->empty()) // 'at' was received empty
     {
-        mAttrs.reset(new map<string, string>());
+        mAttrs.reset(new string_map());
         mEncryptedAttrs.reset();
         return true;
     }
 
-    unique_ptr<map<string, string>> newAttrs(new map<string, string>());
+    unique_ptr<string_map> newAttrs(new string_map());
 
     if (f(*mEncryptedAttrs, mKey, *newAttrs))
     {
@@ -18235,7 +18237,7 @@ bool Set::decryptAttributes(std::function<bool(const string&, const string&, map
     return false;
 }
 
-string Set::encryptAttributes(std::function<string(const map<string, string>&, const string&)> f) const
+string Set::encryptAttributes(std::function<string(const string_map&, const string&)> f) const
 {
     if (!mAttrs || mAttrs->empty())
     {
@@ -18245,7 +18247,7 @@ string Set::encryptAttributes(std::function<string(const map<string, string>&, c
     return f(*mAttrs, mKey);
 }
 
-bool SetElement::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
+bool SetElement::decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f)
 {
     if (hasAttrs() && f(mEncryptedAttrs, mKey, mAttrs))
     {
