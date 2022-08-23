@@ -12694,7 +12694,7 @@ dstime MegaApiImpl::pread_failure(const Error &e, int retry, void* param, dstime
 bool MegaApiImpl::pread_data(byte *buffer, m_off_t len, m_off_t, m_off_t speed, m_off_t meanSpeed, void* param)
 {
     MegaTransferPrivate *transfer = (MegaTransferPrivate *)param;
-    LOG_debug << "DEVEL| pread_data -> len = " << len << ", speed = " << speed << ", meanSpeed = " << meanSpeed << " (transfer->getTransferredBytes = " << transfer->getTransferredBytes() << ")";
+    LOG_verbose << "Read new data received from transfer: len = " << len << ", speed = " << (speed/1024) << " KB/s, meanSpeed = " << (meanSpeed/1024) << " KB/s, total transferred bytes = " << transfer->getTransferredBytes() << "";
     dstime currentTime = Waiter::ds;
     transfer->setStartTime(currentTime);
     transfer->setState(MegaTransfer::STATE_ACTIVE);
@@ -13830,7 +13830,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
         transfer->setNodeHandle(h);
         transfer->setTargetOverride(targetOverride);
-        LOG_debug << "DEVEL| putnodes_result -> setTransferredBytes = transfer->getTotalBytes() = " << transfer->getTotalBytes() << " (prev transferredBytes = " << transfer->getTransferredBytes() << ")";
+        LOG_verbose << "Set transferred bytes to transfer total bytes: " << transfer->getTotalBytes() << " (prev transferredBytes = " << transfer->getTransferredBytes() << ")";
         transfer->setTransferredBytes(transfer->getTotalBytes());
 
         if (!e)
@@ -14465,7 +14465,7 @@ void MegaApiImpl::request_error(error e)
 
 void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t totalProgress)
 {
-    LOG_debug << "DEVEL| request_response_progress -> currentProgress = " << currentProgress << ", totalProgress = " << totalProgress;
+    LOG_verbose << "Request response progress: current progress = " << currentProgress << ", total progress = " << totalProgress;
     if (!client->isFetchingNodesPendingCS())
     {
         return;
@@ -16732,7 +16732,7 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
     {
         m_off_t prevTransferredBytes = transfer->getTransferredBytes();
         m_off_t deltaSize = tr->slot->progressreported - prevTransferredBytes;
-        LOG_debug << "DEVEL| processTransferUpdate -> deltaSize = " << deltaSize << ", tr->size = " << tr->size << ", transfer->getTransferredBytes = " << transfer->getTransferredBytes() << ", tr->slot->progressreported = " << tr->slot->progressreported;
+        LOG_verbose << "Transfer update: progress to update = " << deltaSize << ", transfer size = " << tr->size << ", transferred bytes = " << transfer->getTransferredBytes() << ", progress reported = " << tr->slot->progressreported;
         transfer->setStartTime(currentTime);
         transfer->setTransferredBytes(tr->slot->progressreported);
         transfer->setDeltaSize(deltaSize);
@@ -16750,7 +16750,7 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
     }
     else
     {
-        LOG_debug << "DEVEL| processTransferUpdate -> !tr->slot -> set speed, deltaSize and meanSpeed to 0";
+        LOG_verbose << "No TransferSlot. Reset last progress, speed and mean speed.";
         transfer->setDeltaSize(0);
         transfer->setSpeed(0);
         transfer->setMeanSpeed(0);
@@ -16766,7 +16766,7 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
 {
     dstime currentTime = Waiter::ds;
     m_off_t deltaSize = tr->size - transfer->getTransferredBytes();
-    LOG_debug << "DEVEL| procressTransferComplete -> deltaSize = " << deltaSize << ", tr->size = " << tr->size << ", transfer->getTransferredBytes = " << transfer->getTransferredBytes();
+    LOG_verbose << "Transfer complete: final progress to update = " << deltaSize << ", transfer size = " << tr->size << ", transferred bytes = " << transfer->getTransferredBytes();
     transfer->setStartTime(currentTime);
     transfer->setUpdateTime(currentTime);
     transfer->setTransferredBytes(tr->size);
@@ -18243,7 +18243,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             forceToUpload= hasToForceUpload(*previousNode, *transfer);
                             if (!forceToUpload)
                             {
-                                LOG_debug << "DEVEL| sendPendingTransfers -> (previousNode) -> (!forceToUpload) -> setTransferredBytes(0)";
+                                LOG_debug << "Previous node exists and the upload is not forced: copy node handle";
                                 pendingUploads++;
                                 totalUploads++;
                                 transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -25266,9 +25266,9 @@ void MegaRecursiveOperation::onTransferUpdate(MegaApi *, MegaTransfer *t)
     assert(transfer);
     if (transfer)
     {
+        LOG_verbose << "MegaRecursiveOperation: on transfer update -> adding new progress " << t->getDeltaSize() << " to previous transferred bytes " << transfer->getTransferredBytes() << " -> updated transferred bytes = " << (transfer->getTransferredBytes() + t->getDeltaSize());
         transfer->setState(t->getState());
         transfer->setPriority(t->getPriority());
-        LOG_debug << "DEVEL| MegaRecursiveOperation::onTransferUpdate -> transferredBytes = (transfer->getTransferredBytes() + t->getDeltaSize()) = " << transfer->getTransferredBytes() << " + " << t->getDeltaSize() << " = " << (transfer->getTransferredBytes() + t->getDeltaSize());
         transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
         transfer->setUpdateTime(Waiter::ds);
         transfer->setSpeed(t->getSpeed());
@@ -25284,9 +25284,9 @@ void MegaRecursiveOperation::onTransferFinish(MegaApi *, MegaTransfer *t, MegaEr
     assert(transfer);
     if (transfer)
     {
+        LOG_verbose << "MegaRecursiveOperation: on transfer finish -> adding new progress " << t->getDeltaSize() << " to previous transferred bytes " << transfer->getTransferredBytes() << " -> updated transferred bytes = " << (transfer->getTransferredBytes() + t->getDeltaSize());
         transfer->setState(MegaTransfer::STATE_ACTIVE);
         transfer->setPriority(t->getPriority());
-        LOG_debug << "DEVEL| MegaRecursiveOperation::onTransferFinish -> transferredBytes = (transfer->getTransferredBytes() + t->getDeltaSize()) = " << transfer->getTransferredBytes() << " + " << t->getDeltaSize() << " = " << (transfer->getTransferredBytes() + t->getDeltaSize());
         transfer->setTransferredBytes(transfer->getTransferredBytes() + t->getDeltaSize());
         transfer->setUpdateTime(Waiter::ds);
         transfer->setSpeed(t->getSpeed());
@@ -26097,7 +26097,6 @@ void MegaScheduledCopyController::clearCurrentBackupData()
     this->currentHandle = UNDEF;
     this->currentBKStartTime = 0;
     this->updateTime = 0;
-    LOG_debug << "DEVEL| MegaScheduledCopyController::clearCurrentBackupData -> transferredBytes = 0";
     this->transferredBytes = 0;
     this->totalBytes = 0;
     this->speed = 0;
@@ -27046,7 +27045,7 @@ size_t StreamingBuffer::append(const char *buf, size_t len)
     {
         size_t num = static_cast<size_t>(static_cast<int>(len) - remaining);
         LOG_debug << "[Streaming] Length exceeds limits of circular buffer. Writting a piece of " << num << " bytes to the end and the others " << remaining << " bytes from the beginning"
-                    << " [currentIndex = " << currentIndex << ", len = " << len << ", capacity = " << capacity << "]";
+                    << " [current index = " << currentIndex << ", len = " << len << ", capacity = " << capacity << "]";
         memcpy(buffer + currentIndex, buf, num);
         memcpy(buffer, buf + num, static_cast<size_t>(remaining));
     }
@@ -27099,12 +27098,14 @@ uv_buf_t StreamingBuffer::nextBuffer()
 
 void StreamingBuffer::freeData(size_t len)
 {
+    LOG_verbose << "[Streaming] Streaming buffer free data: len = " << len << ", actual free = " << free << ", new free = " << (free+len) << ", size = " << size << " [capacity = " << capacity << "]"; 
     // update the internal state
     free += len;
 }
 
 void StreamingBuffer::setMaxBufferSize(unsigned int bufferSize)
 {
+    LOG_debug << "Set new max buffer size for StreamingBuffer: " << bufferSize;
     if (bufferSize)
     {
         this->maxBufferSize = bufferSize;
@@ -27117,6 +27118,7 @@ void StreamingBuffer::setMaxBufferSize(unsigned int bufferSize)
 
 void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 {
+    LOG_debug << "Set new max output size for StreamingBuffer: " << outputSize;
     if (outputSize)
     {
         this->maxOutputSize = outputSize;
@@ -27149,14 +27151,14 @@ size_t StreamingBuffer::getBitRate() const
 unsigned StreamingBuffer::getMaxBufferSize()
 {
     return this->maxBufferSize ?
-                this->maxBufferSize :
+                static_cast<unsigned>(this->maxBufferSize) :
                 StreamingBuffer::MAX_BUFFER_SIZE;
 }
 
 unsigned StreamingBuffer::getMaxOutputSize()
 {
     return this->maxOutputSize ?
-                this->maxOutputSize :
+                static_cast<unsigned>(this->maxOutputSize) :
                 StreamingBuffer::MAX_OUTPUT_SIZE;
 }
 
@@ -30024,7 +30026,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
     if (!resbuf.len)
     {
-        LOG_warn << "[Streaming] Skipping write. No data available. " << httpctx->streamingBuffer.bufferStatus();
+        LOG_debug << "[Streaming] Skipping write. No data available. " << httpctx->streamingBuffer.bufferStatus();
         return;
     }
 

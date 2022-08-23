@@ -61,22 +61,12 @@ const dstime TransferSlot::XFERTIMEOUT = 600;
 const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 
 // max request size for downloads
-/*
 #if defined(__ANDROID__) || defined(USE_IOS)
-    const m_off_t TransferSlot::MAX_REQ_SIZE = 2097152; // 2 MB
+    const m_off_t TransferSlot::MAX_REQ_SIZE = 33554432; // 32 MB [Previous value: 2097152 -> 2 MB]
 #elif defined (_WIN32) || defined(HAVE_AIO_RT)
-    const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB
+    const m_off_t TransferSlot::MAX_REQ_SIZE = 41943040; // 40 MB [Previous value: 16777216 -> 16 MB]
 #else
-    const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
-#endif
-*/
-
-#if defined(__ANDROID__) || defined(USE_IOS)
-    const m_off_t TransferSlot::MAX_REQ_SIZE = 33554432; // 32 MB
-#elif defined (_WIN32) || defined(HAVE_AIO_RT)
-    const m_off_t TransferSlot::MAX_REQ_SIZE = 41943040; // 40 MB
-#else
-    const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB
+    const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB [Previous value: 4194304 -> 4 MB]
 #endif
 
 const m_off_t TransferSlot::MAX_GAP_SIZE = 256 * 1024 * 1024; // 256 MB

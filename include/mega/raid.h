@@ -42,9 +42,6 @@ namespace mega {
     {
     public:
 
-        //static constexpr unsigned MIN_DELIVERY_CHUNK = 5*1024*1024 - (5*1024*1024 % RAIDSECTOR); // 5 MB per assembled part to deliver
-        //static constexpr unsigned MIN_DELIVERY_CHUNK = 512*1024; // 5 MB per assembled part to deliver
-
         struct FilePiece {
             m_off_t pos;
             HttpReq::http_buf_t buf;  // owned here

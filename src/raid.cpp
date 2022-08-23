@@ -373,7 +373,7 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
             connectionPaused[connectionNum] = false;
         }
 
-        LOG_debug << "DEVEL| raidLinesPerChunk = " << raidLinesPerChunk << ", curpos = " << curpos << ", maxpos = " << maxpos << " (acquirelimitpos = " << acquirelimitpos << ")";
+        LOG_debug << "Raid lines per chunk = " << raidLinesPerChunk << ", curpos = " << curpos << ", maxpos = " << maxpos << ", acquirelimitpos = " << acquirelimitpos << "";
         m_off_t npos = curpos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead;
         static constexpr size_t MIN_LAST_CHUNK = 10 * 1024 * 1024;
         static constexpr size_t MAX_LAST_CHUNK = 16 * 1024 * 1024;
@@ -455,7 +455,6 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
     {
         if (raidinputparts[i].empty())
         {
-            LOG_debug << "DEVEL| combineRaidParts -> raidinputparts[ " << i << "].empty() -> partslen = 0 (unusedRaidConnection = " << unusedRaidConnection << ")";
             partslen = 0;
         }
         else
@@ -466,7 +465,6 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
             {
                 minPartLen = i;
             }
-            LOG_debug << "DEVEL| combineRaidParts -> raidinputparts[ " << i << "] r.buf.datalen = " << r.buf.datalen() << " (unusedRaidConnection = " << unusedRaidConnection << ")";
             partslen = std::min<size_t>(partslen, r.buf.datalen());
             (i > 0 ? sumdatalen : xorlen) += r.buf.datalen();
         }
@@ -542,10 +540,6 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
         {
             delete outputrec;  // this would happen if we got some data to process on all connections, but not enough to reach the next chunk boundary yet (and combined data is in leftoverchunk)
         }
-    }
-    else
-    {
-        LOG_debug << "DEVEL| combineRaidParts -> WILL NOT COMBINE -> partslen = " << partslen  << " (minPartLen = " << minPartLen << ") (transferPos(minPartLen) = " << (minPartLen >= 0 ? transferPos(minPartLen) : -1) << ", transferSize(minPartLen) = " << (minPartLen >= 0 ? transferSize(minPartLen) : -1) << ") unusedRaidConnection = " << unusedRaidConnection;
     }
 }
 
@@ -815,18 +809,16 @@ bool RaidBufferManager::detectSlowestRaidConnection(unsigned thisConnection, uns
 
 bool RaidBufferManager::setUnusedRaidConnection(unsigned newUnusedRaidConnection)
 {
-    LOG_debug << "DEVEL| setUnusedRaidConnection -> unusedRaidConnection = " << unusedRaidConnection << ", newUnusedRaidConnection = " << newUnusedRaidConnection;
     if (isRaid() && newUnusedRaidConnection < RAIDPARTS)
     {
+        LOG_debug << "Set unused raid connection to " << newUnusedRaidConnection << " (clear previous unused connection: " << unusedRaidConnection << ")";
         if (unusedRaidConnection < RAIDPARTS) clearOwningFilePieces(raidinputparts[unusedRaidConnection]);
         clearOwningFilePieces(raidinputparts[newUnusedRaidConnection]);
         if (unusedRaidConnection < RAIDPARTS) raidrequestpartpos[unusedRaidConnection] = raidpartspos;
         raidrequestpartpos[newUnusedRaidConnection] = raidpartspos;
         unusedRaidConnection = newUnusedRaidConnection;
-        LOG_debug << "DEVEL| setUnusedRaidConnection ->  return true";
         return true;
     }
-    LOG_debug << "DEVEL| setUnusedRaidConnection ->  return false";
     return false;
 }
 

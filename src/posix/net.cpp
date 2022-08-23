@@ -1550,15 +1550,15 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
-            LOG_debug << "DEVEL| MAXALERT -> (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400) -> USING SMALL BUFFERSIZE";
-            //curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096L);
+            LOG_debug << "Low maxspeed, set curl buffer size to 4 KB";
+            curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096L);
         }
 
         if (req->minspeed)
         {
-            LOG_debug << "DEVEL| MAXALERT -> (req->minspeed) -> SETTING LOW SPEED TIME";
-            //curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
-            //curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 30L);
+            LOG_debug << "Setting low speed limit (<30 Bytes/s) and how much time the speed is allowed to be lower than the limit before aborting (30 secs)";
+            curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
+            curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 30L);
         }
 
         if (!httpio->disablepkp && req->protect)
@@ -2316,10 +2316,9 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 req->status = (req->httpstatus == 200
                                && errorCode != CURLE_PARTIAL_FILE
                                && (req->contentlength < 0
-                                   || (req->contentlength == (req->buf ? req->bufpos : (int)req->in.size()))))
+                                   || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
                         ? REQ_SUCCESS : REQ_FAILURE;
 
-                LOG_debug << "CURL| DEVEL| CURL COMPLETED -> req = " << req << ", req->status = " << req->status << ", req->contentlength = " << req->contentlength << ", req->in.size() = " << req->in.size() << ", req->buf = " << req->buf << ", req->bufpos = " << (req->buf ? req->bufpos : 0);
                 if (req->status == REQ_SUCCESS)
                 {
                     dnsok = true;

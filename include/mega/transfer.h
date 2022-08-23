@@ -231,8 +231,8 @@ struct MEGA_API DirectReadSlot
 
     DirectRead* dr;
     std::vector<std::shared_ptr<HttpReq>> reqs;
-    std::vector<std::pair<unsigned, int64_t>> throughput;
-    std::pair<unsigned, int64_t> slotThroughput;
+    std::vector<std::pair<m_off_t, m_off_t>> throughput;
+    std::pair<m_off_t, m_off_t> slotThroughput;
     std::chrono::system_clock::time_point slotStartTime;
     size_t unusedRaidConnection;
     unsigned numSlowConnectionsSwitches;
@@ -247,9 +247,9 @@ struct MEGA_API DirectReadSlot
     bool doio();
     bool waitForPartsInFlight();
     unsigned usedConnections();
-    bool resetConnection(unsigned connectionNum = 0);
-    bool detectSlowestStartConnection(int connectionNum);
-    bool searchAndDisconnectSlowestConnection(int connectionNum = 0);
+    bool resetConnection(size_t connectionNum = 0);
+    bool detectSlowestStartConnection(size_t connectionNum);
+    bool searchAndDisconnectSlowestConnection(size_t connectionNum = 0);
     void decreaseReqsInflight();
     void increaseReqsInflight();
 
