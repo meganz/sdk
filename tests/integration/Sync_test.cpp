@@ -3345,21 +3345,44 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
         out() << "transfer removal failed";
     }
 
+    // wait for completion of ongoing transfers, up to 60s
     for (int i = 30000; i-- && !client.transfers[GET].empty(); ) WaitMillisec(1);
     for (int i = 30000; i-- && !client.transfers[PUT].empty(); ) WaitMillisec(1);
     LOG_debug << clientname << "transfers cleaned";
 
-    // wait further for reqs to finish if any are queued
+    // wait further for reqs to finish if any are queued, up to 30s
     for (int i = 30000; i-- && !client.transfers[PUT].empty(); ) WaitMillisec(1);
-    LOG_debug << clientname << "transfers cleaned";
 
-    if (client.reqs.cmdspending())
+    // check transfers were canceled successfully
+    if (client.transfers[PUT].size() || client.transfers[GET].size())
+    {
+        LOG_err << clientname << "Failed to clean transfers at cleanupForTestReuse():"
+                   << " put: " << client.transfers[PUT].size()
+                   << " get: " << client.transfers[GET].size();
+    }
+    else
+    {
+        LOG_debug << clientname << "transfers cleaned successfully";
+    }
+
+    // wait for cmds in flight and queued, up to 120s
+    if (client.reqs.cmdsinflight() || client.reqs.cmdspending())
     {
         LOG_debug << clientname << "waiting for requests to finish";
-        for (int i = 120000; i-- && client.reqs.cmdspending(); ) WaitMillisec(1);
+        for (int i = 120000; i-- && (client.reqs.cmdspending() || client.reqs.cmdsinflight()); ) WaitMillisec(1);
     }
-    LOG_debug << clientname << "requests pending: " << client.reqs.cmdspending();
 
+    // check any pending command was completed
+    if (client.reqs.cmdsinflight() || client.reqs.cmdspending())
+    {
+        LOG_err << clientname << "Failed to clean pending commands at cleanupForTestReuse():"
+                << " pending: " << client.reqs.cmdspending()
+                << " inflight: " << client.reqs.cmdsinflight();
+    }
+    else
+    {
+        LOG_debug << clientname << "requests cleaned successfully";
+    }
 
 }
 

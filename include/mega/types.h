@@ -736,65 +736,6 @@ typedef enum {
 
 typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 
-#ifdef ENABLE_CHAT
-typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
-typedef pair<handle, privilege_t> userpriv_pair;
-typedef vector< userpriv_pair > userpriv_vector;
-typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cacheable
-{
-    enum {
-        FLAG_OFFSET_ARCHIVE = 0
-    };
-
-    handle id;
-    privilege_t priv;
-    int shard;
-    userpriv_vector *userpriv;
-    bool group;
-    string title;        // byte array
-    string unifiedKey;   // byte array
-    handle ou;
-    m_time_t ts;     // creation time
-    attachments_map attachedNodes;
-    bool publicchat;  // whether the chat is public or private
-    bool meeting;     // chat is meeting room
-
-private:        // use setter to modify these members
-    byte flags;     // currently only used for "archive" flag at first bit
-
-public:
-    int tag;    // source tag, to identify own changes
-
-    TextChat();
-    ~TextChat();
-
-    bool serialize(string *d);
-    static TextChat* unserialize(class MegaClient *client, string *d);
-
-    void setTag(int tag);
-    int getTag();
-    void resetTag();
-
-    struct
-    {
-        bool attachments : 1;
-        bool flags : 1;
-        bool mode : 1;
-    } changed;
-
-    // return false if failed
-    bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
-    bool setFlag(bool value, uint8_t offset = 0xFF);
-    bool setFlags(byte newFlags);
-    bool isFlagSet(uint8_t offset) const;
-    bool setMode(bool publicchat);
-
-};
-typedef vector<TextChat*> textchat_vector;
-typedef map<handle, TextChat*> textchat_map;
-#endif
-
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
 
 typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED = 2, EMAIL_FULLY_ACCEPTED = 3 } emailstatus_t;
