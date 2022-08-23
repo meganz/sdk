@@ -8973,19 +8973,19 @@ bool CommandSE::procerrorcode(const Result& r, Error& e) const
     return false;
 }
 
-CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, map<string, string>&& attrs,
-                             string&& encrKey, unique_ptr<string> encrAttrs, std::function<void(Error, handle)> completion)
-    : mId(setId), mDecrKey(move(decrKey)), mAttrs(move(attrs)), mCompletion(completion)
+CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAttrs, string&& encrKey,
+                             std::function<void(Error, handle)> completion)
+    : mSet(new Set(move(s))), mCompletion(completion)
 {
     cmd("asp");
 
-    if (setId == UNDEF) // create new
+    if (mSet->id() == UNDEF) // create new
     {
         arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
     }
     else // update
     {
-        arg("id", (byte*)&setId, MegaClient::SETHANDLE);
+        arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
     }
 
     if (encrAttrs)
@@ -8998,29 +8998,31 @@ CommandPutSet::CommandPutSet(MegaClient* cl, handle setId, string&& decrKey, map
 
 bool CommandPutSet::procresult(Result r)
 {
-    handle setId = 0;
+    handle sId = 0;
     handle user = 0;
     m_time_t ts = 0;
     Error e = API_OK;
-    bool parsedOk = procerrorcode(r, e) || procresultid(r, setId, ts, &user);
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, sId, ts, &user);
 
-    if (!parsedOk || (mId == UNDEF && !user))
+    if (!parsedOk || (mSet->id() == UNDEF && !user))
     {
         e = API_EINTERNAL;
     }
     else if (e == API_OK)
     {
-        if (mId == UNDEF) // add new
+        mSet->setTs(ts);
+        if (mSet->id() == UNDEF) // add new
         {
-            Set s(setId, move(mDecrKey), user, ts, move(mAttrs));
-            s.setChangeNew();
-            client->addSet(move(s));
+            mSet->setId(sId);
+            mSet->setUser(user);
+            mSet->setChangeNew();
+            client->addSet(move(*mSet));
         }
         else // update existing
         {            
-            assert(mId == setId);
+            assert(mSet->id() == sId);
 
-            if (!client->updateSet(setId, move(mAttrs), ts))
+            if (!client->updateSet(move(*mSet)))
             {
                 LOG_warn << "Sets: command 'asp' succeed, but Set was not found";
                 e = API_ENOENT;
@@ -9030,7 +9032,7 @@ bool CommandPutSet::procresult(Result r)
 
     if (mCompletion)
     {
-        mCompletion(e, setId);
+        mCompletion(e, sId);
     }
 
     return parsedOk;

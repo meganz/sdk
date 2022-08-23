@@ -9973,8 +9973,13 @@ void exec_setsandelements(autocomplete::ACState& s)
     else if (command == "newset")
     {
         const char* name = (s.words.size() == 3) ? s.words[2].s.c_str() : nullptr;
+        Set newset;
+        if (name)
+        {
+            newset.setName(name);
+        }
 
-        client->putSet(UNDEF, name, [](Error e, handle id)
+        client->putSet(move(newset), [](Error e, handle id)
             {
                 if (e == API_OK)
                 {
@@ -9998,7 +10003,13 @@ void exec_setsandelements(autocomplete::ACState& s)
         bool cleanName = !updateName && s.extractflag("-n");
         const char* name = (updateName || cleanName) ? buf.c_str() : nullptr;
 
-        client->putSet(id, name, [id](Error e, handle setId)
+        Set updset;
+        updset.setId(id);
+        if (name)
+        {
+            updset.setName(name);
+        }
+        client->putSet(move(updset), [id](Error e, handle setId)
             {
                 if (e == API_OK)
                 {

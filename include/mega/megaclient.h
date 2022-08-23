@@ -289,32 +289,36 @@ class Set : public Cacheable
 {
 public:
     Set() = default;
-    Set(handle id, string&& key, handle user, m_time_t ts, map<string,string>&& attrs) :
-        mId(id), mKey(move(key)), mUser(user), mTs(ts), mAttrs(move(attrs)) {}
+    Set(handle id, string&& key, handle user, m_time_t ts, map<string, string>&& attrs) :
+        mId(id), mKey(move(key)), mUser(user), mTs(ts), mAttrs(new map<string, string>(move(attrs))) {}
 
     const handle& id() const { return mId; }
     const string& key() const { return mKey; }
     const handle& user() const { return mUser; }
     const m_time_t& ts() const { return mTs; }
     const string& name() const { return getAttribute("name"); }
-    const map<handle, SetElement>& elements() const { return mElements; }
 
     void setId(handle id) { mId = id; }
     void setKey(string&& key) { mKey = move(key); }
+    void setKey(const string& key) { mKey = key; }
     void setUser(handle uh) { mUser = uh; }
     void setTs(m_time_t ts) { mTs = ts; }
-    void setAttributes(map<string, string>&& attrs);
+    void setName(string&& name);
+    void setAttr(const string& tag, string&& value); // set any non-standard attr
 
-    void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs = move(eattrs); }
-    void setEncryptedAttrs(const string& eattrs) { mEncryptedAttrs = eattrs; }
-    const string& encryptedAttrs() const { return mEncryptedAttrs; }
+    void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs.reset(new string(move(eattrs))); }
     bool decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f);
+    void rebaseAttrsOn(const Set& s);
+    void takeAttrsFrom(Set&& s);
+    string encryptAttributes(std::function<string(const map<string, string>&, const string&)> f) const;
+    bool hasAttrs() const { return !!mAttrs; }
 
+    const map<handle, SetElement>& elements() const { return mElements; }
     const SetElement* element(handle eId) const;
     void addOrUpdateElement(SetElement&& el);
     bool removeElement(handle elemId);
 
-    void setChangeNew() { mChanges[CH_NEW] = 1; }
+    void setChangeNew() { mChanges = 0; mChanges[CH_NEW] = 1; }
     void setChangeName() { mChanges[CH_NAME] = 1; }
     void setChangeRemoved() { mChanges[CH_REMOVED] = 1; }
     void resetChanges() { mChanges = 0; }
@@ -334,14 +338,21 @@ private:
 
     bool markedForDbRemoval = false;
 
-    string mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
-    map<string, string> mAttrs;
+    unique_ptr<string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
+    unique_ptr<map<string, string>> mAttrs;
 
-    const string& getAttribute(const string& id) const
+    bool hasAttrChanged(const string& tag, const unique_ptr<map<string, string>>& otherAttrs) const;
+
+    const string& getAttribute(const string& tag) const
     {
         static const string value;
-        auto it = mAttrs.find(id);
-        return it != mAttrs.end() ? it->second : value;
+        if (!mAttrs)
+        {
+            return value;
+        }
+
+        auto it = mAttrs->find(tag);
+        return it != mAttrs->end() ? it->second : value;
     }
 
     enum
@@ -2132,7 +2143,7 @@ private:
 
 public:
     // generate "asp" command
-    void putSet(handle id, const char *name, std::function<void(Error, handle)> completion);
+    void putSet(Set&& s, std::function<void(Error, handle)> completion);
 
     // generate "asr" command
     void removeSet(handle id, std::function<void(Error)> completion);
@@ -2159,7 +2170,7 @@ public:
     void addSet(Set&& a);
 
     // search for Set with the same id, and update its members
-    bool updateSet(handle id, map<string, string>&& attrs, m_time_t ts);
+    bool updateSet(Set&& s);
 
     // delete Set with elemId from local memory; return true if found and deleted
     bool deleteSet(handle setId);

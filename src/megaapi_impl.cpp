@@ -18926,8 +18926,13 @@ void MegaApiImpl::sendPendingRequests()
         {
         case MegaRequest::TYPE_PUT_SET:
         {
-            const char* name = (request->getParamType() & MegaApi::OPTION_SET_NAME) ? request->getText() : nullptr;
-            client->putSet(request->getParentHandle(), name,
+            Set s;
+            s.setId(request->getParentHandle());
+            if (request->getParamType() & MegaApi::OPTION_SET_NAME)
+            {
+                s.setName(request->getText() ? request->getText() : string());
+            }
+            client->putSet(move(s),
                 [this, request](Error e, handle id)
                 {
                     if (request->getParentHandle() == UNDEF)
