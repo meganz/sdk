@@ -1222,6 +1222,7 @@ public:
     virtual MegaHandle user() const { return INVALID_HANDLE; }
     virtual int64_t ts() const { return 0; }
     virtual const char* name() const { return nullptr; }
+    virtual MegaHandle cover() const { return INVALID_HANDLE; }
 
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
@@ -8084,6 +8085,7 @@ class MegaApi
         {
             CREATE_SET                  = (1 << 0),
             OPTION_SET_NAME             = (1 << 1),
+            OPTION_SET_COVER            = (1 << 2),
         };
         enum
         {
@@ -19150,6 +19152,7 @@ class MegaApi
 
         void createSet(const char* name = nullptr, MegaRequestListener* listener = nullptr);
         void updateSetName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
+        void putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle id, MegaRequestListener* listener = nullptr);
         void fetchSet(MegaHandle id, MegaRequestListener* listener = nullptr);
         void createSetElement(MegaHandle setId, MegaHandle node, const char* name = nullptr, MegaRequestListener* listener = nullptr);
@@ -19159,6 +19162,7 @@ class MegaApi
 
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
+        MegaHandle getSetCover(MegaHandle sid);
         MegaElementList* getSetElements(MegaHandle sid);
         MegaElement* getSetElement(MegaHandle eid, MegaHandle sid);
 

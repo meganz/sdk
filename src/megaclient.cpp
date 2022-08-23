@@ -17100,6 +17100,13 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
 
         if (s.hasAttrs())
         {
+            if (s.cover() != UNDEF)
+            {
+                LOG_err << "Sets: Cover cannot be set for a newly created Set.";
+                if (completion)
+                    completion(API_EARGS, s.id());
+                return;
+            }
             string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
             encrAttrs.reset(new string(move(enc)));
         }
@@ -17125,6 +17132,15 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         }
 
         const Set* setToBeUpdated = &it->second;
+
+        handle cover = s.cover();
+        if (cover != UNDEF && !setToBeUpdated->element(cover))
+        {
+            LOG_err << "Sets: Requested cover was not an Element of the current Set.";
+            if (completion)
+                completion(API_EARGS, s.id());
+            return;
+        }
 
         // copy the details that won't change
         s.setKey(setToBeUpdated->key());
@@ -17623,6 +17639,7 @@ error MegaClient::readElement(JSON& j, SetElement& el, handle& setId)
 }
 
 const string CommonSE::nameTag = "n";
+const string Set::coverTag = "c";
 
 const Set* MegaClient::getSet(handle id) const
 {
@@ -18057,6 +18074,19 @@ void Set::setName(string&& name)
     setAttr(nameTag, move(name));
 }
 
+void Set::setCover(handle h)
+{
+    if (h == UNDEF)
+    {
+        setAttr(coverTag, string());
+    }
+    else
+    {
+        Base64Str<MegaClient::SETELEMENTHANDLE> b64s(h);
+        setAttr(coverTag, string(b64s.chars));
+    }
+}
+
 void Set::setAttr(const string& tag, string&& value)
 {
     if (!mAttrs)
@@ -18064,6 +18094,18 @@ void Set::setAttr(const string& tag, string&& value)
         mAttrs.reset(new string_map());
     }
     (*mAttrs)[tag] = move(value);
+}
+
+handle Set::cover() const
+{
+    handle h = UNDEF;
+    string hs = getAttribute(coverTag);
+    if (!hs.empty())
+    {
+        Base64::atob(hs.c_str(), (byte*)&h, MegaClient::SETELEMENTHANDLE); // What should be used instead of this "deprecated" feature?
+    }
+
+    return h;
 }
 
 const SetElement* Set::element(handle eId) const
@@ -18194,6 +18236,7 @@ void Set::takeAttrsFrom(Set&& s)
 {
     // check for changes
     if (hasAttrChanged(nameTag, s.mAttrs)) setChangeName();
+    if (hasAttrChanged(coverTag, s.mAttrs)) setChangeCover();
 
     mAttrs.swap(s.mAttrs);
 }

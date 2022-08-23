@@ -7933,7 +7933,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // 3. Upload test file
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
     ASSERT_TRUE(createFile(UPFILE, false)) << "Couldn't create " << UPFILE;
-    MegaHandle uploadedNode = UNDEF;
+    MegaHandle uploadedNode = INVALID_HANDLE;
     ASSERT_EQ(MegaError::API_OK, doStartUpload(0, &uploadedNode, UPFILE.c_str(),
         rootnode.get(),
         nullptr /*fileName*/,
@@ -7990,6 +7990,21 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     elp2.reset(differentApi.getSetElement(eh, sh));
     ASSERT_NE(elp2, nullptr);
     ASSERT_STREQ(elp2->name(), "");
+
+    // Add cover to Set
+    differentApiDtls.setUpdated = false;
+    err = doPutSetCover(0, nullptr, sh, eh);
+    ASSERT_EQ(err, API_OK);
+    s1up.reset(megaApi[0]->getSet(sh));
+    ASSERT_EQ(s1up->name(), name);
+    ASSERT_EQ(s1up->cover(), eh);
+    ASSERT_EQ(megaApi[0]->getSetCover(sh), eh);
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set cover update AP not received after " << maxTimeout << " seconds";
+    s2p.reset(differentApi.getSet(sh));
+    ASSERT_NE(s2p, nullptr);
+    ASSERT_EQ(s2p->name(), name);
+    ASSERT_EQ(s2p->cover(), eh);
 
     // 5. Fetch Set
     err = doFetchSet(0, sh); // will replace the one stored in memory

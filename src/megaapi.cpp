@@ -5535,12 +5535,17 @@ bool MegaApi::driveMonitorEnabled()
 void MegaApi::createSet(const char* name, MegaRequestListener* listener)
 {
     int options = CREATE_SET | (name ? OPTION_SET_NAME : 0);
-    pImpl->putSet(INVALID_HANDLE, options, name, listener);
+    pImpl->putSet(INVALID_HANDLE, options, name, INVALID_HANDLE, listener);
 }
 
 void MegaApi::updateSetName(MegaHandle id, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putSet(id, OPTION_SET_NAME, name, listener);
+    pImpl->putSet(id, OPTION_SET_NAME, name, INVALID_HANDLE, listener);
+}
+
+void MegaApi::putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
+{
+    pImpl->putSet(sid, OPTION_SET_COVER, nullptr, eid, listener);
 }
 
 void MegaApi::removeSet(MegaHandle id, MegaRequestListener* listener)
@@ -5582,6 +5587,11 @@ MegaSetList* MegaApi::getSets()
 MegaSet* MegaApi::getSet(MegaHandle sid)
 {
     return pImpl->getSet(sid);
+}
+
+MegaHandle MegaApi::getSetCover(MegaHandle sid)
+{
+    return pImpl->getSetCover(sid);
 }
 
 MegaElementList* MegaApi::getSetElements(MegaHandle sid)

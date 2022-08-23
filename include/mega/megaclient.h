@@ -303,6 +303,7 @@ public:
     const handle& user() const { return mUser; }
     const m_time_t& ts() const { return mTs; }
     const string& name() const { return getAttribute(nameTag); }
+    handle cover() const;
 
     void setId(handle id) { mId = id; }
     void setKey(string&& key) { mKey = move(key); }
@@ -310,6 +311,7 @@ public:
     void setUser(handle uh) { mUser = uh; }
     void setTs(m_time_t ts) { mTs = ts; }
     void setName(string&& name);
+    void setCover(handle h);
     void setAttr(const string& tag, string&& value); // set any non-standard attr
 
     void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs.reset(new string(move(eattrs))); }
@@ -326,6 +328,7 @@ public:
 
     void setChangeNew() { mChanges = 0; mChanges[CH_NEW] = 1; }
     void setChangeName() { mChanges[CH_NAME] = 1; }
+    void setChangeCover() { mChanges[CH_COVER] = 1; }
     void setChangeRemoved() { mChanges[CH_REMOVED] = 1; }
     void resetChanges() { mChanges = 0; }
     bool changed() const { return mChanges != 0; }
@@ -366,6 +369,7 @@ private:
         // update these from outside Set
         CH_NEW,
         CH_NAME,
+        CH_COVER,
         CH_REMOVED,
 
         // update these from inside Set
@@ -377,6 +381,8 @@ private:
         CH_SIZE
     };
     std::bitset<CH_SIZE> mChanges;
+
+    static const string coverTag; // "c"
 };
 
 
