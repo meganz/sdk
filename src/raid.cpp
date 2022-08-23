@@ -462,7 +462,6 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
     assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
 
     size_t partslen = 0x10000000, sumdatalen = 0, xorlen = 0;
-    int minPartLen = -1;
     for (unsigned i = RAIDPARTS; i--; )
     {
         if (raidinputparts[i].empty())
@@ -473,10 +472,6 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
         {
             FilePiece& r = *raidinputparts[i].front();
             assert(r.pos == raidpartspos);  // check all are in sync at the front
-            if (r.buf.datalen() < partslen)
-            {
-                minPartLen = i;
-            }
             partslen = std::min<size_t>(partslen, r.buf.datalen());
             (i > 0 ? sumdatalen : xorlen) += r.buf.datalen();
         }
@@ -496,7 +491,7 @@ void RaidBufferManager::combineRaidParts(unsigned connectionNum)
         m_off_t macchunkpos = calcOutputChunkPos(newdatafilepos + partslen * (RAIDPARTS - 1));
 
         size_t buflen = static_cast<size_t>(processToEnd ? sumdatalen : partslen * (RAIDPARTS - 1));
-        LOG_debug << "Combining raid parts -> partslen = " << partslen << ", buflen = " << buflen << ", outputfilepos = " << outputfilepos << ", leftoverchunk = " << leftoverchunk.buf.datalen() << " (minPartLen = " << minPartLen << ")";
+        LOG_debug << "Combining raid parts -> partslen = " << partslen << ", buflen = " << buflen << ", outputfilepos = " << outputfilepos << ", leftoverchunk = " << leftoverchunk.buf.datalen();
         FilePiece* outputrec = combineRaidParts(partslen, buflen, outputfilepos, leftoverchunk);  // includes a bit of extra space for non-full sectors if we are at the end of the file
         rollInputBuffers(partslen);
         raidpartspos += partslen;
