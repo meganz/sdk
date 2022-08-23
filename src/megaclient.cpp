@@ -48,6 +48,9 @@ bool g_disablepkp_default = false;
 std::mutex g_APIURL_default_mutex;
 string g_APIURL_default = "https://g.api.mega.co.nz/";
 
+// user handle for customer support user
+const string MegaClient::SUPPORT_USER_HANDLE = "pGTOqu7_Fek";
+
 // root URL for chat stats
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
@@ -9025,13 +9028,37 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         }
     }
 
-    // any child nodes that arrived before their parents?
+    // any child nodes arrived before their parents?
+    size_t count = 0;
+    node_vector orphans;
     for (size_t i = dp.size(); i--; )
     {
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
+            ++count;
         }
+        else if (dp[i]->type < ROOTNODE)    // rootnodes have no parent
+        {
+            orphans.push_back(dp[i]);
+        }
+    }
+
+    mergenewshares(0);
+
+    // detect if there's any orphan node and report to API
+    for (auto orphan : orphans)
+    {
+        // top-level inshares have no parent (nested ones have)
+        if (orphan->inshare)
+        {
+            ++count;
+        }
+    }
+    if (dp.size() != count)
+    {
+       LOG_err << "Detected orphan nodes: " << dp.size() - count;
+       sendevent(99455, "Orphan node(s) detected");
     }
 
     return j->leavearray();
@@ -16323,7 +16350,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
     {
         if (d == PUT)
         {
-            if (!nodeByHandle(f->h))
+            if (!nodeByHandle(f->h) && (f->targetuser != SUPPORT_USER_HANDLE))
             {
                 // the folder to upload is unknown - perhaps this is a resumed transfer
                 // and the folder was deleted in the meantime

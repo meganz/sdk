@@ -8412,7 +8412,7 @@ void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* 
 
 void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener)
 {
-    MegaTransferPrivate* transfer = createUploadTransfer(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, nullptr, isSourceFileTemporary, false, fsType, CancelToken(), listener);
+    MegaTransferPrivate* transfer = createUploadTransfer(true, localPath, nullptr, nullptr, MegaClient::SUPPORT_USER_HANDLE.c_str(), MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, nullptr, isSourceFileTemporary, false, fsType, CancelToken(), listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
