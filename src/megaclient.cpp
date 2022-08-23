@@ -8670,6 +8670,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     }
 
     mergenewshares(notify);
+    mNodeManager.checkOrphanNodes();
 
     return j->leavearray();
 }
@@ -18095,6 +18096,32 @@ void NodeManager::initializeCounters()
     {
         calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node);
     }
+}
+
+void NodeManager::checkOrphanNodes()
+{
+    size_t count = 0;
+    // detect if there's any orphan node and report to API
+    for (const auto& it : mNodesWithMissingParent)
+    {
+        for (const auto& orphan : it.second)
+        {
+            // top-level inshares have no parent (nested ones have)
+            if (!orphan->inshare)
+            {
+                ++count;
+            }
+        }
+    }
+
+    if (count)
+    {
+       LOG_err << "Detected orphan nodes: " << count;
+       mClient.sendevent(99455, "Orphan node(s) detected");
+    }
+
+    // If parent hasn't arrived, it wont' arrive never
+    mNodesWithMissingParent.clear();
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()

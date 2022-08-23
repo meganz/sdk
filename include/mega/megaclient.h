@@ -425,6 +425,10 @@ public:
         rootnodes.rubbish = h;
     }
 
+    // Check if there are orphan nodes and clear mNodesWithMissingParent
+    // In case of orphans send an event
+    void checkOrphanNodes();
+
 private:
     MegaClient& mClient;
 
