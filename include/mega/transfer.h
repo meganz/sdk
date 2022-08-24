@@ -242,21 +242,21 @@ public:
     *
     *   @see DirectReadSlot::watchOverDirectReadPerformance()
     */
-    static const int MEAN_SPEED_INTERVAL_DS = 100;
+    static constexpr int MEAN_SPEED_INTERVAL_DS = 100;
 
     /**
     *   @brief Min speed value allowed for the transfer.
     *
     *   @see DirectReadSlot::watchOverDirectReadPerformance()
     */
-    static const int MIN_BYTES_PER_SECOND = 1024 * 15;
+    static constexpr int MIN_BYTES_PER_SECOND = 1024 * 15;
 
     /**
     *   @brief Time interval allowed without request/connections updates before retrying DirectRead operations (from a new DirectReadSlot).
     *
     *   @see DirectReadNode::schedule()
     */
-    static const int TIMEOUT_DS = 100;
+    static constexpr int TIMEOUT_DS = 100;
 
     /**
     *   @brief Timeout value for retrying a completed DirectRead in case it doesn't finish properly.
@@ -266,7 +266,7 @@ public:
     *
     *   @see DirectReadNode::schedule()
     */
-    static const int TEMPURL_TIMEOUT_DS = 3000;
+    static constexpr int TEMPURL_TIMEOUT_DS = 3000;
 
     /**
     *   @brief Min chunk size allowed to be sent to the server/consumer.
