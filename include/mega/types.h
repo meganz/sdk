@@ -77,6 +77,7 @@ typedef unsigned char byte;
 #include <string>
 #include <chrono>
 #include <mutex>
+#include <bitset>
 
 namespace mega {
 
@@ -678,7 +679,6 @@ typedef map<string, string> string_map;
 typedef map<int64_t, int64_t> integer_map;
 typedef string_map TLV_map;
 
-
 // user attribute types
 typedef enum {
     ATTR_UNKNOWN = -1,
@@ -792,6 +792,179 @@ public:
     bool setMode(bool publicchat);
 
 };
+
+class scheduledFlags
+{
+    public:
+
+        typedef enum
+        {
+            FLAGS_DONT_SEND_EMAILS = 0, // API won't send out calendar emails for this meeting if it's enabled
+            FLAGS_SIZE             = 1, // size in bits of flags bitmask
+        } scheduled_flags_t;
+
+        typedef std::bitset<FLAGS_SIZE> scheduledFlagsBitSet;
+
+        scheduledFlags();
+        scheduledFlags (unsigned long numericValue);
+        scheduledFlags (scheduledFlags* flags);
+        scheduledFlags* copy();
+        ~scheduledFlags();
+
+        // setters
+        void reset();
+        void setEmailsDisabled(bool enabled);
+
+        // getters
+        unsigned long getNumericValue();
+        bool EmailsDisabled() const;
+        bool isEmpty() const;
+
+    private:
+        scheduledFlagsBitSet mFlags = 0;
+};
+
+class scheduledRules
+{
+    public:
+        typedef enum {
+            FREQ_INVALID    = -1,
+            FREQ_DAILY      = 0,
+            FREQ_WEEKLY     = 1,
+            FREQ_MONTHLY    = 2,
+        } freq_type;
+
+        constexpr static int INTERVAL_INVALID = 0;
+
+        scheduledRules(int freq,
+                       int interval = INTERVAL_INVALID,
+                       const char* until = nullptr,
+                       const vector<int64_t>* byWeekDay = nullptr,
+                       const vector<int64_t>* byMonthDay = nullptr,
+                       const map<int64_t, int64_t>* byMonthWeekDay = nullptr);
+
+        scheduledRules(scheduledRules* rules);
+        ~scheduledRules();
+
+        void setFreq(int newFreq);
+        void setInterval(int interval);
+        void setUntil(const char* until);
+        void setByWeekDay(const vector<int64_t>* byWeekDay);
+        void setByMonthDay(const vector<int64_t>* byMonthDay);
+        void setByMonthWeekDay(const map<int64_t, int64_t>* byMonthWeekDay);
+
+        scheduledRules* copy();
+        int freq() const;
+        int interval() const;
+        const char* until() const;
+        const vector<int64_t>* byWeekDay();
+        const vector<int64_t>* byMonthDay();
+        const map<int64_t, int64_t>* byMonthWeekDay();
+        static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
+        static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
+
+    private:
+        // [required]: scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
+        int mFreq;
+
+        // [optional]: repetition interval in relation to the frequency
+        int mInterval = 0;
+
+        // [optional]: specifies when the repetitions should end
+        std::string mUntil = nullptr;
+
+        // [optional]: allows us to specify that an event will only occur on given week day/s
+        std::unique_ptr<vector<int64_t>> mByWeekDay;
+
+        // [optional]: allows us to specify that an event will only occur on a given day/s of the month
+        std::unique_ptr<vector<int64_t>> mByMonthDay;
+
+        // [optional]: allows us to specify that an event will only occurs on a specific weekday offset of the month. For example, every 2nd Sunday of each month
+        std::unique_ptr<map<int64_t, int64_t>> mByMonthWeekDay;
+};
+
+class scheduledMeeting
+{
+public:
+    scheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
+                                    const char* title, const char* description, handle callid = UNDEF,
+                                    handle parentCallid = UNDEF, int cancelled = -1, const char* attributes = nullptr,
+                                    const char* overrides = nullptr, scheduledFlags* flags = nullptr,
+                                    scheduledRules* rules = nullptr);
+
+    scheduledMeeting(scheduledMeeting* scheduledMeeting);
+    scheduledMeeting* copy();
+    ~scheduledMeeting();
+
+    void setRules(scheduledRules* rules);
+    void setFlags(scheduledFlags* flags);
+    void setCancelled(int cancelled);
+    void setOverrides(const char* overrides);
+    void setAttributes(const char* attributes);
+    void setDescription(const char* description);
+    void setTitle(const char* title);
+    void setEndDateTime(const char* endDateTime);
+    void setStartDateTime(const char* startDateTime);
+    void setTimezone(const char* timezone);
+    void setParentCallid(handle parentCallid);
+    void setCallid(handle callid);
+    void setChatid(handle chatid);
+
+    handle chatid() const;
+    handle callid() const;
+    handle parentCallid() const;
+    const char* timezone() const;
+    const char* startDateTime() const;
+    const char* endDateTime() const;
+    const char* title() const;
+    const char* description() const;
+    const char* attributes() const;
+    const char* overrides() const;
+    int cancelled() const;
+    scheduledFlags* flags() const;
+    scheduledRules* rules() const;
+
+private:
+    // [required]: chat handle
+    handle mChatid;
+
+    // [optional]: scheduled meeting handle
+    handle mCallid;
+
+    // [optional]: parent scheduled meeting handle
+    handle mParentCallid;
+
+    // [required]: timeZone (B64 encoded)
+    std::string mTimezone;
+
+    // [required]: start dateTime (format: 20220726T133000)
+    std::string mStartDateTime;
+
+    // [required]: end dateTime (format: 20220726T133000)
+    std::string mEndDateTime;
+
+    // [required]: meeting title
+    std::string mTitle;
+
+    // [required]: meeting description
+    std::string mDescription;
+
+    // [optional]: attributes to store any additional data (B64 encoded)
+    std::string mAttributes;
+
+    // [optional]: start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+    std::string mOverrides;
+
+    // [optional]: cancelled flag
+    int mCancelled;
+
+    // [optional]: flags bitmask (used to store additional boolean settings as a bitmask)
+    std::unique_ptr<scheduledFlags> mFlags;
+
+    // [optional]: scheduled meetings rules
+    std::unique_ptr<scheduledRules> mRules;
+};
+
 typedef vector<TextChat*> textchat_vector;
 typedef map<handle, TextChat*> textchat_map;
 #endif
