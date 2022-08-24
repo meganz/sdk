@@ -3847,7 +3847,7 @@ autocomplete::ACN autocompleteSyntax()
         sequence(text("setsandelements"),
                  either(text("list"),
                         sequence(text("newset"), opt(param("name"))),
-                        sequence(text("updateset"), param("id"), opt(either(sequence(flag("-n"), opt(param("name"))), sequence(flag("-c"), opt(param("cover")))))),
+                        sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-c"), opt(param("cover"))))),
                         sequence(text("removeset"), param("id")),
                         sequence(text("fetchset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
@@ -8508,6 +8508,56 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
+// set/element addition/update/removal
+void DemoApp::sets_updated(Set** s, int count)
+{
+    cout << (count == 1 ? string("1 Set") : (std::to_string(count) + " Sets")) << " received" << endl;
+
+    if (!s) return;
+
+    for (int i = 0; i < count; i++)
+    {
+        Set* set = s[i];
+        cout << "Set " << toHandle(set->id());
+        if (set->isNew())
+        {
+            cout << " has been added";
+        }
+        else if (set->isRemoved())
+        {
+            cout << " has been removed";
+        }
+        else
+        {
+            if (set->hasChangedName())
+            {
+                cout << endl << "\tchanged name";
+            }
+            if (set->hasChangedCover())
+            {
+                cout << endl << "\tchanged cover";
+            }
+            if (set->hasNewElement())
+            {
+                cout << endl << "\tadded new element";
+            }
+            if (set->hasRemovedElement())
+            {
+                cout << endl << "\tremoved element";
+            }
+            if (set->hasChangedElementName())
+            {
+                cout << endl << "\tchanged element name";
+            }
+            if (set->hasChangedElementOrder())
+            {
+                cout << endl << "\tchanged element order";
+            }
+        }
+        cout << endl;
+    }
+}
+
 void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, std::unique_ptr<BusinessPlan>)
 {
     // FIXME: implement
@@ -10003,12 +10053,12 @@ void exec_setsandelements(autocomplete::ACState& s)
         Set updset;
         updset.setId(id);
         string buf;
-        bool updateName = s.extractflagparam("-n", buf) || s.extractflag("-n");
-        if (updateName)
+        if (s.extractflagparam("-n", buf) || s.extractflag("-n"))
         {
             updset.setName(move(buf));
         }
-        else if (s.extractflagparam("-c", buf) || s.extractflag("-c"))
+        buf.clear();
+        if (s.extractflagparam("-c", buf) || s.extractflag("-c"))
         {
             if (buf.empty())
             {
