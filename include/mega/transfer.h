@@ -215,51 +215,230 @@ private:
     bool isReady(Transfer *transfer);
 };
 
-struct MEGA_API DirectReadSlot
+class MEGA_API DirectReadSlot
 {
-    m_off_t pos;
+    /*
+    *   Direct Read Slot class:
+    *   Slot for DirectRead.
+    *   Holds the HttpReq objects for each connection.
+    *   Loops over every HttpReq to process data and send it to the client.
+    */
 
-    // values to calculate the transfer speed
+public:
+
+    /* ===================*\
+     *      Constants     *
+    \* ===================*/
+
+    /*
+    *   Time interval to recalculate speed and mean speed values.
+    *   This is used to watch over DirectRead performance in case it should be retried.
+    */
     static const int MEAN_SPEED_INTERVAL_DS = 100;
+    /*
+    *   Min speed value allowed for the transfer.
+    */
     static const int MIN_BYTES_PER_SECOND = 1024 * 15;
+    /*
+    *   Time interval allowed without request/connections updates before retrying DirectRead operations (from a new DirectReadSlot).
+    */
     static const int TIMEOUT_DS = 100;
+    /*
+    *   Timeout value when all the requests are done, and everything regarding DirectRead is cleaned up,
+    *   before retrying DirectRead operations.
+    */
     static const int TEMPURL_TIMEOUT_DS = 3000;
-    static constexpr unsigned MIN_DELIVERY_CHUNK = 5 * 1024 * 1024; // 5 MB per assembled part to deliver
-    static constexpr unsigned MIN_COMPARABLE_THROUGHPUT = MIN_DELIVERY_CHUNK; // 5 MB
-    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 3; // 3 SWITCHES
+    /*
+    *   Min chunk size allowed to be sent to the server/consumer.
+    *   Chunk size values (allowed to be submitted to the transfer buffer) will be multiple of this value.
+    *   For RAID files (or for any multi-connection approach) this value is used to calculate minChunk value,
+    *   having this value divided by the number of connections an padded to RAIDSECTOR
+    *   See minChunk
+    */
+    static constexpr unsigned MIN_DELIVERY_CHUNK = 5 * 1024 * 1024;
+    /*
+    *   Min chunk size for a given connection to be throughput-comparable to another connection.
+    */
+    static constexpr unsigned MIN_COMPARABLE_THROUGHPUT = MIN_DELIVERY_CHUNK;
+    /*
+    *   Max times DirectReadSlot is allowed to detect a slower connection and switch it to the unused one.
+    */
+    static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 3;
+    /*
+    *   Flag value for waiting for all the connections to finish their current chunk requests (with status REQ_INFLIGHT)
+    *   before any finished connection can be allowed again to request the next chunk.
+    *   PS: This value is needed to be true in order to gain fairness.
+    *   It should only set to false under special conditions or testing purposes with a very fast link.
+    */
     static constexpr bool WAIT_FOR_PARTS_IN_FLIGHT = true;
 
-    DirectRead* dr;
-    std::vector<std::shared_ptr<HttpReq>> reqs;
-    std::vector<std::pair<m_off_t, m_off_t>> throughput;
-    std::pair<m_off_t, m_off_t> slotThroughput;
-    std::chrono::system_clock::time_point slotStartTime;
-    size_t unusedRaidConnection;
-    unsigned numSlowConnectionsSwitches;
-    unsigned numReqsInflight;
 
-    drs_list::iterator drs_it;
-    SpeedController speedController;
-    m_off_t speed;
-    m_off_t meanSpeed;
-    unsigned minChunk;
+    /* ===================*\
+     *      Methods       *
+    \* ===================*/
 
+    /*
+    *   Main i/o loop (process every HTTP req from req vector)
+    */
     bool doio();
+    /*
+    *   Flag value getter to check if a given request is allowed to request a further chunk
+    *   or must wait for the others.
+    *   See WAIT_FOR_PARTS_IN_FLIGHT
+    *   See waitForParts
+    */
     bool waitForPartsInFlight();
+    /*
+    *   Number of unused connections.
+    */
     unsigned usedConnections();
+    /*
+    *   Disconnect and reset a connection, meant for connections with a request in REQ_INFLIGHT status.
+    *   This method should be called every time a HttpReq should call its disconnect() method.
+    */
     bool resetConnection(size_t connectionNum = 0);
+    /*
+    *   Detect the slowest initial connection.
+    *   This is called only for one time since the DirectReadSlot is constructed.
+    *   Detect the last connection to get a chunk big enough for submitting to the transfer buffer.
+    *   See minChunk
+    *   See MIN_DELIVERY_CHUNK
+    */
     bool detectSlowestStartConnection(size_t connectionNum);
+    /*
+    *   Search for the slowest connection and switch it with the actual unused connection.
+    *   This method is called between requests:
+    *   If WAIT_FOR_PARTS_IN_FLIGHT is true, this ensures to compare among all the connections before they POST again.
+    *   If WAIT_FOR_PARTS_IN_FLIGHT is false, any connection with a REQ_INFLIGHT status will be ignored for comparison purposes.
+    *   See MIN_COMPARABLE_THROUGHPUT
+    *   See MAX_SLOW_CONECCTION_SWITCHES
+    */
     bool searchAndDisconnectSlowestConnection(size_t connectionNum = 0);
+    /*
+    *   Decrease counter for requests with REQ_INFLIGHT status
+    *   See WAIT_FOR_PARTS_IN_FLIGHT
+    *   See numReqsInflight
+    */
     void decreaseReqsInflight();
+    /*
+    *   Increase counter for requests with REQ_INFLIGHT status
+    *   See WAIT_FOR_PARTS_IN_FLIGHT
+    *   See numReqsInflight
+    */
     void increaseReqsInflight();
 
+    /*
+    *   Constructor
+    *   Insert DirectReadSlot object in MegaClient's DirectRead list to start fetching operations
+    */
     DirectReadSlot(DirectRead*);
+    /*
+    *   Destructor
+    *   Aborts DirectRead operations and remove iterator from MegaClient's DirectRead list
+    */
     ~DirectReadSlot();
 
+
 private:
+
+    /* ===================*\
+     *      Attributes    *
+    \* ===================*/
+
+    /*
+    *   Actual position, updated after combined data is sent to the http server / streaming buffers
+    */
+    m_off_t mPos;
+    /*
+    *   DirectReadSlot iterator from MegaClient's DirectReadSlot list
+    */
+    drs_list::iterator mDrs_it;
+    /*
+    *   Pointer to DirectRead
+    */
+    DirectRead* mDr;
+
+    /*
+    *   Vector for requests, each one corresponding to a different connection
+    *   For RAID files this value will be 6 (one for each part)
+    *   For NON-RAID files the default value is 1, but conceptually it could be greater than one
+    *   if a parallel-tcp-requests strategy is used or implemented.
+    */
+    std::vector<std::shared_ptr<HttpReq>> mReqs;
+    /*
+    *   Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
+    *   Values are reset by defautlt between different chunk requests.
+    *   See MIN_COMPARABLE_THROUGHPUT
+    */
+    std::vector<std::pair<m_off_t, m_off_t>> mThroughput;
+    /*
+    *   Same pair of values than above, used to calculate the delivery speed.
+    *   i.e.: "delivery" means each time we have output pieces processed (combined parts for RAID) which are sent to the client.
+    */
+    std::pair<m_off_t, m_off_t> mSlotThroughput;
+    /*
+    *   Timestamp for DirectReadSlot start. Defined in DirectReadSlot constructor.
+    */
+    std::chrono::system_clock::time_point mSlotStartTime;
+    /*
+    *   Unused connection due to slowness.
+    *   This value is used for detecting the slowest start connection and further search and disconnect new slowest connections.
+    *   It must be synchronized with RaidBufferManager value, which is the one to be cached (so we keep it if reseting the DirectReadSlot).
+    */
+    size_t mUnusedRaidConnection;
+    /*
+    *   Current total switches done, i.e.: the slowest connection being switched with the unused connection.
+    *   See MAX_SLOW_CONNECTION_SWITCHES
+    */
+    unsigned mNumSlowConnectionsSwitches;
+    /*
+    *   Current flag value for waiting for the other connects to finish their TCP requests
+    *   before any other connection is allowed to request the next chunk.
+    *   See WAIT_FOR_PARTS_IN_FLIGHT
+    */
+    bool mWaitForParts;
+    /*
+    *   Current requests with status REQ_INFLIGHT.
+    *   See waitForParts
+    */
+    unsigned mNumReqsInflight;
+
+    /*
+    *   Speed controller instance.
+    */
+    SpeedController mSpeedController;
+    /*
+    *   Calculated speed by speedController (different from the one calculated by throughput).
+    */
+    m_off_t mSpeed;
+    /*
+    *   Calculated mean speed by speedController (different from the one calculated by throughput).
+    */
+    m_off_t mMeanSpeed;
+    /*
+    *   Min chunk size allowed to submit the request data to the transfer buffer
+    *   For NON-RAID files, this value is got from MIN_CHUNK_DELIVERY_SIZE (so submitting buffer size and delivering buffer size are the same)
+    *   For RAID files, this value is calculated from MIN_CHUNK_DELIVERY_SIZE divided by the number of raid parts and padding it to RAIDSECTOR value.
+    *   See MIN_DELIVERY_CHUNK
+    */
+    unsigned mMinChunk;
+
+
+    /* =======================*\
+     *   Private aux methods  *
+    \* =======================*/
+
+    /*
+    *   Adjust URL port in URL for streaming (8080)
+    */
     std::string adjustURLPort(std::string url);
+    /*
+        Try processing new output pieces (generated by submitted buffers, fed by each connection request)
+        - Combine output pieces for RAID files if needed
+        - Deliver final combined chunks to the client
+        See MIN_DELIVERY_CHUNK
+    */
     bool processAnyOutputPieces();
-    bool waitForParts;
 };
 
 struct MEGA_API DirectRead
