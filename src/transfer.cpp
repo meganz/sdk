@@ -1545,6 +1545,34 @@ void DirectReadSlot::increaseReqsInflight()
     }
 }
 
+bool DirectReadSlot::watchOverDirectReadPerformance()
+{
+    if (Waiter::ds - mDr->drn->partialstarttime > MEAN_SPEED_INTERVAL_DS)
+    {
+        m_off_t meanspeed = (10 * mDr->drn->partiallen) / (Waiter::ds - mDr->drn->partialstarttime);
+
+        LOG_debug << "DirectReadSlot: Calculating Mean speed (KB/s): " << (meanspeed / 1024);
+        int minspeed = mDr->drn->client->minstreamingrate;
+        if (minspeed < 0)
+        {
+            LOG_warn << "DirectReadSlot: Set min speed as MIN_BYTES_PER_SECOND";
+            minspeed = MIN_BYTES_PER_SECOND;
+        }
+        if (minspeed != 0 && meanspeed < minspeed)
+        {
+            LOG_warn << "DirectReadSlot: Transfer speed too low for streaming. Retrying";
+            mDr->drn->retry(API_EAGAIN);
+            return true;
+        }
+        else
+        {
+            mDr->drn->partiallen = 0;
+            mDr->drn->partialstarttime = Waiter::ds;
+        }
+    }
+    return false;
+}
+
 bool DirectReadSlot::doio()
 {
     for (int connectionNum = static_cast<int>(mReqs.size()); connectionNum--; )
@@ -1732,28 +1760,9 @@ bool DirectReadSlot::doio()
             return true;
         }
 
-        if (Waiter::ds - mDr->drn->partialstarttime > MEAN_SPEED_INTERVAL_DS)
+        if (watchOverDirectReadPerformance())
         {
-            m_off_t meanspeed = (10 * mDr->drn->partiallen) / (Waiter::ds - mDr->drn->partialstarttime);
-
-            LOG_debug << "DirectReadSlot [conn " << connectionNum << "] Calculating Mean speed (KB/s): " << (meanspeed / 1024);
-            int minspeed = mDr->drn->client->minstreamingrate;
-            if (minspeed < 0)
-            {
-                LOG_warn << "DirectReadSlot [conn " << connectionNum << "] Set min speed as MIN_BYTES_PER_SECOND";
-                minspeed = MIN_BYTES_PER_SECOND;
-            }
-            if (minspeed != 0 && meanspeed < minspeed)
-            {
-                LOG_warn << "DirectReadSlot [conn " << connectionNum << "] Transfer speed too low for streaming. Retrying";
-                mDr->drn->retry(API_EAGAIN);
-                return true;
-            }
-            else
-            {
-                mDr->drn->partiallen = 0;
-                mDr->drn->partialstarttime = Waiter::ds;
-            }
+            return true;
         }
     }
 
