@@ -326,12 +326,21 @@ public:
     void addOrUpdateElement(SetElement&& el);
     bool removeElement(handle elemId);
 
-    void setChangeNew() { mChanges = 0; mChanges[CH_NEW] = 1; }
+    void setChangeNew() { resetChanges(); mChanges[CH_NEW] = 1; }
     void setChangeName() { mChanges[CH_NAME] = 1; }
     void setChangeCover() { mChanges[CH_COVER] = 1; }
-    void setChangeRemoved() { mChanges[CH_REMOVED] = 1; }
+    void setChangeRemoved() { resetChanges(); mChanges[CH_REMOVED] = 1; }
     void resetChanges() { mChanges = 0; }
-    bool changed() const { return mChanges != 0; }
+    unsigned long changes() const { return mChanges.to_ulong(); }
+
+    bool isNew() const { return mChanges[CH_NEW]; }
+    bool hasChangedName() const { return mChanges[CH_NAME]; }
+    bool hasChangedCover() const { return mChanges[CH_COVER]; }
+    bool isRemoved() const { return mChanges[CH_REMOVED]; }
+    bool hasNewElement() const { return mChanges[CH_EL_NEW]; }
+    bool hasChangedElementName() const { return mChanges[CH_EL_NAME]; }
+    bool hasChangedElementOrder() const { return mChanges[CH_EL_ORDER]; }
+    bool hasRemovedElement() const { return mChanges[CH_EL_REMOVED]; }
 
     bool serialize(string*) override;
 

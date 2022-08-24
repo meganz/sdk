@@ -677,14 +677,23 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 class MegaSetPrivate : public MegaSet
 {
 public:
-    MegaSetPrivate(MegaHandle id, MegaHandle u, m_time_t ts, const string& name, MegaHandle cover) :
-        mId(id), mUser(u), mTs(ts), mName(name), mCover(cover) {}
+    MegaSetPrivate(MegaHandle id, MegaHandle u, m_time_t ts, const string& name, MegaHandle cover, unsigned long changes) :
+        mId(id), mUser(u), mTs(ts), mName(name), mCover(cover), mChanges(changes){}
 
     MegaHandle id() const override { return mId; }
     MegaHandle user() const override { return mUser; }
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
     MegaHandle cover() const override { return mCover; }
+
+    bool isNew() const override { return mChanges[CHANGE_TYPE_NEW]; }
+    bool hasChangedName() const override { return mChanges[CHANGE_TYPE_NAME]; }
+    bool hasChangedCover() const override { return mChanges[CHANGE_TYPE_COVER]; }
+    bool isRemoved() const override { return mChanges[CHANGE_TYPE_REMOVED]; }
+    bool hasNewElement() const override { return mChanges[CHANGE_TYPE_ELEM_NEW]; }
+    bool hasChangedElementName() const override { return mChanges[CHANGE_TYPE_ELEM_NAME]; }
+    bool hasChangedElementOrder() const override { return mChanges[CHANGE_TYPE_ELEM_ORDER]; }
+    bool hasRemovedElement() const override { return mChanges[CHANGE_TYPE_ELEM_REMOVED]; }
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
@@ -694,6 +703,7 @@ private:
     m_time_t mTs;
     string mName;
     MegaHandle mCover;
+    std::bitset<CHANGE_TYPE_SIZE> mChanges;
 };
 
 
