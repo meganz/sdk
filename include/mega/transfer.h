@@ -239,16 +239,22 @@ public:
     *   @brief Time interval to recalculate speed and mean speed values.
     *
     *   This value is used to watch over DirectRead performance in case it should be retried.
+    *
+    *   @see DirectReadSlot::watchOverDirectReadPerformance()
     */
     static const int MEAN_SPEED_INTERVAL_DS = 100;
 
     /**
     *   @brief Min speed value allowed for the transfer.
+    *
+    *   @see DirectReadSlot::watchOverDirectReadPerformance()
     */
     static const int MIN_BYTES_PER_SECOND = 1024 * 15;
 
     /**
     *   @brief Time interval allowed without request/connections updates before retrying DirectRead operations (from a new DirectReadSlot).
+    *
+    *   @see DirectReadNode::schedule()
     */
     static const int TIMEOUT_DS = 100;
 
@@ -257,6 +263,8 @@ public:
     *
     *   Timeout value when all the requests are done, and everything regarding DirectRead is cleaned up,
     *   before retrying DirectRead operations.
+    *
+    *   @see DirectReadNode::schedule()
     */
     static const int TEMPURL_TIMEOUT_DS = 3000;
 
@@ -266,17 +274,22 @@ public:
     *   Chunk size values (allowed to be submitted to the transfer buffer) will be multiple of this value.
     *   For RAID files (or for any multi-connection approach) this value is used to calculate minChunk value,
     *   having this value divided by the number of connections an padded to RAIDSECTOR
-    *   See minChunk
+    *
+    *   @see DirectReadSlot::mMinChunk
     */
     static constexpr unsigned MIN_DELIVERY_CHUNK = 5 * 1024 * 1024;
 
     /**
     *   @brief Min chunk size for a given connection to be throughput-comparable to another connection.
+    *
+    *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
     */
     static constexpr unsigned MIN_COMPARABLE_THROUGHPUT = MIN_DELIVERY_CHUNK;
 
     /**
     *   @brief Max times a DirectReadSlot is allowed to detect a slower connection and switch it to the unused one.
+    *
+    *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
     */
     static constexpr unsigned MAX_SLOW_CONNECTION_SWITCHES = 3;
 
@@ -287,8 +300,20 @@ public:
     *   before any finished connection can be allowed again to request the next chunk.
     *   Warning: This value is needed to be true in order to gain fairness.
     *            It should only set to false under special conditions or testing purposes with a very fast link.
+    *
+    *   @see DirectReadSlot::waitForPartsInFlight()
     */
     static constexpr bool WAIT_FOR_PARTS_IN_FLIGHT = true;
+    /**
+    *   @brief Relation of X Y multiplying factor to consider connection A to be faster than connection B
+    *
+    *   @param first  X factor for connection A -> X * ConnectionA_throughPut
+    *   @param second Y factor for connection B -> Y * ConnectionY_throughPut
+    *
+    *   @see DirectReadSlot::mThroughput
+    *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
+    */
+    static constexpr pair<m_off_t, m_off_t> SLOWEST_TO_FASTEST_THROUGHPUT_RATIO { 4, 5 };
 
 
     /* ===================*\
@@ -333,6 +358,20 @@ public:
     bool resetConnection(size_t connectionNum = 0);
 
     /**
+    *   @brief Calculate throughput for a given connection: relation of bytes per millisecond.
+    *
+    *   Throughput is updated every time a new chunk is submitted to the transfer buffer.
+    *   Throughput values are reset when a new request starts.
+    *
+    *   @param connectionNum Connection index in mReq vector.
+    *   @return Connection throughput: average number of bytes fetched per millisecond.
+    *
+    *   @see DirectReadSlot::detectSlowestStartConnection()
+    *   @see DirectReadSlot::mThroughPut
+    */
+    m_off_t getThroughput(size_t connectionNum);
+
+    /**
     *   @brief Detect and disconnect the slowest initial connection. Only valid for RAID.
     *
     *   This is called only for one time since the DirectReadSlot is constructed.
@@ -354,16 +393,16 @@ public:
     *
     *   @param connectionNum Connection index in mReq vector.
     *   @return True if the slowest connection has been detected and switched with the actual unused connection, False otherwise.
-    *   @see MIN_COMPARABLE_THROUGHPUT
-    *   @see MAX_SLOW_CONECCTION_SWITCHES
+    *   @see DirectReadSlot::MIN_COMPARABLE_THROUGHPUT
+    *   @see DirectReadSlot::MAX_SLOW_CONECCTION_SWITCHES
     */
     bool searchAndDisconnectSlowestConnection(size_t connectionNum = 0);
 
     /**
     *   @brief Decrease counter for requests with REQ_INFLIGHT status
     *
-    *   @see WAIT_FOR_PARTS_IN_FLIGHT
-    *   @see numReqsInflight
+    *   @see DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT
+    *   @see DirectReadSlot:::mNumReqsInflight
     */
     void decreaseReqsInflight();
 
@@ -407,19 +446,19 @@ private:
     \* ===================*/
 
     /**
-    *   @brief Actual position, updated after combined data is sent to the http server / streaming buffers
+    *   @brief Actual position, updated after combined data is sent to the http server / streaming buffers.
     */
     m_off_t mPos;
 
     /**
-    *   @brief DirectReadSlot iterator from MegaClient's DirectReadSlot list
+    *   @brief DirectReadSlot iterator from MegaClient's DirectReadSlot list.
     *
     *   @see mega::drs_list
     */
     drs_list::iterator mDrs_it;
 
     /**
-    *   @brief Pointer to DirectRead
+    *   @brief Pointer to DirectRead (equivallent to Transfer for TransferSlot).
     *
     *   @see DirectRead
     */
@@ -448,7 +487,7 @@ private:
     /**
     *   @brief Same pair of values than above, used to calculate the delivery speed.
     *
-    *   "Delivery speed" is calculated from the time interval between new output pieces (combined if RAID)
+    *   'Delivery speed' is calculated from the time interval between new output pieces (combined if RAID)
     *   are processed and ready to sent to the client.
     */
     std::pair<m_off_t, m_off_t> mSlotThroughput;
@@ -533,7 +572,7 @@ private:
     *
     *   @return True if DirectReadSlot can continue, False if some delivery has failed.
     *   @see DirectReadSlot::MIN_DELIVERY_CHUNK
-    *   @see MegaApiImpl::pread_data
+    *   @see MegaApiImpl::pread_data()
     */
     bool processAnyOutputPieces();
 };

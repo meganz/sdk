@@ -1414,6 +1414,15 @@ bool DirectReadSlot::resetConnection(size_t connectionNum)
     return false;
 }
 
+m_off_t DirectReadSlot::getThroughput(size_t connectionNum)
+{
+    assert(connectionNum < mReqs.size());
+    m_off_t throughPut = (mThroughput[connectionNum].first && mThroughput[connectionNum].second) ?
+                            mThroughput[connectionNum].first / mThroughput[connectionNum].second :
+                            static_cast<m_off_t>(0);
+    return throughPut;
+}
+
 bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
 {
     std::shared_ptr<HttpReq>& req = mReqs[connectionNum];
@@ -1428,9 +1437,9 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
             {
                 if (mThroughput[otherConnection].second && mThroughput[otherConnection].first >= DirectReadSlot::MIN_COMPARABLE_THROUGHPUT)
                 {
-                    m_off_t otherConnectionThroughput = mThroughput[otherConnection].first / mThroughput[otherConnection].second;
-                    m_off_t slowestConnectionThroughput = mThroughput[slowestConnection].first / mThroughput[slowestConnection].second;
-                    m_off_t fastestConnectionThroughput = mThroughput[fastestConnection].first / mThroughput[fastestConnection].second;
+                    m_off_t otherConnectionThroughput = getThroughput(otherConnection);
+                    m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
+                    m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
                     if (otherConnectionThroughput < slowestConnectionThroughput)
                     {
                         slowestConnection = otherConnection;
@@ -1457,9 +1466,11 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
              (slowestConnection != static_cast<size_t>(RAIDPARTS) && mReqs[slowestConnection]->status == REQ_READY)) &&
             fastestConnection != slowestConnection)
         {
-            m_off_t slowestConnectionThroughput = mThroughput[slowestConnection].first / mThroughput[slowestConnection].second;
-            m_off_t fastestConnectionThroughput = mThroughput[fastestConnection].first / mThroughput[fastestConnection].second;
-            if (fastestConnectionThroughput * 4 > slowestConnectionThroughput * 5)
+            m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
+            m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
+            if (fastestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO.first
+                    >
+                slowestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO.second)
             {
                 LOG_warn << "DirectReadSlot [conn " << connectionNum << "]"
                         << " Connection " << slowestConnection << " is slow, trying the other 5 cloudraid connections"
@@ -1620,9 +1631,10 @@ bool DirectReadSlot::doio()
                                     << " FilePiece's going to be submitted: n = " << n << ", req->in.size = " << req->in.size() << ", req->in.capacity = " << req->in.capacity()
                                     << " [minChunk = " << mMinChunk << ", reqs.size = " << mReqs.size()
                                     << ", req->status = " << std::string(req->status == REQ_READY ? "REQ_READY" : req->status == REQ_INFLIGHT ? "REQ_INFLIGHT" : req->status == REQ_SUCCESS ? "REQ_SUCCESS" : "REQ_SOMETHING")
-                                    << ", req->httpstatus = " << req->httpstatus << ", req->contentlength = " << req->contentlength << "]"
-                                    << " [numReqsInflight = " << mNumReqsInflight << ", unusedRaidConnection = " << mUnusedRaidConnection << "]"
-                                    << " [chunk throughput = " << (lastDataTime ? ((((mThroughput[connectionNum].first * 1000) / static_cast<m_off_t>(lastDataTime))) / 1024) : 0) << " KB/s]";
+                                    << ", req->httpstatus = " << req->httpstatus << ", req->contentlength = " << req->contentlength
+                                    << ", numReqsInflight = " << mNumReqsInflight << ", unusedRaidConnection = " << mUnusedRaidConnection << "]"
+                                    << " [chunk throughput = " << (lastDataTime ? ((((mThroughput[connectionNum].first * 1000) / static_cast<m_off_t>(lastDataTime))) / 1024) : 0) << " KB/s"
+                                    << ", average throughput = " << (getThroughput(connectionNum) * 1000 / 1024) << " KB/s]";
                         RaidBufferManager::FilePiece *np = new RaidBufferManager::FilePiece(req->pos, n);
                         memcpy(np->buf.datastart(), req->in.c_str(), n);
 
