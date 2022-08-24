@@ -313,9 +313,7 @@ public:
     *   @see DirectReadSlot::mThroughput
     *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
     */
-    static constexpr m_off_t THROUGHPUT_FACTOR_FOR_FASTEST_CONNECTION = 4;
-    static constexpr m_off_t THROUGHPUT_FACTOR_FOR_SLOWEST_CONNECTION = 5;
-    static constexpr pair<m_off_t, m_off_t> SLOWEST_TO_FASTEST_THROUGHPUT_RATIO { THROUGHPUT_FACTOR_FOR_FASTEST_CONNECTION, THROUGHPUT_FACTOR_FOR_SLOWEST_CONNECTION };
+    static constexpr pair<m_off_t, m_off_t> SLOWEST_TO_FASTEST_THROUGHPUT_RATIO { 4, 5 };
 
 
     /* ===================*\
