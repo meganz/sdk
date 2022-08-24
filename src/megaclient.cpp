@@ -18098,14 +18098,18 @@ void Set::setAttr(const string& tag, string&& value)
 
 handle Set::cover() const
 {
-    handle h = UNDEF;
     string hs = getAttribute(coverTag);
     if (!hs.empty())
     {
+        handle h = 0;
         Base64::atob(hs.c_str(), (byte*)&h, MegaClient::SETELEMENTHANDLE); // What should be used instead of this "deprecated" feature?
+        if (element(h))
+        {
+            return h; // only if cover is a valid Element, still part of the Set
+        }
     }
 
-    return h;
+    return UNDEF;
 }
 
 const SetElement* Set::element(handle eId) const
