@@ -1642,9 +1642,9 @@ public:
     /**
     * @brief Returns the handle of a user related to the alert
     *
-    * This value is valid for user related alerts: 
+    * This value is valid for user related alerts:
     *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
@@ -1674,16 +1674,16 @@ public:
     * this function will return false and the client can request it via the userHandle.
     *
     * The SDK retains the ownership of the returned value. It will be valid until
-    * the MegaUserAlert object is deleted.    
-    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU, 
+    * the MegaUserAlert object is deleted.
+    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU,
     *   TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_DELETEDYOU,
     *   TYPE_DELETEDSHARE,
     *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *   TYPE_NEWSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
     *   TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *   TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
-    * 
+    *
     * @return email string of the relevant user, or NULL if not available
     */
     virtual const char* getEmail() const;
@@ -1696,7 +1696,7 @@ public:
     *
     * This value is valid for those alerts that relate to a single path, provided
     * it could be looked up from the cached nodes at the time the alert arrived.
-    * Otherwise, it may be obtainable via the nodeHandle. 
+    * Otherwise, it may be obtainable via the nodeHandle.
     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
     *
     * @return the path string if relevant and available, otherwise NULL
@@ -1711,7 +1711,7 @@ public:
      *
      * This value is valid for those alerts that relate to a single name, provided
      * it could be looked up from the cached nodes at the time the alert arrived.
-     * Otherwise, it may be obtainable via the nodeHandle. 
+     * Otherwise, it may be obtainable via the nodeHandle.
      *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
      *
      * @return the name string if relevant and available, otherwise NULL
@@ -1752,7 +1752,7 @@ public:
     *                        value 0 if someone left the folder)
     *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
     *   TYPE_REMOVEDSHAREDNODES (0: item count)
-    * 
+    *
     * @return Number related to this request, or -1 if the index is invalid
     */
     virtual int64_t getNumber(unsigned index) const;
@@ -4165,8 +4165,6 @@ class MegaTransfer
             STAGE_NONE = 0,
             STAGE_SCAN,
             STAGE_CREATE_TREE,
-            STAGE_GEN_TRANSFERS,
-            STAGE_PROCESS_TRANSFER_QUEUE,
             STAGE_TRANSFERRING_FILES,
             STAGE_MAX = STAGE_TRANSFERRING_FILES,
         };
@@ -4364,15 +4362,15 @@ class MegaTransfer
          * This method can return the following values:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
-         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
-         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
-         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
          * Any other returned value, must be ignored.
          *
          * The value returned by this method, can only be considered as valid, when we receive MegaTransferListener::onTransferUpdate
          * or MegaListener::onTransferUpdate, and the returned value is in between the range specified above.
          *
          * Note: any specific stage can only be notified once at most.
+         *
+         * @deprecated use the stage in the onFolderTransferUpdate callback instead
          *
          * @return The current stage for a folder upload/download operation
          */
@@ -6468,9 +6466,7 @@ class MegaTransferListener
          * This method returns the following values:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
-         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
-         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
-         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
          * For more information about stages refer to MegaTransfer::getStage
          *
          * @param api MegaApi object that started the transfer
@@ -6479,6 +6475,37 @@ class MegaTransferListener
          * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
          */
         virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+
+        /**
+         * @brief This function is called to inform about the progress of a folder transfer
+         *
+         * The SDK retains the ownership of all parameters.
+         * Don't use any after this functions returns.
+         *
+         * The api object is the one created by the application, it will be valid until
+         * the application deletes it.
+         *
+         * This callback is only made for folder transfers, and only to the listener for that
+         * transfer, not for any globally registered listeners.  The callback is only made
+         * during the scanning phase.
+         *
+         * This function can be used to give feedback to the user as to how scanning is progressing,
+         * since scanning may take a while and the application may be showing a modal dialog during
+         * this time.
+         *
+         * Note that this function could be called from a variety of threads during the
+         * overall operation, so proper thread safety should be observed.
+         *
+         * @param api MegaApi object that started the transfer
+         * @param transfer Information about the transfer
+         * @stage MegaTransfer::STAGE_SCAN or a later value in that enum
+         * @param foldercount The count of folders scanned so far
+         * @param foldercount The count of folders created so far (only relevant in MegaTransfer::STAGE_CREATE_TREE)
+         * @param filecount The count of files scanned (and fingerprinted) so far.  0 if not in scanning stage
+         * @param currentFolder The path of the folder currently being scanned (NULL except in the scan stage)
+         * @param currentFileLeafname The leaft name of the file currently being fingerprinted (can be NULL for the first call in a new folder, and when not scanning anymore)
+         */
+        virtual void onFolderTransferUpdate(MegaApi *api, MegaTransfer *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname);
 
         /**
          * @brief This function is called when there is a temporary error processing a transfer
@@ -7016,9 +7043,7 @@ class MegaListener
          * This method returns the following values:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
-         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
-         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
-         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
          * For more information about stages refer to MegaTransfer::getStage
          *
          * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
@@ -12715,11 +12740,6 @@ class MegaApi
          *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
          *    that shares the same cancel token instance.
          *
-         * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
-         * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
-         * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
-         * instead of that, use MegaCancelToken::cancel() calling through MegaCancelToken instance associated to this transfer.
-         *
          * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
          * @param localPath Local path of the file or folder
@@ -12800,11 +12820,6 @@ class MegaApi
          *
          *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
          *    that shares the same cancel token instance.
-         *
-         * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
-         * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
-         * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
-         * instead of that, use MegaCancelToken::cancel() calling through MegaCancelToken instance associated to this transfer.
          *
          * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
