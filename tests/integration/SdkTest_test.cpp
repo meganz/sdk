@@ -8006,6 +8006,21 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->name(), name);
     ASSERT_EQ(s2p->cover(), eh);
 
+    // Remove cover from Set
+    differentApiDtls.setUpdated = false;
+    err = doPutSetCover(0, nullptr, sh, INVALID_HANDLE);
+    ASSERT_EQ(err, API_OK);
+    s1up.reset(megaApi[0]->getSet(sh));
+    ASSERT_EQ(s1up->name(), name);
+    ASSERT_EQ(s1up->cover(), INVALID_HANDLE);
+    ASSERT_EQ(megaApi[0]->getSetCover(sh), INVALID_HANDLE);
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set cover removal AP not received after " << maxTimeout << " seconds";
+    s2p.reset(differentApi.getSet(sh));
+    ASSERT_NE(s2p, nullptr);
+    ASSERT_EQ(s2p->name(), name);
+    ASSERT_EQ(s2p->cover(), INVALID_HANDLE);
+
     // 5. Fetch Set
     err = doFetchSet(0, sh); // will replace the one stored in memory
     ASSERT_EQ(err, API_OK);
