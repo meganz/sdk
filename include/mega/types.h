@@ -1002,7 +1002,7 @@ public:
     // setters/modifiers
     void set(ChatOptions_t val)             { mChatOptions = val; }
     void add(ChatOptions_t val)             { mChatOptions = mChatOptions | val; }
-    void remove(ChatOptions_t val)          { mChatOptions = mChatOptions & ~val; }
+    void remove(ChatOptions_t val)          { mChatOptions = mChatOptions & static_cast<ChatOptions_t>(~val); }
     void updateSpeakRequest(bool enabled)   { enabled ? add(kSpeakRequest)  : remove(kSpeakRequest);}
     void updateWaitingRoom(bool enabled)    { enabled ? add(kWaitingRoom)   : remove(kWaitingRoom);}
     void updateOpenInvite(bool enabled)     { enabled ? add(kOpenInvite)    : remove(kOpenInvite);}
