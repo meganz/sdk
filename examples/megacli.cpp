@@ -9929,7 +9929,7 @@ void printSetAndElements(const Set* s)
         return;
     }
 
-    cout << "Set " << Base64Str<MegaClient::SETHANDLE>(s->id()) << endl;
+    cout << "Set " << toHandle(s->id()) << endl;
     cout << "\tkey: " << Base64::btoa(s->key()) << endl;
     cout << "\tuser: " << toHandle(s->user()) << endl;
     cout << "\tts: " << s->ts() << endl;
@@ -9941,8 +9941,8 @@ void printSetAndElements(const Set* s)
     for (const auto& p : elems)
     {
         const SetElement& el = p.second;
-        cout << "\t\telement " << Base64Str<MegaClient::SETELEMENTHANDLE>(el.id()) << endl;
-        cout << "\t\t\tnode: " << Base64Str<MegaClient::NODEHANDLE>(el.node()) << endl;
+        cout << "\t\telement " << toHandle(el.id()) << endl;
+        cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
         cout << "\t\t\tname: " << el.name() << endl;
         cout << "\t\t\torder: " << el.order() << endl;
         cout << "\t\t\tkey: " << (el.key().empty() ? "(no key)" : Base64::btoa(el.key())) << endl;
@@ -10017,7 +10017,7 @@ void exec_setsandelements(autocomplete::ACState& s)
             else
             {
                 handle hc = 0;
-                Base64::atob(buf.c_str(), (byte*)&hc, MegaClient::SETELEMENTHANDLE); // What should be used instead of this "deprecated" feature?
+                Base64::atob(buf.c_str(), (byte*)&hc, MegaClient::SETELEMENTHANDLE);
                 updset.setCover(hc);
             }
         }
