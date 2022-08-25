@@ -68,6 +68,12 @@ bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs)
 
 bool FileFingerprint::serialize(string *d)
 {
+    const FileFingerprint* constObject = static_cast<const FileFingerprint*>(this);
+    return constObject->serialize(d);
+}
+
+bool FileFingerprint::serialize(string *d) const
+{
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)&mtime, sizeof(mtime));
     d->append((const char*)crc.data(), sizeof(crc));

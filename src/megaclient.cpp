@@ -17124,21 +17124,62 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
 node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprint)
 {
     node_vector nodes;
-    auto it = mFingerPrints.find(fingerprint);
-    if (it != mFingerPrints.end())
+    if (!mTable)
     {
-        for (auto itNode : it->second)  // for all nodes with matching fingerprint
+        assert(false);
+        return nodes;
+    }
+
+    auto it = mFingerPrints.find(fingerprint);
+    if (it != mFingerPrints.end() && it->second.mAllNodesLoaded)
+    {
+        NodesFingerprintMap& nodesFingerprintMap = it->second;
+        for (const auto& itNode : nodesFingerprintMap.mNodes) // return directly from RAM, all nodes are loaded
         {
+            // if handle has been inserted, the pointer should be valid
             Node* node = itNode.second;
-            if (!node)  // not loaded yet
+            assert(node);
+            nodes.push_back(node);
+        }
+    }
+    else // fingerprint is not found or not all nodes with that fingerprint are loaded
+    {
+        std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+        std::string fingerprintString;
+        fingerprint.serialize(&fingerprintString);
+        mTable->getNodesByFingerprint(fingerprintString, nodesFromTable);
+        if (nodesFromTable.size())
+        {
+            if (it == mFingerPrints.end())
             {
-                node = getNodeFromDataBase(itNode.first);
+                NodesFingerprintMap nodesFingerprintMap;
+                it = mFingerPrints.emplace(fingerprint, nodesFingerprintMap).first;
             }
 
-            assert(node && "getNodesByFingerprint: failed to get node that should exist");
-            if (node)
+            auto& nodesFingerprintIt = it->second;
+            nodesFingerprintIt.mAllNodesLoaded = true; // all nodes are loaded
+            nodePtr_map& nodesMap = nodesFingerprintIt.mNodes;
+
+            for (const auto& nodeIt : nodesFromTable)
             {
-                nodes.push_back(node);
+                auto mapIt = nodesMap.find(nodeIt.first);
+                if (mapIt == nodesMap.end())
+                {
+                    Node* n = getNodeFromNodeSerialized(nodeIt.second);
+                    if (!n)
+                    {
+                        nodes.clear();
+                        return nodes;
+                    }
+
+                    nodes.push_back(n);
+                }
+                else
+                {
+                    Node* n = mapIt->second;
+                    assert(n);
+                    nodes.push_back(n);
+                }
             }
         }
     }
@@ -17164,24 +17205,35 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
 
 Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
 {
+    Node* node = nullptr;
+    if (!mTable)
+    {
+        assert(false);
+        return node;
+    }
+
     auto it = mFingerPrints.find(fingerprint);
     if (it != mFingerPrints.end())
     {
-        for (auto itNode : it->second)  // for all nodes with matching fingerprint
+        const auto& nodesFingerprintMap = it->second;
+        if (nodesFingerprintMap.mNodes.size() > 0) // if there is a node, return it directly
         {
-            if (itNode.second)  // if there's any node already loaded, return it
-            {
-                return itNode.second;
-            }
-        }
-
-        if (it->second.size())  // if there are nodes with matching fingerprint, but not loaded yet, return the first one
-        {
-            return getNodeFromDataBase(it->second.begin()->first);
+            node = nodesFingerprintMap.mNodes.begin()->second;
+            assert(node);
+            return node;
         }
     }
 
-    return nullptr;
+    NodeSerialized nodeSerialized;
+    std::string fingerprintString;
+    fingerprint.serialize(&fingerprintString);
+    mTable->getNodeByFingerprint(fingerprintString, nodeSerialized);
+    if (nodeSerialized.mNode.size()) // There isn't any node with that fingerprint
+    {
+        node = getNodeFromNodeSerialized(nodeSerialized);
+    }
+
+    return node;
 }
 
 Node *NodeManager::childNodeByNameType(NodeHandle parentHandle, const std::string &name, nodetype_t nodeType)
@@ -17999,8 +18051,7 @@ bool NodeManager::loadNodes()
     }
 
     // Load map with fingerprints to speed up searching by fingerprint, as well as children
-    std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
-    if (!mTable->loadFingerprintsAndChildren(mFingerPrints, mNodeChildren))
+    if (!mTable->loadFingerprintsAndChildren(mNodeChildren))
     {
         return false;
     }
@@ -18154,13 +18205,14 @@ mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
         auto it = mFingerPrints.find(*node);
         if (it != mFingerPrints.end())
         {
-            it->second[node->nodeHandle()] = n;
+            it->second.mNodes[node->nodeHandle()] = n;
             return it;
         }
         else
         {
-            std::pair<NodeHandle, Node*> pair = std::make_pair(node->nodeHandle(), n);
-            return mFingerPrints.emplace(*node, nodePtr_map{pair}).first;
+            NodesFingerprintMap aux;
+            aux.mNodes[node->nodeHandle()] = n;
+            return mFingerPrints.emplace(*node, aux).first;
         }
     }
 
@@ -18176,10 +18228,10 @@ void NodeManager::removeFingerprint(Node *node)
 #ifdef DEBUG
             size_t ret =
 #endif
-            node->mFingerPrintPosition->second.erase(node->nodeHandle());
+            node->mFingerPrintPosition->second.mNodes.erase(node->nodeHandle());
             assert(ret == 1);
 
-            if (node->mFingerPrintPosition->second.empty())
+            if (node->mFingerPrintPosition->second.mNodes.empty())
             {
                 mFingerPrints.erase(node->mFingerPrintPosition);
             }
