@@ -344,17 +344,12 @@ public:
 
     bool serialize(string*) override;
 
-    void markForDbRemoval() { markedForDbRemoval = true; }
-    bool removeFromDb() const { return markedForDbRemoval; }
-
 private:
     handle mId = UNDEF;
     string mKey;                        // new AES-128 key per set
     handle mUser = UNDEF;
     m_time_t mTs = 0;
     map<handle, SetElement> mElements;
-
-    bool markedForDbRemoval = false;
 
     unique_ptr<string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
     unique_ptr<string_map> mAttrs;

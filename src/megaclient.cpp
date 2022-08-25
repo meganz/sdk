@@ -17682,8 +17682,6 @@ bool MegaClient::deleteSet(handle setId)
     auto it = mSets.find(setId);
     if (it != mSets.end())
     {
-        it->second.markForDbRemoval();
-
         it->second.setChangeRemoved();
         notifyset(&it->second);
 
@@ -17923,7 +17921,7 @@ bool MegaClient::updatescsets()
     for (Set* s : setnotify)
     {
         char base64[12];
-        if (!s->removeFromDb()) // add / replace
+        if (!s->isRemoved()) // add / replace
         {
             LOG_verbose << "Adding Set to database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
             if (!sctable->put(CACHEDSET, s, &key))
@@ -17962,7 +17960,7 @@ void MegaClient::notifypurgesets()
 
     for (auto& s : setnotify)
     {
-        if (s->removeFromDb())
+        if (s->isRemoved())
         {
             mSets.erase(s->id());
         }
