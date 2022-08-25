@@ -313,7 +313,7 @@ public:
     *   @see DirectReadSlot::mThroughput
     *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
     */
-    static constexpr std::pair<m_off_t, m_off_t> SLOWEST_TO_FASTEST_THROUGHPUT_RATIO { static_cast<m_off_t>(4), static_cast<m_off_t>(5) };
+    static constexpr m_off_t SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[2] { 4, 5 };
 
 
     /* ===================*\

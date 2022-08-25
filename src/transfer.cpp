@@ -1468,9 +1468,9 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
         {
             m_off_t slowestConnectionThroughput = getThroughput(slowestConnection);
             m_off_t fastestConnectionThroughput = getThroughput(fastestConnection);
-            if (fastestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO.first
+            if (fastestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[0]
                     >
-                slowestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO.second)
+                slowestConnectionThroughput * SLOWEST_TO_FASTEST_THROUGHPUT_RATIO[1])
             {
                 LOG_warn << "DirectReadSlot [conn " << connectionNum << "]"
                         << " Connection " << slowestConnection << " is slow, trying the other 5 cloudraid connections"
