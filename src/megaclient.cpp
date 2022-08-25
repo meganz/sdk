@@ -17301,7 +17301,7 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
     if (el.id() == UNDEF)
     {
         Node* n = nodebyhandle(el.node());
-        error e = !n ? API_EARGS : (n->nodekey().empty() || !n->nodecipher() || n->attrstring ? API_EKEY : API_OK);
+        error e = !n ? API_ENOENT : (n->nodekey().empty() || !n->nodecipher() || n->attrstring ? API_EKEY : API_OK);
         if (e != API_OK)
         {
             LOG_err << "Sets: Invalid node for Element";
@@ -18327,11 +18327,11 @@ bool CommonSE::hasAttrChanged(const string& tag, const unique_ptr<string_map>& o
         otherValue = it != otherAttrs->end() ? it->second : "";
     }
 
-    const string& value = getAttribute(tag);
+    const string& value = getAttr(tag);
     return value != otherValue;
 }
 
-const string& CommonSE::getAttribute(const string& tag) const
+const string& CommonSE::getAttr(const string& tag) const
 {
     static const string value;
     if (!mAttrs)
@@ -18382,7 +18382,7 @@ string CommonSE::encryptAttributes(std::function<string(const string_map&, const
 
 handle Set::cover() const
 {
-    string hs = getAttribute(coverTag);
+    string hs = getAttr(coverTag);
     if (!hs.empty())
     {
         handle h = 0;

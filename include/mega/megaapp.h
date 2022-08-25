@@ -27,6 +27,7 @@ namespace mega {
 struct Notification;
 struct UnifiedSync;
 class Set;
+class SetElement;
 
 // callback interface
 struct MEGA_API MegaApp
