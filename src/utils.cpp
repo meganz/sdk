@@ -1212,6 +1212,209 @@ bool TextChat::setFlag(bool value, uint8_t offset)
 
     return true;
 }
+
+/* class scheduledFlags */
+scheduledFlags::scheduledFlags()
+    : mFlags(0)
+{
+}
+
+scheduledFlags::scheduledFlags (unsigned long numericValue)
+    : mFlags(numericValue)
+{
+}
+
+scheduledFlags::scheduledFlags(scheduledFlags *flags)
+    : mFlags(flags ? flags->getNumericValue() : 0)
+{
+}
+
+scheduledFlags::~scheduledFlags()
+{
+}
+
+scheduledFlags* scheduledFlags::copy()
+{
+    return new scheduledFlags(this);
+}
+
+void scheduledFlags::reset()
+{
+    mFlags.reset();
+}
+
+void scheduledFlags::setEmailsDisabled(bool enabled)
+{
+    mFlags[FLAGS_DONT_SEND_EMAILS] = enabled;
+}
+
+unsigned long scheduledFlags::getNumericValue()             { return mFlags.to_ulong();}
+bool scheduledFlags::EmailsDisabled() const                 { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
+bool scheduledFlags::isEmpty() const                        { return mFlags.none(); }
+
+/* class scheduledRules */
+scheduledRules::scheduledRules(int freq,
+                              int interval,
+                              const char* until,
+                              const vector<int64_t>* byWeekDay,
+                              const vector<int64_t>* byMonthDay,
+                              const map<int64_t, int64_t>* byMonthWeekDay)
+    : mFreq(isValidFreq(freq) ? freq : FREQ_INVALID),
+      mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
+      mUntil(until ? until : std::string()),
+      mByWeekDay(byWeekDay ? new vector<int64_t>(*byWeekDay) : nullptr),
+      mByMonthDay (byMonthDay ? new vector<int64_t>(*byMonthDay) : nullptr),
+      mByMonthWeekDay(byMonthWeekDay ? new map<int64_t, int64_t>(byMonthWeekDay->begin(), byMonthWeekDay->end()) : nullptr)
+{
+}
+
+scheduledRules::scheduledRules(scheduledRules* rules)
+    : mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
+      mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
+      mUntil(rules->until()),
+      mByWeekDay(rules->byWeekDay() ? new vector<int64_t>(*rules->byWeekDay()) : nullptr),
+      mByMonthDay (rules->byMonthDay() ? new vector<int64_t>(*rules->byMonthDay()) : nullptr),
+      mByMonthWeekDay(rules->byMonthWeekDay() ? new map<int64_t, int64_t>(rules->byMonthWeekDay()->begin(), rules->byMonthWeekDay()->end()) : nullptr)
+{
+}
+
+scheduledRules::~scheduledRules()
+{
+}
+
+scheduledRules* scheduledRules::copy()
+{
+    return new scheduledRules(this);
+}
+
+void scheduledRules::setByWeekDay(const vector<int64_t>* byWeekDay)
+{
+    mByWeekDay.reset();
+    if (byWeekDay) { mByWeekDay.reset(new vector<int64_t>(*byWeekDay)); }
+}
+
+void scheduledRules::setByMonthDay(const vector<int64_t>* byMonthDay)
+{
+    mByMonthDay.reset();
+    if (byMonthDay) { mByMonthDay.reset(new vector<int64_t>(*byMonthDay)); }
+}
+
+void scheduledRules::setByMonthWeekDay(const map<int64_t, int64_t>* byMonthWeekDay)
+{
+    mByMonthWeekDay.reset();
+    if (byMonthWeekDay) { mByMonthWeekDay.reset(new map<int64_t, int64_t>(byMonthWeekDay->begin(), byMonthWeekDay->end())); }
+}
+
+void scheduledRules::setFreq(int newFreq)
+{
+    mFreq = isValidFreq(newFreq)
+            ? newFreq
+            : FREQ_INVALID;
+}
+
+void scheduledRules::setInterval(int interval)
+{
+    mInterval = isValidInterval(interval)
+            ? interval
+            : INTERVAL_INVALID;
+}
+
+void scheduledRules::setUntil(const char* until)
+{
+    mUntil.assign(until ? until : std::string());
+}
+
+int scheduledRules::freq() const                                     { return mFreq; }
+int scheduledRules::interval() const                                 { return mInterval; }
+const char* scheduledRules::until() const                            { return mUntil.c_str(); }
+const vector<int64_t>* scheduledRules::byWeekDay()                   { return mByWeekDay.get(); }
+const vector<int64_t>* scheduledRules::byMonthDay()                  { return mByMonthDay.get(); }
+const map<int64_t, int64_t>* scheduledRules::byMonthWeekDay()        { return mByMonthWeekDay.get(); }
+
+/* class scheduledMeeting */
+scheduledMeeting::scheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
+                                const char* title, const char* description, handle callid,
+                                handle parentCallid, int cancelled, const char* attributes,
+                                const char* overrides, scheduledFlags* flags, scheduledRules* rules)
+    : mChatid(chatid),
+      mCallid(callid),
+      mParentCallid(parentCallid),
+      mTimezone(timezone ? timezone : std::string()),
+      mStartDateTime(startDateTime ? startDateTime : std::string()),
+      mEndDateTime(endDateTime ? endDateTime : std::string()),
+      mTitle(title ? title : std::string()),
+      mDescription(description ? description : std::string()),
+      mAttributes(attributes ? attributes : std::string()),
+      mOverrides(overrides ? overrides : std::string()),
+      mCancelled(cancelled),
+      mFlags(flags->copy()),
+      mRules(rules->copy())
+{
+}
+
+scheduledMeeting::scheduledMeeting(scheduledMeeting* scheduledMeeting)
+    : mChatid(scheduledMeeting->chatid()),
+      mCallid(scheduledMeeting->callid()),
+      mParentCallid(scheduledMeeting->parentCallid()),
+      mTimezone(scheduledMeeting->timezone() ? scheduledMeeting->timezone() : std::string()),
+      mStartDateTime(scheduledMeeting->startDateTime() ? scheduledMeeting->startDateTime() : std::string()),
+      mEndDateTime(scheduledMeeting->endDateTime() ? scheduledMeeting->endDateTime() : std::string()),
+      mTitle(scheduledMeeting->title() ? scheduledMeeting->title() : std::string()),
+      mDescription(scheduledMeeting->description() ? scheduledMeeting->description() : std::string()),
+      mAttributes(scheduledMeeting->attributes() ? scheduledMeeting->attributes() : std::string()),
+      mOverrides(scheduledMeeting->overrides() ? scheduledMeeting->overrides() : std::string()),
+      mCancelled(scheduledMeeting->cancelled()),
+      mFlags(scheduledMeeting->flags()->copy()),
+      mRules(scheduledMeeting->rules()->copy())
+{
+}
+
+scheduledMeeting* scheduledMeeting::copy()
+{
+   return new scheduledMeeting(this);
+}
+
+scheduledMeeting::~scheduledMeeting()
+{
+}
+
+void scheduledMeeting::setRules(scheduledRules* rules)
+{
+    mRules.reset();
+    if (rules) { mRules.reset(rules->copy()); }
+}
+
+void scheduledMeeting::setFlags(scheduledFlags* flags)
+{
+    mFlags.reset();
+    if (flags) { mFlags.reset(flags->copy()); }
+}
+
+void scheduledMeeting::setChatid(handle chatid)                     { mChatid = chatid;}
+void scheduledMeeting::setCallid(handle callid)                     { mCallid = callid;}
+void scheduledMeeting::setParentCallid(handle parentCallid)         { mParentCallid = parentCallid;}
+void scheduledMeeting::setTimezone(const char* timezone)            { mTimezone.append(timezone ? timezone : std::string());}
+void scheduledMeeting::setStartDateTime(const char* startDateTime)  { mStartDateTime.append(startDateTime ? startDateTime : std::string());}
+void scheduledMeeting::setEndDateTime(const char* endDateTime)      { mEndDateTime.append(endDateTime ? endDateTime : std::string());}
+void scheduledMeeting::setTitle(const char* title)                  { mTitle.append(title ? title : std::string());}
+void scheduledMeeting::setDescription(const char* description)      { mDescription.append(description ? description : std::string());}
+void scheduledMeeting::setAttributes(const char* attributes)        { mAttributes.append(attributes ? attributes : std::string());}
+void scheduledMeeting::setOverrides(const char* overrides)          { mOverrides.append(overrides ? overrides : std::string());}
+void scheduledMeeting::setCancelled(int cancelled)                  { mCancelled = cancelled;}
+
+handle scheduledMeeting::chatid() const                             { return mChatid;}
+handle scheduledMeeting::callid() const                             { return mCallid;}
+handle scheduledMeeting::parentCallid() const                       { return mParentCallid;}
+const char* scheduledMeeting::timezone() const                      { return !mTimezone.empty() ? mTimezone.c_str() : nullptr;}
+const char* scheduledMeeting::startDateTime() const                 { return !mStartDateTime.empty() ? mStartDateTime.c_str() : nullptr;}
+const char* scheduledMeeting::endDateTime() const                   { return !mEndDateTime.empty() ? mEndDateTime.c_str() : nullptr;}
+const char* scheduledMeeting::title() const                         { return !mTitle.empty() ? mTitle.c_str() : nullptr;}
+const char* scheduledMeeting::description() const                   { return !mDescription.empty() ? mDescription.c_str() : nullptr;}
+const char* scheduledMeeting::attributes() const                    { return !mAttributes.empty() ? mAttributes.c_str() : nullptr;}
+const char* scheduledMeeting::overrides() const                     { return !mOverrides.empty() ? mOverrides.c_str() : nullptr;}
+int scheduledMeeting::cancelled() const                             { return mCancelled;}
+scheduledFlags* scheduledMeeting::flags() const                     { return mFlags.get();}
+scheduledRules* scheduledMeeting::rules() const                     { return mRules.get();}
 #endif
 
 /**
