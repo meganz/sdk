@@ -566,7 +566,7 @@ bool MegaClient::isPrivateNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode == rootnodes.files || rootnode == rootnodes.inbox || rootnode == rootnodes.rubbish);
+    return rootnodes.isRootNode(rootnode);
 }
 
 bool MegaClient::isForeignNode(NodeHandle h)
@@ -578,7 +578,7 @@ bool MegaClient::isForeignNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode != rootnodes.files && rootnode != rootnodes.inbox && rootnode != rootnodes.rubbish);
+    return !rootnodes.isRootNode(rootnode);
 }
 
 SCSN::SCSN()
@@ -3184,7 +3184,7 @@ void MegaClient::exec()
     NodeCounter storagesum;
     for (auto& nc : mNodeCounters)
     {
-        if (nc.first == rootnodes.files || nc.first == rootnodes.inbox || nc.first == rootnodes.rubbish)
+        if (rootnodes.isRootNode(nc.first))
         {
             storagesum += nc.second;
         }
@@ -8845,16 +8845,21 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     // any child nodes arrived before their parents?
     size_t count = 0;
     node_vector orphans;
-    for (size_t i = dp.size(); i--; )
+    for (auto& dn : dp)
     {
-        if ((n = nodebyhandle(dp[i]->parenthandle)))
+        // if found, set its parent
+        if ((n = nodebyhandle(dn->parenthandle)))
         {
-            dp[i]->setparent(n);
+            dn->setparent(n);
             ++count;
         }
-        else if (dp[i]->type < ROOTNODE)    // rootnodes have no parent
+        else if (rootnodes.isRootNode(dn->nodeHandle())) // rootnodes have no parent
         {
-            orphans.push_back(dp[i]);
+            ++count;
+        }
+        else
+        {
+            orphans.push_back(dn);
         }
     }
 
@@ -8868,10 +8873,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         {
             ++count;
         }
+        else
+        {
+            LOG_warn << "Orphan node detected. Node: " << toNodeHandle(orphan->nodehandle) << " Parent: " << toNodeHandle(orphan->parenthandle);
+        }
     }
     if (dp.size() != count)
     {
-       LOG_err << "Detected orphan nodes: " << dp.size() - count;
        sendevent(99455, "Orphan node(s) detected");
     }
 
