@@ -1295,8 +1295,6 @@ const char* MegaTransfer::stageToString(unsigned stage)
         case MegaTransfer::STAGE_NONE:                      return "Not initialized stage";
         case MegaTransfer::STAGE_SCAN:                      return "Scan stage";
         case MegaTransfer::STAGE_CREATE_TREE:               return "Create tree stage";
-        case MegaTransfer::STAGE_GEN_TRANSFERS:             return "Generating file transfers stage";
-        case MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE:    return "Processing transfers queue stage";
         case MegaTransfer::STAGE_TRANSFERRING_FILES:        return "Transferring files stage";
         default:                                            return "Invalid stage";
     }
@@ -1605,6 +1603,8 @@ void MegaTransferListener::onTransferStart(MegaApi *, MegaTransfer *)
 void MegaTransferListener::onTransferFinish(MegaApi*, MegaTransfer *, MegaError*)
 { }
 void MegaTransferListener::onTransferUpdate(MegaApi *, MegaTransfer *)
+{ }
+void MegaTransferListener::onFolderTransferUpdate(MegaApi *, MegaTransfer *, int stage, uint32_t foldercount, uint32_t filecount, uint32_t createdfoldercount, const char* currentFolder, const char* currentFileLeafname)
 { }
 bool MegaTransferListener::onTransferData(MegaApi *, MegaTransfer *, char *, size_t)
 { return true; }
@@ -5139,14 +5139,19 @@ char *MegaApi::getMimeType(const char *extension)
 }
 
 #ifdef ENABLE_CHAT
-void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
+void MegaApi::createChat(bool group, MegaTextChatPeerList* peers, const char* title, int chatOptions, MegaRequestListener* listener)
 {
-    pImpl->createChat(group, false, peers, NULL, title, false, listener);
+    pImpl->createChat(group, false, peers, NULL, title, false, chatOptions, listener);
 }
 
-void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, MegaRequestListener *listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char* title, bool meetingRoom, int chatOptions, MegaRequestListener* listener)
 {
-    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, listener);
+    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, chatOptions, listener);
+}
+
+void MegaApi::setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener)
+{
+     pImpl->setChatOption(chatid, option, enabled, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
@@ -6479,6 +6484,11 @@ const char * MegaTextChat::getTitle() const
 const char * MegaTextChat::getUnifiedKey() const
 {
     return NULL;
+}
+
+unsigned char MegaTextChat::getChatOptions() const
+{
+    return 0;
 }
 
 bool MegaTextChat::hasChanged(int) const
