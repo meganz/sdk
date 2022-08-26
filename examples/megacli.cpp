@@ -8519,37 +8519,37 @@ void DemoApp::sets_updated(Set** s, int count)
     {
         Set* set = s[i];
         cout << "Set " << toHandle(set->id());
-        if (set->isNew())
+        if (set->hasChanged(Set::CHANGE_TYPE_NEW))
         {
             cout << " has been added";
         }
-        else if (set->isRemoved())
+        else if (set->hasChanged(Set::CHANGE_TYPE_REMOVED))
         {
             cout << " has been removed";
         }
         else
         {
-            if (set->hasChangedName())
+            if (set->hasChanged(Set::CHANGE_TYPE_NAME))
             {
                 cout << endl << "\tchanged name";
             }
-            if (set->hasChangedCover())
+            if (set->hasChanged(Set::CHANGE_TYPE_COVER))
             {
                 cout << endl << "\tchanged cover";
             }
-            if (set->hasNewElement())
+            if (set->hasChanged(Set::CHANGE_TYPE_ELEM_NEW))
             {
                 cout << endl << "\tadded new element";
             }
-            if (set->hasRemovedElement())
+            if (set->hasChanged(Set::CHANGE_TYPE_ELEM_REMOVED))
             {
                 cout << endl << "\tremoved element";
             }
-            if (set->hasChangedElementName())
+            if (set->hasChanged(Set::CHANGE_TYPE_ELEM_NAME))
             {
                 cout << endl << "\tchanged element name";
             }
-            if (set->hasChangedElementOrder())
+            if (set->hasChanged(Set::CHANGE_TYPE_ELEM_ORDER))
             {
                 cout << endl << "\tchanged element order";
             }
