@@ -125,6 +125,7 @@ class MegaErrorPrivate : public MegaError
 {
 public:
     MegaErrorPrivate(int errorCode = MegaError::API_OK);
+    MegaErrorPrivate(int errorCode, SyncError syncError);
     MegaErrorPrivate(int errorCode, long long value);
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);
@@ -2589,6 +2590,7 @@ class MegaApiImpl : public MegaApp
         bool is_syncable(Sync*, const char*, const LocalPath&);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
+        MegaError *isNodeSyncableWithError(MegaNode* node);
         bool isIndexing();
         bool isSyncing();
 

@@ -27,6 +27,7 @@
 #include "utils.h"
 #include "waiter.h"
 #include "filefingerprint.h"
+#include "megaapi.h"
 
 namespace mega {
 

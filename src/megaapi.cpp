@@ -1307,6 +1307,12 @@ MegaError::MegaError(int e)
     errorCode = e;
 }
 
+MegaError::MegaError(int e, SyncError se)
+{
+    errorCode = e;
+    syncError = se;
+}
+
 MegaError::~MegaError()
 {
 
@@ -1320,6 +1326,11 @@ MegaError* MegaError::copy() const
 int MegaError::getErrorCode() const
 {
     return errorCode;
+}
+
+SyncError MegaError::getSyncError() const
+{
+    return syncError;
 }
 
 long long MegaError::getValue() const
@@ -1453,6 +1464,79 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         }
     }
     return "HTTP Error";
+}
+
+const char* MegaError::getSyncErrorString(SyncError syncError)
+{
+    switch (syncError)
+    {
+    case NO_SYNC_ERROR:
+        return "No sync error";
+    case UNKNOWN_ERROR:
+        return "Unknown sync error";
+    case  UNSUPPORTED_FILE_SYSTEM:          
+        return "File system type is not supported";
+    case INVALID_REMOTE_TYPE:              
+        return "Remote type is not a folder that can be synced";
+    case INVALID_LOCAL_TYPE:               
+        return "Local path does not refer to a folder";
+    case INITIAL_SCAN_FAILED:              
+        return "The initial scan failed";
+    case LOCAL_PATH_TEMPORARY_UNAVAILABLE: 
+        return "Local path is temporarily unavailable: this is fatal when adding a sync";
+    case LOCAL_PATH_UNAVAILABLE:           
+        return "Local path is not available (can't be open)";
+    case REMOTE_NODE_NOT_FOUND:          
+        return "Remote node does no longer exists";
+    case STORAGE_OVERQUOTA:               
+        return "Account reached storage overquota";
+    case BUSINESS_EXPIRED:                
+        return "Business account expired";
+    case FOREIGN_TARGET_OVERSTORAGE:   
+        return "Sync transfer fails (upload into an inshare whose account is overquota)";
+    case REMOTE_PATH_HAS_CHANGED:         
+        return "Remote path has changed (currently unused: not an error)";
+    case REMOTE_PATH_DELETED:             
+        return "(obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted";
+    case SHARE_NON_FULL_ACCESS:          
+        return "Existing inbound share sync or part thereof lost full access";
+    case LOCAL_FILESYSTEM_MISMATCH:       
+        return "Filesystem fingerprint does not match the one stored for the synchronization";
+    case PUT_NODES_ERROR:                
+        return "Error processing put nodes result";
+    case ACTIVE_SYNC_BELOW_PATH:        
+        return "There's a synced node below the path to be synced";
+    case ACTIVE_SYNC_ABOVE_PATH:        
+        return "There's a synced node above the path to be synced";
+    case REMOTE_NODE_MOVED_TO_RUBBISH:  
+        return "Moved to rubbish";
+    case REMOTE_NODE_INSIDE_RUBBISH:    
+        return "Attempted to be added in rubbish";
+    case VBOXSHAREDFOLDER_UNSUPPORTED:  
+        return "Found unsupported VBoxSharedFolderFS";
+    case LOCAL_PATH_SYNC_COLLISION:        
+        return "Local path includes a synced path or is included within one";
+    case ACCOUNT_BLOCKED:                   
+        return "Account blocked";
+    case UNKNOWN_TEMPORARY_ERROR:           
+        return "Unknown temporary error";
+    case TOO_MANY_ACTION_PACKETS:           
+        return "Too many changes in account, local state discarded";
+    case LOGGED_OUT:                        
+        return "Logged out";
+    case WHOLE_ACCOUNT_REFETCHED:           
+        return "The whole account was reloaded, missed actionpacket changes could not have been applied";
+    case MISSING_PARENT_NODE:               
+        return "Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref";
+    case BACKUP_MODIFIED:                   
+        return "Backup has been externally modified";
+    case BACKUP_SOURCE_NOT_BELOW_DRIVE:     
+        return "Backup source path not below drive path";
+    case SYNC_CONFIG_WRITE_FAILURE:         
+        return "Unable to write sync config to disk";
+    default:
+        return "Unknown error";
+    }
 }
 
 const char* MegaError::toString() const
@@ -3486,6 +3570,10 @@ bool MegaApi::isSyncable(const char *path, long long size)
 int MegaApi::isNodeSyncable(MegaNode *node)
 {
     return pImpl->isNodeSyncable(node);
+}
+
+MegaError *MegaApi::isNodeSyncableWithError(MegaNode* node) {
+    return pImpl->isNodeSyncableWithError(node);
 }
 
 void MegaApi::setExcludedNames(vector<string> *excludedNames)
