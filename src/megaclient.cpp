@@ -17680,7 +17680,7 @@ bool MegaClient::deleteSet(handle setId)
     auto it = mSets.find(setId);
     if (it != mSets.end())
     {
-        it->second.setChanged(Set::CHANGE_TYPE_REMOVED);
+        it->second.setChanged(Set::CH_REMOVED);
         notifyset(&it->second);
 
         return true;
@@ -17742,7 +17742,7 @@ void MegaClient::sc_asp()
     auto it = mSets.find(s.id());
     if (it == mSets.end()) // add new
     {
-        s.setChanged(Set::CHANGE_TYPE_NEW);
+        s.setChanged(Set::CH_NEW);
         addSet(move(s));
     }
     else // update existing Set
@@ -17908,7 +17908,7 @@ bool MegaClient::updatescsets()
     for (Set* s : setnotify)
     {
         char base64[12];
-        if (!s->hasChanged(Set::CHANGE_TYPE_REMOVED)) // add / replace
+        if (!s->hasChanged(Set::CH_REMOVED)) // add / replace
         {
             LOG_verbose << "Adding Set to database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
             if (!sctable->put(CACHEDSET, s, &key))
@@ -17947,7 +17947,7 @@ void MegaClient::notifypurgesets()
 
     for (auto& s : setnotify)
     {
-        if (s->hasChanged(Set::CHANGE_TYPE_REMOVED))
+        if (s->hasChanged(Set::CH_REMOVED))
         {
             mSets.erase(s->id());
         }
@@ -18116,7 +18116,7 @@ void Set::addOrUpdateElement(SetElement&& el)
     {
         auto id = el.id(); // before move()-ing from it
         mElements[id] = move(el);
-        mChanges[CHANGE_TYPE_ELEM_NEW] = 1;
+        mChanges[CH_EL_NEW] = 1;
         return;
     }
 
@@ -18126,14 +18126,14 @@ void Set::addOrUpdateElement(SetElement&& el)
     {
         if (el.name() != existing.name())
         {
-            mChanges[CHANGE_TYPE_ELEM_NAME] = 1;
+            mChanges[CH_EL_NAME] = 1;
         }
         existing.setAttrs(el.attrs());
     }
     if (el.hasOrder())
     {
         existing.setOrder(el.order());
-        mChanges[CHANGE_TYPE_ELEM_ORDER] = 1;
+        mChanges[CH_EL_ORDER] = 1;
     }
     if (el.ts())
     {
@@ -18145,7 +18145,7 @@ bool Set::removeElement(handle elemId)
 {
     if (mElements.erase(elemId))
     {
-        mChanges[CHANGE_TYPE_ELEM_REMOVED] = 1;
+        mChanges[CH_EL_REMOVED] = 1;
         return true;
     }
 
@@ -18228,8 +18228,8 @@ void Set::rebaseAttrsOn(const Set& s)
 void Set::takeAttrsFrom(Set&& s)
 {
     // check for changes
-    if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CHANGE_TYPE_NAME);
-    if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CHANGE_TYPE_COVER);
+    if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
+    if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
 
     mAttrs.swap(s.mAttrs);
 }

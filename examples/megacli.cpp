@@ -8519,37 +8519,37 @@ void DemoApp::sets_updated(Set** s, int count)
     {
         Set* set = s[i];
         cout << "Set " << toHandle(set->id());
-        if (set->hasChanged(Set::CHANGE_TYPE_NEW))
+        if (set->hasChanged(Set::CH_NEW))
         {
             cout << " has been added";
         }
-        else if (set->hasChanged(Set::CHANGE_TYPE_REMOVED))
+        else if (set->hasChanged(Set::CH_REMOVED))
         {
             cout << " has been removed";
         }
         else
         {
-            if (set->hasChanged(Set::CHANGE_TYPE_NAME))
+            if (set->hasChanged(Set::CH_NAME))
             {
                 cout << endl << "\tchanged name";
             }
-            if (set->hasChanged(Set::CHANGE_TYPE_COVER))
+            if (set->hasChanged(Set::CH_COVER))
             {
                 cout << endl << "\tchanged cover";
             }
-            if (set->hasChanged(Set::CHANGE_TYPE_ELEM_NEW))
+            if (set->hasChanged(Set::CH_EL_NEW))
             {
                 cout << endl << "\tadded new element";
             }
-            if (set->hasChanged(Set::CHANGE_TYPE_ELEM_REMOVED))
+            if (set->hasChanged(Set::CH_EL_REMOVED))
             {
                 cout << endl << "\tremoved element";
             }
-            if (set->hasChanged(Set::CHANGE_TYPE_ELEM_NAME))
+            if (set->hasChanged(Set::CH_EL_NAME))
             {
                 cout << endl << "\tchanged element name";
             }
-            if (set->hasChanged(Set::CHANGE_TYPE_ELEM_ORDER))
+            if (set->hasChanged(Set::CH_EL_ORDER))
             {
                 cout << endl << "\tchanged element order";
             }

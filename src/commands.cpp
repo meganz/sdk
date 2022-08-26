@@ -9015,7 +9015,7 @@ bool CommandPutSet::procresult(Result r)
         {
             mSet->setId(sId);
             mSet->setUser(user);
-            mSet->setChanged(Set::CHANGE_TYPE_NEW);
+            mSet->setChanged(Set::CH_NEW);
             client->addSet(move(*mSet));
         }
         else // update existing

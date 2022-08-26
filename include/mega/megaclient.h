@@ -336,18 +336,18 @@ public:
     enum
     {
         // update these from outside Set
-        CHANGE_TYPE_NEW,
-        CHANGE_TYPE_NAME,
-        CHANGE_TYPE_COVER,
-        CHANGE_TYPE_REMOVED,
+        CH_NEW,
+        CH_NAME,
+        CH_COVER,
+        CH_REMOVED,
 
         // update these from inside Set
-        CHANGE_TYPE_ELEM_NEW,
-        CHANGE_TYPE_ELEM_NAME,
-        CHANGE_TYPE_ELEM_ORDER,
-        CHANGE_TYPE_ELEM_REMOVED,
+        CH_EL_NEW,
+        CH_EL_NAME,
+        CH_EL_ORDER,
+        CH_EL_REMOVED,
 
-        CHANGE_TYPE_SIZE
+        CH_SIZE
     };
 
 private:
@@ -374,7 +374,7 @@ private:
         return it != mAttrs->end() ? it->second : value;
     }
 
-    std::bitset<CHANGE_TYPE_SIZE> mChanges;
+    std::bitset<CH_SIZE> mChanges;
 
     static const string coverTag; // "c"
 };
