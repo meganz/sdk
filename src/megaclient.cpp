@@ -17731,9 +17731,9 @@ void MegaClient::sc_asp()
     }
 
     // Set key is always received, let's use that
-    if (s.key().empty() || decryptSetData(s) != API_OK)
+    if (decryptSetData(s) != API_OK)
     {
-        LOG_err << "Sets: Invalid Set key in `asp` action packet";
+        LOG_err << "Sets: failed to decrypt attributes from `asp`. Skipping Set: " << toHandle(s.id());
         return;
     }
 
@@ -17748,10 +17748,10 @@ void MegaClient::sc_asp()
         Set& existing = it->second;
         if (s.key() != existing.key())
         {
-            LOG_err << "Sets: Set key received in `asp` action packet differed from existing one";
-            // do not store a different key because all Element keys will become undecryptable
-            //
-            // send event to the Stats servers (MegaClient::sendevent())?
+            LOG_err << "Sets: key differed from existing one. Skipping Set:" << toHandle(s.id());
+            sendevent(99458, "Set key has changed");
+            assert(false);
+            return;
         }
 
         if (s.user() != UNDEF) // this might not be received for an update
