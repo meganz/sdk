@@ -9935,7 +9935,7 @@ void printSetAndElements(const Set* s)
     cout << "\tts: " << s->ts() << endl;
     cout << "\tname: " << s->name() << endl;
     handle cover = s->cover();
-    cout << "\tcover: " << (cover == UNDEF ? "(no cover)" : Base64Str<MegaClient::SETELEMENTHANDLE>(cover).chars) << endl;
+    cout << "\tcover: " << (cover == UNDEF ? "(no cover)" : toHandle(cover)) << endl;
 
     const auto& elems = s->elements();
     for (const auto& p : elems)
