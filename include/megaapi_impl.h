@@ -775,6 +775,7 @@ public:
     void add(long long i) override;
     int64_t get(int i) const override;
     int size() const override;
+    const vector<int64_t>* getList() const;
 
 private:
     vector<int64_t> mIntegers;
@@ -1827,9 +1828,9 @@ public:
     virtual unsigned long long size() const;
     virtual void set(const long long& key, const long long& value);
 
+    const integer_map* getMap() const;
 private:
     MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIntegerMap);
-    const integer_map* getMap() const;
     integer_map mIntegerMap;
 };
 

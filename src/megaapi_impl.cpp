@@ -33319,6 +33319,11 @@ int MegaIntegerListPrivate::size() const
     return static_cast<int>(mIntegers.size());
 }
 
+const vector<int64_t>* MegaIntegerListPrivate::getList() const
+{
+    return &mIntegers;
+}
+
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
     : folders(list->getFolderList()->copy())
     , files(list->getFileList()->copy())
