@@ -24,6 +24,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include <inttypes.h>
 
 #ifdef __APPLE__
@@ -1861,6 +1862,8 @@ class MegaIntegerList
 {
 public:
     virtual ~MegaIntegerList();
+    static MegaIntegerList* createInstance();
+    static MegaIntegerList* createInstance(const std::vector<int64_t> &integers);
     virtual MegaIntegerList *copy() const;
 
     /**
@@ -1872,6 +1875,13 @@ public:
      * @return Integer at the position i in the list
      */
     virtual int64_t get(int i) const;
+
+    /**
+     * @brief Add element to the MegaIntegerList
+     *
+     * @param value to add to list
+     */
+    virtual void add(long long);
 
     /**
      * @brief Returns the number of integer values in the list
@@ -2367,6 +2377,7 @@ public:
      * @return A pointer to the superclass of the private object
      */
     static MegaIntegerMap* createInstance();
+    static MegaIntegerMap* createInstance(const std::map<int64_t, int64_t>& integer_map);
     virtual ~MegaIntegerMap();
     virtual MegaIntegerMap* copy() const;
 

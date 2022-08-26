@@ -6594,6 +6594,11 @@ MegaIntegerMap* MegaIntegerMap::createInstance()
     return new MegaIntegerMapPrivate();
 }
 
+MegaIntegerMap* MegaIntegerMap::createInstance(const std::map<int64_t, int64_t>& integer_map)
+{
+    return new MegaIntegerMapPrivate(integer_map);
+}
+
 MegaIntegerMap::~MegaIntegerMap()
 {
 }
@@ -7114,6 +7119,15 @@ MegaIntegerList::~MegaIntegerList()
 
 }
 
+MegaIntegerList* MegaIntegerList::createInstance()
+{
+    return new MegaIntegerListPrivate();
+}
+
+MegaIntegerList* MegaIntegerList::createInstance(const std::vector<int64_t> &integers)
+{
+    return new MegaIntegerListPrivate(integers);
+}
 MegaIntegerList *MegaIntegerList::copy() const
 {
     return nullptr;
@@ -7122,6 +7136,11 @@ MegaIntegerList *MegaIntegerList::copy() const
 int64_t MegaIntegerList::get(int /*i*/) const
 {
     return -1;
+}
+
+void MegaIntegerList::add(long long /*i*/)
+{
+
 }
 
 int MegaIntegerList::size() const

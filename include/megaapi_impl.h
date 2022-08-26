@@ -767,10 +767,12 @@ private:
 class MegaIntegerListPrivate : public MegaIntegerList
 {
 public:
+    MegaIntegerListPrivate();
     MegaIntegerListPrivate(const vector<int64_t> &integers);
     virtual ~MegaIntegerListPrivate();
 
     MegaIntegerList *copy() const override;
+    void add(long long i) override;
     int64_t get(int i) const override;
     int size() const override;
 
@@ -1817,6 +1819,7 @@ class MegaIntegerMapPrivate : public MegaIntegerMap
 {
 public:
     MegaIntegerMapPrivate();
+    MegaIntegerMapPrivate(const std::map<int64_t, int64_t> &integers);
     virtual ~MegaIntegerMapPrivate();
     virtual MegaIntegerMap* copy() const;
     virtual bool get(const long long& key, long long& value) const;

@@ -4274,6 +4274,11 @@ MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIn
 {
 }
 
+MegaIntegerMapPrivate::MegaIntegerMapPrivate(const std::map<int64_t, int64_t> &integers)
+    :mIntegerMap(integers)
+{
+}
+
 MegaIntegerMapPrivate::~MegaIntegerMapPrivate()
 {
 }
@@ -33279,6 +33284,11 @@ MegaIntegerListPrivate::MegaIntegerListPrivate(const vector<int64_t> &integers)
 
 }
 
+MegaIntegerListPrivate::MegaIntegerListPrivate()
+{
+
+}
+
 MegaIntegerListPrivate::~MegaIntegerListPrivate()
 {
 
@@ -33297,6 +33307,11 @@ int64_t MegaIntegerListPrivate::get(int i) const
         }
 
     return mIntegers.at(i);
+}
+
+void MegaIntegerListPrivate::add(long long i)
+{
+    mIntegers.emplace_back(i);
 }
 
 int MegaIntegerListPrivate::size() const
