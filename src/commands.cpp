@@ -9022,10 +9022,23 @@ bool CommandPutSet::procresult(Result r)
         {            
             assert(mSet->id() == sId);
 
-            if (!client->updateSet(move(*mSet)))
+            const Set* setToBeUpdated = client->getSet(mSet->id());
+            if (!setToBeUpdated)
             {
-                LOG_warn << "Sets: command 'asp' succeed, but Set was not found";
+                LOG_err << "Sets: command 'asp' succeed, but Set was not found";
                 e = API_ENOENT;
+            }
+            else
+            {
+                // merge changes with the stored ones as late as possible, to avoid overwriting
+                // others received in the meantime
+                mSet->rebaseAttrsOn(*setToBeUpdated);
+
+                if (!client->updateSet(move(*mSet)))
+                {
+                    LOG_warn << "Sets: command 'asp' succeed, but Set update failed";
+                    e = API_ENOENT;
+                }
             }
         }
     }

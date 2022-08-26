@@ -17148,8 +17148,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         s.setKey(setToBeUpdated.key());
         s.setUser(setToBeUpdated.user());
 
-        s.rebaseAttrsOn(setToBeUpdated);
-        string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+        string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); }, &setToBeUpdated);
         encrAttrs.reset(new string(move(enc)));
     }
 
@@ -17733,9 +17732,9 @@ void MegaClient::sc_asp()
     }
 
     // Set key is always received, let's use that
-    if (s.key().empty() || decryptSetData(s) != API_OK)
+    if (decryptSetData(s) != API_OK)
     {
-        LOG_err << "Sets: Invalid Set key in `asp` action packet";
+        LOG_err << "Sets: failed to decrypt attributes from `asp`. Skipping Set: " << toHandle(s.id());
         return;
     }
 
@@ -17750,10 +17749,10 @@ void MegaClient::sc_asp()
         Set& existing = it->second;
         if (s.key() != existing.key())
         {
-            LOG_err << "Sets: Set key received in `asp` action packet differed from existing one";
-            // do not store a different key because all Element keys will become undecryptable
-            //
-            // send event to the Stats servers (MegaClient::sendevent())?
+            LOG_err << "Sets: key differed from existing one. Skipping Set:" << toHandle(s.id());
+            sendevent(99458, "Set key has changed");
+            assert(false);
+            return;
         }
 
         if (s.user() != UNDEF) // this might not be received for an update
@@ -18197,15 +18196,30 @@ void Set::rebaseAttrsOn(const Set& s)
         mAttrs.reset(new string_map());
     }
 
-    // copy missing attributes
-    if (mAttrs->empty()) // small optimizations
+    doRebaseAttrsOn(s, *mAttrs);
+
+    if (mAttrs->empty())
     {
-        *mAttrs = *s.mAttrs;
+        mAttrs.reset();
+    }
+}
+
+void Set::doRebaseAttrsOn(const Set& s, string_map& appliedAttrs) const
+{
+    if (!s.hasAttrs())
+    {
+        return; // nothing to do
+    }
+
+    // copy missing attributes
+    if (appliedAttrs.empty()) // small optimizations
+    {
+        appliedAttrs = *s.mAttrs;
     }
     else
     {
         string_map rebased = *s.mAttrs;
-        for (auto& a : *mAttrs)
+        for (auto& a : appliedAttrs)
         {
             if (a.second.empty())
             {
@@ -18216,12 +18230,7 @@ void Set::rebaseAttrsOn(const Set& s)
                 rebased.emplace(move(a));
             }
         }
-        mAttrs->swap(rebased);
-    }
-
-    if (mAttrs->empty())
-    {
-        mAttrs.reset();
+        appliedAttrs.swap(rebased);
     }
 }
 
@@ -18274,8 +18283,21 @@ bool Set::decryptAttributes(std::function<bool(const string&, const string&, str
     return false;
 }
 
-string Set::encryptAttributes(std::function<string(const string_map&, const string&)> f) const
+string Set::encryptAttributes(std::function<string(const string_map&, const string&)> f, const Set* rebaseAttrsOn) const
 {
+    if (rebaseAttrsOn)
+    {
+        // apply mAttrs on top of the ones of the received Set, encrypt the result and return the output
+        string_map rebasedAttrs;
+        if (mAttrs && !mAttrs->empty())
+        {
+            rebasedAttrs = *mAttrs;
+        }
+        doRebaseAttrsOn(*rebaseAttrsOn, rebasedAttrs);
+        return f(rebasedAttrs, mKey);
+    }
+
+    // encrypt mAttrs and return the output
     if (!mAttrs || mAttrs->empty())
     {
         return string();
