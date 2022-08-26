@@ -326,23 +326,29 @@ public:
     void addOrUpdateElement(SetElement&& el);
     bool removeElement(handle elemId);
 
-    void setChangeNew() { resetChanges(); mChanges[CH_NEW] = 1; }
-    void setChangeName() { mChanges[CH_NAME] = 1; }
-    void setChangeCover() { mChanges[CH_COVER] = 1; }
-    void setChangeRemoved() { resetChanges(); mChanges[CH_REMOVED] = 1; }
+    void setChanged(int changeType) { mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
     unsigned long changes() const { return mChanges.to_ulong(); }
-
-    bool isNew() const { return mChanges[CH_NEW]; }
-    bool hasChangedName() const { return mChanges[CH_NAME]; }
-    bool hasChangedCover() const { return mChanges[CH_COVER]; }
-    bool isRemoved() const { return mChanges[CH_REMOVED]; }
-    bool hasNewElement() const { return mChanges[CH_EL_NEW]; }
-    bool hasChangedElementName() const { return mChanges[CH_EL_NAME]; }
-    bool hasChangedElementOrder() const { return mChanges[CH_EL_ORDER]; }
-    bool hasRemovedElement() const { return mChanges[CH_EL_REMOVED]; }
+    bool hasChanged(int changeType) { return mChanges[changeType]; }
 
     bool serialize(string*) override;
+
+    enum
+    {
+        // update these from outside Set
+        CHANGE_TYPE_NEW,
+        CHANGE_TYPE_NAME,
+        CHANGE_TYPE_COVER,
+        CHANGE_TYPE_REMOVED,
+
+        // update these from inside Set
+        CHANGE_TYPE_ELEM_NEW,
+        CHANGE_TYPE_ELEM_NAME,
+        CHANGE_TYPE_ELEM_ORDER,
+        CHANGE_TYPE_ELEM_REMOVED,
+
+        CHANGE_TYPE_SIZE
+    };
 
 private:
     handle mId = UNDEF;
@@ -368,23 +374,7 @@ private:
         return it != mAttrs->end() ? it->second : value;
     }
 
-    enum
-    {
-        // update these from outside Set
-        CH_NEW,
-        CH_NAME,
-        CH_COVER,
-        CH_REMOVED,
-
-        // update these from inside Set
-        CH_EL_NEW,
-        CH_EL_NAME,
-        CH_EL_ORDER,
-        CH_EL_REMOVED,
-
-        CH_SIZE
-    };
-    std::bitset<CH_SIZE> mChanges;
+    std::bitset<CHANGE_TYPE_SIZE> mChanges;
 
     static const string coverTag; // "c"
 };

@@ -686,14 +686,7 @@ public:
     const char* name() const override { return mName.c_str(); }
     MegaHandle cover() const override { return mCover; }
 
-    bool isNew() const override { return mChanges[CHANGE_TYPE_NEW]; }
-    bool hasChangedName() const override { return mChanges[CHANGE_TYPE_NAME]; }
-    bool hasChangedCover() const override { return mChanges[CHANGE_TYPE_COVER]; }
-    bool isRemoved() const override { return mChanges[CHANGE_TYPE_REMOVED]; }
-    bool hasNewElement() const override { return mChanges[CHANGE_TYPE_ELEM_NEW]; }
-    bool hasChangedElementName() const override { return mChanges[CHANGE_TYPE_ELEM_NAME]; }
-    bool hasChangedElementOrder() const override { return mChanges[CHANGE_TYPE_ELEM_ORDER]; }
-    bool hasRemovedElement() const override { return mChanges[CHANGE_TYPE_ELEM_REMOVED]; }
+    bool hasChanged(int changeType) const override { return mChanges[changeType]; }
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
