@@ -1490,17 +1490,17 @@ protected:
     bool procerrorcode(const Result& r, Error& e) const;
 };
 
+class Set;
+
 class MEGA_API CommandPutSet : public CommandSE
 {
 public:
-    CommandPutSet(MegaClient*, handle setId, string&& decrKey, map<string, string>&& attrs, string&& encrKey, unique_ptr<string> encrAttrs,
+    CommandPutSet(MegaClient*, Set&& s, unique_ptr<string> encrAttrs, string&& encrKey,
                   std::function<void(Error, handle)> completion);
     bool procresult(Result) override;
 
 private:
-    handle mId = UNDEF;
-    string mDecrKey;             // decrypted Set key
-    map<string, string> mAttrs;  // decrypted attributes
+    unique_ptr<Set> mSet; // use a pointer to avoid defining Set in this header
     std::function<void(Error, handle)> mCompletion;
 };
 

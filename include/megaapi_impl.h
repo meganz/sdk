@@ -677,13 +677,14 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 class MegaSetPrivate : public MegaSet
 {
 public:
-    MegaSetPrivate(MegaHandle id, MegaHandle u, m_time_t ts, const string& name) :
-        mId(id), mUser(u), mTs(ts), mName(name) {}
+    MegaSetPrivate(MegaHandle id, MegaHandle u, m_time_t ts, const string& name, MegaHandle cover) :
+        mId(id), mUser(u), mTs(ts), mName(name), mCover(cover) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle user() const override { return mUser; }
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
+    MegaHandle cover() const override { return mCover; }
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
@@ -692,6 +693,7 @@ private:
     MegaHandle mUser;
     m_time_t mTs;
     string mName;
+    MegaHandle mCover;
 };
 
 
@@ -2625,7 +2627,7 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
         //Sets and Elements
-        void putSet(MegaHandle id, int optionFlags, const char* name, MegaRequestListener* listener = nullptr);
+        void putSet(MegaHandle id, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
         void removeSet(MegaHandle id, MegaRequestListener* listener = nullptr);
         void fetchSet(MegaHandle id, MegaRequestListener* listener = nullptr);
         void putSetElement(MegaHandle id, MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
@@ -2633,6 +2635,7 @@ class MegaApiImpl : public MegaApp
 
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
+        MegaHandle getSetCover(MegaHandle sid);
         MegaElementList* getSetElements(MegaHandle sid);
         MegaElement* getSetElement(MegaHandle eid, MegaHandle sid);
 

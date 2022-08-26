@@ -17081,64 +17081,75 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
 // Sets and Elements
 //
 
-void MegaClient::putSet(handle id, const char* name, std::function<void(Error, handle)> completion)
+void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
 {
-    // Set key
-    byte setKey[SymmCipher::KEYLENGTH];
-    if (id == UNDEF) // new Set
+    string encrSetKey;
+    std::unique_ptr<string> encrAttrs;
+
+    // create Set
+    if (s.id() == UNDEF)
     {
-        // generate AES-128 key
-        rng.genblock(setKey, sizeof(setKey));
+        // generate AES-128 Set key
+        encrSetKey = rng.genstring(SymmCipher::KEYLENGTH);
+        s.setKey(encrSetKey);
+
+        // encrypt Set key with master key
+        key.cbc_encrypt((byte*)&encrSetKey[0], encrSetKey.size()); // in c++17 and beyond it should use encrSetKey.data()
+
+        if (s.hasAttrs())
+        {
+            if (s.cover() != UNDEF)
+            {
+                LOG_err << "Sets: Cover cannot be set for a newly created Set.";
+                if (completion)
+                    completion(API_EARGS, s.id());
+                return;
+            }
+            string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+            encrAttrs.reset(new string(move(enc)));
+        }
     }
-    else // updating
+    // update Set
+    else
     {
-        auto it = mSets.find(id);
+        if (!s.hasAttrs()) // should either remove all attrs or update [some of] them
+        {
+            LOG_err << "Sets: Nothing to update.";
+            if (completion)
+                completion(API_EARGS, s.id());
+            return;
+        }
+
+        auto it = mSets.find(s.id());
         if (it == mSets.end())
         {
             LOG_err << "Sets: Failed to update Set (not found).";
             if (completion)
-                completion(API_ENOENT, id);
+                completion(API_ENOENT, s.id());
             return;
         }
 
-        assert(sizeof(setKey) == it->second.key().size());
-        copy_n(it->second.key().begin(), it->second.key().size(), setKey);
-    }
+        const Set& setToBeUpdated = it->second;
 
-    // store attrs to TLV and encrypt with Set key
-    map<string, string> attrs;
-    std::unique_ptr<string> encrAttrs;
-    if (name)
-    {
-        if (*name)
+        handle cover = s.cover();
+        if (cover != UNDEF && !setToBeUpdated.element(cover))
         {
-            attrs["name"] = name;
-        }
-        else
-        {
-            attrs.erase("name");
+            LOG_err << "Sets: Requested cover was not an Element of the current Set.";
+            if (completion)
+                completion(API_EARGS, s.id());
+            return;
         }
 
-        encrAttrs.reset(new string(encryptAttrs(attrs, string((char*)setKey, sizeof(setKey)))));
+        // copy the details that won't change
+        s.setKey(setToBeUpdated.key());
+        s.setUser(setToBeUpdated.user());
+
+        s.rebaseAttrsOn(setToBeUpdated);
+        string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+        encrAttrs.reset(new string(move(enc)));
     }
 
-    if (!encrAttrs)
-    {
-        if (completion)
-            completion(API_EINTERNAL, id);
-        return;
-    }
-
-    // encrypt Set key with master key (for new Set only)
-    string decrSetKey, encrSetKey;
-    if (id == UNDEF)
-    {
-        decrSetKey.assign((char*)setKey, sizeof(setKey));
-        key.cbc_encrypt(setKey, sizeof(setKey));
-        encrSetKey.assign((char*)setKey, sizeof(setKey));
-    }
-
-    reqs.add(new CommandPutSet(this, id, move(decrSetKey), move(attrs), move(encrSetKey), move(encrAttrs), completion));
+    reqs.add(new CommandPutSet(this, move(s), move(encrAttrs), move(encrSetKey), completion));
 }
 
 void MegaClient::removeSet(handle id, std::function<void(Error)> completion)
@@ -17367,9 +17378,10 @@ error MegaClient::decryptSetData(Set& s)
     s.setKey(decryptKey(s.key(), key));
 
     // decrypt attrs
-    auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
+    auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
     if (!s.decryptAttributes(decryptFunc))
     {
+        LOG_err << "Sets: Unable to decrypt Set attrs";
         return API_EINTERNAL;
     }
 
@@ -17388,7 +17400,7 @@ error MegaClient::decryptElementData(SetElement& el, const string& setKey)
     el.setKey(decryptKey(el.key(), tmpnodecipher));
 
     // decrypt attrs
-    auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
+    auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
     if (el.hasAttrs() && !el.decryptAttributes(decryptFunc))
     {
         return API_EINTERNAL;
@@ -17405,7 +17417,7 @@ string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
     return string((char*)decrKey.get(), k.size());
 }
 
-string MegaClient::encryptAttrs(const map<string, string>& attrs, const string& encryptionKey)
+string MegaClient::encryptAttrs(const string_map& attrs, const string& encryptionKey)
 {
     if (attrs.empty())
     {
@@ -17435,11 +17447,10 @@ string MegaClient::encryptAttrs(const map<string, string>& attrs, const string& 
     return *encrAttrs;
 }
 
-bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, map<string, string>& output)
+bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, string_map& output)
 {
     if (attrs.empty())
     {
-        LOG_warn << "Sets: attempt to decrypt empty attributes -> attributes cleared";
         output.clear();
         return true;
     }
@@ -17625,6 +17636,9 @@ error MegaClient::readElement(JSON& j, SetElement& el, handle& setId)
     }
 }
 
+const string CommonSE::nameTag = "n";
+const string Set::coverTag = "c";
+
 const Set* MegaClient::getSet(handle id) const
 {
     auto it = mSets.find(id);
@@ -17641,13 +17655,13 @@ void MegaClient::addSet(Set&& a)
     }
 }
 
-bool MegaClient::updateSet(handle id, map<std::string, std::string> &&attrs, m_time_t ts)
+bool MegaClient::updateSet(Set&& s)
 {
-    auto it = mSets.find(id);
+    auto it = mSets.find(s.id());
     if (it != mSets.end())
     {
-        it->second.setAttributes(move(attrs));
-        it->second.setTs(ts);
+        it->second.setTs(s.ts());
+        it->second.takeAttrsFrom(move(s));
 
         notifyset(&it->second);
 
@@ -17716,43 +17730,37 @@ void MegaClient::sc_asp()
         return;
     }
 
+    // Set key is always received, let's use that
+    if (decryptSetData(s) != API_OK)
+    {
+        LOG_err << "Sets: failed to decrypt attributes from `asp`. Skipping Set: " << toHandle(s.id());
+        return;
+    }
+
     auto it = mSets.find(s.id());
     if (it == mSets.end()) // add new
     {
-        if (decryptSetData(s) != API_OK)
-        {
-            LOG_err << "Sets: Failed to parse `asp` action packet";
-            return;
-        }
-        s.resetChanges();
         s.setChangeNew();
         addSet(move(s));
     }
     else // update existing Set
     {
         Set& existing = it->second;
-
-        if (s.encryptedAttrs().empty())
+        if (s.key() != existing.key())
         {
-            existing.setAttributes(string_map());
+            LOG_err << "Sets: key differed from existing one. Skipping Set:" << toHandle(s.id());
+            sendevent(99458, "Set key has changed");
+            assert(false);
+            return;
         }
-        else
-        {
-            existing.setEncryptedAttrs(s.encryptedAttrs());
-            auto decryptFunc = [this](const string& in, const string& k, map<string, string>& out) { return decryptAttrs(in, k, out); };
-            if (!existing.decryptAttributes(decryptFunc))
-            {
-                LOG_err << "Sets: Failed to parse `asp` action packet";
-                return;
-            }
-        }
-
-        existing.setTs(s.ts());
 
         if (s.user() != UNDEF) // this might not be received for an update
         {
             existing.setUser(s.user());
         }
+
+        existing.setTs(s.ts());
+        existing.takeAttrsFrom(move(s));
 
         notifyset(&existing);
     }
@@ -17969,7 +17977,7 @@ Set* MegaClient::unserializeSet(string* d)
     }
 
     // get all attrs
-    map<string, string> attrs;
+    string_map attrs;
     for (uint32_t i = 0; i < attrCount; ++i)
     {
         string ak, av;
@@ -18048,6 +18056,49 @@ Set* MegaClient::unserializeSet(string* d)
     return &addedSet;
 }
 
+void Set::setName(string&& name)
+{
+    setAttr(nameTag, move(name));
+}
+
+void Set::setCover(handle h)
+{
+    if (h == UNDEF)
+    {
+        setAttr(coverTag, string());
+    }
+    else
+    {
+        Base64Str<MegaClient::SETELEMENTHANDLE> b64s(h);
+        setAttr(coverTag, string(b64s.chars));
+    }
+}
+
+void Set::setAttr(const string& tag, string&& value)
+{
+    if (!mAttrs)
+    {
+        mAttrs.reset(new string_map());
+    }
+    (*mAttrs)[tag] = move(value);
+}
+
+handle Set::cover() const
+{
+    string hs = getAttribute(coverTag);
+    if (!hs.empty())
+    {
+        handle h = 0;
+        Base64::atob(hs.c_str(), (byte*)&h, MegaClient::SETELEMENTHANDLE); // What should be used instead of this "deprecated" feature?
+        if (element(h))
+        {
+            return h; // only if cover is a valid Element, still part of the Set
+        }
+    }
+
+    return UNDEF;
+}
+
 const SetElement* Set::element(handle eId) const
 {
     auto it = mElements.find(eId);
@@ -18108,11 +18159,15 @@ bool Set::serialize(string* d)
     r.serializebinary((byte*)&mTs, sizeof(mTs));
     r.serializestring(mKey);
 
-    r.serializeu32((uint32_t)mAttrs.size());
-    for (auto& aa : mAttrs)
+    size_t asize = mAttrs ? mAttrs->size() : 0;
+    r.serializeu32((uint32_t)asize);
+    if (asize)
     {
-        r.serializestring(aa.first);
-        r.serializestring(aa.second);
+        for (auto& aa : *mAttrs)
+        {
+            r.serializestring(aa.first);
+            r.serializestring(aa.second);
+        }
     }
 
     size_t elemCount = mElements.size();
@@ -18128,34 +18183,106 @@ bool Set::serialize(string* d)
     return true;
 }
 
-void Set::setAttributes(map<std::string, std::string> &&attrs)
+void Set::rebaseAttrsOn(const Set& s)
 {
-    // check for changes
-    auto it = mAttrs.find("name");
-    const string& oldName = it != mAttrs.end() ? it->second : "";
-    auto it2 = attrs.find("name");
-    const string& newName = it2 != attrs.end() ? it2->second : "";
-    if (newName != oldName) setChangeName();
+    if (!s.hasAttrs())
+    {
+        return; // nothing to do
+    }
 
-    mAttrs = move(attrs);
+    if (!mAttrs)
+    {
+        mAttrs.reset(new string_map());
+    }
+
+    // copy missing attributes
+    if (mAttrs->empty()) // small optimizations
+    {
+        *mAttrs = *s.mAttrs;
+    }
+    else
+    {
+        string_map rebased = *s.mAttrs;
+        for (auto& a : *mAttrs)
+        {
+            if (a.second.empty())
+            {
+                rebased.erase(a.first);
+            }
+            else
+            {
+                rebased.emplace(move(a));
+            }
+        }
+        mAttrs->swap(rebased);
+    }
+
+    if (mAttrs->empty())
+    {
+        mAttrs.reset();
+    }
 }
 
-bool Set::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
+void Set::takeAttrsFrom(Set&& s)
 {
-    map<string, string> newAttrs;
+    // check for changes
+    if (hasAttrChanged(nameTag, s.mAttrs)) setChangeName();
+    if (hasAttrChanged(coverTag, s.mAttrs)) setChangeCover();
 
-    if (f(mEncryptedAttrs, mKey, newAttrs))
+    mAttrs.swap(s.mAttrs);
+}
+
+bool Set::hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherAttrs) const
+{
+    string otherValue;
+    if (otherAttrs)
     {
-        mEncryptedAttrs.clear();
-        setAttributes(move(newAttrs));
+        auto it = otherAttrs->find(tag);
+        otherValue = it != otherAttrs->end() ? it->second : "";
+    }
 
+    const string& value = getAttribute(tag);
+    return value != otherValue;
+}
+
+bool Set::decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f)
+{
+    if (!mEncryptedAttrs) // 'at' was not received
+    {
+        mAttrs.reset();
+        return true;
+    }
+
+    if (mEncryptedAttrs->empty()) // 'at' was received empty
+    {
+        mAttrs.reset(new string_map());
+        mEncryptedAttrs.reset();
+        return true;
+    }
+
+    unique_ptr<string_map> newAttrs(new string_map());
+
+    if (f(*mEncryptedAttrs, mKey, *newAttrs))
+    {
+        mAttrs.swap(newAttrs);
+        mEncryptedAttrs.reset();
         return true;
     }
 
     return false;
 }
 
-bool SetElement::decryptAttributes(std::function<bool(const string&, const string&, map<string, string>&)> f)
+string Set::encryptAttributes(std::function<string(const string_map&, const string&)> f) const
+{
+    if (!mAttrs || mAttrs->empty())
+    {
+        return string();
+    }
+
+    return f(*mAttrs, mKey);
+}
+
+bool SetElement::decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f)
 {
     if (hasAttrs() && f(mEncryptedAttrs, mKey, mAttrs))
     {

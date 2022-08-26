@@ -3847,7 +3847,7 @@ autocomplete::ACN autocompleteSyntax()
         sequence(text("setsandelements"),
                  either(text("list"),
                         sequence(text("newset"), opt(param("name"))),
-                        sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name"))))),
+                        sequence(text("updateset"), param("id"), opt(either(sequence(flag("-n"), opt(param("name"))), sequence(flag("-c"), opt(param("cover")))))),
                         sequence(text("removeset"), param("id")),
                         sequence(text("fetchset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
@@ -9934,13 +9934,15 @@ void printSetAndElements(const Set* s)
     cout << "\tuser: " << toHandle(s->user()) << endl;
     cout << "\tts: " << s->ts() << endl;
     cout << "\tname: " << s->name() << endl;
+    handle cover = s->cover();
+    cout << "\tcover: " << (cover == UNDEF ? "(no cover)" : toHandle(cover)) << endl;
 
     const auto& elems = s->elements();
     for (const auto& p : elems)
     {
         const SetElement& el = p.second;
         cout << "\t\telement " << toHandle(el.id()) << endl;
-        cout << "\t\t\tnode: " << Base64Str<MegaClient::NODEHANDLE>(el.node()) << endl;
+        cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
         cout << "\t\t\tname: " << el.name() << endl;
         cout << "\t\t\torder: " << el.order() << endl;
         cout << "\t\t\tkey: " << (el.key().empty() ? "(no key)" : Base64::btoa(el.key())) << endl;
@@ -9973,8 +9975,13 @@ void exec_setsandelements(autocomplete::ACState& s)
     else if (command == "newset")
     {
         const char* name = (s.words.size() == 3) ? s.words[2].s.c_str() : nullptr;
+        Set newset;
+        if (name)
+        {
+            newset.setName(name);
+        }
 
-        client->putSet(UNDEF, name, [](Error e, handle id)
+        client->putSet(move(newset), [](Error e, handle id)
             {
                 if (e == API_OK)
                 {
@@ -9993,12 +10000,29 @@ void exec_setsandelements(autocomplete::ACState& s)
         handle id = 0; // must have remaining bits set to 0
         Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
 
+        Set updset;
+        updset.setId(id);
         string buf;
-        bool updateName = s.extractflagparam("-n", buf);
-        bool cleanName = !updateName && s.extractflag("-n");
-        const char* name = (updateName || cleanName) ? buf.c_str() : nullptr;
+        bool updateName = s.extractflagparam("-n", buf) || s.extractflag("-n");
+        if (updateName)
+        {
+            updset.setName(move(buf));
+        }
+        else if (s.extractflagparam("-c", buf) || s.extractflag("-c"))
+        {
+            if (buf.empty())
+            {
+                updset.setCover(UNDEF);
+            }
+            else
+            {
+                handle hc = 0;
+                Base64::atob(buf.c_str(), (byte*)&hc, MegaClient::SETELEMENTHANDLE);
+                updset.setCover(hc);
+            }
+        }
 
-        client->putSet(id, name, [id](Error e, handle setId)
+        client->putSet(move(updset), [id](Error e, handle setId)
             {
                 if (e == API_OK)
                 {

@@ -13602,7 +13602,7 @@ void MegaApiImpl::sets_updated(Set** sets, int count)
         for (int i = 0; i < count; ++i)
         {
             Set& s = *sets[i];
-            sList->add(MegaSetPrivate(s.id(), s.user(), s.ts(), s.name()));
+            sList->add(MegaSetPrivate(s.id(), s.user(), s.ts(), s.name(), s.cover()));
         }
         fireOnSetsUpdate(sList.get());
     }
@@ -18926,8 +18926,17 @@ void MegaApiImpl::sendPendingRequests()
         {
         case MegaRequest::TYPE_PUT_SET:
         {
-            const char* name = (request->getParamType() & MegaApi::OPTION_SET_NAME) ? request->getText() : nullptr;
-            client->putSet(request->getParentHandle(), name,
+            Set s;
+            s.setId(request->getParentHandle());
+            if (request->getParamType() & MegaApi::OPTION_SET_NAME)
+            {
+                s.setName(request->getText() ? request->getText() : string());
+            }
+            if (request->getParamType() & MegaApi::OPTION_SET_COVER)
+            {
+                s.setCover(request->getNodeHandle());
+            }
+            client->putSet(move(s),
                 [this, request](Error e, handle id)
                 {
                     if (request->getParentHandle() == UNDEF)
@@ -23650,12 +23659,13 @@ void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRo
 // Sets and Elements
 //
 
-void MegaApiImpl::putSet(MegaHandle id, int optionFlags, const char* name, MegaRequestListener* listener)
+void MegaApiImpl::putSet(MegaHandle id, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET, listener);
     request->setParentHandle(id);
-    request->setText(name);
     request->setParamType(optionFlags);
+    request->setText(name);
+    request->setNodeHandle(cover);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23705,7 +23715,7 @@ MegaSetList* MegaApiImpl::getSets()
     for (const auto& sp : client->getSets())
     {
         const Set& s = sp.second;
-        sList->add(MegaSetPrivate(s.id(), s.user(), s.ts(), s.name()));
+        sList->add(MegaSetPrivate(s.id(), s.user(), s.ts(), s.name(), s.cover()));
     }
 
     return sList;
@@ -23716,7 +23726,15 @@ MegaSet* MegaApiImpl::getSet(MegaHandle sid)
     SdkMutexGuard g(sdkMutex);
 
     const Set* s = client->getSet(sid);
-    return s ? new MegaSetPrivate(s->id(), s->user(), s->ts(), s->name()) : nullptr;
+    return s ? new MegaSetPrivate(s->id(), s->user(), s->ts(), s->name(), s->cover()) : nullptr;
+}
+
+MegaHandle MegaApiImpl::getSetCover(MegaHandle sid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    const Set* s = client->getSet(sid);
+    return s ? s->cover() : INVALID_HANDLE;
 }
 
 MegaElementList* MegaApiImpl::getSetElements(MegaHandle sid)
