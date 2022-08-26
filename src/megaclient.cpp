@@ -17148,7 +17148,8 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         s.setKey(setToBeUpdated.key());
         s.setUser(setToBeUpdated.user());
 
-        string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); }, &setToBeUpdated);
+        s.rebaseAttrsOn(setToBeUpdated);
+        string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
         encrAttrs.reset(new string(move(enc)));
     }
 
@@ -18196,30 +18197,15 @@ void Set::rebaseAttrsOn(const Set& s)
         mAttrs.reset(new string_map());
     }
 
-    doRebaseAttrsOn(s, *mAttrs);
-
-    if (mAttrs->empty())
-    {
-        mAttrs.reset();
-    }
-}
-
-void Set::doRebaseAttrsOn(const Set& s, string_map& appliedAttrs) const
-{
-    if (!s.hasAttrs())
-    {
-        return; // nothing to do
-    }
-
     // copy missing attributes
-    if (appliedAttrs.empty()) // small optimizations
+    if (mAttrs->empty()) // small optimizations
     {
-        appliedAttrs = *s.mAttrs;
+        *mAttrs = *s.mAttrs;
     }
     else
     {
         string_map rebased = *s.mAttrs;
-        for (auto& a : appliedAttrs)
+        for (auto& a : *mAttrs)
         {
             if (a.second.empty())
             {
@@ -18230,7 +18216,12 @@ void Set::doRebaseAttrsOn(const Set& s, string_map& appliedAttrs) const
                 rebased.emplace(move(a));
             }
         }
-        appliedAttrs.swap(rebased);
+        mAttrs->swap(rebased);
+    }
+
+    if (mAttrs->empty())
+    {
+        mAttrs.reset();
     }
 }
 
@@ -18283,21 +18274,8 @@ bool Set::decryptAttributes(std::function<bool(const string&, const string&, str
     return false;
 }
 
-string Set::encryptAttributes(std::function<string(const string_map&, const string&)> f, const Set* rebaseAttrsOn) const
+string Set::encryptAttributes(std::function<string(const string_map&, const string&)> f) const
 {
-    if (rebaseAttrsOn)
-    {
-        // apply mAttrs on top of the ones of the received Set, encrypt the result and return the output
-        string_map rebasedAttrs;
-        if (mAttrs && !mAttrs->empty())
-        {
-            rebasedAttrs = *mAttrs;
-        }
-        doRebaseAttrsOn(*rebaseAttrsOn, rebasedAttrs);
-        return f(rebasedAttrs, mKey);
-    }
-
-    // encrypt mAttrs and return the output
     if (!mAttrs || mAttrs->empty())
     {
         return string();
