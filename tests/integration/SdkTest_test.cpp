@@ -616,10 +616,10 @@ void SdkTest::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
     mApi[apiIndex].nodeUpdated = true;
 }
 
-void SdkTest::onSetsUpdate(MegaApi* api, MegaSetList* requests)
+void SdkTest::onSetsUpdate(MegaApi* api, MegaSetList* sets)
 {
     int apiIndex = getApiIndex(api);
-    if (apiIndex < 0) return;
+    if (apiIndex < 0 || !sets || !sets->size()) return;
 
     mApi[apiIndex].setUpdated = true;
 }

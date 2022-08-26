@@ -677,14 +677,16 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 class MegaSetPrivate : public MegaSet
 {
 public:
-    MegaSetPrivate(MegaHandle id, MegaHandle u, m_time_t ts, const string& name, MegaHandle cover) :
-        mId(id), mUser(u), mTs(ts), mName(name), mCover(cover) {}
+    MegaSetPrivate(MegaHandle id, MegaHandle u, m_time_t ts, const string& name, MegaHandle cover, unsigned long changes) :
+        mId(id), mUser(u), mTs(ts), mName(name), mCover(cover), mChanges(changes){}
 
     MegaHandle id() const override { return mId; }
     MegaHandle user() const override { return mUser; }
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
     MegaHandle cover() const override { return mCover; }
+
+    bool hasChanged(int changeType) const override { return mChanges[changeType]; }
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
@@ -694,6 +696,7 @@ private:
     m_time_t mTs;
     string mName;
     MegaHandle mCover;
+    std::bitset<CHANGE_TYPE_SIZE> mChanges;
 };
 
 

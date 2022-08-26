@@ -4792,6 +4792,7 @@ bool MegaClient::procsc()
                         app->nodes_updated(NULL, int(nodes.size()));
                         app->users_updated(NULL, int(users.size()));
                         app->pcrs_updated(NULL, int(pcrindex.size()));
+                        app->sets_updated(nullptr, int(mSets.size()));
 #ifdef ENABLE_CHAT
                         app->chats_updated(NULL, int(chats.size()));
 #endif
@@ -7538,7 +7539,10 @@ void MegaClient::notifypurge(void)
         useralerts.useralertnotify.clear();
     }
 
-    notifypurgesets();
+    if (setnotify.size())
+    {
+        notifypurgesets();
+    }
 
 #ifdef ENABLE_CHAT
     if ((t = int(chatnotify.size())))
@@ -17649,7 +17653,7 @@ void MegaClient::addSet(Set&& a)
 {
     Set& added = mSets[a.id()] = move(a);
 
-    if (added.changed())
+    if (added.changes())
     {
         notifyset(&added);
     }
@@ -17676,9 +17680,7 @@ bool MegaClient::deleteSet(handle setId)
     auto it = mSets.find(setId);
     if (it != mSets.end())
     {
-        it->second.markForDbRemoval();
-
-        it->second.setChangeRemoved();
+        it->second.setChanged(Set::CH_REMOVED);
         notifyset(&it->second);
 
         return true;
@@ -17696,7 +17698,7 @@ void MegaClient::addOrUpdateSetElement(SetElement&& el, handle setId)
     }
 
     itAl->second.addOrUpdateElement(move(el)); // will set changed status accordingly
-    if (itAl->second.changed())
+    if (itAl->second.changes())
     {
         notifyset(&itAl->second);
     }
@@ -17709,7 +17711,7 @@ bool MegaClient::deleteSetElement(handle elemId, handle setId)
     {
         if (it->second.removeElement(elemId))
         {
-            if (it->second.changed())
+            if (it->second.changes())
             {
                 notifyset(&it->second);
             }
@@ -17740,7 +17742,7 @@ void MegaClient::sc_asp()
     auto it = mSets.find(s.id());
     if (it == mSets.end()) // add new
     {
-        s.setChangeNew();
+        s.setChanged(Set::CH_NEW);
         addSet(move(s));
     }
     else // update existing Set
@@ -17831,7 +17833,7 @@ void MegaClient::sc_aep()
     }
 
     s->addOrUpdateElement(move(el));
-    if (s->changed())
+    if (s->changes())
     {
         notifyset(s);
     }
@@ -17906,7 +17908,7 @@ bool MegaClient::updatescsets()
     for (Set* s : setnotify)
     {
         char base64[12];
-        if (!s->removeFromDb()) // add / replace
+        if (!s->hasChanged(Set::CH_REMOVED)) // add / replace
         {
             LOG_verbose << "Adding Set to database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
             if (!sctable->put(CACHEDSET, s, &key))
@@ -17945,7 +17947,7 @@ void MegaClient::notifypurgesets()
 
     for (auto& s : setnotify)
     {
-        if (s->removeFromDb())
+        if (s->hasChanged(Set::CH_REMOVED))
         {
             mSets.erase(s->id());
         }
@@ -18226,8 +18228,8 @@ void Set::rebaseAttrsOn(const Set& s)
 void Set::takeAttrsFrom(Set&& s)
 {
     // check for changes
-    if (hasAttrChanged(nameTag, s.mAttrs)) setChangeName();
-    if (hasAttrChanged(coverTag, s.mAttrs)) setChangeCover();
+    if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
+    if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
 
     mAttrs.swap(s.mAttrs);
 }

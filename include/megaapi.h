@@ -1224,8 +1224,24 @@ public:
     virtual const char* name() const { return nullptr; }
     virtual MegaHandle cover() const { return INVALID_HANDLE; }
 
+    virtual bool hasChanged(int changeType) const { return false; }
+
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
+
+    enum // match Set::CH_XXX values
+    {
+        CHANGE_TYPE_NEW,
+        CHANGE_TYPE_NAME,
+        CHANGE_TYPE_COVER,
+        CHANGE_TYPE_REMOVED,
+        CHANGE_TYPE_ELEM_NEW,
+        CHANGE_TYPE_ELEM_NAME,
+        CHANGE_TYPE_ELEM_ORDER,
+        CHANGE_TYPE_ELEM_REMOVED,
+
+        CHANGE_TYPE_SIZE
+    };
 };
 
 /**

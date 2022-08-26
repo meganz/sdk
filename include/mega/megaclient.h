@@ -326,17 +326,29 @@ public:
     void addOrUpdateElement(SetElement&& el);
     bool removeElement(handle elemId);
 
-    void setChangeNew() { mChanges = 0; mChanges[CH_NEW] = 1; }
-    void setChangeName() { mChanges[CH_NAME] = 1; }
-    void setChangeCover() { mChanges[CH_COVER] = 1; }
-    void setChangeRemoved() { mChanges[CH_REMOVED] = 1; }
+    void setChanged(int changeType) { mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
-    bool changed() const { return mChanges != 0; }
+    unsigned long changes() const { return mChanges.to_ulong(); }
+    bool hasChanged(int changeType) { return mChanges[changeType]; }
 
     bool serialize(string*) override;
 
-    void markForDbRemoval() { markedForDbRemoval = true; }
-    bool removeFromDb() const { return markedForDbRemoval; }
+    enum
+    {
+        // update these from outside Set
+        CH_NEW,
+        CH_NAME,
+        CH_COVER,
+        CH_REMOVED,
+
+        // update these from inside Set
+        CH_EL_NEW,
+        CH_EL_NAME,
+        CH_EL_ORDER,
+        CH_EL_REMOVED,
+
+        CH_SIZE
+    };
 
 private:
     handle mId = UNDEF;
@@ -344,8 +356,6 @@ private:
     handle mUser = UNDEF;
     m_time_t mTs = 0;
     map<handle, SetElement> mElements;
-
-    bool markedForDbRemoval = false;
 
     unique_ptr<string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
     unique_ptr<string_map> mAttrs;
@@ -364,22 +374,6 @@ private:
         return it != mAttrs->end() ? it->second : value;
     }
 
-    enum
-    {
-        // update these from outside Set
-        CH_NEW,
-        CH_NAME,
-        CH_COVER,
-        CH_REMOVED,
-
-        // update these from inside Set
-        CH_EL_NEW,
-        CH_EL_NAME,
-        CH_EL_ORDER,
-        CH_EL_REMOVED,
-
-        CH_SIZE
-    };
     std::bitset<CH_SIZE> mChanges;
 
     static const string coverTag; // "c"
