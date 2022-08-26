@@ -318,7 +318,7 @@ public:
     bool decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f);
     void rebaseAttrsOn(const Set& s);
     void takeAttrsFrom(Set&& s);
-    string encryptAttributes(std::function<string(const string_map&, const string&)> f, const Set* rebaseAttrsOn = nullptr) const;
+    string encryptAttributes(std::function<string(const string_map&, const string&)> f) const;
     bool hasAttrs() const { return !!mAttrs; }
 
     const map<handle, SetElement>& elements() const { return mElements; }
@@ -363,8 +363,6 @@ private:
         auto it = mAttrs->find(tag);
         return it != mAttrs->end() ? it->second : value;
     }
-
-    void doRebaseAttrsOn(const Set& s, string_map& appliedAttrs) const;
 
     enum
     {
