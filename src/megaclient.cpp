@@ -17094,13 +17094,11 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
     if (s.id() == UNDEF)
     {
         // generate AES-128 Set key
-        byte sKey[SymmCipher::KEYLENGTH];
-        rng.genblock(sKey, sizeof(sKey));
-        s.setKey(string((char*)sKey, sizeof(sKey)));
+        encrSetKey = rng.genstring(SymmCipher::KEYLENGTH);
+        s.setKey(encrSetKey);
 
         // encrypt Set key with master key
-        key.cbc_encrypt(sKey, sizeof(sKey));
-        encrSetKey.assign((char*)sKey, sizeof(sKey));
+        key.cbc_encrypt((byte*)&encrSetKey[0], encrSetKey.size()); // in c++17 and beyond it should use encrSetKey.data()
 
         if (s.hasAttrs())
         {
@@ -17135,10 +17133,10 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
             return;
         }
 
-        const Set* setToBeUpdated = &it->second;
+        const Set& setToBeUpdated = it->second;
 
         handle cover = s.cover();
-        if (cover != UNDEF && !setToBeUpdated->element(cover))
+        if (cover != UNDEF && !setToBeUpdated.element(cover))
         {
             LOG_err << "Sets: Requested cover was not an Element of the current Set.";
             if (completion)
@@ -17147,10 +17145,10 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         }
 
         // copy the details that won't change
-        s.setKey(setToBeUpdated->key());
-        s.setUser(setToBeUpdated->user());
+        s.setKey(setToBeUpdated.key());
+        s.setUser(setToBeUpdated.user());
 
-        s.rebaseAttrsOn(*setToBeUpdated);
+        s.rebaseAttrsOn(setToBeUpdated);
         string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
         encrAttrs.reset(new string(move(enc)));
     }
@@ -17734,9 +17732,10 @@ void MegaClient::sc_asp()
         return;
     }
 
-    // Set key was received also after an update, let's use that
-    if (!s.key().empty() && decryptSetData(s) != API_OK)
+    // Set key is always received, let's use that
+    if (s.key().empty() || decryptSetData(s) != API_OK)
     {
+        LOG_err << "Sets: Invalid Set key in `asp` action packet";
         return;
     }
 
@@ -17749,24 +17748,12 @@ void MegaClient::sc_asp()
     else // update existing Set
     {
         Set& existing = it->second;
-        if (!s.key().empty())
+        if (s.key() != existing.key())
         {
-            if (s.key() != existing.key())
-            {
-                LOG_warn << "Sets: Set key received in `asp` action packet differed from existing one";
-                existing.setKey(s.key());
-            }
-        }
-        else
-        {
-            s.setKey(existing.key());
-
-            auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
-            if (!s.decryptAttributes(decryptFunc))
-            {
-                LOG_err << "Sets: Failed to decrypt Set attributes from `asp` action packet";
-                return;
-            }
+            LOG_err << "Sets: Set key received in `asp` action packet differed from existing one";
+            // do not store a different key because all Element keys will become undecryptable
+            //
+            // send event to the Stats servers (MegaClient::sendevent())?
         }
 
         if (s.user() != UNDEF) // this might not be received for an update
@@ -18100,14 +18087,18 @@ void Set::setAttr(const string& tag, string&& value)
 
 handle Set::cover() const
 {
-    handle h = UNDEF;
     string hs = getAttribute(coverTag);
     if (!hs.empty())
     {
+        handle h = 0;
         Base64::atob(hs.c_str(), (byte*)&h, MegaClient::SETELEMENTHANDLE); // What should be used instead of this "deprecated" feature?
+        if (element(h))
+        {
+            return h; // only if cover is a valid Element, still part of the Set
+        }
     }
 
-    return h;
+    return UNDEF;
 }
 
 const SetElement* Set::element(handle eId) const
@@ -18214,15 +18205,15 @@ void Set::rebaseAttrsOn(const Set& s)
     else
     {
         string_map rebased = *s.mAttrs;
-        for (auto it = mAttrs->begin(); it != mAttrs->end(); ++it)
+        for (auto& a : *mAttrs)
         {
-            if (it->second.empty())
+            if (a.second.empty())
             {
-                rebased.erase(it->first);
+                rebased.erase(a.first);
             }
             else
             {
-                rebased[it->first] = it->second;
+                rebased.emplace(move(a));
             }
         }
         mAttrs->swap(rebased);
@@ -18276,6 +18267,7 @@ bool Set::decryptAttributes(std::function<bool(const string&, const string&, str
     if (f(*mEncryptedAttrs, mKey, *newAttrs))
     {
         mAttrs.swap(newAttrs);
+        mEncryptedAttrs.reset();
         return true;
     }
 
