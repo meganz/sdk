@@ -439,8 +439,18 @@ private:
         NodeHandle rubbish;
     } rootnodes;
 
+    class NodeManagerNode
+    {
+    public:
+        std::unique_ptr<Node> mNode;
+        std::map<NodeHandle, Node*> mChildren;
+        bool mAllChildrenHandleLoaded = false;
+    };
+
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
-    node_map mNodes;
+    std::map<NodeHandle, NodeManagerNode> mNodes;
+
+    uint64_t mNodesInRam = 0;
 
     // nodes that have changed and are pending to notify to app and dump to DB
     node_vector mNodeNotify;
@@ -484,9 +494,6 @@ private:
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
-
-    // store relationship between nodes and their children (nodes without children are not in the map)
-    std::map<NodeHandle, nodePtr_map> mNodeChildren;
 };
 
 class MEGA_API MegaClient

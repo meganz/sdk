@@ -73,6 +73,14 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
+    bool getChildren(mega::NodeHandle parentHandle, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& children) override
+    {
+        return false;
+    }
+    uint64_t getNumberOfChildren(mega::NodeHandle parentHandle) override
+    {
+        return 0;
+    }
     bool getNodesByName(const std::string&, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken cancelFlag) override
     {
         return false;
@@ -156,10 +164,6 @@ public:
         //throw NotImplemented{__func__};
     }
     bool inTransaction() const override
-    {
-        return false;
-    }
-    bool loadFingerprintsAndChildren(std::map<mega::NodeHandle, mega::nodePtr_map>&) override
     {
         return false;
     }
