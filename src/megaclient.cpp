@@ -608,7 +608,7 @@ bool MegaClient::isPrivateNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode == rootnodes.files || rootnode == rootnodes.vault || rootnode == rootnodes.rubbish);
+    return rootnodes.isRootNode(rootnode);
 }
 
 bool MegaClient::isForeignNode(NodeHandle h)
@@ -620,7 +620,7 @@ bool MegaClient::isForeignNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode != rootnodes.files && rootnode != rootnodes.vault && rootnode != rootnodes.rubbish);
+    return !rootnodes.isRootNode(rootnode);
 }
 
 SCSN::SCSN()
@@ -3226,7 +3226,7 @@ void MegaClient::exec()
     NodeCounter storagesum;
     for (auto& nc : mNodeCounters)
     {
-        if (nc.first == rootnodes.files || nc.first == rootnodes.vault || nc.first == rootnodes.rubbish)
+        if (rootnodes.isRootNode(nc.first))
         {
             storagesum += nc.second;
         }
@@ -6866,6 +6866,11 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     string unifiedkey;
     bool meeting = false;
 
+    // chat options: [0 (remove) | 1 (add)], if chat option is not included on action packet, that option is disabled
+    int waitingRoom = 0;
+    int openInvite = 0;
+    int speakRequest = 0;
+
     bool done = false;
     while (!done)
     {
@@ -6918,6 +6923,18 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 meeting = jsonsc.getbool();
                 break;
 
+            case 'w': // waiting room
+                waitingRoom = jsonsc.getbool();
+                break;
+
+            case MAKENAMEID2('s','r'): // speak request
+                speakRequest = jsonsc.getbool();
+                break;
+
+            case MAKENAMEID2('o','i'): // open invite
+                openInvite = jsonsc.getbool();
+                break;
+
             case EOO:
                 done = true;
 
@@ -6960,6 +6977,11 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
                     }
                     chat->meeting = meeting;
+
+                    if (group)
+                    {
+                        chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+                    }
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -9031,16 +9053,21 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     // any child nodes arrived before their parents?
     size_t count = 0;
     node_vector orphans;
-    for (size_t i = dp.size(); i--; )
+    for (auto& dn : dp)
     {
-        if ((n = nodebyhandle(dp[i]->parenthandle)))
+        // if found, set its parent
+        if ((n = nodebyhandle(dn->parenthandle)))
         {
-            dp[i]->setparent(n);
+            dn->setparent(n);
             ++count;
         }
-        else if (dp[i]->type < ROOTNODE)    // rootnodes have no parent
+        else if (rootnodes.isRootNode(dn->nodeHandle())) // rootnodes have no parent
         {
-            orphans.push_back(dp[i]);
+            ++count;
+        }
+        else
+        {
+            orphans.push_back(dn);
         }
     }
 
@@ -9054,10 +9081,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         {
             ++count;
         }
+        else
+        {
+            LOG_warn << "Orphan node detected. Node: " << toNodeHandle(orphan->nodehandle) << " Parent: " << toNodeHandle(orphan->parenthandle);
+        }
     }
     if (dp.size() != count)
     {
-       LOG_err << "Detected orphan nodes: " << dp.size() - count;
        sendevent(99455, "Orphan node(s) detected");
     }
 
@@ -11337,6 +11367,11 @@ void MegaClient::procmcf(JSON *j)
                         bool publicchat = false;
                         bool meeting = false;
 
+                        // chat options: [0 (remove) | 1 (add)], if chat option is not included, that option is disabled
+                        int waitingRoom = 0;
+                        int openInvite = 0;
+                        int speakRequest = 0;
+
                         bool readingChat = true;
                         while(readingChat) // read the chat information
                         {
@@ -11385,6 +11420,18 @@ void MegaClient::procmcf(JSON *j)
                                 assert(readingPublicChats || !meeting); // public chats can be meetings or not. Private chats cannot be meetings
                                 break;
 
+                            case 'w':   // waiting room
+                                waitingRoom = static_cast<int>(j->getint());
+                                break;
+
+                            case MAKENAMEID2('s','r'): // speak request
+                                speakRequest = static_cast<int>(j->getint());
+                                break;
+
+                            case MAKENAMEID2('o','i'): // open invite
+                                openInvite = static_cast<int>(j->getint());
+                                break;
+
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
@@ -11401,6 +11448,11 @@ void MegaClient::procmcf(JSON *j)
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
                                     chat->meeting = meeting;
+
+                                    if (group)
+                                    {
+                                        chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+                                    }
 
                                     if (readingPublicChats)
                                     {
@@ -17169,9 +17221,9 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title, bool meetingRoom)
+void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector* userpriv, const string_map* userkeymap, const char* title, bool meetingRoom, int chatOptions)
 {
-    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom));
+    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom, chatOptions));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)

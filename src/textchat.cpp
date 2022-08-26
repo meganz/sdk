@@ -38,6 +38,7 @@ TextChat::TextChat()
     ts = 0;
     flags = 0;
     publicchat = false;
+    chatOptions = 0;
 
     memset(&changed, 0, sizeof(changed));
 }
@@ -96,7 +97,9 @@ bool TextChat::serialize(string *d)
     char meetingRoom = meeting ? 1 : 0;
     d->append((char*)&meetingRoom, 1);
 
-    d->append("\0\0\0\0\0", 5); // additional bytes for backwards compatibility
+    d->append((char*)&chatOptions, 1);
+
+    d->append("\0\0\0\0", 4); // additional bytes for backwards compatibility
 
     if (hasAttachments)
     {
@@ -239,7 +242,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     char meetingRoom = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    for (int i = 5; i--;)
+    byte chatOptions = static_cast<byte>(MemAccess::get<char>(ptr));
+    ptr += sizeof(char);
+
+    for (int i = 4; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -343,6 +349,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->publicchat = publicchat;
     chat->unifiedKey = unifiedKey;
     chat->meeting = meetingRoom;
+    chat->chatOptions = chatOptions;
 
     memset(&chat->changed, 0, sizeof(chat->changed));
 
@@ -421,6 +428,35 @@ bool TextChat::setMode(bool publicchat)
     this->publicchat = publicchat;
     changed.mode = true;
 
+    return true;
+}
+
+bool TextChat::addOrUpdateChatOptions(int speakRequest, int waitingRoom, int openInvite)
+{
+    if (!group)
+    {
+        LOG_err << "addOrUpdateChatOptions: trying to update chat options for a non groupal chat: " << toNodeHandle(id);
+        assert(false);
+        return false;
+    }
+
+    ChatOptions currentOptions(static_cast<uint8_t>(chatOptions));
+    if (speakRequest != -1) { currentOptions.updateSpeakRequest(speakRequest); }
+    if (waitingRoom != -1)  { currentOptions.updateWaitingRoom(waitingRoom); }
+    if (openInvite != -1)   { currentOptions.updateOpenInvite(openInvite); }
+
+    if (!currentOptions.isValid())
+    {
+        LOG_err << "addOrUpdateChatOptions: options value (" << currentOptions.value() <<") is out of range";
+        assert(false);
+        return false;
+    }
+
+    if (chatOptions != currentOptions.value()) // just set as changed if value is different`
+    {
+        chatOptions = currentOptions.value();
+        changed.options = true;
+    }
     return true;
 }
 

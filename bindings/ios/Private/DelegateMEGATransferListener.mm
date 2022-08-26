@@ -74,6 +74,19 @@ void DelegateMEGATransferListener::onTransferUpdate(MegaApi *api, MegaTransfer *
     }
 }
 
+void DelegateMEGATransferListener::onFolderTransferUpdate(MegaApi *api, mega::MegaTransfer *transfer, int stage, uint32_t foldercount, uint32_t filecount, uint32_t createdfoldercount, const char *currentFolder, const char *currentFileLeafname) {
+    if (listener != nil && [listener respondsToSelector:@selector(onFolderTransferUpdate:transfer:stage:folderCount:createdFolderCount:fileCount:currentFolder:currentFileLeafName:)]) {
+        MegaTransfer *tempTransfer = transfer->copy();
+        MEGASdk *tempMegaSDK = this->megaSDK;
+        NSString *currentFolderString = currentFolder ? [NSString stringWithUTF8String:currentFolder] : nil;
+        NSString *currentFileLeafNameString = currentFileLeafname ? [NSString stringWithUTF8String:currentFileLeafname] : nil;
+        id<MEGATransferDelegate> tempListener = this->listener;
+        dispatch(this->queueType, ^{
+            [tempListener onFolderTransferUpdate:tempMegaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] stage:MEGATransferStage(stage) folderCount:foldercount createdFolderCount:createdfoldercount fileCount:filecount currentFolder:currentFolderString currentFileLeafName:currentFileLeafNameString];
+        });
+    }
+}
+
 void DelegateMEGATransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *e) {
     if (listener != nil && [listener respondsToSelector:@selector(onTransferTemporaryError:transfer:error:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
