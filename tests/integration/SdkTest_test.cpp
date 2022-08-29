@@ -6414,8 +6414,14 @@ TEST_F(SdkTest, SyncIsNodeSyncable)
     //MegaNode *node2 = megaApi[0].get()->getNodeByPath(basePath2.string().c_str());
     //ASSERT_NE(node2, NULL);
     MegaHandle handle2 = INVALID_HANDLE;
-    int err = synchronousSyncFolder(0, &handle2, MegaSync::TYPE_TWOWAY, localPath2.u8string().c_str(), "sync-name", INVALID_HANDLE, nullptr);
+    //megaApi[0]->syncFolder()
+    //int err = synchronousSyncFolder(0, &handle2, MegaSync::TYPE_TWOWAY, localPath2.u8string().c_str(), "sync-name", INVALID_HANDLE, nullptr);
+    int err = synchronousSyncFolder(0, localPath2.u8string().c_str(), remoteBaseNode2.get());
     ASSERT_TRUE(err == API_OK) << "Backup folder 2 failed (error: " << err << ")";
+
+    
+
+
 
     //ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
     //std::unique_ptr<::mega::MegaSync> sync = waitForSyncState(megaApi[0].get(), node2, true, true, MegaSync::NO_SYNC_ERROR);

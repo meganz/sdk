@@ -446,6 +446,45 @@ enum ScanResult
     SCAN_INACCESSIBLE
 }; // ScanResult
 
+/**
+ * @brief Provides information about SyncError
+ */
+
+enum SyncError {
+    NO_SYNC_ERROR = 0,
+    UNKNOWN_ERROR = 1,
+    UNSUPPORTED_FILE_SYSTEM = 2,            // File system type is not supported
+    INVALID_REMOTE_TYPE = 3,                // Remote type is not a folder that can be synced
+    INVALID_LOCAL_TYPE = 4,                 // Local path does not refer to a folder
+    INITIAL_SCAN_FAILED = 5,                // The initial scan failed
+    LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6,   // Local path is temporarily unavailable: this is fatal when adding a sync
+    LOCAL_PATH_UNAVAILABLE = 7,             // Local path is not available (can't be open)
+    REMOTE_NODE_NOT_FOUND = 8,              // Remote node does no longer exists
+    STORAGE_OVERQUOTA = 9,                  // Account reached storage overquota
+    BUSINESS_EXPIRED = 10,                  // Business account expired
+    FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
+    REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
+    REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
+    SHARE_NON_FULL_ACCESS = 14,             // Existing inbound share sync or part thereof lost full access
+    LOCAL_FILESYSTEM_MISMATCH = 15,         // Filesystem fingerprint does not match the one stored for the synchronization
+    PUT_NODES_ERROR = 16,                   // Error processing put nodes result
+    ACTIVE_SYNC_BELOW_PATH = 17,            // There's a synced node below the path to be synced
+    ACTIVE_SYNC_ABOVE_PATH = 18,            // There's a synced node above the path to be synced
+    REMOTE_NODE_MOVED_TO_RUBBISH = 19,      // Moved to rubbish
+    REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
+    VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
+    LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
+    ACCOUNT_BLOCKED = 23,                    // Account blocked
+    UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
+    TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
+    LOGGED_OUT = 26,                        // Logged out
+    WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
+    MISSING_PARENT_NODE = 28,               // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
+    BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
+    SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
+};
+
 enum SyncWarning {
     NO_SYNC_WARNING = 0,
     LOCAL_IS_FAT = 1,                      // Found FAT (not a failure per se)
