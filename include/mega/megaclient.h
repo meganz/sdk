@@ -2156,22 +2156,22 @@ public:
     void putSet(Set&& s, std::function<void(Error, handle)> completion);
 
     // generate "asr" command
-    void removeSet(handle id, std::function<void(Error)> completion);
+    void removeSet(handle sid, std::function<void(Error)> completion);
 
     // generate "aft" command
-    void fetchSet(handle id, std::function<void(Error)> completion);
+    void fetchSet(handle sid, std::function<void(Error)> completion);
 
     // generate "aep" command
-    void putSetElement(SetElement&& el, handle setId, std::function<void(Error, handle, handle)> completion);
+    void putSetElement(handle sid, SetElement&& el, std::function<void(Error, handle)> completion);
 
     // generate "aer" command
-    void removeSetElement(handle id, std::function<void(Error, handle)> completion);
+    void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
 
     // load Sets and Elements from json
     error readSetsAndElements(JSON& j);
 
-    // return Set with given id or nullptr if it was not found
-    const Set* getSet(handle id) const;
+    // return Set with given sid or nullptr if it was not found
+    const Set* getSet(handle sid) const;
 
     // return all available Sets, indexed by id
     const map<handle, Set>& getSets() const { return mSets; }
@@ -2183,13 +2183,13 @@ public:
     bool updateSet(Set&& s);
 
     // delete Set with elemId from local memory; return true if found and deleted
-    bool deleteSet(handle setId);
+    bool deleteSet(handle sid);
 
     // add new element or update existing one with the same id
-    void addOrUpdateSetElement(SetElement&& el, handle setId);
+    void addOrUpdateSetElement(handle sid, SetElement&& el);
 
-    // delete Element with elemId from Set with setId in local memory; return true if found and deleted
-    bool deleteSetElement(handle elemId, handle setId);
+    // delete Element with eid from Set with sid in local memory; return true if found and deleted
+    bool deleteSetElement(handle sid, handle eid);
 
 private:
     error readSets(JSON& j, map<handle, Set>& sets);

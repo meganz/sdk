@@ -19231,20 +19231,20 @@ class MegaApi
         bool driveMonitorEnabled();
 
         void createSet(const char* name = nullptr, MegaRequestListener* listener = nullptr);
-        void updateSetName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
+        void updateSetName(MegaHandle sid, const char* name, MegaRequestListener* listener = nullptr);
         void putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
-        void removeSet(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void fetchSet(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void createSetElement(MegaHandle setId, MegaHandle node, const char* name = nullptr, MegaRequestListener* listener = nullptr);
-        void updateSetElementName(MegaHandle id, const char* name, MegaRequestListener* listener = nullptr);
-        void updateSetElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener = nullptr);
-        void removeSetElement(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void createSetElement(MegaHandle sid, MegaHandle node, const char* name = nullptr, MegaRequestListener* listener = nullptr);
+        void updateSetElementName(MegaHandle sid, MegaHandle eid, const char* name, MegaRequestListener* listener = nullptr);
+        void updateSetElementOrder(MegaHandle sid, MegaHandle eid, int64_t order, MegaRequestListener* listener = nullptr);
+        void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
         MegaHandle getSetCover(MegaHandle sid);
         MegaElementList* getSetElements(MegaHandle sid);
-        MegaElement* getSetElement(MegaHandle eid, MegaHandle sid);
+        MegaElement* getSetElement(MegaHandle sid, MegaHandle eid);
 
  private:
         MegaApiImpl *pImpl = nullptr;

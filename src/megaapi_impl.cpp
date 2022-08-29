@@ -19006,22 +19006,20 @@ void MegaApiImpl::sendPendingRequests()
             {
                 el.setName(request->getText() ? request->getText() : string());
             }    
-            client->putSetElement(move(el), request->getTotalBytes(),
-                [this, request](Error e, handle id, handle setId)
+            client->putSetElement(request->getTotalBytes(), move(el),
+                [this, request](Error e, handle eid)
                 {
                     if (request->getParentHandle() == UNDEF)
-                        request->setParentHandle(id);
-                    request->setTotalBytes(setId);
+                        request->setParentHandle(eid);
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             break;
         }
 
         case MegaRequest::TYPE_REMOVE_SET_ELEMENT:
-            client->removeSetElement(request->getParentHandle(),
-                [this, request](Error e, handle setId)
+            client->removeSetElement(request->getTotalBytes(), request->getParentHandle(),
+                [this, request](Error e)
                 {
-                    request->setTotalBytes(setId);
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             break;
@@ -23732,10 +23730,10 @@ void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRo
 // Sets and Elements
 //
 
-void MegaApiImpl::putSet(MegaHandle id, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener)
+void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET, listener);
-    request->setParentHandle(id);
+    request->setParentHandle(sid);
     request->setParamType(optionFlags);
     request->setText(name);
     request->setNodeHandle(cover);
@@ -23743,27 +23741,27 @@ void MegaApiImpl::putSet(MegaHandle id, int optionFlags, const char* name, MegaH
     waiter->notify();
 }
 
-void MegaApiImpl::removeSet(MegaHandle id, MegaRequestListener* listener)
+void MegaApiImpl::removeSet(MegaHandle sid, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET, listener);
-    request->setParentHandle(id);
+    request->setParentHandle(sid);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::fetchSet(MegaHandle id, MegaRequestListener* listener)
+void MegaApiImpl::fetchSet(MegaHandle sid, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SET, listener);
-    request->setParentHandle(id);
+    request->setParentHandle(sid);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::putSetElement(MegaHandle id, MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
+void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENT, listener);
-    request->setParentHandle(id);
-    request->setTotalBytes(setId);
+    request->setTotalBytes(sid);
+    request->setParentHandle(eid);
     request->setNodeHandle(node);
     request->setParamType(optionFlags);
     request->setNumber(order);
@@ -23772,10 +23770,11 @@ void MegaApiImpl::putSetElement(MegaHandle id, MegaHandle setId, MegaHandle node
     waiter->notify();
 }
 
-void MegaApiImpl::removeSetElement(MegaHandle id, MegaRequestListener* listener)
+void MegaApiImpl::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENT, listener);
-    request->setParentHandle(id);
+    request->setTotalBytes(sid);
+    request->setParentHandle(eid);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23829,7 +23828,7 @@ MegaElementList* MegaApiImpl::getSetElements(MegaHandle sid)
     return eList;
 }
 
-MegaElement* MegaApiImpl::getSetElement(MegaHandle eid, MegaHandle sid)
+MegaElement* MegaApiImpl::getSetElement(MegaHandle sid, MegaHandle eid)
 {
     SdkMutexGuard g(sdkMutex);
 

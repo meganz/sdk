@@ -17235,11 +17235,11 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
     reqs.add(new CommandPutSet(this, move(s), move(encrAttrs), move(encrSetKey), completion));
 }
 
-void MegaClient::removeSet(handle id, std::function<void(Error)> completion)
+void MegaClient::removeSet(handle sid, std::function<void(Error)> completion)
 {
-    if (getSet(id))
+    if (getSet(sid))
     {
-        reqs.add(new CommandRemoveSet(this, id, completion));
+        reqs.add(new CommandRemoveSet(this, sid, completion));
     }
     else if (completion)
     {
@@ -17247,35 +17247,23 @@ void MegaClient::removeSet(handle id, std::function<void(Error)> completion)
     }
 }
 
-void MegaClient::fetchSet(handle id, std::function<void(Error)> completion)
+void MegaClient::fetchSet(handle sid, std::function<void(Error)> completion)
 {
-    reqs.add(new CommandFetchSet(this, id, completion));
+    reqs.add(new CommandFetchSet(this, sid, completion));
 }
 
-void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void(Error, handle, handle)> completion)
+void MegaClient::putSetElement(handle sid, SetElement&& el, std::function<void(Error, handle)> completion)
 {
     // setId is required to create a new element, but not to update one
-    assert(el.id() != UNDEF || setId != UNDEF);
+    assert(el.id() != UNDEF || sid != UNDEF);
 
     // find Set
-    const Set* existingSet = setId == UNDEF ? nullptr : getSet(setId);
-    if (!existingSet)
-    {
-        for (const auto& a : mSets)
-        {
-            auto itE = a.second.elements().find(el.id());
-            if (itE != a.second.elements().end())
-            {
-                existingSet = &a.second;
-                break;
-            }
-        }
-    }
+    const Set* existingSet = sid == UNDEF ? nullptr : getSet(sid);
     if (!existingSet)
     {
         LOG_err << "Sets: Set not found when adding or updating Element";
         if (completion)
-            completion(API_ENOENT, el.id(), UNDEF);
+            completion(API_ENOENT, el.id());
         return;
     }
 
@@ -17289,7 +17277,7 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
         {
             LOG_err << "Sets: Invalid node for Element";
             if (completion)
-                completion(e, el.id(), UNDEF);
+                completion(e, el.id());
             return;
         }
 
@@ -17306,16 +17294,16 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
     // get element.key from existing element (only when updating attributes)
     else if (el.hasAttrs())
     {
-        auto elIt = existingSet->elements().find(el.id());
-        if (elIt == existingSet->elements().end())
+        const SetElement* existingElement = existingSet->element(el.id());
+        if (!existingElement)
         {
             LOG_err << "Sets: Invalid node for Element";
             if (completion)
-                completion(API_ENOENT, el.id(), UNDEF);
+                completion(API_ENOENT, el.id());
             return;
         }
 
-        el.setKey(elIt->second.key());
+        el.setKey(existingElement->key());
     }
 
     // store element.attrs to TLV, and encrypt with element.key (copied from nodekey)
@@ -17333,24 +17321,22 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
         encrAttrs = encryptAttrs(attrs, el.key());
     }
 
-    reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), existingSet->id(), completion));
+    reqs.add(new CommandPutSetElement(this, existingSet->id(), move(el), move(encrAttrs), move(encrKey), completion));
 }
 
-void MegaClient::removeSetElement(handle id, std::function<void(Error, handle)> completion)
+void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Error)> completion)
 {
-    for (const auto& a : mSets)
+    auto sit = mSets.find(sid);
+    if (sit == mSets.end() || !sit->second.element(eid))
     {
-        if (a.second.elements().find(id) != a.second.elements().end())
+        if (completion)
         {
-            reqs.add(new CommandRemoveSetElement(this, id, completion));
-            return;
+            completion(API_ENOENT);
         }
+        return;
     }
 
-    if (completion)
-    {
-        completion(API_ENOENT, UNDEF);
-    }
+    reqs.add(new CommandRemoveSetElement(this, sid, eid, completion));
 }
 
 error MegaClient::readSetsAndElements(JSON& j)
@@ -17722,9 +17708,9 @@ error MegaClient::readElement(JSON& j, SetElement& el, handle& setId)
 const string CommonSE::nameTag = "n";
 const string Set::coverTag = "c";
 
-const Set* MegaClient::getSet(handle id) const
+const Set* MegaClient::getSet(handle sid) const
 {
-    auto it = mSets.find(id);
+    auto it = mSets.find(sid);
     return it == mSets.end() ? nullptr : &it->second;
 }
 
@@ -17754,9 +17740,9 @@ bool MegaClient::updateSet(Set&& s)
     return false;
 }
 
-bool MegaClient::deleteSet(handle setId)
+bool MegaClient::deleteSet(handle sid)
 {
-    auto it = mSets.find(setId);
+    auto it = mSets.find(sid);
     if (it != mSets.end())
     {
         it->second.setChanged(Set::CH_REMOVED);
@@ -17768,9 +17754,9 @@ bool MegaClient::deleteSet(handle setId)
     return false;
 }
 
-void MegaClient::addOrUpdateSetElement(SetElement&& el, handle setId)
+void MegaClient::addOrUpdateSetElement(handle sid, SetElement&& el)
 {
-    auto itAl = mSets.find(setId);
+    auto itAl = mSets.find(sid);
     if (itAl == mSets.end())
     {
         return;
@@ -17783,12 +17769,12 @@ void MegaClient::addOrUpdateSetElement(SetElement&& el, handle setId)
     }
 }
 
-bool MegaClient::deleteSetElement(handle elemId, handle setId)
+bool MegaClient::deleteSetElement(handle sid, handle eid)
 {
-    auto it = mSets.find(setId);
+    auto it = mSets.find(sid);
     if (it != mSets.end())
     {
-        if (it->second.removeElement(elemId))
+        if (it->second.removeElement(eid))
         {
             if (it->second.changes())
             {
@@ -17936,7 +17922,7 @@ void MegaClient::sc_aer()
             break;
 
         case EOO:
-            if (!deleteSetElement(elemId, setId))
+            if (!deleteSetElement(setId, elemId))
             {
                 LOG_err << "Sets: Failed to remove Element in `aer` action packet";
                 return;

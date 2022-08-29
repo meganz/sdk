@@ -1544,25 +1544,26 @@ class SetElement;
 class MEGA_API CommandPutSetElement : public CommandSE
 {
 public:
-    CommandPutSetElement(MegaClient*, SetElement&& el, string&& encrAttrs, string&& encrKey, handle setId,
-                         std::function<void(Error, handle, handle)> completion);
+    CommandPutSetElement(MegaClient*, handle setId, SetElement&& el, string&& encrAttrs, string&& encrKey,
+                         std::function<void(Error, handle)> completion);
     bool procresult(Result) override;
 
 private:
-    unique_ptr<SetElement> mElement; // use a pointer to avoid defining SetElement in this header
     handle mSetId = UNDEF;
-    std::function<void(Error, handle, handle)> mCompletion;
+    unique_ptr<SetElement> mElement; // use a pointer to avoid defining SetElement in this header
+    std::function<void(Error, handle)> mCompletion;
 };
 
 class MEGA_API CommandRemoveSetElement : public CommandSE
 {
 public:
-    CommandRemoveSetElement(MegaClient*, handle id, std::function<void(Error, handle)> completion);
+    CommandRemoveSetElement(MegaClient*, handle sid, handle eid, std::function<void(Error)> completion);
     bool procresult(Result) override;
 
 private:
+    handle mSetId = UNDEF;
     handle mElementId = UNDEF;
-    std::function<void(Error, handle)> mCompletion;
+    std::function<void(Error)> mCompletion;
 };
 
 // -------- end of Sets and Elements

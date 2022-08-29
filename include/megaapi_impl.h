@@ -2639,17 +2639,17 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
         //Sets and Elements
-        void putSet(MegaHandle id, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
-        void removeSet(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void fetchSet(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void putSetElement(MegaHandle id, MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
-        void removeSetElement(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
+        void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
+        void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
         MegaHandle getSetCover(MegaHandle sid);
         MegaElementList* getSetElements(MegaHandle sid);
-        MegaElement* getSetElement(MegaHandle eid, MegaHandle sid);
+        MegaElement* getSetElement(MegaHandle sid, MegaHandle eid);
 
 #ifdef ENABLE_SYNC
         //Sync

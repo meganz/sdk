@@ -3856,9 +3856,9 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("fetchset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
                                  opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
-                        sequence(text("updateelement"), param("id"),
+                        sequence(text("updateelement"), param("sid"), param("eid"),
                                  opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-o"), param("order")))),
-                        sequence(text("removeelement"), param("id"))
+                        sequence(text("removeelement"), param("sid"), param("eid"))
                         )));
 
     return autocompleteTemplate = std::move(p);
@@ -10126,15 +10126,16 @@ void exec_setsandelements(autocomplete::ACState& s)
 
     else if (command == "removeelement")
     {
-        handle id = 0; // must have remaining bits set to 0
-        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETELEMENTHANDLE);
+        handle sid = 0, eid = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
+        Base64::atob(s.words[3].s.c_str(), (byte*)&eid, MegaClient::SETELEMENTHANDLE);
 
-        client->removeSetElement(id, [id](Error e, handle setId)
+        client->removeSetElement(sid, eid, [sid, eid](Error e)
             {
                 if (e == API_OK)
-                    cout << "Removed Element " << toHandle(id) << " from Set " << toHandle(setId) << endl;
+                    cout << "Removed Element " << toHandle(eid) << " from Set " << toHandle(sid) << endl;
                 else
-                    cout << "Error removing Element " << toHandle(id) << ' ' << e << endl;
+                    cout << "Error removing Element " << toHandle(eid) << ' ' << e << endl;
             });
     }
 
@@ -10143,19 +10144,19 @@ void exec_setsandelements(autocomplete::ACState& s)
         handle setId = 0;   // must have remaining bits set to 0
         handle node = 0;    // must have remaining bits set to 0
         handle elemId = 0;  // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&setId, MegaClient::SETHANDLE);
+
         bool createNew = command == "newelement";
         if (createNew)
         {
-            Base64::atob(s.words[2].s.c_str(), (byte*)&setId, MegaClient::SETHANDLE);
             Base64::atob(s.words[3].s.c_str(), (byte*)&node, MegaClient::NODEHANDLE);
             elemId = UNDEF;
         }
 
         else // "updateelement"
         {
-            setId = UNDEF;
             node = UNDEF;
-            Base64::atob(s.words[2].s.c_str(), (byte*)&elemId, MegaClient::SETELEMENTHANDLE);
+            Base64::atob(s.words[3].s.c_str(), (byte*)&elemId, MegaClient::SETELEMENTHANDLE);
         }
 
         SetElement el(node, elemId);
@@ -10171,12 +10172,12 @@ void exec_setsandelements(autocomplete::ACState& s)
             el.setOrder(atoll(param.c_str()));
         }
 
-        client->putSetElement(move(el), setId, [createNew, elemId](Error e, handle receivedElementId, handle sId)
+        client->putSetElement(setId, move(el), [createNew, setId, elemId](Error e, handle receivedElementId)
             {
                 if (createNew)
                 {
                     if (e == API_OK)
-                        cout << "Created Element " << toHandle(receivedElementId) << " in Set " << toHandle(sId) << endl;
+                        cout << "Created Element " << toHandle(receivedElementId) << " in Set " << toHandle(setId) << endl;
                     else
                         cout << "Error creating new Element " << e << endl;
                 }
@@ -10184,7 +10185,7 @@ void exec_setsandelements(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        cout << "Updated Element " << toHandle(elemId) << " in Set " << toHandle(sId) << endl;
+                        cout << "Updated Element " << toHandle(elemId) << " in Set " << toHandle(setId) << endl;
                         assert(receivedElementId == elemId);
                     }
                     else
