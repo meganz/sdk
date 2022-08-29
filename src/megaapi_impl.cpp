@@ -4084,6 +4084,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_DOWNLOAD_URLS: return "GET_DOWNLOAD_URLS";
         case TYPE_GET_FA_UPLOAD_URL: return "GET_FA_UPLOAD_URL";
         case TYPE_EXECUTE_ON_THREAD: return "EXECUTE_ON_THREAD";
+        case TYPE_SET_CHAT_OPTIONS: return "SET_CHAT_OPTIONS";
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_CHECK_RECOVERY_KEY: return "TYPE_CHECK_RECOVERY_KEY";
     }
@@ -10243,7 +10244,7 @@ void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, unique
 
 #ifdef ENABLE_CHAT
 
-void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char* title, bool meetingRoom, int chatOptions, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
@@ -10252,6 +10253,17 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *
     request->setText(title);
     request->setMegaStringMap(userKeyMap);
     request->setNumber(meetingRoom);
+    request->setParamType(chatOptions);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_CHAT_OPTIONS, listener);
+    request->setNodeHandle(chatid);
+    request->setAccess(option);
+    request->setFlag(enabled);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -14987,7 +14999,7 @@ void MegaApiImpl::getua_result(error e)
             // serialize and encrypt the TLV container
             attr_t type = static_cast<attr_t>(request->getParamType());
             std::unique_ptr<string> container(tlv.tlvRecordsToContainer(client->rng, &client->key));
-            client->putua(type, (byte *)container->data(), unsigned(container->size()));
+            client->putua(type, (byte *)container->data(), unsigned(container->size()), client->restag);
             return;
         }
     }
@@ -16334,6 +16346,27 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
     }
 
     activeTransfer = NULL;
+}
+
+void MegaApiImpl::fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const LocalPath* currentFolder, const LocalPath* currentFileLeafname)
+{
+    // this occurs on worker thread for scanning stage (for uploads) and create tree (for downloads), and on SDK thread for the rest of calls
+    assert((threadId != std::this_thread::get_id()
+                && ((stage == MegaTransfer::STAGE_SCAN && transfer->getType() == MegaTransfer::TYPE_UPLOAD)
+                        || (stage == MegaTransfer::STAGE_CREATE_TREE && transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)))
+            || threadId == std::this_thread::get_id());
+
+    notificationNumber++;
+    transfer->setNotificationNumber(notificationNumber);
+
+    // This one is defined to only be called back on the listener for the transfer
+    // not any of the global or megaapi listeners
+    if (MegaTransferListener* listener = transfer->getListener())
+    {
+        listener->onFolderTransferUpdate(api, transfer, stage, foldercount, createdfoldercount, filecount,
+                    currentFolder ? currentFolder->toPath().c_str() : nullptr,
+                    currentFileLeafname ? currentFileLeafname->toPath().c_str() : nullptr);
+    }
 }
 
 bool MegaApiImpl::fireOnTransferData(MegaTransferPrivate *transfer)
@@ -22097,6 +22130,11 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             bool meetingRoom = static_cast<bool>(request->getNumber());
+            if (!group && request->getMegaStringList())
+            {
+                e = API_EARGS;
+                break;
+            }
 
             const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
 
@@ -22106,9 +22144,40 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom);
+            client->createChat(group, publicchat, userpriv, uhkeymap, title, meetingRoom, request->getParamType() /*chat options value*/);
             break;
         }
+        case MegaRequest::TYPE_SET_CHAT_OPTIONS:
+        {
+            handle chatid = request->getNodeHandle();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            TextChat* chat = it->second;
+            if (!chat->group)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandSetChatOptions(client, chatid, request->getAccess() /*option*/, request->getFlag() /*enabled*/,
+            [request, this] (Error e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+
         case MegaRequest::TYPE_CHAT_INVITE:
         {
             handle chatid = request->getNodeHandle();
@@ -22151,8 +22220,12 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            ChatOptions chatOptions(static_cast<ChatOptions_t>(chat->chatOptions));
+            if (!chat->group
+                    || chat->priv < PRIV_STANDARD
+                    || (chat->priv != PRIV_MODERATOR && !chatOptions.openInvite()))
             {
+                // only allowed moderators or participants with standard permissions just if openInvite is enabled
                 e = API_EACCESS;
                 break;
             }
@@ -22832,7 +22905,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, NoVersioning, move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr));
+            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, UseLocalVersioningFlag, move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr));
             break;
         }
         case MegaRequest::TYPE_VERIFY_CREDENTIALS:
@@ -24950,8 +25023,10 @@ void MegaFolderUploadController::start(MegaNode*)
     mWorkerThread = std::thread ([this, path]() {
         // recurse all subfolders on disk, building up tree structure to match
         // not yet existing folders get a temporary upload id instead of a handle
+        uint32_t foldercount = 0;
+        uint32_t filecount = 0;
         LocalPath lp = path;
-        scanFolder_result scanResult = scanFolder(*mUploadTree.subtrees.front(), lp);
+        scanFolder_result scanResult = scanFolder(*mUploadTree.subtrees.front(), lp, foldercount, filecount);
 
         // if the thread runs, we always queue a function to execute on MegaApi thread for onFinish()
         // we keep a pointer to it in case we need to execute it early and directly on cancel()
@@ -25019,6 +25094,7 @@ void MegaRecursiveOperation::onTransferStart(MegaApi *, MegaTransfer *t)
         // Apps expect this one called when all sub-transfers have
         // been queued in SDK core already
         notifyStage(MegaTransfer::STAGE_TRANSFERRING_FILES);
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_TRANSFERRING_FILES, 0, 0, unsigned(transfersTotalCount), nullptr, nullptr);
         startedTransferring = true;
     }
 
@@ -25085,7 +25161,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
     //we shouldn't need to detach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
-MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
+MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath, uint32_t& foldercount, uint32_t& filecount)
 {
     recursive++;
     unique_ptr<DirAccess> da(fsaccess->newdiraccess());
@@ -25095,6 +25171,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
         recursive--;
         return scanFolder_failed;
     }
+
+    megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_SCAN, foldercount, 0, filecount, &localPath, nullptr);
 
     LocalPath localname;
     nodetype_t dirEntryType;
@@ -25112,6 +25190,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             return scanFolder_cancelled;
         }
 
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_SCAN, foldercount, 0, filecount, &localPath, &localname);
+
         ScopedLengthRestore restoreLen(localPath);
         localPath.appendWithSeparator(localname, false);
         if (dirEntryType == FILENODE)
@@ -25126,6 +25206,8 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
 
             // if we couldn't get the fingerprint, !isvalid and we'll fail the transfer
             tree.files.emplace_back(localPath, fp);
+
+            filecount += 1;
         }
         else if (dirEntryType == FOLDERNODE)
         {
@@ -25141,13 +25223,15 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             newTreeNode->newnode.nodehandle = nextUploadId();
             newTreeNode->newnode.parenthandle = tree.newnode.nodehandle;
 
-            scanFolder_result sr = scanFolder(*newTreeNode, localPath);
+            scanFolder_result sr = scanFolder(*newTreeNode, localPath, foldercount, filecount);
             if (sr != scanFolder_succeeded)
             {
                 recursive--;
                 return sr;
             }
             tree.subtrees.push_back(std::move(newTreeNode));
+
+            foldercount += 1;
         }
     }
     recursive--;
@@ -25244,6 +25328,11 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
 
                 }
             });
+
+        unsigned existing = 0, total = 0;
+        mUploadTree.recursiveCountFolders(existing, total);
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, total, existing, 0, nullptr, nullptr);
+
         return batchResult_requestSent;
     }
 
@@ -25251,8 +25340,6 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
     {
         // we recursed the entire tree without finding any more folder nodes to create.
         // time to set the file uploads in motion.
-
-        notifyStage(MegaTransfer::STAGE_GEN_TRANSFERS);
 
         TransferQueue transferQueue;
         if (!genUploadTransfersForFiles(mUploadTree, transferQueue))
@@ -25265,14 +25352,11 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         }
         else
         {
-            notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
-
             // once we call sendPendingTransfers, we are guaranteed start/finish callbacks for each file transfer
             // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
-            // if the cancel token is activated during sendPendingTransfers, it's possible this object is now deleted
-            // so no more can be done here or we'll be using danging pointers etc
             transfersTotalCount = transferQueue.size();
             megaApi->sendPendingTransfers(&transferQueue, this);
+            // no further code can be added here, this object may now be deleted (eg, due to cancel token activation)
         }
 
         return batchResult_batchesComplete;
@@ -26519,7 +26603,8 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
     notifyStage(MegaTransfer::STAGE_SCAN);
     // for download scan is just checking nodes, we can do this all in one quick pass
-    scanFolder_result sr = scanFolder(node, path, fsType);
+    unsigned fileAddedCount = 0;
+    scanFolder_result sr = scanFolder(node, path, fsType, fileAddedCount);
 
     if (sr != scanFolder_succeeded)
     {
@@ -26556,8 +26641,6 @@ void MegaFolderDownloadController::start(MegaNode *node)
                 }
                 else
                 {
-                    notifyStage(MegaTransfer::STAGE_GEN_TRANSFERS);
-
                     // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
                     TransferQueue transferQueue;
                     if (!genDownloadTransfersForFiles(fsType, transferQueue))
@@ -26570,14 +26653,11 @@ void MegaFolderDownloadController::start(MegaNode *node)
                     }
                     else
                     {
-                        notifyStage(MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE);
-
                         // once we call sendPendingTransfers, we are guaranteed start/finish callbacks for each file transfer
                         // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
-                        // if the cancel token is activated during sendPendingTransfers, it's possible this object is now deleted
-                        // so no more can be done here or we'll be using danging pointers etc
                         transfersTotalCount = transferQueue.size();
                         megaApi->sendPendingTransfers(&transferQueue, this);
+                        // no further code can be added here, this object may now be deleted (eg, due to cancel token activation)
 
                         // complete() will finally be called when the last sub-transfer finishes
                     }
@@ -26590,7 +26670,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
     }
 }
 
-MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
+MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType, unsigned& fileAddedCount)
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
@@ -26607,6 +26687,8 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
        mLocalTree.emplace_back(LocalTree(localpath));
        index = mLocalTree.size() - 1;
     }
+
+    megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_SCAN, unsigned(mLocalTree.size()), 0, fileAddedCount, &localpath, nullptr);
 
     MegaNodeList *children = nullptr;
     unique_ptr<MegaNodeList> autoDelChildren;
@@ -26640,12 +26722,13 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
             // Add child node to vector in mLocalTree at index we have stored it's localPath
             ::mega::unique_ptr<MegaNode> childNode (child->copy());
             mLocalTree.at(index).childrenNodes.push_back(std::move(childNode));
+            fileAddedCount += 1;
         }
         else
         {
             ScopedLengthRestore restoreLen(localpath);
             localpath.appendWithSeparator(LocalPath::fromRelativeName(child->getName(), *fsaccess, fsType), true);
-            scanFolder_result result = scanFolder(child, localpath, fsType);
+            scanFolder_result result = scanFolder(child, localpath, fsType, fileAddedCount);
 
             if (result != scanFolder_succeeded)
             {
@@ -26661,6 +26744,7 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
 Error MegaFolderDownloadController::createFolder()
 {
     // Create all local directories in one shot (on the download worker thread)
+    unsigned created = 0;
     assert(mMainThreadId != std::this_thread::get_id());
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
@@ -26677,6 +26761,9 @@ Error MegaFolderDownloadController::createFolder()
         }
 
         LocalPath &localpath = it->localPath;
+
+        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, 0, nullptr, nullptr);
+
         Error e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
         if (e && e != API_EEXIST)
         {
@@ -26684,6 +26771,7 @@ Error MegaFolderDownloadController::createFolder()
             return e;
         }
         ++it;
+        ++created;
     }
     return API_OK;
 }
@@ -32525,6 +32613,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->changed = chat->getChanges();
     this->unifiedKey = chat->getUnifiedKey() ? chat->getUnifiedKey() : "";
     this->meeting = chat->isMeeting();
+    this->chatOptions = chat->getChatOptions();
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -32542,6 +32631,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->publicchat = chat->publicchat;
     this->unifiedKey = chat->unifiedKey;
     this->meeting = chat->meeting;
+    this->chatOptions = chat->chatOptions;
     this->changed = 0;
 
     if (chat->changed.attachments)
@@ -32555,6 +32645,10 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     if (chat->changed.mode)
     {
         changed |= MegaTextChat::CHANGE_TYPE_MODE;
+    }
+    if (chat->changed.options)
+    {
+        changed |= MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS;
     }
 }
 
@@ -32615,6 +32709,11 @@ const char *MegaTextChatPrivate::getTitle() const
 const char *MegaTextChatPrivate::getUnifiedKey() const
 {
     return !unifiedKey.empty() ? unifiedKey.c_str() : NULL;
+}
+
+unsigned char MegaTextChatPrivate::getChatOptions() const
+{
+    return chatOptions;
 }
 
 int MegaTextChatPrivate::isOwnChange() const

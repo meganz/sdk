@@ -425,6 +425,10 @@ public:
         rootnodes.rubbish = h;
     }
 
+    // Check if there are orphan nodes and clear mNodesWithMissingParent
+    // In case of orphans send an event
+    void checkOrphanNodes();
+
 private:
     MegaClient& mClient;
 
@@ -437,6 +441,10 @@ private:
         NodeHandle files;
         NodeHandle inbox;
         NodeHandle rubbish;
+
+        // returns true if the 'h' provided matches any of the rootnodes.
+        // (when logged into folder links, the handle of the folder is set to 'files')
+        bool isRootNode(NodeHandle h) { return (h == files || h == inbox || h == rubbish); }
     } rootnodes;
 
     class NodeManagerNode
@@ -1049,7 +1057,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const string_map *userkeymap = NULL, const char *title = NULL, bool meetingRoom = false);
+    void createChat(bool group, bool publicchat, const userpriv_vector* userpriv = NULL, const string_map* userkeymap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty);
 
     // invite a user to a chat
     void inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey = NULL, const char *title = NULL);
