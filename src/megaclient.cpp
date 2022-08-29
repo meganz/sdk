@@ -4730,6 +4730,7 @@ bool MegaClient::procsc()
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+
                         }
                         else
                         {
@@ -4738,6 +4739,8 @@ bool MegaClient::procsc()
                         }
                         uint64_t numNodes = mNodeManager.getNodeCount();
                         fnstats.nodesCurrent = numNodes;
+
+                        mNodeManager.finalizeBatchActionPackageProcessing();
 
                         statecurrent = true;
                         app->nodes_current();
@@ -18272,6 +18275,17 @@ void NodeManager::checkOrphanNodes()
 
     // If parent hasn't arrived, it wont' arrive never
     mNodesWithMissingParent.clear();
+}
+
+void NodeManager::finalizeBatchActionPackageProcessing()
+{
+    if (!mTable)
+    {
+        assert(false);
+        return;
+    }
+
+    mTable->createIndex();
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()

@@ -429,6 +429,8 @@ public:
     // In case of orphans send an event
     void checkOrphanNodes();
 
+    void finalizeBatchActionPackageProcessing();
+
 private:
     MegaClient& mClient;
 
@@ -494,6 +496,7 @@ private:
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
+
 };
 
 class MEGA_API MegaClient

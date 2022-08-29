@@ -164,16 +164,6 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
-    // Create index for column that is not primary key (which already has an index by default)
-    sql = "CREATE INDEX IF NOT EXISTS parenthandleindex on nodes (parenthandle)";
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
-    {
-        LOG_debug << "Data base error while creating index (parenthandleindex): " << sqlite3_errmsg(db);
-        sqlite3_close(db);
-        return nullptr;
-    }
-
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
@@ -240,7 +230,6 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
     }
 
     return true;
-
 }
 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted)
@@ -718,6 +707,21 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string&
     }
 
     sqlite3_reset(mStmtUpdateNode);
+}
+
+void SqliteAccountState::createIndex()
+{
+    if (!db)
+    {
+        return;
+    }
+    // Create index for column that is not primary key (which already has an index by default)
+    std::string sql = "CREATE INDEX IF NOT EXISTS parenthandleindex on nodes (parenthandle)";
+    int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_err << "Data base error while creating index (parenthandleindex): " << sqlite3_errmsg(db);
+    }
 }
 
 void SqliteAccountState::remove()

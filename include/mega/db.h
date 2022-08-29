@@ -139,6 +139,8 @@ public:
 
     virtual void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) = 0;
 
+    virtual void createIndex() = 0;
+
 };
 
 class MEGA_API DBTableTransactionCommitter
