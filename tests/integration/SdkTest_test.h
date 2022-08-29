@@ -216,10 +216,13 @@ public:
         std::unique_ptr<MegaCurrency> mMegaCurrency;
 
         // flags to monitor the updates of nodes/users/PCRs due to actionpackets
-        bool nodeUpdated;
         bool userUpdated;
         bool contactRequestUpdated;
         bool accountUpdated;
+        bool nodeUpdated; // flag to check specific updates for a node (upon onNodesUpdate)
+
+        // unique_ptr to custom functions that will be called upon reception of MegaApi callbacks
+        std::unique_ptr<std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>> mOnNodesUpdateCompletion;
 
 #ifdef ENABLE_SYNC
         int lastSyncError;
@@ -402,6 +405,9 @@ public:
     template<typename ... requestArgs> int synchronousReplyContactRequest(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->replyContactRequest(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousRemove(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->remove(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousCancelTransfers(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->cancelTransfers(args..., &rt); return rt.waitForResult(); }
+
+    // Checkup methods called from MegaApi callbacks
+    void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, int change, std::unique_ptr<MegaNodeList> nodes);
 
     bool createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);

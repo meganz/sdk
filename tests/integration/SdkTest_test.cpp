@@ -610,10 +610,13 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
 
 void SdkTest::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
 {
-    int apiIndex = getApiIndex(api);
+    size_t apiIndex = static_cast<size_t>(getApiIndex(api));
     if (apiIndex < 0) return;
 
-    mApi[apiIndex].nodeUpdated = true;
+    if (mApi[apiIndex].mOnNodesUpdateCompletion)
+    {
+        (*mApi[apiIndex].mOnNodesUpdateCompletion)(apiIndex, std::unique_ptr<MegaNodeList> (nodes->copy()));
+    }
 }
 
 void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
@@ -806,6 +809,20 @@ bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void
     if (!result) mApi[apiIndex].lastError = -999;
     return result;
 }
+
+void SdkTest::onNodesUpdateCheck(size_t apiIndex, MegaHandle target, int change, std::unique_ptr<MegaNodeList> nodes)
+{
+    ASSERT_TRUE(nodes && mApi.size() > apiIndex && target != INVALID_HANDLE);
+    for (int i = 0; i < nodes->size(); i++)
+    {
+        MegaNode* n = nodes->get(i);
+        if (n->getHandle() == target && n->hasChanged(change))
+        {
+            mApi[apiIndex].nodeUpdated = true;
+        }
+    }
+    ASSERT_EQ (true, mApi[apiIndex].nodeUpdated);
+};
 
 bool SdkTest::createFile(string filename, bool largeFile)
 {
@@ -2775,14 +2792,24 @@ TEST_F(SdkTest, SdkTestShares)
 
 
     // --- Create a new outgoing share ---
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder1](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder1, MegaNode::CHANGE_TYPE_OUTSHARE, std::move(nodes));
+    }));
 
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    mApi[1].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder1](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder1, MegaNode::CHANGE_TYPE_INSHARE, std::move(nodes));
+    }));
+
     ASSERT_NO_FATAL_FAILURE( shareFolder(n1, mApi[1].email.c_str(), MegaShare::ACCESS_FULL) );
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
             << "Node update not received after " << maxTimeout << " seconds";
 
+    // important to reset
+    mApi[0].mOnNodesUpdateCompletion.reset();
+    mApi[1].mOnNodesUpdateCompletion.reset();
 
     // --- Check the outgoing share ---
 
@@ -2841,13 +2868,24 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE(checkAlert(1, mApi[0].email + " added 2 folders", std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(hfolder2)}->getHandle(), 2, fh));
 
     // --- Modify the access level of an outgoing share ---
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder1](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder1, MegaNode::CHANGE_TYPE_OUTSHARE, std::move(nodes));
+    }));
 
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
-    ASSERT_NO_FATAL_FAILURE( shareFolder(megaApi[0]->getNodeByHandle(hfolder1), mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE) );
+    mApi[1].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder1](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder1, MegaNode::CHANGE_TYPE_INSHARE, std::move(nodes));
+    }));
+
+    ASSERT_NO_FATAL_FAILURE(shareFolder(megaApi[0]->getNodeByHandle(hfolder1), mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE) );
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
             << "Node update not received after " << maxTimeout << " seconds";
+
+    // important to reset
+    mApi[0].mOnNodesUpdateCompletion.reset();
+    mApi[1].mOnNodesUpdateCompletion.reset();
 
     nl = megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str()));
     ASSERT_EQ(1, nl->size()) << "Incoming share not received in auxiliar account";
@@ -2860,12 +2898,23 @@ TEST_F(SdkTest, SdkTestShares)
 
     // --- Revoke access to an outgoing share ---
 
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder1](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder1, MegaNode::CHANGE_TYPE_OUTSHARE, std::move(nodes));
+    }));
+
+    mApi[1].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder1](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder1, MegaNode::CHANGE_TYPE_REMOVED, std::move(nodes));
+    }));
     ASSERT_NO_FATAL_FAILURE( shareFolder(n1, mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN) );
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
     ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
             << "Node update not received after " << maxTimeout << " seconds";
+
+    // important to reset
+    mApi[0].mOnNodesUpdateCompletion.reset();
+    mApi[1].mOnNodesUpdateCompletion.reset();
 
     delete sl;
     sl = megaApi[0]->getOutShares();
@@ -2897,7 +2946,11 @@ TEST_F(SdkTest, SdkTestShares)
     n = megaApi[0]->getNodeByHandle(hfolder2);
 
     mApi[0].contactRequestUpdated = false;
-    mApi[0].nodeUpdated = false;
+    mApi[0].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder2](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder2, MegaNode::CHANGE_TYPE_PENDINGSHARE, std::move(nodes));
+    }));
+
     ASSERT_NO_FATAL_FAILURE( shareFolder(n, emailfake, MegaShare::ACCESS_FULL) );
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
@@ -7694,7 +7747,15 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     ASSERT_NE(n1, nullptr);
 
     // --- Create a new outgoing share ---
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder1](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder1, MegaNode::CHANGE_TYPE_OUTSHARE, std::move(nodes));
+    }));
+
+    mApi[1].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder1](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder1, MegaNode::CHANGE_TYPE_INSHARE, std::move(nodes));
+    }));
+
     ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.c_str(), MegaShare::ACCESS_READWRITE));
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
@@ -7734,7 +7795,15 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     // --- Pause transfer, revoke out-share permissions for secondary account and resume transfer ---
     megaApi[1]->pauseTransfers(true);
 
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder1](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder1, MegaNode::CHANGE_TYPE_OUTSHARE, std::move(nodes));
+    }));
+
+    mApi[1].mOnNodesUpdateCompletion.reset(new std::function<void(size_t apiIndex, std::unique_ptr<MegaNodeList> nodes)>([this, hfolder1](size_t apiIndex, std::unique_ptr<MegaNodeList> nodes) {
+        onNodesUpdateCheck(apiIndex, hfolder1, MegaNode::CHANGE_TYPE_REMOVED, std::move(nodes));
+    }));
+
     ASSERT_NO_FATAL_FAILURE(shareFolder(n1, mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN));
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
             << "Node update not received after " << maxTimeout << " seconds";
