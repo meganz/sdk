@@ -407,7 +407,7 @@ public:
     template<typename ... requestArgs> int synchronousCancelTransfers(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->cancelTransfers(args..., &rt); return rt.waitForResult(); }
 
     // Checkup methods called from MegaApi callbacks
-    void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, int change, std::unique_ptr<MegaNodeList> nodes);
+    void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, std::unique_ptr<MegaNodeList> nodes, int change = -1);
 
     bool createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);
