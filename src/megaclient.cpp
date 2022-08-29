@@ -1036,12 +1036,12 @@ Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfold
 
     if (!skipfolders)
     {
-        node = mNodeManager.childNodeByNameType(p->nodeHandle(), nname, FOLDERNODE);
+        node = mNodeManager.childNodeByNameType(p, nname, FOLDERNODE);
     }
 
     if (!node)
     {
-        node = mNodeManager.childNodeByNameType(p->nodeHandle(), nname, FILENODE);
+        node = mNodeManager.childNodeByNameType(p, nname, FILENODE);
     }
 
     return node;
@@ -1063,7 +1063,7 @@ Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t must
 
     LocalPath::utf8_normalize(&nname);
 
-     return mNodeManager.childNodeByNameType(p->nodeHandle(), nname, mustBeType);
+     return mNodeManager.childNodeByNameType(p, nname, mustBeType);
 }
 
 // returns a matching child node that has the given attribute with the given value
@@ -17063,10 +17063,9 @@ node_list NodeManager::getChildren(const Node *parent)
         return childrenList;
     }
 
-    auto parentIt = mNodes.find(parent->nodeHandle());
-    if (parentIt != mNodes.end() && parentIt->second.mAllChildrenHandleLoaded)
+    if (parent->mNodePosition->second.mAllChildrenHandleLoaded)
     {
-        for (const auto &child : parentIt->second.mChildren)
+        for (const auto &child : parent->mNodePosition->second.mChildren)
         {
             if (child.second)
             {
@@ -17089,8 +17088,8 @@ node_list NodeManager::getChildren(const Node *parent)
         mTable->getChildren(parent->nodeHandle(), nodesFromTable);
         for (auto nodeSerializedIt : nodesFromTable)
         {
-            auto childIt = parentIt->second.mChildren.find(nodeSerializedIt.first);
-            if (childIt != parentIt->second.mChildren.end())
+            auto childIt = parent->mNodePosition->second.mChildren.find(nodeSerializedIt.first);
+            if (childIt != parent->mNodePosition->second.mChildren.end())
             {
                 childrenList.push_back(childIt->second);
             }
@@ -17112,7 +17111,7 @@ node_list NodeManager::getChildren(const Node *parent)
             }
         }
 
-        parentIt->second.mAllChildrenHandleLoaded = true;
+        parent->mNodePosition->second.mAllChildrenHandleLoaded = true;
     }
 
 
@@ -17316,7 +17315,7 @@ Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
     return node;
 }
 
-Node *NodeManager::childNodeByNameType(NodeHandle parentHandle, const std::string &name, nodetype_t nodeType)
+Node *NodeManager::childNodeByNameType(const Node* parent, const std::string &name, nodetype_t nodeType)
 {
     if (!mTable)
     {
@@ -17324,34 +17323,30 @@ Node *NodeManager::childNodeByNameType(NodeHandle parentHandle, const std::strin
         return nullptr;
     }
 
-    auto it = mNodes.find(parentHandle);
-    if (it != mNodes.end())
+    // mAllChildrenHandleLoaded -> false -> if no found, it's necessary check DB
+    // mAllChildrenHandleLoaded -> true ->  if all children has a pointer, it isn't necessary check DB
+    bool allChildrenLoaded = parent->mNodePosition->second.mAllChildrenHandleLoaded;
+    for (const auto& itNode : parent->mNodePosition->second.mChildren)
     {
-        // mAllChildrenHandleLoaded -> false -> if no found, it's necessary check DB
-        // mAllChildrenHandleLoaded -> true ->  if all children has a pointer, it isn't necessary check DB
-        bool allChildrenLoaded = it->second.mAllChildrenHandleLoaded;
-        for (const auto& itNode : it->second.mChildren)
+        Node* node = itNode.second;
+        if (node && node->type == nodeType && name == node->displayname())
         {
-            Node* node = itNode.second;
-            if (node && node->type == nodeType && name == node->displayname())
-            {
-                return node;
-            }
-            else if (!node)
-            {
-                // If no all children nodes are loaded, it's necessary check DB
-                allChildrenLoaded = false;
-            }
+            return node;
         }
-
-        if (allChildrenLoaded)
+        else if (!node)
         {
-            return nullptr; // There is no match
+            // If no all children nodes are loaded, it's necessary check DB
+            allChildrenLoaded = false;
         }
     }
 
+    if (allChildrenLoaded)
+    {
+        return nullptr; // There is no match
+    }
+
     std::pair<NodeHandle, NodeSerialized> nodeSerialized;
-    if (!mTable->childNodeByNameType(parentHandle, name, nodeType, nodeSerialized))
+    if (!mTable->childNodeByNameType(parent->nodeHandle(), name, nodeType, nodeSerialized))
     {
         return nullptr;  // Not found at DB either
     }
@@ -17815,6 +17810,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     auto& nodePosition = pair.first;
     assert(!nodePosition->second.mNode);
     nodePosition->second.mNode.reset(n);
+    n->mNodePosition = nodePosition;
 
     // setparent() skiping update of node counters, since they are already calculated in DB
     // In DB migration we have to calculate them as they aren't calculated previously
@@ -18112,7 +18108,7 @@ void NodeManager::notifyPurge()
                     // optimization: if the parent has already been deleted, the relationship
                     // of children with their parent has been removed by the parent already
                     // so we can avoid lookups for non existing parent handle.
-                    removeChild(n->parentHandle(), h);
+                    removeChild(n->parent, h);
                 }
                 node_list children = getChildren(n);
                 for (auto child : children)
@@ -18125,7 +18121,7 @@ void NodeManager::notifyPurge()
                 // effectively delete node from RAM
                 mNodesWithMissingParent.erase(h);
                 mNodesInRam--;
-                mNodes.erase(h);
+                mNodes.erase(n->mNodePosition);
 
                 mTable->remove(h);
             }
@@ -18186,6 +18182,7 @@ void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
     assert(!nodePosition->second.mNode);
     nodePosition->second.mNode.reset(node);
     nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't recived yet or they are stored a mNodesWithMissingParents
+    node->mNodePosition = nodePosition;
 
     // In case of rootnode, no need to add to mNodesWithMissingParent
     if (!isRootnode)
@@ -18422,13 +18419,9 @@ void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)
     pair.first->second.mChildren[child] = node;
 }
 
-void NodeManager::removeChild(NodeHandle parent, NodeHandle child)
+void NodeManager::removeChild(Node* parent, NodeHandle child)
 {
-    auto it = mNodes.find(parent);
-    if (it != mNodes.end())
-    {
-        it->second.mChildren.erase(child);
-    }
+    parent->mNodePosition->second.mChildren.erase(child);
 }
 
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)

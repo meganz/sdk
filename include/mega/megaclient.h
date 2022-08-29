@@ -312,7 +312,7 @@ public:
     // Valid values for nodeType: FILENODE, FOLDERNODE
     // Note: if not found among children loaded in RAM (and not all children are loaded), it will search in DB
     // Hint: ensure all children are loaded if this method is called for all children of a folder
-    Node* childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
+    Node* childNodeByNameType(const Node *parent, const std::string& name, nodetype_t nodeType);
 
     // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE (In case of logged into folder link returns only ROOTNODE)
     // Load from DB if it's necessary
@@ -394,7 +394,7 @@ public:
     // Add new relationship between parent and child
     void addChild(NodeHandle parent, NodeHandle child, Node *node);
     // remove relationship between parent and child
-    void removeChild(NodeHandle parent, NodeHandle child);
+    void removeChild(Node *parent, NodeHandle child);
 
     // Returns the number of versions for a node (including the current version)
     int getNumVersions(NodeHandle nodeHandle);
@@ -446,14 +446,6 @@ private:
         // (when logged into folder links, the handle of the folder is set to 'files')
         bool isRootNode(NodeHandle h) { return (h == files || h == inbox || h == rubbish); }
     } rootnodes;
-
-    class NodeManagerNode
-    {
-    public:
-        std::unique_ptr<Node> mNode;
-        std::map<NodeHandle, Node*> mChildren;
-        bool mAllChildrenHandleLoaded = false;
-    };
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     std::map<NodeHandle, NodeManagerNode> mNodes;

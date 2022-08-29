@@ -123,6 +123,16 @@ struct NodesFingerprintMap
 typedef std::map<FileFingerprint, NodesFingerprintMap, FileFingerprintCmp> FingerprintMap;
 typedef FingerprintMap::iterator FingerprintMapPosition;
 
+
+class NodeManagerNode
+{
+public:
+    std::unique_ptr<Node> mNode;
+    std::map<NodeHandle, Node*> mChildren;
+    bool mAllChildrenHandleLoaded = false;
+};
+typedef std::map<NodeHandle, NodeManagerNode>::iterator NodePosition;
+
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
@@ -246,6 +256,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // own position in NodeManager::mFingerPrints (only valid for file nodes)
     // It's used for speeding up node removing at NodeManager::removeFingerprint
     FingerprintMapPosition mFingerPrintPosition;
+    NodePosition mNodePosition;
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL
