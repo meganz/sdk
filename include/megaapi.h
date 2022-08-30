@@ -15478,6 +15478,11 @@ class MegaApi
         MegaNode *getVaultNode();
 
         /**
+         * @deprecated Use MegaApi::getVaultNode instead
+         */
+        MegaNode* getInboxNode();
+
+        /**
          * @brief Returns the rubbish node of the account
          *
          * You take the ownership of the returned value
