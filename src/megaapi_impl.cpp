@@ -13821,7 +13821,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             {
                 request->setNodeHandle(h);
                 request->setFlag(targetOverride);
-                e = client->unlink(node, false, false, request->getTag());
+                e = client->unlink(node, false, request->getTag(), false);
             }
         }
 
