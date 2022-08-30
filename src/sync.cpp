@@ -3601,6 +3601,8 @@ void Syncs::forEachSyncConfig(std::function<void(const SyncConfig&)> f)
 
 bool Syncs::nodeBelongsToBackup(Node *node)
 {
+    if (!node) return false;
+
     for (auto& s : mSyncVec)
     {
         if (s->mConfig.isBackup()
