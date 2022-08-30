@@ -15984,7 +15984,7 @@ void MegaClient::syncupdate()
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
 
                 auto nextTag = nextreqtag();
-                bool changeVault = localNode->syncxfer && localNode->parent->node->firstancestor()->nodeHandle() == rootnodes.vault;
+                bool changeVault = localNode->syncxfer && syncs.nodeBelongsToBackup(localNode->parent->node);
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodeHandle(),
                                                 NULL,
@@ -16153,7 +16153,9 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
-            bool changeVault = tn->firstancestor()->nodeHandle() == rootnodes.vault;
+            // 'changeVault' is false because here unlink() is only
+            // for inshares syncs, which is not possible for backups
+            bool changeVault = false;
             unlink(tn, false, tn->tag, nullptr, changeVault);
         }
 

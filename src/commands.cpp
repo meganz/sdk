@@ -117,7 +117,9 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                    bool changeVault = n->firstancestor()->nodeHandle() == client->rootnodes.vault;
+                    // 'changeVault' is false here because restoration of file attributes is triggered by
+                    // downloads, so it cannot be triggered by a Backup operation
+                    bool changeVault = false;
                     client->setattr(n, attr_map('f', me64), 0, nullptr, nullptr, changeVault);
                 }
             }

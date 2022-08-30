@@ -1822,7 +1822,7 @@ void LocalNode::completed(Transfer* t, putsource_t source)
         target = parent->node;
     }
 
-    bool changeVault = target->firstancestor()->nodeHandle() == t->client->rootnodes.vault;
+    bool changeVault = t->client->syncs.nodeBelongsToBackup(target);
 
     // we are overriding completed() for sync upload, we don't use the File::completed version at all.
     assert(t->type == PUT);
