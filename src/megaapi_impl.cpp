@@ -34396,13 +34396,12 @@ const vector<handle>& FavouriteProcessor::getHandles() const
 MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                             const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                             int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                            const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
-                            const MegaIntegerMap* byMonthWeekDay)
+                            const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay, const MegaIntegerMap* byMonthWeekDay)
     :scheduledMeeting(chatid, timezone, startDate, endDate, title, description, freq, callid, parentCallid,
                       cancelled, emailsDisabled, attributes, overrides, interval, until,
-                      (static_cast<const MegaIntegerListPrivate*>(byWeekDay))->getList(),
-                      (static_cast<const MegaIntegerListPrivate*>(byMonthDay))->getList(),
-                      (static_cast<const MegaIntegerMapPrivate*>(byMonthWeekDay))->getMap())
+                      byWeekDay ? (static_cast<const MegaIntegerListPrivate*>(byWeekDay))->getList() : nullptr,
+                      byMonthDay ? (static_cast<const MegaIntegerListPrivate*>(byMonthDay))->getList() : nullptr,
+                      byMonthWeekDay ? (static_cast<const MegaIntegerMapPrivate*>(byMonthWeekDay))->getMap() : nullptr)
 {
 }
 
@@ -34419,5 +34418,4 @@ MegaScheduledMeetingPrivate* MegaScheduledMeetingPrivate::copy()
 {
     return new MegaScheduledMeetingPrivate(this);
 }
-
 }

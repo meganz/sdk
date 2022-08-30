@@ -20237,9 +20237,8 @@ public:
     virtual ~MegaScheduledMeeting();
     static MegaScheduledMeeting* createInstance(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                 const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
-                                int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
-                                const MegaIntegerMap* byMonthWeekDay);
+                                int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval, const char* until,
+                                const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay, const MegaIntegerMap* byMonthWeekDay);
 
     virtual MegaScheduledMeeting* copy();
 };
