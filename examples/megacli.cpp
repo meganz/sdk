@@ -2962,7 +2962,7 @@ void cycleUpload(LocalPath lp, int count)
         string leaf2 = lp.leafName().toPath() + "_" + std::to_string(count-1);
         if (Node* lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf2.c_str(), true))
         {
-            client->unlink(lastuploaded, false, client->nextreqtag(), nullptr);
+            client->unlink(lastuploaded, false, client->nextreqtag(), false, nullptr);
         }
     }
 
@@ -3678,7 +3678,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                         cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
                     }
                 };
-                e = client->unlink(backupRootNode, false, 0, move(completion), true);
+                e = client->unlink(backupRootNode, false, 0, true, move(completion));
                 if (e != API_OK)
                 {
                     cout << "Backup Centre - Failed to delete remote backup node locally (" << errorstring(e) << ')' << endl;
@@ -4622,7 +4622,7 @@ void exec_rm(autocomplete::ACState& s)
         {
             if (client->checkaccess(d, FULL))
             {
-                error e = client->unlink(d, false, 0);
+                error e = client->unlink(d, false, 0, false);
 
                 if (e)
                 {
@@ -4723,7 +4723,7 @@ void exec_mv(autocomplete::ACState& s)
                             if (n != tn)
                             {
                                 // ...delete target...
-                                e = client->unlink(tn, false, 0);
+                                e = client->unlink(tn, false, 0, false);
 
                                 if (e)
                                 {
@@ -4810,7 +4810,7 @@ void exec_cp(autocomplete::ACState& s)
                         }
 
                         // ...delete target...
-                        e = client->unlink(tn, false, 0);
+                        e = client->unlink(tn, false, 0, false);
 
                         if (e)
                         {

@@ -1863,7 +1863,7 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
                 };
 
                 resultproc.prepresult(COMPLETION, ++next_request_tag,
-                    [&](){ client.unlink(basenode, false, 0, std::move(completion)); },
+                    [&](){ client.unlink(basenode, false, 0, false, std::move(completion)); },
                     nullptr);
                 return;
             }
@@ -2960,7 +2960,7 @@ void StandardClient::deleteremote(const CloudItem& item, PromiseBoolSP result)
     if (!node)
         return result->set_value(false);
 
-    client.unlink(node, false, 0, [result](NodeHandle, Error e) {
+    client.unlink(node, false, 0, false, [result](NodeHandle, Error e) {
         result->set_value(e == API_OK);
     });
 }
@@ -3014,7 +3014,7 @@ void StandardClient::deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
             };
 
             resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [&](){ client.unlink(ns[i], false, 0, std::move(completion)); },
+                [&](){ client.unlink(ns[i], false, 0, false, std::move(completion)); },
                 nullptr);
         }
     }
@@ -8985,7 +8985,7 @@ struct TwoWaySyncSymmetryCase
 
         if (updatemodel) remoteModel.emulate_delete(nodepath);
 
-        auto e = changeClient().client.unlink(n, false, ++next_request_tag);
+        auto e = changeClient().client.unlink(n, false, false, ++next_request_tag);
         ASSERT_TRUE(!e);
     }
 

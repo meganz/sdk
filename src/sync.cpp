@@ -4312,8 +4312,8 @@ void Syncs::removeSyncByConfig(std::function<void(Error)> completion,
             auto result = mClient.unlink(remoteNode,
                                          false,
                                          0,
-                                         std::move(completion),
-                                         true);
+                                         true,
+                                         std::move(completion));
 
             // Did the client encounter any errors?
             if (result == API_OK)

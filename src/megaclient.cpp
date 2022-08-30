@@ -8468,7 +8468,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction, bool changeVault)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, bool changeVault, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
     if (mBizStatus == BIZ_STATUS_EXPIRED)
     {
@@ -14379,12 +14379,12 @@ void MegaClient::cleanupFailedBackup(const string& remotePath)
         return;
     }
 
-    error errUnlink = unlink(n, false, 0, [remotePath](NodeHandle, Error err)
+    error errUnlink = unlink(n, false, 0, true, [remotePath](NodeHandle, Error err)
         {
             LOG_err << "Failed to cleanup remote dir of external backup "
                     << remotePath
                     << " (error " << error(err) << ").";
-        }, true);
+        });
 
     if (errUnlink)
     {
@@ -16153,10 +16153,9 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
+            unlink(tn, false, tn->tag, false, nullptr);
             // 'changeVault' is false because here unlink() is only
             // for inshares syncs, which is not possible for backups
-            bool changeVault = false;
-            unlink(tn, false, tn->tag, nullptr, changeVault);
         }
 
         tn->tounlink_it = tounlink.end();

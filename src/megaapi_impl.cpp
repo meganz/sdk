@@ -13821,7 +13821,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             {
                 request->setNodeHandle(h);
                 request->setFlag(targetOverride);
-                e = client->unlink(node, false, request->getTag());
+                e = client->unlink(node, false, false, request->getTag());
             }
         }
 
@@ -19039,7 +19039,7 @@ void MegaApiImpl::sendPendingRequests()
                             if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                             {
                                 request->setNodeHandle(UNDEF);
-                                e = client->unlink(node, false, request->getTag());
+                                e = client->unlink(node, false, false, request->getTag());
                                 break;  // request finishes now if error, otherwise on unlink_result
                             }
 
@@ -19394,7 +19394,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->unlink(node, keepversions, request->getTag());
+            e = client->unlink(node, keepversions, request->getTag(), false);
             break;
         }
         case MegaRequest::TYPE_REMOVE_VERSIONS:

@@ -519,7 +519,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr, bool changeVault = false);
+    error unlink(Node*, bool keepversions, int tag, bool changeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
