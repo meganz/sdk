@@ -6058,14 +6058,14 @@ public:
 		/**
 		 * @brief Returns the error code associated with this MegaError
          *
-		 * @return Error code associated with this MegaError
+		 * @return Error code, an Errors enum, associated with this MegaError
 		 */
         virtual int getErrorCode() const;
 
         /**
          * @brief Returns the sync error associated with this MegaError
          *
-         * @return SyncError associated with this MegaError
+         * @return MegaSync::Error associated with this MegaError
          */
         virtual int getSyncError() const;
 
@@ -6203,7 +6203,7 @@ protected:
         MegaError(int e, int se);
 
         //< 0 = API error code, > 0 = http error, 0 = No error
-        // MegaError nameless enum/ErrorCodes
+        // MegaError::Errors enum/ErrorCodes
         int errorCode;
 
         // SyncError/MegaSync::Error 
@@ -14158,7 +14158,7 @@ class MegaApi
          * @return API_OK if syncable. Error otherwise which sets syncError
          *                caller must free
          */
-        MegaError *isNodeSyncableWithError(MegaNode* node);
+        MegaError* isNodeSyncableWithError(MegaNode* node);
 
         /**
          * @brief Get the corresponding local path of a synced node

@@ -124,10 +124,26 @@ public:
 class MegaErrorPrivate : public MegaError
 {
 public:
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode = MegaError::API_OK);
+
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode, SyncError syncError);
+
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode, MegaSync::Error syncError);
+
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode, long long value);
+
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);
     ~MegaErrorPrivate() override;
