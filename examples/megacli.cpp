@@ -2655,7 +2655,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
             if (moveToTrash)
             {
                 cout << "moving to trash: " << c->displaypath() << endl;
-                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
+                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
             }
             else
             {
@@ -4745,7 +4745,7 @@ void exec_mv(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
+                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
 
                         if (e)
                         {

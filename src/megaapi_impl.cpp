@@ -19104,7 +19104,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->rename(node, newParent, SYNCDEL_NONE, NodeHandle(), name,
+            e = client->rename(node, newParent, SYNCDEL_NONE, NodeHandle(), name, false,
                 [request, this](NodeHandle h, Error e)
                 {
 #ifdef ENABLE_SYNC

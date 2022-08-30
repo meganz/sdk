@@ -3599,6 +3599,20 @@ void Syncs::forEachSyncConfig(std::function<void(const SyncConfig&)> f)
     }
 }
 
+bool Syncs::nodeBelongsToBackup(Node *node)
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mConfig.isBackup()
+                && node->isbelow(s->mConfig.mRemoteNode))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool Syncs::hasRunningSyncs()
 {
     for (auto& s : mSyncVec)
@@ -4143,6 +4157,7 @@ void Syncs::removeSyncByConfig(std::function<void(Error)> completion,
                                          SYNCDEL_NONE,
                                          remoteNode->parent->nodeHandle(),
                                          name,
+                                         true,
                                          std::move(completion));
 
             // Was the client unable to perform the move?

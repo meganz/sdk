@@ -1432,7 +1432,8 @@ bool CommandMoveNode::procresult(Result r)
                         int creqtag = client->reqtag;
                         client->reqtag = syncn->tag;
                         LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
-                        client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, nullptr);
+                        bool changeVault = client->syncs.nodeBelongsToBackup(syncn);
+                        client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, changeVault, nullptr);
                         client->reqtag = creqtag;
                     }
                 }
