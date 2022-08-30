@@ -27,6 +27,7 @@
 #include "account.h"
 #include "http.h"
 #include "json.h"
+#include "textchat.h"
 
 namespace mega {
 
@@ -1019,10 +1020,24 @@ class MEGA_API CommandChatCreate : public Command
     string mTitle;
     string mUnifiedKey;
     bool mMeeting;
+    ChatOptions mChatOptions;
 public:
     bool procresult(Result) override;
 
-    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map *ukm = NULL, const char *title = NULL, bool meetingRoom = false);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map* ukm = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty);
+};
+
+typedef std::function<void(Error)> CommandSetChatOptionsCompletion;
+class MEGA_API CommandSetChatOptions : public Command
+{
+    handle mChatid;
+    int mOption;
+    bool mEnabled;
+    CommandSetChatOptionsCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandSetChatOptions(MegaClient*, handle, int option, bool enabled, CommandSetChatOptionsCompletion completion);
 };
 
 class MEGA_API CommandChatInvite : public Command
