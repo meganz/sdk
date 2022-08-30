@@ -85,6 +85,7 @@ class MegaBackgroundMediaUpload;
 class MegaCancelToken;
 class MegaApi;
 class MegaSemaphore;
+class MegaScheduledMeeting;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -3295,7 +3296,8 @@ class MegaRequest
             TYPE_EXECUTE_ON_THREAD                                          = 146,
             TYPE_GET_RECENT_ACTIONS                                         = 148,
             TYPE_CHECK_RECOVERY_KEY                                         = 149,
-            TOTAL_OF_REQUEST_TYPES                                          = 150,
+            TYPE_ADD_SCHEDULED_MEETING                                      = 150,
+            TOTAL_OF_REQUEST_TYPES                                          = 151,
         };
 
         virtual ~MegaRequest();
@@ -4093,6 +4095,16 @@ class MegaRequest
          * @return MegaRecentActionBucketList list
          */
         virtual MegaRecentActionBucketList *getRecentActions() const;
+
+        /**
+         * @brief Returns the scheduled meeting associated to the chatroom if any
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return MegaScheduledMeeting
+         */
+        virtual MegaScheduledMeeting* getScheduledMeetings() const;
 };
 
 /**
@@ -17932,6 +17944,17 @@ class MegaApi
         void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Creates a scheduled meeting
+         *
+         * TODO complete documentation
+         */
+        void createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+                                                 const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
+                                                 int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
+                                                 const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                                                 const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
+
+        /**
          * @brief Adds a user to an existing chat. To do this you must have the
          * operator privilege in the chat, and the chat must be a group chat in private mode.
          *
@@ -20205,6 +20228,21 @@ public:
     virtual bool isCancelled() const = 0;
 };
 
+/**
+ * @brief The MegaScheduledMeeting class
+ */
+class MegaScheduledMeeting
+{
+public:
+    virtual ~MegaScheduledMeeting();
+    static MegaScheduledMeeting* createInstance(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+                                const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
+                                int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
+                                const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                                const MegaIntegerMap* byMonthWeekDay);
+
+    virtual MegaScheduledMeeting* copy();
+};
 }
 
 #endif //MEGAAPI_H

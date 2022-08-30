@@ -1369,6 +1369,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaRecentActionBucketList *getRecentActions() const override;
         void setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList);
 
+        MegaScheduledMeeting *getScheduledMeetings() const override;
+        void setScheduledMeetings(MegaScheduledMeeting* scheduledMeeting);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1416,6 +1419,7 @@ protected:
         unique_ptr<MegaStringList> mStringList;
         unique_ptr<MegaHandleList> mHandleList;
         unique_ptr<MegaRecentActionBucketList> mRecentActions;
+        unique_ptr<MegaScheduledMeeting> mScheduledMeeting;
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
@@ -2929,6 +2933,11 @@ class MegaApiImpl : public MegaApp
         void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
         void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
+        void createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+                                                 const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
+                                                 int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
+                                                 const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                                                 const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
@@ -4035,6 +4044,21 @@ public:
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+};
+
+class MegaScheduledMeetingPrivate: public MegaScheduledMeeting, public scheduledMeeting
+{
+public:
+    MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+                                const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
+                                int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
+                                const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                                const MegaIntegerMap* byMonthWeekDay);
+
+    MegaScheduledMeetingPrivate(MegaScheduledMeetingPrivate* schedMeeting);
+
+    MegaScheduledMeetingPrivate* copy() override;
+    virtual ~MegaScheduledMeetingPrivate();
 };
 
 

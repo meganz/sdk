@@ -3930,6 +3930,16 @@ void MegaRequestPrivate::setRecentActions(std::unique_ptr<MegaRecentActionBucket
     mRecentActions.reset(recentActionBucketList.release());
 }
 
+MegaScheduledMeeting* MegaRequestPrivate::getScheduledMeetings() const
+{
+    return mScheduledMeeting.get();
+}
+
+void MegaRequestPrivate::setScheduledMeetings(MegaScheduledMeeting* scheduledMeeting)
+{
+    mScheduledMeeting.reset(scheduledMeeting ? scheduledMeeting->copy() : nullptr);
+}
+
 const char *MegaRequestPrivate::getRequestString() const
 {
     switch(type)
@@ -10674,6 +10684,23 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
     waiter->notify();
 }
 
+void MegaApiImpl::createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+                                         const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
+                                         int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
+                                         const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                                         const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SCHEDULED_MEETING, listener);
+    std::unique_ptr<MegaScheduledMeeting> schedMeeting(MegaScheduledMeeting::createInstance(chatid, timezone, startDate, endDate,
+                                                                                            title, description, freq, callid,
+                                                                                            parentCallid, cancelled, emailsDisabled,
+                                                                                            attributes, overrides, interval, until,
+                                                                                            byWeekDay, byMonthDay, byMonthWeekDay));
+
+    request->setScheduledMeetings(schedMeeting.get());
+    requestQueue.push(request);
+    waiter->notify();
+}
 #endif
 
 void MegaApiImpl::getCameraUploadsFolder(bool secondary, MegaRequestListener *listener)
@@ -23286,6 +23313,29 @@ void MegaApiImpl::sendPendingRequests()
            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
            break;
         }
+        case MegaRequest::TYPE_ADD_SCHEDULED_MEETING:
+        {
+            MegaScheduledMeetingPrivate* schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getScheduledMeetings());
+            if (!schedMeeting)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            handle chatid = schedMeeting->chatid();
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            client->reqs.add(new CommandScheduledMeetingAdd(client, schedMeeting, [request, this] (Error e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -34341,6 +34391,33 @@ bool FavouriteProcessor::processNode(Node *node)
 const vector<handle>& FavouriteProcessor::getHandles() const
 {
     return handles;
+}
+
+MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+                            const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
+                            int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
+                            const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                            const MegaIntegerMap* byMonthWeekDay)
+    :scheduledMeeting(chatid, timezone, startDate, endDate, title, description, freq, callid, parentCallid,
+                      cancelled, emailsDisabled, attributes, overrides, interval, until,
+                      (static_cast<const MegaIntegerListPrivate*>(byWeekDay))->getList(),
+                      (static_cast<const MegaIntegerListPrivate*>(byMonthDay))->getList(),
+                      (static_cast<const MegaIntegerMapPrivate*>(byMonthWeekDay))->getMap())
+{
+}
+
+MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaScheduledMeetingPrivate* schedMeeting)
+    :scheduledMeeting(schedMeeting)
+{
+}
+
+MegaScheduledMeetingPrivate::~MegaScheduledMeetingPrivate()
+{
+}
+
+MegaScheduledMeetingPrivate* MegaScheduledMeetingPrivate::copy()
+{
+    return new MegaScheduledMeetingPrivate(this);
 }
 
 }

@@ -1071,6 +1071,11 @@ MegaRecentActionBucketList *MegaRequest::getRecentActions() const
     return nullptr;
 }
 
+MegaScheduledMeeting* MegaRequest::getScheduledMeetings() const
+{
+    return NULL;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -5159,6 +5164,19 @@ void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap 
     pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, listener);
 }
 
+void MegaApi::createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+                                         const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
+                                         int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
+                                         const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                                         const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener)
+{
+     pImpl->createScheduledMeeting(chatid, timezone, startDate, endDate, title,
+                                   description, freq, callid, parentCallid,
+                                   cancelled, emailsDisabled, attributes, overrides, interval,
+                                   until, byWeekDay, byMonthDay,
+                                   byMonthWeekDay, listener);
+}
+
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
 {
     pImpl->inviteToChat(chatid, uh, privilege, false, NULL, title, listener);
@@ -6874,6 +6892,25 @@ long long MegaAchievementsDetails::currentTransferReferrals()
     return 0;
 }
 
+/* class MegaScheduledMeeting */
+MegaScheduledMeeting::~MegaScheduledMeeting() {}
+MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+                            const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
+                            int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
+                            const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                            const MegaIntegerMap* byMonthWeekDay)
+{
+    return new MegaScheduledMeetingPrivate(chatid, timezone, startDate, endDate, title,
+    description, freq, callid, parentCallid,
+    cancelled, emailsDisabled, attributes, overrides, interval,
+    until, byWeekDay, byMonthDay, byMonthWeekDay);
+}
+
+MegaScheduledMeeting* MegaScheduledMeeting::copy()
+{
+    return NULL;
+}
+
 MegaFolderInfo::~MegaFolderInfo()
 {
 
@@ -7128,6 +7165,7 @@ MegaIntegerList* MegaIntegerList::createInstance(const std::vector<int64_t> &int
 {
     return new MegaIntegerListPrivate(integers);
 }
+
 MegaIntegerList *MegaIntegerList::copy() const
 {
     return nullptr;
