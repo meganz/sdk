@@ -17297,12 +17297,11 @@ Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
     if (it != mFingerPrints.end())
     {
         const auto& nodesFingerprintMap = it->second;
-        if (nodesFingerprintMap.mNodes.size() > 0) // if there is a node, return it directly
-        {
-            node = nodesFingerprintMap.mNodes.begin()->second;
-            assert(node);
-            return node;
-        }
+        assert (nodesFingerprintMap.mNodes.size()); // if there is fingerprint, at least it should have a node
+        // if there is a node, return it directly
+        node = nodesFingerprintMap.mNodes.begin()->second;
+        assert(node);
+        return node;
     }
 
     NodeSerialized nodeSerialized;
