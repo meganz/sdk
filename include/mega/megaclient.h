@@ -242,7 +242,6 @@ public:
 
     bool hasAttrs() const { return !!mAttrs; }
     bool hasEncrAttrs() const { return !!mEncryptedAttrs; }
-    void rebaseAttrsOn(const Set& s);
     void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs.reset(new string(move(eattrs))); }
     bool decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f);
     string encryptAttributes(std::function<string(const string_map&, const string&)> f) const;
@@ -259,6 +258,7 @@ protected:
     void setAttr(const string& tag, string&& value); // set any non-standard attr
     const string& getAttribute(const string& tag) const;
     bool hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherAttrs) const;
+    void rebaseCommonAttrsOn(const string_map* baseAttrs);
 
     unique_ptr<string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
 
@@ -283,6 +283,7 @@ public:
     bool hasOrder() const                   { return !!mOrder; }
 
     void takeAttrsFrom(SetElement&& el);
+    void rebaseAttrsOn(const SetElement& s);
 
     void setChanged(int changeType) { assert(changeType < CH_EL_SIZE); if (changeType < CH_EL_SIZE) mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
@@ -323,6 +324,7 @@ public:
     void setCover(handle h);
 
     void takeAttrsFrom(Set&& s);
+    void rebaseAttrsOn(const Set& s);
 
     void setChanged(int changeType) { assert(changeType < CH_SIZE); if (changeType < CH_SIZE) mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }

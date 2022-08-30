@@ -17313,6 +17313,8 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
         return;
     }
 
+    const SetElement* existingElement = nullptr;
+
     // copy element.key from nodekey (only for new Element)
     string encrKey;
     if (el.id() == UNDEF)
@@ -17340,7 +17342,7 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
     // get element.key from existing element (only when updating attributes)
     else if (el.hasAttrs())
     {
-        const SetElement* existingElement = getSetElement(el.set(), el.id());
+        existingElement = getSetElement(el.set(), el.id());
         if (!existingElement)
         {
             LOG_err << "Sets: Invalid node for Element";
@@ -17356,6 +17358,11 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
     std::unique_ptr<string> encrAttrs;
     if (el.hasAttrs())
     {
+        if (existingElement)
+        {
+            el.rebaseAttrsOn(*existingElement);
+        }
+
         string enc = el.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
         encrAttrs.reset(new string(move(enc)));
     }
@@ -17885,7 +17892,7 @@ bool MegaClient::updateSetElement(SetElement&& el)
                 itE->second.setOrder(el.order());
             }
             itE->second.setTs(el.ts());
-            if (el.hasAttrs())
+            if (el.hasAttrs() || el.hasChanged(SetElement::CH_EL_NAME))
             {
                 itE->second.takeAttrsFrom(move(el)); // last, moving from el
             }
@@ -18380,9 +18387,9 @@ void CommonSE::setAttr(const string& tag, string&& value)
     (*mAttrs)[tag] = move(value);
 }
 
-void CommonSE::rebaseAttrsOn(const Set& s)
+void CommonSE::rebaseCommonAttrsOn(const string_map* baseAttrs)
 {
-    if (!s.hasAttrs())
+    if (!baseAttrs)
     {
         return; // nothing to do
     }
@@ -18395,11 +18402,11 @@ void CommonSE::rebaseAttrsOn(const Set& s)
     // copy missing attributes
     if (mAttrs->empty()) // small optimizations
     {
-        *mAttrs = *s.mAttrs;
+        *mAttrs = *baseAttrs;
     }
     else
     {
-        string_map rebased = *s.mAttrs;
+        string_map rebased = *baseAttrs;
         for (auto& a : *mAttrs)
         {
             if (a.second.empty())
@@ -18541,12 +18548,22 @@ void Set::takeAttrsFrom(Set&& s)
     mAttrs.swap(s.mAttrs);
 }
 
+void Set::rebaseAttrsOn(const Set& s)
+{
+    rebaseCommonAttrsOn(s.mAttrs.get());
+}
+
 void SetElement::takeAttrsFrom(SetElement&& el)
 {
     // check for changes
     if (hasAttrChanged(nameTag, el.mAttrs)) setChanged(CH_EL_NAME);
 
     mAttrs.swap(el.mAttrs);
+}
+
+void SetElement::rebaseAttrsOn(const SetElement& el)
+{
+    rebaseCommonAttrsOn(el.mAttrs.get());
 }
 
 void SetElement::setOrder(int64_t order)
