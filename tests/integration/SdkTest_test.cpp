@@ -1301,32 +1301,6 @@ string getUniqueAlias()
     return alias;
 }
 
-TEST_F(SdkTest, Utils_replace_char)
-{
-    ASSERT_EQ(Utils::replace(string(""), '*', '@'), "");
-    ASSERT_EQ(Utils::replace(string("*"), '*', '@'), "@");
-    ASSERT_EQ(Utils::replace(string("**"), '*', '@'), "@@");
-    ASSERT_EQ(Utils::replace(string("*aa"), '*', '@'), "@aa");
-    ASSERT_EQ(Utils::replace(string("*aa*bb*"), '*', '@'), "@aa@bb@");
-    ASSERT_EQ(Utils::replace(string("sd*"), '*', '@'), "sd@");
-    ASSERT_EQ(Utils::replace(string("*aa**bb*"), '*', '@'), "@aa@@bb@");
-}
-
-TEST_F(SdkTest, Utils_replace_string)
-{
-    ASSERT_EQ(Utils::replace(string(""), "*", "@"), "");
-    ASSERT_EQ(Utils::replace(string("*"), "*", "@"), "@");
-    ASSERT_EQ(Utils::replace(string("**"), "*", "@"), "@@");
-    ASSERT_EQ(Utils::replace(string("*aa"), "*", "@"), "@aa");
-    ASSERT_EQ(Utils::replace(string("*aa*bb*"), "*", "@"), "@aa@bb@");
-    ASSERT_EQ(Utils::replace(string("sd*"), "*", "@"), "sd@");
-    ASSERT_EQ(Utils::replace(string("*aa**bb*"), "*", "@"), "@aa@@bb@");
-    ASSERT_EQ(Utils::replace(string("*aa**bb*"), "*", "@"), "@aa@@bb@");
-
-    ASSERT_EQ(Utils::replace(string(""), "", "@"), "");
-    ASSERT_EQ(Utils::replace(string("abc"), "", "@"), "abc");
-}
-
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
