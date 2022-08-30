@@ -17019,7 +17019,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
         auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode());
         auto& nodePosition = pair.first;
         assert(!nodePosition->second.mNode);
-        nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't recived yet or they are stored a mNodesWithMissingParents
+        nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored a mNodesWithMissingParents
         addChild(node->parentHandle(), node->nodeHandle(), nullptr);
     }
 
@@ -17063,6 +17063,7 @@ node_list NodeManager::getChildren(const Node *parent)
         return childrenList;
     }
 
+    // if handles of all children are known, load missing child nodes one by one
     if (parent->mNodePosition->second.mAllChildrenHandleLoaded)
     {
         for (const auto &child : parent->mNodePosition->second.mChildren)
@@ -17082,7 +17083,7 @@ node_list NodeManager::getChildren(const Node *parent)
             }
         }
     }
-    else
+    else // get all children from DB directly and load missing ones
     {
         std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
         mTable->getChildren(parent->nodeHandle(), nodesFromTable);
@@ -17091,9 +17092,10 @@ node_list NodeManager::getChildren(const Node *parent)
             auto childIt = parent->mNodePosition->second.mChildren.find(nodeSerializedIt.first);
             if (childIt != parent->mNodePosition->second.mChildren.end())
             {
+                // handle was loaded -> load node
                 childrenList.push_back(childIt->second);
             }
-            else
+            else // handle not loaded, load both handle and node
             {
                 if (mNodes.find(nodeSerializedIt.first) == mNodes.end())
                 {
@@ -17236,7 +17238,7 @@ node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprin
             }
 
             auto& nodesFingerprintIt = it->second;
-            nodesFingerprintIt.mAllNodesLoaded = true; // all nodes are loaded
+            nodesFingerprintIt.mAllNodesLoaded = true; // all nodes for this fp are loaded
             nodePtr_map& nodesMap = nodesFingerprintIt.mNodes;
 
             for (const auto& nodeIt : nodesFromTable)
@@ -17307,7 +17309,7 @@ Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
     std::string fingerprintString;
     fingerprint.serialize(&fingerprintString);
     mTable->getNodeByFingerprint(fingerprintString, nodeSerialized);
-    if (nodeSerialized.mNode.size()) // There isn't any node with that fingerprint
+    if (nodeSerialized.mNode.size()) // nodes with that fingerprint found in DB
     {
         node = getNodeFromNodeSerialized(nodeSerialized);
     }
@@ -17323,8 +17325,8 @@ Node *NodeManager::childNodeByNameType(const Node* parent, const std::string &na
         return nullptr;
     }
 
-    // mAllChildrenHandleLoaded -> false -> if no found, it's necessary check DB
-    // mAllChildrenHandleLoaded -> true ->  if all children has a pointer, it isn't necessary check DB
+    // mAllChildrenHandleLoaded = false -> if not found, need check DB
+    // mAllChildrenHandleLoaded = true  -> if all children have a pointer, no need to check DB
     bool allChildrenLoaded = parent->mNodePosition->second.mAllChildrenHandleLoaded;
     for (const auto& itNode : parent->mNodePosition->second.mChildren)
     {
@@ -17630,7 +17632,7 @@ bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelT
 
 void NodeManager::removeChanges()
 {
-    for (auto it = mNodes.begin(); it != mNodes.end(); it++)
+    for (auto it : mNodes)
     {
         if (it->second.mNode)
         {
@@ -17977,10 +17979,9 @@ void NodeManager::applyKeys(uint32_t appliedKeys)
     {
         for (auto& it : mNodes)
         {
-            Node* node = it.second.mNode.get();
-            if (node)
+            if (it.second.mNode)
             {
-                node->applykey();
+                it.second.mNode->applykey();
             }
         }
     }
@@ -18181,7 +18182,7 @@ void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
     auto& nodePosition = pair.first;
     assert(!nodePosition->second.mNode);
     nodePosition->second.mNode.reset(node);
-    nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't recived yet or they are stored a mNodesWithMissingParents
+    nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored a mNodesWithMissingParents
     node->mNodePosition = nodePosition;
 
     // In case of rootnode, no need to add to mNodesWithMissingParent
@@ -18382,10 +18383,9 @@ void NodeManager::dumpNodes()
 
     for (auto &it : mNodes)
     {
-        Node* node = it.second.mNode.get();
-        if (node)
+        if (it.second.mNode)
         {
-            mTable->put(node);
+            mTable->put(it.second.mNode.get());
         }
     }
 }
