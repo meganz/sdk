@@ -17632,11 +17632,11 @@ bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelT
 
 void NodeManager::removeChanges()
 {
-    for (auto it : mNodes)
+    for (auto& it : mNodes)
     {
-        if (it->second.mNode)
+        if (it.second.mNode)
         {
-            memset(&(it->second.mNode->changed), 0, sizeof it->second.mNode->changed);
+            memset(&(it.second.mNode->changed), 0, sizeof it.second.mNode->changed);
         }
     }
 }
