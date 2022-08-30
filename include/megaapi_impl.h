@@ -347,6 +347,13 @@ protected:
 
         // subfolders
         vector<unique_ptr<Tree>> subtrees;
+
+        void recursiveCountFolders(unsigned& existing, unsigned& total)
+        {
+            total += 1;
+            existing += megaNode ? 1 : 0;
+            for (auto& n : subtrees) { n->recursiveCountFolders(existing, total); }
+        }
     };
     Tree mUploadTree;
 
@@ -356,7 +363,7 @@ protected:
      * This happens on the worker thread.
      */
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
-    scanFolder_result scanFolder(Tree& tree, LocalPath& localPath);
+    scanFolder_result scanFolder(Tree& tree, LocalPath& localPath, uint32_t& foldercount, uint32_t& filecount);
 
     // Gathers up enough (but not too many) newnode records that are all descendants of a single folder
     // and can be created in a single operation.
@@ -537,10 +544,7 @@ protected:
 
     // Scan entire tree recursively, and retrieve folder structure and files to be downloaded.
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
-    scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
-
-    // check if exists another node with the same name (and provided type) in the provided path
-    Error searchNodeName(LocalPath& path, const LocalPath &nodeName, nodetype_t type);
+    scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType, unsigned& fileAddedCount);
 
     // Create all local directories in one shot. This happens on the worker thread.
     Error createFolder();
@@ -1725,6 +1729,7 @@ public:
     MegaHandle getOriginatingUser() const override;
     const char *getTitle() const override;
     const char *getUnifiedKey() const override;
+    unsigned char getChatOptions() const override;
     int64_t getCreationTime() const override;
     bool isArchived() const override;
     bool isPublicChat() const override;
@@ -1750,6 +1755,7 @@ private:
     bool publicchat;
     int64_t ts;
     bool meeting;
+    ChatOptions_t chatOptions;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -2898,7 +2904,8 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = MegaApi::CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+        void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
@@ -2991,6 +2998,7 @@ class MegaApiImpl : public MegaApp
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
+        void fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const LocalPath* currentFolder, const LocalPath* currentFileLeafname);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
 

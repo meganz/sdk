@@ -5594,7 +5594,7 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     ASSERT_EQ(favNode->getName(), UPFILE) << "synchronousGetFavourites failed with node passed nullptr";
 }
 
-TEST_F(SdkTest, DISABLED_SdkDeviceNames)
+TEST_F(SdkTest, SdkDeviceNames)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
@@ -5703,7 +5703,7 @@ MegaHandle SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
     return mh;
 }
 
-TEST_F(SdkTest, DISABLED_SdkUserAlias)
+TEST_F(SdkTest, SdkUserAlias)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkUserAlias___";
@@ -5726,7 +5726,7 @@ TEST_F(SdkTest, DISABLED_SdkUserAlias)
 
     // test setter/getter
     string alias = "UserAliasTest";
-    auto err = synchronousSetUserAlias(0, uh, Base64::btoa(alias).c_str());
+    auto err = synchronousSetUserAlias(0, uh, alias.c_str());
     ASSERT_EQ(API_OK, err) << "setUserAlias failed (error: " << err << ")";
     err = synchronousGetUserAlias(0, uh);
     ASSERT_EQ(API_OK, err) << "getUserAlias failed (error: " << err << ")";
@@ -6012,8 +6012,42 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     fs::create_directories(p);
     ASSERT_TRUE(buildLocalFolders(p.u8string().c_str(), "newkid", 3, 2, 10));
 
+    string filename1 = UPFILE;
+    ASSERT_TRUE(createFile(filename1, false)) << "Couldnt create " << filename1;
+    ASSERT_EQ(MegaError::API_OK, doStartUpload(0, nullptr, filename1.c_str(),
+                                                                std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                                                                p.filename().u8string().c_str() /*fileName*/,
+                                                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                                                nullptr /*appData*/,
+                                                                false   /*isSourceTemporary*/,
+                                                                false   /*startFirst*/,
+                                                                nullptr /*cancelToken*/)) << "Cannot upload a test file";
+
+    // first check that uploading a folder to overwrite a file fails
+    auto uploadListener1 = std::make_shared<TransferTracker>(megaApi[0].get());
+    uploadListener1->selfDeleteOnFinalCallback = uploadListener1;
+
+    megaApi[0]->startUpload(p.u8string().c_str(),
+                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false   /*isSourceTemporary*/,
+                            false   /*startFirst*/,
+                            nullptr /*cancelToken*/,
+                            uploadListener1.get());
+
+    ASSERT_EQ(uploadListener1->waitForResult(), API_EEXIST);
+
+    // remove the file so nothing is in the way anymore
+
+    ASSERT_EQ(MegaError::API_OK, doDeleteNode(0, std::unique_ptr<MegaNode>{megaApi[0]->getNodeByPath(("/" + p.filename().u8string()).c_str())}.get())) << "Cannot delete a test node";
+
+
+
     int currentMaxUploadSpeed = megaApi[0]->getMaxUploadSpeed();
     ASSERT_EQ(true, megaApi[0]->setMaxUploadSpeed(1)); // set a small value for max upload speed (bytes per second)
+
 
     // start uploading
     // uploadListener may have to live after this function exits if the logout test below fails
@@ -6065,9 +6099,11 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_TRUE(!fs::exists(uploadpath));
     ASSERT_TRUE(!fs::exists(downloadpath));
     fs::create_directories(uploadpath);
-    fs::create_directories(downloadpath);
+
 
     ASSERT_TRUE(buildLocalFolders(uploadpath.u8string().c_str(), "newkid", 3, 2, 10));
+
+    out() << " uploading tree so we can download it";
 
     // upload all of those
     TransferTracker uploadListener(megaApi[0].get());
@@ -6085,19 +6121,39 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     int currentMaxDownloadSpeed = megaApi[0]->getMaxDownloadSpeed();
     ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(1)); // set a small value for max download speed (bytes per second)
 
-    // ok now try the download
-    TransferTracker downloadListener(megaApi[0].get());
+    out() << " checking download of folder to overwrite file fails";
+
+    ASSERT_TRUE(createFile(downloadpath.u8string(), false)) << "Couldn't create " << downloadpath << " as a file";
+
+    // ok now try the download to overwrite file
+    TransferTracker downloadListener1(megaApi[0].get());
     megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"),
             downloadpath.u8string().c_str(),
             nullptr  /*customName*/,
             nullptr  /*appData*/,
             false    /*startFirst*/,
             nullptr  /*cancelToken*/,
-            &downloadListener);
+            &downloadListener1);
 
-    WaitMillisec(1000);
-    ASSERT_TRUE(downloadListener.started);
-    ASSERT_TRUE(!downloadListener.finished);
+    ASSERT_TRUE(downloadListener1.waitForResult() == API_EEXIST);
+
+    fs::remove_all(downloadpath, ec);
+
+    out() << " downloading tree and logout while it's ongoing";
+
+    // ok now try the download
+    TransferTracker downloadListener2(megaApi[0].get());
+    megaApi[0]->startDownload(megaApi[0]->getNodeByPath("/uploadme_mega_auto_test_sdk"),
+            downloadpath.u8string().c_str(),
+            nullptr  /*customName*/,
+            nullptr  /*appData*/,
+            false    /*startFirst*/,
+            nullptr  /*cancelToken*/,
+            &downloadListener2);
+
+    for (int i = 1000; i-- && !downloadListener2.started; ) WaitMillisec(1);
+    ASSERT_TRUE(downloadListener2.started);
+    ASSERT_TRUE(!downloadListener2.finished);
 
     // logout while the download (which consists of many transfers) is ongoing
 
@@ -6108,7 +6164,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 #endif
     gSessionIDs[0] = "invalid";
 
-    int result = downloadListener.waitForResult();
+    int result = downloadListener2.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
     fs::remove_all(uploadpath, ec);
     fs::remove_all(downloadpath, ec);
@@ -7799,7 +7855,7 @@ TEST_F(SdkTest, CheckRecoveryKey_MANUAL)
     // set to the same password
     const char* password = getenv("MEGA_PWD");
     ASSERT_TRUE(password);
-    mApi[0].requestFlags[MegaRequest::TYPE_CONFIRM_RECOVERY_LINK] = false; 
+    mApi[0].requestFlags[MegaRequest::TYPE_CONFIRM_RECOVERY_LINK] = false;
     megaApi[0]->confirmResetPassword(link.c_str(), password, masterKey);
     ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CONFIRM_RECOVERY_LINK]))
         << "confirm recovery link failed after " << maxTimeout << " seconds";

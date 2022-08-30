@@ -733,6 +733,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/http.h
             ${MegaDir}/include/mega/useralerts.h
             ${MegaDir}/include/mega/pendingcontactrequest.h
+            ${MegaDir}/include/mega/textchat.h
             ${MegaDir}/include/mega/megaapp.h
             ${MegaDir}/include/mega/wincurl/megafs.h
             ${MegaDir}/include/mega/wincurl/meganet.h
@@ -822,6 +823,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/megaclient.cpp
             ${MegaDir}/src/node.cpp
             ${MegaDir}/src/pendingcontactrequest.cpp
+            ${MegaDir}/src/textchat.cpp
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
