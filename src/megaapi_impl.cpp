@@ -24097,7 +24097,12 @@ MegaErrorPrivate::MegaErrorPrivate(int errorCode)
 }
 
 MegaErrorPrivate::MegaErrorPrivate(int errorCode, SyncError syncError)
-    : MegaError(errorCode, syncError)
+: MegaError(errorCode, syncError)
+{
+}
+
+MegaErrorPrivate::MegaErrorPrivate(int errorCode, MegaSync::Error syncError)
+: MegaError(errorCode, syncError)
 {
 }
 

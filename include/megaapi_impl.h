@@ -126,6 +126,7 @@ class MegaErrorPrivate : public MegaError
 public:
     MegaErrorPrivate(int errorCode = MegaError::API_OK);
     MegaErrorPrivate(int errorCode, SyncError syncError);
+    MegaErrorPrivate(int errorCode, MegaSync::Error syncError);
     MegaErrorPrivate(int errorCode, long long value);
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);

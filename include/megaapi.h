@@ -5553,7 +5553,7 @@ public:
      * @param errorCode Error code for which the description will be returned
      * @return Description associated with the error code
      */
-    static const char *getMegaSyncErrorCode(int errorCode);
+    static const char* getMegaSyncErrorCode(int errorCode);
 
     /**
      * @brief Returns a readable description of the sync warning
@@ -6067,7 +6067,7 @@ public:
          *
          * @return SyncError associated with this MegaError
          */
-        virtual SyncError getSyncError() const;
+        virtual int getSyncError() const;
 
         /**
          * @brief Returns a value associated with the error
@@ -6186,17 +6186,6 @@ public:
 
         /**
          * @brief Provides the error description associated with an error code
-         *
-         * This function returns a pointer to a statically allocated buffer.
-         * You don't have to free the returned pointer
-         *
-         * @param errorCode Error code for which the description will be returned
-         * @return Description associated with the error code
-         */
-        static const char* getSyncErrorString(SyncError syncError);
-
-        /**
-         * @brief Provides the error description associated with an error code
          * given a certain context.
          *
          * This function returns a pointer to a statically allocated buffer.
@@ -6211,12 +6200,14 @@ public:
 
 protected:
         MegaError(int e);
-        MegaError(int e, SyncError se);
+        MegaError(int e, int se);
 
         //< 0 = API error code, > 0 = http error, 0 = No error
+        // MegaError nameless enum/ErrorCodes
         int errorCode;
 
-        SyncError syncError = SyncError::NO_SYNC_ERROR;
+        // SyncError/MegaSync::Error 
+        int syncError = SyncError::NO_SYNC_ERROR;
 
         friend class MegaTransfer;
         friend class MegaApiImpl;

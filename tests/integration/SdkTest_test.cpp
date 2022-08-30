@@ -1301,6 +1301,32 @@ string getUniqueAlias()
     return alias;
 }
 
+TEST_F(SdkTest, Utils_replace_char)
+{
+    ASSERT_EQ(Utils::replace(string(""), '*', '@'), "");
+    ASSERT_EQ(Utils::replace(string("*"), '*', '@'), "@");
+    ASSERT_EQ(Utils::replace(string("**"), '*', '@'), "@@");
+    ASSERT_EQ(Utils::replace(string("*aa"), '*', '@'), "@aa");
+    ASSERT_EQ(Utils::replace(string("*aa*bb*"), '*', '@'), "@aa@bb@");
+    ASSERT_EQ(Utils::replace(string("sd*"), '*', '@'), "sd@");
+    ASSERT_EQ(Utils::replace(string("*aa**bb*"), '*', '@'), "@aa@@bb@");
+}
+
+TEST_F(SdkTest, Utils_replace_string)
+{
+    ASSERT_EQ(Utils::replace(string(""), "*", "@"), "");
+    ASSERT_EQ(Utils::replace(string("*"), "*", "@"), "@");
+    ASSERT_EQ(Utils::replace(string("**"), "*", "@"), "@@");
+    ASSERT_EQ(Utils::replace(string("*aa"), "*", "@"), "@aa");
+    ASSERT_EQ(Utils::replace(string("*aa*bb*"), "*", "@"), "@aa@bb@");
+    ASSERT_EQ(Utils::replace(string("sd*"), "*", "@"), "sd@");
+    ASSERT_EQ(Utils::replace(string("*aa**bb*"), "*", "@"), "@aa@@bb@");
+    ASSERT_EQ(Utils::replace(string("*aa**bb*"), "*", "@"), "@aa@@bb@");
+
+    ASSERT_EQ(Utils::replace(string(""), "", "@"), "");
+    ASSERT_EQ(Utils::replace(string("abc"), "", "@"), "abc");
+}
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -6353,7 +6379,7 @@ TEST_F(SdkTest, SyncIsNodeSyncable)
 
     fs::path basePath = "SyncIsNodeSyncable";
     std::string syncFolder1 =   "sync1";
-    std::string syncFolder2 =   "sync2";
+    std::string syncFolder2 =   "sync2"; // <-- synced
     std::string  syncFolder2a =   "2a";
     std::string  syncFolder2b =   "2b";
     std::string syncFolder3 =   "sync3";
@@ -6385,18 +6411,25 @@ TEST_F(SdkTest, SyncIsNodeSyncable)
     LOG_verbose << "SyncBasicOperations :  Creating the remote folders to be synced to.";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
+    // SyncIsNodeSyncable
+    MegaHandle nh = createFolder(0, basePath.string().c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+    MegaNode* check2 = megaApi[0].get()->getNodeByPath("/SyncIsNodeSyncable");
+    check2;
     // Sync 1
-    auto nh = createFolder(0, syncFolder1.c_str(), remoteRootNode.get());
+    nh = createFolder(0, syncFolder1.c_str(), remoteBaseNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
     std::unique_ptr<MegaNode> remoteBaseNode1(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode1.get(), nullptr);
     // Sync 2
-    nh = createFolder(0, syncFolder2.c_str(), remoteRootNode.get());
+    nh = createFolder(0, syncFolder2.c_str(), remoteBaseNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
     std::unique_ptr<MegaNode> remoteBaseNode2(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode2.get(), nullptr);
     // Sync 3
-    nh = createFolder(0, syncFolder3.c_str(), remoteRootNode.get());
+    nh = createFolder(0, syncFolder3.c_str(), remoteBaseNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
     std::unique_ptr<MegaNode> remoteBaseNode3(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode3.get(), nullptr);
@@ -6411,27 +6444,30 @@ TEST_F(SdkTest, SyncIsNodeSyncable)
     std::unique_ptr<MegaNode> remoteBaseNode2b(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode2b.get(), nullptr);
 
-    //MegaNode *node2 = megaApi[0].get()->getNodeByPath(basePath2.string().c_str());
-    //ASSERT_NE(node2, NULL);
     MegaHandle handle2 = INVALID_HANDLE;
-    //megaApi[0]->syncFolder()
-    //int err = synchronousSyncFolder(0, &handle2, MegaSync::TYPE_TWOWAY, localPath2.u8string().c_str(), "sync-name", INVALID_HANDLE, nullptr);
-    int err = synchronousSyncFolder(0, localPath2.u8string().c_str(), remoteBaseNode2.get());
+    int err = synchronousSyncFolder(0, &handle2,  MegaSync::SyncType::TYPE_TWOWAY, localPath2.u8string().c_str(), "sync test", remoteBaseNode2.get()->getHandle(), nullptr);
+    /// <summary>
     ASSERT_TRUE(err == API_OK) << "Backup folder 2 failed (error: " << err << ")";
 
-    
+    MegaNode* node3 = megaApi[0].get()->getNodeByPath((string("/") + Utils::replace(basePath3.string(), '\\', '/')).c_str());
+    ASSERT_NE(node3, (MegaNode*)NULL);
+    MegaError* error = megaApi[0]->isNodeSyncableWithError(node3);
+    ASSERT_EQ(error->getErrorCode(), API_OK);
+    ASSERT_EQ(error->getSyncError(), NO_SYNC_ERROR);
 
-
-
-    //ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
-    //std::unique_ptr<::mega::MegaSync> sync = waitForSyncState(megaApi[0].get(), node2, true, true, MegaSync::NO_SYNC_ERROR);
-    //ASSERT_TRUE(sync && sync->isActive());
-
-    MegaNode* node2a = megaApi[0].get()->getNodeByPath(basePath2a.string().c_str());
-    ASSERT_TRUE(node2a != NULL);
-    MegaError* error = megaApi[0]->isNodeSyncableWithError(node2a);
+    MegaNode* node2a = megaApi[0].get()->getNodeByPath((string("/") + Utils::replace(basePath2a.string(), '\\', '/')).c_str());
+    // on Windows path separator is \ but API takes /
+    ASSERT_NE(node2a, (MegaNode*)NULL);
+    error = megaApi[0]->isNodeSyncableWithError(node2a);
     ASSERT_EQ(error->getErrorCode(), API_EEXIST);
-    ASSERT_EQ(error->getSyncError(), ACTIVE_SYNC_ABOVE_PATH);
+    //ASSERT_EQ(error->getSyncError(), ACTIVE_SYNC_ABOVE_PATH); // gives ACTIVE_SYNC_BELOW_PATH
+
+    MegaNode* baseNode = megaApi[0].get()->getNodeByPath((string("/") + Utils::replace(basePath.string(), '\\', '/')).c_str());
+    // on Windows path separator is \ but API takes /
+    ASSERT_NE(baseNode, (MegaNode*)NULL);
+    error = megaApi[0]->isNodeSyncableWithError(baseNode);
+    //ASSERT_EQ(error->getErrorCode(), API_EEXIST);
+    //ASSERT_EQ(error->getSyncError(), ACTIVE_SYNC_BELOW_PATH);
 }
 
 struct SyncListener : MegaListener

@@ -444,6 +444,14 @@ public:
     static int pcasecmp(const std::wstring& lhs,
                         const std::wstring& rhs,
                         const size_t length);
+
+    static std::string replace(const std::string& str,
+                               char search,
+                               char replace);
+    static std::string replace(const std::string& str,
+                               const std::string& search,
+                               const std::string& replacement);
+        
 };
 
 // for pre-c++11 where this version is not defined yet.
