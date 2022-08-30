@@ -1296,7 +1296,7 @@ int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
     return r;
 }
 
-MegaError *MegaApiImpl::isNodeSyncableWithError(MegaNode* megaNode) {
+MegaError* MegaApiImpl::isNodeSyncableWithError(MegaNode* megaNode) {
     if (!megaNode)
     {
         return new MegaErrorPrivate(MegaError::API_EARGS);
