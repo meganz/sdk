@@ -277,6 +277,7 @@ protected:
     void Cleanup();
 
     int getApiIndex(MegaApi* api);
+    bool getApiIndex(MegaApi* api, size_t& apindex);
 
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);

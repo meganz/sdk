@@ -359,6 +359,21 @@ int SdkTest::getApiIndex(MegaApi* api)
     return apiIndex;
 }
 
+bool SdkTest::getApiIndex(MegaApi* api, size_t& apindex)
+{
+    for (size_t i = 0; i < megaApi.size(); i++)
+    {
+        if (megaApi[i].get() == api)
+        {
+            apindex = i;
+            return true;
+        }
+    }
+
+    LOG_warn << "Instance of MegaApi not recognized";  // this can occur during MegaApi deletion due to callbacks on shutdown
+    return false;
+}
+
 void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 {
     auto type = request->getType();
@@ -610,10 +625,8 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
 
 void SdkTest::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
 {
-    size_t apiIndex = static_cast<size_t>(getApiIndex(api));
-    if (apiIndex < 0) return;
-
-    if (mApi[apiIndex].mOnNodesUpdateCompletion)
+    size_t apiIndex = 0;
+    if (getApiIndex(api, apiIndex) && mApi[apiIndex].mOnNodesUpdateCompletion)
     {
         (*mApi[apiIndex].mOnNodesUpdateCompletion)(apiIndex, std::unique_ptr<MegaNodeList> (nodes->copy()));
     }
