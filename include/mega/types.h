@@ -796,7 +796,6 @@ public:
 class scheduledFlags
 {
     public:
-
         typedef enum
         {
             FLAGS_DONT_SEND_EMAILS = 0, // API won't send out calendar emails for this meeting if it's enabled
@@ -805,7 +804,7 @@ class scheduledFlags
 
         typedef std::bitset<FLAGS_SIZE> scheduledFlagsBitSet;
 
-        scheduledFlags();
+        scheduledFlags() = default;
         scheduledFlags (unsigned long numericValue);
         scheduledFlags (scheduledFlags* flags);
         scheduledFlags* copy();
@@ -820,7 +819,7 @@ class scheduledFlags
         bool EmailsDisabled() const;
         bool isEmpty() const;
 
-    protected:
+    private:
         scheduledFlagsBitSet mFlags = 0;
 };
 
@@ -844,8 +843,10 @@ class scheduledRules
                        const map<int64_t, int64_t>* byMonthWeekDay = nullptr);
 
         scheduledRules(scheduledRules* rules);
+        scheduledRules* copy();
         ~scheduledRules();
 
+        // setters
         void setFreq(int newFreq);
         void setInterval(int interval);
         void setUntil(const char* until);
@@ -853,15 +854,15 @@ class scheduledRules
         void setByMonthDay(const vector<int64_t>* byMonthDay);
         void setByMonthWeekDay(const map<int64_t, int64_t>* byMonthWeekDay);
 
-        const char* freqToString();
-        scheduledRules* copy();
+        // getters
         int freq() const;
         int interval() const;
         const char* until() const;
         const vector<int64_t>* byWeekDay();
         const vector<int64_t>* byMonthDay();
         const map<int64_t, int64_t>* byMonthWeekDay();
-        static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
+        const char* freqToString();
+        static bool isValidFreq(int freq)         { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
         static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
 
     private:
@@ -891,8 +892,7 @@ public:
     scheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
                      const char* title, const char* description, handle callid = UNDEF,
                      handle parentCallid = UNDEF, int cancelled = -1, const char* attributes = nullptr,
-                     const char* overrides = nullptr, scheduledFlags* flags = nullptr,
-                     scheduledRules* rules = nullptr);
+                     const char* overrides = nullptr, scheduledFlags* flags = nullptr, scheduledRules* rules = nullptr);
 
     scheduledMeeting(handle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                     const char* description, int freq, handle callid, handle parentCallid,
@@ -904,6 +904,7 @@ public:
     scheduledMeeting* copy();
     ~scheduledMeeting();
 
+    // setters
     void setRules(scheduledRules* rules);
     void setFlags(scheduledFlags* flags);
     void setCancelled(int cancelled);
@@ -918,6 +919,7 @@ public:
     void setCallid(handle callid);
     void setChatid(handle chatid);
 
+    // getters
     handle chatid() const;
     handle callid() const;
     handle parentCallid() const;
