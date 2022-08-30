@@ -2133,7 +2133,7 @@ public:
     void fetchSet(handle sid, std::function<void(Error)> completion);
 
     // generate "aep" command
-    void putSetElement(handle sid, SetElement&& el, std::function<void(Error, handle)> completion);
+    void putSetElement(SetElement&& el, std::function<void(Error, handle)> completion);
 
     // generate "aer" command
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
@@ -2163,10 +2163,10 @@ public:
     const map<handle, SetElement>* getSetElements(handle sid) const;
 
     // add new SetElement or replace exisiting one
-    void addSetElement(handle sid, SetElement&& el);
+    void addSetElement(SetElement&& el);
 
     // search for SetElement with the same id, and update its members
-    bool updateSetElement(handle sid, SetElement&& el);
+    bool updateSetElement(SetElement&& el);
 
     // delete Element with eid from Set with sid in local memory; return true if found and deleted
     bool deleteSetElement(handle sid, handle eid);

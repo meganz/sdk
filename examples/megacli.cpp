@@ -10206,7 +10206,7 @@ void exec_setsandelements(autocomplete::ACState& s)
             el.setOrder(atoll(param.c_str()));
         }
 
-        client->putSetElement(setId, move(el), [createNew, setId, elemId](Error e, handle receivedElementId)
+        client->putSetElement(move(el), [createNew, setId, elemId](Error e, handle receivedElementId)
             {
                 if (createNew)
                 {

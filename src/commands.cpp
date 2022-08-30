@@ -9165,9 +9165,9 @@ bool CommandFetchSet::procresult(Result r)
     return e == API_OK;
 }
 
-CommandPutSetElement::CommandPutSetElement(MegaClient* cl, handle setId, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
+CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
                                                std::function<void(Error, handle)> completion)
-    : mSetId(setId), mElement(new SetElement(move(el))), mCompletion(completion)
+    : mElement(new SetElement(move(el))), mCompletion(completion)
 {
     cmd("aep");
 
@@ -9175,7 +9175,7 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, handle setId, SetElem
 
     if (createNew)
     {
-        arg("s", (byte*)&mSetId, MegaClient::SETHANDLE);
+        arg("s", (byte*)&mElement->set(), MegaClient::SETHANDLE);
         arg("h", (byte*)&mElement->node(), MegaClient::NODEHANDLE);
         arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
     }
@@ -9219,11 +9219,11 @@ bool CommandPutSetElement::procresult(Result r)
         if (mElement->id() == UNDEF)
         {
             mElement->setId(elementId);
-            client->addSetElement(mSetId, move(*mElement));
+            client->addSetElement(move(*mElement));
         }
         else
         {
-            client->updateSetElement(mSetId, move(*mElement));
+            client->updateSetElement(move(*mElement));
         }
     }
 

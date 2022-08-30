@@ -17298,14 +17298,14 @@ void MegaClient::fetchSet(handle sid, std::function<void(Error)> completion)
     reqs.add(new CommandFetchSet(this, sid, completion));
 }
 
-void MegaClient::putSetElement(handle sid, SetElement&& el, std::function<void(Error, handle)> completion)
+void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle)> completion)
 {
-    // setId is required to create a new element, but not to update one
-    assert(el.id() != UNDEF || sid != UNDEF);
+    // setId is required
+    assert(el.set() != UNDEF);
 
-    // find Set
-    const Set* existingSet = sid == UNDEF ? nullptr : getSet(sid);
-    if (!existingSet)
+    // make sure Set id is valid
+    const Set* existingSet = el.set() == UNDEF ? nullptr : getSet(el.set());
+    if (!(el.set() == UNDEF ? nullptr : getSet(el.set())))
     {
         LOG_err << "Sets: Set not found when adding or updating Element";
         if (completion)
@@ -17340,7 +17340,7 @@ void MegaClient::putSetElement(handle sid, SetElement&& el, std::function<void(E
     // get element.key from existing element (only when updating attributes)
     else if (el.hasAttrs())
     {
-        const SetElement* existingElement = getSetElement(sid, el.id());
+        const SetElement* existingElement = getSetElement(el.set(), el.id());
         if (!existingElement)
         {
             LOG_err << "Sets: Invalid node for Element";
@@ -17360,7 +17360,7 @@ void MegaClient::putSetElement(handle sid, SetElement&& el, std::function<void(E
         encrAttrs.reset(new string(move(enc)));
     }
 
-    reqs.add(new CommandPutSetElement(this, existingSet->id(), move(el), move(encrAttrs), move(encrKey), completion));
+    reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), completion));
 }
 
 void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Error)> completion)
@@ -17487,11 +17487,11 @@ error MegaClient::readSetsAndElements(JSON& j)
         // apply changes to SetElements
         if (replaceEverything) // "aesp"
         {
-            addSetElement(itA->second.id(), move(newEl.second));
+            addSetElement(move(newEl.second));
         }
         else
         {
-            updateSetElement(itA->second.id(), move(newEl.second));
+            updateSetElement(move(newEl.second));
         }
     }
 
@@ -17858,9 +17858,11 @@ const map<handle, SetElement>* MegaClient::getSetElements(handle sid) const
     return itS == mSetElements.end() ? nullptr : &itS->second;
 }
 
-void MegaClient::addSetElement(handle sid, SetElement&& el)
+void MegaClient::addSetElement(SetElement&& el)
 {
-    auto add = mSetElements[sid].emplace(el.id(), move(el));
+    handle sid = el.set();
+    handle eid = el.id();
+    auto add = mSetElements[sid].emplace(eid, move(el));
 
     if (add.second) // newly inserted
     {
@@ -17870,9 +17872,9 @@ void MegaClient::addSetElement(handle sid, SetElement&& el)
     }
 }
 
-bool MegaClient::updateSetElement(handle sid, SetElement&& el)
+bool MegaClient::updateSetElement(SetElement&& el)
 {
-    auto itS = mSetElements.find(sid);
+    auto itS = mSetElements.find(el.set());
     if (itS != mSetElements.end())
     {
         auto itE = itS->second.find(el.id());
@@ -18020,13 +18022,13 @@ void MegaClient::sc_aep()
         return;
     }
 
-    if (getSetElement(s->id(), el.id()))
+    if (getSetElement(el.set(), el.id()))
     {
-        updateSetElement(s->id(), move(el));
+        updateSetElement(move(el));
     }
     else
     {
-        addSetElement(s->id(), move(el));
+        addSetElement(move(el));
     }
 }
 

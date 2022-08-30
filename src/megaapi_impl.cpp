@@ -19046,7 +19046,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 el.setName(request->getText() ? request->getText() : string());
             }    
-            client->putSetElement(request->getTotalBytes(), move(el),
+            client->putSetElement(move(el),
                 [this, request](Error e, handle eid)
                 {
                     if (request->getParentHandle() == UNDEF)
