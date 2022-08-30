@@ -1324,6 +1324,17 @@ void scheduledRules::setUntil(const char* until)
     mUntil.assign(until ? until : std::string());
 }
 
+const char* scheduledRules::freqToString ()
+{
+    switch (mFreq)
+    {
+        case 0: return "DAILY";
+        case 1: return "WEEKLY";
+        case 2: return "MONTHLY";
+        default: return "";
+    }
+}
+
 int scheduledRules::freq() const                                     { return mFreq; }
 int scheduledRules::interval() const                                 { return mInterval; }
 const char* scheduledRules::until() const                            { return mUntil.c_str(); }
@@ -1349,6 +1360,27 @@ scheduledMeeting::scheduledMeeting(handle chatid, const char* timezone, const ch
       mCancelled(cancelled),
       mFlags(flags->copy()),
       mRules(rules->copy())
+{
+}
+
+scheduledMeeting::scheduledMeeting(handle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+                                const char* description, int freq, handle callid, handle parentCallid,
+                                int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
+                                const char* until, const vector<int64_t>* byWeekDay, const vector<int64_t>* byMonthDay,
+                                const map<int64_t, int64_t>* byMonthWeekDay)
+    : mChatid(chatid),
+      mCallid(callid),
+      mParentCallid(parentCallid),
+      mTimezone(timezone ? timezone : std::string()),
+      mStartDateTime(startDate ? startDate : std::string()),
+      mEndDateTime(endDate ? endDate : std::string()),
+      mTitle(title ? title : std::string()),
+      mDescription(description ? description : std::string()),
+      mAttributes(attributes ? attributes : std::string()),
+      mOverrides(overrides ? overrides : std::string()),
+      mCancelled(cancelled),
+      mFlags(new scheduledFlags(emailsDisabled)),
+      mRules(new scheduledRules(freq, interval, until, byWeekDay, byMonthDay, byMonthWeekDay))
 {
 }
 

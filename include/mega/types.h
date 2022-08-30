@@ -820,7 +820,7 @@ class scheduledFlags
         bool EmailsDisabled() const;
         bool isEmpty() const;
 
-    private:
+    protected:
         scheduledFlagsBitSet mFlags = 0;
 };
 
@@ -853,6 +853,7 @@ class scheduledRules
         void setByMonthDay(const vector<int64_t>* byMonthDay);
         void setByMonthWeekDay(const map<int64_t, int64_t>* byMonthWeekDay);
 
+        const char* freqToString();
         scheduledRules* copy();
         int freq() const;
         int interval() const;
@@ -886,11 +887,18 @@ class scheduledRules
 class scheduledMeeting
 {
 public:
+    scheduledMeeting() = default;
     scheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
-                                    const char* title, const char* description, handle callid = UNDEF,
-                                    handle parentCallid = UNDEF, int cancelled = -1, const char* attributes = nullptr,
-                                    const char* overrides = nullptr, scheduledFlags* flags = nullptr,
-                                    scheduledRules* rules = nullptr);
+                     const char* title, const char* description, handle callid = UNDEF,
+                     handle parentCallid = UNDEF, int cancelled = -1, const char* attributes = nullptr,
+                     const char* overrides = nullptr, scheduledFlags* flags = nullptr,
+                     scheduledRules* rules = nullptr);
+
+    scheduledMeeting(handle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+                                    const char* description, int freq, handle callid, handle parentCallid,
+                                    int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
+                                    const char* until, const vector<int64_t>* byWeekDay, const vector<int64_t>* byMonthDay,
+                                    const map<int64_t, int64_t>* byMonthWeekDay);
 
     scheduledMeeting(scheduledMeeting* scheduledMeeting);
     scheduledMeeting* copy();
