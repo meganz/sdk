@@ -8993,6 +8993,107 @@ CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle c
 
     tag = client->reqtag;
 }
+
+CommandScheduledMeetingAdd::CommandScheduledMeetingAdd(MegaClient* client, scheduledMeeting * schedMeeting, CommandScheduledMeetingAddCompletion completion)
+    : mScheduledMeeting(schedMeeting ? schedMeeting->copy() : nullptr), mCompletion(completion)
+{
+    assert(schedMeeting);
+    handle chatid = schedMeeting->chatid();
+    handle callid = schedMeeting->callid();
+    handle parentCallid = schedMeeting->parentCallid();
+
+    cmd("mcsmp");
+
+    // required params
+    arg("cid", (byte*)& chatid, MegaClient::CHATHANDLE); // chatroom handle
+    arg("tz", schedMeeting->timezone());
+    arg("s", schedMeeting->startDateTime());
+    arg("e", schedMeeting->endDateTime());
+    arg("t", schedMeeting->title());
+    arg("d", schedMeeting->description());
+
+    // optional params
+    if (!ISUNDEF(callid))                           { arg("id", (byte*)&callid, MegaClient::CHATHANDLE); } // scheduled meeting ID
+    if (!ISUNDEF(parentCallid))                     { arg("p", (byte*)&parentCallid, MegaClient::CHATHANDLE); } // parent meeting ID
+    if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
+    if (schedMeeting->overrides())                  { arg("o", schedMeeting->overrides()); }
+    if (schedMeeting->attributes())                 { arg("at", schedMeeting->attributes()); }
+
+    if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
+    {
+        arg("f", static_cast<long>(schedMeeting->flags()->getNumericValue()));
+    }
+
+    if (schedMeeting->rules())
+    {
+        scheduledRules* rules = schedMeeting->rules();
+        beginobject("r");
+
+        if (rules->isValidFreq(rules->freq()))
+        {
+            arg("FREQ", rules->freqToString()); // required
+        }
+
+        if (rules->isValidInterval(rules->interval()))
+        {
+            arg("INTERVAL", rules->interval());
+        }
+
+        if (rules->until())
+        {
+            arg("UNTIL", rules->until());
+        }
+
+        if (rules->byWeekDay() && !rules->byWeekDay()->empty())
+        {
+            beginarray("BYWEEKDAY");
+            for (auto i: *rules->byWeekDay())
+            {
+                element(static_cast<int>(i));
+            }
+            endarray();
+        }
+
+        if (rules->byMonthDay() && !rules->byMonthDay()->empty())
+        {
+            beginarray("BYMONTHDAY");
+            for (auto i: *rules->byMonthDay())
+            {
+                element(static_cast<int>(i));
+            }
+            endarray();
+        }
+
+        if (rules->byMonthWeekDay() && !rules->byMonthWeekDay()->empty())
+        {
+            beginarray("BYMONTHWEEKDAY");
+            for (auto i: *rules->byMonthWeekDay())
+            {
+                beginarray();
+                element(static_cast<int>(i.first));
+                element(static_cast<int>(i.second));
+                endarray();
+            }
+            endarray();
+        }
+        endobject();
+    }
+    tag = client->reqtag;
+}
+
+bool CommandScheduledMeetingAdd::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK());
+        return true;
+    }
+
+    // TODO: complete this method
+    mCompletion(API_OK);
+    return false;
+}
+
 #endif
 
 } // namespace

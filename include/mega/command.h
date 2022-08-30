@@ -1508,6 +1508,17 @@ public:
     CommandMeetingEnd(MegaClient*, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion);
 };
 
+typedef std::function<void(Error)> CommandScheduledMeetingAddCompletion;
+class MEGA_API CommandScheduledMeetingAdd : public Command
+{
+    std::unique_ptr<scheduledMeeting> mScheduledMeeting;
+    CommandScheduledMeetingAddCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingAdd(MegaClient *, scheduledMeeting *, CommandScheduledMeetingAddCompletion completion);
+};
+
 #endif
 
 } // namespace
