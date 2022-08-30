@@ -817,6 +817,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/mega_ccronexpr.cpp
             ${MegaDir}/src/mega_http_parser.cpp
             ${MegaDir}/src/mega_utf8proc.cpp
+            ${MegaDir}/src/mega_zxcvbn.cpp
             ${MegaDir}/src/megaapi.cpp
             ${MegaDir}/src/megaapi_impl.cpp
             ${MegaDir}/src/megaclient.cpp
