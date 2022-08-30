@@ -6464,7 +6464,7 @@ TEST_F(SdkTest, SyncIsNodeSyncable)
     ASSERT_TRUE(createFile((localPath2b / "fileTest2b").u8string(), false));
     fs::create_directories(localPath3);
 
-    LOG_verbose << "SyncBasicOperations :  Creating the remote folders to be synced to.";
+    LOG_verbose << "Sync.IsNodeSyncable:  Creating the remote folders to be synced to.";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
     // SyncIsNodeSyncable
@@ -6516,14 +6516,14 @@ TEST_F(SdkTest, SyncIsNodeSyncable)
     ASSERT_NE(node2a, (MegaNode*)NULL);
     error = megaApi[0]->isNodeSyncableWithError(node2a);
     ASSERT_EQ(error->getErrorCode(), API_EEXIST);
-    //ASSERT_EQ(error->getSyncError(), ACTIVE_SYNC_ABOVE_PATH); // gives ACTIVE_SYNC_BELOW_PATH
+    ASSERT_EQ(error->getSyncError(), ACTIVE_SYNC_ABOVE_PATH);
 
     MegaNode* baseNode = megaApi[0].get()->getNodeByPath((string("/") + Utils::replace(basePath.string(), '\\', '/')).c_str());
     // on Windows path separator is \ but API takes /
     ASSERT_NE(baseNode, (MegaNode*)NULL);
     error = megaApi[0]->isNodeSyncableWithError(baseNode);
-    //ASSERT_EQ(error->getErrorCode(), API_EEXIST);
-    //ASSERT_EQ(error->getSyncError(), ACTIVE_SYNC_BELOW_PATH);
+    ASSERT_EQ(error->getErrorCode(), API_EEXIST);
+    ASSERT_EQ(error->getSyncError(), ACTIVE_SYNC_BELOW_PATH);
 }
 
 struct SyncListener : MegaListener
