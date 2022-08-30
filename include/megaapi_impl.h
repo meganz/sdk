@@ -724,7 +724,7 @@ private:
 class MegaSetElementPrivate : public MegaElement
 {
 public:
-    MegaSetElementPrivate(MegaHandle id, MegaHandle h, int64_t o, m_time_t ts, const string& name) :
+    MegaSetElementPrivate(MegaHandle id, MegaHandle h, int64_t o, m_time_t ts, const string& name, unsigned long changes) :
         mId(id), mNode(h), mOrder(o), mTs(ts), mName(name) {}
 
     MegaHandle id() const override { return mId; }
@@ -732,6 +732,8 @@ public:
     int64_t order() const override { return mOrder; }
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
+
+    bool hasChanged(int changeType) const override { return mChanges[changeType]; }
 
     virtual MegaElement* copy() const override { return new MegaSetElementPrivate(*this); }
 
@@ -741,6 +743,7 @@ private:
     int64_t mOrder;
     m_time_t mTs;
     string mName;
+    std::bitset<CHANGE_TYPE_ELEM_SIZE> mChanges;
 };
 
 
@@ -3100,6 +3103,7 @@ protected:
         void fireOnNodesUpdate(MegaNodeList *nodes);
         void fireOnAccountUpdate();
         void fireOnSetsUpdate(MegaSetList* sets);
+        void fireOnSetElementsUpdate(MegaElementList* elements);
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
@@ -3292,6 +3296,7 @@ protected:
         void account_updated() override;
         void pcrs_updated(PendingContactRequest**, int) override;
         void sets_updated(Set**, int) override;
+        void setelements_updated(SetElement**, int) override;
 
         // password change result
         void changepw_result(error) override;

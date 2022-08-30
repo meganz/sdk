@@ -9165,7 +9165,7 @@ bool CommandFetchSet::procresult(Result r)
     return e == API_OK;
 }
 
-CommandPutSetElement::CommandPutSetElement(MegaClient* cl, handle setId, SetElement&& el, string&& encrAttrs, string&& encrKey,
+CommandPutSetElement::CommandPutSetElement(MegaClient* cl, handle setId, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
                                                std::function<void(Error, handle)> completion)
     : mSetId(setId), mElement(new SetElement(move(el))), mCompletion(completion)
 {
@@ -9191,9 +9191,9 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, handle setId, SetElem
         arg("o", mElement->order());
     }
 
-    if (mElement->hasAttrs())
+    if (encrAttrs)
     {
-        arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
+        arg("at", (byte*)encrAttrs->c_str(), (int)encrAttrs->size());
     }
 
     notself(cl); // don't process its Action Packet after sending this
@@ -9213,12 +9213,18 @@ bool CommandPutSetElement::procresult(Result r)
     }
     else if (e == API_OK)
     {
-        assert(mElement->id() == UNDEF || mElement->id() == elementId);
-        mElement->setId(elementId);
         mElement->setTs(ts);
         mElement->setOrder(order); // this is now present in all 'aep' responses
-
-        client->addOrUpdateSetElement(mSetId, move(*mElement));
+        assert(mElement->id() == UNDEF || mElement->id() == elementId);
+        if (mElement->id() == UNDEF)
+        {
+            mElement->setId(elementId);
+            client->addSetElement(mSetId, move(*mElement));
+        }
+        else
+        {
+            client->updateSetElement(mSetId, move(*mElement));
+        }
     }
 
     if (mCompletion)

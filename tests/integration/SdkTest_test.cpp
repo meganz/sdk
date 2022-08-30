@@ -624,6 +624,14 @@ void SdkTest::onSetsUpdate(MegaApi* api, MegaSetList* sets)
     mApi[apiIndex].setUpdated = true;
 }
 
+void SdkTest::onSetElementsUpdate(MegaApi* api, MegaElementList* elements)
+{
+    int apiIndex = getApiIndex(api);
+    if (apiIndex < 0 || !elements || !elements->size()) return;
+
+    mApi[apiIndex].setElementUpdated = true;
+}
+
 void SdkTest::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
 {
     int apiIndex = getApiIndex(api);
@@ -7946,7 +7954,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // 4. Add Element
     MegaHandle eh = INVALID_HANDLE;
     string elattrs = "element name";
-    differentApiDtls.setUpdated = false;
+    differentApiDtls.setElementUpdated = false;
     err = doCreateSetElement(0, &eh, sh, uploadedNode, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(eh, INVALID_HANDLE);
@@ -7964,7 +7972,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elp->order(), 1000); // first default value, according to specs
 
     // test action packets
-    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
     s2p.reset(differentApi.getSet(sh));
     ASSERT_NE(s2p, nullptr);
     unique_ptr<MegaElementList> els2(differentApi.getSetElements(sh));
@@ -7979,14 +7987,14 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elp2->order(), elp->order());
 
     // Clear Element name
-    differentApiDtls.setUpdated = false;
+    differentApiDtls.setElementUpdated = false;
     err = doUpdateSetElementName(0, nullptr, sh, eh, "");
     ASSERT_EQ(err, API_OK);
     unique_ptr<MegaElement> elclearname(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(elclearname, nullptr);
     ASSERT_STREQ(elclearname->name(), "");
     // test action packets
-    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Element update AP not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element update AP not received after " << maxTimeout << " seconds";
     elp2.reset(differentApi.getSetElement(sh, eh));
     ASSERT_NE(elp2, nullptr);
     ASSERT_STREQ(elp2->name(), "");
@@ -8043,7 +8051,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // 6. Update Element order
     MegaHandle el1 = INVALID_HANDLE;
     int64_t order = 222;
-    differentApiDtls.setUpdated = false;
+    differentApiDtls.setElementUpdated = false;
     err = doUpdateSetElementOrder(0, &el1, sh, eh, order);
     ASSERT_EQ(err, API_OK);
     ASSERT_EQ(el1, eh);
@@ -8057,21 +8065,25 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elu1p->ts(), 0);
 
     // test action packets
-    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Element order change AP not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element order change AP not received after " << maxTimeout << " seconds";
     elp2.reset(differentApi.getSetElement(sh, eh));
     ASSERT_NE(elp2, nullptr);
+    ASSERT_STREQ(elp2->name(), "");
     ASSERT_EQ(elp2->order(), elu1p->order());
 
     // 7. Update Element name
     MegaHandle el2 = INVALID_HANDLE;
     elattrs += " updated";
-    differentApiDtls.setUpdated = false;
+    differentApiDtls.setElementUpdated = false;
     err = doUpdateSetElementName(0, &el2, sh, eh, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_EQ(el2, eh);
+    elu1p.reset(megaApi[0]->getSetElement(sh, eh));
+    ASSERT_EQ(elu1p->id(), eh);
+    ASSERT_EQ(elu1p->name(), elattrs);
 
     // test action packets
-    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Element name change AP not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element name change AP not received after " << maxTimeout << " seconds";
     elp2.reset(differentApi.getSetElement(sh, eh));
     ASSERT_NE(elp2, nullptr);
     ASSERT_EQ(elp2->name(), elattrs);
@@ -8086,7 +8098,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elu2p->ts(), 0);
 
     // 8. Remove Element
-    differentApiDtls.setUpdated = false;
+    differentApiDtls.setElementUpdated = false;
     err = doRemoveSetElement(0, sh, eh);
     ASSERT_EQ(err, API_OK);
 
@@ -8100,7 +8112,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elp, nullptr);
 
     // test action packets
-    ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Element remove AP not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element remove AP not received after " << maxTimeout << " seconds";
     s2p.reset(differentApi.getSet(sh));
     ASSERT_NE(s2p, nullptr);
     els2.reset(differentApi.getSetElements(sh));
@@ -8109,6 +8121,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(elp2, nullptr);
 
     // 9. Add another element
+    differentApiDtls.setElementUpdated = false;
     eh = 0;
     elattrs += " again";
     err = doCreateSetElement(0, &eh, sh, uploadedNode, elattrs.c_str());
@@ -8118,6 +8131,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp_b4lo, nullptr);
     ASSERT_EQ(elp_b4lo->id(), eh);
     ASSERT_EQ(elp_b4lo->name(), elattrs);
+    // test action packets
+    ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
 
     // 10. Logout / login
     unique_ptr<char[]> session(dumpSession());

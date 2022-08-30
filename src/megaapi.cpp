@@ -1682,6 +1682,8 @@ void MegaGlobalListener::onAccountUpdate(MegaApi *)
 { }
 void MegaGlobalListener::onSetsUpdate(MegaApi *, MegaSetList *)
 { }
+void MegaGlobalListener::onSetElementsUpdate(MegaApi *, MegaElementList *)
+{ }
 void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
@@ -1719,6 +1721,8 @@ void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 void MegaListener::onAccountUpdate(MegaApi *)
 { }
 void MegaListener::onSetsUpdate(MegaApi *, MegaSetList *)
+{ }
+void MegaListener::onSetElementsUpdate(MegaApi *, MegaElementList *)
 { }
 void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }

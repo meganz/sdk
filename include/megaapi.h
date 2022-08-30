@@ -1235,10 +1235,6 @@ public:
         CHANGE_TYPE_NAME,
         CHANGE_TYPE_COVER,
         CHANGE_TYPE_REMOVED,
-        CHANGE_TYPE_ELEM_NEW,
-        CHANGE_TYPE_ELEM_NAME,
-        CHANGE_TYPE_ELEM_ORDER,
-        CHANGE_TYPE_ELEM_REMOVED,
 
         CHANGE_TYPE_SIZE
     };
@@ -1299,8 +1295,20 @@ public:
     virtual int64_t ts() const { return 0; }
     virtual const char* name() const { return nullptr; }
 
+    virtual bool hasChanged(int changeType) const { return false; }
+
     virtual MegaElement* copy() const { return nullptr; }
     virtual ~MegaElement() = default;
+
+    enum // match SetElement::CH_EL_XXX values
+    {
+        CHANGE_TYPE_ELEM_NEW,
+        CHANGE_TYPE_ELEM_NAME,
+        CHANGE_TYPE_ELEM_ORDER,
+        CHANGE_TYPE_ELEM_REMOVED,
+
+        CHANGE_TYPE_ELEM_SIZE
+    };
 };
 
 /**
@@ -6868,8 +6876,7 @@ class MegaGlobalListener
         virtual void onAccountUpdate(MegaApi *api);
 
         /**
-         * @brief This function is called when a Set has been updated (created / updated / removed /
-         * element created / element updated / element removed)
+         * @brief This function is called when a Set has been updated (created / updated / removed)
          *
          * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
          * MegaSet objects that it contains will be valid until this function returns. If you want to save the
@@ -6879,7 +6886,20 @@ class MegaGlobalListener
          * @param api MegaApi object connected to the account
          * @param sets List that contains the new or updated Sets
          */
-        virtual void onSetsUpdate(MegaApi *api, MegaSetList* sets);
+        virtual void onSetsUpdate(MegaApi* api, MegaSetList* sets);
+
+        /**
+         * @brief This function is called when a Set-Element has been updated (created / updated / removed)
+         *
+         * The SDK retains the ownership of the MegaElementList in the second parameter. The list and all the
+         * MegaElement objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaElementList::copy. If you want to save only some of the MegaElement objects, use
+         * MegaElement::copy for them.
+         *
+         * @param api MegaApi object connected to the account
+         * @param elements List that contains the new or updated Set-Elements
+         */
+        virtual void onSetElementsUpdate(MegaApi* api, MegaElementList* elements);
 
         /**
          * @brief This function is called when there are new or updated contact requests in the account
@@ -7294,8 +7314,7 @@ class MegaListener
         virtual void onAccountUpdate(MegaApi *api);
 
         /**
-         * @brief This function is called when a Set has been updated (created / updated / removed /
-         * element created / element updated / element removed)
+         * @brief This function is called when a Set has been updated (created / updated / removed)
          *
          * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
          * MegaSet objects that it contains will be valid until this function returns. If you want to save the
@@ -7306,6 +7325,19 @@ class MegaListener
          * @param sets List that contains the new or updated Sets
          */
         virtual void onSetsUpdate(MegaApi* api, MegaSetList* sets);
+
+        /**
+         * @brief This function is called when a Set-Element has been updated (created / updated / removed)
+         *
+         * The SDK retains the ownership of the MegaElementList in the second parameter. The list and all the
+         * MegaElement objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaElementList::copy. If you want to save only some of the MegaElement objects, use
+         * MegaElement::copy for them.
+         *
+         * @param api MegaApi object connected to the account
+         * @param elements List that contains the new or updated Set-Elements
+         */
+        virtual void onSetElementsUpdate(MegaApi* api, MegaElementList* elements);
 
         /**
          * @brief This function is called when there are new or updated contact requests in the account

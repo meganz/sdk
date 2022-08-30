@@ -13624,6 +13624,29 @@ void MegaApiImpl::sets_updated(Set** sets, int count)
     }
 }
 
+void MegaApiImpl::setelements_updated(SetElement** elements, int count)
+{
+    if (!count)
+    {
+        return;
+    }
+
+    if (elements)
+    {
+        unique_ptr<MegaSetElementListPrivate> eList(new MegaSetElementListPrivate());
+        for (int i = 0; i < count; ++i)
+        {
+            SetElement& el = *elements[i];
+            eList->add(MegaSetElementPrivate(el.id(), el.node(), el.order(), el.ts(), el.name(), el.changes()));
+        }
+        fireOnSetElementsUpdate(eList.get());
+    }
+    else
+    {
+        fireOnSetElementsUpdate(nullptr);
+    }
+}
+
 void MegaApiImpl::pcrs_updated(PendingContactRequest **r, int count)
 {
     if(!count)
@@ -16564,6 +16587,20 @@ void MegaApiImpl::fireOnSetsUpdate(MegaSetList* sets)
     }
 }
 
+void MegaApiImpl::fireOnSetElementsUpdate(MegaElementList* elements)
+{
+    assert(threadId == std::this_thread::get_id());
+
+    for (set<MegaGlobalListener*>::iterator it = globalListeners.begin(); it != globalListeners.end();)
+    {
+        (*it++)->onSetElementsUpdate(api, elements);
+    }
+    for (set<MegaListener*>::iterator it = listeners.begin(); it != listeners.end();)
+    {
+        (*it++)->onSetElementsUpdate(api, elements);
+    }
+}
+
 void MegaApiImpl::fireOnReloadNeeded()
 {
     assert(threadId == std::this_thread::get_id());
@@ -18997,7 +19034,10 @@ void MegaApiImpl::sendPendingRequests()
 
         case MegaRequest::TYPE_PUT_SET_ELEMENT:
         {
-            SetElement el(request->getNodeHandle(), request->getParentHandle());
+            SetElement el;
+            el.setSet(request->getTotalBytes());
+            el.setId(request->getParentHandle());
+            el.setNode(request->getNodeHandle());
             if (request->getParamType() & MegaApi::OPTION_ELEMENT_ORDER)
             {
                 el.setOrder(request->getNumber());
@@ -23814,14 +23854,15 @@ MegaElementList* MegaApiImpl::getSetElements(MegaHandle sid)
     SdkMutexGuard g(sdkMutex);
 
     MegaSetElementListPrivate* eList = new MegaSetElementListPrivate();
-    const Set* s = client->getSet(sid);
 
-    if (s)
+    auto* elements = client->getSetElements(sid);
+
+    if (elements)
     {
-        for (const auto& ell : s->elements())
+        for (const auto& ell : *elements)
         {
             const SetElement& el = ell.second;
-            eList->add(MegaSetElementPrivate(el.id(), el.node(), el.order(), el.ts(), el.name()));
+            eList->add(MegaSetElementPrivate(el.id(), el.node(), el.order(), el.ts(), el.name(), el.changes()));
         }
     }
 
@@ -23832,10 +23873,9 @@ MegaElement* MegaApiImpl::getSetElement(MegaHandle sid, MegaHandle eid)
 {
     SdkMutexGuard g(sdkMutex);
 
-    const Set* s = client->getSet(sid);
-    const SetElement* el = s ? s->element(eid) : nullptr;
+    const SetElement* el = client->getSetElement(sid, eid);
 
-    return el ? (new MegaSetElementPrivate(el->id(), el->node(), el->order(), el->ts(), el->name())) : nullptr;
+    return el ? (new MegaSetElementPrivate(el->id(), el->node(), el->order(), el->ts(), el->name(), el->changes())) : nullptr;
 }
 
 

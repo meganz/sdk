@@ -228,108 +228,106 @@ struct SyncdownContext
 
 class CommonSE
 {
+public:
+    const handle& id() const { return mId; }
+    const string& key() const { return mKey; }
+    const m_time_t& ts() const { return mTs; }
+    const string& name() const { return getAttribute(nameTag); }
+
+    void setId(handle id) { mId = id; }
+    void setKey(const string& key) { mKey = key; }
+    void setKey(string&& key) { mKey = move(key); }
+    void setTs(m_time_t ts) { mTs = ts; }
+    void setName(string&& name);
+
+    bool hasAttrs() const { return !!mAttrs; }
+    bool hasEncrAttrs() const { return !!mEncryptedAttrs; }
+    void rebaseAttrsOn(const Set& s);
+    void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs.reset(new string(move(eattrs))); }
+    bool decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f);
+    string encryptAttributes(std::function<string(const string_map&, const string&)> f) const;
+
 protected:
+    CommonSE() = default;
+    CommonSE(handle id, string&& key, string_map&& attrs) : mId(id), mKey(move(key)), mAttrs(new string_map(move(attrs))) {}
+
+    handle mId = UNDEF;
+    string mKey;
+    unique_ptr<string_map> mAttrs;
+    m_time_t mTs = 0;
+
+    void setAttr(const string& tag, string&& value); // set any non-standard attr
+    const string& getAttribute(const string& tag) const;
+    bool hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherAttrs) const;
+
+    unique_ptr<string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
+
     static const string nameTag; // "n"
 };
 
-class SetElement : public CommonSE
+class SetElement : public CommonSE, public Cacheable
 {
 public:
     SetElement() = default;
-    SetElement(handle node, handle elemId = UNDEF) // create new element or update existing one
-        : mId(elemId), mNodeHandle(node) {}
+    SetElement(handle sid, handle node, handle elemId, string&& key, string_map&& attrs)
+        : CommonSE(elemId, move(key), move(attrs)), mSetId(sid), mNodeHandle(node) {}
 
-    const handle& id() const                { return mId; }
+    const handle& set() const               { return mSetId; }
     const handle& node() const              { return mNodeHandle; }
-    const string& name() const              { return getAttribute(nameTag); }
-    const int64_t& order() const            { return mOrder; }
-    const m_time_t& ts() const              { return mTs; }
-    const string& key() const               { return mKey; }
-    const string_map& attrs() const         { return mAttrs; }
+    int64_t order() const                   { return mOrder ? *mOrder : 0; }
 
-    void setId(handle id)                   { mId = id; }
+    void setSet(handle s)                   { mSetId = s; }
     void setNode(handle nh)                 { mNodeHandle = nh; }
-    void setName(string&& name)             { mAttrs[nameTag] = move(name); mOpts[SE_NAME] = 1; }
-    void setName(const string& name)        { mAttrs[nameTag] = name; mOpts[SE_NAME] = 1; }
-    void setOrder(int64_t order)            { mOrder = order; mOpts[SE_ORDER] = 1; }
-    void setTs(m_time_t ts)                 { mTs = ts; }
-    void setKey(string&& key)               { mKey = move(key); }
-    void setKey(const string& key)          { mKey = key; }
-    void setAttrs(const string_map& attrs)  { mAttrs = attrs; }
+    void setOrder(int64_t order);
 
-    bool hasAttrs() const                   { return mOpts[SE_NAME]; }
-    bool hasOrder() const                   { return mOpts[SE_ORDER]; }
+    bool hasOrder() const                   { return !!mOrder; }
 
-    void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs = move(eattrs); mOpts[SE_NAME] = 1; }
-    bool decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f);
+    void takeAttrsFrom(SetElement&& el);
+
+    void setChanged(int changeType) { assert(changeType < CH_EL_SIZE); if (changeType < CH_EL_SIZE) mChanges[changeType] = 1; }
+    void resetChanges() { mChanges = 0; }
+    unsigned long changes() const { return mChanges.to_ulong(); }
+    bool hasChanged(int changeType) { assert(changeType < CH_EL_SIZE); return changeType < CH_EL_SIZE ? mChanges[changeType] : false; }
 
     bool serialize(string*);
 
-private:
-    handle mId = UNDEF;
-    handle mNodeHandle = UNDEF;
-    int64_t mOrder = 0;
-    m_time_t mTs = 0;
-    string mKey;
-
-    const string& getAttribute(const string& id) const
-    {
-        static const string value;
-        auto it = mAttrs.find(id);
-        return it != mAttrs.end() ? it->second : value;
-    }
-
     enum
     {
-        SE_NAME,
-        SE_ORDER,
-        SE_SIZE
-    };
-    std::bitset<SE_SIZE> mOpts;
+        CH_EL_NEW,
+        CH_EL_NAME,
+        CH_EL_ORDER,
+        CH_EL_REMOVED,
 
-    string mEncryptedAttrs;
-    string_map mAttrs;
+        CH_EL_SIZE
+    };
+
+private:
+    handle mSetId = UNDEF;
+    handle mNodeHandle = UNDEF;
+    unique_ptr<int64_t> mOrder;
+
+    std::bitset<CH_EL_SIZE> mChanges;
 };
 
 class Set : public CommonSE, public Cacheable
 {
 public:
     Set() = default;
-    Set(handle id, string&& key, handle user, m_time_t ts, string_map&& attrs) :
-        mId(id), mKey(move(key)), mUser(user), mTs(ts), mAttrs(new string_map(move(attrs))) {}
+    Set(handle id, string&& key, handle user, string_map&& attrs)
+        : CommonSE(id, move(key), move(attrs)), mUser(user) {}
 
-    const handle& id() const { return mId; }
-    const string& key() const { return mKey; }
     const handle& user() const { return mUser; }
-    const m_time_t& ts() const { return mTs; }
-    const string& name() const { return getAttribute(nameTag); }
     handle cover() const;
 
-    void setId(handle id) { mId = id; }
-    void setKey(string&& key) { mKey = move(key); }
-    void setKey(const string& key) { mKey = key; }
     void setUser(handle uh) { mUser = uh; }
-    void setTs(m_time_t ts) { mTs = ts; }
-    void setName(string&& name);
     void setCover(handle h);
-    void setAttr(const string& tag, string&& value); // set any non-standard attr
 
-    void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs.reset(new string(move(eattrs))); }
-    bool decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f);
-    void rebaseAttrsOn(const Set& s);
     void takeAttrsFrom(Set&& s);
-    string encryptAttributes(std::function<string(const string_map&, const string&)> f) const;
-    bool hasAttrs() const { return !!mAttrs; }
 
-    const map<handle, SetElement>& elements() const { return mElements; }
-    const SetElement* element(handle eId) const;
-    void addOrUpdateElement(SetElement&& el);
-    bool removeElement(handle elemId);
-
-    void setChanged(int changeType) { mChanges[changeType] = 1; }
+    void setChanged(int changeType) { assert(changeType < CH_SIZE); if (changeType < CH_SIZE) mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
     unsigned long changes() const { return mChanges.to_ulong(); }
-    bool hasChanged(int changeType) { return mChanges[changeType]; }
+    bool hasChanged(int changeType) { assert(changeType < CH_SIZE); return changeType < CH_SIZE ? mChanges[changeType] : false; }
 
     bool serialize(string*) override;
 
@@ -341,38 +339,11 @@ public:
         CH_COVER,
         CH_REMOVED,
 
-        // update these from inside Set
-        CH_EL_NEW,
-        CH_EL_NAME,
-        CH_EL_ORDER,
-        CH_EL_REMOVED,
-
         CH_SIZE
     };
 
 private:
-    handle mId = UNDEF;
-    string mKey;                        // new AES-128 key per set
     handle mUser = UNDEF;
-    m_time_t mTs = 0;
-    map<handle, SetElement> mElements;
-
-    unique_ptr<string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
-    unique_ptr<string_map> mAttrs;
-
-    bool hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherAttrs) const;
-
-    const string& getAttribute(const string& tag) const
-    {
-        static const string value;
-        if (!mAttrs)
-        {
-            return value;
-        }
-
-        auto it = mAttrs->find(tag);
-        return it != mAttrs->end() ? it->second : value;
-    }
 
     std::bitset<CH_SIZE> mChanges;
 
@@ -1432,7 +1403,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT } sctablerectype;
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
@@ -2185,8 +2156,17 @@ public:
     // delete Set with elemId from local memory; return true if found and deleted
     bool deleteSet(handle sid);
 
-    // add new element or update existing one with the same id
-    void addOrUpdateSetElement(handle sid, SetElement&& el);
+    // return Element with given eid from Set sid, or nullptr if not found
+    const SetElement* getSetElement(handle sid, handle eid) const;
+
+    // return all available Elements in a Set, indexed by eid
+    const map<handle, SetElement>* getSetElements(handle sid) const;
+
+    // add new SetElement or replace exisiting one
+    void addSetElement(handle sid, SetElement&& el);
+
+    // search for SetElement with the same id, and update its members
+    bool updateSetElement(handle sid, SetElement&& el);
 
     // delete Element with eid from Set with sid in local memory; return true if found and deleted
     bool deleteSetElement(handle sid, handle eid);
@@ -2195,7 +2175,7 @@ private:
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
     error readElements(JSON& j, multimap<handle, SetElement>& elements);
-    error readElement(JSON& j, SetElement& el, handle& setId);
+    error readElement(JSON& j, SetElement& el);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
     string decryptKey(const string& k, SymmCipher& cipher) const;
@@ -2208,6 +2188,7 @@ private:
     void sc_aer(); // AP after removed Set Element
 
     Set* unserializeSet(string* d);
+    SetElement* unserializeSetElement(string* d);
 
     bool initscsets();
     bool fetchscset(string* data, uint32_t id);
@@ -2215,8 +2196,15 @@ private:
     void notifypurgesets();
     void notifyset(Set*);
     vector<Set*> setnotify;
-
     map<handle, Set> mSets; // indexed by Set id
+
+    bool initscsetelements();
+    bool fetchscsetelement(string* data, uint32_t id);
+    bool updatescsetelements();
+    void notifypurgesetelements();
+    void notifysetelement(SetElement*);
+    vector<SetElement*> setelementnotify;
+    map<handle, map<handle, SetElement>> mSetElements; // indexed by Set id, then Element id
 
 // -------- end of Sets and Elements
 

@@ -1544,7 +1544,7 @@ class SetElement;
 class MEGA_API CommandPutSetElement : public CommandSE
 {
 public:
-    CommandPutSetElement(MegaClient*, handle setId, SetElement&& el, string&& encrAttrs, string&& encrKey,
+    CommandPutSetElement(MegaClient*, handle setId, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
                          std::function<void(Error, handle)> completion);
     bool procresult(Result) override;
 
