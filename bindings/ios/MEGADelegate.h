@@ -118,9 +118,7 @@ NS_ASSUME_NONNULL_BEGIN
  * This method returns the following values:
  *  - MEGATransferStageScan                      = 1
  *  - MEGATransferStageCreateTreee               = 2
- *  - MEGATransferStageGenTransfers              = 3
- *  - MEGATransferStageProcessTransferQueue      = 4
- *  - MEGATransferStageTransferringFiles         = 5
+ *  - MEGATransferStageTransferringFiles         = 3
  * For more information about stages refer to [MEGATransfer stage]
  *
  * @param api MEGASdk object that started the transfer.

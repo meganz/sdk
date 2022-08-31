@@ -135,7 +135,7 @@ Node::~Node()
 
         const Node* fa = firstancestor();
         NodeHandle ancestor = fa->nodeHandle();
-        if (ancestor == client->rootnodes.files || ancestor == client->rootnodes.inbox || ancestor == client->rootnodes.rubbish || fa->inshare)
+        if (client->rootnodes.isRootNode(ancestor) || fa->inshare)
         {
             client->mNodeCounters[firstancestor()->nodeHandle()] -= subnodeCounts();
         }
@@ -1064,7 +1064,7 @@ bool Node::setparent(Node* p)
 
     const Node *originalancestor = firstancestor();
     NodeHandle oah = originalancestor->nodeHandle();
-    if (oah == client->rootnodes.files || oah == client->rootnodes.inbox || oah == client->rootnodes.rubbish || originalancestor->inshare)
+    if (client->rootnodes.isRootNode(oah) || originalancestor->inshare)
     {
         nc = subnodeCounts();
         gotnc = true;
@@ -1088,7 +1088,7 @@ bool Node::setparent(Node* p)
 
     const Node* newancestor = firstancestor();
     NodeHandle nah = newancestor->nodeHandle();
-    if (nah == client->rootnodes.files || nah == client->rootnodes.inbox || nah == client->rootnodes.rubbish || newancestor->inshare)
+    if (client->rootnodes.isRootNode(nah) || newancestor->inshare)
     {
         if (!gotnc)
         {
