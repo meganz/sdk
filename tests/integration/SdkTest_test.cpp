@@ -6447,8 +6447,6 @@ TEST_F(SdkTest, SyncIsNodeSyncable)
     ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
     std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
-    MegaNode* check2 = megaApi[0].get()->getNodeByPath("/SyncIsNodeSyncable");
-    check2;
     // Sync 1
     nh = createFolder(0, syncFolder1.c_str(), remoteBaseNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote folders";
