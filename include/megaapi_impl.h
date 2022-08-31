@@ -684,8 +684,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 class MegaSetPrivate : public MegaSet
 {
 public:
-    MegaSetPrivate(MegaHandle id, MegaHandle u, m_time_t ts, const string& name, MegaHandle cover, unsigned long changes) :
-        mId(id), mUser(u), mTs(ts), mName(name), mCover(cover), mChanges(changes){}
+    MegaSetPrivate(const Set& s) : mId(s.id()), mUser(s.user()), mTs(s.ts()), mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle user() const override { return mUser; }
@@ -710,6 +709,9 @@ private:
 class MegaSetListPrivate : public MegaSetList
 {
 public:
+    MegaSetListPrivate(const Set *const* sets, int count); // ptr --> const ptr --> const Set
+    MegaSetListPrivate(const map<handle, Set>& sets);
+
     void add(MegaSetPrivate&& s);
     MegaSetList* copy() const override { return new MegaSetListPrivate(*this); }
 
@@ -724,8 +726,7 @@ private:
 class MegaSetElementPrivate : public MegaElement
 {
 public:
-    MegaSetElementPrivate(MegaHandle id, MegaHandle h, int64_t o, m_time_t ts, const string& name, unsigned long changes) :
-        mId(id), mNode(h), mOrder(o), mTs(ts), mName(name) {}
+    MegaSetElementPrivate(const SetElement& el) : mId(el.id()), mNode(el.node()), mOrder(el.order()), mTs(el.ts()), mName(el.name()) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle node() const override { return mNode; }
@@ -750,6 +751,9 @@ private:
 class MegaSetElementListPrivate : public MegaElementList
 {
 public:
+    MegaSetElementListPrivate(const SetElement *const* elements, int count); // ptr --> const ptr --> const SetElement
+    MegaSetElementListPrivate(const map<handle, SetElement>* elements);
+
     void add(MegaSetElementPrivate&& el);
     MegaElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
 

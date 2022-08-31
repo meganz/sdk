@@ -13622,12 +13622,7 @@ void MegaApiImpl::sets_updated(Set** sets, int count)
 
     if (sets)
     {
-        unique_ptr<MegaSetListPrivate> sList(new MegaSetListPrivate());
-        for (int i = 0; i < count; ++i)
-        {
-            Set& s = *sets[i];
-            sList->add(MegaSetPrivate(s.id(), s.user(), s.ts(), s.name(), s.cover(), s.changes()));
-        }
+        unique_ptr<MegaSetListPrivate> sList(new MegaSetListPrivate(sets, count));
         fireOnSetsUpdate(sList.get());
     }
     else
@@ -13645,12 +13640,7 @@ void MegaApiImpl::setelements_updated(SetElement** elements, int count)
 
     if (elements)
     {
-        unique_ptr<MegaSetElementListPrivate> eList(new MegaSetElementListPrivate());
-        for (int i = 0; i < count; ++i)
-        {
-            SetElement& el = *elements[i];
-            eList->add(MegaSetElementPrivate(el.id(), el.node(), el.order(), el.ts(), el.name(), el.changes()));
-        }
+        unique_ptr<MegaSetElementListPrivate> eList(new MegaSetElementListPrivate(elements, count));
         fireOnSetElementsUpdate(eList.get());
     }
     else
@@ -23835,12 +23825,7 @@ MegaSetList* MegaApiImpl::getSets()
 {
     SdkMutexGuard g(sdkMutex);
 
-    MegaSetListPrivate* sList = new MegaSetListPrivate();
-    for (const auto& sp : client->getSets())
-    {
-        const Set& s = sp.second;
-        sList->add(MegaSetPrivate(s.id(), s.user(), s.ts(), s.name(), s.cover(), s.changes()));
-    }
+    MegaSetListPrivate* sList = new MegaSetListPrivate(client->getSets());
 
     return sList;
 }
@@ -23850,7 +23835,7 @@ MegaSet* MegaApiImpl::getSet(MegaHandle sid)
     SdkMutexGuard g(sdkMutex);
 
     const Set* s = client->getSet(sid);
-    return s ? (new MegaSetPrivate(s->id(), s->user(), s->ts(), s->name(), s->cover(), s->changes())) : nullptr;
+    return s ? (new MegaSetPrivate(*s)) : nullptr;
 }
 
 MegaHandle MegaApiImpl::getSetCover(MegaHandle sid)
@@ -23865,18 +23850,8 @@ MegaElementList* MegaApiImpl::getSetElements(MegaHandle sid)
 {
     SdkMutexGuard g(sdkMutex);
 
-    MegaSetElementListPrivate* eList = new MegaSetElementListPrivate();
-
     auto* elements = client->getSetElements(sid);
-
-    if (elements)
-    {
-        for (const auto& ell : *elements)
-        {
-            const SetElement& el = ell.second;
-            eList->add(MegaSetElementPrivate(el.id(), el.node(), el.order(), el.ts(), el.name(), el.changes()));
-        }
-    }
+    MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements);
 
     return eList;
 }
@@ -23887,15 +23862,65 @@ MegaElement* MegaApiImpl::getSetElement(MegaHandle sid, MegaHandle eid)
 
     const SetElement* el = client->getSetElement(sid, eid);
 
-    return el ? (new MegaSetElementPrivate(el->id(), el->node(), el->order(), el->ts(), el->name(), el->changes())) : nullptr;
+    return el ? (new MegaSetElementPrivate(*el)) : nullptr;
 }
 
+
+
+MegaSetListPrivate::MegaSetListPrivate(const Set *const* sets, int count)
+{
+    if (sets && count)
+    {
+        mSets.reserve(count);
+        for (int i = 0; i < count; ++i)
+        {
+            const Set& s = *sets[i];
+            add(MegaSetPrivate(s));
+        }
+    }
+}
+
+MegaSetListPrivate::MegaSetListPrivate(const map<handle, Set>& sets)
+{
+    mSets.reserve(sets.size());
+    for (const auto& sp : sets)
+    {
+        const Set& s = sp.second;
+        add(MegaSetPrivate(s));
+    }
+}
 
 void MegaSetListPrivate::add(MegaSetPrivate&& s)
 {
     mSets.emplace_back(move(s));
 }
 
+
+MegaSetElementListPrivate::MegaSetElementListPrivate(const SetElement* const* elements, int count)
+{
+    if (elements && count)
+    {
+        mElements.reserve(count);
+        for (int i = 0; i < count; ++i)
+        {
+            const SetElement& el = *elements[i];
+            add(MegaSetElementPrivate(el));
+        }
+    }
+}
+
+MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements)
+{
+    if (elements)
+    {
+        mElements.reserve(elements->size());
+        for (const auto& e : *elements)
+        {
+            const SetElement& el = e.second;
+            add(MegaSetElementPrivate(el));
+        }
+    }
+}
 
 void MegaSetElementListPrivate::add(MegaSetElementPrivate&& el)
 {
