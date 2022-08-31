@@ -12937,6 +12937,9 @@ class MegaApi
          * MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
          * MegaApi::startUpload) the function returns without doing anything.
          *
+         * Note that retried transfers will always start first, so the user see them progressing
+         * immediately.
+         *
          * @param transfer Transfer to be retried
          * @param listener MegaTransferListener to track this transfer
          */

@@ -8513,14 +8513,6 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
     return transfer;
 }
 
-
-void MegaApiImpl::startUploadForChat(const char* localPath, MegaNode* parent, const char* fileName, const char* appData, bool isSourceFileTemporary, MegaTransferListener* listener)
-{
-    MegaTransferPrivate* transfer = createUploadTransfer(false, localPath, parent, fileName, nullptr, MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, appData, isSourceFileTemporary, true, FS_UNKNOWN, CancelToken(), listener);
-    transferQueue.push(transfer);
-    waiter->notify();
-}
-
 void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener* listener)
 {
     MegaTransferPrivate* transfer = createUploadTransfer(startFirst, localPath, parent, fileName, targetUser, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, cancelToken, listener);
@@ -8660,13 +8652,13 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
         {
             node = getNodeByHandle(t->getNodeHandle());
         }
-        this->startDownload(t->shouldStartFirst(), node, t->getPath(), NULL, 0, t->getAppData(), CancelToken(), listener);
+        this->startDownload(true, node, t->getPath(), NULL, 0, t->getAppData(), CancelToken(), listener);
         delete node;
     }
     else
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
-        this->startUpload (t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), nullptr,
+        this->startUpload (true, t->getPath(), parent, t->getFileName(), nullptr,
                     t->getTime(), 0, t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(),
                     t->isForceNewUpload(), client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(t->getPath())),
                     t->accessCancelToken(), listener);
