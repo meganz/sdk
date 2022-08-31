@@ -1042,6 +1042,15 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     //     vb:1 to force it on
     //     vb:0 to force it off
     // Dont provide it at all to rely on the account-wide setting (as of the moment the command is processed).
+
+    if (vo == UseLocalVersioningFlag && client->loggedIntoWritableFolder())
+    {   // do not rely on local versioning flag when logged into writable folders
+        //  as the owner's ATTR_DISABLE_VERSIONS attribute is not received/updated in that case
+        // and MegaClient::versions_disabled will alwas be false.
+        // Instead, let the API server act according to user's settings
+        vo =  UseServerVersioningFlag;
+    }
+
     switch (vo)
     {
         case NoVersioning:
