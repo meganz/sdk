@@ -292,7 +292,7 @@ public:
     unsigned long changes() const { return mChanges.to_ulong(); }
     bool hasChanged(int changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
 
-    bool serialize(string*);
+    bool serialize(string*) override;
 
     enum
     {

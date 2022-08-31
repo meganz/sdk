@@ -13615,6 +13615,7 @@ void MegaApiImpl::account_updated()
 
 void MegaApiImpl::sets_updated(Set** sets, int count)
 {
+    LOG_debug << "Sets updated: " << count;
     if (!count)
     {
         return;
@@ -13633,6 +13634,7 @@ void MegaApiImpl::sets_updated(Set** sets, int count)
 
 void MegaApiImpl::setelements_updated(SetElement** elements, int count)
 {
+    LOG_debug << "Elements updated: " << count;
     if (!count)
     {
         return;
