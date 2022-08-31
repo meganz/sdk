@@ -6223,7 +6223,7 @@ protected:
         int errorCode;
 
         // SyncError/MegaSync::Error 
-        int syncError = SyncError::NO_SYNC_ERROR;
+        int syncError = MegaSync::NO_SYNC_ERROR;
 
         friend class MegaTransfer;
         friend class MegaApiImpl;
