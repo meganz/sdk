@@ -24173,11 +24173,12 @@ MegaErrorPrivate::MegaErrorPrivate(int errorCode, SyncError syncError)
 : MegaError(errorCode, syncError)
 {
 }
-
+#ifdef ENABLE_SYNC
 MegaErrorPrivate::MegaErrorPrivate(int errorCode, MegaSync::Error syncError)
 : MegaError(errorCode, syncError)
 {
 }
+#endif
 
 MegaErrorPrivate::MegaErrorPrivate(int errorCode, long long value)
     : MegaError(errorCode)

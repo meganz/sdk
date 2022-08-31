@@ -134,11 +134,12 @@ public:
      */
     MegaErrorPrivate(int errorCode, SyncError syncError);
 
+#ifdef ENABLE_SYNC
     /**
      * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
      */
     MegaErrorPrivate(int errorCode, MegaSync::Error syncError);
-
+#endif
     /**
      * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
      */
