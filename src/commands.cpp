@@ -117,7 +117,9 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                    bool changeVault = n->firstancestor()->nodeHandle() == client->rootnodes.vault;
+                    // 'changeVault' is false here because restoration of file attributes is triggered by
+                    // downloads, so it cannot be triggered by a Backup operation
+                    bool changeVault = false;
                     client->setattr(n, attr_map('f', me64), 0, nullptr, nullptr, changeVault);
                 }
             }
@@ -1432,7 +1434,8 @@ bool CommandMoveNode::procresult(Result r)
                         int creqtag = client->reqtag;
                         client->reqtag = syncn->tag;
                         LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
-                        client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, nullptr);
+                        bool changeVault = client->syncs.nodeBelongsToBackup(syncn);
+                        client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, changeVault, nullptr);
                         client->reqtag = creqtag;
                     }
                 }
@@ -5405,7 +5408,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->parenthandle = UNDEF;
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
-                        client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0);
+                        client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0, false);
                     }
                     else if (havekey)
                     {

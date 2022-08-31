@@ -2655,7 +2655,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
             if (moveToTrash)
             {
                 cout << "moving to trash: " << c->displaypath() << endl;
-                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
+                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
             }
             else
             {
@@ -2962,7 +2962,7 @@ void cycleUpload(LocalPath lp, int count)
         string leaf2 = lp.leafName().toPath() + "_" + std::to_string(count-1);
         if (Node* lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf2.c_str(), true))
         {
-            client->unlink(lastuploaded, false, client->nextreqtag(), nullptr);
+            client->unlink(lastuploaded, false, client->nextreqtag(), false, nullptr);
         }
     }
 
@@ -3678,7 +3678,7 @@ void backupremove(handle backupId, Node* backupRootNode, Node *targetDest, bool 
                         cout << "Backup Centre - Failed to delete remote backup node (" << errorstring(e) << ')' << endl;
                     }
                 };
-                e = client->unlink(backupRootNode, false, 0, move(completion), true);
+                e = client->unlink(backupRootNode, false, 0, true, move(completion));
                 if (e != API_OK)
                 {
                     cout << "Backup Centre - Failed to delete remote backup node locally (" << errorstring(e) << ')' << endl;
@@ -4622,7 +4622,7 @@ void exec_rm(autocomplete::ACState& s)
         {
             if (client->checkaccess(d, FULL))
             {
-                error e = client->unlink(d, false, 0);
+                error e = client->unlink(d, false, 0, false);
 
                 if (e)
                 {
@@ -4723,7 +4723,7 @@ void exec_mv(autocomplete::ACState& s)
                             if (n != tn)
                             {
                                 // ...delete target...
-                                e = client->unlink(tn, false, 0);
+                                e = client->unlink(tn, false, 0, false);
 
                                 if (e)
                                 {
@@ -4745,7 +4745,7 @@ void exec_mv(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
+                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
 
                         if (e)
                         {
@@ -4810,7 +4810,7 @@ void exec_cp(autocomplete::ACState& s)
                         }
 
                         // ...delete target...
-                        e = client->unlink(tn, false, 0);
+                        e = client->unlink(tn, false, 0, false);
 
                         if (e)
                         {
@@ -4914,7 +4914,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodeHandle(), vo, move(tc.nn), nullptr, gNextClientTag++);
+                client->putnodes(tn->nodeHandle(), vo, move(tc.nn), nullptr, gNextClientTag++, false);
             }
             else
             {
@@ -5257,7 +5257,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
                 uploadLocalFolderContent(tmp, parent, vo);
             };
 
-            client->putnodes(parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
+            client->putnodes(parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
         }
     }
 }
@@ -5990,7 +5990,7 @@ void exec_mkdir(autocomplete::ACState& s)
             {
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], newname);
-                client->putnodes(n->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
+                client->putnodes(n->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -6000,7 +6000,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], leafname);
-                client->putnodes(n->parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
+                client->putnodes(n->parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
             }
             else
             {
@@ -8658,7 +8658,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, move(nn), nullptr, client->restag);
+        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, move(nn), nullptr, client->restag, false);
     }
     else
     {

@@ -1384,6 +1384,7 @@ void StandardClient::copy(const CloudItem& source,
                     std::move(proc.nn),
                     nullptr,
                     0,
+                    false,
                     BasicPutNodesCompletion(std::move(completion)));
 }
 
@@ -1434,6 +1435,7 @@ void StandardClient::putnodes(const CloudItem& parent,
                     std::move(nodes),
                     nullptr,
                     0,
+                    false,
                     std::move(completion));
 }
 
@@ -1465,7 +1467,7 @@ void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
             vector<NewNode> newnodes;
             handle h = 1;
             uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-            client.putnodes(n2->nodeHandle(), NoVersioning, move(newnodes), nullptr, 0, std::move(completion));
+            client.putnodes(n2->nodeHandle(), NoVersioning, move(newnodes), nullptr, 0, false, std::move(completion));
         },
         nullptr);
 }
@@ -1861,7 +1863,7 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
                 };
 
                 resultproc.prepresult(COMPLETION, ++next_request_tag,
-                    [&](){ client.unlink(basenode, false, 0, std::move(completion)); },
+                    [&](){ client.unlink(basenode, false, 0, false, std::move(completion)); },
                     nullptr);
                 return;
             }
@@ -1904,7 +1906,7 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
 
             resultproc.prepresult(PUTNODES, ++next_request_tag,
                 [&](){
-                    client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, client.reqtag, nullptr);
+                    client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, client.reqtag, false, nullptr);
                 },
                 [pb, this](error e){
                     out() << clientname << "ensureTestBaseFolder putnodes completed with: " << e;
@@ -1985,7 +1987,7 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
 
         resultproc.prepresult(COMPLETION, ++next_request_tag,
             [&]() {
-                client.putnodes(atnode->nodeHandle(), NoVersioning, move(nodearray), nullptr, 0, std::move(completion));
+                client.putnodes(atnode->nodeHandle(), NoVersioning, move(nodearray), nullptr, 0, false, std::move(completion));
             },
             nullptr);
     }
@@ -2958,7 +2960,7 @@ void StandardClient::deleteremote(const CloudItem& item, PromiseBoolSP result)
     if (!node)
         return result->set_value(false);
 
-    client.unlink(node, false, 0, [result](NodeHandle, Error e) {
+    client.unlink(node, false, 0, false, [result](NodeHandle, Error e) {
         result->set_value(e == API_OK);
     });
 }
@@ -3012,7 +3014,7 @@ void StandardClient::deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
             };
 
             resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [&](){ client.unlink(ns[i], false, 0, std::move(completion)); },
+                [&](){ client.unlink(ns[i], false, 0, false, std::move(completion)); },
                 nullptr);
         }
     }
@@ -3057,6 +3059,7 @@ void StandardClient::movenode(const CloudItem& source,
                   SYNCDEL_NONE,
                   NodeHandle(),
                   newName.empty() ? nullptr : newName.c_str(),
+                  false,
                   std::move(completion));
 }
 
@@ -3069,7 +3072,7 @@ void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
         resultproc.prepresult(COMPLETION, ++next_request_tag,
             [pb, n, p, this]()
             {
-                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
+                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, false,
                     [pb](NodeHandle h, Error e) { pb->set_value(!e); });
             },
             nullptr);
@@ -5633,7 +5636,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     std::atomic<bool> putnodesDone{false};
     standardclient->resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
-        [&](){ standardclient->client.putnodes(targethandle, NoVersioning, move(newnodes), nullptr, standardclient->client.reqtag); },
+        [&](){ standardclient->client.putnodes(targethandle, NoVersioning, move(newnodes), nullptr, standardclient->client.reqtag, false); },
         [&putnodesDone](error e) { putnodesDone = true; return true; });
 
     while (!putnodesDone)
@@ -8878,7 +8881,7 @@ struct TwoWaySyncSymmetryCase
 
         if (reportaction) out() << name() << " action: remote move " << n1->displaypath() << " to " << n2->displaypath();
 
-        auto e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), nullptr, nullptr);
+        auto e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), nullptr, false, nullptr);
         ASSERT_EQ(API_OK, e);
     }
 
@@ -8909,7 +8912,7 @@ struct TwoWaySyncSymmetryCase
         attrs = n1->attrs;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag, false);
     }
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -8944,7 +8947,7 @@ struct TwoWaySyncSymmetryCase
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag, false);
     }
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -8964,7 +8967,7 @@ struct TwoWaySyncSymmetryCase
 
         if (reportaction) out() << name() << " action: remote rename + move " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname;
 
-        error e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), newname.c_str(), nullptr);
+        error e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), newname.c_str(), false, nullptr);
         EXPECT_EQ(e, API_OK);
     }
 
@@ -8982,7 +8985,7 @@ struct TwoWaySyncSymmetryCase
 
         if (updatemodel) remoteModel.emulate_delete(nodepath);
 
-        auto e = changeClient().client.unlink(n, false, ++next_request_tag);
+        auto e = changeClient().client.unlink(n, false, false, ++next_request_tag);
         ASSERT_TRUE(!e);
     }
 

@@ -519,13 +519,13 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr, bool changeVault = false);
+    error unlink(Node*, bool keepversions, int tag, bool changeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c);
+    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, bool changeVault, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(Node* n, int tag);
@@ -575,7 +575,7 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr, bool changeVault = false);
+    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, bool changeVault, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);

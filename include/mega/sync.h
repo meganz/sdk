@@ -601,6 +601,8 @@ struct Syncs
     void forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f);
     void forEachSyncConfig(std::function<void(const SyncConfig&)>);
 
+    bool nodeBelongsToBackup(Node* node);
+
     void purgeRunningSyncs();
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();

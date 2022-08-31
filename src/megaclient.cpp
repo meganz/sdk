@@ -538,7 +538,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
             -1, UNDEF, 0, 0, addua_completion);
     };
 
-    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, addua, true);
+    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, true, addua);
     // Note: this request should not finish until the user's attribute is set successfully
 
     return API_OK;
@@ -8177,7 +8177,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction, bool changeVault)
+void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, bool changeVault, CommandPutNodes::Completion&& resultFunction)
 {
     reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction), changeVault));
 }
@@ -8313,7 +8313,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, bool changeVault, CommandMoveNode::Completion&& c)
 {
     if (mBizStatus == BIZ_STATUS_EXPIRED)
     {
@@ -8422,10 +8422,6 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        bool prevRootInVault = prevParent && (prevParent->firstancestor()->nodeHandle() == rootnodes.vault);
-        bool newRootInVault = p && (p->firstancestor()->nodeHandle() == rootnodes.vault);
-        bool changeVault = prevRootInVault || newRootInVault;
-
         reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c), changeVault));
         if (!attrUpdates.empty())
         {
@@ -8472,7 +8468,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction, bool changeVault)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, bool changeVault, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
     if (mBizStatus == BIZ_STATUS_EXPIRED)
     {
@@ -14383,12 +14379,12 @@ void MegaClient::cleanupFailedBackup(const string& remotePath)
         return;
     }
 
-    error errUnlink = unlink(n, false, 0, [remotePath](NodeHandle, Error err)
+    error errUnlink = unlink(n, false, 0, true, [remotePath](NodeHandle, Error err)
         {
             LOG_err << "Failed to cleanup remote dir of external backup "
                     << remotePath
                     << " (error " << error(err) << ").";
-        }, true);
+        });
 
     if (errUnlink)
     {
@@ -14654,7 +14650,7 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
 
     // create the new node(s)
     putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
-             NoVersioning, move(newnodes), nullptr, reqtag, move(completion), true);  // followup in completion
+             NoVersioning, move(newnodes), nullptr, reqtag, true, move(completion));  // followup in completion
 
     return API_OK;
 }
@@ -15988,7 +15984,7 @@ void MegaClient::syncupdate()
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
 
                 auto nextTag = nextreqtag();
-                bool changeVault = localNode->syncxfer && localNode->parent->node->firstancestor()->nodeHandle() == rootnodes.vault;
+                bool changeVault = localNode->syncxfer && syncs.nodeBelongsToBackup(localNode->parent->node);
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodeHandle(),
                                                 NULL,
@@ -16157,8 +16153,9 @@ void MegaClient::execsyncunlink()
 
         if (!n)
         {
-            bool changeVault = tn->firstancestor()->nodeHandle() == rootnodes.vault;
-            unlink(tn, false, tn->tag, nullptr, changeVault);
+            unlink(tn, false, tn->tag, false, nullptr);
+            // 'changeVault' is false because here unlink() is only
+            // for inshares syncs, which is not possible for backups
         }
 
         tn->tounlink_it = tounlink.end();
@@ -16239,7 +16236,8 @@ void MegaClient::execmovetosyncdebris()
                     int creqtag = reqtag;
                     reqtag = n->tag;
                     LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                    rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, nullptr);
+                    bool changeVault = syncs.nodeBelongsToBackup(n);
+                    rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, changeVault, nullptr);
                     reqtag = creqtag;
                     it++;
                 }
@@ -16311,7 +16309,8 @@ void MegaClient::execmovetosyncdebris()
                                         -reqtag,
                                         PUTNODES_SYNCDEBRIS,
                                         nullptr,
-                                        nullptr));
+                                        nullptr,
+                                        false));    // SyncDebris folder is in //bin, not in the Vault
     }
 }
 

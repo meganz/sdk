@@ -13821,7 +13821,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             {
                 request->setNodeHandle(h);
                 request->setFlag(targetOverride);
-                e = client->unlink(node, false, request->getTag());
+                e = client->unlink(node, false, request->getTag(), false);
             }
         }
 
@@ -14738,7 +14738,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
-        client->putnodes(parenthandle, UseLocalVersioningFlag, move(newnodes), nullptr, nextTag);
+        client->putnodes(parenthandle, UseLocalVersioningFlag, move(newnodes), nullptr, nextTag, false);
     }
     else
     {
@@ -18212,7 +18212,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             }
                             else
                             {
-                                client->putnodes(parent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag);
+                                client->putnodes(parent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag, false);
                             }
 
                             transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
@@ -18937,7 +18937,7 @@ void MegaApiImpl::sendPendingRequests()
             client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
             // add the newly generated folder node
-            client->putnodes(parent->nodeHandle(), NoVersioning, move(newnodes), nullptr, nextTag);
+            client->putnodes(parent->nodeHandle(), NoVersioning, move(newnodes), nullptr, nextTag, false);
             break;
         }
         case MegaRequest::TYPE_MOVE:
@@ -19039,7 +19039,7 @@ void MegaApiImpl::sendPendingRequests()
                             if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                             {
                                 request->setNodeHandle(UNDEF);
-                                e = client->unlink(node, false, request->getTag());
+                                e = client->unlink(node, false, false, request->getTag());
                                 break;  // request finishes now if error, otherwise on unlink_result
                             }
 
@@ -19099,12 +19099,12 @@ void MegaApiImpl::sendPendingRequests()
                     client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 }
 
-                client->putnodes(newParent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag);
+                client->putnodes(newParent->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag, false);
                 e = API_OK;
                 break;
             }
 
-            e = client->rename(node, newParent, SYNCDEL_NONE, NodeHandle(), name,
+            e = client->rename(node, newParent, SYNCDEL_NONE, NodeHandle(), name, false,
                 [request, this](NodeHandle h, Error e)
                 {
 #ifdef ENABLE_SYNC
@@ -19202,7 +19202,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), megaNode->getChatAuth(), nextTag);
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(tc.nn), megaNode->getChatAuth(), nextTag, false);
                 }
                 else
                 {
@@ -19287,7 +19287,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag);
+                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, move(tc.nn), nullptr, nextTag, false);
                 }
                 else
                 {
@@ -19342,7 +19342,7 @@ void MegaApiImpl::sendPendingRequests()
                 client->makeattr(&key, newnode->attrstring, attrstring.c_str());
             }
 
-            client->putnodes(current->parent->nodeHandle(), ClaimOldVersion, move(newnodes), nullptr, nextTag);
+            client->putnodes(current->parent->nodeHandle(), ClaimOldVersion, move(newnodes), nullptr, nextTag, false);
             break;
         }
         case MegaRequest::TYPE_RENAME:
@@ -19394,7 +19394,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->unlink(node, keepversions, request->getTag());
+            e = client->unlink(node, keepversions, request->getTag(), false);
             break;
         }
         case MegaRequest::TYPE_REMOVE_VERSIONS:
@@ -22856,7 +22856,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, UseLocalVersioningFlag, move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr));
+            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, UseLocalVersioningFlag, move(newnodes), request->getTag(), PUTNODES_APP, nullptr, nullptr, false));
             break;
         }
         case MegaRequest::TYPE_VERIFY_CREDENTIALS:
@@ -25417,7 +25417,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         // use a weak_ptr in case this operation was cancelled, and 'this' object doesn't exist
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
-        megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), UseLocalVersioningFlag, std::move(newnodes), nullptr, megaapiThreadClient()->reqtag,
+        megaapiThreadClient()->putnodes(NodeHandle().set6byte(tree.megaNode->getHandle()), UseLocalVersioningFlag, std::move(newnodes), nullptr, megaapiThreadClient()->reqtag, false,
             [this, weak_this](const Error& e, targettype_t, vector<NewNode>&, bool)
             {
                 // double check our object still exists on request completion

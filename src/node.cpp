@@ -1274,6 +1274,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     Node* todelete = NULL;
     int nc = 0;
     Sync* oldsync = NULL;
+    bool changeVault = node && sync->client->syncs.nodeBelongsToBackup(node);
 
     assert(!newparent || newparent->node || newnode);
 
@@ -1316,8 +1317,6 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
 
                     string prevname = node->attrs.map['n'];
 
-                    bool changeVault = node->firstancestor()->nodeHandle() == sync->client->rootnodes.vault;
-
                     // set new name
                     sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr, changeVault);
                 }
@@ -1340,7 +1339,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             {
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displaypath() << " to " << parent->node->displaypath();
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, nullptr) == API_EACCESS
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, changeVault, nullptr) == API_EACCESS
                         && sync != parent->sync)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
@@ -1823,7 +1822,7 @@ void LocalNode::completed(Transfer* t, putsource_t source)
         target = parent->node;
     }
 
-    bool changeVault = target->firstancestor()->nodeHandle() == t->client->rootnodes.vault;
+    bool changeVault = t->client->syncs.nodeBelongsToBackup(target);
 
     // we are overriding completed() for sync upload, we don't use the File::completed version at all.
     assert(t->type == PUT);
