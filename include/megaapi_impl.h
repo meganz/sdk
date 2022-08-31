@@ -693,7 +693,7 @@ public:
     const char* name() const override { return mName.c_str(); }
     MegaHandle cover() const override { return mCover; }
 
-    bool hasChanged(int changeType) const override { return mChanges[changeType]; }
+    bool hasChanged(int changeType) const override;
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
@@ -733,7 +733,7 @@ public:
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
 
-    bool hasChanged(int changeType) const override { return mChanges[changeType]; }
+    bool hasChanged(int changeType) const override;
 
     virtual MegaElement* copy() const override { return new MegaSetElementPrivate(*this); }
 

@@ -260,6 +260,8 @@ protected:
     bool hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherAttrs) const;
     void rebaseCommonAttrsOn(const string_map* baseAttrs);
 
+    static bool validChangeType(const unsigned& typ, const unsigned& typMax) { assert(typ < typMax); return typ < typMax; }
+
     unique_ptr<string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
 
     static const string nameTag; // "n"
@@ -285,10 +287,10 @@ public:
     void takeAttrsFrom(SetElement&& el);
     void rebaseAttrsOn(const SetElement& s);
 
-    void setChanged(int changeType) { assert(changeType < CH_EL_SIZE); if (changeType < CH_EL_SIZE) mChanges[changeType] = 1; }
+    void setChanged(int changeType) { if (validChangeType(changeType, CH_EL_SIZE)) mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
     unsigned long changes() const { return mChanges.to_ulong(); }
-    bool hasChanged(int changeType) { assert(changeType < CH_EL_SIZE); return changeType < CH_EL_SIZE ? mChanges[changeType] : false; }
+    bool hasChanged(int changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
 
     bool serialize(string*);
 
@@ -326,10 +328,10 @@ public:
     void takeAttrsFrom(Set&& s);
     void rebaseAttrsOn(const Set& s);
 
-    void setChanged(int changeType) { assert(changeType < CH_SIZE); if (changeType < CH_SIZE) mChanges[changeType] = 1; }
+    void setChanged(int changeType) { if (validChangeType(changeType, CH_SIZE)) mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
     unsigned long changes() const { return mChanges.to_ulong(); }
-    bool hasChanged(int changeType) { assert(changeType < CH_SIZE); return changeType < CH_SIZE ? mChanges[changeType] : false; }
+    bool hasChanged(int changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
 
     bool serialize(string*) override;
 

@@ -1925,6 +1925,18 @@ int MegaUserPrivate::isOwnChange()
     return tag;
 }
 
+bool MegaSetPrivate::hasChanged(int changeType) const
+{
+    assert((unsigned)changeType < (unsigned)CHANGE_TYPE_SIZE);
+    return (unsigned)changeType < (unsigned)CHANGE_TYPE_SIZE ? mChanges[changeType] : false;
+}
+
+bool MegaSetElementPrivate::hasChanged(int changeType) const
+{
+    assert((unsigned)changeType < (unsigned)CHANGE_TYPE_ELEM_SIZE);
+    return (unsigned)changeType < (unsigned)CHANGE_TYPE_ELEM_SIZE ? mChanges[changeType] : false;
+}
+
 MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     : id(b->id)
     , seen(b->seen)
