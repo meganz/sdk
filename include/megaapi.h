@@ -14194,7 +14194,7 @@ class MegaApi
          * - MegaError::API_EARGS if the node is NULL or is not a folder
          * 
          * - MegaError::API_EACCESS:
-         *              SyncError: SHARE_NON_FULL_ACCESS An ansestore node does not have full access
+         *              SyncError: SHARE_NON_FULL_ACCESS An ancestor node does not have full access
          *              SyncError: REMOTE_NODE_INSIDE_RUBBISH
          * - MegaError::API_EEXIST if there is a conflicting synchronization (nodes can't be synced twice)
          *              SyncError: ACTIVE_SYNC_BELOW_PATH - There's a synced node below the path to be synced
