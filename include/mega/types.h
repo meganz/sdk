@@ -446,10 +446,6 @@ enum ScanResult
     SCAN_INACCESSIBLE
 }; // ScanResult
 
-/**
- * @brief Provides information about SyncError
- */
-
 enum SyncError {
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
@@ -474,7 +470,7 @@ enum SyncError {
     REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
     VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
     LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
-    ACCOUNT_BLOCKED = 23,                    // Account blocked
+    ACCOUNT_BLOCKED = 23,                   // Account blocked
     UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
