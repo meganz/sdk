@@ -34474,7 +34474,7 @@ MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, cons
                             const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                             int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
                             const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay, const MegaIntegerMap* byMonthWeekDay)
-    :scheduledMeeting(chatid, timezone, startDate, endDate, title, description, freq, callid, parentCallid,
+    :ScheduledMeeting(chatid, timezone, startDate, endDate, title, description, freq, callid, parentCallid,
                       cancelled, emailsDisabled, attributes, overrides, interval, until,
                       byWeekDay ? (static_cast<const MegaIntegerListPrivate*>(byWeekDay))->getList() : nullptr,
                       byMonthDay ? (static_cast<const MegaIntegerListPrivate*>(byMonthDay))->getList() : nullptr,
@@ -34483,7 +34483,7 @@ MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, cons
 }
 
 MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaScheduledMeetingPrivate* schedMeeting)
-    :scheduledMeeting(schedMeeting)
+    :ScheduledMeeting(schedMeeting)
 {
 }
 

@@ -4054,7 +4054,7 @@ public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
 
-class MegaScheduledMeetingPrivate: public MegaScheduledMeeting, public scheduledMeeting
+class MegaScheduledMeetingPrivate: public MegaScheduledMeeting, public ScheduledMeeting
 {
 public:
     MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,

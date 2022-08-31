@@ -1526,12 +1526,12 @@ public:
 typedef std::function<void(Error)> CommandScheduledMeetingAddCompletion;
 class MEGA_API CommandScheduledMeetingAdd : public Command
 {
-    std::unique_ptr<scheduledMeeting> mScheduledMeeting;
+    std::unique_ptr<ScheduledMeeting> mScheduledMeeting;
     CommandScheduledMeetingAddCompletion mCompletion;
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingAdd(MegaClient *, scheduledMeeting *, CommandScheduledMeetingAddCompletion completion);
+    CommandScheduledMeetingAdd(MegaClient *, ScheduledMeeting *, CommandScheduledMeetingAddCompletion completion);
 };
 
 #endif

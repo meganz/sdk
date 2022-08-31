@@ -9057,7 +9057,7 @@ CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle c
     tag = client->reqtag;
 }
 
-CommandScheduledMeetingAdd::CommandScheduledMeetingAdd(MegaClient* client, scheduledMeeting * schedMeeting, CommandScheduledMeetingAddCompletion completion)
+CommandScheduledMeetingAdd::CommandScheduledMeetingAdd(MegaClient* client, ScheduledMeeting * schedMeeting, CommandScheduledMeetingAddCompletion completion)
     : mScheduledMeeting(schedMeeting ? schedMeeting->copy() : nullptr), mCompletion(completion)
 {
     assert(schedMeeting);
@@ -9089,7 +9089,7 @@ CommandScheduledMeetingAdd::CommandScheduledMeetingAdd(MegaClient* client, sched
 
     if (schedMeeting->rules())
     {
-        scheduledRules* rules = schedMeeting->rules();
+        ScheduledRules* rules = schedMeeting->rules();
         beginobject("r");
 
         if (rules->isValidFreq(rules->freq()))

@@ -140,6 +140,7 @@ struct PendingContactRequest;
 class TransferList;
 struct Achievement;
 class SyncConfig;
+class ScheduledMeeting;
 
 namespace UserAlert
 {
@@ -738,7 +739,7 @@ typedef enum {
 typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 
 #ifdef ENABLE_CHAT
-class scheduledFlags
+class ScheduledFlags
 {
     public:
         typedef enum
@@ -749,11 +750,11 @@ class scheduledFlags
 
         typedef std::bitset<FLAGS_SIZE> scheduledFlagsBitSet;
 
-        scheduledFlags() = default;
-        scheduledFlags (unsigned long numericValue);
-        scheduledFlags (scheduledFlags* flags);
-        scheduledFlags* copy();
-        ~scheduledFlags();
+        ScheduledFlags() = default;
+        ScheduledFlags (unsigned long numericValue);
+        ScheduledFlags (ScheduledFlags* flags);
+        ScheduledFlags* copy();
+        ~ScheduledFlags();
 
         // setters
         void reset();
@@ -768,7 +769,7 @@ class scheduledFlags
         scheduledFlagsBitSet mFlags = 0;
 };
 
-class scheduledRules
+class ScheduledRules
 {
     public:
         typedef enum {
@@ -780,16 +781,16 @@ class scheduledRules
 
         constexpr static int INTERVAL_INVALID = 0;
 
-        scheduledRules(int freq,
+        ScheduledRules(int freq,
                        int interval = INTERVAL_INVALID,
                        const char* until = nullptr,
                        const vector<int64_t>* byWeekDay = nullptr,
                        const vector<int64_t>* byMonthDay = nullptr,
                        const map<int64_t, int64_t>* byMonthWeekDay = nullptr);
 
-        scheduledRules(scheduledRules* rules);
-        scheduledRules* copy();
-        ~scheduledRules();
+        ScheduledRules(ScheduledRules* rules);
+        ScheduledRules* copy();
+        ~ScheduledRules();
 
         // setters
         void setFreq(int newFreq);
@@ -830,28 +831,28 @@ class scheduledRules
         std::unique_ptr<map<int64_t, int64_t>> mByMonthWeekDay;
 };
 
-class scheduledMeeting
+class ScheduledMeeting
 {
 public:
-    scheduledMeeting() = default;
-    scheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
+    ScheduledMeeting() = default;
+    ScheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
                      const char* title, const char* description, handle callid = UNDEF,
                      handle parentCallid = UNDEF, int cancelled = -1, const char* attributes = nullptr,
-                     const char* overrides = nullptr, scheduledFlags* flags = nullptr, scheduledRules* rules = nullptr);
+                     const char* overrides = nullptr, ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
 
-    scheduledMeeting(handle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
+    ScheduledMeeting(handle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                     const char* description, int freq, handle callid, handle parentCallid,
                                     int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
                                     const char* until, const vector<int64_t>* byWeekDay, const vector<int64_t>* byMonthDay,
                                     const map<int64_t, int64_t>* byMonthWeekDay);
 
-    scheduledMeeting(scheduledMeeting* scheduledMeeting);
-    scheduledMeeting* copy();
-    ~scheduledMeeting();
+    ScheduledMeeting(ScheduledMeeting* scheduledMeeting);
+    ScheduledMeeting* copy();
+    ~ScheduledMeeting();
 
     // setters
-    void setRules(scheduledRules* rules);
-    void setFlags(scheduledFlags* flags);
+    void setRules(ScheduledRules* rules);
+    void setFlags(ScheduledFlags* flags);
     void setCancelled(int cancelled);
     void setOverrides(const char* overrides);
     void setAttributes(const char* attributes);
@@ -876,8 +877,8 @@ public:
     const char* attributes() const;
     const char* overrides() const;
     int cancelled() const;
-    scheduledFlags* flags() const;
-    scheduledRules* rules() const;
+    ScheduledFlags* flags() const;
+    ScheduledRules* rules() const;
 
 private:
     // [required]: chat handle
@@ -914,10 +915,10 @@ private:
     int mCancelled;
 
     // [optional]: flags bitmask (used to store additional boolean settings as a bitmask)
-    std::unique_ptr<scheduledFlags> mFlags;
+    std::unique_ptr<ScheduledFlags> mFlags;
 
     // [optional]: scheduled meetings rules
-    std::unique_ptr<scheduledRules> mRules;
+    std::unique_ptr<ScheduledRules> mRules;
 };
 #endif
 
