@@ -1303,7 +1303,7 @@ const char* MegaTransfer::stageToString(unsigned stage)
 MegaError::MegaError(int e)
 {
     errorCode = e;
-    syncError = MegaSync::NO_SYNC_ERROR;
+    syncError = NO_SYNC_ERROR;
 }
 
 MegaError::MegaError(int e, int se)
