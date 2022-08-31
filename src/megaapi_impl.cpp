@@ -627,8 +627,8 @@ const char* MegaNodePrivate::getName()
     {
         case ROOTNODE:
             return "Cloud Drive";
-        case INCOMINGNODE:
-            return "Inbox";
+        case VAULTNODE:
+            return "Vault";
         case RUBBISHNODE:
             return "Rubbish Bin";
         default:
@@ -9203,21 +9203,21 @@ MegaNode *MegaApiImpl::getRootNode()
     return mLastKnownRootNode ? mLastKnownRootNode->copy() : nullptr;
 }
 
-MegaNode* MegaApiImpl::getInboxNode()
+MegaNode* MegaApiImpl::getVaultNode()
 {
     // return without locking the main mutex if possible.
     // Only compare fixed-location 8-byte values
     lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
-    if (client->rootnodes.inbox.isUndef()) return nullptr;
-    if (!mLastKnownInboxNode ||
-        mLastKnownInboxNode->getHandle() != client->rootnodes.inbox.as8byte())
+    if (client->rootnodes.vault.isUndef()) return nullptr;
+    if (!mLastKnownVaultNode ||
+        mLastKnownVaultNode->getHandle() != client->rootnodes.vault.as8byte())
     {
         // ok now lock main mutex
         SdkMutexGuard lock(sdkMutex);
-        mLastKnownInboxNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.inbox)));
+        mLastKnownVaultNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.vault)));
     }
 
-    return mLastKnownInboxNode ? mLastKnownInboxNode->copy() : nullptr;
+    return mLastKnownVaultNode ? mLastKnownVaultNode->copy() : nullptr;
 }
 
 MegaNode* MegaApiImpl::getRubbishNode()
@@ -9265,7 +9265,7 @@ bool MegaApiImpl::isInRootnode(MegaNode *node, int index)
     if (MegaNode *rootnode = getRootNode(node))
     {
         ret = (index == 0 && rootnode->getHandle() == client->rootnodes.files.as8byte()) ||
-              (index == 1 && rootnode->getHandle() == client->rootnodes.inbox.as8byte()) ||
+              (index == 1 && rootnode->getHandle() == client->rootnodes.vault.as8byte()) ||
               (index == 2 && rootnode->getHandle() == client->rootnodes.rubbish.as8byte());
         delete rootnode;
     }
@@ -11392,9 +11392,8 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, CancelToken cancelTo
     };
 
     if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.files);
-    if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.inbox);
+    if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.vault);
     if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.rubbish);
-
 
     // inshares
     unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
@@ -11962,7 +11961,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
 
         if (target == MegaApi::SEARCH_TARGET_ROOTNODE || target == MegaApi::SEARCH_TARGET_ALL)
         {
-            // Search on rootnode (cloud, excludes Inbox and Rubbish)
+            // Search on rootnode (cloud, excludes Vault and Rubbish)
             node = client->nodeByHandle(client->rootnodes.files);
 
             SearchTreeProcessor searchProcessor(client, searchString, type);
@@ -18334,6 +18333,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                             if (uploadToInbox)
                             {
+                                // obsolete feature, kept for sending logs to helpdesk
                                 client->putnodes(inboxTarget, move(tc.nn), nextTag);
                             }
                             else
@@ -19084,7 +19084,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (node->type == ROOTNODE
-                    || node->type == INCOMINGNODE
+                    || node->type == VAULTNODE
                     || node->type == RUBBISHNODE
                     || !node->parent) // rootnodes cannot be moved
             {
@@ -19513,7 +19513,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (node->type == ROOTNODE
-                    || node->type == INCOMINGNODE
+                    || node->type == VAULTNODE
                     || node->type == RUBBISHNODE) // rootnodes cannot be deleted
             {
                 e = API_EACCESS;
