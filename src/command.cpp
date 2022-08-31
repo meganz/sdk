@@ -132,12 +132,11 @@ bool Command::checkError(Error& errorDetails, JSON& json)
         client->activateoverquota(0, true);
     }
 
-#ifdef ENABLE_SYNC
     if (errorDetected && errorDetails == API_EBUSINESSPASTDUE)
     {
-        client->syncs.disableSyncs(BUSINESS_EXPIRED, false, true);
+        client->setBusinessStatus(BIZ_STATUS_EXPIRED);
     }
-#endif
+
     return errorDetected;
 }
 
