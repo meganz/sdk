@@ -17085,19 +17085,23 @@ node_list NodeManager::getChildren(const Node *parent)
     }
     else // get all children from DB directly and load missing ones
     {
+        for (const auto &child : parent->mNodePosition->second.mChildren)
+        {
+            if (child.second)
+            {
+                childrenList.push_back(child.second);
+            }
+        }
+
         std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
         mTable->getChildren(parent->nodeHandle(), nodesFromTable);
         for (auto nodeSerializedIt : nodesFromTable)
         {
             auto childIt = parent->mNodePosition->second.mChildren.find(nodeSerializedIt.first);
-            if (childIt != parent->mNodePosition->second.mChildren.end())
+            if (childIt == parent->mNodePosition->second.mChildren.end() || !childIt->second) // handle or node not loaded
             {
-                // handle was loaded -> load node
-                childrenList.push_back(childIt->second);
-            }
-            else // handle not loaded, load both handle and node
-            {
-                if (mNodes.find(nodeSerializedIt.first) == mNodes.end())
+                auto itNode = mNodes.find(nodeSerializedIt.first);
+                if ( itNode == mNodes.end() || !itNode->second.mNode)    // not loaded
                 {
                     Node* n = getNodeFromNodeSerialized(nodeSerializedIt.second);
                     if (!n)
@@ -17108,14 +17112,15 @@ node_list NodeManager::getChildren(const Node *parent)
 
                     childrenList.push_back(n);
                 }
-                //else The node is in memory but it isn't associated to the parent, the node has been moved
-                // but DB isn't already uptodate
+                else  // -> node loaded, but it isn't associated to the parent -> the node has been moved but DB isn't already updated
+                {
+                    assert(itNode->second.mNode->parentHandle() != parent->nodeHandle());
+                }
             }
         }
 
         parent->mNodePosition->second.mAllChildrenHandleLoaded = true;
     }
-
 
     return childrenList;
 }
