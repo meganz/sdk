@@ -3055,7 +3055,7 @@ protected:
         handle mLastReceivedLoggedInMeHandle = UNDEF;
 
         unique_ptr<MegaNode> mLastKnownRootNode;
-        unique_ptr<MegaNode> mLastKnownInboxNode;
+        unique_ptr<MegaNode> mLastKnownVaultNode;
         unique_ptr<MegaNode> mLastKnownRubbishNode;
 
 #ifdef HAVE_LIBUV

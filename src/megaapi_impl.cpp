@@ -9088,15 +9088,15 @@ MegaNode* MegaApiImpl::getVaultNode()
     // Only compare fixed-location 8-byte values
     lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
     if (client->rootnodes.vault.isUndef()) return nullptr;
-    if (!mLastKnownInboxNode ||
-        mLastKnownInboxNode->getHandle() != client->rootnodes.vault.as8byte())
+    if (!mLastKnownVaultNode ||
+        mLastKnownVaultNode->getHandle() != client->rootnodes.vault.as8byte())
     {
         // ok now lock main mutex
         SdkMutexGuard lock(sdkMutex);
-        mLastKnownInboxNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.vault)));
+        mLastKnownVaultNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.vault)));
     }
 
-    return mLastKnownInboxNode ? mLastKnownInboxNode->copy() : nullptr;
+    return mLastKnownVaultNode ? mLastKnownVaultNode->copy() : nullptr;
 }
 
 MegaNode* MegaApiImpl::getRubbishNode()

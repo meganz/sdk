@@ -15441,7 +15441,7 @@ class MegaApi
         /**
          * @deprecated Renamed to getVaultNode(). Should be replaced in external bindings before being removed here.
          */
-        MegaNode* getInboxNode() { return getVaultNode(); }
+        MegaNode* getInboxNode();
 
         /**
          * @brief Returns the rubbish node of the account

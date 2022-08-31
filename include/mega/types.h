@@ -344,11 +344,11 @@ typedef enum {
     TYPE_SPECIAL = -2,
 
     TYPE_UNKNOWN = -1,
-    FILENODE = 0,   // FILE - regular file nodes
-    FOLDERNODE,     // FOLDER - regular folder nodes
-    ROOTNODE,       // ROOT - the cloud drive root node
-    VAULTNODE,      // VAULT - vault, for "My backups" and other special folders
-    RUBBISHNODE     // RUBBISH - rubbish bin
+    FILENODE = 0,    // FILE - regular file nodes
+    FOLDERNODE,      // FOLDER - regular folder nodes
+    ROOTNODE,        // ROOT - the cloud drive root node
+    VAULTNODE,       // VAULT - vault, for "My backups" and other special folders
+    RUBBISHNODE      // RUBBISH - rubbish bin
 } nodetype_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,

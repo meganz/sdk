@@ -9067,7 +9067,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         }
     }
 
-    mergenewshares(0);
+    mergenewshares(notify);
 
     // detect if there's any orphan node and report to API
     for (auto orphan : orphans)

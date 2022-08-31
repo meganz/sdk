@@ -3555,6 +3555,11 @@ MegaNode *MegaApi::getVaultNode()
     return pImpl->getVaultNode();
 }
 
+MegaNode *MegaApi::getInboxNode()
+{
+    return pImpl->getVaultNode();
+}
+
 MegaNode* MegaApi::getRubbishNode()
 {
     return pImpl->getRubbishNode();
