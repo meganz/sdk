@@ -17017,6 +17017,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
 
         // when keepNodeInMemory is true, NodeManager::addChild is called by Node::setParent (from NodeManager::saveNodeInRAM)
         auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode());
+        // The NodeManagerNode could have been added by NodeManager::addChild() but, in that case, mNode would be invalid
         auto& nodePosition = pair.first;
         assert(!nodePosition->second.mNode);
         nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored a mNodesWithMissingParents
@@ -17812,6 +17813,8 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
 
     n = new Node(mClient, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
     auto pair = mNodes.emplace(NodeHandle().set6byte(h), NodeManagerNode());
+    // The NodeManagerNode could have been added in the initial fetch nodes (without session)
+    // Now, the node is loaded from DB, NodeManagerNode is updated with correct values
     mNodesInRam++;
     auto& nodePosition = pair.first;
     assert(!nodePosition->second.mNode);
@@ -18182,6 +18185,7 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
 void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 {
     auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode());
+    // The NodeManagerNode could have been added by NodeManager::addChild() but, in that case, mNode would be invalid
     mNodesInRam++;
     auto& nodePosition = pair.first;
     assert(!nodePosition->second.mNode);
@@ -18419,6 +18423,7 @@ uint64_t NodeManager::getNumberNodesInRam() const
 void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)
 {
     auto pair = mNodes.emplace(parent, NodeManagerNode());
+    // The NodeManagerNode could have been added in add node, only update the child
     assert(!pair.first->second.mChildren[child]);
     pair.first->second.mChildren[child] = node;
 }
