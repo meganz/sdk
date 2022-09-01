@@ -113,18 +113,18 @@ public:
     // get nodes and queries about nodes
     virtual bool getNode(NodeHandle nodehandle, NodeSerialized& nodeSerialized) = 0;
     virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+    virtual bool getChildren(NodeHandle parentHandle, std::vector<std::pair<NodeHandle, NodeSerialized>>& children) = 0;
+    virtual uint64_t getNumberOfChildren(NodeHandle parentHandle) = 0;
     virtual bool getNodesByName(const std::string& name, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) = 0;
     virtual bool getRecentNodes(unsigned maxcount, m_time_t since, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
-
+    virtual bool getNodesByFingerprint(const std::string& fingerprint, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
+    virtual bool getNodeByFingerprint(const std::string& fingerprint, mega::NodeSerialized& node) = 0;
     virtual bool getRootNodes(std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes) = 0;
     virtual bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>&, ShareType_t shareType) = 0;
     virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
     virtual bool childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) = 0;
 
     virtual bool isAncestor(NodeHandle node, NodeHandle ancestror, CancelToken cancelFlag) = 0;
-
-    // Get all fingerprints with their asociated NodeHandle
-    virtual bool loadFingerprintsAndChildren(std::map<FileFingerprint, nodePtr_map, FileFingerprintCmp>& fingerprints, std::map<NodeHandle, nodePtr_map>& children) = 0;
 
     // count of items in 'nodes' table. Returns 0 if error
     virtual uint64_t getNumberOfNodes() = 0;

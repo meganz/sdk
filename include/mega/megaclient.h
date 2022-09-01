@@ -312,7 +312,7 @@ public:
     // Valid values for nodeType: FILENODE, FOLDERNODE
     // Note: if not found among children loaded in RAM (and not all children are loaded), it will search in DB
     // Hint: ensure all children are loaded if this method is called for all children of a folder
-    Node* childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType);
+    Node* childNodeByNameType(const Node *parent, const std::string& name, nodetype_t nodeType);
 
     // Returns ROOTNODE, INCOMINGNODE, RUBBISHNODE (In case of logged into folder link returns only ROOTNODE)
     // Load from DB if it's necessary
@@ -394,7 +394,7 @@ public:
     // Add new relationship between parent and child
     void addChild(NodeHandle parent, NodeHandle child, Node *node);
     // remove relationship between parent and child
-    void removeChild(NodeHandle parent, NodeHandle child);
+    void removeChild(Node *parent, NodeHandle child);
 
     // Returns the number of versions for a node (including the current version)
     int getNumVersions(NodeHandle nodeHandle);
@@ -448,7 +448,9 @@ private:
     } rootnodes;
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
-    node_map mNodes;
+    std::map<NodeHandle, NodeManagerNode> mNodes;
+
+    uint64_t mNodesInRam = 0;
 
     // nodes that have changed and are pending to notify to app and dump to DB
     node_vector mNodeNotify;
@@ -492,9 +494,6 @@ private:
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
-
-    // store relationship between nodes and their children (nodes without children are not in the map)
-    std::map<NodeHandle, nodePtr_map> mNodeChildren;
 };
 
 class MEGA_API MegaClient

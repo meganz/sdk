@@ -1036,12 +1036,12 @@ Node *MegaClient::childnodebyname(const Node* p, const char* name, bool skipfold
 
     if (!skipfolders)
     {
-        node = mNodeManager.childNodeByNameType(p->nodeHandle(), nname, FOLDERNODE);
+        node = mNodeManager.childNodeByNameType(p, nname, FOLDERNODE);
     }
 
     if (!node)
     {
-        node = mNodeManager.childNodeByNameType(p->nodeHandle(), nname, FILENODE);
+        node = mNodeManager.childNodeByNameType(p, nname, FILENODE);
     }
 
     return node;
@@ -1063,7 +1063,7 @@ Node* MegaClient::childnodebynametype(Node* p, const char* name, nodetype_t must
 
     LocalPath::utf8_normalize(&nname);
 
-     return mNodeManager.childNodeByNameType(p->nodeHandle(), nname, mustBeType);
+     return mNodeManager.childNodeByNameType(p, nname, mustBeType);
 }
 
 // returns a matching child node that has the given attribute with the given value
@@ -17016,6 +17016,11 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
         mNodeToWriteInDb.reset(node);
 
         // when keepNodeInMemory is true, NodeManager::addChild is called by Node::setParent (from NodeManager::saveNodeInRAM)
+        auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode());
+        // The NodeManagerNode could have been added by NodeManager::addChild() but, in that case, mNode would be invalid
+        auto& nodePosition = pair.first;
+        assert(!nodePosition->second.mNode);
+        nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored a mNodesWithMissingParents
         addChild(node->parentHandle(), node->nodeHandle(), nullptr);
     }
 
@@ -17059,10 +17064,10 @@ node_list NodeManager::getChildren(const Node *parent)
         return childrenList;
     }
 
-    auto it = mNodeChildren.find(parent->nodeHandle());
-    if (it != mNodeChildren.end())
+    // if handles of all children are known, load missing child nodes one by one
+    if (parent->mNodePosition->second.mAllChildrenHandleLoaded)
     {
-        for (const auto &child : it->second)
+        for (const auto &child : parent->mNodePosition->second.mChildren)
         {
             if (child.second)
             {
@@ -17070,7 +17075,6 @@ node_list NodeManager::getChildren(const Node *parent)
             }
             else
             {
-                assert(!getNodeInRAM(child.first));
                 Node* n = getNodeFromDataBase(child.first);
                 assert(n);
                 if (n)
@@ -17079,6 +17083,44 @@ node_list NodeManager::getChildren(const Node *parent)
                 }
             }
         }
+    }
+    else // get all children from DB directly and load missing ones
+    {
+        for (const auto &child : parent->mNodePosition->second.mChildren)
+        {
+            if (child.second)
+            {
+                childrenList.push_back(child.second);
+            }
+        }
+
+        std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+        mTable->getChildren(parent->nodeHandle(), nodesFromTable);
+        for (auto nodeSerializedIt : nodesFromTable)
+        {
+            auto childIt = parent->mNodePosition->second.mChildren.find(nodeSerializedIt.first);
+            if (childIt == parent->mNodePosition->second.mChildren.end() || !childIt->second) // handle or node not loaded
+            {
+                auto itNode = mNodes.find(nodeSerializedIt.first);
+                if ( itNode == mNodes.end() || !itNode->second.mNode)    // not loaded
+                {
+                    Node* n = getNodeFromNodeSerialized(nodeSerializedIt.second);
+                    if (!n)
+                    {
+                        childrenList.clear();
+                        return childrenList;
+                    }
+
+                    childrenList.push_back(n);
+                }
+                else  // -> node loaded, but it isn't associated to the parent -> the node has been moved but DB isn't already updated
+                {
+                    assert(itNode->second.mNode->parentHandle() != parent->nodeHandle());
+                }
+            }
+        }
+
+        parent->mNodePosition->second.mAllChildrenHandleLoaded = true;
     }
 
     return childrenList;
@@ -17169,21 +17211,62 @@ node_vector NodeManager::search(NodeHandle nodeHandle, const char *searchString,
 node_vector NodeManager::getNodesByFingerprint(const FileFingerprint &fingerprint)
 {
     node_vector nodes;
-    auto it = mFingerPrints.find(fingerprint);
-    if (it != mFingerPrints.end())
+    if (!mTable)
     {
-        for (auto itNode : it->second)  // for all nodes with matching fingerprint
+        assert(false);
+        return nodes;
+    }
+
+    auto it = mFingerPrints.find(fingerprint);
+    if (it != mFingerPrints.end() && it->second.mAllNodesLoaded)
+    {
+        NodesFingerprintMap& nodesFingerprintMap = it->second;
+        for (const auto& itNode : nodesFingerprintMap.mNodes) // return directly from RAM, all nodes are loaded
         {
+            // if handle has been inserted, the pointer should be valid
             Node* node = itNode.second;
-            if (!node)  // not loaded yet
+            assert(node);
+            nodes.push_back(node);
+        }
+    }
+    else // fingerprint is not found or not all nodes with that fingerprint are loaded
+    {
+        std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+        std::string fingerprintString;
+        fingerprint.serialize(&fingerprintString);
+        mTable->getNodesByFingerprint(fingerprintString, nodesFromTable);
+        if (nodesFromTable.size())
+        {
+            if (it == mFingerPrints.end())
             {
-                node = getNodeFromDataBase(itNode.first);
+                NodesFingerprintMap nodesFingerprintMap;
+                it = mFingerPrints.emplace(fingerprint, nodesFingerprintMap).first;
             }
 
-            assert(node && "getNodesByFingerprint: failed to get node that should exist");
-            if (node)
+            auto& nodesFingerprintIt = it->second;
+            nodesFingerprintIt.mAllNodesLoaded = true; // all nodes for this fp are loaded
+            nodePtr_map& nodesMap = nodesFingerprintIt.mNodes;
+
+            for (const auto& nodeIt : nodesFromTable)
             {
-                nodes.push_back(node);
+                auto mapIt = nodesMap.find(nodeIt.first);
+                if (mapIt == nodesMap.end())
+                {
+                    Node* n = getNodeFromNodeSerialized(nodeIt.second);
+                    if (!n)
+                    {
+                        nodes.clear();
+                        return nodes;
+                    }
+
+                    nodes.push_back(n);
+                }
+                else
+                {
+                    Node* n = mapIt->second;
+                    assert(n);
+                    nodes.push_back(n);
+                }
             }
         }
     }
@@ -17209,27 +17292,37 @@ node_vector NodeManager::getNodesByOrigFingerprint(const std::string &fingerprin
 
 Node *NodeManager::getNodeByFingerprint(const FileFingerprint &fingerprint)
 {
+    Node* node = nullptr;
+    if (!mTable)
+    {
+        assert(false);
+        return node;
+    }
+
     auto it = mFingerPrints.find(fingerprint);
     if (it != mFingerPrints.end())
     {
-        for (auto itNode : it->second)  // for all nodes with matching fingerprint
-        {
-            if (itNode.second)  // if there's any node already loaded, return it
-            {
-                return itNode.second;
-            }
-        }
-
-        if (it->second.size())  // if there are nodes with matching fingerprint, but not loaded yet, return the first one
-        {
-            return getNodeFromDataBase(it->second.begin()->first);
-        }
+        const auto& nodesFingerprintMap = it->second;
+        assert (nodesFingerprintMap.mNodes.size()); // if there is fingerprint, at least it should have a node
+        // if there is a node, return it directly
+        node = nodesFingerprintMap.mNodes.begin()->second;
+        assert(node);
+        return node;
     }
 
-    return nullptr;
+    NodeSerialized nodeSerialized;
+    std::string fingerprintString;
+    fingerprint.serialize(&fingerprintString);
+    mTable->getNodeByFingerprint(fingerprintString, nodeSerialized);
+    if (nodeSerialized.mNode.size()) // nodes with that fingerprint found in DB
+    {
+        node = getNodeFromNodeSerialized(nodeSerialized);
+    }
+
+    return node;
 }
 
-Node *NodeManager::childNodeByNameType(NodeHandle parentHandle, const std::string &name, nodetype_t nodeType)
+Node *NodeManager::childNodeByNameType(const Node* parent, const std::string &name, nodetype_t nodeType)
 {
     if (!mTable)
     {
@@ -17237,32 +17330,32 @@ Node *NodeManager::childNodeByNameType(NodeHandle parentHandle, const std::strin
         return nullptr;
     }
 
-    auto it = mNodeChildren.find(parentHandle);
-    if (it == mNodeChildren.end())
+    // mAllChildrenHandleLoaded = false -> if not found, need check DB
+    // mAllChildrenHandleLoaded = true  -> if all children have a pointer, no need to check DB
+    bool allChildrenLoaded = parent->mNodePosition->second.mAllChildrenHandleLoaded;
+    for (const auto& itNode : parent->mNodePosition->second.mChildren)
     {
-        return nullptr;
-    }
-
-    bool allChildrenLoaded = true;
-    for (const auto& itHandleNode : it->second)
-    {
-        Node* node = itHandleNode.second;
-        if (!node)
-        {
-            allChildrenLoaded = false;
-            continue;
-        }
-
-        if (node->type == nodeType && name == node->displayname())
+        Node* node = itNode.second;
+        if (node && node->type == nodeType && name == node->displayname())
         {
             return node;
         }
+        else if (!node)
+        {
+            // If no all children nodes are loaded, it's necessary check DB
+            allChildrenLoaded = false;
+        }
+    }
+
+    if (allChildrenLoaded)
+    {
+        return nullptr; // There is no match
     }
 
     std::pair<NodeHandle, NodeSerialized> nodeSerialized;
-    if (allChildrenLoaded || !mTable->childNodeByNameType(parentHandle, name, nodeType, nodeSerialized))
+    if (!mTable->childNodeByNameType(parent->nodeHandle(), name, nodeType, nodeSerialized))
     {
-        return nullptr;
+        return nullptr;  // Not found at DB either
     }
 
     assert(!getNodeInRAM(nodeSerialized.first));  // not loaded yet
@@ -17447,10 +17540,10 @@ NodeCounter NodeManager::calculateNodeCounter(const NodeHandle& nodehandle, node
     }
 
     nodePtr_map children;
-    auto it = mNodeChildren.find(nodehandle);
-    if (it != mNodeChildren.end())
+    auto it = mNodes.find(nodehandle);
+    if (it != mNodes.end())
     {
-        children = it->second;
+        children = it->second.mChildren;
     }
 
     for (const auto &itNode : children)
@@ -17502,8 +17595,20 @@ std::vector<NodeHandle> NodeManager::getFavouritesNodeHandles(NodeHandle node, u
 
 size_t NodeManager::getNumberOfChildrenFromNode(NodeHandle parentHandle)
 {
-    auto it = mNodeChildren.find(parentHandle);
-    return (it != mNodeChildren.end()) ? it->second.size() : 0;
+    if (!mTable)
+    {
+        assert(false);
+        return 0;
+    }
+
+    auto parentIt = mNodes.find(parentHandle);
+    if (parentIt != mNodes.end() && parentIt->second.mAllChildrenHandleLoaded)
+    {
+        return parentIt->second.mChildren.size();
+    }
+
+
+    return mTable->getNumberOfChildren(parentHandle);
 }
 
 size_t NodeManager::getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType)
@@ -17532,9 +17637,12 @@ bool NodeManager::isAncestor(NodeHandle nodehandle, NodeHandle ancestor, CancelT
 
 void NodeManager::removeChanges()
 {
-    for (node_map::iterator it = mNodes.begin(); it != mNodes.end(); it++)
+    for (auto& it : mNodes)
     {
-        memset(&(it->second->changed), 0, sizeof it->second->changed);
+        if (it.second.mNode)
+        {
+            memset(&(it.second.mNode->changed), 0, sizeof it.second.mNode->changed);
+        }
     }
 }
 
@@ -17542,10 +17650,10 @@ void NodeManager::cleanNodes()
 {
     mFingerPrints.clear();
     mNodes.clear();
+    mNodesInRam = 0;
     mNodeToWriteInDb.reset();
     mNodeNotify.clear();
     mNodesWithMissingParent.clear();
-    mNodeChildren.clear();
 
     if (mTable)
         mTable->removeNodes();
@@ -17590,7 +17698,6 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
 
     h = 0;
     memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
-    assert(mNodes.find(NodeHandle().set6byte(h)) == mNodes.end());
     ptr += MegaClient::NODEHANDLE;
 
     ph = 0;
@@ -17705,8 +17812,14 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     }
 
     n = new Node(mClient, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
-    assert(mNodes.find(NodeHandle().set6byte(h)) == mNodes.end());
-    mNodes[n->nodeHandle()].reset(n);
+    auto pair = mNodes.emplace(NodeHandle().set6byte(h), NodeManagerNode());
+    // The NodeManagerNode could have been added in the initial fetch nodes (without session)
+    // Now, the node is loaded from DB, NodeManagerNode is updated with correct values
+    mNodesInRam++;
+    auto& nodePosition = pair.first;
+    assert(!nodePosition->second.mNode);
+    nodePosition->second.mNode.reset(n);
+    n->mNodePosition = nodePosition;
 
     // setparent() skiping update of node counters, since they are already calculated in DB
     // In DB migration we have to calculate them as they aren't calculated previously
@@ -17755,7 +17868,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     ptr = n->attrs.unserialize(ptr, end);
     if (!ptr)
     {
-        mNodes.erase(n->nodeHandle());
+        mNodes.erase(nodePosition);
         LOG_err << "Failed to unserialize attrs";
         assert(false);
         return NULL;
@@ -17783,7 +17896,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     {
         if (ptr + MegaClient::NODEHANDLE + sizeof(m_time_t) + sizeof(bool) > end)
         {
-            mNodes.erase(n->nodeHandle());
+            mNodes.erase(nodePosition);
             return NULL;
         }
 
@@ -17811,7 +17924,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         // Have we encoded the node key data's length?
         if (ptr + sizeof(unsigned short) > end)
         {
-            mNodes.erase(n->nodeHandle());
+            mNodes.erase(nodePosition);
             return nullptr;
         }
 
@@ -17821,7 +17934,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         // Have we encoded the node key data?
         if (ptr + length > end)
         {
-            mNodes.erase(n->nodeHandle());
+            mNodes.erase(nodePosition);
             return nullptr;
         }
 
@@ -17831,7 +17944,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         // Have we encoded the length of the attribute string?
         if (ptr + sizeof(unsigned short) > end)
         {
-            mNodes.erase(n->nodeHandle());
+            mNodes.erase(nodePosition);
             return nullptr;
         }
 
@@ -17841,7 +17954,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         // Have we encoded the attribute string?
         if (ptr + length > end)
         {
-            mNodes.erase(n->nodeHandle());
+            mNodes.erase(nodePosition);
             return nullptr;
         }
 
@@ -17862,7 +17975,7 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
     }
     else
     {
-        mNodes.erase(n->nodeHandle());
+        mNodes.erase(nodePosition);
         return NULL;
     }
 }
@@ -17873,7 +17986,10 @@ void NodeManager::applyKeys(uint32_t appliedKeys)
     {
         for (auto& it : mNodes)
         {
-            it.second->applykey();
+            if (it.second.mNode)
+            {
+                it.second.mNode->applykey();
+            }
         }
     }
 }
@@ -18000,20 +18116,20 @@ void NodeManager::notifyPurge()
                     // optimization: if the parent has already been deleted, the relationship
                     // of children with their parent has been removed by the parent already
                     // so we can avoid lookups for non existing parent handle.
-                    removeChild(n->parentHandle(), h);
+                    removeChild(n->parent, h);
                 }
                 node_list children = getChildren(n);
                 for (auto child : children)
                 {
                     child->parent = nullptr;
                 }
-                mNodeChildren.erase(h);
 
                 removeFingerprint(n);
 
                 // effectively delete node from RAM
                 mNodesWithMissingParent.erase(h);
-                mNodes.erase(h);
+                mNodesInRam--;
+                mNodes.erase(n->mNodePosition);
 
                 mTable->remove(h);
             }
@@ -18043,13 +18159,6 @@ bool NodeManager::loadNodes()
         return false;
     }
 
-    // Load map with fingerprints to speed up searching by fingerprint, as well as children
-    std::vector<std::pair<NodeHandle, NodeHandle>> nodeAndParent; // first parent, second child
-    if (!mTable->loadFingerprintsAndChildren(mFingerPrints, mNodeChildren))
-    {
-        return false;
-    }
-
     node_vector rootnodes = getRootNodes();
     // We can't base in `user.sharing` because it's set yet. We have to get from DB
     node_vector inshares = getNodesWithInShares();  // it includes nested inshares
@@ -18065,9 +18174,9 @@ bool NodeManager::loadNodes()
 Node* NodeManager::getNodeInRAM(NodeHandle handle)
 {
     auto itNode = mNodes.find(handle);
-    if (itNode != mNodes.end())
+    if (itNode != mNodes.end() && itNode->second.mNode)
     {
-        return itNode->second.get();
+        return itNode->second.mNode.get();
     }
 
     return nullptr;
@@ -18075,8 +18184,14 @@ Node* NodeManager::getNodeInRAM(NodeHandle handle)
 
 void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 {
-    assert(mNodes.find(node->nodeHandle()) == mNodes.end());
-    mNodes[node->nodeHandle()].reset(node);   // takes ownership
+    auto pair = mNodes.emplace(node->nodeHandle(), NodeManagerNode());
+    // The NodeManagerNode could have been added by NodeManager::addChild() but, in that case, mNode would be invalid
+    mNodesInRam++;
+    auto& nodePosition = pair.first;
+    assert(!nodePosition->second.mNode);
+    nodePosition->second.mNode.reset(node);
+    nodePosition->second.mAllChildrenHandleLoaded = true; // Receive a new node, children aren't received yet or they are stored a mNodesWithMissingParents
+    node->mNodePosition = nodePosition;
 
     // In case of rootnode, no need to add to mNodesWithMissingParent
     if (!isRootnode)
@@ -18225,13 +18340,14 @@ mega::FingerprintMapPosition NodeManager::insertFingerprint(Node *node)
         auto it = mFingerPrints.find(*node);
         if (it != mFingerPrints.end())
         {
-            it->second[node->nodeHandle()] = n;
+            it->second.mNodes[node->nodeHandle()] = n;
             return it;
         }
         else
         {
-            std::pair<NodeHandle, Node*> pair = std::make_pair(node->nodeHandle(), n);
-            return mFingerPrints.emplace(*node, nodePtr_map{pair}).first;
+            NodesFingerprintMap aux;
+            aux.mNodes[node->nodeHandle()] = n;
+            return mFingerPrints.emplace(*node, aux).first;
         }
     }
 
@@ -18247,10 +18363,10 @@ void NodeManager::removeFingerprint(Node *node)
 #ifdef DEBUG
             size_t ret =
 #endif
-            node->mFingerPrintPosition->second.erase(node->nodeHandle());
+            node->mFingerPrintPosition->second.mNodes.erase(node->nodeHandle());
             assert(ret == 1);
 
-            if (node->mFingerPrintPosition->second.empty())
+            if (node->mFingerPrintPosition->second.mNodes.empty())
             {
                 mFingerPrints.erase(node->mFingerPrintPosition);
             }
@@ -18275,7 +18391,10 @@ void NodeManager::dumpNodes()
 
     for (auto &it : mNodes)
     {
-        mTable->put(it.second.get());
+        if (it.second.mNode)
+        {
+            mTable->put(it.second.mNode.get());
+        }
     }
 }
 
@@ -18298,26 +18417,20 @@ void NodeManager::saveNodeInDb(Node *node)
 
 uint64_t NodeManager::getNumberNodesInRam() const
 {
-    return mNodes.size();
+    return mNodesInRam;
 }
 
 void NodeManager::addChild(NodeHandle parent, NodeHandle child, Node* node)
 {
-    mNodeChildren[parent][child] = node;
+    auto pair = mNodes.emplace(parent, NodeManagerNode());
+    // The NodeManagerNode could have been added in add node, only update the child
+    assert(!pair.first->second.mChildren[child]);
+    pair.first->second.mChildren[child] = node;
 }
 
-void NodeManager::removeChild(NodeHandle parent, NodeHandle child)
+void NodeManager::removeChild(Node* parent, NodeHandle child)
 {
-    auto it = mNodeChildren.find(parent);
-    if (it != mNodeChildren.end())
-    {
-        it->second.erase(child);
-        // Remove nodes without children. Only keep in mNodeChildren nodes with children
-        if (it->second.empty())
-        {
-            mNodeChildren.erase(it);
-        }
-    }
+    parent->mNodePosition->second.mChildren.erase(child);
 }
 
 Node* NodeManager::getNodeFromDataBase(NodeHandle handle)
