@@ -496,7 +496,6 @@ private:
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
-
 };
 
 class MEGA_API MegaClient

@@ -4730,7 +4730,6 @@ bool MegaClient::procsc()
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
-
                         }
                         else
                         {
