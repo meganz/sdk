@@ -8652,6 +8652,10 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     ASSERT_TRUE(found);
 
+    // --- UserA get node by fingerprint ---
+    unique_ptr<MegaNode> NodeSameFingerPrint(megaApi[0]->getNodeByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(NodeSameFingerPrint.get(), nullptr);
+
     // --- UserA get node by name ---
     unique_ptr<MegaNodeList> searchList(megaApi[0]->search(fileNameToSearch.c_str()));
     ASSERT_EQ(searchList->size(), 1);
