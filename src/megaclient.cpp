@@ -7368,7 +7368,8 @@ void MegaClient::notifypurge(void)
 
     if (scsn.ready()) tscsn = scsn.getHandle();
 
-    if (nodenotify.size() || usernotify.size() || pcrnotify.size() || !setnotify.empty()
+    if (nodenotify.size() || usernotify.size() || pcrnotify.size()
+            || setnotify.size() || setelementnotify.size()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
