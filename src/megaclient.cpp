@@ -17217,6 +17217,17 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
         return nodes;
     }
 
+    // Take first nodes in RAM
+    nodePtr_map fingerprints;
+    auto p = mFingerPrints.equal_range(&fingerprint);
+    for (auto it = p.first; it != p.second; ++it)
+    {
+        Node* node = static_cast<Node*>(*it);
+        fingerprints.emplace(node->nodeHandle(), node);
+        nodes.push_back(node);
+    }
+
+    // Look for nodes at DB
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     std::string fingerprintString;
     fingerprint.serialize(&fingerprintString);
@@ -17225,23 +17236,17 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
     {
         for (const auto& nodeIt : nodesFromTable)
         {
-            auto mapIt = mNodes.find(nodeIt.first);
-            if (mapIt == mNodes.end() || !mapIt->second.mNode)
+            auto mapIt = fingerprints.find(nodeIt.first);
+            if (mapIt == fingerprints.end())
             {
-                Node* n = getNodeFromNodeSerialized(nodeIt.second);
-                if (!n)
+                Node* node = getNodeFromNodeSerialized(nodeIt.second);
+                if (!node)
                 {
                     nodes.clear();
                     return nodes;
                 }
 
-                nodes.push_back(n);
-            }
-            else
-            {
-                Node* n = mapIt->second.mNode.get();
-                assert(n);
-                nodes.push_back(n);
+                nodes.push_back(node);
             }
         }
     }
