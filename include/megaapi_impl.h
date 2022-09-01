@@ -2943,8 +2943,8 @@ class MegaApiImpl : public MegaApp
         void createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                                  const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                                                  int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                                 const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
-                                                 const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
+                                                 const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
+                                                 const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
@@ -4060,7 +4060,7 @@ public:
     MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                 const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                                 int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay, const MegaIntegerMap* byMonthWeekDay);
+                                const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay, const MegaSmallIntMap* byMonthWeekDay);
 
     MegaScheduledMeetingPrivate(MegaScheduledMeetingPrivate* schedMeeting);
     MegaScheduledMeetingPrivate* copy() override;

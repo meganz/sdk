@@ -34,6 +34,8 @@
 namespace mega
 {
 typedef uint64_t MegaHandle;
+typedef std::vector<int8_t> MegaSmallIntVector;
+typedef std::multimap<int8_t, int8_t> MegaSmallIntMap;
 
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -18016,8 +18018,8 @@ class MegaApi
         void createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                                  const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                                                  int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                                 const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
-                                                 const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
+                                                 const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
+                                                 const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
@@ -20303,7 +20305,7 @@ public:
     static MegaScheduledMeeting* createInstance(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                 const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                                 int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval, const char* until,
-                                const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay, const MegaIntegerMap* byMonthWeekDay);
+                                const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay, const MegaSmallIntMap* byMonthWeekDay);
 
     virtual MegaScheduledMeeting* copy();
 };

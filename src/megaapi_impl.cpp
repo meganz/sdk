@@ -10699,8 +10699,8 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
 void MegaApiImpl::createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                          const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                                          int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                         const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
-                                         const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener)
+                                         const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
+                                         const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SCHEDULED_MEETING, listener);
     std::unique_ptr<MegaScheduledMeeting> schedMeeting(MegaScheduledMeeting::createInstance(chatid, timezone, startDate, endDate,
@@ -34473,12 +34473,12 @@ const vector<handle>& FavouriteProcessor::getHandles() const
 MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                             const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                             int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                            const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay, const MegaIntegerMap* byMonthWeekDay)
+                            const char* until, const MegaSmallIntVector *byWeekDay, const MegaSmallIntVector *byMonthDay, const MegaSmallIntMap *byMonthWeekDay)
     :ScheduledMeeting(chatid, timezone, startDate, endDate, title, description, freq, callid, parentCallid,
                       cancelled, emailsDisabled, attributes, overrides, interval, until,
-                      byWeekDay ? (static_cast<const MegaIntegerListPrivate*>(byWeekDay))->getList() : nullptr,
-                      byMonthDay ? (static_cast<const MegaIntegerListPrivate*>(byMonthDay))->getList() : nullptr,
-                      byMonthWeekDay ? (static_cast<const MegaIntegerMapPrivate*>(byMonthWeekDay))->getMap() : nullptr)
+                      byWeekDay ? byWeekDay : nullptr,
+                      byMonthDay ? byMonthDay : nullptr,
+                      byMonthWeekDay ? byMonthWeekDay : nullptr)
 {
 }
 

@@ -5172,8 +5172,8 @@ void MegaApi::setChatOption(MegaHandle chatid, int option, bool enabled, MegaReq
 void MegaApi::createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                          const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                                          int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                         const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
-                                         const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener)
+                                         const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
+                                         const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener)
 {
      pImpl->createScheduledMeeting(chatid, timezone, startDate, endDate, title,
                                    description, freq, callid, parentCallid,
@@ -6907,7 +6907,7 @@ MegaScheduledMeeting::~MegaScheduledMeeting() {}
 MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                             const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                             int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval, const char* until,
-                            const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay, const MegaIntegerMap* byMonthWeekDay)
+                            const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay, const MegaSmallIntMap* byMonthWeekDay)
 {
     return new MegaScheduledMeetingPrivate(chatid, timezone, startDate, endDate, title, description, freq, callid, parentCallid, cancelled,
                                            emailsDisabled, attributes, overrides, interval, until, byWeekDay, byMonthDay, byMonthWeekDay);
