@@ -18416,7 +18416,7 @@ void CommonSE::rebaseCommonAttrsOn(const string_map* baseAttrs)
             }
             else
             {
-                rebased.emplace(move(a));
+                rebased[a.first] = a.second;
             }
         }
         mAttrs->swap(rebased);
