@@ -2309,6 +2309,18 @@ string LocalNode::getCloudPath(bool guessLeafName) const
     return path;
 }
 
+
+string LocalNode::debugGetParentList()
+{
+    string s;
+
+    for (const LocalNode* l = this; l != nullptr; l = l->parent)
+    {
+        s += l->localname.toPath() + "(" + std::to_string((long long)(void*)l) + ") ";
+    }
+    return s;
+}
+
 // locate child by localname or slocalname
 LocalNode* LocalNode::childbyname(LocalPath* localname)
 {

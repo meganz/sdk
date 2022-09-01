@@ -753,8 +753,19 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 
     auto range = tmap->equal_range(parent_dbid);
 
-    for (auto it = range.first; it != range.second; it++)
+    // remove processed elements as we go, so we can then clean the database at the end.
+    for (auto it = range.first; it != tmap->end() && it->first == parent_dbid; it = tmap->erase(it))
     {
+        auto preExisting = p->children.find(&it->second->localname);
+        if (preExisting != p->children.end())
+        {
+            // tidying up from prior versions of the SDK which might have duplicate LocalNodes
+            LOG_debug << "Removing duplicate LocalNode " << preExisting->second->debugGetParentList();
+            delete preExisting->second;   // also detaches and preps removal from db
+            assert(p->children.find(&it->second->localname) == p->children.end());
+            continue;
+        }
+
         ScopedLengthRestore restoreLen(localpath);
 
         localpath.appendWithSeparator(it->second->localname, true);
@@ -830,8 +841,21 @@ void Sync::readstatecache()
     }
 
     // recursively build LocalNode tree
-    LocalPath pathBuffer = localroot->localname; // don't let localname be appended during recurse
-    addstatecachechildren(0, &tmap, pathBuffer, localroot.get(), 100);
+    {
+        TransferDbCommitter committer(statecachetable);
+        LocalPath pathBuffer = localroot->localname; // don't let localname be appended during recurse
+        addstatecachechildren(0, &tmap, pathBuffer, localroot.get(), 100);
+
+        if (!tmap.empty())
+        {
+            // if there is anything left in tmap, those are orphan nodes - tidy up the db
+            LOG_debug << "Removing " << tmap.size() << " LocalNode orphans from db";
+            for (auto& ln : tmap)
+            {
+                statecachedel(ln.second);
+            }
+        }
+    }
     cachenodes();
 
     LOG_debug << syncname << "Sync " << toHandle(getConfig().mBackupId) << " loaded from db with " << numLocalNodes << " sync nodes";
@@ -1584,7 +1608,15 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 auto sourceFSID = syncs.fsaccess->fsidOf(sourcePath, false);
                 auto targetFSID = row.fsNode->fsid;
 
-                if (sourceFSID != UNDEF && sourceFSID == targetFSID)
+                if (sourcePath == fullPath.localPath)
+                {
+                    // if we run the pre-rework sync code against the same database,
+                    // sometimes we end up with duplicate LocalNodes that then make it seem
+                    // that we have hard links.
+                    LOG_debug << "Possible duplicate LocalNode at " << sourceSyncNode->debugGetParentList() << " vs " << row.syncNode->debugGetParentList();
+                    return rowResult = false, true;
+                }
+                else if (sourceFSID != UNDEF && sourceFSID == targetFSID)
                 {
                     // Let the user know why we can't perform the move.
                     // Actually we shouldn't even think this is a move since
