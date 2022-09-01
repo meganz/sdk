@@ -6622,7 +6622,7 @@ MegaIntegerMap* MegaIntegerMap::createInstance()
     return new MegaIntegerMapPrivate();
 }
 
-MegaIntegerMap* MegaIntegerMap::createInstance(const std::map<int64_t, int64_t>& integer_map)
+MegaIntegerMap* MegaIntegerMap::createInstance(const std::multimap<int64_t, int64_t>& integer_map)
 {
     return new MegaIntegerMapPrivate(integer_map);
 }

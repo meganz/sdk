@@ -1830,7 +1830,7 @@ class MegaIntegerMapPrivate : public MegaIntegerMap
 {
 public:
     MegaIntegerMapPrivate();
-    MegaIntegerMapPrivate(const std::map<int64_t, int64_t> &integers);
+    MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t> &integers);
     virtual ~MegaIntegerMapPrivate();
     virtual MegaIntegerMap* copy() const;
     virtual bool get(const long long& key, long long& value) const;

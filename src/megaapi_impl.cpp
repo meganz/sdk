@@ -4285,7 +4285,7 @@ MegaIntegerMapPrivate::MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIn
 {
 }
 
-MegaIntegerMapPrivate::MegaIntegerMapPrivate(const std::map<int64_t, int64_t> &integers)
+MegaIntegerMapPrivate::MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t> &integers)
     :mIntegerMap(integers)
 {
 }
@@ -4329,7 +4329,7 @@ unsigned long long MegaIntegerMapPrivate::size() const
 
 void MegaIntegerMapPrivate::set(const long long& key, const long long& value)
 {
-    mIntegerMap[key] = value;
+    mIntegerMap.emplace(key, value);
 }
 
 const integer_map* MegaIntegerMapPrivate::getMap() const

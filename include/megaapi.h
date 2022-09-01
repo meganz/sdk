@@ -2395,7 +2395,7 @@ public:
      * @return A pointer to the superclass of the private object
      */
     static MegaIntegerMap* createInstance();
-    static MegaIntegerMap* createInstance(const std::map<int64_t, int64_t>& integer_map);
+    static MegaIntegerMap* createInstance(const std::multimap<int64_t, int64_t> &integer_map);
     virtual ~MegaIntegerMap();
     virtual MegaIntegerMap* copy() const;
 
