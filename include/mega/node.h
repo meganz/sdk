@@ -773,6 +773,9 @@ struct MEGA_API LocalNode
     // build full remote path to this node (might not exist anymore, of course)
     string getCloudPath(bool guessLeafName) const;
 
+    // For debugging duplicate LocalNodes from older SDK versions
+    string debugGetParentList();
+
     // return child node by name   (TODO: could this be ambiguous, especially with case insensitive filesystems)
     LocalNode* childbyname(LocalPath*);
 
