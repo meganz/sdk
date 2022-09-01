@@ -848,20 +848,27 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 npos = ChunkedHash::chunkceil(npos, transfer->size);
             }
 
-            // choose upload chunks that are big enough to saturate the connection, so we don't start HTTP PUT request too frequently
-            // make them smaller at the end of the file so we still have the last parts delivered in parallel
-            m_off_t maxsize = 32 * 1024 * 1024;
-            if (npos + 2 * maxsize > transfer->size) maxsize /= 2;
-            if (npos + maxsize > transfer->size) maxsize /= 2;
-            if (npos + maxsize > transfer->size) maxsize /= 2;
-            m_off_t speedsize = std::min<m_off_t>(maxsize, uploadSpeed * 2 / 3);    // two seconds of data over 3 connections
-            m_off_t sizesize = transfer->size > 32 * 1024 * 1024 ? 8 * 1024 * 1024 : 0;  // start with large-ish portions for large files.
-            m_off_t targetsize = std::max<m_off_t>(sizesize, speedsize);
-
-            while (npos < transfer->pos + targetsize && npos < transfer->size)
+            m_off_t nextUnprocessedPosFromNpos = transfer->chunkmacs.nextUnprocessedPosFrom(npos);
+            if (npos == nextUnprocessedPosFromNpos)
             {
-                npos = ChunkedHash::chunkceil(npos, transfer->size);
+                // choose upload chunks that are big enough to saturate the connection, so we don't start HTTP PUT request too frequently
+                // make them smaller at the end of the file so we still have the last parts delivered in parallel
+                m_off_t maxsize = 32 * 1024 * 1024;
+                if (npos + 2 * maxsize > transfer->size) maxsize /= 2;
+                if (npos + maxsize > transfer->size) maxsize /= 2;
+                if (npos + maxsize > transfer->size) maxsize /= 2;
+                m_off_t speedsize = std::min<m_off_t>(maxsize, uploadSpeed * 2 / 3);    // two seconds of data over 3 connections
+                m_off_t sizesize = transfer->size > 32 * 1024 * 1024 ? 8 * 1024 * 1024 : 0;  // start with large-ish portions for large files.
+                m_off_t targetsize = std::max<m_off_t>(sizesize, speedsize);
+
+
+                while (npos < transfer->pos + targetsize && npos < transfer->size && npos == nextUnprocessedPosFromNpos)
+                {
+                    npos = ChunkedHash::chunkceil(npos, transfer->size);
+                    nextUnprocessedPosFromNpos = transfer->chunkmacs.nextUnprocessedPosFrom(npos);
+                }
             }
+            LOG_debug << "nextNPosForConnection [connectionNum = " << connectionNum << "] FINAL npos = " << npos << " [nextUnprocessedPosFrom = " << nextUnprocessedPosFromNpos << "] [transfer = " << transfer << ", this = " << this << "]";
         }
 
         if (transfer->type == GET && transfer->size && npos > transfer->pos)
