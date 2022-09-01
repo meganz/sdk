@@ -779,14 +779,18 @@ class ScheduledRules
             FREQ_MONTHLY    = 2,
         } freq_type;
 
+        // just for SDK core usage
+        typedef vector<int8_t> rules_vector;
+        typedef multimap<int8_t, int8_t> rules_map;
+
         constexpr static int INTERVAL_INVALID = 0;
 
         ScheduledRules(int freq,
                        int interval = INTERVAL_INVALID,
                        const char* until = nullptr,
-                       const vector<int64_t>* byWeekDay = nullptr,
-                       const vector<int64_t>* byMonthDay = nullptr,
-                       const map<int64_t, int64_t>* byMonthWeekDay = nullptr);
+                       const rules_vector* byWeekDay = nullptr,
+                       const rules_vector* byMonthDay = nullptr,
+                       const rules_map* byMonthWeekDay = nullptr);
 
         ScheduledRules(ScheduledRules* rules);
         ScheduledRules* copy();
@@ -796,17 +800,17 @@ class ScheduledRules
         void setFreq(int newFreq);
         void setInterval(int interval);
         void setUntil(const char* until);
-        void setByWeekDay(const vector<int64_t>* byWeekDay);
-        void setByMonthDay(const vector<int64_t>* byMonthDay);
-        void setByMonthWeekDay(const map<int64_t, int64_t>* byMonthWeekDay);
+        void setByWeekDay(const rules_vector* byWeekDay);
+        void setByMonthDay(const rules_vector* byMonthDay);
+        void setByMonthWeekDay(const rules_map* byMonthWeekDay);
 
         // getters
         int freq() const;
         int interval() const;
         const char* until() const;
-        const vector<int64_t>* byWeekDay();
-        const vector<int64_t>* byMonthDay();
-        const map<int64_t, int64_t>* byMonthWeekDay();
+        const rules_vector* byWeekDay();
+        const rules_vector* byMonthDay();
+        const rules_map* byMonthWeekDay();
         const char* freqToString();
         static bool isValidFreq(int freq)         { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
         static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
@@ -822,13 +826,13 @@ class ScheduledRules
         std::string mUntil = nullptr;
 
         // [optional]: allows us to specify that an event will only occur on given week day/s
-        std::unique_ptr<vector<int64_t>> mByWeekDay;
+        std::unique_ptr<rules_vector> mByWeekDay;
 
         // [optional]: allows us to specify that an event will only occur on a given day/s of the month
-        std::unique_ptr<vector<int64_t>> mByMonthDay;
+        std::unique_ptr<rules_vector> mByMonthDay;
 
         // [optional]: allows us to specify that an event will only occurs on a specific weekday offset of the month. For example, every 2nd Sunday of each month
-        std::unique_ptr<map<int64_t, int64_t>> mByMonthWeekDay;
+        std::unique_ptr<rules_map> mByMonthWeekDay;
 };
 
 class ScheduledMeeting
@@ -843,8 +847,8 @@ public:
     ScheduledMeeting(handle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                     const char* description, int freq, handle callid, handle parentCallid,
                                     int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                    const char* until, const vector<int64_t>* byWeekDay, const vector<int64_t>* byMonthDay,
-                                    const map<int64_t, int64_t>* byMonthWeekDay);
+                                    const char* until, const ScheduledRules::rules_vector* byWeekDay, const ScheduledRules::rules_vector* byMonthDay,
+                                    const ScheduledRules::rules_map* byMonthWeekDay);
 
     ScheduledMeeting(ScheduledMeeting* scheduledMeeting);
     ScheduledMeeting* copy();

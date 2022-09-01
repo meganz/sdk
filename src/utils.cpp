@@ -840,15 +840,15 @@ bool ScheduledFlags::isEmpty() const                        { return mFlags.none
 ScheduledRules::ScheduledRules(int freq,
                               int interval,
                               const char* until,
-                              const vector<int64_t>* byWeekDay,
-                              const vector<int64_t>* byMonthDay,
-                              const map<int64_t, int64_t>* byMonthWeekDay)
+                              const rules_vector* byWeekDay,
+                              const rules_vector* byMonthDay,
+                              const rules_map* byMonthWeekDay)
     : mFreq(isValidFreq(freq) ? freq : FREQ_INVALID),
       mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
       mUntil(until ? until : std::string()),
-      mByWeekDay(byWeekDay ? new vector<int64_t>(*byWeekDay) : nullptr),
-      mByMonthDay(byMonthDay ? new vector<int64_t>(*byMonthDay) : nullptr),
-      mByMonthWeekDay(byMonthWeekDay ? new map<int64_t, int64_t>(byMonthWeekDay->begin(), byMonthWeekDay->end()) : nullptr)
+      mByWeekDay(byWeekDay ? new rules_vector(*byWeekDay) : nullptr),
+      mByMonthDay(byMonthDay ? new rules_vector(*byMonthDay) : nullptr),
+      mByMonthWeekDay(byMonthWeekDay ? new rules_map(byMonthWeekDay->begin(), byMonthWeekDay->end()) : nullptr)
 {
 }
 
@@ -856,9 +856,9 @@ ScheduledRules::ScheduledRules(ScheduledRules* rules)
     : mFreq(isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID),
       mInterval(isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID),
       mUntil(rules->until() ? rules->until() : std::string()),
-      mByWeekDay(rules->byWeekDay() ? new vector<int64_t>(*rules->byWeekDay()) : nullptr),
-      mByMonthDay(rules->byMonthDay() ? new vector<int64_t>(*rules->byMonthDay()) : nullptr),
-      mByMonthWeekDay(rules->byMonthWeekDay() ? new map<int64_t, int64_t>(rules->byMonthWeekDay()->begin(), rules->byMonthWeekDay()->end()) : nullptr)
+      mByWeekDay(rules->byWeekDay() ? new rules_vector(*rules->byWeekDay()) : nullptr),
+      mByMonthDay(rules->byMonthDay() ? new rules_vector(*rules->byMonthDay()) : nullptr),
+      mByMonthWeekDay(rules->byMonthWeekDay() ? new rules_map(rules->byMonthWeekDay()->begin(), rules->byMonthWeekDay()->end()) : nullptr)
 {
 }
 
@@ -871,22 +871,22 @@ ScheduledRules::~ScheduledRules()
 {
 }
 
-void ScheduledRules::setByWeekDay(const vector<int64_t>* byWeekDay)
+void ScheduledRules::setByWeekDay(const rules_vector* byWeekDay)
 {
     mByWeekDay.reset();
-    if (byWeekDay) { mByWeekDay.reset(new vector<int64_t>(*byWeekDay)); }
+    if (byWeekDay) { mByWeekDay.reset(new rules_vector(*byWeekDay)); }
 }
 
-void ScheduledRules::setByMonthDay(const vector<int64_t>* byMonthDay)
+void ScheduledRules::setByMonthDay(const rules_vector* byMonthDay)
 {
     mByMonthDay.reset();
-    if (byMonthDay) { mByMonthDay.reset(new vector<int64_t>(*byMonthDay)); }
+    if (byMonthDay) { mByMonthDay.reset(new rules_vector(*byMonthDay)); }
 }
 
-void ScheduledRules::setByMonthWeekDay(const map<int64_t, int64_t>* byMonthWeekDay)
+void ScheduledRules::setByMonthWeekDay(const rules_map* byMonthWeekDay)
 {
     mByMonthWeekDay.reset();
-    if (byMonthWeekDay) { mByMonthWeekDay.reset(new map<int64_t, int64_t>(byMonthWeekDay->begin(), byMonthWeekDay->end())); }
+    if (byMonthWeekDay) { mByMonthWeekDay.reset(new rules_map(byMonthWeekDay->begin(), byMonthWeekDay->end())); }
 }
 
 void ScheduledRules::setFreq(int newFreq)
@@ -911,9 +911,9 @@ void ScheduledRules::setUntil(const char* until)
 int ScheduledRules::freq() const                                     { return mFreq; }
 int ScheduledRules::interval() const                                 { return mInterval; }
 const char* ScheduledRules::until() const                            { return !mUntil.empty() ? mUntil.c_str() : nullptr; }
-const vector<int64_t>* ScheduledRules::byWeekDay()                   { return mByWeekDay.get(); }
-const vector<int64_t>* ScheduledRules::byMonthDay()                  { return mByMonthDay.get(); }
-const map<int64_t, int64_t>* ScheduledRules::byMonthWeekDay()        { return mByMonthWeekDay.get(); }
+const ScheduledRules::rules_vector* ScheduledRules::byWeekDay()      { return mByWeekDay.get(); }
+const ScheduledRules::rules_vector* ScheduledRules::byMonthDay()     { return mByMonthDay.get(); }
+const ScheduledRules::rules_map* ScheduledRules::byMonthWeekDay()    { return mByMonthWeekDay.get(); }
 const char* ScheduledRules::freqToString ()
 {
     switch (mFreq)
@@ -949,8 +949,8 @@ ScheduledMeeting::ScheduledMeeting(handle chatid, const char* timezone, const ch
 ScheduledMeeting::ScheduledMeeting(handle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
                                 const char* description, int freq, handle callid, handle parentCallid,
                                 int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                const char* until, const vector<int64_t>* byWeekDay, const vector<int64_t>* byMonthDay,
-                                const map<int64_t, int64_t>* byMonthWeekDay)
+                                const char* until, const mega::ScheduledRules::rules_vector *byWeekDay, const mega::ScheduledRules::rules_vector *byMonthDay,
+                                const mega::ScheduledRules::rules_map *byMonthWeekDay)
     : mChatid(chatid),
       mCallid(callid),
       mParentCallid(parentCallid),
