@@ -9194,7 +9194,7 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, uniq
     if (encrAttrs)
     {
         arg("at", (byte*)encrAttrs->c_str(), (int)encrAttrs->size());
-        mElement->setChanged(SetElement::CH_EL_NAME); // set this to trigger attrs update later (something better would be nice...)
+        mElement->setChanged(SetElement::CH_EL_NAME); // set this to trigger attrs update later (TODO: find a better solution)
     }
 
     notself(cl); // don't process its Action Packet after sending this

@@ -339,7 +339,6 @@ public:
 
     enum
     {
-        // update these from outside Set
         CH_NEW,
         CH_NAME,
         CH_COVER,

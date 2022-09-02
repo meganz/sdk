@@ -17286,7 +17286,7 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
 
     // make sure Set id is valid
     const Set* existingSet = el.set() == UNDEF ? nullptr : getSet(el.set());
-    if (!(el.set() == UNDEF ? nullptr : getSet(el.set())))
+    if (!existingSet)
     {
         LOG_err << "Sets: Set not found when adding or updating Element";
         if (completion)
@@ -17326,7 +17326,7 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
         existingElement = getSetElement(el.set(), el.id());
         if (!existingElement)
         {
-            LOG_err << "Sets: Invalid node for Element";
+            LOG_err << "Sets: Element not found when updating Element: " << toHandle(el.id());
             if (completion)
                 completion(API_ENOENT, el.id());
             return;
@@ -17832,6 +17832,7 @@ void MegaClient::addSetElement(SetElement&& el)
     handle sid = el.set();
     handle eid = el.id();
     auto add = mSetElements[sid].emplace(eid, move(el));
+    assert(add.second);
 
     if (add.second) // newly inserted
     {
@@ -18041,8 +18042,12 @@ bool MegaClient::initscsetelements()
 {
     for (auto& s : mSetElements)
     {
+        assert(mSets.find(s.first) != mSets.end());
         if (mSets.find(s.first) == mSets.end())
+        {
+            LOG_err << "Sets: elements for unknown set: " << toHandle(s.first);
             continue;
+        }
 
         for (auto& e : s.second)
         {
@@ -18095,8 +18100,10 @@ bool MegaClient::updatescsets()
 {
     for (Set* s : setnotify)
     {
+        assert(s->changes());
         if (!s->changes())
         {
+            LOG_err << "Sets: Notifying about unchanged Set: " << toHandle(s->id());
             continue;
         }
 
@@ -18142,8 +18149,10 @@ bool MegaClient::updatescsetelements()
 {
     for (SetElement* e : setelementnotify)
     {
+        assert(e->changes());
         if (!e->changes())
         {
+            LOG_err << "Sets: Notifying about unchanged SetElement: " << toHandle(e->id());
             continue;
         }
 
@@ -18366,6 +18375,7 @@ string CommonSE::encryptAttributes(std::function<string(const string_map&, const
 
     return f(*mAttrs, mKey);
 }
+
 
 handle Set::cover() const
 {
