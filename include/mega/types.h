@@ -765,6 +765,10 @@ class ScheduledFlags
         bool EmailsDisabled() const;
         bool isEmpty() const;
 
+        // serialization
+        bool serialize(string* out);
+        static ScheduledFlags* unserialize(string* in);
+
     private:
         scheduledFlagsBitSet mFlags = 0;
 };
@@ -814,6 +818,10 @@ class ScheduledRules
         const char* freqToString();
         static bool isValidFreq(int freq)         { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
         static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
+
+        // serialization
+        bool serialize(string* out);
+        static ScheduledRules* unserialize(string* in);
 
     private:
         // [required]: scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
@@ -883,6 +891,10 @@ public:
     int cancelled() const;
     ScheduledFlags* flags() const;
     ScheduledRules* rules() const;
+
+    // serialization
+    bool serialize(string* out);
+    static ScheduledMeeting* unserialize(string* in);
 
 private:
     // [required]: chat handle

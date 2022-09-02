@@ -887,6 +887,23 @@ unsigned long ScheduledFlags::getNumericValue()             { return mFlags.to_u
 bool ScheduledFlags::EmailsDisabled() const                 { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
 bool ScheduledFlags::isEmpty() const                        { return mFlags.none(); }
 
+bool ScheduledFlags::serialize(string* out)
+{
+    assert(out);
+    CacheableWriter w(*out);
+    w.serializeu32(static_cast<uint32_t>(mFlags.to_ulong()));
+    return true;
+}
+
+ScheduledFlags* ScheduledFlags::unserialize(string* in)
+{
+    assert(in);
+    uint32_t flagsNum = 0;
+    CacheableReader w(*in);
+    w.unserializeu32(flagsNum);
+    return new ScheduledFlags(flagsNum);
+}
+
 /* class scheduledRules */
 ScheduledRules::ScheduledRules(int freq,
                               int interval,
@@ -974,6 +991,119 @@ const char* ScheduledRules::freqToString ()
         case 2: return "MONTHLY";
         default: return nullptr;
     }
+}
+
+bool ScheduledRules::serialize(string* out)
+{
+    assert(out);
+    assert(isValidFreq(mFreq));
+    bool hasInterval = isValidInterval(mInterval);
+    bool hasUntil = !mUntil.empty();
+    bool hasByWeekDay = mByWeekDay.get() && !mByWeekDay->empty();
+    bool hasByMonthDay = mByMonthDay.get() && !mByMonthDay->empty();
+    bool hasByMonthWeekDay = mByMonthWeekDay.get() && !mByMonthWeekDay->empty();
+
+    CacheableWriter w(*out);
+    w.serializei32(mFreq);
+    w.serializeexpansionflags(hasInterval, hasUntil, hasByWeekDay, hasByMonthDay, hasByMonthWeekDay);
+
+    if (hasInterval) { w.serializei32(mInterval); }
+    if (hasUntil)    { w.serializestring(mUntil); }
+    if (hasByWeekDay)
+    {
+        w.serializeu64(mByWeekDay->size());
+        for (auto i: *mByWeekDay)
+        {
+            w.serializei8(i);
+        }
+    }
+
+    if (hasByMonthDay)
+    {
+        w.serializeu64(mByMonthDay->size());
+        for (auto i: *mByMonthDay)
+        {
+            w.serializei8(i);
+        }
+    }
+
+    if (hasByMonthWeekDay)
+    {
+        w.serializeu64(mByMonthWeekDay->size()*2);
+        for (auto i: *mByMonthWeekDay)
+        {
+            w.serializei8(i.first);
+            w.serializei8(i.second);
+        }
+    }
+    return true;
+}
+
+ScheduledRules* ScheduledRules::unserialize(string* in)
+{
+    assert(in);
+    int freq = FREQ_INVALID;
+    int interval = INTERVAL_INVALID;
+    std::string until = nullptr;
+    rules_vector byWeekDay;
+    rules_vector byMonthDay;
+    rules_map byMonthWeekDay;
+    unsigned char expansions[8];
+
+    CacheableReader w(*in);
+    w.unserializei32(freq);
+    w.unserializeexpansionflags(expansions, 5);
+
+    bool hasInterval        = expansions[0];
+    bool hasUntil           = expansions[1];
+    bool hasByWeekDay       = expansions[2];
+    bool hasByMonthDay      = expansions[3];
+    bool hasByMonthWeekDay  = expansions[4];
+
+    if (hasInterval) { w.unserializei32(interval); }
+    if (hasUntil)    { w.unserializestring(until); }
+    if (hasByWeekDay)
+    {
+        size_t vectorSize = 0;
+        int8_t element = 0;
+        w.unserializeu64(vectorSize);
+        for (size_t i = 0; i < vectorSize; i++)
+        {
+           element = 0;
+           w.unserializei8(element);
+           byWeekDay.emplace_back(element);
+        }
+    }
+
+    if (hasByMonthDay)
+    {
+        size_t vectorSize = 0;
+        int8_t element = 0;
+        w.unserializeu64(vectorSize);
+        for (size_t i = 0; i < vectorSize; i++)
+        {
+           element = 0;
+           w.unserializei8(element);
+           byMonthDay.emplace_back(element);
+        }
+    }
+
+    if (hasByMonthWeekDay)
+    {
+        size_t mapSize = 0;
+        int8_t key = 0;
+        int8_t value = 0;
+        w.unserializeu64(mapSize);
+        for (size_t i = 0; i < mapSize / 2; i++)
+        {
+           key = value = 0;
+           w.unserializei8(key);
+           w.unserializei8(value);
+           byMonthWeekDay.emplace(key, value);
+        }
+    }
+
+    return new ScheduledRules(freq, interval, until.c_str(), &byWeekDay, &byMonthDay, &byMonthWeekDay);
 }
 
 /* class scheduledMeeting */
@@ -1081,6 +1211,109 @@ const char* ScheduledMeeting::overrides() const                     { return !mO
 int ScheduledMeeting::cancelled() const                             { return mCancelled; }
 ScheduledFlags* ScheduledMeeting::flags() const                     { return mFlags.get(); }
 ScheduledRules* ScheduledMeeting::rules() const                     { return mRules.get(); }
+
+bool ScheduledMeeting::serialize(string* out)
+{
+    assert(out);
+    bool hasCallid = callid() != UNDEF;
+    bool hasParentCallid = parentCallid() != UNDEF;
+    bool hasAttributes = attributes();
+    bool hasOverrides = overrides();
+    bool hasCancelled = cancelled() >= 0;
+    bool hasflags = flags();
+    bool hasRules = rules();
+
+    CacheableWriter w(*out);
+    w.serializehandle(chatid());
+    w.serializestring(mTimezone);
+    w.serializestring(mStartDateTime);
+    w.serializestring(mEndDateTime);
+    w.serializestring(mTitle);
+    w.serializestring(mDescription);
+    w.serializeexpansionflags(hasCallid, hasParentCallid, hasAttributes, hasOverrides, hasCancelled, hasflags, hasRules);
+
+    if (hasCallid)       { w.serializehandle(callid());}
+    if (hasParentCallid) { w.serializehandle(parentCallid());}
+    if (hasAttributes)   { w.serializestring(mAttributes); }
+    if (hasOverrides)    { w.serializestring(mOverrides); }
+    if (hasCancelled)    { w.serializei32(cancelled()); }
+    if (hasflags)
+    {
+        std::string flagsStr;
+        if (flags()->serialize(&flagsStr)) { w.serializestring(flagsStr); }
+    }
+    if (hasRules)
+    {
+        std::string rulesStr;
+        if (rules()->serialize(&rulesStr)) { w.serializestring(rulesStr); }
+    }
+    return true;
+}
+
+ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
+{
+    assert(in);
+    handle chatid = UNDEF;
+    handle callid = UNDEF;
+    handle parentCallid = UNDEF;
+    std::string timezone;
+    std::string startDateTime;
+    std::string endDateTime;
+    std::string title;
+    std::string description;
+    std::string attributes;
+    std::string overrides;
+    std::string flagsStr;
+    std::string rulesStr;
+    int cancelled = -1;
+    std::unique_ptr<ScheduledFlags> flags;
+    std::unique_ptr<ScheduledRules> rules;
+    unsigned char expansions[8];
+
+    CacheableReader w(*in);
+    w.unserializehandle(chatid);
+    w.unserializestring(timezone);
+    w.unserializestring(startDateTime);
+    w.unserializestring(endDateTime);
+    w.unserializestring(title);
+    w.unserializestring(description);
+    w.unserializeexpansionflags(expansions, 7);
+
+    bool hasCallid          = expansions[0];
+    bool hasParentCallid    = expansions[1];
+    bool hasAttributes      = expansions[2];
+    bool hasOverrides       = expansions[3];
+    bool hasCancelled       = expansions[4];
+    bool hasflags           = expansions[5];
+    bool hasRules           = expansions[6];
+
+    if (hasCallid)          { w.unserializehandle(callid); }
+    if (hasParentCallid)    { w.unserializehandle(parentCallid); }
+    if (hasAttributes)      { w.unserializestring(attributes); }
+    if (hasOverrides)       { w.unserializestring(overrides); }
+    if (hasCancelled)       { w.unserializei32(cancelled); }
+    if (hasflags)
+    {
+        if (w.unserializestring(flagsStr))
+        {
+           flags.reset(ScheduledFlags::unserialize(&flagsStr));
+        }
+    }
+
+    if (hasRules)
+    {
+        if (w.unserializestring(rulesStr))
+        {
+           rules.reset(ScheduledRules::unserialize(&rulesStr));
+        }
+    }
+
+    return new ScheduledMeeting(chatid, timezone.c_str(), startDateTime.c_str(), endDateTime.c_str(),
+                                title.c_str(), description.c_str(), callid,
+                                parentCallid, cancelled, attributes.c_str() ,
+                                overrides.c_str(), flags.get(), rules.get());
+}
+
 #endif
 
 /**
