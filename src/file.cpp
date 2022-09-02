@@ -300,7 +300,7 @@ void File::completed(Transfer* t, putsource_t source)
 void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                         const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
                         CommandPutNodes::Completion&& completion,
-                        LocalNode* l, const m_time_t* overrideMtime, bool changeVault)
+                        LocalNode* l, const m_time_t* overrideMtime, bool canChangeVault)
 {
     assert(!!l == syncxfer);
 
@@ -309,6 +309,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
 
     // build new node
     newnode->source = NEW_UPLOAD;
+    newnode->canChangeVault = canChangeVault;
 
     // upload handle required to retrieve/include pending file attributes
     newnode->uploadhandle = fileAttrMatchHandle;
@@ -393,7 +394,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
                                              mVersioningOption,
                                              move(newnodes),
                                              tag,
-                                             source, nullptr, move(completion), changeVault));
+                                             source, nullptr, move(completion), canChangeVault));
     }
 }
 

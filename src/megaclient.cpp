@@ -519,7 +519,7 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     // 1. prepare the NewNode and create it via putnodes(), with flag `vw:1`
     vector<NewNode> newnodes(1);
     NewNode& newNode = newnodes.back();
-    putnodes_prepareOneFolder(&newNode, foldername);
+    putnodes_prepareOneFolder(&newNode, foldername, true);
 
     // 2. upon completion of putnodes(), set the user's attribute `^!bak`
     auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/)
@@ -8132,12 +8132,12 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     return e;
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, bool canChangeVault, std::function<void(AttrMap&)> addAttrs)
 {
-    MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, addAttrs);
+    MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, canChangeVault, addAttrs);
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, std::function<void(AttrMap&)> addAttrs)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, bool canChangeVault, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
@@ -8147,6 +8147,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     newnode->type = FOLDERNODE;
     newnode->nodehandle = 0;
     newnode->parenthandle = UNDEF;
+    newnode->canChangeVault = canChangeVault;
 
     // generate fresh random key for this folder node
     rng.genblock(buf, FOLDERNODEKEYLENGTH);
@@ -14625,7 +14626,7 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         newnodes.emplace_back();
         NewNode& newNode = newnodes.back();
 
-        putnodes_prepareOneFolder(&newNode, deviceName, addAttrsFunc);
+        putnodes_prepareOneFolder(&newNode, deviceName, true, addAttrsFunc);
         newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
     }
 
@@ -14633,7 +14634,7 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     newnodes.emplace_back();
     NewNode& backupNameNode = newnodes.back();
 
-    putnodes_prepareOneFolder(&backupNameNode, backupName);    // backup node should not include dev-id/drv-id
+    putnodes_prepareOneFolder(&backupNameNode, backupName, true);    // backup node should not include dev-id/drv-id
     if (!deviceNameNode)
     {
         // Set parent handle if part of the new nodes array (it cannot be from an existing node)

@@ -25135,7 +25135,7 @@ void MegaFolderUploadController::start(MegaNode*)
         newTreeNode->folderName = leaf;
         newTreeNode->fsType = fsaccess->getlocalfstype(path);
 
-        megaapiThreadClient()->putnodes_prepareOneFolder(&newTreeNode->newnode, leaf);
+        megaapiThreadClient()->putnodes_prepareOneFolder(&newTreeNode->newnode, leaf, false);
         newTreeNode->newnode.nodehandle = nextUploadId();
         newTreeNode->newnode.parenthandle = UNDEF;
     }
@@ -25344,7 +25344,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             newTreeNode->fsType = fsaccess->getlocalfstype(localPath);
 
             // generate fresh random key and node attributes
-            MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, newTreeNode->folderName, rng, tmpnodecipher);
+            MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, newTreeNode->folderName, rng, tmpnodecipher, false);
 
             // set nodeHandle
             newTreeNode->newnode.nodehandle = nextUploadId();

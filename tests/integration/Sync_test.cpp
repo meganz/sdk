@@ -1442,7 +1442,7 @@ void StandardClient::putnodes(const CloudItem& parent,
 void StandardClient::uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes)
 {
     NewNode n;
-    client.putnodes_prepareOneFolder(&n, p.filename().u8string());
+    client.putnodes_prepareOneFolder(&n, p.filename().u8string(), false);
     handle thishandle = n.nodehandle = h++;
     n.parenthandle = parent;
     newnodes.emplace_back(std::move(n));
@@ -1803,7 +1803,7 @@ bool StandardClient::fetchnodes(bool noCache)
 NewNode StandardClient::makeSubfolder(const string& utf8Name)
 {
     NewNode newnode;
-    client.putnodes_prepareOneFolder(&newnode, utf8Name);
+    client.putnodes_prepareOneFolder(&newnode, utf8Name, false);
     return newnode;
 }
 
@@ -5626,10 +5626,10 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
     ASSERT_TRUE(CatchupClients(standardclient));
 
     vector<NewNode> newnodes(4);
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1");
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[3], "folder2.2");
+    standardclient->client.putnodes_prepareOneFolder(&newnodes[0], "folder1", false);
+    standardclient->client.putnodes_prepareOneFolder(&newnodes[1], "folder2", false);
+    standardclient->client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1", false);
+    standardclient->client.putnodes_prepareOneFolder(&newnodes[3], "folder2.2", false);
 
     newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
 
@@ -6516,8 +6516,8 @@ TEST_F(SyncTest, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
         vector<NewNode> nodes(2);
 
         // Only some platforms will escape BEL.
-        cu.client.putnodes_prepareOneFolder(&nodes[0], "d\7");
-        cu.client.putnodes_prepareOneFolder(&nodes[1], "d");
+        cu.client.putnodes_prepareOneFolder(&nodes[0], "d\7", false);
+        cu.client.putnodes_prepareOneFolder(&nodes[1], "d", false);
 
         ASSERT_TRUE(cu.putnodes(node->nodeHandle(), NoVersioning, std::move(nodes)));
 
@@ -7023,8 +7023,8 @@ TEST_F(SyncTest, AnomalousSyncDownload)
             vector<NewNode> nodes(2);
 
             // Prepare nodes.
-            cu->client.putnodes_prepareOneFolder(&nodes[0], "d");
-            cu->client.putnodes_prepareOneFolder(&nodes[1], "d/0");
+            cu->client.putnodes_prepareOneFolder(&nodes[0], "d", false);
+            cu->client.putnodes_prepareOneFolder(&nodes[1], "d/0", false);
 
             // Create the nodes in the cloud.
             ASSERT_TRUE(cu->putnodes("s", NoVersioning, std::move(nodes)));
@@ -7931,7 +7931,7 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
         vector<NewNode> nodes(1);
 
         // Initialize new node.
-        c->client.putnodes_prepareOneFolder(&nodes[0], "d");
+        c->client.putnodes_prepareOneFolder(&nodes[0], "d", false);
 
         // Get our hands on the sync root.
         auto* root = c->drillchildnodebyname(c->gettestbasenode(), "s");
@@ -9928,7 +9928,7 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
         // Create a directory.
         vector<NewNode> node(1);
 
-        cu->client.putnodes_prepareOneFolder(&node[0], "d");
+        cu->client.putnodes_prepareOneFolder(&node[0], "d", false);
 
         ASSERT_TRUE(cu->putnodes(c->syncSet(id).h, NoVersioning, std::move(node)));
     }
@@ -10041,7 +10041,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
     {
         vector<NewNode> node(1);
 
-        cb.client.putnodes_prepareOneFolder(&node[0], "g");
+        cb.client.putnodes_prepareOneFolder(&node[0], "g", false);
 
         ASSERT_TRUE(cb.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
@@ -10113,7 +10113,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
     {
         vector<NewNode> node(1);
 
-        cb->client.putnodes_prepareOneFolder(&node[0], "g");
+        cb->client.putnodes_prepareOneFolder(&node[0], "g", false);
 
         auto rootHandle = cb->syncSet(id).h;
         ASSERT_TRUE(cb->putnodes(rootHandle, NoVersioning, std::move(node)));
@@ -10226,7 +10226,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         // Make some changes to the cloud.
         vector<NewNode> node(1);
 
-        cf->client.putnodes_prepareOneFolder(&node[0], "g");
+        cf->client.putnodes_prepareOneFolder(&node[0], "g", false);
 
         ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
 
@@ -10268,8 +10268,8 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     {
         vector<NewNode> nodes(2);
 
-        cf->client.putnodes_prepareOneFolder(&nodes[0], "h0");
-        cf->client.putnodes_prepareOneFolder(&nodes[1], "h1");
+        cf->client.putnodes_prepareOneFolder(&nodes[0], "h0", false);
+        cf->client.putnodes_prepareOneFolder(&nodes[1], "h1", false);
 
         ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(nodes)));
     }
@@ -10380,7 +10380,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
         {
             vector<NewNode> node(1);
 
-            cf->client.putnodes_prepareOneFolder(&node[0], "g");
+            cf->client.putnodes_prepareOneFolder(&node[0], "g", false);
 
             ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
         }
@@ -10424,7 +10424,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     {
         vector<NewNode> node(1);
 
-        cf->client.putnodes_prepareOneFolder(&node[0], "h");
+        cf->client.putnodes_prepareOneFolder(&node[0], "h", false);
 
         ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
     }
@@ -10734,7 +10734,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
             model.addfolder("w");
 
-            client2.client.putnodes_prepareOneFolder(&node[0], "w");
+            client2.client.putnodes_prepareOneFolder(&node[0], "w", false);
             ASSERT_TRUE(client2.putnodes(xs->nodeHandle(), NoVersioning, std::move(node)));
             ASSERT_TRUE(client1.waitForNodesUpdated(30));
         }

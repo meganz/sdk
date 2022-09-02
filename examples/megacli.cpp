@@ -2321,7 +2321,7 @@ void exec_history(autocomplete::ACState& s)
                  << endl;
             return;
         }
-        
+
         // Clear recorded history.
         clear_history();
 
@@ -2394,7 +2394,7 @@ void exec_history(autocomplete::ACState& s)
 
         return;
     }
-    
+
     // Only branch left.
     assert(command == "write");
 
@@ -5250,7 +5250,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
         else
         {
             vector<NewNode> nn(1);
-            client->putnodes_prepareOneFolder(&nn[0], name);
+            client->putnodes_prepareOneFolder(&nn[0], name, false);
 
             gOnPutNodeTag[gNextClientTag] = [localname, vo](Node* parent) {
                 auto tmp = localname;
@@ -5989,7 +5989,7 @@ void exec_mkdir(autocomplete::ACState& s)
             if (newname.size())
             {
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], newname);
+                client->putnodes_prepareOneFolder(&nn[0], newname, false);
                 client->putnodes(n->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
@@ -5999,7 +5999,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], leafname);
+                client->putnodes_prepareOneFolder(&nn[0], leafname, false);
                 client->putnodes(n->parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
             }
             else
