@@ -17817,15 +17817,12 @@ bool MegaClient::updateSet(Set&& s)
     auto it = mSets.find(s.id());
     if (it != mSets.end())
     {
-        it->second.setTs(s.ts());
-        it->second.takeAttrsFrom(move(s)); // last, moving from s
-
-        if (it->second.changes())
+        if (it->second.updateWith(move(s)))
         {
             notifyset(&it->second);
         }
 
-        return true;
+        return true; // return true if found, even if nothing was updated
     }
 
     return false;
@@ -17852,6 +17849,22 @@ const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
     {
         auto ite = elements->find(eid);
         if (ite != elements->end())
+        {
+            return &(ite->second);
+        }
+    }
+
+    return nullptr;
+}
+
+SetElement* MegaClient::getSetElement_nonconst(handle sid, handle eid)
+{
+    auto itS = mSetElements.find(sid);
+    if (itS != mSetElements.end())
+    {
+        auto& elements = itS->second;
+        auto ite = elements.find(eid);
+        if (ite != elements.end())
         {
             return &(ite->second);
         }
@@ -17888,22 +17901,12 @@ bool MegaClient::updateSetElement(SetElement&& el)
         auto itE = itS->second.find(el.id());
         if (itE != itS->second.end())
         {
-            if (el.hasOrder())
-            {
-                itE->second.setOrder(el.order());
-            }
-            itE->second.setTs(el.ts());
-            if (el.hasAttrs() || el.hasChanged(SetElement::CH_EL_NAME))
-            {
-                itE->second.takeAttrsFrom(move(el)); // last, moving from el
-            }
-
-            if (itE->second.changes())
+            if (itE->second.updateWith(move(el)))
             {
                 notifysetelement(&itE->second);
             }
 
-            return true;
+            return true; // return true if found, even if nothing was updated
         }
     }
 
@@ -17960,15 +17963,10 @@ void MegaClient::sc_asp()
             return;
         }
 
-        if (s.user() != UNDEF) // this might not be received for an update
+        if (existing.updateWith(move(s)))
         {
-            existing.setUser(s.user());
+            notifyset(&existing);
         }
-
-        existing.setTs(s.ts());
-        existing.takeAttrsFrom(move(s));
-
-        notifyset(&existing);
     }
 }
 
@@ -18030,9 +18028,12 @@ void MegaClient::sc_aep()
         return;
     }
 
-    if (getSetElement(el.set(), el.id()))
+    if (SetElement* existingEl = getSetElement_nonconst(el.set(), el.id()))
     {
-        updateSetElement(move(el));
+        if (existingEl->updateWith(move(el)))
+        {
+            notifysetelement(existingEl);
+        }
     }
     else
     {
@@ -18332,7 +18333,7 @@ void CommonSE::rebaseCommonAttrsOn(const string_map* baseAttrs)
             }
             else
             {
-                rebased[a.first] = a.second;
+                rebased[a.first].swap(a.second);
             }
         }
         mAttrs->swap(rebased);
@@ -18456,20 +18457,6 @@ bool Set::serialize(string* d)
     return true;
 }
 
-void Set::takeAttrsFrom(Set&& s)
-{
-    // check for changes
-    if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
-    if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
-
-    mAttrs.swap(s.mAttrs);
-}
-
-void Set::rebaseAttrsOn(const Set& s)
-{
-    rebaseCommonAttrsOn(s.mAttrs.get());
-}
-
 unique_ptr<Set> Set::unserialize(string* d)
 {
     handle id = 0, u = 0;
@@ -18512,17 +18499,33 @@ unique_ptr<Set> Set::unserialize(string* d)
     return s;
 }
 
-void SetElement::takeAttrsFrom(SetElement&& el)
+bool Set::updateWith(Set&& s)
 {
-    // check for changes
-    if (hasAttrChanged(nameTag, el.mAttrs)) setChanged(CH_EL_NAME);
+    setTs(s.ts());
 
-    mAttrs.swap(el.mAttrs);
+    if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
+    if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
+    mAttrs.swap(s.mAttrs);
+
+    return changes();
 }
 
-void SetElement::rebaseAttrsOn(const SetElement& el)
+
+bool SetElement::updateWith(SetElement&& el)
 {
-    rebaseCommonAttrsOn(el.mAttrs.get());
+    if (el.hasOrder())
+    {
+        setOrder(el.order());
+    }
+    setTs(el.ts());
+    if (el.hasAttrs() || el.hasChanged(SetElement::CH_EL_NAME)) // TODO: find a better solution
+    {
+        if (hasAttrChanged(nameTag, el.mAttrs)) setChanged(CH_EL_NAME);
+
+        mAttrs.swap(el.mAttrs);
+    }
+
+    return changes();
 }
 
 void SetElement::setOrder(int64_t order)

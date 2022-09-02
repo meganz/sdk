@@ -284,8 +284,8 @@ public:
 
     bool hasOrder() const                   { return !!mOrder; }
 
-    void takeAttrsFrom(SetElement&& el);
-    void rebaseAttrsOn(const SetElement& s);
+    bool updateWith(SetElement&& el);
+    void rebaseAttrsOn(const SetElement& el) { rebaseCommonAttrsOn(el.mAttrs.get()); }
 
     void setChanged(int changeType) { if (validChangeType(changeType, CH_EL_SIZE)) mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
@@ -326,8 +326,8 @@ public:
     void setUser(handle uh) { mUser = uh; }
     void setCover(handle h);
 
-    void takeAttrsFrom(Set&& s);
-    void rebaseAttrsOn(const Set& s);
+    bool updateWith(Set&& s);
+    void rebaseAttrsOn(const Set& s) { rebaseCommonAttrsOn(s.mAttrs.get()); }
 
     void setChanged(int changeType) { if (validChangeType(changeType, CH_SIZE)) mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
@@ -2178,6 +2178,8 @@ public:
     bool deleteSetElement(handle sid, handle eid);
 
 private:
+    SetElement* getSetElement_nonconst(handle sid, handle eid);
+
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
     error readElements(JSON& j, multimap<handle, SetElement>& elements);
