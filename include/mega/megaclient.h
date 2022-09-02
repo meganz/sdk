@@ -293,6 +293,7 @@ public:
     bool hasChanged(int changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
 
     bool serialize(string*) override;
+    static unique_ptr<SetElement> unserialize(string* d);
 
     enum
     {
@@ -334,6 +335,7 @@ public:
     bool hasChanged(int changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
 
     bool serialize(string*) override;
+    static unique_ptr<Set> unserialize(string* d);
 
     enum
     {
@@ -2190,9 +2192,6 @@ private:
     void sc_asr(); // AP after removed Set
     void sc_aep(); // AP after new or updated Set Element
     void sc_aer(); // AP after removed Set Element
-
-    Set* unserializeSet(string* d);
-    SetElement* unserializeSetElement(string* d);
 
     bool initscsets();
     bool fetchscset(string* data, uint32_t id);

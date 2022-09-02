@@ -18109,27 +18109,36 @@ bool MegaClient::initscsetelements()
 
 bool MegaClient::fetchscset(string* data, uint32_t id)
 {
-    Set* s = unserializeSet(data);
+    auto s = Set::unserialize(data);
     if (!s)
     {
         LOG_err << "Failed - Set record read error";
         return false;
     }
 
-    s->dbid = id;
+    handle sid = s->id();
+    Set& addedSet = mSets.emplace(sid, move(*s)).first->second;
+    addedSet.resetChanges();
+    addedSet.dbid = id;
+
     return true;
 }
 
 bool MegaClient::fetchscsetelement(string* data, uint32_t id)
 {
-    SetElement* e = unserializeSetElement(data);
-    if (!e)
+    auto el = SetElement::unserialize(data);
+    if (!el)
     {
         LOG_err << "Failed - SetElement record read error";
         return false;
     }
 
-    e->dbid = id;
+    handle sid = el->set();
+    handle eid = el->id();
+    SetElement& addedEl = mSetElements[sid].emplace(eid, move(*el)).first->second;
+    addedEl.resetChanges();
+    addedEl.dbid = id;
+
     return true;
 }
 
@@ -18281,99 +18290,6 @@ void MegaClient::notifypurgesetelements()
     setelementnotify.clear();
 }
 
-Set* MegaClient::unserializeSet(string* d)
-{
-    handle id = 0, u = 0;
-    m_time_t ts = 0;
-    string k;
-    uint32_t attrCount = 0;
-
-    CacheableReader r(*d);
-    if (!r.unserializehandle(id) ||
-        !r.unserializehandle(u) ||
-        !r.unserializebinary((byte*)&ts, sizeof(ts)) ||
-        !r.unserializestring(k) ||
-        !r.unserializeu32(attrCount))
-    {
-        return nullptr;
-    }
-
-    // get all attrs
-    string_map attrs;
-    for (uint32_t i = 0; i < attrCount; ++i)
-    {
-        string ak, av;
-        if (!r.unserializestring(ak) ||
-            !r.unserializestring(av))
-        {
-            return nullptr;
-        }
-        attrs[move(ak)] = move(av);
-    }
-
-    unsigned char expansionsS[8];
-    if (!r.unserializeexpansionflags(expansionsS, 0))
-    {
-        return nullptr;
-    }
-
-    Set s(id, move(k), u, move(attrs));
-    s.setTs(ts);
-    Set& addedSet = mSets.emplace(s.id(), move(s)).first->second;
-    addedSet.resetChanges();
-
-    return &addedSet;
-}
-
-SetElement* MegaClient::unserializeSetElement(string* d)
-{
-    handle sid = 0, eid = 0;
-    handle h = 0;
-    int64_t o = 0;
-    m_time_t ts = 0;
-    uint32_t attrCount = 0;
-    unsigned char expansionsE[8];
-
-    CacheableReader r(*d);
-    if (!r.unserializehandle(sid) ||
-        !r.unserializehandle(eid) ||
-        !r.unserializenodehandle(h) ||
-        !r.unserializei64(o) ||
-        !r.unserializebinary((byte*)&ts, sizeof(ts)) ||
-        !r.unserializestring(k) ||
-        !r.unserializeu32(attrCount))
-    {
-        return nullptr;
-    }
-
-    // get all attrs
-    string_map attrs;
-    for (size_t i = 0; i < attrCount; ++i)
-    {
-        string ak, av;
-        if (!r.unserializestring(ak) ||
-            !r.unserializestring(av))
-        {
-            return nullptr;
-        }
-        attrs[move(ak)] = move(av);
-    }
-
-    if (!r.unserializeexpansionflags(expansionsE, 0))
-    {
-        return nullptr;
-    }
-
-    SetElement el(sid, h, eid, move(k), move(attrs));
-    el.setOrder(o);
-    el.setTs(ts);
-
-    SetElement& addedEl = mSetElements[sid].emplace(el.id(), move(el)).first->second;
-    addedEl.resetChanges();
-
-    return &addedEl;
-}
-
 void CommonSE::setName(string&& name)
 {
     setAttr(nameTag, move(name));
@@ -18521,7 +18437,7 @@ bool Set::serialize(string* d)
 
     r.serializehandle(mId);
     r.serializehandle(mUser);
-    r.serializebinary((byte*)&mTs, sizeof(mTs));
+    r.serializecompressed64(mTs);
     r.serializestring(mKey);
 
     size_t asize = mAttrs ? mAttrs->size() : 0;
@@ -18552,6 +18468,48 @@ void Set::takeAttrsFrom(Set&& s)
 void Set::rebaseAttrsOn(const Set& s)
 {
     rebaseCommonAttrsOn(s.mAttrs.get());
+}
+
+unique_ptr<Set> Set::unserialize(string* d)
+{
+    handle id = 0, u = 0;
+    uint64_t ts = 0;
+    string k;
+    uint32_t attrCount = 0;
+
+    CacheableReader r(*d);
+    if (!r.unserializehandle(id) ||
+        !r.unserializehandle(u) ||
+        !r.unserializecompressed64(ts) ||
+        !r.unserializestring(k) ||
+        !r.unserializeu32(attrCount))
+    {
+        return nullptr;
+    }
+
+    // get all attrs
+    string_map attrs;
+    for (uint32_t i = 0; i < attrCount; ++i)
+    {
+        string ak, av;
+        if (!r.unserializestring(ak) ||
+            !r.unserializestring(av))
+        {
+            return nullptr;
+        }
+        attrs[move(ak)] = move(av);
+    }
+
+    unsigned char expansionsS[8];
+    if (!r.unserializeexpansionflags(expansionsS, 0))
+    {
+        return nullptr;
+    }
+
+    auto s = ::mega::make_unique<Set>(id, move(k), u, move(attrs));
+    s->setTs(ts);
+
+    return s;
 }
 
 void SetElement::takeAttrsFrom(SetElement&& el)
@@ -18589,7 +18547,7 @@ bool SetElement::serialize(string* d)
     r.serializehandle(mId);
     r.serializenodehandle(mNodeHandle);
     r.serializei64(mOrder ? *mOrder : 0); // it will always have Order
-    r.serializebinary((byte*)&mTs, sizeof(mTs));
+    r.serializecompressed64(mTs);
     r.serializestring(mKey);
 
     size_t asize = mAttrs ? mAttrs->size() : 0;
@@ -18606,6 +18564,53 @@ bool SetElement::serialize(string* d)
     r.serializeexpansionflags();
 
     return true;
+}
+
+unique_ptr<SetElement> SetElement::unserialize(string* d)
+{
+    handle sid = 0, eid = 0;
+    handle h = 0;
+    int64_t o = 0;
+    uint64_t ts = 0;
+    string k;
+    uint32_t attrCount = 0;
+    unsigned char expansionsE[8];
+
+    CacheableReader r(*d);
+    if (!r.unserializehandle(sid) ||
+        !r.unserializehandle(eid) ||
+        !r.unserializenodehandle(h) ||
+        !r.unserializei64(o) ||
+        !r.unserializecompressed64(ts) ||
+        !r.unserializestring(k) ||
+        !r.unserializeu32(attrCount))
+    {
+        return nullptr;
+    }
+
+    // get all attrs
+    string_map attrs;
+    for (size_t i = 0; i < attrCount; ++i)
+    {
+        string ak, av;
+        if (!r.unserializestring(ak) ||
+            !r.unserializestring(av))
+        {
+            return nullptr;
+        }
+        attrs[move(ak)] = move(av);
+    }
+
+    if (!r.unserializeexpansionflags(expansionsE, 0))
+    {
+        return nullptr;
+    }
+
+    auto el = ::mega::make_unique<SetElement>(sid, h, eid, move(k), move(attrs));
+    el->setOrder(o);
+    el->setTs(ts);
+
+    return el;
 }
 
 // -------- end of Sets and Elements
