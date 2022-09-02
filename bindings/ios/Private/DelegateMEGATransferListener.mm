@@ -74,7 +74,7 @@ void DelegateMEGATransferListener::onTransferUpdate(MegaApi *api, MegaTransfer *
     }
 }
 
-void DelegateMEGATransferListener::onFolderTransferUpdate(MegaApi *api, mega::MegaTransfer *transfer, int stage, uint32_t foldercount, uint32_t filecount, uint32_t createdfoldercount, const char *currentFolder, const char *currentFileLeafname) {
+void DelegateMEGATransferListener::onFolderTransferUpdate(MegaApi *api, mega::MegaTransfer *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const char *currentFolder, const char *currentFileLeafname) {
     if (listener != nil && [listener respondsToSelector:@selector(onFolderTransferUpdate:transfer:stage:folderCount:createdFolderCount:fileCount:currentFolder:currentFileLeafName:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
