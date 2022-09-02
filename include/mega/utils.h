@@ -550,7 +550,10 @@ struct CacheableWriter
     void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
     void serializecompressed64(int64_t field);
+    void serializei8(int8_t field);
+    void serializei32(int32_t field);
     void serializei64(int64_t field);
+    void serializeu64(uint64_t field);
     void serializeu32(uint32_t field);
     void serializehandle(handle field);
     void serializenodehandle(handle field);
@@ -577,8 +580,11 @@ struct CacheableReader
     bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
     bool unserializecompressed64(uint64_t& field);
+    bool unserializei8(int8_t& s);
+    bool unserializei32(int32_t& s);
     bool unserializei64(int64_t& s);
     bool unserializeu32(uint32_t& s);
+    bool unserializeu64(uint64_t& s);
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);

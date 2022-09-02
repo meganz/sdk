@@ -182,7 +182,22 @@ void CacheableWriter::serializecompressed64(int64_t field)
     dest.append((const char*)buf, Serialize64::serialize(buf, field));
 }
 
+void CacheableWriter::serializei8(int8_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializei32(int32_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializei64(int64_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializeu64(uint64_t field)
 {
     dest.append((char*)&field, sizeof(field));
 }
@@ -682,6 +697,30 @@ bool CacheableReader::unserializecompressed64(uint64_t& field)
     return true;
 }
 
+bool CacheableReader::unserializei8(int8_t& field)
+{
+    if (ptr + sizeof(int8_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int8_t>(ptr);
+    ptr += sizeof(int8_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializei32(int32_t& field)
+{
+    if (ptr + sizeof(int32_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int32_t>(ptr);
+    ptr += sizeof(int32_t);
+    fieldnum += 1;
+    return true;
+}
+
 bool CacheableReader::unserializei64(int64_t& field)
 {
     if (ptr + sizeof(int64_t) > end)
@@ -702,6 +741,18 @@ bool CacheableReader::unserializeu32(uint32_t& field)
     }
     field = MemAccess::get<uint32_t>(ptr);
     ptr += sizeof(uint32_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu64(uint64_t& field)
+{
+    if (ptr + sizeof(uint64_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint64_t>(ptr);
+    ptr += sizeof(uint64_t);
     fieldnum += 1;
     return true;
 }
