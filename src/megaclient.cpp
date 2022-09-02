@@ -7576,12 +7576,12 @@ void MegaClient::notifypurge(void)
         useralerts.useralertnotify.clear();
     }
 
-    if (setelementnotify.size())
+    if (!setelementnotify.empty())
     {
         notifypurgesetelements();
     }
 
-    if (setnotify.size())
+    if (!setnotify.empty())
     {
         notifypurgesets();
     }
@@ -12373,26 +12373,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
-
-    // clean any zombie Elements
-    for (auto it = mSetElements.begin(); it != mSetElements.end();)
-    {
-        if (mSets.find(it->first) == mSets.end())
-        {
-            for (auto itE = it->second.begin(); itE != it->second.end(); ++itE)
-            {
-                if (itE->second.dbid)
-                {
-                    sctable->del(itE->second.dbid);
-                }
-            }
-            it = mSetElements.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
 
     // any child nodes arrived before their parents?
     for (size_t i = dp.size(); i--; )
@@ -17769,7 +17749,8 @@ const Set* MegaClient::getSet(handle sid) const
 
 void MegaClient::addSet(Set&& a)
 {
-    auto add = mSets.emplace(a.id(), move(a));
+    handle sid = a.id();
+    auto add = mSets.emplace(sid, move(a));
 
     if (add.second) // newly inserted
     {
@@ -18143,8 +18124,9 @@ bool MegaClient::updatescsets()
                         return false;
                     }
                 }
+                clearsetelementnotify(s->id());
+                mSetElements.erase(s->id());
             }
-            mSetElements.erase(s->id());
 
             if (!sctable->del(s->dbid))
             {
@@ -18221,9 +18203,9 @@ void MegaClient::notifypurgesets()
     {
         if (s->hasChanged(Set::CH_REMOVED))
         {
-            mSets.erase(s->id());
+            clearsetelementnotify(s->id());
             mSetElements.erase(s->id());
-            // search notifications and remove entries for Elements in the removed Set?
+            mSets.erase(s->id());
         }
         else
         {
@@ -18257,6 +18239,18 @@ void MegaClient::notifypurgesetelements()
 
     setelementnotify.clear();
 }
+
+void MegaClient::clearsetelementnotify(handle sid)
+{
+    for (size_t i = setelementnotify.size(); i; --i)
+    {
+        if (setelementnotify[i - 1]->set() == sid)
+        {
+            setelementnotify.erase(setelementnotify.begin() + i - 1);
+        }
+    }
+}
+
 
 void CommonSE::setName(string&& name)
 {

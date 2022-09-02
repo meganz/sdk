@@ -2208,6 +2208,7 @@ private:
     bool updatescsetelements();
     void notifypurgesetelements();
     void notifysetelement(SetElement*);
+    void clearsetelementnotify(handle sid);
     vector<SetElement*> setelementnotify;
     map<handle, map<handle, SetElement>> mSetElements; // indexed by Set id, then Element id
 
