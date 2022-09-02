@@ -449,7 +449,7 @@ private:
     NodeHandle pp;  // previous parent
     NodeHandle np;  // new parent
     bool syncop;
-    bool canChangeVault;
+    bool mCanChangeVault;
     syncdel_t syncdel;
     Completion completion;
 
@@ -475,7 +475,7 @@ class MEGA_API CommandDelNode : public Command
 public:
     bool procresult(Result) override;
 
-    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&, bool changeVault = false);
+    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&, bool canChangeVault = false);
 };
 
 class MEGA_API CommandDelVersions : public Command
@@ -636,7 +636,7 @@ private:
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char*, Completion&& c, bool changeVault);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char*, Completion&& c, bool canChangeVault);
 };
 
 class MEGA_API CommandSetShare : public Command

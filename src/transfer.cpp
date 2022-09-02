@@ -765,7 +765,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                             attr_map attrUpdate;
                             n->serializefingerprint(&attrUpdate['c']);
                             client->setattr(n, std::move(attrUpdate), client->reqtag, nullptr, nullptr, false);
-                            // changeVault = false -> this is a download being completed. Backups only upload data, and
+                            // canChangeVault = false -> this is a download being completed. Backups only upload data, and
                             // even if the FileFingerprint was missing, setting it is not an action coming from a backup
                         }
                     }
