@@ -746,7 +746,7 @@ class ScheduledFlags
         {
             FLAGS_DONT_SEND_EMAILS = 0, // API won't send out calendar emails for this meeting if it's enabled
             FLAGS_SIZE             = 1, // size in bits of flags bitmask
-        } scheduled_flags_t;
+        } scheduled_flags_t;            // 3 Bytes (maximum)
 
         typedef std::bitset<FLAGS_SIZE> scheduledFlagsBitSet;
 

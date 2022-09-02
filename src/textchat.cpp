@@ -99,7 +99,10 @@ bool TextChat::serialize(string *d)
 
     d->append((char*)&chatOptions, 1);
 
-    d->append("\0\0\0\0", 4); // additional bytes for backwards compatibility
+    char hasSheduledMeeting = mScheduledMeeting ? 1 : 0;
+    d->append((char*)&hasSheduledMeeting, 1);
+
+    d->append("\0\0\0", 3); // additional bytes for backwards compatibility
 
     if (hasAttachments)
     {
@@ -126,6 +129,16 @@ bool TextChat::serialize(string *d)
         d->append((char*) unifiedKey.data(), unifiedKey.size());
     }
 
+    if (hasSheduledMeeting)
+    {
+        std::string schedMeetingStr;
+        if (mScheduledMeeting->serialize(&schedMeetingStr))
+        {
+            ll = (unsigned short) schedMeetingStr.size();
+            d->append((char *)&ll, sizeof ll);
+            d->append((char *)schedMeetingStr.data(), schedMeetingStr.size());
+        }
+    }
     return true;
 }
 
@@ -144,6 +157,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     attachments_map attachedNodes;
     bool publicchat;
     string unifiedKey;
+    string scheduledMeetingStr;
 
     unsigned short ll;
     const char* ptr = d->data();
@@ -245,7 +259,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     byte chatOptions = static_cast<byte>(MemAccess::get<char>(ptr));
     ptr += sizeof(char);
 
-    for (int i = 4; i--;)
+    char hasScheduledMeeting = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    for (int i = 3; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -320,6 +337,28 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         ptr += keylen;
     }
 
+    if (hasScheduledMeeting)
+    {
+        unsigned short len = 0;
+        if (ptr + sizeof len > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        len = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof len;
+
+        if (ptr + len > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        scheduledMeetingStr.assign(ptr, len);
+        ptr += len;
+    }
+
     if (ptr < end)
     {
         delete userpriv;
@@ -350,6 +389,11 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->unifiedKey = unifiedKey;
     chat->meeting = meetingRoom;
     chat->chatOptions = chatOptions;
+
+    if (!scheduledMeetingStr.empty())
+    {
+        chat->mScheduledMeeting.reset(ScheduledMeeting::unserialize(&scheduledMeetingStr));
+    }
 
     memset(&chat->changed, 0, sizeof(chat->changed));
 

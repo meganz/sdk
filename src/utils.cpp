@@ -889,7 +889,7 @@ bool ScheduledFlags::isEmpty() const                        { return mFlags.none
 
 bool ScheduledFlags::serialize(string* out)
 {
-    assert(out);
+    if (!out) { return false; }
     CacheableWriter w(*out);
     w.serializeu32(static_cast<uint32_t>(mFlags.to_ulong()));
     return true;
@@ -897,7 +897,7 @@ bool ScheduledFlags::serialize(string* out)
 
 ScheduledFlags* ScheduledFlags::unserialize(string* in)
 {
-    assert(in);
+    if (!in || in->empty())  { return nullptr; }
     uint32_t flagsNum = 0;
     CacheableReader w(*in);
     w.unserializeu32(flagsNum);
@@ -995,7 +995,8 @@ const char* ScheduledRules::freqToString ()
 
 bool ScheduledRules::serialize(string* out)
 {
-    assert(out);
+    //assert(out && !out->empty());
+    if (!out) { return false; }
     assert(isValidFreq(mFreq));
     bool hasInterval = isValidInterval(mInterval);
     bool hasUntil = !mUntil.empty();
@@ -1041,7 +1042,7 @@ bool ScheduledRules::serialize(string* out)
 
 ScheduledRules* ScheduledRules::unserialize(string* in)
 {
-    assert(in);
+    if (!in || in->empty())  { return nullptr; }
     int freq = FREQ_INVALID;
     int interval = INTERVAL_INVALID;
     std::string until = nullptr;
@@ -1214,7 +1215,8 @@ ScheduledRules* ScheduledMeeting::rules() const                     { return mRu
 
 bool ScheduledMeeting::serialize(string* out)
 {
-    assert(out);
+    //assert(out && !out->empty());
+    if (!out) { return false; }
     bool hasCallid = callid() != UNDEF;
     bool hasParentCallid = parentCallid() != UNDEF;
     bool hasAttributes = attributes();
@@ -1252,7 +1254,7 @@ bool ScheduledMeeting::serialize(string* out)
 
 ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
 {
-    assert(in);
+    if (!in || in->empty())  { return nullptr; }
     handle chatid = UNDEF;
     handle callid = UNDEF;
     handle parentCallid = UNDEF;
