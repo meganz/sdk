@@ -1809,18 +1809,15 @@ void LocalNode::completed(Transfer* t, putsource_t source)
 
     // complete to rubbish for later retrieval if the parent node does not
     // exist or is newer
-    Node *target;
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
         h = t->client->rootnodes.rubbish;
-        target = t->client->nodeByHandle(h);
     }
     else
     {
         // otherwise, overwrite node if it already exists and complete in its
         // place
         h = parent->node->nodeHandle();
-        target = parent->node;
     }
 
     bool canChangeVault = sync->isBackup();
