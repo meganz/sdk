@@ -3599,22 +3599,6 @@ void Syncs::forEachSyncConfig(std::function<void(const SyncConfig&)> f)
     }
 }
 
-bool Syncs::nodeBelongsToBackup(Node *node)
-{
-    if (!node) return false;
-
-    for (auto& s : mSyncVec)
-    {
-        if (s->mConfig.isBackup()
-                && node->isbelow(s->mConfig.mRemoteNode))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 bool Syncs::hasRunningSyncs()
 {
     for (auto& s : mSyncVec)
@@ -3794,7 +3778,7 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
                 // Nope so tell our continuation that we're done.
                 return mCompletion(mResult);
             }
-            
+
             // What config describes the sync we're about to remove?
             const auto& config = mPending.back();
 

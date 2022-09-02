@@ -2570,7 +2570,7 @@ void MegaClient::exec()
                 {
                     LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp
                             << "  Current: " << current;
-                    syncs.disableSyncByBackupId(sync->getConfig().mBackupId, true, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, nullptr); 
+                    syncs.disableSyncByBackupId(sync->getConfig().mBackupId, true, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, nullptr);
                 }
             }
         });
@@ -2788,7 +2788,7 @@ void MegaClient::exec()
                                     }
                                     else
                                     {
-                                        LOG_debug << "Pending MEGA nodes: " << synccreate.size();
+                                        LOG_debug << "Pending MEGA nodes: " << synccreateForVault.size() + synccreateGeneral.size();
                                         if (!syncadding)
                                         {
                                             LOG_debug << "Running syncup to create missing folders: "
@@ -2864,11 +2864,7 @@ void MegaClient::exec()
 
                 // delete files that were overwritten by folders in checkpath()
                 execsyncdeletions();
-
-                if (synccreate.size())
-                {
-                    syncupdate();
-                }
+                syncupdate();
 
                 // notify the app of the length of the pending scan queue
                 if (scanningpending < 4)
@@ -2932,7 +2928,7 @@ void MegaClient::exec()
                         // kept pending until all creations (that might reference them for the purpose of
                         // copying) have completed and all notification queues have run empty (to ensure
                         // that moves are not executed as deletions+additions.
-                        if (localsyncnotseen.size() && !synccreate.size())
+                        if (localsyncnotseen.size() && (synccreateForVault.empty() && synccreateGeneral.empty()))
                         {
                             // ... execute all pending deletions
                             auto fa = fsaccess->newfileaccess();
@@ -2949,7 +2945,7 @@ void MegaClient::exec()
                         if (!syncfsopsfailed)
                         {
                             LOG_verbose << "syncops: " << syncactivity << syncnagleretry
-                                        << syncfslockretry << synccreate.size();
+                                        << syncfslockretry << synccreateForVault.size() << synccreateGeneral.size();
                             syncops = false;
 
                             // FIXME: only syncup for subtrees that were actually
@@ -2984,11 +2980,7 @@ void MegaClient::exec()
 
                             // delete files that were overwritten by folders in syncup()
                             execsyncdeletions();
-
-                            if (synccreate.size())
-                            {
-                                syncupdate();
-                            }
+                            syncupdate();
 
                             unsigned totalnodes = 0;
 
@@ -13654,8 +13646,8 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     mOptimizePurgeNodes = false;
 
 #ifdef ENABLE_SYNC
-    todebris.clear();
-    tounlink.clear();
+    toDebris.clear();
+    toUnlink.clear();
     mFingerprints.clear();
 #endif
 
@@ -14868,7 +14860,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     ll->detach(true);
 
                     // Move the remote into the debris.
-                    movetosyncdebris(rit->second, l->sync->inshare);
+                    movetosyncdebris(rit->second, l->sync->inshare, l->sync->isBackup());
                 }
                 else if (l->sync->isBackupMonitoring())
                 {
@@ -15068,7 +15060,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 rit->second->detach(true);
 
                 // Move remote into the debris.
-                movetosyncdebris(rit->second, l->sync->inshare);
+                movetosyncdebris(rit->second, l->sync->inshare, l->sync->isBackup());
             }
             else if (l->sync->isBackupMonitoring())
             {
@@ -15165,7 +15157,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             cxt.mBackupActionsPerformed = true;
 
                             // Debris the remote.
-                            movetosyncdebris(rit->second, l->sync->inshare);
+                            movetosyncdebris(rit->second, l->sync->inshare, l->sync->isBackup());
                         }
                         else if (l->sync->isBackupMonitoring())
                         {
@@ -15206,7 +15198,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     cxt.mBackupActionsPerformed = true;
 
                     // Remove the remote.
-                    movetosyncdebris(rit->second, l->sync->inshare);
+                    movetosyncdebris(rit->second, l->sync->inshare, l->sync->isBackup());
                 }
                 else if (l->sync->isBackupMonitoring())
                 {
@@ -15410,7 +15402,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             {
                 insync = false;
                 LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " isSymLink = " << isSymLink;
-                movetosyncdebris(rit->second, l->sync->inshare);
+                movetosyncdebris(rit->second, l->sync->inshare, l->sync->isBackup());
             }
             else
             {
@@ -15738,7 +15730,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                     (int)nchildren.size(),
                     (int)l->children.size(),
                     l->node ? (int)l->node->children.size() : -1,
-                    (int)synccreate.size(),
+                    (int)(synccreateForVault.size() + synccreateGeneral.size()),
                     syncadding,
                     ll->type,
                     (int)ll->name.size(),
@@ -15801,13 +15793,22 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
             // create remote folder or send file
             LOG_debug << "Adding local file to synccreate: "
-                      << ll->getLocalPath()
-                      << " "
-                      << synccreate.size();
-            synccreate.push_back(ll);
+                      << ll->getLocalPath() << " "
+                      << synccreateForVault.size() << " "
+                      << synccreateGeneral.size();
+
+            if (ll->sync->isBackup())
+            {
+                synccreateForVault.push_back(ll);
+            }
+            else
+            {
+                synccreateGeneral.push_back(ll);
+            }
             syncactivity = true;
 
-            if (synccreate.size() >= MAX_NEWNODES)
+            if (synccreateForVault.size() >= MAX_NEWNODES ||
+                synccreateGeneral.size() >= MAX_NEWNODES)
             {
                 LOG_warn << "Stopping syncup due to MAX_NEWNODES";
                 parentPending += numPending;
@@ -15852,6 +15853,12 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 // execute updates stored in synccreate[]
 // must not be invoked while the previous creation operation is still in progress
 void MegaClient::syncupdate()
+{
+    syncupdate(synccreateForVault, true);
+    syncupdate(synccreateGeneral, false);
+}
+
+void MegaClient::syncupdate(localnode_vector& synccreate, bool canChangeVault)
 {
     // split synccreate[] in separate subtrees and send off to putnodes() for
     // creation on the server
@@ -15906,6 +15913,7 @@ void MegaClient::syncupdate()
                 nnp->localnode.crossref(l, nnp);  // also sets l->newnode to nnp
                 nnp->nodehandle = n ? n->nodehandle : l->syncid;
                 nnp->parenthandle = i > start ? l->parent->syncid : UNDEF;
+                nnp->canChangeVault = canChangeVault;
 
                 if (n)
                 {
@@ -15914,7 +15922,7 @@ void MegaClient::syncupdate()
                     {
                         if (versions_disabled)
                         {
-                            movetosyncdebris(l->node, l->sync->inshare);
+                            movetosyncdebris(l->node, l->sync->inshare, l->sync->isBackup());
                         }
                         else
                         {
@@ -15984,7 +15992,6 @@ void MegaClient::syncupdate()
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
 
                 auto nextTag = nextreqtag();
-                bool changeVault = localNode->syncxfer && syncs.nodeBelongsToBackup(localNode->parent->node);
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodeHandle(),
                                                 NULL,
@@ -15994,7 +16001,7 @@ void MegaClient::syncupdate()
                                                 PUTNODES_SYNC,
                                                 nullptr,
                                                 nullptr,
-                                                changeVault));
+                                                canChangeVault));
 
                 syncactivity = true;
             }
@@ -16043,7 +16050,7 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
 // dupes)
-void MegaClient::movetosyncdebris(Node* dn, bool unlink)
+void MegaClient::movetosyncdebris(Node* dn, bool unlink, bool canChangeVault)
 {
     dn->syncdeleted = SYNCDEL_DELETED;
 
@@ -16062,25 +16069,26 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
     // no: enqueue this one
     if (!n)
     {
+        unlink_or_debris_set::value_type v(dn, UnlinkOrDebris{unlink, !unlink, canChangeVault});
         if (unlink)
         {
-            dn->tounlink_it = tounlink.insert(dn).first;
+            dn->tounlink_it = toUnlink.insert(v).first;
         }
         else
         {
-            dn->todebris_it = todebris.insert(dn).first;
+            dn->todebris_it = toDebris.insert(v).first;
         }
     }
 }
 
 void MegaClient::execsyncdeletions()
 {
-    if (todebris.size())
+    if (toDebris.size())
     {
         execmovetosyncdebris();
     }
 
-    if (tounlink.size())
+    if (toUnlink.size())
     {
         execsyncunlink();
     }
@@ -16142,25 +16150,24 @@ void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa)
 
 void MegaClient::execsyncunlink()
 {
-    Node* n;
-    Node* tn;
-
     // delete tounlink nodes
     do {
-        n = tn = *tounlink.begin();
+        auto iter = toUnlink.begin();
 
+        Node *tn = iter->first;
+        Node *n = tn;
         while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
 
         if (!n)
         {
-            unlink(tn, false, tn->tag, false, nullptr);
+            unlink(tn, false, tn->tag, iter->second.canChangeVault, nullptr);
             // 'changeVault' is false because here unlink() is only
             // for inshares syncs, which is not possible for backups
         }
 
-        tn->tounlink_it = tounlink.end();
-        tounlink.erase(tounlink.begin());
-    } while (tounlink.size());
+        tn->tounlink_it = toUnlink.end();
+        toUnlink.erase(iter);
+    } while (toUnlink.size());
 }
 
 // immediately moves pending todebris items to //bin
@@ -16169,7 +16176,6 @@ void MegaClient::execmovetosyncdebris()
 {
     Node* n;
     Node* tn;
-    node_set::iterator it;
 
     m_time_t ts;
     struct tm tms;
@@ -16213,9 +16219,9 @@ void MegaClient::execmovetosyncdebris()
     // - SYNCDEL_DELETED nodes to any available target
     // - SYNCDEL_BIN/SYNCDEL_DEBRIS nodes to SYNCDEL_DEBRISDAY
     // (move top-level nodes only)
-    for (it = todebris.begin(); it != todebris.end(); )
+    for (auto it = toDebris.begin(); it != toDebris.end(); )
     {
-        n = *it;
+        n = it->first;
 
         if (n->syncdeleted == SYNCDEL_DELETED
          || n->syncdeleted == SYNCDEL_BIN
@@ -16225,7 +16231,7 @@ void MegaClient::execmovetosyncdebris()
 
             if (!n)
             {
-                n = *it;
+                n = it->first;
 
                 if (n->syncdeleted == SYNCDEL_DELETED
                  || ((n->syncdeleted == SYNCDEL_BIN
@@ -16236,8 +16242,7 @@ void MegaClient::execmovetosyncdebris()
                     int creqtag = reqtag;
                     reqtag = n->tag;
                     LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                    bool changeVault = syncs.nodeBelongsToBackup(n);
-                    rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, changeVault, nullptr);
+                    rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, it->second.canChangeVault, nullptr);
                     reqtag = creqtag;
                     it++;
                 }
@@ -16245,8 +16250,8 @@ void MegaClient::execmovetosyncdebris()
                 {
                     LOG_debug << "SyncDebris daily folder not created. Final target: " << n->syncdeleted;
                     n->syncdeleted = SYNCDEL_NONE;
-                    n->todebris_it = todebris.end();
-                    todebris.erase(it++);
+                    n->todebris_it = toDebris.end();
+                    toDebris.erase(it++);
                 }
             }
             else
@@ -16259,8 +16264,8 @@ void MegaClient::execmovetosyncdebris()
         {
             LOG_debug << "Move to SyncDebris finished. Final target: " << n->syncdeleted;
             n->syncdeleted = SYNCDEL_NONE;
-            n->todebris_it = todebris.end();
-            todebris.erase(it++);
+            n->todebris_it = toDebris.end();
+            toDebris.erase(it++);
         }
         else
         {
@@ -16268,7 +16273,7 @@ void MegaClient::execmovetosyncdebris()
         }
     }
 
-    if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding
+    if (target != SYNCDEL_DEBRISDAY && toDebris.size() && !syncdebrisadding
             && (target == SYNCDEL_BIN || syncdebrisminute != currentminute))
     {
         syncdebrisadding = true;

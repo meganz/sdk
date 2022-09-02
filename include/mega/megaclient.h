@@ -1586,7 +1586,10 @@ public:
     handlelocalnode_map fsidnode;
 
     // local nodes that need to be added remotely
-    localnode_vector synccreate;
+    // we need to distinguish those that are allowed to alter vault
+    // since the node create command applies the vw flag for all contained nodes
+    localnode_vector synccreateForVault;
+    localnode_vector synccreateGeneral;
 
     // number of sync-initiated putnodes() in progress
     int syncadding;
@@ -1604,6 +1607,7 @@ public:
     // if no sync putnodes operation is in progress, apply the updates stored
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
     void syncupdate();
+    void syncupdate(localnode_vector&, bool canChangeVault);
 
     // create missing folders, copy/start uploading missing files
     bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
@@ -1617,15 +1621,15 @@ public:
     bool syncdown(LocalNode*, LocalPath&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
-    void movetosyncdebris(Node*, bool);
+    void movetosyncdebris(Node*, bool unlink, bool canChangeVault);
 
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris();
-    node_set todebris;
+    unlink_or_debris_set toDebris;
 
     // unlink queued nodes directly (for inbound share syncing)
     void execsyncunlink();
-    node_set tounlink;
+    unlink_or_debris_set toUnlink;
 
     // commit all queueud deletions
     void execsyncdeletions();

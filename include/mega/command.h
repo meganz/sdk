@@ -449,13 +449,14 @@ private:
     NodeHandle pp;  // previous parent
     NodeHandle np;  // new parent
     bool syncop;
+    bool canChangeVault;
     syncdel_t syncdel;
     Completion completion;
 
 public:
     bool procresult(Result) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c, bool changeVault = false);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c, bool canChangeVault = false);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -618,7 +619,7 @@ public:
 
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&, bool changeVault);
+    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&, bool canChangeVault);
 };
 
 class MEGA_API CommandSetAttr : public Command

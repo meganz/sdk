@@ -364,7 +364,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
             {
                 if (client->versions_disabled)
                 {
-                    client->movetosyncdebris(l->node, l->sync->inshare);
+                    client->movetosyncdebris(l->node, l->sync->inshare, l->sync->isBackup());
                     client->execsyncdeletions();
                 }
                 else
@@ -553,7 +553,7 @@ bool SyncFileGet::failed(error e, MegaClient* client)
                 n->parent->client->sendevent(99433, "Undecryptable file");
                 n->parent->client->reqtag = creqtag;
             }
-            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare);
+            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare, n->parent->localnode->sync->isBackup());
         }
     }
 
