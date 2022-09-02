@@ -2945,7 +2945,7 @@ void MegaClient::exec()
                         if (!syncfsopsfailed)
                         {
                             LOG_verbose << "syncops: " << syncactivity << syncnagleretry
-                                        << syncfslockretry << synccreateForVault.size() << synccreateGeneral.size();
+                                        << syncfslockretry << synccreateForVault.size() << " " << synccreateGeneral.size();
                             syncops = false;
 
                             // FIXME: only syncup for subtrees that were actually
