@@ -17388,8 +17388,8 @@ void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Err
 error MegaClient::readSetsAndElements(JSON& j)
 {
     map<handle, Set> newSets;
-    multimap<handle, SetElement> newElements;
-    bool replaceEverything = false;
+    map<handle, map<handle, SetElement>> newElements;
+    bool aespCmd = false;
     bool loopAgain = true;
 
     while (loopAgain)
@@ -17400,7 +17400,7 @@ error MegaClient::readSetsAndElements(JSON& j)
         {
             // reuse this in "aft" (fetch-Set command) and "aesp" (in gettree/fetchnodes/"f" command):
             // "aft" will return a single Set for "s", while "aesp" will return an array of Sets
-            replaceEverything = j.enterarray();
+            aespCmd = j.enterarray();
 
             error e = readSets(j, newSets);
             if (e != API_OK)
@@ -17408,7 +17408,7 @@ error MegaClient::readSetsAndElements(JSON& j)
                 return e;
             }
 
-            if (replaceEverything)
+            if (aespCmd)
             {
                 j.leavearray();
             }
@@ -17437,7 +17437,12 @@ error MegaClient::readSetsAndElements(JSON& j)
         }
     }
 
-    // decrypt Set data
+    if (newSets.empty())
+    {
+        return aespCmd ? API_OK : API_ENOENT;
+    }
+
+    // decrypt data
     for (auto& s : newSets)
     {
         error e = decryptSetData(s.second);
@@ -17445,73 +17450,34 @@ error MegaClient::readSetsAndElements(JSON& j)
         {
             return e;
         }
-    }
 
-    if (replaceEverything) // "aesp"
-    {
-        // remove Sets that no longer exist
-        for (auto& s : mSets)
+        auto itEls = newElements.find(s.first);
+        if (itEls != newElements.end())
         {
-            if (newSets.find(s.first) == newSets.end())
+            for (auto itE = itEls->second.begin(); itE != itEls->second.end(); ++itE)
             {
-                deleteSet(s.first);
-            }
-        }
-
-        // remove Elements that no longer exist
-        for (auto& se : mSetElements)
-        {
-            for (auto& e : se.second)
-            {
-                if (newElements.find(e.first) == newElements.end())
+                // decrypt element key and attrs
+                e = decryptElementData(itE->second, s.second.key());
+                if (e != API_OK)
                 {
-                    deleteSetElement(se.first, e.first);
+                    return e;
                 }
             }
         }
     }
 
-    // match Elements and Sets
-    auto itA = newSets.end();
-    for (auto& newEl : newElements)
+    // apply updates
+    if (aespCmd) // "aesp"
     {
-        // get corresponding Set
-        if (itA == newSets.end() || itA->second.id() != newEl.first) // optimize some searches
-        {
-            itA = newSets.find(newEl.first);
-            if (itA == newSets.end())
-            {
-                continue; // should never happen
-            }
-        }
-
-        // decrypt element key and attrs
-        error e = decryptElementData(newEl.second, itA->second.key());
-        if (e != API_OK)
-        {
-            return e;
-        }
-
-        // apply changes to SetElements
-        if (replaceEverything) // "aesp"
-        {
-            addSetElement(move(newEl.second));
-        }
-        else
-        {
-            updateSetElement(move(newEl.second));
-        }
-    }
-
-    // apply changes to Sets
-    if (replaceEverything) // "aesp"
-    {
+        // save new data
         mSets.swap(newSets);
+        mSetElements.swap(newElements);
     }
-    else if (!newSets.empty()) // "aft" command (will contain only 1 Set)
+    else // aft
     {
-        auto& a = newSets.begin()->second;
-        addSet(move(a));
+        assert(newSets.size() == 1);
+
+        // TODO: send the Set and its Elements to the caller
     }
 
     return API_OK;
@@ -17702,7 +17668,7 @@ error MegaClient::readSet(JSON& j, Set& s)
     }
 }
 
-error MegaClient::readElements(JSON& j, multimap<handle, SetElement>& elements)
+error MegaClient::readElements(JSON& j, map<handle, map<handle, SetElement>>& elements)
 {
     if (!j.enterarray())
     {
@@ -17718,7 +17684,8 @@ error MegaClient::readElements(JSON& j, multimap<handle, SetElement>& elements)
             return e;
         }
         handle sid = el.set();
-        elements.emplace(sid, move(el));
+        handle eid = el.id();
+        elements[sid].emplace(eid, move(el));
 
         j.leaveobject();
     }

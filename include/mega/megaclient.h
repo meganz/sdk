@@ -2182,7 +2182,7 @@ private:
 
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
-    error readElements(JSON& j, multimap<handle, SetElement>& elements);
+    error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);
     error readElement(JSON& j, SetElement& el);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
