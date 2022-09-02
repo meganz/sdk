@@ -1534,6 +1534,16 @@ public:
     CommandScheduledMeetingAdd(MegaClient *, ScheduledMeeting *, CommandScheduledMeetingAddCompletion completion);
 };
 
+typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;
+class MEGA_API CommandScheduledMeetingRemove : public Command
+{
+    handle mSchedMeetingId;
+    CommandScheduledMeetingRemoveCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingRemove(MegaClient *, handle, CommandScheduledMeetingRemoveCompletion completion);
+};
 #endif
 
 } // namespace
