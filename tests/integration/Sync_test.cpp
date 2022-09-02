@@ -3120,7 +3120,7 @@ void StandardClient::waitonsyncs(chrono::seconds d)
                     any_add_del |= !s->insertq.empty();
                 });
 
-            if (!(client.todebris.empty() && client.tounlink.empty() /*&& client.synccreate.empty()*/))
+            if (!(client.toDebris.empty() && client.toUnlink.empty() /*&& client.synccreate.empty()*/))
             {
                 any_add_del = true;
             }
@@ -4061,10 +4061,11 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
                               busy |= !s->insertq.empty();
                           });
 
-                        if (!(mc.client.todebris.empty()
+                        if (!(mc.client.toDebris.empty()
                             && mc.client.localsyncnotseen.empty()
-                            && mc.client.tounlink.empty()
-                            && mc.client.synccreate.empty()
+                            && mc.client.toUnlink.empty()
+                            && mc.client.synccreateForVault.empty()
+                            && mc.client.synccreateGeneral.empty()
                             && mc.client.transferlist.transfers[GET].empty()
                             && mc.client.transferlist.transfers[PUT].empty()))
                         {
