@@ -15808,8 +15808,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             }
             syncactivity = true;
 
-            if (synccreateForVault.size() >= MAX_NEWNODES ||
-                synccreateGeneral.size() >= MAX_NEWNODES)
+            if ((synccreateForVault.size() + synccreateGeneral.size()) >= MAX_NEWNODES)
             {
                 LOG_warn << "Stopping syncup due to MAX_NEWNODES";
                 parentPending += numPending;
