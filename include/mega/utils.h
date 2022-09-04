@@ -487,7 +487,8 @@ class chunkmac_map
         // finished == true and offset == -1, and mac == macsmac to the end of this block.
         bool finished = false;
 
-        // valid for download where we always set one or the other.   Not so for upload
+        // True when the chunk is not entirely processed.
+        // Offset is only increased by downloads, so (!offset) should always be true for uploads.
         bool notStarted() { return !finished && !offset; }
 
         // the very first record can be the macsmac calculation so far, from the start to some contiguous point

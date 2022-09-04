@@ -832,59 +832,66 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
     {
         return RaidBufferManager::nextNPosForConnection(connectionNum, newInputBufferSupplied, pauseConnectionForRaid);
     }
-    else
-    {
-        transfer->pos = transfer->chunkmacs.nextUnprocessedPosFrom(transfer->pos);
-        m_off_t npos = ChunkedHash::chunkceil(transfer->pos, transfer->size);
-        if (!transfer->size)
-        {
-            transfer->pos = 0;
-        }
-        else if (npos > transfer->pos)
-        {
-            m_off_t maxReqSize = npos;
-            if (transfer->type == PUT)
-            {
-                // choose upload chunks that are big enough to saturate the connection, so we don't start HTTP PUT request too frequently
-                // make them smaller at the end of the file so we still have the last parts delivered in parallel
-                m_off_t maxsize = 32 * 1024 * 1024;
-                if (npos + 2 * maxsize > transfer->size) maxsize /= 2;
-                if (npos + maxsize > transfer->size) maxsize /= 2;
-                if (npos + maxsize > transfer->size) maxsize /= 2;
-                m_off_t speedsize = std::min<m_off_t>(maxsize, uploadSpeed * 2 / 3);    // two seconds of data over 3 connections
-                m_off_t sizesize = transfer->size > 32 * 1024 * 1024 ? 8 * 1024 * 1024 : 0;  // start with large-ish portions for large files.
-                m_off_t targetsize = std::max<m_off_t>(sizesize, speedsize);
-                maxReqSize = transfer->pos + targetsize;
-            }
-            else if (transfer->type == GET)
-            {
-                maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
-                if (maxReqSize > maxRequestSize)
-                {
-                    maxReqSize = maxRequestSize;
-                }
 
-                if (maxReqSize > 0x100000)
-                {
-                    m_off_t val = 0x100000;
-                    while (val <= maxReqSize)
-                    {
-                        val <<= 1;
-                    }
-                    maxReqSize = val >> 1;
-                    maxReqSize -= 0x100000;
-                }
-                else
-                {
-                    maxReqSize = 0;
-                }
-            }
-            npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
-            LOG_debug << "Downloading chunk of size " << npos - transfer->pos;
-            assert(npos > transfer->pos);
+    transfer->pos = transfer->size ?
+                        transfer->chunkmacs.nextUnprocessedPosFrom(transfer->pos) :
+                        0;
+    m_off_t npos = transfer->size ?
+                        ChunkedHash::chunkceil(transfer->pos, transfer->size) :
+                        0;
+    if(npos > transfer->pos)
+    {
+        // Calc limit for request size value depending on connection/transfer/progress heuristics.
+        m_off_t maxReqSize = npos;
+        if (transfer->type == PUT)
+        {
+            // choose upload chunks that are big enough to saturate the connection, so we don't start HTTP PUT request too frequently
+            // make them smaller at the end of the file so we still have the last parts delivered in parallel
+            m_off_t largeSize = 32 * 1024 * 1024;
+            m_off_t maxsize = largeSize;
+            if (npos + 2 * maxsize > transfer->size)
+                maxsize /= 2;
+            if (npos + maxsize > transfer->size)
+                maxsize /= 2;
+            if (npos + maxsize > transfer->size)
+                maxsize /= 2;
+            m_off_t speedsize = std::min<m_off_t>(maxsize, uploadSpeed * 2 / 3);        // two seconds of data over 3 connections
+            m_off_t sizesize = transfer->size > largeSize ? 8 * 1024 * 1024 : 0; // start with large-ish portions for large files.
+            m_off_t targetsize = std::max<m_off_t>(sizesize, speedsize);
+            maxReqSize = transfer->pos + targetsize;
         }
-        return std::make_pair(transfer->pos, npos);
+        else if (transfer->type == GET)
+        {
+            maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
+            if (maxReqSize > maxRequestSize)
+            {
+                maxReqSize = maxRequestSize;
+            }
+
+            if (maxReqSize > 0x100000)
+            {
+                m_off_t val = 0x100000;
+                while (val <= maxReqSize)
+                {
+                    val <<= 1;
+                }
+                maxReqSize = val >> 1;
+                maxReqSize -= 0x100000;
+            }
+            else
+            {
+                maxReqSize = 0;
+            }
+        }
+
+        // Calc npos limit depending on the maxReqSize, the next processed piece and the transfer size.
+        npos = transfer->chunkmacs.expandUnprocessedPiece(transfer->pos, npos, transfer->size, maxReqSize);
+        LOG_debug << std::string(transfer->type == PUT ? "Uploading" :
+                                transfer->type == GET ? "Downloading" : "?")
+                    << " chunk of size " << npos - transfer->pos;
+        assert(npos > transfer->pos);
     }
+    return std::make_pair(transfer->pos, npos);
 }
 
 void TransferBufferManager::bufferWriteCompletedAction(FilePiece& r)
