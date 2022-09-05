@@ -1045,7 +1045,7 @@ ScheduledRules* ScheduledRules::unserialize(string* in)
     if (!in || in->empty())  { return nullptr; }
     int freq = FREQ_INVALID;
     int interval = INTERVAL_INVALID;
-    std::string until = nullptr;
+    std::string until;
     rules_vector byWeekDay;
     rules_vector byMonthDay;
     rules_map byMonthWeekDay;
@@ -1104,7 +1104,12 @@ ScheduledRules* ScheduledRules::unserialize(string* in)
         }
     }
 
-    return new ScheduledRules(freq, interval, until.c_str(), &byWeekDay, &byMonthDay, &byMonthWeekDay);
+    return new ScheduledRules(freq,
+                              hasInterval ? interval : -1,
+                              hasUntil ? until.c_str() : nullptr,
+                              hasByWeekDay ? &byWeekDay : nullptr,
+                              hasByMonthDay ? &byMonthDay: nullptr,
+                              hasByMonthWeekDay ? &byMonthWeekDay: nullptr);
 }
 
 /* class scheduledMeeting */
@@ -1311,9 +1316,13 @@ ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
     }
 
     return new ScheduledMeeting(chatid, timezone.c_str(), startDateTime.c_str(), endDateTime.c_str(),
-                                title.c_str(), description.c_str(), callid,
-                                parentCallid, cancelled, attributes.c_str() ,
-                                overrides.c_str(), flags.get(), rules.get());
+                                title.c_str(), description.c_str(),
+                                hasCallid ? callid : UNDEF,
+                                hasParentCallid ? parentCallid : UNDEF,
+                                hasCancelled ? cancelled : -1,
+                                hasAttributes ? attributes.c_str() : nullptr,
+                                hasOverrides ? overrides.c_str() : nullptr,
+                                flags.get(), rules.get());
 }
 
 #endif
