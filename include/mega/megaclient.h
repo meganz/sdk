@@ -402,10 +402,6 @@ public:
     // Returns true if a node has versions
     bool hasVersion(NodeHandle nodeHandle);
 
-    // Called to initialize and set values to counters
-    // If some value is set previously (setParent), this value will be removed
-    void initializeCounters();
-
     NodeHandle getRootNodeFiles() {
         return rootnodes.files;
     }
@@ -430,8 +426,8 @@ public:
     void checkOrphanNodes();
 
     // This method is called when initial fetch nodes is finished
-    // When cache has been migrated (No NOD to NOD), when all nodes has been writted in DB
-    void initDone();
+    // Initialize node counters and create indexes at DB
+    void initCompleted();
 
 private:
     MegaClient& mClient;

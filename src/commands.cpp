@@ -5841,7 +5841,7 @@ bool CommandFetchNodes::procresult(Result r)
 
                 client->mergenewshares(0);
 
-                client->mNodeManager.initializeCounters();  // (nodes already written into DB)
+                client->mNodeManager.initCompleted();  // (nodes already written into DB)
 
                 client->initsc();
                 client->pendingsccommit = false;

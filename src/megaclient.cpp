@@ -5125,7 +5125,6 @@ void MegaClient::initsc()
 
         LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
 #endif
-        mNodeManager.initDone();
         finalizesc(complete);
     }
 }
@@ -18240,15 +18239,6 @@ bool NodeManager::hasVersion(NodeHandle nodeHandle)
     return node->getCounter().versions;
 }
 
-void NodeManager::initializeCounters()
-{
-    node_vector rootNodes = getRootNodesAndInshares();
-    for (Node* node : rootNodes)
-    {
-        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node);
-    }
-}
-
 void NodeManager::checkOrphanNodes()
 {
     size_t count = 0;
@@ -18275,12 +18265,18 @@ void NodeManager::checkOrphanNodes()
     mNodesWithMissingParent.clear();
 }
 
-void NodeManager::initDone()
+void NodeManager::initCompleted()
 {
     if (!mTable)
     {
         assert(false);
         return;
+    }
+
+    node_vector rootNodes = getRootNodesAndInshares();
+    for (Node* node : rootNodes)
+    {
+        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node);
     }
 
     mTable->createIndexes();
@@ -18401,7 +18397,7 @@ void NodeManager::dumpNodes()
         }
     }
 
-    initDone();
+    mTable->createIndexes();
 }
 
 void NodeManager::saveNodeInDb(Node *node)
