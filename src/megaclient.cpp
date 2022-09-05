@@ -17754,6 +17754,7 @@ void MegaClient::addSet(Set&& a)
 {
     handle sid = a.id();
     auto add = mSets.emplace(sid, move(a));
+    assert(add.second);
 
     if (add.second) // newly inserted
     {
