@@ -12057,7 +12057,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 break;
 
             case CACHEDNODE:
-                if ((n = mNodeManager.unserializeNode(&data, true)))
+                if ((n = mNodeManager.getNodeFromBlob(&data)))
                 {
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
@@ -17657,6 +17657,11 @@ void NodeManager::cleanNodes()
 
     if (mTable)
         mTable->removeNodes();
+}
+
+Node *NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
+{
+    return unserializeNode(nodeSerialized, true);
 }
 
 // parse serialized node and return Node object - updates nodes hash and parent

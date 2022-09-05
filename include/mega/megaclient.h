@@ -339,8 +339,9 @@ public:
     // Remove all nodes from all caches
     void cleanNodes();
 
-    // reads from DB and loads the node in memory
-    Node* unserializeNode(const string*, bool fromOldCache);
+    // Use blob received as parameter to generate a node
+    // Used to generate nodes from old cache
+    Node* getNodeFromBlob(const string* nodeSerialized);
 
     // attempt to apply received keys to decrypt node's keys
     void applyKeys(uint32_t appliedKeys);
@@ -474,6 +475,9 @@ private:
 
     // returns nullptr if there are unserialization errors. Also triggers a full reload (fetchnodes)
     Node* getNodeFromNodeSerialized(const NodeSerialized& nodeSerialized);
+
+    // reads from DB and loads the node in memory
+    Node* unserializeNode(const string*, bool fromOldCache);
 
     // returns the counter for the specified node, calculating it recursively and accessing to DB if it's neccesary
     NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node);
