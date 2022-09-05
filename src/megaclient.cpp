@@ -4292,6 +4292,8 @@ void MegaClient::catchup()
 {
     if (pendingsc)
     {
+        jsonsc.pos = nullptr;
+
         pendingsc->disconnect();
 
         pendingsc.reset();
