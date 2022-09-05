@@ -709,7 +709,7 @@ void SqliteAccountState::updateCounter(NodeHandle nodeHandle, const std::string&
     sqlite3_reset(mStmtUpdateNode);
 }
 
-void SqliteAccountState::createIndex()
+void SqliteAccountState::createIndexes()
 {
     if (!db)
     {

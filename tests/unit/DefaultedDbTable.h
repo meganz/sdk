@@ -118,7 +118,7 @@ public:
     {
 
     }
-    void createIndex() override
+    void createIndexes() override
     {
 
     }

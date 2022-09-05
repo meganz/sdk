@@ -18284,7 +18284,7 @@ void NodeManager::finalizeBatchActionPackageProcessing()
         return;
     }
 
-    mTable->createIndex();
+    mTable->createIndexes();
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
