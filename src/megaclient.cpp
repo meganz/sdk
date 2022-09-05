@@ -17812,61 +17812,10 @@ const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
     return nullptr;
 }
 
-SetElement* MegaClient::getSetElement_nonconst(handle sid, handle eid)
-{
-    auto itS = mSetElements.find(sid);
-    if (itS != mSetElements.end())
-    {
-        auto& elements = itS->second;
-        auto ite = elements.find(eid);
-        if (ite != elements.end())
-        {
-            return &(ite->second);
-        }
-    }
-
-    return nullptr;
-}
-
 const map<handle, SetElement>* MegaClient::getSetElements(handle sid) const
 {
     auto itS = mSetElements.find(sid);
     return itS == mSetElements.end() ? nullptr : &itS->second;
-}
-
-void MegaClient::addSetElement(SetElement&& el)
-{
-    handle sid = el.set();
-    handle eid = el.id();
-    auto add = mSetElements[sid].emplace(eid, move(el));
-    assert(add.second);
-
-    if (add.second) // newly inserted
-    {
-        SetElement& added = add.first->second;
-        added.setChanged(SetElement::CH_EL_NEW);
-        notifysetelement(&added);
-    }
-}
-
-bool MegaClient::updateSetElement(SetElement&& el)
-{
-    auto itS = mSetElements.find(el.set());
-    if (itS != mSetElements.end())
-    {
-        auto itE = itS->second.find(el.id());
-        if (itE != itS->second.end())
-        {
-            if (itE->second.updateWith(move(el)))
-            {
-                notifysetelement(&itE->second);
-            }
-
-            return true; // return true if found, even if nothing was updated
-        }
-    }
-
-    return false;
 }
 
 bool MegaClient::deleteSetElement(handle sid, handle eid)
@@ -17884,6 +17833,35 @@ bool MegaClient::deleteSetElement(handle sid, handle eid)
     }
 
     return false;
+}
+
+void MegaClient::addOrUpdateSetElement(SetElement&& el)
+{
+    handle sid = el.set();
+    handle eid = el.id();
+
+    auto itS = mSetElements.find(sid);
+    if (itS != mSetElements.end())
+    {
+        auto& elements = itS->second;
+        auto ite = elements.find(eid);
+        if (ite != elements.end())
+        {
+            if (ite->second.updateWith(move(el)))
+            {
+                notifysetelement(&ite->second);
+            }
+            return;
+        }
+    }
+
+    // not found, add it
+    auto add = mSetElements[sid].emplace(eid, move(el));
+    assert(add.second);
+
+    SetElement& added = add.first->second;
+    added.setChanged(SetElement::CH_EL_NEW);
+    notifysetelement(&added);
 }
 
 void MegaClient::sc_asp()
@@ -17984,17 +17962,7 @@ void MegaClient::sc_aep()
         return;
     }
 
-    if (SetElement* existingEl = getSetElement_nonconst(el.set(), el.id()))
-    {
-        if (existingEl->updateWith(move(el)))
-        {
-            notifysetelement(existingEl);
-        }
-    }
-    else
-    {
-        addSetElement(move(el));
-    }
+    addOrUpdateSetElement(move(el));
 }
 
 void MegaClient::sc_aer()

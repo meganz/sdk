@@ -2172,16 +2172,12 @@ public:
     const map<handle, SetElement>* getSetElements(handle sid) const;
 
     // add new SetElement or replace exisiting one
-    void addSetElement(SetElement&& el);
-
-    // search for SetElement with the same id, and update its members
-    bool updateSetElement(SetElement&& el);
+    void addOrUpdateSetElement(SetElement&& el);
 
     // delete Element with eid from Set with sid in local memory; return true if found and deleted
     bool deleteSetElement(handle sid, handle eid);
 
 private:
-    SetElement* getSetElement_nonconst(handle sid, handle eid);
 
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);

@@ -9216,15 +9216,8 @@ bool CommandPutSetElement::procresult(Result r)
         mElement->setTs(ts);
         mElement->setOrder(order); // this is now present in all 'aep' responses
         assert(mElement->id() == UNDEF || mElement->id() == elementId);
-        if (mElement->id() == UNDEF)
-        {
-            mElement->setId(elementId);
-            client->addSetElement(move(*mElement));
-        }
-        else
-        {
-            client->updateSetElement(move(*mElement));
-        }
+        mElement->setId(elementId);
+        client->addOrUpdateSetElement(move(*mElement));
     }
 
     if (mCompletion)
