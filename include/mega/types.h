@@ -499,7 +499,15 @@ typedef set<LocalNode*> localnode_set;
 
 typedef multimap<int32_t, LocalNode*> idlocalnode_map;
 
-typedef set<Node*> node_set;
+struct UnlinkOrDebris {
+    bool unlink = false;
+    bool debris = false;
+    bool canChangeVault = false;
+    UnlinkOrDebris(bool u, bool d, bool v) : unlink(u), debris(d), canChangeVault(v) {}
+};
+
+typedef map<Node*, UnlinkOrDebris> unlink_or_debris_set;
+
 
 // enumerates a node's children
 // FIXME: switch to forward_list once C++11 becomes more widely available

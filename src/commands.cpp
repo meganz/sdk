@@ -117,10 +117,10 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                    // 'changeVault' is false here because restoration of file attributes is triggered by
+                    // 'canChangeVault' is false here because restoration of file attributes is triggered by
                     // downloads, so it cannot be triggered by a Backup operation
-                    bool changeVault = false;
-                    client->setattr(n, attr_map('f', me64), 0, nullptr, nullptr, changeVault);
+                    bool canChangeVault = false;
+                    client->setattr(n, attr_map('f', me64), 0, nullptr, nullptr, canChangeVault);
                 }
             }
 
@@ -930,7 +930,7 @@ bool CommandGetFile::procresult(Result r)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr, Completion&& c, bool changeVault)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, const char* prevattr, Completion&& c, bool canChangeVault)
 {
     cmd("a");
     notself(client);
@@ -943,7 +943,7 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
     arg("at", (byte*)at.c_str(), int(at.size()));
 
-    if (changeVault)
+    if (canChangeVault)
     {
         arg("vw", 1);
     }
@@ -982,12 +982,16 @@ bool CommandSetAttr::procresult(Result r)
 CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                                  const char* userhandle, VersioningOption vo,
                                  vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
-                                 Completion&& resultFunction, bool changeVault)
+                                 Completion&& resultFunction, bool canChangeVault)
   : mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
 
+#ifdef DEBUG
     assert(newnodes.size() > 0);
+    for (auto& n : newnodes) assert(n.canChangeVault == canChangeVault);
+#endif
+
     nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
@@ -1012,7 +1016,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
         arg("cauth", cauth);
     }
 
-    if (changeVault)
+    if (canChangeVault)
     {
         arg("vw", 1);
     }
@@ -1337,13 +1341,14 @@ bool CommandPutNodes::procresult(Result r)
     return true;
 }
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool changeVault)
+CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool canChangeVault)
 {
     h = n->nodeHandle();
     syncdel = csyncdel;
     np = t->nodeHandle();
     pp = prevparent;
     syncop = !pp.isUndef();
+    mCanChangeVault = canChangeVault;
 
     cmd("m");
 
@@ -1352,7 +1357,7 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     // Additionally the servers can't deliver `st` in that packet for the same reason.  And of course we will not ignore this `t` packet, despite setting 'i'.
     notself(client);
 
-    if (changeVault)
+    if (mCanChangeVault)
     {
         arg("vw", 1);
     }
@@ -1387,12 +1392,11 @@ bool CommandMoveNode::procresult(Result r)
             {
                 if (r.wasError(API_OK))
                 {
-                    Node* n;
-
                     // update all todebris records in the subtree
-                    for (node_set::iterator it = client->todebris.begin(); it != client->todebris.end(); it++)
+                    for (auto it = client->toDebris.begin(); it != client->toDebris.end(); it++)
                     {
-                        n = *it;
+                        Node* toDebrisNode = it->first;
+                        Node* n = it->first;
 
                         do {
                             if (n == syncn)
@@ -1401,7 +1405,7 @@ bool CommandMoveNode::procresult(Result r)
                                 {
                                     // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
                                     client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
-                                        if ((*it)->type == FOLDERNODE)
+                                        if (toDebrisNode->type == FOLDERNODE)
                                         {
                                             LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
                                         }
@@ -1412,7 +1416,7 @@ bool CommandMoveNode::procresult(Result r)
                                     });
                                 }
 
-                                (*it)->syncdeleted = syncdel;
+                                toDebrisNode->syncdeleted = syncdel;
                                 break;
                             }
                         } while ((n = n->parent));
@@ -1426,16 +1430,15 @@ bool CommandMoveNode::procresult(Result r)
                     {
                         LOG_err << "Error moving node to the Rubbish Bin";
                         syncn->syncdeleted = SYNCDEL_NONE;
-                        client->todebris.erase(syncn->todebris_it);
-                        syncn->todebris_it = client->todebris.end();
+                        client->toDebris.erase(syncn->todebris_it);
+                        syncn->todebris_it = client->toDebris.end();
                     }
                     else
                     {
                         int creqtag = client->reqtag;
                         client->reqtag = syncn->tag;
                         LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
-                        bool changeVault = client->syncs.nodeBelongsToBackup(syncn);
-                        client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, changeVault, nullptr);
+                        client->rename(syncn, tn, SYNCDEL_FAILED, pp, nullptr, mCanChangeVault, nullptr);
                         client->reqtag = creqtag;
                     }
                 }
@@ -1464,7 +1467,7 @@ bool CommandMoveNode::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f, bool changeVault)
+CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f, bool canChangeVault)
     : mResultFunction(move(f))
 {
     cmd("d");
@@ -1477,7 +1480,7 @@ CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversi
         arg("v", 1);
     }
 
-    if (changeVault)
+    if (canChangeVault)
     {
         arg("vw", 1);
     }

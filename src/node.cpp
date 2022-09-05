@@ -52,8 +52,8 @@ Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
     syncget = NULL;
 
     syncdeleted = SYNCDEL_NONE;
-    todebris_it = client->todebris.end();
-    tounlink_it = client->tounlink.end();
+    todebris_it = client->toDebris.end();
+    tounlink_it = client->toUnlink.end();
 #endif
 
     type = t;
@@ -114,15 +114,15 @@ Node::~Node()
 
 #ifdef ENABLE_SYNC
     // remove from todebris node_set
-    if (todebris_it != client->todebris.end())
+    if (todebris_it != client->toDebris.end())
     {
-        client->todebris.erase(todebris_it);
+        client->toDebris.erase(todebris_it);
     }
 
     // remove from tounlink node_set
-    if (tounlink_it != client->tounlink.end())
+    if (tounlink_it != client->toUnlink.end())
     {
-        client->tounlink.erase(tounlink_it);
+        client->toUnlink.erase(tounlink_it);
     }
 #endif
 
@@ -1274,7 +1274,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     Node* todelete = NULL;
     int nc = 0;
     Sync* oldsync = NULL;
-    bool changeVault = node && sync->client->syncs.nodeBelongsToBackup(node);
+    bool canChangeVault = sync->isBackup();
 
     assert(!newparent || newparent->node || newnode);
 
@@ -1318,7 +1318,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     string prevname = node->attrs.map['n'];
 
                     // set new name
-                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr, changeVault);
+                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr, canChangeVault);
                 }
             }
         }
@@ -1339,7 +1339,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             {
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displaypath() << " to " << parent->node->displaypath();
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, changeVault, nullptr) == API_EACCESS
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, canChangeVault, nullptr) == API_EACCESS
                         && sync != parent->sync)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
@@ -1391,13 +1391,14 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             sync->client->syncup(parent, &nds);
 
             // check if nodes can be immediately created
-            bool immediatecreation = (int) sync->client->synccreate.size() == nc;
+            bool immediatecreation = nc == (int) (sync->client->synccreateForVault.size()
+                                                + sync->client->synccreateGeneral.size());
 
             sync->client->syncupdate();
 
             // try to keep nodes in syncdebris if they can't be immediately created
             // to avoid uploads
-            sync->client->movetosyncdebris(todelete, immediatecreation || oldsync->inshare);
+            sync->client->movetosyncdebris(todelete, immediatecreation || oldsync->inshare, sync->isBackup());
         }
 
         if (oldsync)
@@ -1704,7 +1705,7 @@ LocalNode::~LocalNode()
         // shutting down
         if (sync->state() >= SYNC_INITIALSCAN)
         {
-            sync->client->movetosyncdebris(node, sync->inshare);
+            sync->client->movetosyncdebris(node, sync->inshare, sync->isBackup());
         }
     }
 }
@@ -1808,25 +1809,22 @@ void LocalNode::completed(Transfer* t, putsource_t source)
 
     // complete to rubbish for later retrieval if the parent node does not
     // exist or is newer
-    Node *target;
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
         h = t->client->rootnodes.rubbish;
-        target = t->client->nodeByHandle(h);
     }
     else
     {
         // otherwise, overwrite node if it already exists and complete in its
         // place
         h = parent->node->nodeHandle();
-        target = parent->node;
     }
 
-    bool changeVault = t->client->syncs.nodeBelongsToBackup(target);
+    bool canChangeVault = sync->isBackup();
 
     // we are overriding completed() for sync upload, we don't use the File::completed version at all.
     assert(t->type == PUT);
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr, changeVault);
+    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr, canChangeVault);
 }
 
 // serialize/unserialize the following LocalNode properties:

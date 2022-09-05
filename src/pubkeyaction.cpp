@@ -57,7 +57,7 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
         }
 
         client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), NoVersioning, move(nn), tag, PUTNODES_APP, nullptr, move(completion), false));
-        // 'changeVault' is false here because this code path is to write to user's Inbox, which should not require "vw:1"
+        // 'canChangeVault' is false here because this code path is to write to user's Inbox, which should not require "vw:1"
     }
     else
     {
