@@ -1778,7 +1778,7 @@ bool LocalNode::serialize(string* d)
     if (type == FILENODE)
     {
         w.serializebinary((byte*)crc.data(), sizeof(crc));
-        w.serializecompressed64(mtime);
+        w.serializecompressedI64(mtime);
     }
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
@@ -1822,7 +1822,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     uint32_t parent_dbid;
     handle h = 0;
     string localname, shortname;
-    uint64_t mtime = 0;
+    m_time_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
     byte syncable = 1;
@@ -1833,7 +1833,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         !r.unserializenodehandle(h) ||
         !r.unserializestring(localname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
-        (type == FILENODE && !r.unserializecompressed64(mtime)) ||
+        (type == FILENODE && !r.unserializecompressedI64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
         (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 1)) ||
         (expansionflags[0] && !r.unserializecstr(shortname, false)))

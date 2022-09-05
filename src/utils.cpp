@@ -176,7 +176,7 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
-void CacheableWriter::serializecompressed64(int64_t field)
+void CacheableWriter::serializecompressedU64(uint64_t field)
 {
     byte buf[sizeof field+1];
     dest.append((const char*)buf, Serialize64::serialize(buf, field));
@@ -667,7 +667,7 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
     return false;
 }
 
-bool CacheableReader::unserializecompressed64(uint64_t& field)
+bool CacheableReader::unserializecompressedU64(uint64_t& field)
 {
     int fieldSize;
     if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
