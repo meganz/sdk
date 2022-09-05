@@ -17339,9 +17339,12 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
     std::unique_ptr<string> encrAttrs;
     if (el.hasAttrs())
     {
-        if (existingElement)
+        if (existingElement && existingElement->hasAttrs())
         {
             el.rebaseAttrsOn(*existingElement);
+            // the request to clear the last attribute of an existing Element must be remembered, so that
+            // after a successful update, attrs of the existing Element will be cleared
+            el.setAttrsClearedByLastUpdate(!el.hasAttrs());
         }
 
         string enc = el.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
@@ -18489,7 +18492,9 @@ bool SetElement::updateWith(SetElement&& el)
         setOrder(el.order());
     }
     setTs(el.ts());
-    if (el.hasAttrs() || el.hasChanged(SetElement::CH_EL_NAME)) // TODO: find a better solution
+    // attrs of existing Element should be replaced if any of them has been updated, or
+    // if they have been completely cleared (by the last 'aep' command)
+    if (el.hasAttrs() || el.hasAttrsClearedByLastUpdate())
     {
         if (hasAttrChanged(nameTag, el.mAttrs)) setChanged(CH_EL_NAME);
 

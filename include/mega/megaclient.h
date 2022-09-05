@@ -287,6 +287,9 @@ public:
     bool updateWith(SetElement&& el);
     void rebaseAttrsOn(const SetElement& el) { rebaseCommonAttrsOn(el.mAttrs.get()); }
 
+    void setAttrsClearedByLastUpdate(bool cleared)  { mAttrsClearedByLastUpdate = cleared; }
+    bool hasAttrsClearedByLastUpdate() const        { return mAttrsClearedByLastUpdate; }
+
     void setChanged(int changeType) { if (validChangeType(changeType, CH_EL_SIZE)) mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
     unsigned long changes() const { return mChanges.to_ulong(); }
@@ -309,6 +312,7 @@ private:
     handle mSetId = UNDEF;
     handle mNodeHandle = UNDEF;
     unique_ptr<int64_t> mOrder;
+    bool mAttrsClearedByLastUpdate = false;
 
     std::bitset<CH_EL_SIZE> mChanges;
 };
