@@ -3317,7 +3317,8 @@ class MegaRequest
             TYPE_GET_RECENT_ACTIONS                                         = 148,
             TYPE_CHECK_RECOVERY_KEY                                         = 149,
             TYPE_ADD_SCHEDULED_MEETING                                      = 150,
-            TOTAL_OF_REQUEST_TYPES                                          = 151,
+            TYPE_DEL_SCHEDULED_MEETING                                      = 151,
+            TOTAL_OF_REQUEST_TYPES                                          = 152,
         };
 
         virtual ~MegaRequest();
@@ -18020,6 +18021,13 @@ class MegaApi
                                                  int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
                                                  const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
                                                  const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Removes a scheduled meeting
+         *
+         * TODO complete documentation
+         */
+        void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
