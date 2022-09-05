@@ -17426,6 +17426,7 @@ error MegaClient::readSetsAndElements(JSON& j)
     }
 
     // decrypt data
+    size_t elCount = 0; // Elements related to known Sets and successfully decrypted
     for (auto& s : newSets)
     {
         error e = decryptSetData(s.second);
@@ -17445,9 +17446,11 @@ error MegaClient::readSetsAndElements(JSON& j)
                 {
                     return e;
                 }
+                ++elCount;
             }
         }
     }
+    assert(elCount == newElements.size()); // some orphan/undecryptable Elements? it should not happen
 
     // apply updates
     if (aespCmd) // "aesp"
