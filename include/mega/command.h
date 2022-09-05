@@ -1537,12 +1537,13 @@ public:
 typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;
 class MEGA_API CommandScheduledMeetingRemove : public Command
 {
+    handle mChatId;
     handle mSchedMeetingId;
     CommandScheduledMeetingRemoveCompletion mCompletion;
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingRemove(MegaClient *, handle, CommandScheduledMeetingRemoveCompletion completion);
+    CommandScheduledMeetingRemove(MegaClient *, handle, handle, CommandScheduledMeetingRemoveCompletion completion);
 };
 #endif
 

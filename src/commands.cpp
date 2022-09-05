@@ -9147,26 +9147,29 @@ CommandScheduledMeetingAdd::CommandScheduledMeetingAdd(MegaClient* client, Sched
 
 bool CommandScheduledMeetingAdd::procresult(Command::Result r)
 {
-    if (r.wasError(API_OK))
+    if (r.wasErrorOrOK()) // if succeded, mError is API_OK but mOutcome is CmdItem (containing ScheduledMeetingHandle)
     {
-        assert(mScheduledMeeting);
-        auto it = client->chats.find(mScheduledMeeting->chatid());
-        if (it == client->chats.end())
-        {
-            mCompletion(API_EINTERNAL);
-            return true;
-        }
-
-        TextChat* chat = it->second;
-        chat->mScheduledMeeting.reset(mScheduledMeeting.release());
+        mCompletion(r.errorOrOK());
+        return true;
     }
 
-    mCompletion(r.errorOrOK());
-    return r.wasErrorOrOK();
+    assert(mScheduledMeeting);
+    auto it = client->chats.find(mScheduledMeeting->chatid());
+    if (it == client->chats.end() || !r.hasJsonItem())
+    {
+        mCompletion(API_EINTERNAL);
+        return true;
+    }
+
+    TextChat* chat = it->second;
+    mScheduledMeeting->setCallid(client->json.gethandle(MegaClient::CHATHANDLE));
+    chat->mScheduledMeeting.reset(mScheduledMeeting.release());
+    mCompletion(API_OK);
+    return true;
 }
 
-CommandScheduledMeetingRemove::CommandScheduledMeetingRemove(MegaClient* client, handle schedMeeting, CommandScheduledMeetingRemoveCompletion completion)
-    : mCompletion(completion)
+CommandScheduledMeetingRemove::CommandScheduledMeetingRemove(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingRemoveCompletion completion)
+    : mChatId(chatid), mSchedMeetingId(schedMeeting), mCompletion(completion)
 {
     cmd("mcsmr");
     arg("id", (byte*) &schedMeeting, MegaClient::CHATHANDLE); // scheduled meeting handle
@@ -9178,7 +9181,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
 {
     if (r.wasError(API_OK))
     {
-        auto it = client->chats.find(mSchedMeetingId);
+        auto it = client->chats.find(mChatId);
         if (it == client->chats.end())
         {
             mCompletion(API_EINTERNAL);
@@ -9187,6 +9190,8 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
 
         TextChat* chat = it->second;
         chat->mScheduledMeeting.reset(); // remove scheduled meeting
+        mCompletion(API_OK);
+        return true;
     }
 
     mCompletion(r.errorOrOK());
