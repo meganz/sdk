@@ -18074,7 +18074,9 @@ bool MegaClient::fetchscset(string* data, uint32_t id)
     }
 
     handle sid = s->id();
-    Set& addedSet = mSets.emplace(sid, move(*s)).first->second;
+    auto its = mSets.emplace(sid, move(*s));
+    assert(its.second); // insertion must have occurred
+    Set& addedSet = its.first->second;
     addedSet.resetChanges();
     addedSet.dbid = id;
 
@@ -18092,7 +18094,9 @@ bool MegaClient::fetchscsetelement(string* data, uint32_t id)
 
     handle sid = el->set();
     handle eid = el->id();
-    SetElement& addedEl = mSetElements[sid].emplace(eid, move(*el)).first->second;
+    auto ite = mSetElements[sid].emplace(eid, move(*el));
+    assert(ite.second); // insertion must have occurred
+    SetElement& addedEl = ite.first->second;
     addedEl.resetChanges();
     addedEl.dbid = id;
 
