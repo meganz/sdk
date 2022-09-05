@@ -12803,6 +12803,8 @@ class MegaApi
          * this method will force a new upload from the scratch (ensuring the file attributes are set),
          * instead of doing a remote copy.
          *
+         * This method always puts the transfer on top of the upload queue.
+         *
          * If the status of the business account is expired, onTransferFinish will be called with the error
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
