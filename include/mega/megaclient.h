@@ -429,7 +429,9 @@ public:
     // In case of orphans send an event
     void checkOrphanNodes();
 
-    void finalizeBatchActionPackageProcessing();
+    // This method is called when initial fetch nodes is finished
+    // When cache has been migrated (No NOD to NOD), when all nodes has been writted in DB
+    void initDone();
 
 private:
     MegaClient& mClient;

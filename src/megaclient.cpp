@@ -4739,8 +4739,6 @@ bool MegaClient::procsc()
                         uint64_t numNodes = mNodeManager.getNodeCount();
                         fnstats.nodesCurrent = numNodes;
 
-                        mNodeManager.finalizeBatchActionPackageProcessing();
-
                         statecurrent = true;
                         app->nodes_current();
                         LOG_debug << "Local filesystem up to date";
@@ -5127,6 +5125,7 @@ void MegaClient::initsc()
 
         LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodeManager.getNodeCount() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
 #endif
+        mNodeManager.initDone();
         finalizesc(complete);
     }
 }
@@ -18276,7 +18275,7 @@ void NodeManager::checkOrphanNodes()
     mNodesWithMissingParent.clear();
 }
 
-void NodeManager::finalizeBatchActionPackageProcessing()
+void NodeManager::initDone()
 {
     if (!mTable)
     {
@@ -18401,6 +18400,8 @@ void NodeManager::dumpNodes()
             mTable->put(node);
         }
     }
+
+    initDone();
 }
 
 void NodeManager::saveNodeInDb(Node *node)
