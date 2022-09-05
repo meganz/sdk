@@ -17274,7 +17274,7 @@ void MegaClient::removeSet(handle sid, std::function<void(Error)> completion)
     }
 }
 
-void MegaClient::fetchSet(handle sid, std::function<void(Error)> completion)
+void MegaClient::fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
 {
     reqs.add(new CommandFetchSet(this, sid, completion));
 }
@@ -17368,11 +17368,27 @@ void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Err
     reqs.add(new CommandRemoveSetElement(this, sid, eid, completion));
 }
 
-error MegaClient::readSetsAndElements(JSON& j)
+bool MegaClient::aesp()
 {
     map<handle, Set> newSets;
     map<handle, map<handle, SetElement>> newElements;
-    bool aespCmd = false;
+    error e = json.enterobject() ? readSetsAndElements(json, newSets, newElements) : API_EINTERNAL;
+    if (e != API_OK || !json.leaveobject())
+    {
+        fetchingnodes = false;
+        app->fetchnodes_result(e != API_OK ? e : API_EINTERNAL);
+        return false;
+    }
+
+    // save new data
+    mSets.swap(newSets);
+    mSetElements.swap(newElements);
+
+    return true;
+}
+
+error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements)
+{
     bool loopAgain = true;
 
     while (loopAgain)
@@ -17383,7 +17399,7 @@ error MegaClient::readSetsAndElements(JSON& j)
         {
             // reuse this in "aft" (fetch-Set command) and "aesp" (in gettree/fetchnodes/"f" command):
             // "aft" will return a single Set for "s", while "aesp" will return an array of Sets
-            aespCmd = j.enterarray();
+            bool enteredSetArray = j.enterarray();
 
             error e = readSets(j, newSets);
             if (e != API_OK)
@@ -17391,7 +17407,7 @@ error MegaClient::readSetsAndElements(JSON& j)
                 return e;
             }
 
-            if (aespCmd)
+            if (enteredSetArray)
             {
                 j.leavearray();
             }
@@ -17420,11 +17436,6 @@ error MegaClient::readSetsAndElements(JSON& j)
         }
     }
 
-    if (newSets.empty())
-    {
-        return aespCmd ? API_OK : API_ENOENT;
-    }
-
     // decrypt data
     for (auto& s : newSets)
     {
@@ -17447,20 +17458,6 @@ error MegaClient::readSetsAndElements(JSON& j)
                 }
             }
         }
-    }
-
-    // apply updates
-    if (aespCmd) // "aesp"
-    {
-        // save new data
-        mSets.swap(newSets);
-        mSetElements.swap(newElements);
-    }
-    else // aft
-    {
-        assert(newSets.size() == 1);
-
-        // TODO: send the Set and its Elements to the caller
     }
 
     return API_OK;

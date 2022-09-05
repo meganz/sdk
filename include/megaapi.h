@@ -4197,6 +4197,9 @@ class MegaRequest
          * @return MegaRecentActionBucketList list
          */
         virtual MegaRecentActionBucketList *getRecentActions() const;
+
+        virtual MegaSet* getMegaSet() const;
+        virtual MegaElementList* getMegaSetElementList() const;
 };
 
 /**

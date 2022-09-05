@@ -2139,7 +2139,7 @@ public:
     void removeSet(handle sid, std::function<void(Error)> completion);
 
     // generate "aft" command
-    void fetchSet(handle sid, std::function<void(Error)> completion);
+    void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
 
     // generate "aep" command
     void putSetElement(SetElement&& el, std::function<void(Error, handle)> completion);
@@ -2147,8 +2147,11 @@ public:
     // generate "aer" command
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
 
+    // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
+    bool aesp();
+
     // load Sets and Elements from json
-    error readSetsAndElements(JSON& j);
+    error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements);
 
     // return Set with given sid or nullptr if it was not found
     const Set* getSet(handle sid) const;
