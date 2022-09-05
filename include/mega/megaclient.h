@@ -260,6 +260,8 @@ protected:
     bool hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherAttrs) const;
     void rebaseCommonAttrsOn(const string_map* baseAttrs);
 
+    static bool validChangeType(const unsigned& typ, const unsigned& typMax) { assert(typ < typMax); return typ < typMax; }
+
     unique_ptr<string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
 
     static const string nameTag; // "n"
@@ -282,15 +284,19 @@ public:
 
     bool hasOrder() const                   { return !!mOrder; }
 
-    void takeAttrsFrom(SetElement&& el);
-    void rebaseAttrsOn(const SetElement& s);
+    bool updateWith(SetElement&& el);
+    void rebaseAttrsOn(const SetElement& el) { rebaseCommonAttrsOn(el.mAttrs.get()); }
 
-    void setChanged(int changeType) { assert(changeType < CH_EL_SIZE); if (changeType < CH_EL_SIZE) mChanges[changeType] = 1; }
+    void setAttrsClearedByLastUpdate(bool cleared)  { mAttrsClearedByLastUpdate = cleared; }
+    bool hasAttrsClearedByLastUpdate() const        { return mAttrsClearedByLastUpdate; }
+
+    void setChanged(int changeType) { if (validChangeType(changeType, CH_EL_SIZE)) mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
     unsigned long changes() const { return mChanges.to_ulong(); }
-    bool hasChanged(int changeType) { assert(changeType < CH_EL_SIZE); return changeType < CH_EL_SIZE ? mChanges[changeType] : false; }
+    bool hasChanged(int changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
 
-    bool serialize(string*);
+    bool serialize(string*) override;
+    static unique_ptr<SetElement> unserialize(string* d);
 
     enum
     {
@@ -306,6 +312,7 @@ private:
     handle mSetId = UNDEF;
     handle mNodeHandle = UNDEF;
     unique_ptr<int64_t> mOrder;
+    bool mAttrsClearedByLastUpdate = false;
 
     std::bitset<CH_EL_SIZE> mChanges;
 };
@@ -323,19 +330,19 @@ public:
     void setUser(handle uh) { mUser = uh; }
     void setCover(handle h);
 
-    void takeAttrsFrom(Set&& s);
-    void rebaseAttrsOn(const Set& s);
+    bool updateWith(Set&& s);
+    void rebaseAttrsOn(const Set& s) { rebaseCommonAttrsOn(s.mAttrs.get()); }
 
-    void setChanged(int changeType) { assert(changeType < CH_SIZE); if (changeType < CH_SIZE) mChanges[changeType] = 1; }
+    void setChanged(int changeType) { if (validChangeType(changeType, CH_SIZE)) mChanges[changeType] = 1; }
     void resetChanges() { mChanges = 0; }
     unsigned long changes() const { return mChanges.to_ulong(); }
-    bool hasChanged(int changeType) { assert(changeType < CH_SIZE); return changeType < CH_SIZE ? mChanges[changeType] : false; }
+    bool hasChanged(int changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
 
     bool serialize(string*) override;
+    static unique_ptr<Set> unserialize(string* d);
 
     enum
     {
-        // update these from outside Set
         CH_NEW,
         CH_NAME,
         CH_COVER,
@@ -2165,18 +2172,16 @@ public:
     const map<handle, SetElement>* getSetElements(handle sid) const;
 
     // add new SetElement or replace exisiting one
-    void addSetElement(SetElement&& el);
-
-    // search for SetElement with the same id, and update its members
-    bool updateSetElement(SetElement&& el);
+    void addOrUpdateSetElement(SetElement&& el);
 
     // delete Element with eid from Set with sid in local memory; return true if found and deleted
     bool deleteSetElement(handle sid, handle eid);
 
 private:
+
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
-    error readElements(JSON& j, multimap<handle, SetElement>& elements);
+    error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);
     error readElement(JSON& j, SetElement& el);
     error decryptSetData(Set& s);
     error decryptElementData(SetElement& el, const string& setKey);
@@ -2188,9 +2193,6 @@ private:
     void sc_asr(); // AP after removed Set
     void sc_aep(); // AP after new or updated Set Element
     void sc_aer(); // AP after removed Set Element
-
-    Set* unserializeSet(string* d);
-    SetElement* unserializeSetElement(string* d);
 
     bool initscsets();
     bool fetchscset(string* data, uint32_t id);
@@ -2205,6 +2207,7 @@ private:
     bool updatescsetelements();
     void notifypurgesetelements();
     void notifysetelement(SetElement*);
+    void clearsetelementnotify(handle sid);
     vector<SetElement*> setelementnotify;
     map<handle, map<handle, SetElement>> mSetElements; // indexed by Set id, then Element id
 

@@ -9194,7 +9194,6 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, uniq
     if (encrAttrs)
     {
         arg("at", (byte*)encrAttrs->c_str(), (int)encrAttrs->size());
-        mElement->setChanged(SetElement::CH_EL_NAME); // set this to trigger attrs update later (something better would be nice...)
     }
 
     notself(cl); // don't process its Action Packet after sending this
@@ -9217,15 +9216,8 @@ bool CommandPutSetElement::procresult(Result r)
         mElement->setTs(ts);
         mElement->setOrder(order); // this is now present in all 'aep' responses
         assert(mElement->id() == UNDEF || mElement->id() == elementId);
-        if (mElement->id() == UNDEF)
-        {
-            mElement->setId(elementId);
-            client->addSetElement(move(*mElement));
-        }
-        else
-        {
-            client->updateSetElement(move(*mElement));
-        }
+        mElement->setId(elementId);
+        client->addOrUpdateSetElement(move(*mElement));
     }
 
     if (mCompletion)

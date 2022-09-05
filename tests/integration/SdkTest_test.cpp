@@ -8030,7 +8030,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->cover(), INVALID_HANDLE);
 
     // 5. Fetch Set
-    err = doFetchSet(0, sh); // will replace the one stored in memory
+    // This part does nothing for now, until the new functionality for 'aft' is implemented
+    //err = doFetchSet(0, sh); // TODO: reimplement 'aft' handling
     ASSERT_EQ(err, API_OK);
 
     unique_ptr<MegaSet> s1fp(megaApi[0]->getSet(sh));
@@ -8158,6 +8159,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 11. Remove all Sets
     unique_ptr<MegaSetList> sets(megaApi[0]->getSets());
+    unique_ptr<MegaSetList> sets2(differentApi.getSets());
+    ASSERT_EQ(sets->size(), sets2->size());
     for (unsigned i = 0; i < sets->size(); ++i)
     {
         handle setId = sets->get(i)->id();
@@ -8177,7 +8180,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     sets.reset(megaApi[0]->getSets());
     ASSERT_EQ(sets->size(), 0u);
 
-    unique_ptr<MegaSetList> sets2(differentApi.getSets());
+    sets2.reset(differentApi.getSets());
     ASSERT_EQ(sets2->size(), 0u);
 }
 
