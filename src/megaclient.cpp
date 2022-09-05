@@ -5319,6 +5319,9 @@ void MegaClient::finalizesc(bool complete)
 // queue node file attribute for retrieval or cancel retrieval
 error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey, fatype t, int cancel)
 {
+    assert((cancel && nodekey.empty()) ||
+          (!cancel && !nodekey.empty()));
+
     // locate this file attribute type in the nodes's attribute string
     handle fah;
     int p, pp;
@@ -8115,6 +8118,11 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 // modify the 'n' attribute)
 error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c)
 {
+    if (mBizStatus == BIZ_STATUS_EXPIRED)
+    {
+        return API_EBUSINESSPASTDUE;
+    }
+
     error e;
 
     if ((e = checkmove(n, p)))
@@ -8236,6 +8244,11 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
+    if (mBizStatus == BIZ_STATUS_EXPIRED)
+    {
+        return API_EBUSINESSPASTDUE;
+    }
+
     if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
@@ -8807,13 +8820,37 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         }
     }
 
-    // any child nodes that arrived before their parents?
+    // any child nodes arrived before their parents?
+    size_t count = 0;
+    node_vector orphans;
     for (size_t i = dp.size(); i--; )
     {
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
+            ++count;
         }
+        else if (dp[i]->type < ROOTNODE)    // rootnodes have no parent
+        {
+            orphans.push_back(dp[i]);
+        }
+    }
+
+    mergenewshares(notify);
+
+    // detect if there's any orphan node and report to API
+    for (auto orphan : orphans)
+    {
+        // top-level inshares have no parent (nested ones have)
+        if (orphan->inshare)
+        {
+            ++count;
+        }
+    }
+    if (dp.size() != count)
+    {
+       LOG_err << "Detected orphan nodes: " << dp.size() - count;
+       sendevent(99455, "Orphan node(s) detected");
     }
 
     return j->leavearray();
