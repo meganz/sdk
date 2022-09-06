@@ -153,6 +153,14 @@ public:
 			std::cout << "***** There are " << sets->size() << " new or updated Set/s in your account" << std::endl;
 		}
 	}
+
+	virtual void onSetElementsUpdate(MegaApi* api, MegaElementList *elements)
+	{
+		if (elements)
+		{
+			std::cout << "***** There are " << elements->size() << " new or updated Set-Element/s in your account" << std::endl;
+		}
+	}
 };
 
 std::string displayTime(time_t t)

@@ -1682,6 +1682,8 @@ void MegaGlobalListener::onAccountUpdate(MegaApi *)
 { }
 void MegaGlobalListener::onSetsUpdate(MegaApi *, MegaSetList *)
 { }
+void MegaGlobalListener::onSetElementsUpdate(MegaApi *, MegaElementList *)
+{ }
 void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
@@ -1719,6 +1721,8 @@ void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 void MegaListener::onAccountUpdate(MegaApi *)
 { }
 void MegaListener::onSetsUpdate(MegaApi *, MegaSetList *)
+{ }
+void MegaListener::onSetElementsUpdate(MegaApi *, MegaElementList *)
 { }
 void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
@@ -5543,9 +5547,9 @@ void MegaApi::createSet(const char* name, MegaRequestListener* listener)
     pImpl->putSet(INVALID_HANDLE, options, name, INVALID_HANDLE, listener);
 }
 
-void MegaApi::updateSetName(MegaHandle id, const char* name, MegaRequestListener* listener)
+void MegaApi::updateSetName(MegaHandle sid, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putSet(id, OPTION_SET_NAME, name, INVALID_HANDLE, listener);
+    pImpl->putSet(sid, OPTION_SET_NAME, name, INVALID_HANDLE, listener);
 }
 
 void MegaApi::putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
@@ -5553,35 +5557,35 @@ void MegaApi::putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* l
     pImpl->putSet(sid, OPTION_SET_COVER, nullptr, eid, listener);
 }
 
-void MegaApi::removeSet(MegaHandle id, MegaRequestListener* listener)
+void MegaApi::removeSet(MegaHandle sid, MegaRequestListener* listener)
 {
-    pImpl->removeSet(id, listener);
+    pImpl->removeSet(sid, listener);
 }
 
-void MegaApi::fetchSet(MegaHandle id, MegaRequestListener* listener)
+void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
 {
-    pImpl->fetchSet(id, listener);
+    pImpl->fetchSet(sid, listener);
 }
 
-void MegaApi::createSetElement(MegaHandle setId, MegaHandle node, const char* name, MegaRequestListener* listener)
+void MegaApi::createSetElement(MegaHandle sid, MegaHandle node, const char* name, MegaRequestListener* listener)
 {
     int options = CREATE_ELEMENT | (name ? OPTION_ELEMENT_NAME : 0);
-    pImpl->putSetElement(INVALID_HANDLE, setId, node, options, 0, name, listener);
+    pImpl->putSetElement(sid, INVALID_HANDLE, node, options, 0, name, listener);
 }
 
-void MegaApi::updateSetElementOrder(MegaHandle id, int64_t order, MegaRequestListener* listener)
+void MegaApi::updateSetElementOrder(MegaHandle sid, MegaHandle eid, int64_t order, MegaRequestListener* listener)
 {
-    pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, OPTION_ELEMENT_ORDER, order, nullptr, listener);
+    pImpl->putSetElement(sid, eid, INVALID_HANDLE, OPTION_ELEMENT_ORDER, order, nullptr, listener);
 }
 
-void MegaApi::updateSetElementName(MegaHandle id, const char* name, MegaRequestListener* listener)
+void MegaApi::updateSetElementName(MegaHandle sid, MegaHandle eid, const char* name, MegaRequestListener* listener)
 {
-    pImpl->putSetElement(id, INVALID_HANDLE, INVALID_HANDLE, OPTION_ELEMENT_NAME, 0, name, listener);
+    pImpl->putSetElement(sid, eid, INVALID_HANDLE, OPTION_ELEMENT_NAME, 0, name, listener);
 }
 
-void MegaApi::removeSetElement(MegaHandle id, MegaRequestListener* listener)
+void MegaApi::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
 {
-    pImpl->removeSetElement(id, listener);
+    pImpl->removeSetElement(sid, eid, listener);
 }
 
 MegaSetList* MegaApi::getSets()
@@ -5604,9 +5608,9 @@ MegaElementList* MegaApi::getSetElements(MegaHandle sid)
     return pImpl->getSetElements(sid);
 }
 
-MegaElement* MegaApi::getSetElement(MegaHandle eid, MegaHandle sid)
+MegaElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
 {
-    return pImpl->getSetElement(eid, sid);
+    return pImpl->getSetElement(sid, eid);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

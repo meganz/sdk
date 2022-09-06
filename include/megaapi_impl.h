@@ -684,8 +684,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 class MegaSetPrivate : public MegaSet
 {
 public:
-    MegaSetPrivate(MegaHandle id, MegaHandle u, m_time_t ts, const string& name, MegaHandle cover, unsigned long changes) :
-        mId(id), mUser(u), mTs(ts), mName(name), mCover(cover), mChanges(changes){}
+    MegaSetPrivate(const Set& s) : mId(s.id()), mUser(s.user()), mTs(s.ts()), mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle user() const override { return mUser; }
@@ -693,7 +692,7 @@ public:
     const char* name() const override { return mName.c_str(); }
     MegaHandle cover() const override { return mCover; }
 
-    bool hasChanged(int changeType) const override { return mChanges[changeType]; }
+    bool hasChanged(int changeType) const override;
 
     MegaSet* copy() const override { return new MegaSetPrivate(*this); }
 
@@ -710,6 +709,9 @@ private:
 class MegaSetListPrivate : public MegaSetList
 {
 public:
+    MegaSetListPrivate(const Set *const* sets, int count); // ptr --> const ptr --> const Set
+    MegaSetListPrivate(const map<handle, Set>& sets);
+
     void add(MegaSetPrivate&& s);
     MegaSetList* copy() const override { return new MegaSetListPrivate(*this); }
 
@@ -724,14 +726,15 @@ private:
 class MegaSetElementPrivate : public MegaElement
 {
 public:
-    MegaSetElementPrivate(MegaHandle id, MegaHandle h, int64_t o, m_time_t ts, const string& name) :
-        mId(id), mNode(h), mOrder(o), mTs(ts), mName(name) {}
+    MegaSetElementPrivate(const SetElement& el) : mId(el.id()), mNode(el.node()), mOrder(el.order()), mTs(el.ts()), mName(el.name()) {}
 
     MegaHandle id() const override { return mId; }
     MegaHandle node() const override { return mNode; }
     int64_t order() const override { return mOrder; }
     int64_t ts() const override { return mTs; }
     const char* name() const override { return mName.c_str(); }
+
+    bool hasChanged(int changeType) const override;
 
     virtual MegaElement* copy() const override { return new MegaSetElementPrivate(*this); }
 
@@ -741,12 +744,16 @@ private:
     int64_t mOrder;
     m_time_t mTs;
     string mName;
+    std::bitset<CHANGE_TYPE_ELEM_SIZE> mChanges;
 };
 
 
 class MegaSetElementListPrivate : public MegaElementList
 {
 public:
+    MegaSetElementListPrivate(const SetElement *const* elements, int count); // ptr --> const ptr --> const SetElement
+    MegaSetElementListPrivate(const map<handle, SetElement>* elements);
+
     void add(MegaSetElementPrivate&& el);
     MegaElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
 
@@ -2639,17 +2646,17 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
         //Sets and Elements
-        void putSet(MegaHandle id, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
-        void removeSet(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void fetchSet(MegaHandle id, MegaRequestListener* listener = nullptr);
-        void putSetElement(MegaHandle id, MegaHandle setId, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
-        void removeSetElement(MegaHandle id, MegaRequestListener* listener = nullptr);
+        void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
+        void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
+        void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
         MegaHandle getSetCover(MegaHandle sid);
         MegaElementList* getSetElements(MegaHandle sid);
-        MegaElement* getSetElement(MegaHandle eid, MegaHandle sid);
+        MegaElement* getSetElement(MegaHandle sid, MegaHandle eid);
 
 #ifdef ENABLE_SYNC
         //Sync
@@ -3100,6 +3107,7 @@ protected:
         void fireOnNodesUpdate(MegaNodeList *nodes);
         void fireOnAccountUpdate();
         void fireOnSetsUpdate(MegaSetList* sets);
+        void fireOnSetElementsUpdate(MegaElementList* elements);
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
@@ -3292,6 +3300,7 @@ protected:
         void account_updated() override;
         void pcrs_updated(PendingContactRequest**, int) override;
         void sets_updated(Set**, int) override;
+        void setelements_updated(SetElement**, int) override;
 
         // password change result
         void changepw_result(error) override;

@@ -215,10 +215,11 @@ public:
         std::unique_ptr<MegaPricing> mMegaPricing;
         std::unique_ptr<MegaCurrency> mMegaCurrency;
 
-        // flags to monitor the updates of nodes/users/sets/PCRs due to actionpackets
+        // flags to monitor the updates of nodes/users/sets/set-elements/PCRs due to actionpackets
         bool nodeUpdated;
         bool userUpdated;
         bool setUpdated;
+        bool setElementUpdated;
         bool contactRequestUpdated;
         bool accountUpdated;
 
@@ -293,6 +294,7 @@ protected:
     void onAccountUpdate(MegaApi *api) override;
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) override;
     void onSetsUpdate(MegaApi *api, MegaSetList *sets) override;
+    void onSetElementsUpdate(MegaApi *api, MegaElementList *elements) override;
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests) override;
     void onReloadNeeded(MegaApi *api) override {}
 #ifdef ENABLE_SYNC
@@ -408,10 +410,10 @@ public:
     template<typename ... requestArgs> int doPutSetCover(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putSetCover(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
     template<typename ... requestArgs> int doFetchSet(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchSet(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int doRemoveSet(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSet(args..., &rt); rt.waitForResult(); return rt.result; }
-    template<typename ... requestArgs> int doCreateSetElement(unsigned apiIndex, MegaHandle* id, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createSetElement(args..., &rt); rt.waitForResult(); if (id) *id = rt.request->getParentHandle(); return rt.result; }
-    template<typename ... requestArgs> int doUpdateSetElementName(unsigned apiIndex, MegaHandle* aid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementName(args..., &rt); rt.waitForResult(); if (aid) *aid = rt.request->getTotalBytes(); return rt.result; }
-    template<typename ... requestArgs> int doUpdateSetElementOrder(unsigned apiIndex, MegaHandle* aid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementOrder(args..., &rt); rt.waitForResult(); if (aid) *aid = rt.request->getTotalBytes(); return rt.result; }
-    template<typename ... requestArgs> int doRemoveSetElement(unsigned apiIndex, MegaHandle* aid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSetElement(args..., &rt); rt.waitForResult(); if (aid) *aid = rt.request->getTotalBytes(); return rt.result; }
+    template<typename ... requestArgs> int doCreateSetElement(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->createSetElement(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
+    template<typename ... requestArgs> int doUpdateSetElementName(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementName(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
+    template<typename ... requestArgs> int doUpdateSetElementOrder(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementOrder(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
+    template<typename ... requestArgs> int doRemoveSetElement(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSetElement(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int synchronousCancelTransfers(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->cancelTransfers(args..., &rt); return rt.waitForResult(); }
 
     bool createFile(string filename, bool largeFile = true);

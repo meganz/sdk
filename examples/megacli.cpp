@@ -3856,9 +3856,9 @@ autocomplete::ACN autocompleteSyntax()
                         sequence(text("fetchset"), param("id")),
                         sequence(text("newelement"), param("setid"), param("nodehandle"),
                                  opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
-                        sequence(text("updateelement"), param("id"),
+                        sequence(text("updateelement"), param("sid"), param("eid"),
                                  opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-o"), param("order")))),
-                        sequence(text("removeelement"), param("id"))
+                        sequence(text("removeelement"), param("sid"), param("eid"))
                         )));
 
     return autocompleteTemplate = std::move(p);
@@ -8512,7 +8512,7 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-// set/element addition/update/removal
+// set addition/update/removal
 void DemoApp::sets_updated(Set** s, int count)
 {
     cout << (count == 1 ? string("1 Set") : (std::to_string(count) + " Sets")) << " received" << endl;
@@ -8541,21 +8541,39 @@ void DemoApp::sets_updated(Set** s, int count)
             {
                 cout << endl << "\tchanged cover";
             }
-            if (set->hasChanged(Set::CH_EL_NEW))
+        }
+        cout << endl;
+    }
+}
+
+// element addition/update/removal
+void DemoApp::setelements_updated(SetElement** el, int count)
+{
+    cout << (count == 1 ? string("1 Element") : (std::to_string(count) + " Elements")) << " received" << endl;
+
+    if (!el) return;
+
+    for (int i = 0; i < count; i++)
+    {
+        SetElement* elem = el[i];
+        cout << "Element " << toHandle(elem->id());
+        if (elem->hasChanged(SetElement::CH_EL_NEW))
+        {
+            cout << " has been added";
+        }
+        else if (elem->hasChanged(Set::CH_REMOVED))
+        {
+            cout << " has been removed";
+        }
+        else
+        {
+            if (elem->hasChanged(SetElement::CH_EL_NAME))
             {
-                cout << endl << "\tadded new element";
+                cout << endl << "\tchanged name";
             }
-            if (set->hasChanged(Set::CH_EL_REMOVED))
+            if (elem->hasChanged(SetElement::CH_EL_ORDER))
             {
-                cout << endl << "\tremoved element";
-            }
-            if (set->hasChanged(Set::CH_EL_NAME))
-            {
-                cout << endl << "\tchanged element name";
-            }
-            if (set->hasChanged(Set::CH_EL_ORDER))
-            {
-                cout << endl << "\tchanged element order";
+                cout << endl << "\tchanged order";
             }
         }
         cout << endl;
@@ -9975,7 +9993,7 @@ void exec_syncxable(autocomplete::ACState& s)
     }
 }
 
-void printSetAndElements(const Set* s)
+void printSet(const Set* s)
 {
     if (!s)
     {
@@ -9990,12 +10008,21 @@ void printSetAndElements(const Set* s)
     cout << "\tname: " << s->name() << endl;
     handle cover = s->cover();
     cout << "\tcover: " << (cover == UNDEF ? "(no cover)" : toHandle(cover)) << endl;
+    cout << endl;
+}
+void printElements(const map<handle, SetElement>* elems)
+{
+    if (!elems)
+    {
+        cout << "No elements" << endl;
+        return;
+    }
 
-    const auto& elems = s->elements();
-    for (const auto& p : elems)
+    for (const auto& p : *elems)
     {
         const SetElement& el = p.second;
         cout << "\t\telement " << toHandle(el.id()) << endl;
+        cout << "\t\t\tset " << toHandle(el.set()) << endl;
         cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
         cout << "\t\t\tname: " << el.name() << endl;
         cout << "\t\t\torder: " << el.order() << endl;
@@ -10022,7 +10049,8 @@ void exec_setsandelements(autocomplete::ACState& s)
         const auto& sets = client->getSets();
         for (auto& set : sets)
         {
-            printSetAndElements(&set.second);
+            printSet(&set.second);
+            printElements(client->getSetElements(set.first));
         }
     }
 
@@ -10040,7 +10068,8 @@ void exec_setsandelements(autocomplete::ACState& s)
                 if (e == API_OK)
                 {
                     cout << "Created Set with id " << toHandle(id) << endl;
-                    printSetAndElements(client->getSet(id));
+                    printSet(client->getSet(id));
+                    printElements(client->getSetElements(id));
                 }
                 else
                 {
@@ -10082,7 +10111,8 @@ void exec_setsandelements(autocomplete::ACState& s)
                 {
                     cout << "Updated Set " << toHandle(id) << endl;
                     assert(id == setId);
-                    printSetAndElements(client->getSet(id));
+                    printSet(client->getSet(id));
+                    printElements(client->getSetElements(id));
                 }
                 else
                 {
@@ -10115,7 +10145,8 @@ void exec_setsandelements(autocomplete::ACState& s)
                 if (e == API_OK)
                 {
                     cout << "Fetched Set " << toHandle(id) << endl;
-                    printSetAndElements(client->getSet(id));
+                    printSet(client->getSet(id));
+                    printElements(client->getSetElements(id));
                 }
                 else
                 {
@@ -10126,15 +10157,16 @@ void exec_setsandelements(autocomplete::ACState& s)
 
     else if (command == "removeelement")
     {
-        handle id = 0; // must have remaining bits set to 0
-        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETELEMENTHANDLE);
+        handle sid = 0, eid = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
+        Base64::atob(s.words[3].s.c_str(), (byte*)&eid, MegaClient::SETELEMENTHANDLE);
 
-        client->removeSetElement(id, [id](Error e, handle setId)
+        client->removeSetElement(sid, eid, [sid, eid](Error e)
             {
                 if (e == API_OK)
-                    cout << "Removed Element " << toHandle(id) << " from Set " << toHandle(setId) << endl;
+                    cout << "Removed Element " << toHandle(eid) << " from Set " << toHandle(sid) << endl;
                 else
-                    cout << "Error removing Element " << toHandle(id) << ' ' << e << endl;
+                    cout << "Error removing Element " << toHandle(eid) << ' ' << e << endl;
             });
     }
 
@@ -10143,40 +10175,43 @@ void exec_setsandelements(autocomplete::ACState& s)
         handle setId = 0;   // must have remaining bits set to 0
         handle node = 0;    // must have remaining bits set to 0
         handle elemId = 0;  // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&setId, MegaClient::SETHANDLE);
+
         bool createNew = command == "newelement";
         if (createNew)
         {
-            Base64::atob(s.words[2].s.c_str(), (byte*)&setId, MegaClient::SETHANDLE);
             Base64::atob(s.words[3].s.c_str(), (byte*)&node, MegaClient::NODEHANDLE);
             elemId = UNDEF;
         }
 
         else // "updateelement"
         {
-            setId = UNDEF;
             node = UNDEF;
-            Base64::atob(s.words[2].s.c_str(), (byte*)&elemId, MegaClient::SETELEMENTHANDLE);
+            Base64::atob(s.words[3].s.c_str(), (byte*)&elemId, MegaClient::SETELEMENTHANDLE);
         }
 
-        SetElement el(node, elemId);
+        SetElement el;
+        el.setSet(setId);
+        el.setId(elemId);
+        el.setNode(node);
 
         string param;
         if (s.extractflagparam("-n", param) || s.extractflag("-n"))
         {
-            el.setName(param);
+            el.setName(move(param));
         }
-
+        param.clear();
         if (s.extractflagparam("-o", param))
         {
             el.setOrder(atoll(param.c_str()));
         }
 
-        client->putSetElement(move(el), setId, [createNew, elemId](Error e, handle receivedElementId, handle sId)
+        client->putSetElement(move(el), [createNew, setId, elemId](Error e, handle receivedElementId)
             {
                 if (createNew)
                 {
                     if (e == API_OK)
-                        cout << "Created Element " << toHandle(receivedElementId) << " in Set " << toHandle(sId) << endl;
+                        cout << "Created Element " << toHandle(receivedElementId) << " in Set " << toHandle(setId) << endl;
                     else
                         cout << "Error creating new Element " << e << endl;
                 }
@@ -10184,7 +10219,7 @@ void exec_setsandelements(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        cout << "Updated Element " << toHandle(elemId) << " in Set " << toHandle(sId) << endl;
+                        cout << "Updated Element " << toHandle(elemId) << " in Set " << toHandle(setId) << endl;
                         assert(receivedElementId == elemId);
                     }
                     else

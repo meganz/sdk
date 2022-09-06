@@ -9165,9 +9165,9 @@ bool CommandFetchSet::procresult(Result r)
     return e == API_OK;
 }
 
-CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, string&& encrAttrs, string&& encrKey, handle setId,
-                                               std::function<void(Error, handle, handle)> completion)
-    : mElement(new SetElement(move(el))), mSetId(setId), mCompletion(completion)
+CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
+                                               std::function<void(Error, handle)> completion)
+    : mElement(new SetElement(move(el))), mCompletion(completion)
 {
     cmd("aep");
 
@@ -9175,7 +9175,7 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, stri
 
     if (createNew)
     {
-        arg("s", (byte*)&mSetId, MegaClient::SETHANDLE);
+        arg("s", (byte*)&mElement->set(), MegaClient::SETHANDLE);
         arg("h", (byte*)&mElement->node(), MegaClient::NODEHANDLE);
         arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
     }
@@ -9191,9 +9191,9 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, stri
         arg("o", mElement->order());
     }
 
-    if (mElement->hasAttrs())
+    if (encrAttrs)
     {
-        arg("at", (byte*)encrAttrs.c_str(), (int)encrAttrs.size());
+        arg("at", (byte*)encrAttrs->c_str(), (int)encrAttrs->size());
     }
 
     notself(cl); // don't process its Action Packet after sending this
@@ -9213,27 +9213,26 @@ bool CommandPutSetElement::procresult(Result r)
     }
     else if (e == API_OK)
     {
-        assert(mElement->id() == UNDEF || mElement->id() == elementId);
-        mElement->setId(elementId);
         mElement->setTs(ts);
         mElement->setOrder(order); // this is now present in all 'aep' responses
-
-        client->addOrUpdateSetElement(move(*mElement), mSetId);
+        assert(mElement->id() == UNDEF || mElement->id() == elementId);
+        mElement->setId(elementId);
+        client->addOrUpdateSetElement(move(*mElement));
     }
 
     if (mCompletion)
     {
-        mCompletion(e, elementId, mSetId);
+        mCompletion(e, elementId);
     }
 
     return parsedOk;
 }
 
-CommandRemoveSetElement::CommandRemoveSetElement(MegaClient* cl, handle id, std::function<void(Error, handle)> completion)
-    : mElementId(id), mCompletion(completion)
+CommandRemoveSetElement::CommandRemoveSetElement(MegaClient* cl, handle sid, handle eid, std::function<void(Error)> completion)
+    : mSetId(sid), mElementId(eid), mCompletion(completion)
 {
     cmd("aer");
-    arg("id", (byte*)&id, MegaClient::SETELEMENTHANDLE);
+    arg("id", (byte*)&eid, MegaClient::SETELEMENTHANDLE);
 
     notself(cl); // don't process its Action Packet after sending this
 }
@@ -9242,13 +9241,12 @@ bool CommandRemoveSetElement::procresult(Result r)
 {
     handle elementId = 0;
     m_time_t ts = 0;
-    handle setId = 0;
     Error e = API_OK;
-    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, &setId);
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr);
 
     if (parsedOk && e == API_OK)
     {
-        if (!setId || !client->deleteSetElement(mElementId, setId))
+        if (!client->deleteSetElement(mSetId, mElementId))
         {
             LOG_err << "Sets: Failed to remove Element in `aer` command response";
             e = API_ENOENT;
@@ -9257,7 +9255,7 @@ bool CommandRemoveSetElement::procresult(Result r)
 
     if (mCompletion)
     {
-        mCompletion(e, (setId ? setId : UNDEF));
+        mCompletion(e);
     }
 
     return parsedOk;

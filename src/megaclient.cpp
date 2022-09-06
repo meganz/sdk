@@ -4381,6 +4381,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mediaFileInfo = MediaFileInfo();
 #endif
     mSets.clear();
+    mSetElements.clear();
 
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
     purgeOrphanTransfers();
@@ -4793,6 +4794,7 @@ bool MegaClient::procsc()
                         app->users_updated(NULL, int(users.size()));
                         app->pcrs_updated(NULL, int(pcrindex.size()));
                         app->sets_updated(nullptr, int(mSets.size()));
+                        app->setelements_updated(nullptr, int(mSetElements.size()));
 #ifdef ENABLE_CHAT
                         app->chats_updated(NULL, int(chats.size()));
 #endif
@@ -5157,10 +5159,16 @@ void MegaClient::initsc()
             complete = initscsets();
         }
 
+        if (complete)
+        {
+            // 6. write SetElements
+            complete = initscsetelements();
+        }
+
 #ifdef ENABLE_CHAT
         if (complete)
         {
-            // 6. write new or modified chats
+            // 7. write new or modified chats
             for (textchat_map::iterator it = chats.begin(); it != chats.end(); it++)
             {
                 if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
@@ -5308,6 +5316,12 @@ void MegaClient::updatesc()
         {
             // 5. write new or modified Sets, purge deleted ones
             complete = updatescsets();
+        }
+
+        if (complete)
+        {
+            // 6. write new or modified SetElements, purge deleted ones
+            complete = updatescsetelements();
         }
 
 #ifdef ENABLE_CHAT
@@ -7354,7 +7368,8 @@ void MegaClient::notifypurge(void)
 
     if (scsn.ready()) tscsn = scsn.getHandle();
 
-    if (nodenotify.size() || usernotify.size() || pcrnotify.size() || !setnotify.empty()
+    if (nodenotify.size() || usernotify.size() || pcrnotify.size()
+            || setnotify.size() || setelementnotify.size()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -7561,7 +7576,12 @@ void MegaClient::notifypurge(void)
         useralerts.useralertnotify.clear();
     }
 
-    if (setnotify.size())
+    if (!setelementnotify.empty())
+    {
+        notifypurgesetelements();
+    }
+
+    if (!setnotify.empty())
     {
         notifypurgesets();
     }
@@ -12333,6 +12353,15 @@ bool MegaClient::fetchsc(DbTable* sctable)
             case CACHEDSET:
             {
                 if (!fetchscset(&data, id))
+                {
+                    return false;
+                }
+                break;
+            }
+
+            case CACHEDSETELEMENT:
+            {
+                if (!fetchscsetelement(&data, id))
                 {
                     return false;
                 }
@@ -17212,22 +17241,20 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
             return;
         }
 
-        const Set& setToBeUpdated = it->second;
-
-        handle cover = s.cover();
-        if (cover != UNDEF && !setToBeUpdated.element(cover))
+        if (s.cover() != UNDEF && !getSetElement(s.id(), s.cover()))
         {
-            LOG_err << "Sets: Requested cover was not an Element of the current Set.";
+            LOG_err << "Sets: Requested cover was not an Element of Set " << toHandle(s.id());
             if (completion)
                 completion(API_EARGS, s.id());
             return;
         }
 
         // copy the details that won't change
+        const Set& setToBeUpdated = it->second;
         s.setKey(setToBeUpdated.key());
         s.setUser(setToBeUpdated.user());
-
         s.rebaseAttrsOn(setToBeUpdated);
+
         string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
         encrAttrs.reset(new string(move(enc)));
     }
@@ -17235,11 +17262,11 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
     reqs.add(new CommandPutSet(this, move(s), move(encrAttrs), move(encrSetKey), completion));
 }
 
-void MegaClient::removeSet(handle id, std::function<void(Error)> completion)
+void MegaClient::removeSet(handle sid, std::function<void(Error)> completion)
 {
-    if (getSet(id))
+    if (getSet(sid))
     {
-        reqs.add(new CommandRemoveSet(this, id, completion));
+        reqs.add(new CommandRemoveSet(this, sid, completion));
     }
     else if (completion)
     {
@@ -17247,37 +17274,27 @@ void MegaClient::removeSet(handle id, std::function<void(Error)> completion)
     }
 }
 
-void MegaClient::fetchSet(handle id, std::function<void(Error)> completion)
+void MegaClient::fetchSet(handle sid, std::function<void(Error)> completion)
 {
-    reqs.add(new CommandFetchSet(this, id, completion));
+    reqs.add(new CommandFetchSet(this, sid, completion));
 }
 
-void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void(Error, handle, handle)> completion)
+void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle)> completion)
 {
-    // setId is required to create a new element, but not to update one
-    assert(el.id() != UNDEF || setId != UNDEF);
+    // setId is required
+    assert(el.set() != UNDEF);
 
-    // find Set
-    const Set* existingSet = setId == UNDEF ? nullptr : getSet(setId);
-    if (!existingSet)
-    {
-        for (const auto& a : mSets)
-        {
-            auto itE = a.second.elements().find(el.id());
-            if (itE != a.second.elements().end())
-            {
-                existingSet = &a.second;
-                break;
-            }
-        }
-    }
+    // make sure Set id is valid
+    const Set* existingSet = el.set() == UNDEF ? nullptr : getSet(el.set());
     if (!existingSet)
     {
         LOG_err << "Sets: Set not found when adding or updating Element";
         if (completion)
-            completion(API_ENOENT, el.id(), UNDEF);
+            completion(API_ENOENT, el.id());
         return;
     }
+
+    const SetElement* existingElement = nullptr;
 
     // copy element.key from nodekey (only for new Element)
     string encrKey;
@@ -17289,7 +17306,7 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
         {
             LOG_err << "Sets: Invalid node for Element";
             if (completion)
-                completion(e, el.id(), UNDEF);
+                completion(e, el.id());
             return;
         }
 
@@ -17306,58 +17323,56 @@ void MegaClient::putSetElement(SetElement&& el, handle setId, std::function<void
     // get element.key from existing element (only when updating attributes)
     else if (el.hasAttrs())
     {
-        auto elIt = existingSet->elements().find(el.id());
-        if (elIt == existingSet->elements().end())
+        existingElement = getSetElement(el.set(), el.id());
+        if (!existingElement)
         {
-            LOG_err << "Sets: Invalid node for Element";
+            LOG_err << "Sets: Element not found when updating Element: " << toHandle(el.id());
             if (completion)
-                completion(API_ENOENT, el.id(), UNDEF);
+                completion(API_ENOENT, el.id());
             return;
         }
 
-        el.setKey(elIt->second.key());
+        el.setKey(existingElement->key());
     }
 
     // store element.attrs to TLV, and encrypt with element.key (copied from nodekey)
-    string encrAttrs;
+    std::unique_ptr<string> encrAttrs;
     if (el.hasAttrs())
     {
-        string_map attrs;
-        for (auto it = el.attrs().begin(); it != el.attrs().end(); ++it)
+        if (existingElement && existingElement->hasAttrs())
         {
-            if (!it->second.empty())
-            {
-                attrs.emplace(*it);
-            }
+            el.rebaseAttrsOn(*existingElement);
+            // the request to clear the last attribute of an existing Element must be remembered, so that
+            // after a successful update, attrs of the existing Element will be cleared
+            el.setAttrsClearedByLastUpdate(!el.hasAttrs());
         }
-        encrAttrs = encryptAttrs(attrs, el.key());
+
+        string enc = el.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+        encrAttrs.reset(new string(move(enc)));
     }
 
-    reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), existingSet->id(), completion));
+    reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), completion));
 }
 
-void MegaClient::removeSetElement(handle id, std::function<void(Error, handle)> completion)
+void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Error)> completion)
 {
-    for (const auto& a : mSets)
+    if (!getSetElement(sid, eid))
     {
-        if (a.second.elements().find(id) != a.second.elements().end())
+        if (completion)
         {
-            reqs.add(new CommandRemoveSetElement(this, id, completion));
-            return;
+            completion(API_ENOENT);
         }
+        return;
     }
 
-    if (completion)
-    {
-        completion(API_ENOENT, UNDEF);
-    }
+    reqs.add(new CommandRemoveSetElement(this, sid, eid, completion));
 }
 
 error MegaClient::readSetsAndElements(JSON& j)
 {
     map<handle, Set> newSets;
-    multimap<handle, SetElement> newElements;
-    bool replaceAllSets = false;
+    map<handle, map<handle, SetElement>> newElements;
+    bool aespCmd = false;
     bool loopAgain = true;
 
     while (loopAgain)
@@ -17368,14 +17383,18 @@ error MegaClient::readSetsAndElements(JSON& j)
         {
             // reuse this in "aft" (fetch-Set command) and "aesp" (in gettree/fetchnodes/"f" command):
             // "aft" will return a single Set for "s", while "aesp" will return an array of Sets
-            replaceAllSets = j.enterarray();
+            aespCmd = j.enterarray();
 
             error e = readSets(j, newSets);
             if (e != API_OK)
+            {
                 return e;
+            }
 
-            if (replaceAllSets)
+            if (aespCmd)
+            {
                 j.leavearray();
+            }
 
             break;
         }
@@ -17401,7 +17420,13 @@ error MegaClient::readSetsAndElements(JSON& j)
         }
     }
 
-    // decrypt Set data
+    if (newSets.empty())
+    {
+        return aespCmd ? API_OK : API_ENOENT;
+    }
+
+    // decrypt data
+    size_t elCount = 0; // Elements related to known Sets and successfully decrypted
     for (auto& s : newSets)
     {
         error e = decryptSetData(s.second);
@@ -17409,41 +17434,36 @@ error MegaClient::readSetsAndElements(JSON& j)
         {
             return e;
         }
-    }
 
-    // match Elements and Sets
-    auto itA = newSets.end();
-    for (auto& newEl : newElements)
-    {
-        // get corresponding Set
-        if (itA == newSets.end() || itA->second.id() != newEl.first)
+        auto itEls = newElements.find(s.first);
+        if (itEls != newElements.end())
         {
-            itA = newSets.find(newEl.first);
-            if (itA == newSets.end())
+            for (auto itE = itEls->second.begin(); itE != itEls->second.end(); ++itE)
             {
-                continue; // should never happen
+                // decrypt element key and attrs
+                e = decryptElementData(itE->second, s.second.key());
+                if (e != API_OK)
+                {
+                    return e;
+                }
+                ++elCount;
             }
         }
-
-        // decrypt element key and attrs
-        error e = decryptElementData(newEl.second, itA->second.key());
-        if (e != API_OK)
-        {
-            return e;
-        }
-
-        itA->second.addOrUpdateElement(move(newEl.second));
     }
+    assert(elCount == newElements.size()); // some orphan/undecryptable Elements? it should not happen
 
-    // apply changes
-    if (replaceAllSets) // "aesp"
+    // apply updates
+    if (aespCmd) // "aesp"
     {
+        // save new data
         mSets.swap(newSets);
+        mSetElements.swap(newElements);
     }
-    else if (!newSets.empty()) // "aft" command (will contain only 1 Set)
+    else // aft
     {
-        auto& a = newSets.begin()->second;
-        addSet(move(a));
+        assert(newSets.size() == 1);
+
+        // TODO: send the Set and its Elements to the caller
     }
 
     return API_OK;
@@ -17461,11 +17481,14 @@ error MegaClient::decryptSetData(Set& s)
     s.setKey(decryptKey(s.key(), key));
 
     // decrypt attrs
-    auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
-    if (!s.decryptAttributes(decryptFunc))
+    if (s.hasEncrAttrs())
     {
-        LOG_err << "Sets: Unable to decrypt Set attrs";
-        return API_EINTERNAL;
+        auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
+        if (!s.decryptAttributes(decryptFunc))
+        {
+            LOG_err << "Sets: Unable to decrypt Set attrs";
+            return API_EINTERNAL;
+        }
     }
 
     return API_OK;
@@ -17483,10 +17506,13 @@ error MegaClient::decryptElementData(SetElement& el, const string& setKey)
     el.setKey(decryptKey(el.key(), tmpnodecipher));
 
     // decrypt attrs
-    auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
-    if (el.hasAttrs() && !el.decryptAttributes(decryptFunc))
+    if (el.hasEncrAttrs())
     {
-        return API_EINTERNAL;
+        auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
+        if (!el.decryptAttributes(decryptFunc))
+        {
+            return API_EINTERNAL;
+        }
     }
 
     return API_OK;
@@ -17628,7 +17654,7 @@ error MegaClient::readSet(JSON& j, Set& s)
     }
 }
 
-error MegaClient::readElements(JSON& j, multimap<handle, SetElement>& elements)
+error MegaClient::readElements(JSON& j, map<handle, map<handle, SetElement>>& elements)
 {
     if (!j.enterarray())
     {
@@ -17637,14 +17663,15 @@ error MegaClient::readElements(JSON& j, multimap<handle, SetElement>& elements)
 
     while (j.enterobject())
     {
-        handle setId = 0;
         SetElement el;
-        error e = readElement(j, el, setId);
+        error e = readElement(j, el);
         if (e)
         {
             return e;
         }
-        elements.emplace(setId, el);
+        handle sid = el.set();
+        handle eid = el.id();
+        elements[sid].emplace(eid, move(el));
 
         j.leaveobject();
     }
@@ -17653,10 +17680,8 @@ error MegaClient::readElements(JSON& j, multimap<handle, SetElement>& elements)
     return API_OK;
 }
 
-error MegaClient::readElement(JSON& j, SetElement& el, handle& setId)
+error MegaClient::readElement(JSON& j, SetElement& el)
 {
-    setId = 0;
-
     for (;;)
     {
         switch (j.getnameid())
@@ -17666,7 +17691,7 @@ error MegaClient::readElement(JSON& j, SetElement& el, handle& setId)
             break;
 
         case MAKENAMEID1('s'):
-            setId = j.gethandle(MegaClient::SETHANDLE);
+            el.setSet(j.gethandle(MegaClient::SETHANDLE));
             break;
 
         case MAKENAMEID1('h'):
@@ -17722,18 +17747,22 @@ error MegaClient::readElement(JSON& j, SetElement& el, handle& setId)
 const string CommonSE::nameTag = "n";
 const string Set::coverTag = "c";
 
-const Set* MegaClient::getSet(handle id) const
+const Set* MegaClient::getSet(handle sid) const
 {
-    auto it = mSets.find(id);
+    auto it = mSets.find(sid);
     return it == mSets.end() ? nullptr : &it->second;
 }
 
 void MegaClient::addSet(Set&& a)
 {
-    Set& added = mSets[a.id()] = move(a);
+    handle sid = a.id();
+    auto add = mSets.emplace(sid, move(a));
+    assert(add.second);
 
-    if (added.changes())
+    if (add.second) // newly inserted
     {
+        Set& added = add.first->second;
+        added.setChanged(Set::CH_NEW);
         notifyset(&added);
     }
 }
@@ -17743,20 +17772,20 @@ bool MegaClient::updateSet(Set&& s)
     auto it = mSets.find(s.id());
     if (it != mSets.end())
     {
-        it->second.setTs(s.ts());
-        it->second.takeAttrsFrom(move(s));
+        if (it->second.updateWith(move(s)))
+        {
+            notifyset(&it->second);
+        }
 
-        notifyset(&it->second);
-
-        return true;
+        return true; // return true if found, even if nothing was updated
     }
 
     return false;
 }
 
-bool MegaClient::deleteSet(handle setId)
+bool MegaClient::deleteSet(handle sid)
 {
-    auto it = mSets.find(setId);
+    auto it = mSets.find(sid);
     if (it != mSets.end())
     {
         it->second.setChanged(Set::CH_REMOVED);
@@ -17768,37 +17797,71 @@ bool MegaClient::deleteSet(handle setId)
     return false;
 }
 
-void MegaClient::addOrUpdateSetElement(SetElement&& el, handle setId)
+const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
 {
-    auto itAl = mSets.find(setId);
-    if (itAl == mSets.end())
+    auto* elements = getSetElements(sid);
+    if (elements)
     {
-        return;
+        auto ite = elements->find(eid);
+        if (ite != elements->end())
+        {
+            return &(ite->second);
+        }
     }
 
-    itAl->second.addOrUpdateElement(move(el)); // will set changed status accordingly
-    if (itAl->second.changes())
-    {
-        notifyset(&itAl->second);
-    }
+    return nullptr;
 }
 
-bool MegaClient::deleteSetElement(handle elemId, handle setId)
+const map<handle, SetElement>* MegaClient::getSetElements(handle sid) const
 {
-    auto it = mSets.find(setId);
-    if (it != mSets.end())
+    auto itS = mSetElements.find(sid);
+    return itS == mSetElements.end() ? nullptr : &itS->second;
+}
+
+bool MegaClient::deleteSetElement(handle sid, handle eid)
+{
+    auto its = mSetElements.find(sid);
+    if (its != mSetElements.end())
     {
-        if (it->second.removeElement(elemId))
+        auto ite = its->second.find(eid);
+        if (ite != its->second.end())
         {
-            if (it->second.changes())
-            {
-                notifyset(&it->second);
-            }
+            ite->second.setChanged(SetElement::CH_EL_REMOVED);
+            notifysetelement(&ite->second);
             return true;
         }
     }
 
     return false;
+}
+
+void MegaClient::addOrUpdateSetElement(SetElement&& el)
+{
+    handle sid = el.set();
+    handle eid = el.id();
+
+    auto itS = mSetElements.find(sid);
+    if (itS != mSetElements.end())
+    {
+        auto& elements = itS->second;
+        auto ite = elements.find(eid);
+        if (ite != elements.end())
+        {
+            if (ite->second.updateWith(move(el)))
+            {
+                notifysetelement(&ite->second);
+            }
+            return;
+        }
+    }
+
+    // not found, add it
+    auto add = mSetElements[sid].emplace(eid, move(el));
+    assert(add.second);
+
+    SetElement& added = add.first->second;
+    added.setChanged(SetElement::CH_EL_NEW);
+    notifysetelement(&added);
 }
 
 void MegaClient::sc_asp()
@@ -17821,7 +17884,6 @@ void MegaClient::sc_asp()
     auto it = mSets.find(s.id());
     if (it == mSets.end()) // add new
     {
-        s.setChanged(Set::CH_NEW);
         addSet(move(s));
     }
     else // update existing Set
@@ -17835,15 +17897,10 @@ void MegaClient::sc_asp()
             return;
         }
 
-        if (s.user() != UNDEF) // this might not be received for an update
+        if (existing.updateWith(move(s)))
         {
-            existing.setUser(s.user());
+            notifyset(&existing);
         }
-
-        existing.setTs(s.ts());
-        existing.takeAttrsFrom(move(s));
-
-        notifyset(&existing);
     }
 }
 
@@ -17880,8 +17937,7 @@ void MegaClient::sc_asr()
 void MegaClient::sc_aep()
 {
     SetElement el;
-    handle setId = 0;
-    if (readElement(jsonsc, el, setId) != API_OK)
+    if (readElement(jsonsc, el) != API_OK)
     {
         LOG_err << "Sets: `aep` action packet: failed to parse data";
         return;
@@ -17889,17 +17945,12 @@ void MegaClient::sc_aep()
 
     // find the Set for this Element
     Set* s = nullptr;
-
-    if (setId)
+    auto it = mSets.find(el.set());
+    if (it != mSets.end())
     {
-        auto it = mSets.find(setId);
-        if (it != mSets.end())
-        {
-            s = &it->second;
-        }
+        s = &it->second;
     }
-
-    if (!s)
+    else
     {
         LOG_err << "Sets: `aep` action packet: failed to find Set for Element";
         return;
@@ -17911,11 +17962,7 @@ void MegaClient::sc_aep()
         return;
     }
 
-    s->addOrUpdateElement(move(el));
-    if (s->changes())
-    {
-        notifyset(s);
-    }
+    addOrUpdateSetElement(move(el));
 }
 
 void MegaClient::sc_aer()
@@ -17936,7 +17983,7 @@ void MegaClient::sc_aer()
             break;
 
         case EOO:
-            if (!deleteSetElement(elemId, setId))
+            if (!deleteSetElement(setId, elemId))
             {
                 LOG_err << "Sets: Failed to remove Element in `aer` action packet";
                 return;
@@ -17966,18 +18013,64 @@ bool MegaClient::initscsets()
     return true;
 }
 
+bool MegaClient::initscsetelements()
+{
+    for (auto& s : mSetElements)
+    {
+        assert(mSets.find(s.first) != mSets.end());
+        if (mSets.find(s.first) == mSets.end())
+        {
+            LOG_err << "Sets: elements for unknown set: " << toHandle(s.first);
+            continue;
+        }
+
+        for (auto& e : s.second)
+        {
+            if (!sctable->put(CACHEDSETELEMENT, &e.second, &key))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 bool MegaClient::fetchscset(string* data, uint32_t id)
 {
-    Set* s = unserializeSet(data);
-    if (s)
-    {
-        s->dbid = id;
-    }
-    else
+    auto s = Set::unserialize(data);
+    if (!s)
     {
         LOG_err << "Failed - Set record read error";
         return false;
     }
+
+    handle sid = s->id();
+    auto its = mSets.emplace(sid, move(*s));
+    assert(its.second); // insertion must have occurred
+    Set& addedSet = its.first->second;
+    addedSet.resetChanges();
+    addedSet.dbid = id;
+
+    return true;
+}
+
+bool MegaClient::fetchscsetelement(string* data, uint32_t id)
+{
+    auto el = SetElement::unserialize(data);
+    if (!el)
+    {
+        LOG_err << "Failed - SetElement record read error";
+        return false;
+    }
+
+    handle sid = el->set();
+    handle eid = el->id();
+    auto ite = mSetElements[sid].emplace(eid, move(*el));
+    assert(ite.second); // insertion must have occurred
+    SetElement& addedEl = ite.first->second;
+    addedEl.resetChanges();
+    addedEl.dbid = id;
 
     return true;
 }
@@ -17986,6 +18079,13 @@ bool MegaClient::updatescsets()
 {
     for (Set* s : setnotify)
     {
+        assert(s->changes());
+        if (!s->changes())
+        {
+            LOG_err << "Sets: Notifying about unchanged Set: " << toHandle(s->id());
+            continue;
+        }
+
         char base64[12];
         if (!s->hasChanged(Set::CH_REMOVED)) // add / replace
         {
@@ -17998,7 +18098,61 @@ bool MegaClient::updatescsets()
         else if (s->dbid) // remove
         {
             LOG_verbose << "Removing Set from database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
+
+            // remove all elements of this set
+            auto* elements = getSetElements(s->id());
+            if (elements)
+            {
+                for (auto& e : *elements)
+                {
+                    if (!sctable->del(e.second.dbid))
+                    {
+                        return false;
+                    }
+                }
+                clearsetelementnotify(s->id());
+                mSetElements.erase(s->id());
+            }
+
             if (!sctable->del(s->dbid))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool MegaClient::updatescsetelements()
+{
+    for (SetElement* e : setelementnotify)
+    {
+        assert(e->changes());
+        if (!e->changes())
+        {
+            LOG_err << "Sets: Notifying about unchanged SetElement: " << toHandle(e->id());
+            continue;
+        }
+
+        char base64[12];
+        if (!e->hasChanged(SetElement::CH_EL_REMOVED)) // add / replace
+        {
+            if (mSets.find(e->set()) == mSets.end())
+            {
+                continue;
+            }
+
+            LOG_verbose << "Adding SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
+            if (!sctable->put(CACHEDSETELEMENT, e, &key))
+            {
+                return false;
+            }
+        }
+        else if (e->dbid) // remove
+        {
+            LOG_verbose << "Removing SetElement from database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
+            if (!sctable->del(e->dbid))
             {
                 return false;
             }
@@ -18017,6 +18171,15 @@ void MegaClient::notifyset(Set* s)
     }
 }
 
+void MegaClient::notifysetelement(SetElement* e)
+{
+    if (!e->notified)
+    {
+        e->notified = true;
+        setelementnotify.push_back(e);
+    }
+}
+
 void MegaClient::notifypurgesets()
 {
     if (!fetchingnodes)
@@ -18028,6 +18191,8 @@ void MegaClient::notifypurgesets()
     {
         if (s->hasChanged(Set::CH_REMOVED))
         {
+            clearsetelementnotify(s->id());
+            mSetElements.erase(s->id());
             mSets.erase(s->id());
         }
         else
@@ -18040,122 +18205,47 @@ void MegaClient::notifypurgesets()
     setnotify.clear();
 }
 
-Set* MegaClient::unserializeSet(string* d)
+void MegaClient::notifypurgesetelements()
 {
-    handle id = 0, u = 0;
-    m_time_t ts = 0;
-    string k;
-    uint32_t attrCount = 0;
-
-    CacheableReader r(*d);
-    if (!r.unserializehandle(id) ||
-        !r.unserializehandle(u) ||
-        !r.unserializebinary((byte*)&ts, sizeof(ts)) ||
-        !r.unserializestring(k) ||
-        !r.unserializeu32(attrCount))
+    if (!fetchingnodes)
     {
-        return nullptr;
+        app->setelements_updated(setelementnotify.data(), (int)setelementnotify.size());
     }
 
-    // get all attrs
-    string_map attrs;
-    for (uint32_t i = 0; i < attrCount; ++i)
+    for (auto& e : setelementnotify)
     {
-        string ak, av;
-        if (!r.unserializestring(ak) ||
-            !r.unserializestring(av))
+        if (e->hasChanged(SetElement::CH_EL_REMOVED))
         {
-            return nullptr;
+            mSetElements[e->set()].erase(e->id());
         }
-        attrs[move(ak)] = move(av);
-    }
-
-    Set s((id ? id : UNDEF), move(k), (u ? u : UNDEF), ts, move(attrs));
-
-    uint32_t elCount = 0;
-    if (!r.unserializeu32(elCount))
-    {
-        return nullptr;
-    }
-
-    // unserialize Elements
-    for (uint32_t i = 0; i < elCount; ++i)
-    {
-        id = 0;
-        handle h = 0;
-        int64_t o = 0;
-        ts = 0;
-        attrCount = 0;
-        unsigned char expansionsE[8];
-
-        if (!r.unserializehandle(id) ||
-            !r.unserializenodehandle(h) ||
-            !r.unserializei64(o) ||
-            !r.unserializebinary((byte*)&ts, sizeof(ts)) ||
-            !r.unserializestring(k) ||
-            !r.unserializeu32(attrCount))
+        else
         {
-            return nullptr;
+            e->notified = false;
+            e->resetChanges();
         }
-
-        // get all attrs
-        attrs.clear();
-        for (size_t j = 0; j < attrCount; ++j)
-        {
-            string ak, av;
-            if (!r.unserializestring(ak) ||
-                !r.unserializestring(av))
-            {
-                return nullptr;
-            }
-            attrs[move(ak)] = move(av);
-        }
-
-        if (!r.unserializeexpansionflags(expansionsE, 0))
-        {
-            return nullptr;
-        }
-
-        SetElement el((h ? h : UNDEF), (id ? id : UNDEF));
-        el.setOrder(o);
-        el.setTs(ts);
-        el.setKey(move(k));
-        el.setAttrs(attrs);
-
-        s.addOrUpdateElement(move(el));
     }
 
-    unsigned char expansionsS[8];
-    if (!r.unserializeexpansionflags(expansionsS, 0))
-    {
-        return nullptr;
-    }
-
-    Set& addedSet = mSets[s.id()] = move(s);
-    addedSet.resetChanges();
-
-    return &addedSet;
+    setelementnotify.clear();
 }
 
-void Set::setName(string&& name)
+void MegaClient::clearsetelementnotify(handle sid)
+{
+    for (size_t i = setelementnotify.size(); i; --i)
+    {
+        if (setelementnotify[i - 1]->set() == sid)
+        {
+            setelementnotify.erase(setelementnotify.begin() + i - 1);
+        }
+    }
+}
+
+
+void CommonSE::setName(string&& name)
 {
     setAttr(nameTag, move(name));
 }
 
-void Set::setCover(handle h)
-{
-    if (h == UNDEF)
-    {
-        setAttr(coverTag, string());
-    }
-    else
-    {
-        Base64Str<MegaClient::SETELEMENTHANDLE> b64s(h);
-        setAttr(coverTag, string(b64s.chars));
-    }
-}
-
-void Set::setAttr(const string& tag, string&& value)
+void CommonSE::setAttr(const string& tag, string&& value)
 {
     if (!mAttrs)
     {
@@ -18164,109 +18254,9 @@ void Set::setAttr(const string& tag, string&& value)
     (*mAttrs)[tag] = move(value);
 }
 
-handle Set::cover() const
+void CommonSE::rebaseCommonAttrsOn(const string_map* baseAttrs)
 {
-    string hs = getAttribute(coverTag);
-    if (!hs.empty())
-    {
-        handle h = 0;
-        Base64::atob(hs.c_str(), (byte*)&h, MegaClient::SETELEMENTHANDLE); // What should be used instead of this "deprecated" feature?
-        if (element(h))
-        {
-            return h; // only if cover is a valid Element, still part of the Set
-        }
-    }
-
-    return UNDEF;
-}
-
-const SetElement* Set::element(handle eId) const
-{
-    auto it = mElements.find(eId);
-    return it != mElements.end() ? &(it->second) : nullptr;
-}
-
-void Set::addOrUpdateElement(SetElement&& el)
-{
-    auto it = mElements.find(el.id());
-
-    // add
-    if (it == mElements.end())
-    {
-        auto id = el.id(); // before move()-ing from it
-        mElements[id] = move(el);
-        mChanges[CH_EL_NEW] = 1;
-        return;
-    }
-
-    // update
-    SetElement& existing = it->second;
-    if (el.hasAttrs())
-    {
-        if (el.name() != existing.name())
-        {
-            mChanges[CH_EL_NAME] = 1;
-        }
-        existing.setAttrs(el.attrs());
-    }
-    if (el.hasOrder())
-    {
-        existing.setOrder(el.order());
-        mChanges[CH_EL_ORDER] = 1;
-    }
-    if (el.ts())
-    {
-        existing.setTs(el.ts());
-    }
-}
-
-bool Set::removeElement(handle elemId)
-{
-    if (mElements.erase(elemId))
-    {
-        mChanges[CH_EL_REMOVED] = 1;
-        return true;
-    }
-
-    return false;
-}
-
-bool Set::serialize(string* d)
-{
-    CacheableWriter r(*d);
-
-    r.serializehandle(mId);
-    r.serializehandle(mUser);
-    r.serializebinary((byte*)&mTs, sizeof(mTs));
-    r.serializestring(mKey);
-
-    size_t asize = mAttrs ? mAttrs->size() : 0;
-    r.serializeu32((uint32_t)asize);
-    if (asize)
-    {
-        for (auto& aa : *mAttrs)
-        {
-            r.serializestring(aa.first);
-            r.serializestring(aa.second);
-        }
-    }
-
-    size_t elemCount = mElements.size();
-    r.serializeu32((uint32_t)elemCount);
-
-    for (auto& e : mElements)
-    {
-        e.second.serialize(d);
-    }
-
-    r.serializeexpansionflags();
-
-    return true;
-}
-
-void Set::rebaseAttrsOn(const Set& s)
-{
-    if (!s.hasAttrs())
+    if (!baseAttrs)
     {
         return; // nothing to do
     }
@@ -18279,11 +18269,11 @@ void Set::rebaseAttrsOn(const Set& s)
     // copy missing attributes
     if (mAttrs->empty()) // small optimizations
     {
-        *mAttrs = *s.mAttrs;
+        *mAttrs = *baseAttrs;
     }
     else
     {
-        string_map rebased = *s.mAttrs;
+        string_map rebased = *baseAttrs;
         for (auto& a : *mAttrs)
         {
             if (a.second.empty())
@@ -18292,7 +18282,7 @@ void Set::rebaseAttrsOn(const Set& s)
             }
             else
             {
-                rebased.emplace(move(a));
+                rebased[a.first].swap(a.second);
             }
         }
         mAttrs->swap(rebased);
@@ -18304,16 +18294,7 @@ void Set::rebaseAttrsOn(const Set& s)
     }
 }
 
-void Set::takeAttrsFrom(Set&& s)
-{
-    // check for changes
-    if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
-    if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
-
-    mAttrs.swap(s.mAttrs);
-}
-
-bool Set::hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherAttrs) const
+bool CommonSE::hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherAttrs) const
 {
     string otherValue;
     if (otherAttrs)
@@ -18326,11 +18307,22 @@ bool Set::hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherA
     return value != otherValue;
 }
 
-bool Set::decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f)
+const string& CommonSE::getAttribute(const string& tag) const
+{
+    static const string value;
+    if (!mAttrs)
+    {
+        return value;
+    }
+
+    auto it = mAttrs->find(tag);
+    return it != mAttrs->end() ? it->second : value;
+}
+
+bool CommonSE::decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f)
 {
     if (!mEncryptedAttrs) // 'at' was not received
     {
-        mAttrs.reset();
         return true;
     }
 
@@ -18353,7 +18345,7 @@ bool Set::decryptAttributes(std::function<bool(const string&, const string&, str
     return false;
 }
 
-string Set::encryptAttributes(std::function<string(const string_map&, const string&)> f) const
+string CommonSE::encryptAttributes(std::function<string(const string_map&, const string&)> f) const
 {
     if (!mAttrs || mAttrs->empty())
     {
@@ -18363,38 +18355,217 @@ string Set::encryptAttributes(std::function<string(const string_map&, const stri
     return f(*mAttrs, mKey);
 }
 
-bool SetElement::decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f)
+
+handle Set::cover() const
 {
-    if (hasAttrs() && f(mEncryptedAttrs, mKey, mAttrs))
+    string hs = getAttribute(coverTag);
+    if (!hs.empty())
     {
-        mEncryptedAttrs.clear();
-        return true;
+        handle h = 0;
+        Base64::atob(hs.c_str(), (byte*)&h, MegaClient::SETELEMENTHANDLE);
+        return h;
     }
 
-    return false;
+    return UNDEF;
+}
+
+void Set::setCover(handle h)
+{
+    if (h == UNDEF)
+    {
+        setAttr(coverTag, string());
+    }
+    else
+    {
+        Base64Str<MegaClient::SETELEMENTHANDLE> b64s(h);
+        setAttr(coverTag, string(b64s.chars));
+    }
+}
+
+bool Set::serialize(string* d)
+{
+    CacheableWriter r(*d);
+
+    r.serializehandle(mId);
+    r.serializehandle(mUser);
+    r.serializecompressed64(mTs);
+    r.serializestring(mKey);
+
+    size_t asize = mAttrs ? mAttrs->size() : 0;
+    r.serializeu32((uint32_t)asize);
+    if (asize)
+    {
+        for (auto& aa : *mAttrs)
+        {
+            r.serializestring(aa.first);
+            r.serializestring(aa.second);
+        }
+    }
+
+    r.serializeexpansionflags();
+
+    return true;
+}
+
+unique_ptr<Set> Set::unserialize(string* d)
+{
+    handle id = 0, u = 0;
+    uint64_t ts = 0;
+    string k;
+    uint32_t attrCount = 0;
+
+    CacheableReader r(*d);
+    if (!r.unserializehandle(id) ||
+        !r.unserializehandle(u) ||
+        !r.unserializecompressed64(ts) ||
+        !r.unserializestring(k) ||
+        !r.unserializeu32(attrCount))
+    {
+        return nullptr;
+    }
+
+    // get all attrs
+    string_map attrs;
+    for (uint32_t i = 0; i < attrCount; ++i)
+    {
+        string ak, av;
+        if (!r.unserializestring(ak) ||
+            !r.unserializestring(av))
+        {
+            return nullptr;
+        }
+        attrs[move(ak)] = move(av);
+    }
+
+    unsigned char expansionsS[8];
+    if (!r.unserializeexpansionflags(expansionsS, 0))
+    {
+        return nullptr;
+    }
+
+    auto s = ::mega::make_unique<Set>(id, move(k), u, move(attrs));
+    s->setTs(ts);
+
+    return s;
+}
+
+bool Set::updateWith(Set&& s)
+{
+    setTs(s.ts());
+
+    if (hasAttrChanged(nameTag, s.mAttrs)) setChanged(CH_NAME);
+    if (hasAttrChanged(coverTag, s.mAttrs)) setChanged(CH_COVER);
+    mAttrs.swap(s.mAttrs);
+
+    return changes();
+}
+
+
+bool SetElement::updateWith(SetElement&& el)
+{
+    if (el.hasOrder())
+    {
+        setOrder(el.order());
+    }
+    setTs(el.ts());
+    // attrs of existing Element should be replaced if any of them has been updated, or
+    // if they have been completely cleared (by the last 'aep' command)
+    if (el.hasAttrs() || el.hasAttrsClearedByLastUpdate())
+    {
+        if (hasAttrChanged(nameTag, el.mAttrs)) setChanged(CH_EL_NAME);
+
+        mAttrs.swap(el.mAttrs);
+    }
+
+    return changes();
+}
+
+void SetElement::setOrder(int64_t order)
+{
+    if (!mOrder)
+    {
+        mOrder.reset(new int64_t(order));
+        setChanged(CH_EL_ORDER);
+    }
+    else if (*mOrder != order)
+    {
+        *mOrder = order;
+        setChanged(CH_EL_ORDER);
+    }
 }
 
 bool SetElement::serialize(string* d)
 {
     CacheableWriter r(*d);
 
+    r.serializehandle(mSetId);
     r.serializehandle(mId);
     r.serializenodehandle(mNodeHandle);
-    r.serializei64(mOrder);
-    r.serializebinary((byte*)&mTs, sizeof(mTs));
+    r.serializei64(mOrder ? *mOrder : 0); // it will always have Order
+    r.serializecompressed64(mTs);
     r.serializestring(mKey);
 
-    r.serializeu32((uint32_t)mAttrs.size());
-
-    for (auto& aa : mAttrs)
+    size_t asize = mAttrs ? mAttrs->size() : 0;
+    r.serializeu32((uint32_t)asize);
+    if (asize)
     {
-        r.serializestring(aa.first);
-        r.serializestring(aa.second);
+        for (auto& aa : *mAttrs)
+        {
+            r.serializestring(aa.first);
+            r.serializestring(aa.second);
+        }
     }
 
     r.serializeexpansionflags();
 
     return true;
+}
+
+unique_ptr<SetElement> SetElement::unserialize(string* d)
+{
+    handle sid = 0, eid = 0;
+    handle h = 0;
+    int64_t o = 0;
+    uint64_t ts = 0;
+    string k;
+    uint32_t attrCount = 0;
+    unsigned char expansionsE[8];
+
+    CacheableReader r(*d);
+    if (!r.unserializehandle(sid) ||
+        !r.unserializehandle(eid) ||
+        !r.unserializenodehandle(h) ||
+        !r.unserializei64(o) ||
+        !r.unserializecompressed64(ts) ||
+        !r.unserializestring(k) ||
+        !r.unserializeu32(attrCount))
+    {
+        return nullptr;
+    }
+
+    // get all attrs
+    string_map attrs;
+    for (size_t i = 0; i < attrCount; ++i)
+    {
+        string ak, av;
+        if (!r.unserializestring(ak) ||
+            !r.unserializestring(av))
+        {
+            return nullptr;
+        }
+        attrs[move(ak)] = move(av);
+    }
+
+    if (!r.unserializeexpansionflags(expansionsE, 0))
+    {
+        return nullptr;
+    }
+
+    auto el = ::mega::make_unique<SetElement>(sid, h, eid, move(k), move(attrs));
+    el->setOrder(o);
+    el->setTs(ts);
+
+    return el;
 }
 
 // -------- end of Sets and Elements
