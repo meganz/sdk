@@ -12057,7 +12057,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 break;
 
             case CACHEDNODE:
-                if ((n = mNodeManager.unserializeNode(&data, true)))
+                if ((n = mNodeManager.getNodeFromBlob(&data)))
                 {
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
@@ -17659,6 +17659,11 @@ void NodeManager::cleanNodes()
         mTable->removeNodes();
 }
 
+Node *NodeManager::getNodeFromBlob(const std::string* nodeSerialized)
+{
+    return unserializeNode(nodeSerialized, true);
+}
+
 // parse serialized node and return Node object - updates nodes hash and parent
 // mismatch vector
 Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
@@ -17874,15 +17879,19 @@ Node *NodeManager::unserializeNode(const std::string *d, bool fromOldCache)
         return NULL;
     }
 
-    // It's needed to re-normalize node names because
-    // the updated version of utf8proc doesn't provide
-    // exactly the same output as the previous one that
-    // we were using
-    attr_map::iterator it = n->attrs.map.find('n');
-    if (it != n->attrs.map.end())
+    if (fromOldCache)
     {
-        LocalPath::utf8_normalize(&(it->second));
+        // It's needed to re-normalize node names because
+        // the updated version of utf8proc doesn't provide
+        // exactly the same output as the previous one that
+        // we were using
+        attr_map::iterator it = n->attrs.map.find('n');
+        if (it != n->attrs.map.end())
+        {
+            LocalPath::utf8_normalize(&(it->second));
+        }
     }
+    // else from new cache, names has been normalized before to store in DB
 
     if (!encrypted)
     {
