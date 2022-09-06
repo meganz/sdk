@@ -4446,7 +4446,7 @@ void MegaClient::initStatusTable()
     {
         // statusTable is different from sctable in that we begin/commit with each change
         assert(!statusTable->inTransaction());
-        TransferDbCommitter committer(statusTable);
+        DBTableTransactionCommitter committer(statusTable);
         statusTable->truncate();
     }
 }
@@ -5095,7 +5095,7 @@ bool MegaClient::CacheableStatusMap::addOrUpdate(CacheableStatus::Type type, int
 
     if (changed && mClient->statusTable)
     {
-        TransferDbCommitter committer(mClient->statusTable);
+        DBTableTransactionCommitter committer(mClient->statusTable);
         LOG_verbose << "Adding/updating status to database: " << status.typeToStr() << " = " << value;
         if (!mClient->statusTable->put(MegaClient::CACHEDSTATUS, &it_bool.first->second, &mClient->key))
         {

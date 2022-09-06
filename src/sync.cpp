@@ -756,21 +756,22 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
     // remove processed elements as we go, so we can then clean the database at the end.
     for (auto it = range.first; it != tmap->end() && it->first == parent_dbid; it = tmap->erase(it))
     {
-        auto preExisting = p->children.find(&it->second->localname);
+        LocalNode* const l = it->second;
+
+        auto preExisting = p->children.find(l->localname);
         if (preExisting != p->children.end())
         {
             // tidying up from prior versions of the SDK which might have duplicate LocalNodes
-            LOG_debug << "Removing duplicate LocalNode " << preExisting->second->debugGetParentList();
+            LOG_debug << "Removing duplicate LocalNode: " << preExisting->second->debugGetParentList();
             delete preExisting->second;   // also detaches and preps removal from db
-            assert(p->children.find(&it->second->localname) == p->children.end());
-            continue;
+            assert(p->children.find(l->localname) == p->children.end());
+            // l will be added in its place.  Later entries were the ones used by the old algorithm
         }
 
         ScopedLengthRestore restoreLen(localpath);
 
-        localpath.appendWithSeparator(it->second->localname, true);
+        localpath.appendWithSeparator(l->localname, true);
 
-        LocalNode* l = it->second;
         handle fsid = l->fsid_lastSynced;
         m_off_t size = l->syncedFingerprint.size;
 
@@ -801,7 +802,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             statecacheadd(l);
             if (insertq.size() > 50000)
             {
-                TransferDbCommitter committer(statecachetable);
+                DBTableTransactionCommitter committer(statecachetable);
                 cachenodes();  // periodically output updated nodes with shortname updates, so people who restart megasync still make progress towards a fast startup
             }
         }
@@ -834,6 +835,14 @@ void Sync::readstatecache()
 
         if (auto l = LocalNode::unserialize(*this, cachedata, parentID))
         {
+
+            int b;
+            if (l->localname.toPath() == "abc_0")
+            {
+                b = 1;
+            }
+
+
             l->dbid = cid;
             tmap.emplace(parentID, l.release());
             numLocalNodes += 1;
@@ -842,7 +851,7 @@ void Sync::readstatecache()
 
     // recursively build LocalNode tree
     {
-        TransferDbCommitter committer(statecachetable);
+        DBTableTransactionCommitter committer(statecachetable);
         LocalPath pathBuffer = localroot->localname; // don't let localname be appended during recurse
         addstatecachechildren(0, &tmap, pathBuffer, localroot.get(), 100);
 
@@ -926,7 +935,7 @@ void Sync::cachenodes()
     {
         LOG_debug << syncname << "Saving LocalNode database with " << insertq.size() << " additions";
 
-        TransferDbCommitter committer(statecachetable);
+        DBTableTransactionCommitter committer(statecachetable);
 
         // additions - we iterate until completion or until we get stuck
         bool added;
@@ -1065,8 +1074,8 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         }
 
         localnode_map::iterator it;
-        if ((it = l->children.find(&component)) == l->children.end()
-            && (it = l->schildren.find(&component)) == l->schildren.end())
+        if ((it = l->children.find(component)) == l->children.end()
+            && (it = l->schildren.find(component)) == l->schildren.end())
         {
             // no full match: store residual path, return NULL with the
             // matching component LocalNode in parent
@@ -5288,6 +5297,7 @@ void syncRow::inferOrCalculateChildSyncRows(bool wasSynced, vector<syncRow>& chi
 
             for (auto &childIt : syncNode->children)
             {
+                assert(childIt.first == childIt.second->localname);
                 if (belowRemovedFsNode)
                 {
                     if (childIt.second->fsid_asScanned != UNDEF)
@@ -6328,6 +6338,7 @@ bool Sync::recursiveSync(syncRow& row, SyncPath& fullPath, bool belowRemovedClou
     // flags let us know if future actions are needed at this level
     for (auto& child : row.syncNode->children)
     {
+        assert(child.first == child.second->localname);
         if (row.ignoreFileStable() && child.second->type > FILENODE)
         {
             row.syncNode->scanAgain = updateTreestateFromChild(row.syncNode->scanAgain, child.second->scanAgain);
@@ -7089,7 +7100,7 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
         {
             for (auto& c : row.syncNode->children)
             {
-                if (*c.first == oldc.first && c.second == oldc.second)
+                if (c.first == oldc.first && c.second == oldc.second)
                 {
                     delete c.second; // removes itself from the parent map
                     break;
@@ -10010,7 +10021,7 @@ void Syncs::syncLoop()
                         // later we can make this lock much finer-grained
                         std::lock_guard<std::timed_mutex> g(mLocalNodeChangeMutex);
 
-                        TransferDbCommitter committer(sync->statecachetable);
+                        DBTableTransactionCommitter committer(sync->statecachetable);
 
                         if (!sync->recursiveSync(row, pathBuffer, false, false, 0))
                         {
@@ -10376,6 +10387,7 @@ void Syncs::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     {
         for (localnode_map::iterator it = n->children.begin(); it != n->children.end(); )
         {
+            assert(it->first == it->second->localname);
             LocalNode *child = it->second;
             it++;
             proclocaltree(child, tp);
