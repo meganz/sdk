@@ -1254,14 +1254,22 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
         if (parentChange || localnameChange)
         {
             // remove existing child linkage for localname
-            parent->children.erase(&localname);
+            auto it = parent->children.find(localname);
+            if (it != parent->children.end() && it->second == this)
+            {
+                parent->children.erase(it);
+            }
         }
 
         if (slocalname && (
             parentChange || shortnameChange))
         {
             // remove existing child linkage for slocalname
-            parent->schildren.erase(slocalname.get());
+            auto it = parent->schildren.find(*slocalname);
+            if (it != parent->schildren.end() && it->second == this)
+            {
+                parent->schildren.erase(it);
+            }
         }
     }
 
@@ -1303,22 +1311,21 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
     if (parent && (parentChange || localnameChange))
     {
         #ifdef DEBUG
-            auto it = parent->children.find(&localname);
+            auto it = parent->children.find(localname);
             assert(it == parent->children.end());   // check we are not about to orphan the old one at this location... if we do then how did we get a clash in the first place?
         #endif
 
-        parent->children[&localname] = this;
+        parent->children[localname] = this;
     }
 
     // add to parent map by shortname
     if (parent && slocalname && (parentChange || shortnameChange))
     {
 #ifdef DEBUG
-// TODO: enable these checks after we're sure about the localname check above
-//        auto it = parent->schildren.find(&*slocalname);
-//        assert(it == parent->schildren.end());   // check we are not about to orphan the old one at this location... if we do then how did we get a clash in the first place?
+        auto it = parent->schildren.find(*slocalname);
+        assert(it == parent->schildren.end());   // check we are not about to orphan the old one at this location... if we do then how did we get a clash in the first place?
 #endif
-        parent->schildren[&*slocalname] = this;
+        parent->schildren[*slocalname] = this;
     }
 
     // reset treestate
@@ -1331,7 +1338,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
 
     if (oldsync)
     {
-        TransferDbCommitter committer(oldsync->statecachetable);
+        DBTableTransactionCommitter committer(oldsync->statecachetable);
 
         // prepare localnodes for a sync change or/and a copy operation
         LocalTreeProcMove tp(parent->sync);
@@ -1868,13 +1875,13 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                 if (child.scannedFingerprint.isvalid)
                 {
                     // as-scanned by this instance is more accurate if available
-                    priorScanChildren.emplace(*childIt.first, child.getScannedFSDetails());
+                    priorScanChildren.emplace(childIt.first, child.getScannedFSDetails());
                 }
                 else if (useSyncedFP && child.fsid_lastSynced != UNDEF && child.syncedFingerprint.isvalid)
                 {
                     // But otherwise, already-synced syncs on startup should not re-fingerprint
                     // files that match the synced fingerprint by fsid/size/mtime (for quick startup)
-                    priorScanChildren.emplace(*childIt.first, child.getLastSyncedFSDetails());
+                    priorScanChildren.emplace(childIt.first, child.getLastSyncedFSDetails());
                 }
             }
 
@@ -2326,7 +2333,7 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
 {
     localnode_map::iterator it;
 
-    if (!localname || ((it = children.find(localname)) == children.end() && (it = schildren.find(localname)) == schildren.end()))
+    if (!localname || ((it = children.find(*localname)) == children.end() && (it = schildren.find(*localname)) == schildren.end()))
     {
         return NULL;
     }

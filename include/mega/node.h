@@ -31,16 +31,7 @@
 
 namespace mega {
 
-struct LocalPathPtrCmp
-{
-    bool operator()(const LocalPath* a, const LocalPath* b) const
-    {
-        return *a < *b;
-    }
-};
-
-typedef map<const LocalPath*, LocalNode*, LocalPathPtrCmp> localnode_map;
-typedef map<const string*, Node*, StringCmp> remotenode_map;
+typedef map<LocalPath, LocalNode*> localnode_map;
 
 struct MEGA_API NodeCore
 {
