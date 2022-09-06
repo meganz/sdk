@@ -9161,7 +9161,7 @@ bool CommandFetchSet::procresult(Result r)
         return false;
     }
 
-    assert(sets.size() <= 1 && elements.size() <= 1);
+    assert(sets.size() <= 1);
 
     if (mCompletion)
     {
