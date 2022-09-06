@@ -400,16 +400,16 @@ public:
     handle me;
     string uid;
 
-    // root nodes (files, incoming, rubbish)
+    // root nodes (files, vault, rubbish)
     struct Rootnodes
     {
         NodeHandle files;
-        NodeHandle inbox;
+        NodeHandle vault;
         NodeHandle rubbish;
 
         // returns true if the 'h' provided matches any of the rootnodes.
         // (when logged into folder links, the handle of the folder is set to 'files')
-        bool isRootNode(NodeHandle h) { return (h == files || h == inbox || h == rubbish); }
+        bool isRootNode(NodeHandle h) { return (h == files || h == vault || h == rubbish); }
     } rootnodes;
 
 

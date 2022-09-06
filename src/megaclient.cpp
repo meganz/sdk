@@ -1164,7 +1164,7 @@ void MegaClient::init()
 #endif
 
     rootnodes.files = NodeHandle();
-    rootnodes.inbox = NodeHandle();
+    rootnodes.vault = NodeHandle();
     rootnodes.rubbish = NodeHandle();
 
     pendingsc.reset();
@@ -7769,7 +7769,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             {
                 if (c[2] == "in")
                 {
-                    n = nodeByHandle(rootnodes.inbox);
+                    n = nodeByHandle(rootnodes.vault);
                 }
                 else if (c[2] == "bin")
                 {
@@ -8066,7 +8066,7 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
     reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
 }
 
-// drop nodes into a user's inbox (must have RSA keypair)
+// drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
 void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
     User* u;
@@ -8922,7 +8922,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         }
     }
 
-    mergenewshares(0);
+    mergenewshares(notify);
 
     // detect if there's any orphan node and report to API
     for (auto orphan : orphans)
@@ -9397,7 +9397,7 @@ void MegaClient::applykeys()
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
     int noKeyExpected = (rootnodes.files.isUndef() ? 0 : 1)
-                      + (rootnodes.inbox.isUndef() ? 0 : 1)
+                      + (rootnodes.vault.isUndef() ? 0 : 1)
                       + (rootnodes.rubbish.isUndef() ? 0 : 1);
 
     if (nodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
@@ -13780,7 +13780,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
 {
-    // cannot sync files, rubbish bins or inboxes
+    // cannot sync files, rubbish bins or vault
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
         if(syncError)
