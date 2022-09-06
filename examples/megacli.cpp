@@ -10204,12 +10204,12 @@ void exec_setsandelements(autocomplete::ACState& s)
             el.setOrder(atoll(param.c_str()));
         }
 
-        client->putSetElement(move(el), [createNew, setId, elemId](Error e, handle receivedElementId)
+        client->putSetElement(move(el), [createNew, setId, elemId](Error e, const SetElement* el)
             {
                 if (createNew)
                 {
-                    if (e == API_OK)
-                        cout << "Created Element " << toHandle(receivedElementId) << " in Set " << toHandle(setId) << endl;
+                    if (e == API_OK && el)
+                        cout << "Created Element " << toHandle(el->id()) << " in Set " << toHandle(setId) << endl;
                     else
                         cout << "Error creating new Element " << e << endl;
                 }
@@ -10218,7 +10218,6 @@ void exec_setsandelements(autocomplete::ACState& s)
                     if (e == API_OK)
                     {
                         cout << "Updated Element " << toHandle(elemId) << " in Set " << toHandle(setId) << endl;
-                        assert(receivedElementId == elemId);
                     }
                     else
                     {

@@ -19083,10 +19083,12 @@ void MegaApiImpl::sendPendingRequests()
                 el.setName(request->getText() ? request->getText() : string());
             }    
             client->putSetElement(move(el),
-                [this, request](Error e, handle eid)
+                [this, request](Error e, const SetElement* el)
                 {
-                    if (request->getParentHandle() == UNDEF)
-                        request->setParentHandle(eid);
+                    if (request->getParentHandle() == UNDEF && el)
+                    {
+                        request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(&el, 1));
+                    }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             break;

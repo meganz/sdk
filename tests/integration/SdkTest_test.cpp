@@ -7952,19 +7952,22 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
         nullptr /*cancelToken*/)) << "Cannot upload a test file";
 
     // 4. Add Element
-    MegaHandle eh = INVALID_HANDLE;
     string elattrs = "element name";
     differentApiDtls.setElementUpdated = false;
-    err = doCreateSetElement(0, &eh, sh, uploadedNode, elattrs.c_str());
+    MegaElementList* newEll = nullptr;
+    err = doCreateSetElement(0, &newEll, sh, uploadedNode, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
-    ASSERT_NE(eh, INVALID_HANDLE);
 
-    unique_ptr<MegaElementList> els(megaApi[0]->getSetElements(sh));
+    unique_ptr<MegaElementList> els(newEll);
     ASSERT_NE(els, nullptr);
     ASSERT_EQ(els->size(), 1u);
+    ASSERT_EQ(els->get(0)->node(), uploadedNode);
+    ASSERT_EQ(els->get(0)->name(), elattrs);
+    ASSERT_NE(els->get(0)->ts(), 0);
+    ASSERT_EQ(els->get(0)->order(), 1000);
+    MegaHandle eh = els->get(0)->id();
     unique_ptr<MegaElement> elp(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(elp, nullptr);
-    ASSERT_EQ(elp->id(), els->get(0)->id());
     ASSERT_EQ(elp->id(), eh);
     ASSERT_EQ(elp->node(), uploadedNode);
     ASSERT_EQ(elp->name(), elattrs);
@@ -8112,11 +8115,16 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 9. Add another element
     differentApiDtls.setElementUpdated = false;
-    eh = 0;
     elattrs += " again";
-    err = doCreateSetElement(0, &eh, sh, uploadedNode, elattrs.c_str());
+    MegaElementList* newEll2 = nullptr;
+    err = doCreateSetElement(0, &newEll2, sh, uploadedNode, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
+    ASSERT_NE(newEll2, nullptr);
+    ASSERT_EQ(newEll2->size(), 1u);
+    ASSERT_EQ(newEll2->get(0)->name(), elattrs);
+    eh = newEll2->get(0)->id();
     ASSERT_NE(eh, INVALID_HANDLE);
+    delete newEll2;
     unique_ptr<MegaElement> elp_b4lo(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(elp_b4lo, nullptr);
     ASSERT_EQ(elp_b4lo->id(), eh);

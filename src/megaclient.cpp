@@ -17279,7 +17279,7 @@ void MegaClient::fetchSet(handle sid, std::function<void(Error, Set*, map<handle
     reqs.add(new CommandFetchSet(this, sid, completion));
 }
 
-void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle)> completion)
+void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion)
 {
     // setId is required
     assert(el.set() != UNDEF);
@@ -17290,7 +17290,7 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
     {
         LOG_err << "Sets: Set not found when adding or updating Element";
         if (completion)
-            completion(API_ENOENT, el.id());
+            completion(API_ENOENT, nullptr);
         return;
     }
 
@@ -17306,7 +17306,7 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
         {
             LOG_err << "Sets: Invalid node for Element";
             if (completion)
-                completion(e, el.id());
+                completion(e, nullptr);
             return;
         }
 
@@ -17328,7 +17328,7 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
         {
             LOG_err << "Sets: Element not found when updating Element: " << toHandle(el.id());
             if (completion)
-                completion(API_ENOENT, el.id());
+                completion(API_ENOENT, nullptr);
             return;
         }
 
@@ -17828,7 +17828,7 @@ const map<handle, SetElement>* MegaClient::getSetElements(handle sid) const
     return itS == mSetElements.end() ? nullptr : &itS->second;
 }
 
-void MegaClient::addSetElement(SetElement&& el)
+const SetElement* MegaClient::addSetElement(SetElement&& el)
 {
     handle sid = el.set();
     handle eid = el.id();
@@ -17841,6 +17841,8 @@ void MegaClient::addSetElement(SetElement&& el)
         added.setChanged(SetElement::CH_EL_NEW);
         notifysetelement(&added);
     }
+
+    return &add.first->second;
 }
 
 bool MegaClient::updateSetElement(SetElement&& el)

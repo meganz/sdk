@@ -1547,12 +1547,12 @@ class MEGA_API CommandPutSetElement : public CommandSE
 {
 public:
     CommandPutSetElement(MegaClient*, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
-                         std::function<void(Error, handle)> completion);
+                         std::function<void(Error, const SetElement*)> completion);
     bool procresult(Result) override;
 
 private:
     unique_ptr<SetElement> mElement; // use a pointer to avoid defining SetElement in this header
-    std::function<void(Error, handle)> mCompletion;
+    std::function<void(Error, const SetElement*)> mCompletion;
 };
 
 class MEGA_API CommandRemoveSetElement : public CommandSE

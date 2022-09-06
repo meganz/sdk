@@ -9176,7 +9176,7 @@ bool CommandFetchSet::procresult(Result r)
 }
 
 CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
-                                               std::function<void(Error, handle)> completion)
+                                               std::function<void(Error, const SetElement*)> completion)
     : mElement(new SetElement(move(el))), mCompletion(completion)
 {
     cmd("aep");
@@ -9215,6 +9215,7 @@ bool CommandPutSetElement::procresult(Result r)
     m_time_t ts = 0;
     int64_t order = 0;
     Error e = API_OK;
+    const SetElement* el = nullptr;
     bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, &order); // 'aep' does not return 's'
 
     if (!parsedOk)
@@ -9229,7 +9230,7 @@ bool CommandPutSetElement::procresult(Result r)
         if (mElement->id() == UNDEF)
         {
             mElement->setId(elementId);
-            client->addSetElement(move(*mElement));
+            el = client->addSetElement(move(*mElement));
         }
         else
         {
@@ -9239,7 +9240,7 @@ bool CommandPutSetElement::procresult(Result r)
 
     if (mCompletion)
     {
-        mCompletion(e, elementId);
+        mCompletion(e, el);
     }
 
     return parsedOk;

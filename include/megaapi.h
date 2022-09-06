@@ -19478,6 +19478,10 @@ class MegaApi
          * - MegaRequest::getParamType - Returns CREATE_ELEMENT, possibly combined with OPTION_ELEMENT_NAME
          * - MegaRequest::getText - Returns name of the Element
          *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSetElementList - Returns either a list containing only the new Element, or null if not created
+         *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - Set could not be found, or node could not be found.
          * - MegaError::API_EKEY - File-node had no key.
