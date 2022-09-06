@@ -5812,7 +5812,7 @@ bool CommandFetchNodes::procresult(Result r)
 
             case MAKENAMEID4('a', 'e', 's', 'p'):
                 // Sets and Elements
-                if (!client->aesp())
+                if (!client->procaesp())
                 {
                     return false;
                 }

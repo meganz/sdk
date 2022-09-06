@@ -2148,7 +2148,7 @@ public:
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
 
     // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
-    bool aesp();
+    bool procaesp();
 
     // load Sets and Elements from json
     error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements);
