@@ -17236,8 +17236,8 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
     {
         for (const auto& nodeIt : nodesFromTable)
         {
-            auto mapIt = fingerprints.find(nodeIt.first);
-            if (mapIt == fingerprints.end())
+            // avoid to load already loaded nodes (found at mFingerPrints)
+            if (fingerprints.find(nodeIt.first) == fingerprints.end())
             {
                 Node* node = getNodeFromNodeSerialized(nodeIt.second);
                 if (!node)
