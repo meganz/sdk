@@ -4198,7 +4198,30 @@ class MegaRequest
          */
         virtual MegaRecentActionBucketList *getRecentActions() const;
 
+        /**
+         * @brief Returns a MegaSet explicitly fetched from online API (typically using 'aft' command)
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::fetchSet
+         *
+         * @return requested MegaSet or null if not found
+         */
         virtual MegaSet* getMegaSet() const;
+
+        /**
+         * @brief Returns the list of elements, part of the MegaSet explicitly fetched from online API (typically using 'aft' command)
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::fetchSet
+         *
+         * @return lis of elements in the requested MegaSet, or null if Set not found
+         */
         virtual MegaElementList* getMegaSetElementList() const;
 };
 
