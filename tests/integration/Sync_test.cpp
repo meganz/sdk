@@ -6223,7 +6223,7 @@ TEST_F(SyncTest, NodeSorting_forPhotosAndVideos)
 
     // first 3 are root nodes:
     auto cloudroot = makenode(client, NodeHandle(), ROOTNODE, -1, owner, makefa("root", 1, 1), key);
-    makenode(client, NodeHandle(), INCOMINGNODE, -1, owner, makefa("inbox", 1, 1), key);
+    makenode(client, NodeHandle(), VAULTNODE, -1, owner, makefa("inbox", 1, 1), key);
     makenode(client, NodeHandle(), RUBBISHNODE, -1, owner, makefa("bin", 1, 1), key);
 
     // now some files to sort

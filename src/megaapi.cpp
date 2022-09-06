@@ -3215,7 +3215,7 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *f
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
+    pImpl->startUpload(true /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
                        0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
                        true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
 }
@@ -3528,9 +3528,14 @@ MegaNode *MegaApi::getRootNode()
     return pImpl->getRootNode();
 }
 
-MegaNode* MegaApi::getInboxNode()
+MegaNode *MegaApi::getVaultNode()
 {
-    return pImpl->getInboxNode();
+    return pImpl->getVaultNode();
+}
+
+MegaNode *MegaApi::getInboxNode()
+{
+    return pImpl->getVaultNode();
 }
 
 MegaNode* MegaApi::getRubbishNode()
@@ -3553,7 +3558,7 @@ bool MegaApi::isInRubbish(MegaNode *node)
     return pImpl->isInRootnode(node, 2);
 }
 
-bool MegaApi::isInInbox(MegaNode *node)
+bool MegaApi::isInVault(MegaNode *node)
 {
     return pImpl->isInRootnode(node, 1);
 }

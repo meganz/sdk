@@ -835,14 +835,6 @@ void Sync::readstatecache()
 
         if (auto l = LocalNode::unserialize(*this, cachedata, parentID))
         {
-
-            int b;
-            if (l->localname.toPath() == "abc_0")
-            {
-                b = 1;
-            }
-
-
             l->dbid = cid;
             tmap.emplace(parentID, l.release());
             numLocalNodes += 1;
