@@ -10063,13 +10063,12 @@ void exec_setsandelements(autocomplete::ACState& s)
             newset.setName(name);
         }
 
-        client->putSet(move(newset), [](Error e, handle id)
+        client->putSet(move(newset), [](Error e, const Set* s)
             {
-                if (e == API_OK)
+                if (e == API_OK && s)
                 {
-                    cout << "Created Set with id " << toHandle(id) << endl;
-                    printSet(client->getSet(id));
-                    printElements(client->getSetElements(id));
+                    cout << "Created Set with id " << toHandle(s->id()) << endl;
+                    printSet(s);
                 }
                 else
                 {
@@ -10105,12 +10104,11 @@ void exec_setsandelements(autocomplete::ACState& s)
             }
         }
 
-        client->putSet(move(updset), [id](Error e, handle setId)
+        client->putSet(move(updset), [id](Error e, const Set*)
             {
                 if (e == API_OK)
                 {
                     cout << "Updated Set " << toHandle(id) << endl;
-                    assert(id == setId);
                     printSet(client->getSet(id));
                     printElements(client->getSetElements(id));
                 }

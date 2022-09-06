@@ -17193,7 +17193,7 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
 // Sets and Elements
 //
 
-void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
+void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completion)
 {
     string encrSetKey;
     std::unique_ptr<string> encrAttrs;
@@ -17214,7 +17214,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
             {
                 LOG_err << "Sets: Cover cannot be set for a newly created Set.";
                 if (completion)
-                    completion(API_EARGS, s.id());
+                    completion(API_EARGS, nullptr);
                 return;
             }
             string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
@@ -17228,7 +17228,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         {
             LOG_err << "Sets: Nothing to update.";
             if (completion)
-                completion(API_EARGS, s.id());
+                completion(API_EARGS, nullptr);
             return;
         }
 
@@ -17237,7 +17237,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         {
             LOG_err << "Sets: Failed to update Set (not found).";
             if (completion)
-                completion(API_ENOENT, s.id());
+                completion(API_ENOENT, nullptr);
             return;
         }
 
@@ -17245,7 +17245,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         {
             LOG_err << "Sets: Requested cover was not an Element of Set " << toHandle(s.id());
             if (completion)
-                completion(API_EARGS, s.id());
+                completion(API_EARGS, nullptr);
             return;
         }
 
@@ -17745,7 +17745,7 @@ const Set* MegaClient::getSet(handle sid) const
     return it == mSets.end() ? nullptr : &it->second;
 }
 
-void MegaClient::addSet(Set&& a)
+const Set* MegaClient::addSet(Set&& a)
 {
     handle sid = a.id();
     auto add = mSets.emplace(sid, move(a));
@@ -17757,6 +17757,8 @@ void MegaClient::addSet(Set&& a)
         added.setChanged(Set::CH_NEW);
         notifyset(&added);
     }
+
+    return &add.first->second;
 }
 
 bool MegaClient::updateSet(Set&& s)

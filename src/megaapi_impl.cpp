@@ -19033,10 +19033,12 @@ void MegaApiImpl::sendPendingRequests()
                 s.setCover(request->getNodeHandle());
             }
             client->putSet(move(s),
-                [this, request](Error e, handle id)
+                [this, request](Error e, const Set* s)
                 {
-                    if (request->getParentHandle() == UNDEF)
-                        request->setParentHandle(id);
+                    if (request->getParentHandle() == UNDEF && s)
+                    {
+                        request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*s));
+                    }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             break;

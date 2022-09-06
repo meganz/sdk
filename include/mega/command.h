@@ -1510,12 +1510,12 @@ class MEGA_API CommandPutSet : public CommandSE
 {
 public:
     CommandPutSet(MegaClient*, Set&& s, unique_ptr<string> encrAttrs, string&& encrKey,
-                  std::function<void(Error, handle)> completion);
+                  std::function<void(Error, const Set*)> completion);
     bool procresult(Result) override;
 
 private:
     unique_ptr<Set> mSet; // use a pointer to avoid defining Set in this header
-    std::function<void(Error, handle)> mCompletion;
+    std::function<void(Error, const Set*)> mCompletion;
 };
 
 class MEGA_API CommandRemoveSet : public CommandSE

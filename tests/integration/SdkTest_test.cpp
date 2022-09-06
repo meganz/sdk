@@ -7881,18 +7881,18 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 1. Create Set
     string name = "first Set";
-    MegaHandle sh = INVALID_HANDLE;
     differentApiDtls.setUpdated = false;
-    int err = doCreateSet(0, &sh, name.c_str());
+    MegaSet* newSet = nullptr;
+    int err = doCreateSet(0, &newSet, name.c_str());
     ASSERT_EQ(err, API_OK);
-    ASSERT_NE(sh, INVALID_HANDLE);
 
-    unique_ptr<MegaSet> s1p(megaApi[0]->getSet(sh));
+    unique_ptr<MegaSet> s1p(newSet);
     ASSERT_NE(s1p, nullptr);
-    ASSERT_EQ(s1p->id(), sh);
+    ASSERT_NE(s1p->id(), INVALID_HANDLE);
     ASSERT_EQ(s1p->name(), name);
     ASSERT_NE(s1p->ts(), 0);
     ASSERT_NE(s1p->user(), INVALID_HANDLE);
+    MegaHandle sh = s1p->id();
 
     // test action packets
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setUpdated)) << "Set create AP not received after " << maxTimeout << " seconds";

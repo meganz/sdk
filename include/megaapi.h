@@ -19381,6 +19381,10 @@ class MegaApi
          * - MegaRequest::getText - Returns name of the Set
          * - MegaRequest::getParamType - Returns CREATE_SET, possibly combined with OPTION_SET_NAME
          *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSet - Returns either the new Set, or null if it was not created.
+         *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - Malformed (from API).
          * - MegaError::API_EACCESS - Permissions Error (from API).

@@ -2208,7 +2208,7 @@ private:
 
 public:
     // generate "asp" command
-    void putSet(Set&& s, std::function<void(Error, handle)> completion);
+    void putSet(Set&& s, std::function<void(Error, const Set*)> completion);
 
     // generate "asr" command
     void removeSet(handle sid, std::function<void(Error)> completion);
@@ -2235,7 +2235,7 @@ public:
     const map<handle, Set>& getSets() const { return mSets; }
 
     // add new Set or replace exisiting one
-    void addSet(Set&& a);
+    const Set* addSet(Set&& a);
 
     // search for Set with the same id, and update its members
     bool updateSet(Set&& s);
