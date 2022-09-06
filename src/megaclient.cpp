@@ -1164,7 +1164,7 @@ void MegaClient::init()
 #endif
 
     rootnodes.files = NodeHandle();
-    rootnodes.inbox = NodeHandle();
+    rootnodes.vault = NodeHandle();
     rootnodes.rubbish = NodeHandle();
 
     pendingsc.reset();
@@ -7769,7 +7769,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             {
                 if (c[2] == "in")
                 {
-                    n = nodeByHandle(rootnodes.inbox);
+                    n = nodeByHandle(rootnodes.vault);
                 }
                 else if (c[2] == "bin")
                 {
@@ -8066,7 +8066,7 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
     reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
 }
 
-// drop nodes into a user's inbox (must have RSA keypair)
+// drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
 void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
     User* u;
@@ -8922,7 +8922,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         }
     }
 
-    mergenewshares(0);
+    mergenewshares(notify);
 
     // detect if there's any orphan node and report to API
     for (auto orphan : orphans)
@@ -9397,7 +9397,7 @@ void MegaClient::applykeys()
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
     int noKeyExpected = (rootnodes.files.isUndef() ? 0 : 1)
-                      + (rootnodes.inbox.isUndef() ? 0 : 1)
+                      + (rootnodes.vault.isUndef() ? 0 : 1)
                       + (rootnodes.rubbish.isUndef() ? 0 : 1);
 
     if (nodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
@@ -13780,7 +13780,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
 {
-    // cannot sync files, rubbish bins or inboxes
+    // cannot sync files, rubbish bins or vault
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
         if(syncError)
@@ -17435,6 +17435,7 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
     }
 
     // decrypt data
+    size_t elCount = 0; // Elements related to known Sets and successfully decrypted
     for (auto& s : newSets)
     {
         error e = decryptSetData(s.second);
@@ -17454,9 +17455,11 @@ error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<ha
                 {
                     return e;
                 }
+                ++elCount;
             }
         }
     }
+    assert(elCount == newElements.size()); // some orphan/undecryptable Elements? it should not happen
 
     return API_OK;
 }
@@ -17806,63 +17809,10 @@ const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
     return nullptr;
 }
 
-SetElement* MegaClient::getSetElement_nonconst(handle sid, handle eid)
-{
-    auto itS = mSetElements.find(sid);
-    if (itS != mSetElements.end())
-    {
-        auto& elements = itS->second;
-        auto ite = elements.find(eid);
-        if (ite != elements.end())
-        {
-            return &(ite->second);
-        }
-    }
-
-    return nullptr;
-}
-
 const map<handle, SetElement>* MegaClient::getSetElements(handle sid) const
 {
     auto itS = mSetElements.find(sid);
     return itS == mSetElements.end() ? nullptr : &itS->second;
-}
-
-const SetElement* MegaClient::addSetElement(SetElement&& el)
-{
-    handle sid = el.set();
-    handle eid = el.id();
-    auto add = mSetElements[sid].emplace(eid, move(el));
-    assert(add.second);
-
-    if (add.second) // newly inserted
-    {
-        SetElement& added = add.first->second;
-        added.setChanged(SetElement::CH_EL_NEW);
-        notifysetelement(&added);
-    }
-
-    return &add.first->second;
-}
-
-bool MegaClient::updateSetElement(SetElement&& el)
-{
-    auto itS = mSetElements.find(el.set());
-    if (itS != mSetElements.end())
-    {
-        auto itE = itS->second.find(el.id());
-        if (itE != itS->second.end())
-        {
-            if (itE->second.updateWith(move(el)))
-            {
-                notifysetelement(&itE->second);
-            }
-
-            return true; // return true if found, even if nothing was updated
-        }
-    }
-
-    return false;
 }
 
 bool MegaClient::deleteSetElement(handle sid, handle eid)
@@ -17880,6 +17830,37 @@ bool MegaClient::deleteSetElement(handle sid, handle eid)
     }
 
     return false;
+}
+
+const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
+{
+    handle sid = el.set();
+    handle eid = el.id();
+
+    auto itS = mSetElements.find(sid);
+    if (itS != mSetElements.end())
+    {
+        auto& elements = itS->second;
+        auto ite = elements.find(eid);
+        if (ite != elements.end())
+        {
+            if (ite->second.updateWith(move(el)))
+            {
+                notifysetelement(&ite->second);
+            }
+            return nullptr;
+        }
+    }
+
+    // not found, add it
+    auto add = mSetElements[sid].emplace(eid, move(el));
+    assert(add.second);
+
+    SetElement& added = add.first->second;
+    added.setChanged(SetElement::CH_EL_NEW);
+    notifysetelement(&added);
+
+    return &added;
 }
 
 void MegaClient::sc_asp()
@@ -17980,17 +17961,7 @@ void MegaClient::sc_aep()
         return;
     }
 
-    if (SetElement* existingEl = getSetElement_nonconst(el.set(), el.id()))
-    {
-        if (existingEl->updateWith(move(el)))
-        {
-            notifysetelement(existingEl);
-        }
-    }
-    else
-    {
-        addSetElement(move(el));
-    }
+    addOrUpdateSetElement(move(el));
 }
 
 void MegaClient::sc_aer()

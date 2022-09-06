@@ -191,11 +191,12 @@ struct OneShotListener : public ::mega::MegaRequestListener
     }
 };
 
+using onNodesUpdateCompletion_t = std::function<void(size_t apiIndex, MegaNodeList* nodes)>;
+
 // Fixture class with common code for most of tests
 class SdkTest : public ::testing::Test, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
 
 public:
-
     struct PerApi
     {
         MegaApi* megaApi = nullptr;
@@ -216,12 +217,15 @@ public:
         std::unique_ptr<MegaCurrency> mMegaCurrency;
 
         // flags to monitor the updates of nodes/users/sets/set-elements/PCRs due to actionpackets
-        bool nodeUpdated;
         bool userUpdated;
         bool setUpdated;
         bool setElementUpdated;
         bool contactRequestUpdated;
         bool accountUpdated;
+        bool nodeUpdated; // flag to check specific updates for a node (upon onNodesUpdate)
+
+        // unique_ptr to custom functions that will be called upon reception of MegaApi callbacks
+        onNodesUpdateCompletion_t mOnNodesUpdateCompletion;
 
 #ifdef ENABLE_SYNC
         int lastSyncError;
@@ -276,6 +280,7 @@ protected:
     void Cleanup();
 
     int getApiIndex(MegaApi* api);
+    bool getApiIndex(MegaApi* api, size_t& apindex);
 
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
@@ -307,6 +312,8 @@ protected:
 #endif
     void onEvent(MegaApi* api, MegaEvent *event) override;
 
+    void resetOnNodeUpdateCompletionCBs();
+    onNodesUpdateCompletion_t createOnNodesUpdateLambda(MegaHandle&, int);
 public:
     //void login(unsigned int apiIndex, int timeout = maxTimeout);
     //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
@@ -421,6 +428,9 @@ public:
     template<typename ... requestArgs> int doUpdateSetElementOrder(unsigned apiIndex, MegaHandle* eid, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->updateSetElementOrder(args..., &rt); rt.waitForResult(); if (eid) *eid = rt.request->getParentHandle(); return rt.result; }
     template<typename ... requestArgs> int doRemoveSetElement(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSetElement(args..., &rt); rt.waitForResult(); return rt.result; }
     template<typename ... requestArgs> int synchronousCancelTransfers(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->cancelTransfers(args..., &rt); return rt.waitForResult(); }
+
+    // Checkup methods called from MegaApi callbacks
+    void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change = -1);
 
     bool createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);

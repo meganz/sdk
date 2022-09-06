@@ -2610,7 +2610,6 @@ class MegaApiImpl : public MegaApp
         void startTimer( int64_t period, MegaRequestListener *listener=NULL);
 
         //Transfers
-        void startUploadForChat(const char* localPath, MegaNode* parent, const char* fileName, const char* appData, bool isSourceFileTemporary, MegaTransferListener* listener);
         void startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener* listener);
         MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener *listener, const FileFingerprint* preFingerprintedFile = nullptr);
@@ -2798,7 +2797,7 @@ class MegaApiImpl : public MegaApp
 
         bool isFilesystemAvailable();
         MegaNode *getRootNode();
-        MegaNode* getInboxNode();
+        MegaNode* getVaultNode();
         MegaNode *getRubbishNode();
         MegaNode *getRootNode(MegaNode *node);
         bool isInRootnode(MegaNode *node, int index);
@@ -3162,7 +3161,7 @@ protected:
         handle mLastReceivedLoggedInMeHandle = UNDEF;
 
         unique_ptr<MegaNode> mLastKnownRootNode;
-        unique_ptr<MegaNode> mLastKnownInboxNode;
+        unique_ptr<MegaNode> mLastKnownVaultNode;
         unique_ptr<MegaNode> mLastKnownRubbishNode;
 
 #ifdef HAVE_LIBUV

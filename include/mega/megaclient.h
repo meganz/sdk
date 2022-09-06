@@ -475,16 +475,16 @@ public:
     handle me;
     string uid;
 
-    // root nodes (files, incoming, rubbish)
+    // root nodes (files, vault, rubbish)
     struct Rootnodes
     {
         NodeHandle files;
-        NodeHandle inbox;
+        NodeHandle vault;
         NodeHandle rubbish;
 
         // returns true if the 'h' provided matches any of the rootnodes.
         // (when logged into folder links, the handle of the folder is set to 'files')
-        bool isRootNode(NodeHandle h) { return (h == files || h == inbox || h == rubbish); }
+        bool isRootNode(NodeHandle h) { return (h == files || h == vault || h == rubbish); }
     } rootnodes;
 
 
@@ -2250,16 +2250,12 @@ public:
     const map<handle, SetElement>* getSetElements(handle sid) const;
 
     // add new SetElement or replace exisiting one
-    const SetElement* addSetElement(SetElement&& el);
-
-    // search for SetElement with the same id, and update its members
-    bool updateSetElement(SetElement&& el);
+    const SetElement* addOrUpdateSetElement(SetElement&& el);
 
     // delete Element with eid from Set with sid in local memory; return true if found and deleted
     bool deleteSetElement(handle sid, handle eid);
 
 private:
-    SetElement* getSetElement_nonconst(handle sid, handle eid);
 
     error readSets(JSON& j, map<handle, Set>& sets);
     error readSet(JSON& j, Set& s);
