@@ -380,7 +380,7 @@ public:
     FingerprintPosition insertFingerprint(Node* node);
     // Remove fingerprint from mFingerprint
     void removeFingerprint(Node* node);
-    FingerprintPosition getInvalidPosition();
+    FingerprintPosition invalidFingerprintPos();
 
     // Node has received last updates and it's ready to store in DB
     void saveNodeInDb(Node *node);

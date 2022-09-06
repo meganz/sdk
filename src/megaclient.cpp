@@ -18330,7 +18330,7 @@ void NodeManager::removeFingerprint(Node *node)
     }
 }
 
-FingerprintPosition NodeManager::getInvalidPosition()
+FingerprintPosition NodeManager::invalidFingerprintPos()
 {
     return mFingerPrints.end();
 }
