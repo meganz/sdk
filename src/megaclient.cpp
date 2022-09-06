@@ -8352,29 +8352,12 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
             {
                 bool shouldSetRestoreHandle = true;
 
-#ifdef ENABLE_SYNC
-                // avoid to set "rr" for nodes moved from Backups to SyncDebris, since they cannot be restored
-                if (syncs.backupRestrictionsEnabled() && prevRoot->nodeHandle() == rootnodes.vault)
+                // avoid to set "rr" for nodes moved from Vault to SyncDebris, since they cannot be restored
+                if (prevRoot->nodeHandle() == rootnodes.vault)
                 {
-                    const string* buf = ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
-                    if (buf)
-                    {
-                        handle h = 0;
-                        memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
-                        Node *nn = prevParent;
-                        while (nn->parent)
-                        {
-                            if (nn->nodehandle == h)
-                            {
-                                shouldSetRestoreHandle = false;
-                                LOG_debug << "Skip adding rr attribute for node from backups";
-                                break;
-                            }
-                            nn = nn->parent;
-                        }
-                    }
+                    shouldSetRestoreHandle = false;
+                    LOG_debug << "Skip adding rr attribute for node from Vault";
                 }
-#endif
 
                 if (shouldSetRestoreHandle)
                 {
