@@ -1260,21 +1260,30 @@ public:
     virtual MegaHandle cover() const { return INVALID_HANDLE; }
 
     /**
-     * @brief Returns true if current Set has changed according to the received changeType.
+     * @brief Returns true if this Set has a specific change
      *
-     * Changes will persist until resetChanges() has been called
-     * (typically after apps have been notified about it).
+     * This value is only useful for Sets notified by MegaListener::onSetsUpdate or
+     * MegaGlobalListener::onSetsUpdate that can notify about Set modifications.
      *
-     * @param changeType One of CHANGE_TYPE_XXX values below
+     * In other cases, the return value of this function will be always false.
      *
-     * @return true if current Set has changed.
+     * @param changeType The type of change to check. It can be one of the following values:
+     *
+     * - MegaSet::CHANGE_TYPE_NEW                   = 0x00
+     * Check if the Set was new
+     *
+     * - MegaSet::CHANGE_TYPE_NAME                  = 0x01
+     * Check if Set name has changed
+     *
+     * - MegaSet::CHANGE_TYPE_COVER                 = 0x02
+     * Check if Set cover has changed
+     *
+     * - MegaSet::CHANGE_TYPE_REMOVED               = 0x03
+     * Check if the Set was removed
+     *
+     * @return true if this Set has a specific change
      */
     virtual bool hasChanged(int changeType) const { return false; }
-
-    /**
-     * @brief Reset changes (typically after apps have been notified).
-     */
-    virtual void resetChanges() {}
 
     virtual MegaSet* copy() const { return nullptr; }
     virtual ~MegaSet() = default;
@@ -19373,7 +19382,7 @@ class MegaApi
         bool driveMonitorEnabled();
 
         /**
-         * @brief Request creation of a new Set, from API
+         * @brief Request creation of a new Set
          *
          * The associated request type with this request is MegaRequest::TYPE_PUT_SET
          * Valid data in the MegaRequest object received on callbacks:
@@ -19394,7 +19403,7 @@ class MegaApi
         void createSet(const char* name = nullptr, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to update the name of a Set, from API
+         * @brief Request to update the name of a Set
          *
          * The associated request type with this request is MegaRequest::TYPE_PUT_SET
          * Valid data in the MegaRequest object received on callbacks:
@@ -19414,7 +19423,7 @@ class MegaApi
         void updateSetName(MegaHandle sid, const char* name, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to update the cover of a Set, from API
+         * @brief Request to update the cover of a Set
          *
          * The associated request type with this request is MegaRequest::TYPE_PUT_SET
          * Valid data in the MegaRequest object received on callbacks:
@@ -19434,7 +19443,7 @@ class MegaApi
         void putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to remove a Set, from API
+         * @brief Request to remove a Set
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SET
          * Valid data in the MegaRequest object received on callbacks:
@@ -19451,10 +19460,14 @@ class MegaApi
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to fetch a Set and its Elements, from API
+         * @brief Request to fetch a Set and its Elements
          *
          * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
          * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
          * - MegaRequest::getMegaSet - Returns the Set, or null if not found
          * - MegaRequest::getMegaSetElementList - Returns the list of Elements, or null if not found
          *
@@ -19469,7 +19482,7 @@ class MegaApi
         void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request creation of a new Element for a Set, from API
+         * @brief Request creation of a new Element for a Set
          *
          * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
          * Valid data in the MegaRequest object received on callbacks:
@@ -19496,7 +19509,7 @@ class MegaApi
         void createSetElement(MegaHandle sid, MegaHandle node, const char* name = nullptr, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to update the name of an Element, from API
+         * @brief Request to update the name of an Element
          *
          * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
          * Valid data in the MegaRequest object received on callbacks:
@@ -19518,7 +19531,7 @@ class MegaApi
         void updateSetElementName(MegaHandle sid, MegaHandle eid, const char* name, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to update the order of an Element, from API
+         * @brief Request to update the order of an Element
          *
          * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
          * Valid data in the MegaRequest object received on callbacks:
@@ -19540,7 +19553,7 @@ class MegaApi
         void updateSetElementOrder(MegaHandle sid, MegaHandle eid, int64_t order, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Request to remove an Element, from API
+         * @brief Request to remove an Element
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SET_ELEMENT
          * Valid data in the MegaRequest object received on callbacks:
