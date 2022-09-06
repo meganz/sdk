@@ -10140,13 +10140,13 @@ void exec_setsandelements(autocomplete::ACState& s)
         handle id = 0; // must have remaining bits set to 0
         Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
 
-        client->fetchSet(id, [id](Error e)
+        client->fetchSet(id, [id](Error e, Set* s, map<handle, SetElement>* els)
             {
                 if (e == API_OK)
                 {
                     cout << "Fetched Set " << toHandle(id) << endl;
-                    printSet(client->getSet(id));
-                    printElements(client->getSetElements(id));
+                    printSet(s);
+                    printElements(els);
                 }
                 else
                 {

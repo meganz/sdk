@@ -1529,14 +1529,16 @@ private:
     std::function<void(Error)> mCompletion;
 };
 
+class SetElement;
+
 class MEGA_API CommandFetchSet : public CommandSE
 {
 public:
-    CommandFetchSet(MegaClient*, handle id, std::function<void(Error)> completion);
+    CommandFetchSet(MegaClient*, handle id, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
     bool procresult(Result) override;
 
 private:
-    std::function<void(Error)> mCompletion;
+    std::function<void(Error, Set*, map<handle, SetElement>*)> mCompletion;
 };
 
 class SetElement;

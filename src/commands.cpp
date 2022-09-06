@@ -5812,14 +5812,7 @@ bool CommandFetchNodes::procresult(Result r)
 
             case MAKENAMEID4('a', 'e', 's', 'p'):
                 // Sets and Elements
-                if (!client->json.enterobject() ||
-                    client->readSetsAndElements(client->json) != API_OK ||
-                    !client->json.leaveobject())
-                {
-                    client->fetchingnodes = false;
-                    client->app->fetchnodes_result(API_EINTERNAL);
-                    return false;
-                }
+                client->procaesp(); // continue even if it failed, it's not critical
                 break;
 
 #ifdef ENABLE_CHAT
@@ -9132,7 +9125,8 @@ bool CommandRemoveSet::procresult(Result r)
     return parsedOk;
 }
 
-CommandFetchSet::CommandFetchSet(MegaClient* client, handle id, std::function<void(Error)> completion)
+CommandFetchSet::CommandFetchSet(MegaClient* client, handle id,
+    std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
     : mCompletion(completion)
 {
     cmd("aft");
@@ -9146,23 +9140,38 @@ bool CommandFetchSet::procresult(Result r)
     {
         if (mCompletion)
         {
-            mCompletion(e);
+            mCompletion(e, nullptr, nullptr);
         }
         return true;
     }
 
-    e = client->readSetsAndElements(client->json);
+    map<handle, Set> sets;
+    map<handle, map<handle, SetElement>> elements;
+    e = client->readSetsAndElements(client->json, sets, elements);
     if (e != API_OK)
     {
         LOG_err << "Sets: Failed to parse \"aft\" response";
+        if (mCompletion)
+        {
+            mCompletion(e, nullptr, nullptr);
+        }
+        return false;
     }
+
+    assert(sets.size() <= 1);
 
     if (mCompletion)
     {
-        mCompletion(e);
+        Set* s = sets.empty() ? nullptr : (new Set(move(sets.begin()->second)));
+        map<handle, SetElement>* els = nullptr;
+        if (!elements.empty())
+        {
+            els = new map<handle, SetElement>(move(elements.begin()->second));
+        }
+        mCompletion(API_OK, s, els);
     }
 
-    return e == API_OK;
+    return true;
 }
 
 CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,

@@ -3386,6 +3386,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
     this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
     this->mRecentActions.reset(request->mRecentActions ? request->mRecentActions->copy() : nullptr);
+    this->mMegaSet.reset(request->mMegaSet ? request->mMegaSet->copy() : nullptr);
+    this->mMegaSetElementList.reset(request->mMegaSetElementList ? request->mMegaSetElementList->copy() : nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -3940,6 +3942,26 @@ MegaRecentActionBucketList* MegaRequestPrivate::getRecentActions() const
 void MegaRequestPrivate::setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList)
 {
     mRecentActions.reset(recentActionBucketList.release());
+}
+
+MegaSet* MegaRequestPrivate::getMegaSet() const
+{
+    return mMegaSet.get();
+}
+
+void MegaRequestPrivate::setMegaSet(std::unique_ptr<MegaSet> s)
+{
+    return mMegaSet.swap(s);
+}
+
+MegaElementList* MegaRequestPrivate::getMegaSetElementList() const
+{
+    return mMegaSetElementList.get();
+}
+
+void MegaRequestPrivate::setMegaSetElementList(std::unique_ptr<MegaElementList> els)
+{
+    return mMegaSetElementList.swap(els);
 }
 
 const char *MegaRequestPrivate::getRequestString() const
@@ -19030,8 +19052,16 @@ void MegaApiImpl::sendPendingRequests()
 
         case MegaRequest::TYPE_FETCH_SET:
             client->fetchSet(request->getParentHandle(),
-                [this, request](Error e)
+                [this, request](Error e, Set* s, map<handle, SetElement>* els)
                 {
+                    if (s)
+                    {
+                        request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*s));
+                        if (els)
+                        {
+                            request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(els));
+                        }
+                    }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             break;

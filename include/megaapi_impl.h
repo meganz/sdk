@@ -1454,6 +1454,12 @@ class MegaRequestPrivate : public MegaRequest
         MegaRecentActionBucketList *getRecentActions() const override;
         void setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList);
 
+        MegaSet* getMegaSet() const override;
+        void setMegaSet(std::unique_ptr<MegaSet> s);
+
+        MegaElementList* getMegaSetElementList() const override;
+        void setMegaSetElementList(std::unique_ptr<MegaElementList> els);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1504,6 +1510,8 @@ protected:
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
+        unique_ptr<MegaSet> mMegaSet;
+        unique_ptr<MegaElementList> mMegaSetElementList;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;

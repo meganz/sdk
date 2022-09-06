@@ -8030,18 +8030,22 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s2p->cover(), INVALID_HANDLE);
 
     // 5. Fetch Set
-    // This part does nothing for now, until the new functionality for 'aft' is implemented
-    //err = doFetchSet(0, sh); // TODO: reimplement 'aft' handling
+    MegaSet* fetchedSet = nullptr;
+    MegaElementList* fetchedEls = nullptr;
+    err = doFetchSet(0, &fetchedSet, &fetchedEls, sh);
     ASSERT_EQ(err, API_OK);
+    ASSERT_NE(fetchedSet, nullptr);
+    ASSERT_NE(fetchedEls, nullptr);
+    unique_ptr<MegaSet> sf(fetchedSet);
+    unique_ptr<MegaElementList> elsf(fetchedEls);
 
-    unique_ptr<MegaSet> s1fp(megaApi[0]->getSet(sh));
-    ASSERT_NE(s1fp, nullptr);
-    ASSERT_EQ(s1fp->id(), sh);
-    ASSERT_EQ(s1fp->name(), name);
-    ASSERT_EQ(s1fp->ts(), s1up->ts());
-    ASSERT_EQ(s1fp->user(), s1up->user());
+    ASSERT_EQ(sf->id(), sh);
+    ASSERT_EQ(sf->name(), name);
+    ASSERT_EQ(sf->ts(), s1up->ts());
+    ASSERT_EQ(sf->user(), s1up->user());
 
-    unique_ptr<MegaElement> elfp(megaApi[0]->getSetElement(sh, eh));
+    ASSERT_EQ(elsf->size(), 1u);
+    const MegaElement* elfp = elsf->get(0);
     ASSERT_NE(elfp, nullptr);
     ASSERT_EQ(elfp->id(), eh);
     ASSERT_EQ(elfp->node(), uploadedNode);
@@ -8089,24 +8093,9 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(elp2, nullptr);
     ASSERT_EQ(elp2->name(), elattrs);
 
-    err = doFetchSet(0, sh); // will replace the one stored in memory
-    unique_ptr<MegaElement> elu2p(megaApi[0]->getSetElement(sh, eh));
-    ASSERT_NE(elu2p, nullptr);
-    ASSERT_EQ(elu2p->id(), eh);
-    ASSERT_EQ(elu2p->node(), uploadedNode);
-    ASSERT_EQ(elu2p->name(), elattrs);
-    ASSERT_EQ(elu2p->order(), order);
-    ASSERT_NE(elu2p->ts(), 0);
-
     // 8. Remove Element
     differentApiDtls.setElementUpdated = false;
     err = doRemoveSetElement(0, sh, eh);
-    ASSERT_EQ(err, API_OK);
-
-    elp.reset(megaApi[0]->getSetElement(sh, eh));
-    ASSERT_EQ(elp, nullptr);
-
-    err = doFetchSet(0, sh); // will replace the one stored in memory
     ASSERT_EQ(err, API_OK);
 
     elp.reset(megaApi[0]->getSetElement(sh, eh));
@@ -8146,8 +8135,8 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     s1p.reset(megaApi[0]->getSet(sh));
     ASSERT_NE(s1p, nullptr);
     ASSERT_EQ(s1p->id(), sh);
-    ASSERT_EQ(s1p->user(), s1fp->user());
-    ASSERT_EQ(s1p->ts(), s1fp->ts());
+    ASSERT_EQ(s1p->user(), s1up->user());
+    ASSERT_EQ(s1p->ts(), s1up->ts());
     ASSERT_EQ(s1p->name(), name);
 
     unique_ptr<MegaElement> ellp(megaApi[0]->getSetElement(sh, eh));

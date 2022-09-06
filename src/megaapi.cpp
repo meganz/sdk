@@ -1071,6 +1071,16 @@ MegaRecentActionBucketList *MegaRequest::getRecentActions() const
     return nullptr;
 }
 
+MegaSet* MegaRequest::getMegaSet() const
+{
+    return nullptr;
+}
+
+MegaElementList* MegaRequest::getMegaSetElementList() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
