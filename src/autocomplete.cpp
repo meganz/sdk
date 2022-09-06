@@ -741,7 +741,7 @@ bool MegaFS::addCompletions(ACState& s)
                     if (s.word().s.size() >= 5 && !strncmp(s.word().s.c_str(), "//in/", 5))
                     {
                         pathprefix = "//in/";
-                        n = client->nodeByHandle(client->rootnodes.inbox);
+                        n = client->nodeByHandle(client->rootnodes.vault);
                     }
                     else if (s.word().s.size() >= 6 && !strncmp(s.word().s.c_str(), "//bin/", 6))
                     {

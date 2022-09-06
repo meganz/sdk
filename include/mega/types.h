@@ -344,7 +344,7 @@ typedef enum {
     FILENODE = 0,    // FILE - regular file nodes
     FOLDERNODE,      // FOLDER - regular folder nodes
     ROOTNODE,        // ROOT - the cloud drive root node
-    INCOMINGNODE,    // INCOMING - inbox
+    VAULTNODE,       // VAULT - vault, for "My backups" and other special folders
     RUBBISHNODE      // RUBBISH - rubbish bin
 } nodetype_t;
 
@@ -398,7 +398,7 @@ typedef uint64_t nameid;
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
 // FULL - all operations that do not require ownership permitted
-// OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
+// OWNER - node is in caller's ROOT, VAULT or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
 // operations for outgoing pending contacts
