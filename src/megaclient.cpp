@@ -17375,8 +17375,6 @@ bool MegaClient::procaesp()
     error e = json.enterobject() ? readSetsAndElements(json, newSets, newElements) : API_EINTERNAL;
     if (e != API_OK || !json.leaveobject())
     {
-        fetchingnodes = false;
-        app->fetchnodes_result(e != API_OK ? e : API_EINTERNAL);
         return false;
     }
 

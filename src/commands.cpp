@@ -5812,10 +5812,7 @@ bool CommandFetchNodes::procresult(Result r)
 
             case MAKENAMEID4('a', 'e', 's', 'p'):
                 // Sets and Elements
-                if (!client->procaesp())
-                {
-                    return false;
-                }
+                client->procaesp(); // continue even if it failed, it's not critical
                 break;
 
 #ifdef ENABLE_CHAT
