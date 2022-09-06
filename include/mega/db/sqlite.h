@@ -85,6 +85,7 @@ public:
     bool removeNodes() override;
 
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
+    void createIndexes() override;
 
     void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted);

@@ -18257,15 +18257,6 @@ bool NodeManager::hasVersion(NodeHandle nodeHandle)
     return node->getCounter().versions;
 }
 
-void NodeManager::initializeCounters()
-{
-    node_vector rootNodes = getRootNodesAndInshares();
-    for (Node* node : rootNodes)
-    {
-        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node);
-    }
-}
-
 void NodeManager::checkOrphanNodes()
 {
     size_t count = 0;
@@ -18290,6 +18281,23 @@ void NodeManager::checkOrphanNodes()
 
     // If parent hasn't arrived, it wont' arrive never
     mNodesWithMissingParent.clear();
+}
+
+void NodeManager::initCompleted()
+{
+    if (!mTable)
+    {
+        assert(false);
+        return;
+    }
+
+    node_vector rootNodes = getRootNodesAndInshares();
+    for (Node* node : rootNodes)
+    {
+        calculateNodeCounter(node->nodeHandle(), TYPE_UNKNOWN, node);
+    }
+
+    mTable->createIndexes();
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
@@ -18405,6 +18413,8 @@ void NodeManager::dumpNodes()
             mTable->put(it.second.mNode.get());
         }
     }
+
+    mTable->createIndexes();
 }
 
 void NodeManager::saveNodeInDb(Node *node)

@@ -118,6 +118,10 @@ public:
     {
 
     }
+    void createIndexes() override
+    {
+
+    }
     bool put(uint32_t, char*, unsigned) override
     {
         return false;
