@@ -627,8 +627,8 @@ const char* MegaNodePrivate::getName()
     {
         case ROOTNODE:
             return "Cloud Drive";
-        case INCOMINGNODE:
-            return "Inbox";
+        case VAULTNODE:
+            return "Vault";
         case RUBBISHNODE:
             return "Rubbish Bin";
         default:
@@ -8547,14 +8547,6 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
     return transfer;
 }
 
-
-void MegaApiImpl::startUploadForChat(const char* localPath, MegaNode* parent, const char* fileName, const char* appData, bool isSourceFileTemporary, MegaTransferListener* listener)
-{
-    MegaTransferPrivate* transfer = createUploadTransfer(false, localPath, parent, fileName, nullptr, MegaApi::INVALID_CUSTOM_MOD_TIME, 0, false, appData, isSourceFileTemporary, true, FS_UNKNOWN, CancelToken(), listener);
-    transferQueue.push(transfer);
-    waiter->notify();
-}
-
 void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener* listener)
 {
     MegaTransferPrivate* transfer = createUploadTransfer(startFirst, localPath, parent, fileName, targetUser, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, cancelToken, listener);
@@ -8694,13 +8686,13 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
         {
             node = getNodeByHandle(t->getNodeHandle());
         }
-        this->startDownload(t->shouldStartFirst(), node, t->getPath(), NULL, 0, t->getAppData(), CancelToken(), listener);
+        this->startDownload(true, node, t->getPath(), NULL, 0, t->getAppData(), CancelToken(), listener);
         delete node;
     }
     else
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
-        this->startUpload (t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), nullptr,
+        this->startUpload (true, t->getPath(), parent, t->getFileName(), nullptr,
                     t->getTime(), 0, t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(),
                     t->isForceNewUpload(), client->fsaccess->getlocalfstype(LocalPath::fromAbsolutePath(t->getPath())),
                     t->accessCancelToken(), listener);
@@ -9237,21 +9229,21 @@ MegaNode *MegaApiImpl::getRootNode()
     return mLastKnownRootNode ? mLastKnownRootNode->copy() : nullptr;
 }
 
-MegaNode* MegaApiImpl::getInboxNode()
+MegaNode* MegaApiImpl::getVaultNode()
 {
     // return without locking the main mutex if possible.
     // Only compare fixed-location 8-byte values
     lock_guard<mutex> g(mLastRecievedLoggedMeMutex);
-    if (client->rootnodes.inbox.isUndef()) return nullptr;
-    if (!mLastKnownInboxNode ||
-        mLastKnownInboxNode->getHandle() != client->rootnodes.inbox.as8byte())
+    if (client->rootnodes.vault.isUndef()) return nullptr;
+    if (!mLastKnownVaultNode ||
+        mLastKnownVaultNode->getHandle() != client->rootnodes.vault.as8byte())
     {
         // ok now lock main mutex
         SdkMutexGuard lock(sdkMutex);
-        mLastKnownInboxNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.inbox)));
+        mLastKnownVaultNode.reset(MegaNodePrivate::fromNode(client->nodeByHandle(client->rootnodes.vault)));
     }
 
-    return mLastKnownInboxNode ? mLastKnownInboxNode->copy() : nullptr;
+    return mLastKnownVaultNode ? mLastKnownVaultNode->copy() : nullptr;
 }
 
 MegaNode* MegaApiImpl::getRubbishNode()
@@ -9299,7 +9291,7 @@ bool MegaApiImpl::isInRootnode(MegaNode *node, int index)
     if (MegaNode *rootnode = getRootNode(node))
     {
         ret = (index == 0 && rootnode->getHandle() == client->rootnodes.files.as8byte()) ||
-              (index == 1 && rootnode->getHandle() == client->rootnodes.inbox.as8byte()) ||
+              (index == 1 && rootnode->getHandle() == client->rootnodes.vault.as8byte()) ||
               (index == 2 && rootnode->getHandle() == client->rootnodes.rubbish.as8byte());
         delete rootnode;
     }
@@ -11426,9 +11418,8 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, CancelToken cancelTo
     };
 
     if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.files);
-    if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.inbox);
+    if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.vault);
     if (!cancelToken.isCancelled()) searchRoot(client->rootnodes.rubbish);
-
 
     // inshares
     unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
@@ -11996,7 +11987,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
 
         if (target == MegaApi::SEARCH_TARGET_ROOTNODE || target == MegaApi::SEARCH_TARGET_ALL)
         {
-            // Search on rootnode (cloud, excludes Inbox and Rubbish)
+            // Search on rootnode (cloud, excludes Vault and Rubbish)
             node = client->nodeByHandle(client->rootnodes.files);
 
             SearchTreeProcessor searchProcessor(client, searchString, type);
@@ -18434,6 +18425,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                             if (uploadToInbox)
                             {
+                                // obsolete feature, kept for sending logs to helpdesk
                                 client->putnodes(inboxTarget, move(tc.nn), nextTag);
                             }
                             else
@@ -19262,7 +19254,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (node->type == ROOTNODE
-                    || node->type == INCOMINGNODE
+                    || node->type == VAULTNODE
                     || node->type == RUBBISHNODE
                     || !node->parent) // rootnodes cannot be moved
             {
@@ -19691,7 +19683,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (node->type == ROOTNODE
-                    || node->type == INCOMINGNODE
+                    || node->type == VAULTNODE
                     || node->type == RUBBISHNODE) // rootnodes cannot be deleted
             {
                 e = API_EACCESS;

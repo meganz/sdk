@@ -486,12 +486,13 @@ class MegaNode
 {
     public:
 		enum {
-			TYPE_UNKNOWN = -1,
-			TYPE_FILE = 0,
-			TYPE_FOLDER,
-			TYPE_ROOT,
-			TYPE_INCOMING,
-            TYPE_RUBBISH
+            TYPE_UNKNOWN    = -1,
+            TYPE_FILE       = 0,
+            TYPE_FOLDER     = 1,
+            TYPE_ROOT       = 2,
+            TYPE_VAULT      = 3,
+            TYPE_INCOMING   = TYPE_VAULT,    // kept for backwards-compatibility (renamed to Vault)
+            TYPE_RUBBISH    = 4
 		};
 
         enum {
@@ -556,8 +557,8 @@ class MegaNode
          * - TYPE_ROOT = 2
          * The MegaNode object represents root of the MEGA Cloud Drive
          *
-         * - TYPE_INCOMING = 3
-         * The MegaNode object represents root of the MEGA Inbox
+         * - TYPE_VAULT = 3
+         * The MegaNode object represents root of the MEGA Vault
          *
          * - TYPE_RUBBISH = 4
          * The MegaNode object represents root of the MEGA Rubbish Bin
@@ -10577,6 +10578,9 @@ class MegaApi
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
+         * @obsolete The Inbox rootnode has been recycled for Vault and will no longer
+         * accept to put nodes in user's Inbox. This method could be removed in the future.
+         *
          * @param node Node to send
          * @param user User that receives the node
          * @param listener MegaRequestListener to track this request
@@ -10593,6 +10597,9 @@ class MegaApi
         *
         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+        *
+        * @obsolete The Inbox rootnode has been recycled for Vault and will no longer
+        * accept to put nodes in user's Inbox. This method could be removed in the future.
         *
         * @param node Node to send
         * @param email Email of the user that receives the node
@@ -13035,6 +13042,8 @@ class MegaApi
          * this method will force a new upload from the scratch (ensuring the file attributes are set),
          * instead of doing a remote copy.
          *
+         * This method always puts the transfer on top of the upload queue.
+         *
          * If the status of the business account is expired, onTransferFinish will be called with the error
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
@@ -13168,6 +13177,9 @@ class MegaApi
          * If the transfer parameter is NULL or is not of type MegaTransfer::TYPE_DOWNLOAD or
          * MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
          * MegaApi::startUpload) the function returns without doing anything.
+         *
+         * Note that retried transfers will always start first, so the user see them progressing
+         * immediately.
          *
          * @param transfer Transfer to be retried
          * @param listener MegaTransferListener to track this transfer
@@ -15104,7 +15116,7 @@ class MegaApi
          *
          * The path separator character is '/'
          * The Root node is /
-         * The Inbox root node is //in/
+         * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
          * Paths with names containing '/', '\' or ':' aren't compatible
@@ -15698,14 +15710,19 @@ class MegaApi
         MegaNode *getRootNode();
 
         /**
-         * @brief Returns the inbox node of the account
+         * @brief Returns the Vault node of the account
          *
          * You take the ownership of the returned value
          *
          * If you haven't successfully called MegaApi::fetchNodes before,
          * this function returns NULL
          *
-         * @return Inbox node of the account
+         * @return Vault node of the account
+         */
+        MegaNode *getVaultNode();
+
+        /**
+         * @deprecated Renamed to getVaultNode(). Should be replaced in external bindings before being removed here.
          */
         MegaNode* getInboxNode();
 
@@ -15748,12 +15765,17 @@ class MegaApi
         bool isInRubbish(MegaNode *node);
 
         /**
-         * @brief Check if a node is in the Inbox tree
+         * @brief Check if a node is in the Vault tree
          *
          * @param node Node to check
-         * @return True if the node is in the Inbox
+         * @return True if the node is in the Vault
          */
-        bool isInInbox(MegaNode *node);
+        bool isInVault(MegaNode *node);
+
+        /**
+         * @deprecated Renamed to isInVault(). Should be replaced in external bindings before being removed here.
+         */
+        bool isInInbox(MegaNode* node) { return isInVault(node); }
 
         /**
          * @brief Set default permissions for new files
@@ -15995,7 +16017,7 @@ class MegaApi
          *
          * The search will consider every accessible node for the account:
          *  - Cloud drive
-         *  - Inbox
+         *  - Vault
          *  - Rubbish bin
          *  - Incoming shares from other users
          *
@@ -16076,7 +16098,7 @@ class MegaApi
          *
          * The search will consider every accessible node for the account:
          *  - Cloud drive
-         *  - Inbox
+         *  - Vault
          *  - Rubbish bin
          *  - Incoming shares from other users
          *
@@ -19697,10 +19719,10 @@ public:
      *
      * This function can return:
      * - 0 (no info about any node)
-     * - 3 (info about the root node, the inbox node and the rubbish node)
-     * Use MegaApi::getRootNode MegaApi::getInboxNode and MegaApi::getRubbishNode to get those nodes.
+     * - 3 (info about the root node, the vault node and the rubbish node)
+     * Use MegaApi::getRootNode MegaApi::getVaultNode and MegaApi::getRubbishNode to get those nodes.
      *
-     * - >3 (info about root, inbox, rubbish and incoming shares)
+     * - >3 (info about root, vault, rubbish and incoming shares)
      * Use MegaApi::getInShares to get the incoming shares
      *
      * @return Number of items with account usage info
@@ -19714,7 +19736,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Used storage (in bytes)
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getStorageUsed(MegaHandle handle);
 
@@ -19725,7 +19747,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Number of files in the node
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getNumFiles(MegaHandle handle);
 
@@ -19736,7 +19758,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Number of folders in the node
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getNumFolders(MegaHandle handle);
 
@@ -19747,7 +19769,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Used storage by versions (in bytes)
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getVersionStorageUsed(MegaHandle handle);
 
@@ -19758,7 +19780,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Number of versioned files in the node
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getNumVersionFiles(MegaHandle handle);
 
