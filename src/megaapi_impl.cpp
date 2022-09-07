@@ -11852,11 +11852,13 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
     auto it = nodeVector.begin();
     while (it != nodeVector.end() && !cancelToken.isCancelled())
     {
-        auto itNode = it;
-        it++;
-        if (!isValidTypeNode(*itNode, type))
+        if (!isValidTypeNode(*it, type))
         {
-            nodeVector.erase(itNode);
+            it = nodeVector.erase(it);
+        }
+        else
+        {
+            ++it;
         }
     }
 
@@ -19562,10 +19564,10 @@ void MegaApiImpl::sendPendingRequests()
 
                         string link = client->publicLinkURL(client->mNewLinkFormat, n->type, ph, key);
                         request->setLink(link.c_str());
-				        if (n->plink && n->plink->mAuthKey.size())
-				        {
-				            request->setPrivateKey(n->plink->mAuthKey.c_str());
-				        }
+                        if (n->plink && n->plink->mAuthKey.size())
+                        {
+                            request->setPrivateKey(n->plink->mAuthKey.c_str());
+                        }
 
                         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
                     }
@@ -26622,7 +26624,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
             Error e = createFolder();
 
             // the thread always queues a function to execute on MegaApi thread for onFinish()
-			// we keep a pointer to it in case we need to cancel()
+            // we keep a pointer to it in case we need to cancel()
             mCompletionForMegaApiThread.reset(new ExecuteOnce([this, fsType, e]() {
 
                 // these next parts must run on MegaApiImpl's thread again, as
