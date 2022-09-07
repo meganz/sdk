@@ -165,6 +165,31 @@ public:
     void clear();
     void truncate(size_t bytePos);
     LocalPath leafName() const;
+
+    /*
+    * Return the last component of the path (internally uses absolute path, no matter how the instance was initialized)
+    * that could be used as an actual name.
+    *
+    * Examples:
+    *   "D:\\foo\\bar.txt"  "bar.txt"
+    *   "D:\\foo\\"         "foo"
+    *   "D:\\foo"           "foo"
+    *   "D:\\"              "D"
+    *   "D:"                "D"
+    *   "D"                 "D"
+    *   "D:\\.\\"           "D"
+    *   "D:\\."             "D"
+    *   ".\\foo\\"          "foo"
+    *   ".\\foo"            "foo"
+    *   ".\\"               (as in "C:\\foo\\bar\\.\\")                             "bar"
+    *   "."                 (as in "C:\\foo\\bar\\.")                               "bar"
+    *   "..\\..\\"          (as in "C:\\foo\\bar\\..\\..\\")                        "C"
+    *   "..\\.."            (as in "C:\\foo\\bar\\..\\..")                          "C"
+    *   "..\\..\\.."        (as in "C:\\foo\\bar\\..\\..\\..", thus too far back)   "C"
+    *   "/" (*nix)          ""
+    */
+    string leafOrParentName() const;
+
     void append(const LocalPath& additionalPath);
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways);
     void prependWithSeparator(const LocalPath& additionalPath);

@@ -9859,7 +9859,7 @@ void exec_syncadd(autocomplete::ACState& s)
 
     if (!named)
     {
-        syncname = sourcePath.leafName().toPath();
+        syncname = sourcePath.leafOrParentName();
     }
 
     if (!backup) // regular sync

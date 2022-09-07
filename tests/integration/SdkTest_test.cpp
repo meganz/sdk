@@ -5267,6 +5267,68 @@ TEST_F(SdkTest, SdkGetBanners)
     ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Get banners failed (error: " << err << ")";
 }
 
+TEST_F(SdkTest, SdkLocalPath_leafOrParentName)
+{
+    char pathSep = LocalPath::localPathSeparator_utf8;
+#ifdef WIN32
+    string rootName = "D";
+    string rootDrive = rootName + ':';
+#else
+    string rootName = "";
+    string rootDrive(1, pathSep);
+#endif
+
+    // "D:\\foo\\bar.txt" or "/foo/bar.txt"
+    LocalPath lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar.txt");
+    ASSERT_EQ(lp.leafOrParentName(), "bar.txt");
+
+    // "D:\\foo\\" or "/foo/"
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep);
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+
+    // "D:\\foo" or "/foo"
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo");
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+
+    // "D:\\" or "/"
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep);
+    ASSERT_EQ(lp.leafOrParentName(), rootName);
+
+#ifdef WIN32
+    // "D:"
+    lp = LocalPath::fromAbsolutePath(rootDrive);
+    ASSERT_EQ(lp.leafOrParentName(), rootName);
+
+    // "D"
+    lp = LocalPath::fromAbsolutePath(rootName);
+    ASSERT_EQ(lp.leafOrParentName(), rootName);
+#endif
+
+    // "D:\\foo\\bar\\.\\" or "/foo/bar/./"
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + '.' + pathSep);
+    ASSERT_EQ(lp.leafOrParentName(), "bar");
+
+    // "D:\\foo\\bar\\." or "/foo/bar/."
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + '.');
+    ASSERT_EQ(lp.leafOrParentName(), "bar");
+
+    // "D:\\foo\\bar\\..\\" or "/foo/bar/../"
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + ".." + pathSep);
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+
+    // "D:\\foo\\bar\\.." or "/foo/bar/.."
+    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + "..");
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+
+    // ".\\foo\\" or "./foo/"
+    lp = LocalPath::fromRelativePath(string(".") + pathSep + "foo" + pathSep);
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+
+    // ".\\foo" or "./foo"
+    lp = LocalPath::fromRelativePath(string(".") + pathSep + "foo");
+    ASSERT_EQ(lp.leafOrParentName(), "foo");
+}
+
 TEST_F(SdkTest, SdkBackupFolder)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
