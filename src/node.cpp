@@ -73,7 +73,7 @@ Node::Node(MegaClient& cclient, NodeHandle h, NodeHandle ph,
 
     memset(&changed, 0, sizeof changed);
 
-    mFingerPrintPosition = client->mNodeManager.getInvalidPosition();
+    mFingerPrintPosition = client->mNodeManager.invalidFingerprintPos();
 
     if (type == FILENODE)
     {

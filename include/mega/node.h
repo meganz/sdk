@@ -114,14 +114,8 @@ struct NodeCounter
     NodeCounter() = default;
 };
 
-struct NodesFingerprintMap
-{
-    bool mAllNodesLoaded = false;
-    nodePtr_map mNodes;
-};
-
-typedef std::map<FileFingerprint, NodesFingerprintMap, FileFingerprintCmp> FingerprintMap;
-typedef FingerprintMap::iterator FingerprintMapPosition;
+typedef std::multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
+typedef fingerprint_set::iterator FingerprintPosition;
 
 
 class NodeManagerNode
@@ -255,7 +249,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // own position in NodeManager::mFingerPrints (only valid for file nodes)
     // It's used for speeding up node removing at NodeManager::removeFingerprint
-    FingerprintMapPosition mFingerPrintPosition;
+    FingerprintPosition mFingerPrintPosition;
     // own position in NodeManager::mNodes. The map can have an element of type NodeManagerNode
     // previously Node exists
     // It's used for speeding up get children when Node parent is known

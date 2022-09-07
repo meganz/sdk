@@ -424,7 +424,7 @@ bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerpr
 
 bool FileFingerprintCmp::operator()(const FileFingerprint &a, const FileFingerprint &b) const
 {
-    return operator()(&a, &b);
+     return operator()(&a, &b);
 }
 
 bool LightFileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime)

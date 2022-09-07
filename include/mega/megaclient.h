@@ -304,9 +304,9 @@ public:
     // If a cancelFlag is passed, it must be kept alive until this method returns
     node_vector search(NodeHandle nodeHandle, const char *searchString, CancelToken cancelFlag);
 
-    node_vector getNodesByFingerprint(const FileFingerprint& fingerprint);
+    node_vector getNodesByFingerprint(FileFingerprint& fingerprint);
     node_vector getNodesByOrigFingerprint(const std::string& fingerprint, Node *parent);
-    Node *getNodeByFingerprint(const FileFingerprint& fingerprint);
+    Node *getNodeByFingerprint(FileFingerprint &fingerprint);
 
     // Return a first level child node whose name matches with 'name'
     // Valid values for nodeType: FILENODE, FOLDERNODE
@@ -376,12 +376,12 @@ public:
     // Set values to mClient.rootnodes for ROOTNODE, INBOX and RUBBISH
     bool setrootnode(Node* node);
 
-    // Add fingerprint to mFingerprint map. If Node is loaded in RAM,
-    // a pointer to it is also stored in the map
-    FingerprintMapPosition insertFingerprint(Node* node);
-    // Remove fingerprint from mFingerprint map
+    // Add fingerprint to mFingerprint. If node isn't going to keep in RAM
+    // node isn't added
+    FingerprintPosition insertFingerprint(Node* node);
+    // Remove fingerprint from mFingerprint
     void removeFingerprint(Node* node);
-    FingerprintMapPosition getInvalidPosition();
+    FingerprintPosition invalidFingerprintPos();
 
     // Node has received last updates and it's ready to store in DB
     void saveNodeInDb(Node *node);
@@ -448,6 +448,19 @@ private:
         bool isRootNode(NodeHandle h) { return (h == files || h == inbox || h == rubbish); }
     } rootnodes;
 
+    class FingerprintContainer : public fingerprint_set
+    {
+    public:
+        bool allFingerprintsAreLoaded(const FileFingerprint *fingerprint) const;
+        void setAllFingerprintLoaded(const FileFingerprint *fingerprint);
+        void clear();
+
+    private:
+        // it stores all FileFingerprint that have been looked up in DB, so it
+        // avoid the DB query for future lookups (includes non-existing (yet) fingerprints)
+        std::set<FileFingerprint, FileFingerprintCmp> mAllFingerprintsLoaded;
+    };
+
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     std::map<NodeHandle, NodeManagerNode> mNodes;
 
@@ -482,8 +495,8 @@ private:
     // returns the counter for the specified node, calculating it recursively and accessing to DB if it's neccesary
     NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node);
 
-    // FileFingerprint to node mapping. If Node is not loaded in memory, the pointer is null
-    FingerprintMap mFingerPrints;
+    // Container storing FileFingerprint* (Node* in practice) ordered by fingerprint
+    FingerprintContainer mFingerPrints;
 
     // Return a node from Data base, node shouldn't be in RAM previously
     Node* getNodeFromDataBase(NodeHandle handle);
