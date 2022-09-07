@@ -8455,13 +8455,19 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
  *  - Client1 creates tree directory with 2 levels and some files at last level
  *  - Check Folder info of root node from client 1 and client 2
  *  - Look for fingerprint and name in both clients
- *  - Locallogout from client 1 and login with session
+ *  - Locallogout from client 1
+ *  - Client 2 remove a node
+ *  - Client 2 check if node is present by fingerprint
+ *  - Client 1 login with session
+ *  - Check nodes by fingerprint
  *  - Check folder info of root node from client 1
  *  - Check if we recover children correctly
  *  - Remove a folder with some files
  *  - Check Folder info of root node from client 1 and client 2
  *  - Move a folder to rubbish bin
  *  - Check Folder info for root node and rubbish bin
+ *  - Locallogout and login from client 1
+ *  - Check nodes by fingerprint without nodes in RAM
  */
 TEST_F(SdkTest, SdkNodesOnDemand)
 {
@@ -8652,9 +8658,9 @@ TEST_F(SdkTest, SdkNodesOnDemand)
 
     ASSERT_TRUE(found);
 
-    // --- UserA get node by fingerprint ---
-    unique_ptr<MegaNode> NodeSameFingerPrint(megaApi[0]->getNodeByFingerprint(fingerPrintToSearch.c_str()));
-    ASSERT_NE(NodeSameFingerPrint.get(), nullptr);
+    // --- UserA get node by fingerprint (loaded in RAM) ---
+    unique_ptr<MegaNode> nodeSameFingerPrint(megaApi[0]->getNodeByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(nodeSameFingerPrint.get(), nullptr);
 
     // --- UserA get node by name ---
     unique_ptr<MegaNodeList> searchList(megaApi[0]->search(fileNameToSearch.c_str()));
@@ -8723,7 +8729,11 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), numberTotalOfFolders) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), accountSize) << "Incorrect account Size";
 
-    // --- UserA get node by fingerprint ---
+    // --- UserA get node by fingerprint (Without nodes in RAM) ---
+    nodeSameFingerPrint.reset(megaApi[0]->getNodeByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(nodeSameFingerPrint.get(), nullptr);
+
+    // --- UserA get nodes by fingerprint, some of them are loaded in RAM
     fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToSearch.c_str()));
     ASSERT_NE(fingerPrintList->size(), 0);
     found = false;
@@ -8737,6 +8747,23 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     }
 
     ASSERT_TRUE(found);
+
+
+    // --- UserA get nodes by fingerprint, all of them are loaded in RAM
+    fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(fingerPrintList->size(), 0);
+    found = false;
+    for (int i = 0; i < fingerPrintList->size(); i++)
+    {
+        if (fingerPrintList->get(i)->getHandle() == nodeHandle)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(found);
+
 
     // --- UserA check children ---
     if (parentHandle != INVALID_HANDLE)  // Get children
@@ -8818,6 +8845,29 @@ TEST_F(SdkTest, SdkNodesOnDemand)
     ASSERT_EQ(mApi[1].mFolderInfo->getNumFiles(), movedFolder->getNumFiles()) << "Incorrect number of Files";
     ASSERT_EQ(mApi[1].mFolderInfo->getNumFolders(), movedFolder->getNumFolders()) << "Incorrect number of Folders";
     ASSERT_EQ(mApi[1].mFolderInfo->getCurrentSize(), movedFolder->getCurrentSize()) << "Incorrect account Size";
+
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    // --- UserA login with session
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    // make sure that client is up to date (upon logout, recent changes might not be committed to DB)
+    ASSERT_TRUE(WaitFor([&](){ return lastEventsContains(MegaEvent::EVENT_NODES_CURRENT); }, 10000)) << "Timeout expired to receive actionpackets";
+
+    // --- UserA get nodes by fingerprint, none of them are loaded in RAM
+    fingerPrintList.reset(megaApi[0]->getNodesByFingerprint(fingerPrintToSearch.c_str()));
+    ASSERT_NE(fingerPrintList->size(), 0);
+    found = false;
+    for (int i = 0; i < fingerPrintList->size(); i++)
+    {
+        if (fingerPrintList->get(i)->getHandle() == nodeHandle)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(found);
 }
 
 /**
