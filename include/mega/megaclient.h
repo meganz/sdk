@@ -455,6 +455,8 @@ private:
         void clear();
 
     private:
+        // it stores all FileFingerprint that have been looked up in DB, so it
+        // avoid the DB query for future lookups (includes non-existing (yet) fingerprints)
         std::set<FileFingerprint, FileFingerprintCmp> mAllFingerprintsLoaded;
     };
 

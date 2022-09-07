@@ -17218,12 +17218,12 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
     }
 
     // Take first nodes in RAM
-    nodePtr_map fingerprints;
+    std::set<NodeHandle> fpLoaded;
     auto p = mFingerPrints.equal_range(&fingerprint);
     for (auto it = p.first; it != p.second; ++it)
     {
         Node* node = static_cast<Node*>(*it);
-        fingerprints.emplace(node->nodeHandle(), node);
+        fpLoaded.emplace(node->nodeHandle());
         nodes.push_back(node);
     }
 
@@ -17243,7 +17243,7 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
         for (const auto& nodeIt : nodesFromTable)
         {
             // avoid to load already loaded nodes (found at mFingerPrints)
-            if (fingerprints.find(nodeIt.first) == fingerprints.end())
+            if (fpLoaded.find(nodeIt.first) == fpLoaded.end())
             {
                 Node* node = getNodeFromNodeSerialized(nodeIt.second);
                 if (!node)
