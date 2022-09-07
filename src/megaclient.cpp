@@ -14414,7 +14414,10 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
                     << " as there is no config store.";
 
             completion(API_EINTERNAL, NO_SYNC_ERROR, UNDEF);
-            cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
+            if (config.isBackup())
+            {
+                cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
+            }
 
             return API_EINTERNAL;
         }
@@ -14435,7 +14438,10 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
                         << " as we could not read its config database.";
 
                 completion(API_EFAILED, NO_SYNC_ERROR, UNDEF);
-                cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
+                if (config.isBackup())
+                {
+                    cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
+                }
 
                 return API_EFAILED;
             }
@@ -14462,7 +14468,10 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
             if (e)
             {
                 completion(e, config.mError, backupId);
-                cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
+                if (config.isBackup())
+                {
+                    cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
+                }
             }
             else
             {
