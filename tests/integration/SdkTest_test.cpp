@@ -5270,12 +5270,12 @@ TEST_F(SdkTest, SdkGetBanners)
 TEST_F(SdkTest, SdkLocalPath_leafOrParentName)
 {
     char pathSep = LocalPath::localPathSeparator_utf8;
+
+    string rootName;
+    string rootDrive;
 #ifdef WIN32
-    string rootName = "D";
-    string rootDrive = rootName + ':';
-#else
-    string rootName = "";
-    string rootDrive(1, pathSep);
+    rootName = "D";
+    rootDrive = rootName + ':';
 #endif
 
     // "D:\\foo\\bar.txt" or "/foo/bar.txt"
