@@ -316,7 +316,7 @@ private:
 
 inline const string& Node::nodekey() const
 {
-    assert(keyApplied() || type == ROOTNODE || type == INCOMINGNODE || type == RUBBISHNODE);
+    assert(keyApplied() || type == ROOTNODE || type == VAULTNODE || type == RUBBISHNODE);
     return nodekeydata;
 }
 

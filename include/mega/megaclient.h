@@ -406,8 +406,8 @@ public:
     NodeHandle getRootNodeFiles() {
         return rootnodes.files;
     }
-    NodeHandle getRootNodeInbox() {
-        return rootnodes.inbox;
+    NodeHandle getRootNodeVault() {
+        return rootnodes.vault;
     }
     NodeHandle getRootNodeRubbish() {
         return rootnodes.rubbish;
@@ -415,8 +415,8 @@ public:
     void setRootNodeFiles(NodeHandle h) {
         rootnodes.files = h;
     }
-    void setRootNodeInbox(NodeHandle h) {
-        rootnodes.inbox = h;
+    void setRootNodeVault(NodeHandle h) {
+        rootnodes.vault = h;
     }
     void setRootNodeRubbish(NodeHandle h) {
         rootnodes.rubbish = h;
@@ -436,16 +436,16 @@ private:
     // interface to handle accesses to "nodes" table
     DBTableNodes* mTable = nullptr;
 
-    // root nodes (files, incoming, rubbish)
+    // root nodes (files, vault, rubbish)
     struct Rootnodes
     {
         NodeHandle files;
-        NodeHandle inbox;
+        NodeHandle vault;
         NodeHandle rubbish;
 
         // returns true if the 'h' provided matches any of the rootnodes.
         // (when logged into folder links, the handle of the folder is set to 'files')
-        bool isRootNode(NodeHandle h) { return (h == files || h == inbox || h == rubbish); }
+        bool isRootNode(NodeHandle h) { return (h == files || h == vault || h == rubbish); }
     } rootnodes;
 
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)

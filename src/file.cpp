@@ -350,7 +350,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
 
     if (targetuser.size())
     {
-        // drop file into targetuser's inbox
+        // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
         client->putnodes(targetuser.c_str(), move(newnodes), tag, move(completion));
     }
     else

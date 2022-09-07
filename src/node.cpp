@@ -664,7 +664,7 @@ string Node::displaypath() const
             }
             break;
 
-        case INCOMINGNODE:
+        case VAULTNODE:
             path.insert(0, "//in");
             return path;
 
