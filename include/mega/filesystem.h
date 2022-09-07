@@ -583,7 +583,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) = 0;
 
     // get the absolute path corresponding to a path
-    virtual bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) = 0;
+    virtual bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) = 0;
 
     // default permissions for new files
     int getdefaultfilepermissions() { return 0600; }
