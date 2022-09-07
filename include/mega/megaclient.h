@@ -447,6 +447,17 @@ private:
         bool isRootNode(NodeHandle h) { return (h == files || h == inbox || h == rubbish); }
     } rootnodes;
 
+    class FingerprintContainer : public fingerprint_set
+    {
+    public:
+        bool allFingerprintsAreLoaded(const FileFingerprint *fingerprint) const;
+        void setAllFingerprintLoaded(const FileFingerprint *fingerprint);
+        void clear();
+
+    private:
+        std::set<FileFingerprint, FileFingerprintCmp> mAllFingerprintsLoaded;
+    };
+
     // Stores nodes that have been loaded in RAM from DB (not necessarily all of them)
     std::map<NodeHandle, NodeManagerNode> mNodes;
 
@@ -479,7 +490,7 @@ private:
     NodeCounter calculateNodeCounter(const NodeHandle &nodehandle, nodetype_t parentType, Node *node);
 
     // Container storing FileFingerprint* (Node* in practice) ordered by fingerprint
-    fingerprint_set mFingerPrints;
+    FingerprintContainer mFingerPrints;
 
     // Return a node from Data base, node shouldn't be in RAM previously
     Node* getNodeFromDataBase(NodeHandle handle);

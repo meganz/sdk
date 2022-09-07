@@ -17227,6 +17227,12 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
         nodes.push_back(node);
     }
 
+    // If all fingerprints are loaded at DB, it isn't necessary search in DB
+    if (mFingerPrints.allFingerprintsAreLoaded(&fingerprint))
+    {
+        return nodes;
+    }
+
     // Look for nodes at DB
     std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
     std::string fingerprintString;
@@ -17250,6 +17256,8 @@ node_vector NodeManager::getNodesByFingerprint(FileFingerprint &fingerprint)
             }
         }
     }
+
+    mFingerPrints.setAllFingerprintLoaded(&fingerprint);
 
     return nodes;
 }
@@ -18457,6 +18465,22 @@ node_vector NodeManager::filterByAncestor(const std::vector<std::pair<NodeHandle
 size_t NodeManager::nodeNotifySize() const
 {
     return mNodeNotify.size();
+}
+
+bool NodeManager::FingerprintContainer::allFingerprintsAreLoaded(const FileFingerprint *fingerprint) const
+{
+    return mAllFingerprintsLoaded.find(*fingerprint) != mAllFingerprintsLoaded.end();
+}
+
+void NodeManager::FingerprintContainer::setAllFingerprintLoaded(const mega::FileFingerprint *fingerprint)
+{
+    mAllFingerprintsLoaded.insert(*fingerprint);
+}
+
+void NodeManager::FingerprintContainer::clear()
+{
+    fingerprint_set::clear();
+    mAllFingerprintsLoaded.clear();
 }
 
 } // namespace
