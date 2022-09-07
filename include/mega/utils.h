@@ -549,8 +549,8 @@ struct CacheableWriter
     void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility. Only use for utf8!  (std::string storing double byte chars will only store 1 byte)
     void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
-    void serializecompressedU64(uint64_t field);
-    void serializecompressedI64(int64_t field) { serializecompressedU64(field); }
+    void serializecompressedu64(uint64_t field);
+    void serializecompressedi64(int64_t field) { serializecompressedu64(field); }
     void serializei64(int64_t field);
     void serializeu32(uint32_t field);
     void serializehandle(handle field);
@@ -577,8 +577,8 @@ struct CacheableReader
     bool unserializebinary(byte* data, size_t len);
     bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
-    bool unserializecompressedU64(uint64_t& field);
-    bool unserializecompressedI64(int64_t& field) { return unserializecompressedU64(reinterpret_cast<uint64_t&>(field)); }
+    bool unserializecompressedu64(uint64_t& field);
+    bool unserializecompressedi64(int64_t& field) { return unserializecompressedu64(reinterpret_cast<uint64_t&>(field)); }
     bool unserializei64(int64_t& s);
     bool unserializeu32(uint32_t& s);
     bool unserializebyte(byte& s);
