@@ -842,7 +842,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
     if(npos > transfer->pos)
     {
         // Calc limit for request size value depending on connection/transfer/progress heuristics.
-        m_off_t maxReqSize = npos;
+        m_off_t maxReqSize = 0;
         if (transfer->type == PUT)
         {
             // choose upload chunks that are big enough to saturate the connection, so we don't start HTTP PUT request too frequently
@@ -858,7 +858,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
             m_off_t speedsize = std::min<m_off_t>(maxsize, uploadSpeed * 2 / 3);        // two seconds of data over 3 connections
             m_off_t sizesize = transfer->size > largeSize ? 8 * 1024 * 1024 : 0; // start with large-ish portions for large files.
             m_off_t targetsize = std::max<m_off_t>(sizesize, speedsize);
-            maxReqSize = transfer->pos + targetsize;
+            maxReqSize = targetsize;
         }
         else if (transfer->type == GET)
         {
