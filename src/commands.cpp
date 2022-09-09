@@ -9126,7 +9126,7 @@ bool CommandRemoveSet::procresult(Result r)
     return parsedOk;
 }
 
-CommandFetchSet::CommandFetchSet(MegaClient* client, handle id,
+CommandFetchSet::CommandFetchSet(MegaClient*, handle id,
     std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
     : mCompletion(completion)
 {
@@ -9163,12 +9163,10 @@ bool CommandFetchSet::procresult(Result r)
 
     if (mCompletion)
     {
-        Set* s = sets.empty() ? nullptr : (new Set(move(sets.begin()->second)));
-        map<handle, SetElement>* els = nullptr;
-        if (!elements.empty())
-        {
-            els = new map<handle, SetElement>(move(elements.begin()->second));
-        }
+        Set* s = sets.empty() ? new Set() : (new Set(move(sets.begin()->second)));
+        map<handle, SetElement>* els = elements.empty()
+                ? new map<handle, SetElement>()
+            : new map<handle, SetElement>(move(elements.begin()->second));
         mCompletion(API_OK, s, els);
     }
 

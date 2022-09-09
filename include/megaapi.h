@@ -19490,8 +19490,8 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getMegaSet - Returns the Set, or null if not found
-         * - MegaRequest::getMegaSetElementList - Returns the list of Elements, or null if not found
+         * - MegaRequest::getMegaSet - Returns the Set
+         * - MegaRequest::getMegaSetElementList - Returns the list of Elements
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_ENOENT - Set could not be found.
