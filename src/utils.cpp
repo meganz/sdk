@@ -1114,10 +1114,11 @@ ScheduledRules* ScheduledRules::unserialize(string* in)
 
 /* class scheduledMeeting */
 ScheduledMeeting::ScheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
-                                const char* title, const char* description, handle callid,
+                                const char* title, const char* description, handle organizerUserId, handle callid,
                                 handle parentCallid, int cancelled, const char* attributes,
                                 const char* overrides, ScheduledFlags* flags, ScheduledRules* rules)
     : mChatid(chatid),
+      mOrganizerUserId(organizerUserId),
       mCallid(callid),
       mParentCallid(parentCallid),
       mTimezone(timezone ? timezone : std::string()),
@@ -1134,11 +1135,12 @@ ScheduledMeeting::ScheduledMeeting(handle chatid, const char* timezone, const ch
 }
 
 ScheduledMeeting::ScheduledMeeting(handle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                const char* description, int freq, handle callid, handle parentCallid,
+                                const char* description, int freq, handle organizerUserId, handle callid, handle parentCallid,
                                 int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
                                 const char* until, const mega::ScheduledRules::rules_vector *byWeekDay, const mega::ScheduledRules::rules_vector *byMonthDay,
                                 const mega::ScheduledRules::rules_map *byMonthWeekDay)
     : mChatid(chatid),
+      mOrganizerUserId(organizerUserId),
       mCallid(callid),
       mParentCallid(parentCallid),
       mTimezone(timezone ? timezone : std::string()),
@@ -1156,6 +1158,7 @@ ScheduledMeeting::ScheduledMeeting(handle chatid, const char* timezone, const ch
 
 ScheduledMeeting::ScheduledMeeting(ScheduledMeeting* scheduledMeeting)
     : mChatid(scheduledMeeting->chatid()),
+      mOrganizerUserId(scheduledMeeting->organizerUserid()),
       mCallid(scheduledMeeting->callid()),
       mParentCallid(scheduledMeeting->parentCallid()),
       mTimezone(scheduledMeeting->timezone() ? scheduledMeeting->timezone() : std::string()),
@@ -1193,6 +1196,7 @@ void ScheduledMeeting::setFlags(ScheduledFlags* flags)
 }
 
 void ScheduledMeeting::setChatid(handle chatid)                     { mChatid = chatid; }
+void ScheduledMeeting::setOrganizerUserid(handle userid)            { mOrganizerUserId = userid; }
 void ScheduledMeeting::setCallid(handle callid)                     { mCallid = callid; }
 void ScheduledMeeting::setParentCallid(handle parentCallid)         { mParentCallid = parentCallid; }
 void ScheduledMeeting::setTimezone(const char* timezone)            { mTimezone.assign(timezone ? timezone : std::string()); }
@@ -1205,6 +1209,7 @@ void ScheduledMeeting::setOverrides(const char* overrides)          { mOverrides
 void ScheduledMeeting::setCancelled(int cancelled)                  { mCancelled = cancelled; }
 
 handle ScheduledMeeting::chatid() const                             { return mChatid; }
+handle ScheduledMeeting::organizerUserid() const                    { return mOrganizerUserId; }
 handle ScheduledMeeting::callid() const                             { return mCallid; }
 handle ScheduledMeeting::parentCallid() const                       { return mParentCallid; }
 const char* ScheduledMeeting::timezone() const                      { return !mTimezone.empty() ? mTimezone.c_str() : nullptr; }
@@ -1232,6 +1237,7 @@ bool ScheduledMeeting::serialize(string* out)
 
     CacheableWriter w(*out);
     w.serializehandle(chatid());
+    w.serializehandle(organizerUserid());
     w.serializestring(mTimezone);
     w.serializestring(mStartDateTime);
     w.serializestring(mEndDateTime);
@@ -1261,6 +1267,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
 {
     if (!in || in->empty())  { return nullptr; }
     handle chatid = UNDEF;
+    handle organizerUserid = UNDEF;
     handle callid = UNDEF;
     handle parentCallid = UNDEF;
     std::string timezone;
@@ -1279,6 +1286,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
 
     CacheableReader w(*in);
     w.unserializehandle(chatid);
+    w.unserializehandle(organizerUserid);
     w.unserializestring(timezone);
     w.unserializestring(startDateTime);
     w.unserializestring(endDateTime);
@@ -1316,7 +1324,7 @@ ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
     }
 
     return new ScheduledMeeting(chatid, timezone.c_str(), startDateTime.c_str(), endDateTime.c_str(),
-                                title.c_str(), description.c_str(),
+                                title.c_str(), description.c_str(), organizerUserid,
                                 hasCallid ? callid : UNDEF,
                                 hasParentCallid ? parentCallid : UNDEF,
                                 hasCancelled ? cancelled : -1,

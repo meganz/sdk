@@ -848,12 +848,12 @@ class ScheduledMeeting
 public:
     ScheduledMeeting() = default;
     ScheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
-                     const char* title, const char* description, handle callid = UNDEF,
+                     const char* title, const char* description, handle organizerUserId, handle callid = UNDEF,
                      handle parentCallid = UNDEF, int cancelled = -1, const char* attributes = nullptr,
                      const char* overrides = nullptr, ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
 
     ScheduledMeeting(handle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                    const char* description, int freq, handle callid, handle parentCallid,
+                                    const char* description, int freq, handle organizerUserId, handle callid, handle parentCallid,
                                     int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
                                     const char* until, const ScheduledRules::rules_vector* byWeekDay, const ScheduledRules::rules_vector* byMonthDay,
                                     const ScheduledRules::rules_map* byMonthWeekDay);
@@ -876,9 +876,11 @@ public:
     void setParentCallid(handle parentCallid);
     void setCallid(handle callid);
     void setChatid(handle chatid);
+    void setOrganizerUserid(handle userid);
 
     // getters
     handle chatid() const;
+    handle organizerUserid() const;
     handle callid() const;
     handle parentCallid() const;
     const char* timezone() const;
@@ -899,6 +901,9 @@ public:
 private:
     // [required]: chat handle
     handle mChatid;
+
+    // [Optional]: organizer user handle
+    handle mOrganizerUserId;
 
     // [optional]: scheduled meeting handle
     handle mCallid;

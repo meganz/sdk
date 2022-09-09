@@ -10699,15 +10699,15 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
 }
 
 void MegaApiImpl::createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                         const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
+                                         const char* description, int freq, MegaHandle organizerUserId, MegaHandle callid, MegaHandle parentCallid,
                                          int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
                                          const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
                                          const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SCHEDULED_MEETING, listener);
     std::unique_ptr<MegaScheduledMeeting> schedMeeting(MegaScheduledMeeting::createInstance(chatid, timezone, startDate, endDate,
-                                                                                            title, description, freq, callid,
-                                                                                            parentCallid, cancelled, emailsDisabled,
+                                                                                            title, description, freq, organizerUserId,
+                                                                                            callid, parentCallid, cancelled, emailsDisabled,
                                                                                             attributes, overrides, interval, until,
                                                                                             byWeekDay, byMonthDay, byMonthWeekDay));
 
@@ -34507,10 +34507,10 @@ const vector<handle>& FavouriteProcessor::getHandles() const
 }
 
 MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                            const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
+                            const char* description, int freq, MegaHandle organizerUserId, MegaHandle callid, MegaHandle parentCallid,
                             int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
                             const char* until, const MegaSmallIntVector *byWeekDay, const MegaSmallIntVector *byMonthDay, const MegaSmallIntMap *byMonthWeekDay)
-    :ScheduledMeeting(chatid, timezone, startDate, endDate, title, description, freq, callid, parentCallid,
+    :ScheduledMeeting(chatid, timezone, startDate, endDate, title, description, freq, organizerUserId, callid, parentCallid,
                       cancelled, emailsDisabled, attributes, overrides, interval, until,
                       byWeekDay ? byWeekDay : nullptr,
                       byMonthDay ? byMonthDay : nullptr,
