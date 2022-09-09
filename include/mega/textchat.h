@@ -57,7 +57,7 @@ struct TextChat : public Cacheable
     bool publicchat;  // whether the chat is public or private
     bool meeting;     // chat is meeting room
     byte chatOptions; // each chat option is represented in 1 bit (check ChatOptions struct at types.h)
-    std::unique_ptr<ScheduledMeeting> mScheduledMeeting;
+    map<handle, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
 
 private:        // use setter to modify these members
     byte flags;     // currently only used for "archive" flag at first bit

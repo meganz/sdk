@@ -99,8 +99,8 @@ bool TextChat::serialize(string *d)
 
     d->append((char*)&chatOptions, 1);
 
-    char hasSheduledMeeting = mScheduledMeeting ? 1 : 0;
-    d->append((char*)&hasSheduledMeeting, 1);
+    char hasSheduledMeetings = !mScheduledMeetings.empty() ? 1 : 0;
+    d->append((char*)&hasSheduledMeetings, 1);
 
     d->append("\0\0\0", 3); // additional bytes for backwards compatibility
 
@@ -129,14 +129,21 @@ bool TextChat::serialize(string *d)
         d->append((char*) unifiedKey.data(), unifiedKey.size());
     }
 
-    if (hasSheduledMeeting)
+    if (hasSheduledMeetings)
     {
-        std::string schedMeetingStr;
-        if (mScheduledMeeting->serialize(&schedMeetingStr))
+        // serialize the number of scheduledMeetings
+        ll = (unsigned short) mScheduledMeetings.size();
+        d->append((char *)&ll, sizeof ll);
+
+        for (auto i = mScheduledMeetings.begin(); i != mScheduledMeetings.end(); i++)
         {
-            ll = (unsigned short) schedMeetingStr.size();
-            d->append((char *)&ll, sizeof ll);
-            d->append((char *)schedMeetingStr.data(), schedMeetingStr.size());
+            std::string schedMeetingStr;
+            if (i->second->serialize(&schedMeetingStr))
+            {
+                ll = (unsigned short) schedMeetingStr.size();
+                d->append((char *)&ll, sizeof ll);
+                d->append((char *)schedMeetingStr.data(), schedMeetingStr.size());
+            }
         }
     }
     return true;
@@ -157,7 +164,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     attachments_map attachedNodes;
     bool publicchat;
     string unifiedKey;
-    string scheduledMeetingStr;
+    std::vector<string> scheduledMeetingsStr;
 
     unsigned short ll;
     const char* ptr = d->data();
@@ -339,24 +346,39 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
     if (hasScheduledMeeting)
     {
-        unsigned short len = 0;
-        if (ptr + sizeof len > end)
+        // unserialize the number of scheduled meetings
+        unsigned short schedMeetingsSize = 0;
+        if (ptr + sizeof schedMeetingsSize > end)
         {
             delete userpriv;
             return NULL;
         }
 
-        len = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof len;
+        schedMeetingsSize = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof schedMeetingsSize;
 
-        if (ptr + len > end)
+        for (auto i = 0; i < schedMeetingsSize; i++)
         {
-            delete userpriv;
-            return NULL;
-        }
+            unsigned short len = 0;
+            if (ptr + sizeof len > end)
+            {
+                delete userpriv;
+                return NULL;
+            }
 
-        scheduledMeetingStr.assign(ptr, len);
-        ptr += len;
+            len = MemAccess::get<unsigned short>(ptr);
+            ptr += sizeof len;
+
+            if (ptr + len > end)
+            {
+                delete userpriv;
+                return NULL;
+            }
+
+            std::string aux(ptr, len);
+            scheduledMeetingsStr.emplace_back(aux);
+            ptr += len;
+        }
     }
 
     if (ptr < end)
@@ -390,9 +412,13 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->meeting = meetingRoom;
     chat->chatOptions = chatOptions;
 
-    if (!scheduledMeetingStr.empty())
+    for (auto i: scheduledMeetingsStr)
     {
-        chat->mScheduledMeeting.reset(ScheduledMeeting::unserialize(&scheduledMeetingStr));
+        std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(&i));
+        if (auxMeet)
+        {
+            chat->mScheduledMeetings.emplace(auxMeet->callid(), std::move(auxMeet));
+        }
     }
 
     memset(&chat->changed, 0, sizeof(chat->changed));

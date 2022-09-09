@@ -9162,8 +9162,10 @@ bool CommandScheduledMeetingAdd::procresult(Command::Result r)
     }
 
     TextChat* chat = it->second;
-    mScheduledMeeting->setCallid(client->json.gethandle(MegaClient::CHATHANDLE));
-    chat->mScheduledMeeting.reset(mScheduledMeeting.release());
+
+    handle schedMeetingId = client->json.gethandle(MegaClient::CHATHANDLE);
+    mScheduledMeeting->setCallid(schedMeetingId);
+    chat->mScheduledMeetings.emplace(schedMeetingId, std::move(mScheduledMeeting));
     mCompletion(API_OK);
     return true;
 }
@@ -9189,7 +9191,12 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         }
 
         TextChat* chat = it->second;
-        chat->mScheduledMeeting.reset(); // remove scheduled meeting
+        auto auxit = chat->mScheduledMeetings.find(mSchedMeetingId);
+        if (auxit != chat->mScheduledMeetings.end())
+        {
+            chat->mScheduledMeetings.erase(auxit);
+        }
+
         mCompletion(API_OK);
         return true;
     }
