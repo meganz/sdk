@@ -19025,10 +19025,12 @@ void MegaApiImpl::sendPendingRequests()
                 s.setCover(request->getNodeHandle());
             }
             client->putSet(move(s),
-                [this, request](Error e, handle id)
+                [this, request](Error e, const Set* s)
                 {
-                    if (request->getParentHandle() == UNDEF)
-                        request->setParentHandle(id);
+                    if (request->getParentHandle() == UNDEF && s)
+                    {
+                        request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*s));
+                    }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             break;
@@ -19046,11 +19048,12 @@ void MegaApiImpl::sendPendingRequests()
             client->fetchSet(request->getParentHandle(),
                 [this, request](Error e, Set* s, map<handle, SetElement>* els)
                 {
-                    if (s)
+                    if (e == API_OK)
                     {
-                        request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*s));
-                        if (els)
+                        assert(s && els);
+                        if (s && els)
                         {
+                            request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*s));
                             request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(els));
                         }
                     }
@@ -19073,10 +19076,17 @@ void MegaApiImpl::sendPendingRequests()
                 el.setName(request->getText() ? request->getText() : string());
             }    
             client->putSetElement(move(el),
-                [this, request](Error e, handle eid)
+                [this, request](Error e, const SetElement* el)
                 {
-                    if (request->getParentHandle() == UNDEF)
-                        request->setParentHandle(eid);
+                    if (e == API_OK) // only return SetElement upon create, not update
+                    {
+                        bool isNew = request->getParentHandle() == UNDEF;
+                        assert(!isNew || el);
+                        if (isNew && el)    // return the Element only when is created, not when updated
+                        {
+                            request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(&el, 1));
+                        }
+                    }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });
             break;

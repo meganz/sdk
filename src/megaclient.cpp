@@ -17193,7 +17193,7 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
 // Sets and Elements
 //
 
-void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
+void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completion)
 {
     string encrSetKey;
     std::unique_ptr<string> encrAttrs;
@@ -17214,7 +17214,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
             {
                 LOG_err << "Sets: Cover cannot be set for a newly created Set.";
                 if (completion)
-                    completion(API_EARGS, s.id());
+                    completion(API_EARGS, nullptr);
                 return;
             }
             string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
@@ -17228,7 +17228,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         {
             LOG_err << "Sets: Nothing to update.";
             if (completion)
-                completion(API_EARGS, s.id());
+                completion(API_EARGS, nullptr);
             return;
         }
 
@@ -17237,7 +17237,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         {
             LOG_err << "Sets: Failed to update Set (not found).";
             if (completion)
-                completion(API_ENOENT, s.id());
+                completion(API_ENOENT, nullptr);
             return;
         }
 
@@ -17245,7 +17245,7 @@ void MegaClient::putSet(Set&& s, std::function<void(Error, handle)> completion)
         {
             LOG_err << "Sets: Requested cover was not an Element of Set " << toHandle(s.id());
             if (completion)
-                completion(API_EARGS, s.id());
+                completion(API_EARGS, nullptr);
             return;
         }
 
@@ -17279,7 +17279,7 @@ void MegaClient::fetchSet(handle sid, std::function<void(Error, Set*, map<handle
     reqs.add(new CommandFetchSet(this, sid, completion));
 }
 
-void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle)> completion)
+void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion)
 {
     // setId is required
     assert(el.set() != UNDEF);
@@ -17290,7 +17290,7 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
     {
         LOG_err << "Sets: Set not found when adding or updating Element";
         if (completion)
-            completion(API_ENOENT, el.id());
+            completion(API_ENOENT, nullptr);
         return;
     }
 
@@ -17301,12 +17301,12 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
     if (el.id() == UNDEF)
     {
         Node* n = nodebyhandle(el.node());
-        error e = !n ? API_EARGS : (n->nodekey().empty() || !n->nodecipher() || n->attrstring ? API_EKEY : API_OK);
+        error e = !n ? API_ENOENT : (n->nodekey().empty() || !n->nodecipher() || n->attrstring ? API_EKEY : API_OK);
         if (e != API_OK)
         {
             LOG_err << "Sets: Invalid node for Element";
             if (completion)
-                completion(e, el.id());
+                completion(e, nullptr);
             return;
         }
 
@@ -17328,7 +17328,7 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, handle
         {
             LOG_err << "Sets: Element not found when updating Element: " << toHandle(el.id());
             if (completion)
-                completion(API_ENOENT, el.id());
+                completion(API_ENOENT, nullptr);
             return;
         }
 
@@ -17748,7 +17748,7 @@ const Set* MegaClient::getSet(handle sid) const
     return it == mSets.end() ? nullptr : &it->second;
 }
 
-void MegaClient::addSet(Set&& a)
+const Set* MegaClient::addSet(Set&& a)
 {
     handle sid = a.id();
     auto add = mSets.emplace(sid, move(a));
@@ -17760,6 +17760,8 @@ void MegaClient::addSet(Set&& a)
         added.setChanged(Set::CH_NEW);
         notifyset(&added);
     }
+
+    return &add.first->second;
 }
 
 bool MegaClient::updateSet(Set&& s)
@@ -17830,7 +17832,7 @@ bool MegaClient::deleteSetElement(handle sid, handle eid)
     return false;
 }
 
-void MegaClient::addOrUpdateSetElement(SetElement&& el)
+const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
 {
     handle sid = el.set();
     handle eid = el.id();
@@ -17846,7 +17848,7 @@ void MegaClient::addOrUpdateSetElement(SetElement&& el)
             {
                 notifysetelement(&ite->second);
             }
-            return;
+            return &ite->second;
         }
     }
 
@@ -17857,6 +17859,8 @@ void MegaClient::addOrUpdateSetElement(SetElement&& el)
     SetElement& added = add.first->second;
     added.setChanged(SetElement::CH_EL_NEW);
     notifysetelement(&added);
+
+    return &added;
 }
 
 void MegaClient::sc_asp()
@@ -18298,11 +18302,11 @@ bool CommonSE::hasAttrChanged(const string& tag, const unique_ptr<string_map>& o
         otherValue = it != otherAttrs->end() ? it->second : "";
     }
 
-    const string& value = getAttribute(tag);
+    const string& value = getAttr(tag);
     return value != otherValue;
 }
 
-const string& CommonSE::getAttribute(const string& tag) const
+const string& CommonSE::getAttr(const string& tag) const
 {
     static const string value;
     if (!mAttrs)
@@ -18353,7 +18357,7 @@ string CommonSE::encryptAttributes(std::function<string(const string_map&, const
 
 handle Set::cover() const
 {
-    string hs = getAttribute(coverTag);
+    string hs = getAttr(coverTag);
     if (!hs.empty())
     {
         handle h = 0;

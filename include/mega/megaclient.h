@@ -226,24 +226,50 @@ struct SyncdownContext
 }; // SyncdownContext
 
 
+/**
+ * @brief Base class for common characteristics of Set and Element
+ */
 class CommonSE
 {
 public:
+    // get own id
     const handle& id() const { return mId; }
-    const string& key() const { return mKey; }
-    const m_time_t& ts() const { return mTs; }
-    const string& name() const { return getAttribute(nameTag); }
 
+    // get key used for encrypting attrs
+    const string& key() const { return mKey; }
+
+    // get timestamp
+    const m_time_t& ts() const { return mTs; }
+
+    // get own name
+    const string& name() const { return getAttr(nameTag); }
+
+    // set own id
     void setId(handle id) { mId = id; }
+
+    // set key used for encrypting attrs
     void setKey(const string& key) { mKey = key; }
     void setKey(string&& key) { mKey = move(key); }
+
+    // set timestamp
     void setTs(m_time_t ts) { mTs = ts; }
+
+    // set own name
     void setName(string&& name);
 
+    // test for attrs (including empty "" ones)
     bool hasAttrs() const { return !!mAttrs; }
+
+    // test for encrypted attrs, that will need a call to decryptAttributes()
     bool hasEncrAttrs() const { return !!mEncryptedAttrs; }
+
+    // set encrypted attrs, that will need a call to decryptAttributes()
     void setEncryptedAttrs(string&& eattrs) { mEncryptedAttrs.reset(new string(move(eattrs))); }
+
+    // decrypt attributes set with setEncryptedAttrs(), and replace internal attrs
     bool decryptAttributes(std::function<bool(const string&, const string&, string_map&)> f);
+
+    // encrypt internal attrs and return the result
     string encryptAttributes(std::function<string(const string_map&, const string&)> f) const;
 
 protected:
@@ -256,7 +282,7 @@ protected:
     m_time_t mTs = 0;
 
     void setAttr(const string& tag, string&& value); // set any non-standard attr
-    const string& getAttribute(const string& tag) const;
+    const string& getAttr(const string& tag) const;
     bool hasAttrChanged(const string& tag, const unique_ptr<string_map>& otherAttrs) const;
     void rebaseCommonAttrsOn(const string_map* baseAttrs);
 
@@ -264,9 +290,12 @@ protected:
 
     unique_ptr<string> mEncryptedAttrs;             // "at": up to 65535 bytes of miscellaneous data, encrypted with mKey
 
-    static const string nameTag; // "n"
+    static const string nameTag; // "n", used for 'name' attribute
 };
 
+/**
+ * @brief Internal representation of an Element
+ */
 class SetElement : public CommonSE, public Cacheable
 {
 public:
@@ -274,36 +303,63 @@ public:
     SetElement(handle sid, handle node, handle elemId, string&& key, string_map&& attrs)
         : CommonSE(elemId, move(key), move(attrs)), mSetId(sid), mNodeHandle(node) {}
 
+    // return id of the set that owns this Element
     const handle& set() const               { return mSetId; }
+
+    // return handle of the node represented by this Element
     const handle& node() const              { return mNodeHandle; }
+
+    // return order of this Element
     int64_t order() const                   { return mOrder ? *mOrder : 0; }
 
+    // set id of the set that owns this Element
     void setSet(handle s)                   { mSetId = s; }
+
+    // set handle of the node represented by this Element
     void setNode(handle nh)                 { mNodeHandle = nh; }
+
+    // set order of this Element
     void setOrder(int64_t order);
 
+    // return true if last change modified order of this Element
+    // (useful for instances that only contain updates)
     bool hasOrder() const                   { return !!mOrder; }
 
+    // replace internal parameters with the ones of 'el', and mark any CH_EL_XXX change
     bool updateWith(SetElement&& el);
+
+    // apply attrs on top of the ones of 'el' (useful for instances that only contain updates)
     void rebaseAttrsOn(const SetElement& el) { rebaseCommonAttrsOn(el.mAttrs.get()); }
 
+    // mark attrs being cleared by the last update (reason for internal container being null)
+    // (useful for instances that only contain updates)
     void setAttrsClearedByLastUpdate(bool cleared)  { mAttrsClearedByLastUpdate = cleared; }
+
+    // return true if attrs have been cleared in the last update (reason for internal container being null)
+    // (useful for instances that only contain updates)
     bool hasAttrsClearedByLastUpdate() const        { return mAttrsClearedByLastUpdate; }
 
+    // mark a change to internal parameters (useful for app notifications)
     void setChanged(int changeType) { if (validChangeType(changeType, CH_EL_SIZE)) mChanges[changeType] = 1; }
+
+    // reset changes of internal parameters (call after app has been notified)
     void resetChanges() { mChanges = 0; }
+
+    // return changes to internal parameters (useful for app notifications)
     unsigned long changes() const { return mChanges.to_ulong(); }
+
+    // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
     bool hasChanged(int changeType) const { return validChangeType(changeType, CH_EL_SIZE) ? mChanges[changeType] : false; }
 
     bool serialize(string*) override;
     static unique_ptr<SetElement> unserialize(string* d);
 
-    enum
+    enum // match MegaElement::CHANGE_TYPE_ELEM_XXX values
     {
-        CH_EL_NEW,
-        CH_EL_NAME,
-        CH_EL_ORDER,
-        CH_EL_REMOVED,
+        CH_EL_NEW,      // point out that this is a new Element
+        CH_EL_NAME,     // point out that 'name' attr has changed
+        CH_EL_ORDER,    // point out that order has changed
+        CH_EL_REMOVED,  // point out that this Element has been removed
 
         CH_EL_SIZE
     };
@@ -317,6 +373,9 @@ private:
     std::bitset<CH_EL_SIZE> mChanges;
 };
 
+/**
+ * @brief Internal representation of a Set
+ */
 class Set : public CommonSE, public Cacheable
 {
 public:
@@ -324,29 +383,45 @@ public:
     Set(handle id, string&& key, handle user, string_map&& attrs)
         : CommonSE(id, move(key), move(attrs)), mUser(user) {}
 
+    // return id of the user that owns this Set
     const handle& user() const { return mUser; }
+
+    // return id of the Element that was set as cover, or UNDEF if none was set
     handle cover() const;
 
+    // set id of the user that owns this Set
     void setUser(handle uh) { mUser = uh; }
+
+    // set id of the Element that will act as cover; pass UNDEF to remove cover
     void setCover(handle h);
 
+    // replace internal parameters with the ones of 's', and mark any CH_XXX change
     bool updateWith(Set&& s);
+
+    // apply attrs on top of the ones of 's' (useful for instances that only contain updates)
     void rebaseAttrsOn(const Set& s) { rebaseCommonAttrsOn(s.mAttrs.get()); }
 
+    // mark a change to internal parameters (useful for app notifications)
     void setChanged(int changeType) { if (validChangeType(changeType, CH_SIZE)) mChanges[changeType] = 1; }
+
+    // reset changes of internal parameters (call after app has been notified)
     void resetChanges() { mChanges = 0; }
+
+    // return changes to internal parameters (useful for app notifications)
     unsigned long changes() const { return mChanges.to_ulong(); }
+
+    // return true if internal parameter pointed out by changeType has changed (useful for app notifications)
     bool hasChanged(int changeType) const { return validChangeType(changeType, CH_SIZE) ? mChanges[changeType] : false; }
 
     bool serialize(string*) override;
     static unique_ptr<Set> unserialize(string* d);
 
-    enum
+    enum // match MegaSet::CHANGE_TYPE_XXX values
     {
-        CH_NEW,
-        CH_NAME,
-        CH_COVER,
-        CH_REMOVED,
+        CH_NEW,     // point out that this is a new Set
+        CH_NAME,    // point out that 'name' attr has changed
+        CH_COVER,   // point out that 'cover' attr has changed
+        CH_REMOVED, // point out that this Set has been removed
 
         CH_SIZE
     };
@@ -356,7 +431,7 @@ private:
 
     std::bitset<CH_SIZE> mChanges;
 
-    static const string coverTag; // "c"
+    static const string coverTag; // "c", used for 'cover' attribute
 };
 
 
@@ -2133,7 +2208,7 @@ private:
 
 public:
     // generate "asp" command
-    void putSet(Set&& s, std::function<void(Error, handle)> completion);
+    void putSet(Set&& s, std::function<void(Error, const Set*)> completion);
 
     // generate "asr" command
     void removeSet(handle sid, std::function<void(Error)> completion);
@@ -2142,7 +2217,7 @@ public:
     void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
 
     // generate "aep" command
-    void putSetElement(SetElement&& el, std::function<void(Error, handle)> completion);
+    void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
 
     // generate "aer" command
     void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
@@ -2160,7 +2235,7 @@ public:
     const map<handle, Set>& getSets() const { return mSets; }
 
     // add new Set or replace exisiting one
-    void addSet(Set&& a);
+    const Set* addSet(Set&& a);
 
     // search for Set with the same id, and update its members
     bool updateSet(Set&& s);
@@ -2175,7 +2250,7 @@ public:
     const map<handle, SetElement>* getSetElements(handle sid) const;
 
     // add new SetElement or replace exisiting one
-    void addOrUpdateSetElement(SetElement&& el);
+    const SetElement* addOrUpdateSetElement(SetElement&& el);
 
     // delete Element with eid from Set with sid in local memory; return true if found and deleted
     bool deleteSetElement(handle sid, handle eid);

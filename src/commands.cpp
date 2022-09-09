@@ -9030,7 +9030,7 @@ bool CommandSE::procerrorcode(const Result& r, Error& e) const
 }
 
 CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAttrs, string&& encrKey,
-                             std::function<void(Error, handle)> completion)
+                             std::function<void(Error, const Set*)> completion)
     : mSet(new Set(move(s))), mCompletion(completion)
 {
     cmd("asp");
@@ -9057,6 +9057,7 @@ bool CommandPutSet::procresult(Result r)
     handle sId = 0;
     handle user = 0;
     m_time_t ts = 0;
+    const Set* s = nullptr;
     Error e = API_OK;
     bool parsedOk = procerrorcode(r, e) || procresultid(r, sId, ts, &user);
 
@@ -9072,7 +9073,7 @@ bool CommandPutSet::procresult(Result r)
             mSet->setId(sId);
             mSet->setUser(user);
             mSet->setChanged(Set::CH_NEW);
-            client->addSet(move(*mSet));
+            s = client->addSet(move(*mSet));
         }
         else // update existing
         {            
@@ -9088,7 +9089,7 @@ bool CommandPutSet::procresult(Result r)
 
     if (mCompletion)
     {
-        mCompletion(e, sId);
+        mCompletion(e, s);
     }
 
     return parsedOk;
@@ -9125,7 +9126,7 @@ bool CommandRemoveSet::procresult(Result r)
     return parsedOk;
 }
 
-CommandFetchSet::CommandFetchSet(MegaClient* client, handle id,
+CommandFetchSet::CommandFetchSet(MegaClient*, handle id,
     std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
     : mCompletion(completion)
 {
@@ -9162,12 +9163,10 @@ bool CommandFetchSet::procresult(Result r)
 
     if (mCompletion)
     {
-        Set* s = sets.empty() ? nullptr : (new Set(move(sets.begin()->second)));
-        map<handle, SetElement>* els = nullptr;
-        if (!elements.empty())
-        {
-            els = new map<handle, SetElement>(move(elements.begin()->second));
-        }
+        Set* s = sets.empty() ? new Set() : (new Set(move(sets.begin()->second)));
+        map<handle, SetElement>* els = elements.empty()
+                ? new map<handle, SetElement>()
+            : new map<handle, SetElement>(move(elements.begin()->second));
         mCompletion(API_OK, s, els);
     }
 
@@ -9175,7 +9174,7 @@ bool CommandFetchSet::procresult(Result r)
 }
 
 CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
-                                               std::function<void(Error, handle)> completion)
+                                               std::function<void(Error, const SetElement*)> completion)
     : mElement(new SetElement(move(el))), mCompletion(completion)
 {
     cmd("aep");
@@ -9214,6 +9213,8 @@ bool CommandPutSetElement::procresult(Result r)
     m_time_t ts = 0;
     int64_t order = 0;
     Error e = API_OK;
+    bool isNew = mElement->id() == UNDEF;
+    const SetElement* el = nullptr;
     bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, &order); // 'aep' does not return 's'
 
     if (!parsedOk)
@@ -9224,14 +9225,14 @@ bool CommandPutSetElement::procresult(Result r)
     {
         mElement->setTs(ts);
         mElement->setOrder(order); // this is now present in all 'aep' responses
-        assert(mElement->id() == UNDEF || mElement->id() == elementId);
+        assert(isNew || mElement->id() == elementId);
         mElement->setId(elementId);
-        client->addOrUpdateSetElement(move(*mElement));
+        el = client->addOrUpdateSetElement(move(*mElement));
     }
 
     if (mCompletion)
     {
-        mCompletion(e, elementId);
+        mCompletion(e, el);
     }
 
     return parsedOk;
