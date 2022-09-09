@@ -1158,22 +1158,35 @@ LocalPath LocalPath::leafName() const
     p = p == string::npos ? 0 : p + 1;
     LocalPath result;
     result.localpath = localpath.substr(p, localpath.size() - p);
-    if (result.localpath.empty() && !localpath.empty() && localpath.back() == localPathSeparator)
+    assert(result.invariant());
+    return result;
+}
+
+string LocalPath::leafOrParentName() const
+{
+    assert(invariant());
+
+    LocalPath name;
+    // win32: normalizeAbsolute() does not work with paths like "D:\\foo\\..\\bar.txt". TODO ?
+    FSACCESS_CLASS().expanselocalpath(*this, name);
+    name.removeTrailingSeparators();
+
+    if (name.empty())
     {
-        result = *this;
-        result.localpath.pop_back(); // drop trailing separator
-        result = result.leafName();
+        return string();
     }
 
 #ifdef WIN32
-    if (!result.localpath.empty() && result.localpath.back() == L':')
+    if (name.localpath.back() == L':')
     {
-        result.localpath.pop_back(); // drop trailing ':'
+        // drop trailing ':'
+        string n = name.toPath();
+        n.pop_back();
+        return n;
     }
 #endif
 
-    assert(result.invariant());
-    return result;
+    return name.leafName().toPath();
 }
 
 void LocalPath::append(const LocalPath& additionalPath)
