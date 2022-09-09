@@ -906,6 +906,21 @@ struct MEGA_API FSNode
 
     // Same as the above but useful in situations where we don't have an FA handy.
     static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path);
+
+    const string& toName_of_localname(const FileSystemAccess& fsaccess)
+    {
+        // Although FSNode wouldn't naturally have a utf8 and normalized version of localname,
+        // we need to compare such a string during sorting operations.
+        // Using a caching mechanism like this avoids execessive conversions, normalization, and computing that if it's not used.
+        if (toName_of_localname_cached.empty())
+        {
+            toName_of_localname_cached = localname.toName(fsaccess);
+        }
+        return toName_of_localname_cached;
+    }
+
+private:
+    string toName_of_localname_cached;
 };
 
 class MEGA_API ScanService
