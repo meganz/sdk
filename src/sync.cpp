@@ -1494,7 +1494,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         //SYNC_verbose << "Is this a local move destination, by fsid " << toHandle(row.fsNode->fsid) << " at " << logTriplet(row, fullPath);
 
         // was the file overwritten by moving an existing file over it?
-        if (LocalNode* sourceSyncNode = syncs.findLocalNodeByFsid(row.fsNode->fsid, row.fsNode->type, row.fsNode->fingerprint, this, nullptr))   // todo: maybe null for sync* to detect moves between sync?
+        if (LocalNode* sourceSyncNode = syncs.findLocalNodeByFsid(row.fsNode->fsid, fullPath.localPath, row.fsNode->type, row.fsNode->fingerprint, this, nullptr))   // todo: maybe null for sync* to detect moves between sync?
         {
             // We've found a node associated with the local file's FSID.
             //
@@ -1704,6 +1704,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                 if (problem == PathProblem::NoProblem
                     && !row.syncNode->fsidSyncedReused)
                     other = syncs.findLocalNodeByScannedFsid(row.syncNode->fsid_lastSynced,
+                                                             fullPath.localPath,
                                                              row.syncNode->type,
                                                              &row.syncNode->syncedFingerprint,
                                                              this,
@@ -2146,7 +2147,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
         return false;  // we need to progress to resolve_rowMatched at this node
     }
 
-    SYNC_verbose << syncname << "checking localnodes for synced handle " << row.cloudNode->handle;
+    SYNC_verbose << syncname << "checking localnodes for synced cloud handle " << row.cloudNode->handle;
 
     ProgressingMonitor monitor(syncs);
 
@@ -5734,9 +5735,7 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
     for (auto& sn : syncParent.children) triplets.emplace_back(nullptr, sn.second, nullptr);
     for (auto& fsn : fsNodes)            triplets.emplace_back(nullptr, nullptr, &fsn);
 
-    bool caseInsensitive = mCaseInsensitive;
-
-    auto tripletCompare = [=](const syncRow& lhs, const syncRow& rhs) -> int {
+    auto tripletCompare = [this](const syncRow& lhs, const syncRow& rhs) -> int {
         // Sanity.
         assert(!lhs.fsNode || !lhs.fsNode->localname.empty());
         assert(!rhs.fsNode || !rhs.fsNode->localname.empty());
@@ -5747,45 +5746,45 @@ auto Sync::computeSyncTriplets(vector<CloudNode>& cloudNodes, const LocalNode& s
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.cloudNode->name, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.cloudNode->name, true, mCaseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->toName_of_localname, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.syncNode->toName_of_localname, true, mCaseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.cloudNode->name, true, rhs.fsNode->toName_of_localname(*syncs.fsaccess), true, mCaseInsensitive);
             }
         }
         else if (lhs.syncNode)
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.cloudNode->name, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.cloudNode->name, true, mCaseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.syncNode->toName_of_localname, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.syncNode->toName_of_localname, true, mCaseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.fsNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.syncNode->toName_of_localname, true, rhs.fsNode->toName_of_localname(*syncs.fsaccess), true, mCaseInsensitive);
             }
         }
         else // lhs.fsNode
         {
             if (rhs.cloudNode)
             {
-                return compareUtf(lhs.fsNode->localname, true, rhs.cloudNode->name, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->toName_of_localname(*syncs.fsaccess), true, rhs.cloudNode->name, true, mCaseInsensitive);
             }
             else if (rhs.syncNode)
             {
-                return compareUtf(lhs.fsNode->localname, true, rhs.syncNode->toName_of_localname, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->toName_of_localname(*syncs.fsaccess), true, rhs.syncNode->toName_of_localname, true, mCaseInsensitive);
             }
             else // rhs.fsNode
             {
-                return compareUtf(lhs.fsNode->localname, true, rhs.fsNode->localname, true, caseInsensitive);
+                return compareUtf(lhs.fsNode->toName_of_localname(*syncs.fsaccess), true, rhs.fsNode->localname, true, mCaseInsensitive);
             }
         }
     };
@@ -6999,6 +6998,7 @@ bool Sync::resolve_checkMoveDownloadComplete(syncRow& row, SyncPath& fullPath)
 
     // Are we still associated with the move source?
     auto source = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid,
+                                                  fullPath.localPath,
                                                   movePtr->sourceType,
                                                   movePtr->sourceFingerprint,
                                                   this,
@@ -7062,7 +7062,7 @@ bool Sync::resolve_checkMoveComplete(syncRow& row, syncRow& parentRow, SyncPath&
 
     LOG_debug << syncname << "Checking move source/target by fsid " << toHandle(movePtr->sourceFsid);
 
-    if ((sourceSyncNode = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid, movePtr->sourceType, movePtr->sourceFingerprint, this, nullptr)))
+    if ((sourceSyncNode = syncs.findLocalNodeBySyncedFsid(movePtr->sourceFsid, fullPath.localPath, movePtr->sourceType, movePtr->sourceFingerprint, this, nullptr)))
     {
         LOG_debug << syncname << "Sync cloud move/rename from : " << sourceSyncNode->getCloudPath(true) << " resolved here! " << logTriplet(row, fullPath);
 
@@ -8248,7 +8248,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, SyncPath& ful
     return false;
 }
 
-LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck)
+LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck)
 {
     assert(onSyncThread());
     if (fsid == UNDEF) return nullptr;
@@ -8302,14 +8302,14 @@ LocalNode* Syncs::findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, 
         // todo: come back for other matches?
         if (!extraCheck || extraCheck(it->second))
         {
-            LOG_verbose << mClient.clientname << "findLocalNodeBySyncedFsid - found " << toHandle(fsid) << " at: " << it->second->getLocalPath().toPath();
+            LOG_verbose << mClient.clientname << "findLocalNodeBySyncedFsid - found " << toHandle(fsid) << " at: " << it->second->getLocalPath() << " checked from " << originalpath;
             return it->second;
         }
     }
     return nullptr;
 }
 
-LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint* fingerprint, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck)
+LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fingerprint, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck)
 {
     assert(onSyncThread());
     if (fsid == UNDEF) return nullptr;
@@ -8366,21 +8366,21 @@ LocalNode* Syncs::findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type,
         // todo: come back for other matches?
         if (!extraCheck || extraCheck(it->second))
         {
-            LOG_verbose << mClient.clientname << "findLocalNodeByScannedFsid - found at: " << it->second->getLocalPath().toPath();
+            LOG_verbose << mClient.clientname << "findLocalNodeByScannedFsid - found " << toHandle(fsid) << " at: " << it->second->getLocalPath().toPath() << " checked from " << originalpath;
             return it->second;
         }
     }
     return nullptr;
 }
 
-LocalNode* Syncs::findLocalNodeByFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck)
+LocalNode* Syncs::findLocalNodeByFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck)
 {
     // First try and match based on synced details.
-    if (auto* node = findLocalNodeBySyncedFsid(fsid, type, fingerprint, filesystemSync, extraCheck))
+    if (auto* node = findLocalNodeBySyncedFsid(fsid, originalpath, type, fingerprint, filesystemSync, extraCheck))
         return node;
 
     // Otherwise, try and match on scanned details.
-    return findLocalNodeByScannedFsid(fsid, type, &fingerprint, filesystemSync, extraCheck);
+    return findLocalNodeByScannedFsid(fsid, originalpath, type, &fingerprint, filesystemSync, extraCheck);
 }
 
 void Syncs::setSyncedFsidReused(mega::handle fsid)
@@ -8562,6 +8562,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
         movedLocalNode =
             syncs.findLocalNodeByScannedFsid(row.syncNode->fsid_lastSynced,
+                fullPath.localPath,
                 row.syncNode->type,
                 &row.syncNode->syncedFingerprint,
                 this,

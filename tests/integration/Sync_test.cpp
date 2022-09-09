@@ -18425,6 +18425,60 @@ TEST_F(SyncTest, LocalVerticalMoveCycle)
     EXPECT_EQ(zh, client->getNodeHandle("s/0/1/z.txt"));
 }
 
+
+TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
+{
+    fs::path localtestroot = makeNewTestRoot();
+    auto client = g_clientManager->getCleanStandardClient(0, localtestroot);
+    ASSERT_TRUE(client->resetBaseFolderMulticlient());
+
+    ASSERT_TRUE(client->makeCloudSubdirs("s", 0, 0));
+
+    string name1 = "\x73\x6f\x75\x68\x6c\x61\x73\x20\x73\x20\x6b\x6f\x70\x69\xc3\xad\x20\x43\x50";  // from cloud - therefore, this is the normalized form we use
+    string name2 = "\x73\x6f\x75\x68\x6c\x61\x73\x20\x73\x20\x6b\x6f\x70\x69\x69\xcc\x81\x20\x43\x50"; // form from Mac FS
+
+    fs::path n1_utf8 = fs::u8path(name1);
+    fs::path n2_utf8 = fs::u8path(name2);
+
+    string convertedback_1 = n1_utf8.u8string();
+    string convertedback_2 = n2_utf8.u8string();
+
+    ASSERT_EQ(convertedback_1.size(), name1.size());
+    ASSERT_EQ(convertedback_2.size(), name2.size());
+
+    LocalPath::utf8_normalize(&convertedback_1);
+    LocalPath::utf8_normalize(&convertedback_2);
+    ASSERT_EQ(convertedback_1, convertedback_2);
+    ASSERT_EQ(convertedback_2, name1);
+
+    // Make a cloud node with one normalization
+    ASSERT_TRUE(createNameFile(localtestroot, name1));
+    ASSERT_TRUE(client->uploadFile(localtestroot / n1_utf8, "s"));
+
+    auto root = client->fsBasePath / "s";
+
+    // Same file in the sync locally, but name encoded differently
+    fs::create_directory(root);
+    fs::copy(localtestroot / n1_utf8, root / n2_utf8);
+
+    // Set up the sync and see how it deals with those (may vary by platform, Mac auto normalizes filesnames for example (with some other normalization than we chose))
+    auto id = client->setupSync_mainthread("s", "s", false, false);
+    ASSERT_NE(id, UNDEF);
+
+    // Wait for the synchronization to complete.
+    auto waitResult = waitonsyncs(std::chrono::seconds(5), client);
+    ASSERT_TRUE(noSyncStalled(waitResult));
+
+    //Model model;
+    //model.addfile(name1)->fsName(name2);
+
+    // Make sure everything was uploaded successfully.
+    //ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
+
+
+}
+
+
 class ContradictoryMoveFixture
   : public ::testing::Test
 {
