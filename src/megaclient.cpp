@@ -17848,7 +17848,7 @@ const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
             {
                 notifysetelement(&ite->second);
             }
-            return nullptr;
+            return &ite->second;
         }
     }
 

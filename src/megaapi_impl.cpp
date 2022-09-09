@@ -19078,9 +19078,14 @@ void MegaApiImpl::sendPendingRequests()
             client->putSetElement(move(el),
                 [this, request](Error e, const SetElement* el)
                 {
-                    if (request->getParentHandle() == UNDEF && el)
+                    if (e == API_OK) // only return SetElement upon create, not update
                     {
-                        request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(&el, 1));
+                        bool isNew = request->getParentHandle() == UNDEF;
+                        assert(!isNew || el);
+                        if (isNew && el)    // return the Element only when is created, not when updated
+                        {
+                            request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(&el, 1));
+                        }
                     }
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
                 });

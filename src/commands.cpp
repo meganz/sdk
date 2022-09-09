@@ -9213,6 +9213,7 @@ bool CommandPutSetElement::procresult(Result r)
     m_time_t ts = 0;
     int64_t order = 0;
     Error e = API_OK;
+    bool isNew = mElement->id() == UNDEF;
     const SetElement* el = nullptr;
     bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, &order); // 'aep' does not return 's'
 
@@ -9224,7 +9225,7 @@ bool CommandPutSetElement::procresult(Result r)
     {
         mElement->setTs(ts);
         mElement->setOrder(order); // this is now present in all 'aep' responses
-        assert(mElement->id() == UNDEF || mElement->id() == elementId);
+        assert(isNew || mElement->id() == elementId);
         mElement->setId(elementId);
         el = client->addOrUpdateSetElement(move(*mElement));
     }
