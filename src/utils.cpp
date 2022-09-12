@@ -1266,6 +1266,7 @@ bool ScheduledMeeting::isValid() const
             && !mDescription.empty()
             && (!mRules || mRules->isValid());
 }
+
 bool ScheduledMeeting::serialize(string* out)
 {
     //assert(out && !out->empty());

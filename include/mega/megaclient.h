@@ -441,6 +441,9 @@ public:
     // extract public handle and key from a public file/folder link
     error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
+    // parse scheduled meeting or scheduled meeting occurrences
+    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>* schedMeetings, bool parsingOccurrences);
+
     // open the SC database and get the SCSN from it
     void checkForResumeableSCDatabase();
 
