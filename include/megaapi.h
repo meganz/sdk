@@ -1346,7 +1346,7 @@ public:
  * in MEGA when the object is created, they are immutable.
  *
  */
-class MegaElement
+class MegaSetElement
 {
 public:
     /**
@@ -1382,8 +1382,8 @@ public:
     /**
      * @brief Returns name of current Element.
      *
-     * The MegaElement object retains the ownership of the returned string, it will be valid until
-     * the MegaElement object is deleted.
+     * The MegaSetElement object retains the ownership of the returned string, it will be valid until
+     * the MegaSetElement object is deleted.
      *
      * @return name of current Element.
      */
@@ -1391,8 +1391,8 @@ public:
 
     virtual bool hasChanged(int changeType) const { return false; }
 
-    virtual MegaElement* copy() const { return nullptr; }
-    virtual ~MegaElement() = default;
+    virtual MegaSetElement* copy() const { return nullptr; }
+    virtual ~MegaSetElement() = default;
 
     enum // match SetElement::CH_EL_XXX values
     {
@@ -1406,30 +1406,30 @@ public:
 };
 
 /**
- * @brief List of MegaElement objects
+ * @brief List of MegaSetElement objects
  *
- * A MegaElementList has the ownership of the MegaElement objects that it contains, so they will be
- * only valid until the MegaElementList is deleted. If you want to retain a MegaElement returned by
- * a MegaElementList, use MegaElement::copy().
+ * A MegaSetElementList has the ownership of the MegaSetElement objects that it contains, so they will be
+ * only valid until the MegaSetElementList is deleted. If you want to retain a MegaSetElement returned by
+ * a MegaSetElementList, use MegaSetElement::copy().
  *
  * Objects of this class are immutable.
  */
-class MegaElementList
+class MegaSetElementList
 {
 public:
     /**
-     * @brief Returns the MegaElement at the position i in the MegaElementList
+     * @brief Returns the MegaSetElement at the position i in the MegaSetElementList
      *
-     * The MegaElementList retains the ownership of the returned MegaElement. It will be only valid until
-     * the MegaElementList is deleted. If you want to retain a MegaElement returned by this function,
-     * use MegaElement::copy().
+     * The MegaSetElementList retains the ownership of the returned MegaSetElement. It will be only valid until
+     * the MegaSetElementList is deleted. If you want to retain a MegaSetElement returned by this function,
+     * use MegaSetElement::copy().
      *
      * If the index is >= the size of the list, this function returns NULL.
      *
-     * @param i Position of the MegaElement that we want to get for the list
-     * @return MegaElement at the position i in the list
+     * @param i Position of the MegaSetElement that we want to get for the list
+     * @return MegaSetElement at the position i in the list
      */
-    virtual const MegaElement* get(unsigned int i) const { return nullptr; }
+    virtual const MegaSetElement* get(unsigned int i) const { return nullptr; }
 
     /**
      * @brief Returns the number of MegaSetElements in the list
@@ -1437,8 +1437,8 @@ public:
      */
     virtual unsigned int size() const { return 0; }
 
-    virtual MegaElementList* copy() const { return nullptr; }
-    virtual ~MegaElementList() = default;
+    virtual MegaSetElementList* copy() const { return nullptr; }
+    virtual ~MegaSetElementList() = default;
 };
 
 
@@ -4316,7 +4316,7 @@ class MegaRequest
          *
          * @return lis of elements in the requested MegaSet, or null if Set not found
          */
-        virtual MegaElementList* getMegaSetElementList() const;
+        virtual MegaSetElementList* getMegaSetElementList() const;
 };
 
 /**
@@ -7011,15 +7011,15 @@ class MegaGlobalListener
         /**
          * @brief This function is called when a Set-Element has been updated (created / updated / removed)
          *
-         * The SDK retains the ownership of the MegaElementList in the second parameter. The list and all the
-         * MegaElement objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaElementList::copy. If you want to save only some of the MegaElement objects, use
-         * MegaElement::copy for them.
+         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list and all the
+         * MegaSetElement objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaSetElementList::copy. If you want to save only some of the MegaSetElement objects, use
+         * MegaSetElement::copy for them.
          *
          * @param api MegaApi object connected to the account
          * @param elements List that contains the new or updated Set-Elements
          */
-        virtual void onSetElementsUpdate(MegaApi* api, MegaElementList* elements);
+        virtual void onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements);
 
         /**
          * @brief This function is called when there are new or updated contact requests in the account
@@ -7449,15 +7449,15 @@ class MegaListener
         /**
          * @brief This function is called when a Set-Element has been updated (created / updated / removed)
          *
-         * The SDK retains the ownership of the MegaElementList in the second parameter. The list and all the
-         * MegaElement objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaElementList::copy. If you want to save only some of the MegaElement objects, use
-         * MegaElement::copy for them.
+         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list and all the
+         * MegaSetElement objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaSetElementList::copy. If you want to save only some of the MegaSetElement objects, use
+         * MegaSetElement::copy for them.
          *
          * @param api MegaApi object connected to the account
          * @param elements List that contains the new or updated Set-Elements
          */
-        virtual void onSetElementsUpdate(MegaApi* api, MegaElementList* elements);
+        virtual void onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements);
 
         /**
          * @brief This function is called when there are new or updated contact requests in the account
@@ -19629,7 +19629,7 @@ class MegaApi
         /**
          * @brief Get all Elements in the Set with given id, for current user.
          *
-         * The response value is stored as a MegaElementList.
+         * The response value is stored as a MegaSetElementList.
          *
          * You take the ownership of the returned value
          *
@@ -19637,12 +19637,12 @@ class MegaApi
          *
          * @return all Elements in that Set, or null if not found or none added
          */
-        MegaElementList* getSetElements(MegaHandle sid);
+        MegaSetElementList* getSetElements(MegaHandle sid);
 
         /**
          * @brief Get a particular Element in a particular Set, for current user.
          *
-         * The response value is stored as a MegaElement.
+         * The response value is stored as a MegaSetElement.
          *
          * You take the ownership of the returned value
          *
@@ -19651,7 +19651,7 @@ class MegaApi
          *
          * @return requested Element, or null if not found
          */
-        MegaElement* getSetElement(MegaHandle sid, MegaHandle eid);
+        MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
 
  private:
         MegaApiImpl *pImpl = nullptr;

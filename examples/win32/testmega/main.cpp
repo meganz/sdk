@@ -154,7 +154,7 @@ public:
 		}
 	}
 
-	virtual void onSetElementsUpdate(MegaApi* api, MegaElementList *elements)
+	virtual void onSetElementsUpdate(MegaApi* api, MegaSetElementList *elements)
 	{
 		if (elements)
 		{

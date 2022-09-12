@@ -162,7 +162,7 @@ namespace mega {
         bool serialize(std::string*) override;
         static std::unique_ptr<SetElement> unserialize(std::string* d);
 
-        enum // match MegaElement::CHANGE_TYPE_ELEM_XXX values
+        enum // match MegaSetElement::CHANGE_TYPE_ELEM_XXX values
         {
             CH_EL_NEW,      // point out that this is a new Element
             CH_EL_NAME,     // point out that 'name' attr has changed

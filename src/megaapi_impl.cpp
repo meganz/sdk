@@ -3954,12 +3954,12 @@ void MegaRequestPrivate::setMegaSet(std::unique_ptr<MegaSet> s)
     return mMegaSet.swap(s);
 }
 
-MegaElementList* MegaRequestPrivate::getMegaSetElementList() const
+MegaSetElementList* MegaRequestPrivate::getMegaSetElementList() const
 {
     return mMegaSetElementList.get();
 }
 
-void MegaRequestPrivate::setMegaSetElementList(std::unique_ptr<MegaElementList> els)
+void MegaRequestPrivate::setMegaSetElementList(std::unique_ptr<MegaSetElementList> els)
 {
     return mMegaSetElementList.swap(els);
 }
@@ -16604,7 +16604,7 @@ void MegaApiImpl::fireOnSetsUpdate(MegaSetList* sets)
     }
 }
 
-void MegaApiImpl::fireOnSetElementsUpdate(MegaElementList* elements)
+void MegaApiImpl::fireOnSetElementsUpdate(MegaSetElementList* elements)
 {
     assert(threadId == std::this_thread::get_id());
 
@@ -23880,7 +23880,7 @@ MegaHandle MegaApiImpl::getSetCover(MegaHandle sid)
     return s ? s->cover() : INVALID_HANDLE;
 }
 
-MegaElementList* MegaApiImpl::getSetElements(MegaHandle sid)
+MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid)
 {
     SdkMutexGuard g(sdkMutex);
 
@@ -23890,7 +23890,7 @@ MegaElementList* MegaApiImpl::getSetElements(MegaHandle sid)
     return eList;
 }
 
-MegaElement* MegaApiImpl::getSetElement(MegaHandle sid, MegaHandle eid)
+MegaSetElement* MegaApiImpl::getSetElement(MegaHandle sid, MegaHandle eid)
 {
     SdkMutexGuard g(sdkMutex);
 
