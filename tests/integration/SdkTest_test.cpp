@@ -640,7 +640,7 @@ void SdkTest::onSetsUpdate(MegaApi* api, MegaSetList* sets)
     mApi[apiIndex].setUpdated = true;
 }
 
-void SdkTest::onSetElementsUpdate(MegaApi* api, MegaElementList* elements)
+void SdkTest::onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements)
 {
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0 || !elements || !elements->size()) return;
@@ -8022,11 +8022,11 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // 4. Add Element
     string elattrs = "element name";
     differentApiDtls.setElementUpdated = false;
-    MegaElementList* newEll = nullptr;
+    MegaSetElementList* newEll = nullptr;
     err = doCreateSetElement(0, &newEll, sh, uploadedNode, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
 
-    unique_ptr<MegaElementList> els(newEll);
+    unique_ptr<MegaSetElementList> els(newEll);
     ASSERT_NE(els, nullptr);
     ASSERT_EQ(els->size(), 1u);
     ASSERT_EQ(els->get(0)->node(), uploadedNode);
@@ -8034,7 +8034,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_NE(els->get(0)->ts(), 0);
     ASSERT_EQ(els->get(0)->order(), 1000);
     MegaHandle eh = els->get(0)->id();
-    unique_ptr<MegaElement> elp(megaApi[0]->getSetElement(sh, eh));
+    unique_ptr<MegaSetElement> elp(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(elp, nullptr);
     ASSERT_EQ(elp->id(), eh);
     ASSERT_EQ(elp->node(), uploadedNode);
@@ -8046,10 +8046,10 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_TRUE(waitForResponse(&differentApiDtls.setElementUpdated)) << "Element add AP not received after " << maxTimeout << " seconds";
     s2p.reset(differentApi.getSet(sh));
     ASSERT_NE(s2p, nullptr);
-    unique_ptr<MegaElementList> els2(differentApi.getSetElements(sh));
+    unique_ptr<MegaSetElementList> els2(differentApi.getSetElements(sh));
     ASSERT_NE(els2, nullptr);
     ASSERT_EQ(els2->size(), els->size());
-    unique_ptr<MegaElement> elp2(differentApi.getSetElement(sh, eh));
+    unique_ptr<MegaSetElement> elp2(differentApi.getSetElement(sh, eh));
     ASSERT_NE(elp2, nullptr);
     ASSERT_EQ(elp2->id(), elp->id());
     ASSERT_EQ(elp2->node(), elp->node());
@@ -8061,7 +8061,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     differentApiDtls.setElementUpdated = false;
     err = doUpdateSetElementName(0, nullptr, sh, eh, "");
     ASSERT_EQ(err, API_OK);
-    unique_ptr<MegaElement> elclearname(megaApi[0]->getSetElement(sh, eh));
+    unique_ptr<MegaSetElement> elclearname(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(elclearname, nullptr);
     ASSERT_STREQ(elclearname->name(), "");
     // test action packets
@@ -8102,13 +8102,13 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 5. Fetch Set
     MegaSet* fetchedSet = nullptr;
-    MegaElementList* fetchedEls = nullptr;
+    MegaSetElementList* fetchedEls = nullptr;
     err = doFetchSet(0, &fetchedSet, &fetchedEls, sh);
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(fetchedSet, nullptr);
     ASSERT_NE(fetchedEls, nullptr);
     unique_ptr<MegaSet> sf(fetchedSet);
-    unique_ptr<MegaElementList> elsf(fetchedEls);
+    unique_ptr<MegaSetElementList> elsf(fetchedEls);
 
     ASSERT_EQ(sf->id(), sh);
     ASSERT_EQ(sf->name(), name);
@@ -8116,7 +8116,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(sf->user(), s1up->user());
 
     ASSERT_EQ(elsf->size(), 1u);
-    const MegaElement* elfp = elsf->get(0);
+    const MegaSetElement* elfp = elsf->get(0);
     ASSERT_NE(elfp, nullptr);
     ASSERT_EQ(elfp->id(), eh);
     ASSERT_EQ(elfp->node(), uploadedNode);
@@ -8132,7 +8132,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(err, API_OK);
     ASSERT_EQ(el1, eh);
 
-    unique_ptr<MegaElement> elu1p(megaApi[0]->getSetElement(sh, eh));
+    unique_ptr<MegaSetElement> elu1p(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(elu1p, nullptr);
     ASSERT_EQ(elu1p->id(), eh);
     ASSERT_EQ(elu1p->node(), uploadedNode);
@@ -8184,7 +8184,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     // 9. Add another element
     differentApiDtls.setElementUpdated = false;
     elattrs += " again";
-    MegaElementList* newEll2 = nullptr;
+    MegaSetElementList* newEll2 = nullptr;
     err = doCreateSetElement(0, &newEll2, sh, uploadedNode, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
     ASSERT_NE(newEll2, nullptr);
@@ -8193,7 +8193,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     eh = newEll2->get(0)->id();
     ASSERT_NE(eh, INVALID_HANDLE);
     delete newEll2;
-    unique_ptr<MegaElement> elp_b4lo(megaApi[0]->getSetElement(sh, eh));
+    unique_ptr<MegaSetElement> elp_b4lo(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(elp_b4lo, nullptr);
     ASSERT_EQ(elp_b4lo->id(), eh);
     ASSERT_EQ(elp_b4lo->name(), elattrs);
@@ -8215,7 +8215,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(s1p->ts(), s1up->ts());
     ASSERT_EQ(s1p->name(), name);
 
-    unique_ptr<MegaElement> ellp(megaApi[0]->getSetElement(sh, eh));
+    unique_ptr<MegaSetElement> ellp(megaApi[0]->getSetElement(sh, eh));
     ASSERT_NE(ellp, nullptr);
     ASSERT_EQ(ellp->id(), elp_b4lo->id());
     ASSERT_EQ(ellp->node(), elp_b4lo->node());

@@ -1076,7 +1076,7 @@ MegaSet* MegaRequest::getMegaSet() const
     return nullptr;
 }
 
-MegaElementList* MegaRequest::getMegaSetElementList() const
+MegaSetElementList* MegaRequest::getMegaSetElementList() const
 {
     return nullptr;
 }
@@ -1692,7 +1692,7 @@ void MegaGlobalListener::onAccountUpdate(MegaApi *)
 { }
 void MegaGlobalListener::onSetsUpdate(MegaApi *, MegaSetList *)
 { }
-void MegaGlobalListener::onSetElementsUpdate(MegaApi *, MegaElementList *)
+void MegaGlobalListener::onSetElementsUpdate(MegaApi *, MegaSetElementList *)
 { }
 void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
@@ -1732,7 +1732,7 @@ void MegaListener::onAccountUpdate(MegaApi *)
 { }
 void MegaListener::onSetsUpdate(MegaApi *, MegaSetList *)
 { }
-void MegaListener::onSetElementsUpdate(MegaApi *, MegaElementList *)
+void MegaListener::onSetElementsUpdate(MegaApi *, MegaSetElementList *)
 { }
 void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
@@ -5618,12 +5618,12 @@ MegaHandle MegaApi::getSetCover(MegaHandle sid)
     return pImpl->getSetCover(sid);
 }
 
-MegaElementList* MegaApi::getSetElements(MegaHandle sid)
+MegaSetElementList* MegaApi::getSetElements(MegaHandle sid)
 {
     return pImpl->getSetElements(sid);
 }
 
-MegaElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
+MegaSetElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
 {
     return pImpl->getSetElement(sid, eid);
 }

@@ -723,7 +723,7 @@ private:
 };
 
 
-class MegaSetElementPrivate : public MegaElement
+class MegaSetElementPrivate : public MegaSetElement
 {
 public:
     MegaSetElementPrivate(const SetElement& el) : mId(el.id()), mNode(el.node()), mOrder(el.order()), mTs(el.ts()), mName(el.name()) {}
@@ -736,7 +736,7 @@ public:
 
     bool hasChanged(int changeType) const override;
 
-    virtual MegaElement* copy() const override { return new MegaSetElementPrivate(*this); }
+    virtual MegaSetElement* copy() const override { return new MegaSetElementPrivate(*this); }
 
 private:
     MegaHandle mId;
@@ -748,16 +748,16 @@ private:
 };
 
 
-class MegaSetElementListPrivate : public MegaElementList
+class MegaSetElementListPrivate : public MegaSetElementList
 {
 public:
     MegaSetElementListPrivate(const SetElement *const* elements, int count); // ptr --> const ptr --> const SetElement
     MegaSetElementListPrivate(const map<handle, SetElement>* elements);
 
     void add(MegaSetElementPrivate&& el);
-    MegaElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
+    MegaSetElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
 
-    const MegaElement* get(unsigned i) const override { return i < size() ? &mElements[i] : nullptr; }
+    const MegaSetElement* get(unsigned i) const override { return i < size() ? &mElements[i] : nullptr; }
     unsigned size() const override { return (unsigned)mElements.size(); }
 
 private:
@@ -1457,8 +1457,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaSet* getMegaSet() const override;
         void setMegaSet(std::unique_ptr<MegaSet> s);
 
-        MegaElementList* getMegaSetElementList() const override;
-        void setMegaSetElementList(std::unique_ptr<MegaElementList> els);
+        MegaSetElementList* getMegaSetElementList() const override;
+        void setMegaSetElementList(std::unique_ptr<MegaSetElementList> els);
 
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
@@ -1511,7 +1511,7 @@ protected:
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
         unique_ptr<MegaSet> mMegaSet;
-        unique_ptr<MegaElementList> mMegaSetElementList;
+        unique_ptr<MegaSetElementList> mMegaSetElementList;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -2662,8 +2662,8 @@ class MegaApiImpl : public MegaApp
         MegaSetList* getSets();
         MegaSet* getSet(MegaHandle sid);
         MegaHandle getSetCover(MegaHandle sid);
-        MegaElementList* getSetElements(MegaHandle sid);
-        MegaElement* getSetElement(MegaHandle sid, MegaHandle eid);
+        MegaSetElementList* getSetElements(MegaHandle sid);
+        MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
 
 #ifdef ENABLE_SYNC
         //Sync
@@ -3114,7 +3114,7 @@ protected:
         void fireOnNodesUpdate(MegaNodeList *nodes);
         void fireOnAccountUpdate();
         void fireOnSetsUpdate(MegaSetList* sets);
-        void fireOnSetElementsUpdate(MegaElementList* elements);
+        void fireOnSetElementsUpdate(MegaSetElementList* elements);
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
