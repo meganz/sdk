@@ -85,6 +85,7 @@
 		A820A30A2155111C00C8B6A5 /* MEGATimeZoneDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = A820A3092155111C00C8B6A5 /* MEGATimeZoneDetails.mm */; };
 		A827F4DD204D3D14006A1962 /* MEGAFolderInfo.mm in Sources */ = {isa = PBXBuildFile; fileRef = A827F4DC204D3D14006A1962 /* MEGAFolderInfo.mm */; };
 		A8464B201F25F53A00102C75 /* MEGAChildrenLists.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8464B1F1F25F53A00102C75 /* MEGAChildrenLists.mm */; };
+		A84CE7FA28CF37C30044CCCD /* setandelement.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A84CE7F928CF37C30044CCCD /* setandelement.cpp */; };
 		A873E86626E23AF000CBB174 /* MEGACurrency.mm in Sources */ = {isa = PBXBuildFile; fileRef = A873E86526E23AF000CBB174 /* MEGACurrency.mm */; };
 		A87843F5215D078700E809EB /* useralerts.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A87843F4215D078700E809EB /* useralerts.cpp */; };
 		A87D979F1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = A87D979E1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm */; };
@@ -305,6 +306,8 @@
 		A8464B1E1F25F53A00102C75 /* MEGAChildrenLists.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAChildrenLists.h; sourceTree = "<group>"; };
 		A8464B1F1F25F53A00102C75 /* MEGAChildrenLists.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAChildrenLists.mm; sourceTree = "<group>"; };
 		A8464B211F25F68C00102C75 /* MEGAChildrenLists+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAChildrenLists+init.h"; sourceTree = "<group>"; };
+		A84CE7F928CF37C30044CCCD /* setandelement.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = setandelement.cpp; path = ../../src/setandelement.cpp; sourceTree = "<group>"; };
+		A84CE7FB28CF37DD0044CCCD /* setandelement.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = setandelement.h; sourceTree = "<group>"; };
 		A873E86426E23AF000CBB174 /* MEGACurrency.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGACurrency.h; sourceTree = "<group>"; };
 		A873E86526E23AF000CBB174 /* MEGACurrency.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGACurrency.mm; sourceTree = "<group>"; };
 		A873E86726E23CB800CBB174 /* MEGACurrency+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGACurrency+init.h"; sourceTree = "<group>"; };
@@ -405,6 +408,7 @@
 				B6657E9B225C2B6200EF8D91 /* raid.cpp */,
 				940BEFAC19ED92C2007E7FA2 /* request.cpp */,
 				940BEFAD19ED92C2007E7FA2 /* serialize64.cpp */,
+				A84CE7F928CF37C30044CCCD /* setandelement.cpp */,
 				940BEFAE19ED92C2007E7FA2 /* share.cpp */,
 				940BEFAF19ED92C2007E7FA2 /* sharenodekeys.cpp */,
 				940BEFB019ED92C2007E7FA2 /* sync.cpp */,
@@ -565,6 +569,7 @@
 		940BF03C19EDBCAD007E7FA2 /* mega */ = {
 			isa = PBXGroup;
 			children = (
+				A84CE7FB28CF37DD0044CCCD /* setandelement.h */,
 				B6DAED3528AB1B2100703E28 /* textchat.h */,
 				A8FD7B621E93B3FB0031FC50 /* osx */,
 				940BF03D19EDBCAD007E7FA2 /* account.h */,
@@ -857,6 +862,7 @@
 				4148209A1C561CB500552E76 /* mega_http_parser.cpp in Sources */,
 				940BEFF719ED9351007E7FA2 /* posixthread.cpp in Sources */,
 				940BEFCD19ED92C2007E7FA2 /* share.cpp in Sources */,
+				A84CE7FA28CF37C30044CCCD /* setandelement.cpp in Sources */,
 				940BEFC019ED92C2007E7FA2 /* filesystem.cpp in Sources */,
 				940BEFB919ED92C2007E7FA2 /* base64.cpp in Sources */,
 				B6657E9C225C2B6200EF8D91 /* raid.cpp in Sources */,
