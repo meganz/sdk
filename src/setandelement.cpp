@@ -176,7 +176,7 @@ namespace mega {
 
         r.serializehandle(mId);
         r.serializehandle(mUser);
-        r.serializecompressed64(mTs);
+        r.serializecompressedi64(mTs);
         r.serializestring(mKey);
 
         size_t asize = mAttrs ? mAttrs->size() : 0;
@@ -198,14 +198,14 @@ namespace mega {
     unique_ptr<Set> Set::unserialize(string* d)
     {
         handle id = 0, u = 0;
-        uint64_t ts = 0;
+        m_time_t ts = 0;
         string k;
         uint32_t attrCount = 0;
 
         CacheableReader r(*d);
         if (!r.unserializehandle(id) ||
             !r.unserializehandle(u) ||
-            !r.unserializecompressed64(ts) ||
+            !r.unserializecompressedi64(ts) ||
             !r.unserializestring(k) ||
             !r.unserializeu32(attrCount))
         {
@@ -290,7 +290,7 @@ namespace mega {
         r.serializehandle(mId);
         r.serializenodehandle(mNodeHandle);
         r.serializei64(mOrder ? *mOrder : 0); // it will always have Order
-        r.serializecompressed64(mTs);
+        r.serializecompressedi64(mTs);
         r.serializestring(mKey);
 
         size_t asize = mAttrs ? mAttrs->size() : 0;
@@ -314,7 +314,7 @@ namespace mega {
         handle sid = 0, eid = 0;
         handle h = 0;
         int64_t o = 0;
-        uint64_t ts = 0;
+        m_time_t ts = 0;
         string k;
         uint32_t attrCount = 0;
         unsigned char expansionsE[8];
@@ -324,7 +324,7 @@ namespace mega {
             !r.unserializehandle(eid) ||
             !r.unserializenodehandle(h) ||
             !r.unserializei64(o) ||
-            !r.unserializecompressed64(ts) ||
+            !r.unserializecompressedi64(ts) ||
             !r.unserializestring(k) ||
             !r.unserializeu32(attrCount))
         {
