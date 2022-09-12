@@ -23453,13 +23453,6 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            TextChat* chat = it->second;
-            if (!chat->mScheduledMeeting)
-            {
-                e = API_EARGS;
-                break;
-            }
-
             client->reqs.add(new CommandScheduledMeetingRemove(client, chatid, schedMeetingId, [request, this] (Error e)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
