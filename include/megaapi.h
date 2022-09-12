@@ -486,12 +486,13 @@ class MegaNode
 {
     public:
 		enum {
-			TYPE_UNKNOWN = -1,
-			TYPE_FILE = 0,
-			TYPE_FOLDER,
-			TYPE_ROOT,
-			TYPE_INCOMING,
-            TYPE_RUBBISH
+            TYPE_UNKNOWN    = -1,
+            TYPE_FILE       = 0,
+            TYPE_FOLDER     = 1,
+            TYPE_ROOT       = 2,
+            TYPE_VAULT      = 3,
+            TYPE_INCOMING   = TYPE_VAULT,    // kept for backwards-compatibility (renamed to Vault)
+            TYPE_RUBBISH    = 4
 		};
 
         enum {
@@ -556,8 +557,8 @@ class MegaNode
          * - TYPE_ROOT = 2
          * The MegaNode object represents root of the MEGA Cloud Drive
          *
-         * - TYPE_INCOMING = 3
-         * The MegaNode object represents root of the MEGA Inbox
+         * - TYPE_VAULT = 3
+         * The MegaNode object represents root of the MEGA Vault
          *
          * - TYPE_RUBBISH = 4
          * The MegaNode object represents root of the MEGA Rubbish Bin
@@ -1642,9 +1643,9 @@ public:
     /**
     * @brief Returns the handle of a user related to the alert
     *
-    * This value is valid for user related alerts: 
+    * This value is valid for user related alerts:
     *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
@@ -1674,16 +1675,16 @@ public:
     * this function will return false and the client can request it via the userHandle.
     *
     * The SDK retains the ownership of the returned value. It will be valid until
-    * the MegaUserAlert object is deleted.    
-    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU, 
+    * the MegaUserAlert object is deleted.
+    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU,
     *   TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_DELETEDYOU,
     *   TYPE_DELETEDSHARE,
     *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST, 
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *   TYPE_NEWSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
     *   TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *   TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
-    * 
+    *
     * @return email string of the relevant user, or NULL if not available
     */
     virtual const char* getEmail() const;
@@ -1696,7 +1697,7 @@ public:
     *
     * This value is valid for those alerts that relate to a single path, provided
     * it could be looked up from the cached nodes at the time the alert arrived.
-    * Otherwise, it may be obtainable via the nodeHandle. 
+    * Otherwise, it may be obtainable via the nodeHandle.
     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
     *
     * @return the path string if relevant and available, otherwise NULL
@@ -1711,7 +1712,7 @@ public:
      *
      * This value is valid for those alerts that relate to a single name, provided
      * it could be looked up from the cached nodes at the time the alert arrived.
-     * Otherwise, it may be obtainable via the nodeHandle. 
+     * Otherwise, it may be obtainable via the nodeHandle.
      *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
      *
      * @return the name string if relevant and available, otherwise NULL
@@ -1752,7 +1753,7 @@ public:
     *                        value 0 if someone left the folder)
     *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
     *   TYPE_REMOVEDSHAREDNODES (0: item count)
-    * 
+    *
     * @return Number related to this request, or -1 if the index is invalid
     */
     virtual int64_t getNumber(unsigned index) const;
@@ -2068,7 +2069,8 @@ public:
     {
         CHANGE_TYPE_ATTACHMENT      = 0x01,
         CHANGE_TYPE_FLAGS           = 0x02,
-        CHANGE_TYPE_MODE            = 0x04
+        CHANGE_TYPE_MODE            = 0x04,
+        CHANGE_TYPE_CHAT_OPTIONS    = 0x08,
     };
 
     virtual ~MegaTextChat();
@@ -2163,6 +2165,16 @@ public:
     virtual const char *getUnifiedKey() const;
 
     /**
+     * @brief Returns the chat options.
+     *
+     * The returned value contains the chat options represented in 1 Byte, where each individual option is stored in 1 bit.
+     * Check ChatOptions struct at types.h
+     *
+     * @return The chat options in a numeric format
+     */
+    virtual unsigned char getChatOptions() const;
+
+    /**
      * @brief Returns true if this chat has an specific change
      *
      * This value is only useful for chats notified by MegaListener::onChatsUpdate or
@@ -2172,14 +2184,17 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaUser::CHANGE_TYPE_ATTACHMENT       = 0x01
+     * - MegaTextChat::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
      *
-     * - MegaUser::CHANGE_TYPE_FLAGS            = 0x02
+     * - MegaTextChat::CHANGE_TYPE_FLAGS            = 0x02
      * Check if flags have changed (like archive flag)
      *
-     * - MegaUser::CHANGE_TYPE_MODE             = 0x04
+     * - MegaTextChat::CHANGE_TYPE_MODE             = 0x04
      * Check if operation mode has changed to private mode (from public mode)
+     *
+     * - MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS     = 0x08
+     * Check if chat options have changed
      *
      * @return true if this chat has an specific change
      */
@@ -2193,14 +2208,17 @@ public:
      *
      * @return The returned value is an OR combination of these flags:
      *
-     * - MegaUser::CHANGE_TYPE_ATTACHMENT       = 0x01
+     * - MegaTextChat::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
      *
-     * - MegaUser::CHANGE_TYPE_FLAGS            = 0x02
+     * - MegaTextChat::CHANGE_TYPE_FLAGS            = 0x02
      * Check if flags have changed (like archive flag)
      *
-     * - MegaUser::CHANGE_TYPE_MODE             = 0x04
+     * - MegaTextChat::CHANGE_TYPE_MODE             = 0x04
      * Check if operation mode has changed to private mode (from public mode)
+     *
+     * - MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS     = 0x08
+     * Check if chat options have changed
      */
     virtual int getChanges() const;
 
@@ -3231,6 +3249,7 @@ class MegaRequest
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_FA_UPLOAD_URL                                          = 145,
             TYPE_EXECUTE_ON_THREAD                                          = 146,
+            TYPE_SET_CHAT_OPTIONS                                           = 147,
             TYPE_GET_RECENT_ACTIONS                                         = 148,
             TYPE_CHECK_RECOVERY_KEY                                         = 149,
             TOTAL_OF_REQUEST_TYPES                                          = 150,
@@ -4165,8 +4184,6 @@ class MegaTransfer
             STAGE_NONE = 0,
             STAGE_SCAN,
             STAGE_CREATE_TREE,
-            STAGE_GEN_TRANSFERS,
-            STAGE_PROCESS_TRANSFER_QUEUE,
             STAGE_TRANSFERRING_FILES,
             STAGE_MAX = STAGE_TRANSFERRING_FILES,
         };
@@ -4364,15 +4381,15 @@ class MegaTransfer
          * This method can return the following values:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
-         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
-         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
-         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
          * Any other returned value, must be ignored.
          *
          * The value returned by this method, can only be considered as valid, when we receive MegaTransferListener::onTransferUpdate
          * or MegaListener::onTransferUpdate, and the returned value is in between the range specified above.
          *
          * Note: any specific stage can only be notified once at most.
+         *
+         * @deprecated use the stage in the onFolderTransferUpdate callback instead
          *
          * @return The current stage for a folder upload/download operation
          */
@@ -6468,9 +6485,7 @@ class MegaTransferListener
          * This method returns the following values:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
-         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
-         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
-         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
          * For more information about stages refer to MegaTransfer::getStage
          *
          * @param api MegaApi object that started the transfer
@@ -6479,6 +6494,37 @@ class MegaTransferListener
          * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
          */
         virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+
+        /**
+         * @brief This function is called to inform about the progress of a folder transfer
+         *
+         * The SDK retains the ownership of all parameters.
+         * Don't use any after this functions returns.
+         *
+         * The api object is the one created by the application, it will be valid until
+         * the application deletes it.
+         *
+         * This callback is only made for folder transfers, and only to the listener for that
+         * transfer, not for any globally registered listeners.  The callback is only made
+         * during the scanning phase.
+         *
+         * This function can be used to give feedback to the user as to how scanning is progressing,
+         * since scanning may take a while and the application may be showing a modal dialog during
+         * this time.
+         *
+         * Note that this function could be called from a variety of threads during the
+         * overall operation, so proper thread safety should be observed.
+         *
+         * @param api MegaApi object that started the transfer
+         * @param transfer Information about the transfer
+         * @stage MegaTransfer::STAGE_SCAN or a later value in that enum
+         * @param foldercount The count of folders scanned so far
+         * @param foldercount The count of folders created so far (only relevant in MegaTransfer::STAGE_CREATE_TREE)
+         * @param filecount The count of files scanned (and fingerprinted) so far.  0 if not in scanning stage
+         * @param currentFolder The path of the folder currently being scanned (NULL except in the scan stage)
+         * @param currentFileLeafname The leaft name of the file currently being fingerprinted (can be NULL for the first call in a new folder, and when not scanning anymore)
+         */
+        virtual void onFolderTransferUpdate(MegaApi *api, MegaTransfer *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname);
 
         /**
          * @brief This function is called when there is a temporary error processing a transfer
@@ -7016,9 +7062,7 @@ class MegaListener
          * This method returns the following values:
          *  - MegaTransfer::STAGE_SCAN                      = 1
          *  - MegaTransfer::STAGE_CREATE_TREE               = 2
-         *  - MegaTransfer::STAGE_GEN_TRANSFERS             = 3
-         *  - MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE    = 4
-         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 5
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
          * For more information about stages refer to MegaTransfer::getStage
          *
          * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
@@ -7929,6 +7973,7 @@ class MegaApi
         };
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
+        static constexpr int CHAT_OPTIONS_EMPTY = 0;
 
         /**
          * @brief Constructor suitable for most applications
@@ -10294,6 +10339,9 @@ class MegaApi
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
+         * @obsolete The Inbox rootnode has been recycled for Vault and will no longer
+         * accept to put nodes in user's Inbox. This method could be removed in the future.
+         *
          * @param node Node to send
          * @param user User that receives the node
          * @param listener MegaRequestListener to track this request
@@ -10310,6 +10358,9 @@ class MegaApi
         *
         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+        *
+        * @obsolete The Inbox rootnode has been recycled for Vault and will no longer
+        * accept to put nodes in user's Inbox. This method could be removed in the future.
         *
         * @param node Node to send
         * @param email Email of the user that receives the node
@@ -12715,11 +12766,6 @@ class MegaApi
          *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
          *    that shares the same cancel token instance.
          *
-         * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
-         * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
-         * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
-         * instead of that, use MegaCancelToken::cancel() calling through MegaCancelToken instance associated to this transfer.
-         *
          * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
          * @param localPath Local path of the file or folder
@@ -12756,6 +12802,8 @@ class MegaApi
          * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
          * this method will force a new upload from the scratch (ensuring the file attributes are set),
          * instead of doing a remote copy.
+         *
+         * This method always puts the transfer on top of the upload queue.
          *
          * If the status of the business account is expired, onTransferFinish will be called with the error
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
@@ -12800,11 +12848,6 @@ class MegaApi
          *
          *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
          *    that shares the same cancel token instance.
-         *
-         * In case any other folder is being uploaded/downloaded, and MegaTransfer::getStage for that transfer returns
-         * a value between the following stages: MegaTransfer::STAGE_SCAN and MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE
-         * both included, don't use MegaApi::cancelTransfer to cancel this transfer (it could generate a deadlock),
-         * instead of that, use MegaCancelToken::cancel() calling through MegaCancelToken instance associated to this transfer.
          *
          * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
@@ -12895,6 +12938,9 @@ class MegaApi
          * If the transfer parameter is NULL or is not of type MegaTransfer::TYPE_DOWNLOAD or
          * MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
          * MegaApi::startUpload) the function returns without doing anything.
+         *
+         * Note that retried transfers will always start first, so the user see them progressing
+         * immediately.
          *
          * @param transfer Transfer to be retried
          * @param listener MegaTransferListener to track this transfer
@@ -14831,7 +14877,7 @@ class MegaApi
          *
          * The path separator character is '/'
          * The Root node is /
-         * The Inbox root node is //in/
+         * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
          * Paths with names containing '/', '\' or ':' aren't compatible
@@ -15425,14 +15471,19 @@ class MegaApi
         MegaNode *getRootNode();
 
         /**
-         * @brief Returns the inbox node of the account
+         * @brief Returns the Vault node of the account
          *
          * You take the ownership of the returned value
          *
          * If you haven't successfully called MegaApi::fetchNodes before,
          * this function returns NULL
          *
-         * @return Inbox node of the account
+         * @return Vault node of the account
+         */
+        MegaNode *getVaultNode();
+
+        /**
+         * @deprecated Renamed to getVaultNode(). Should be replaced in external bindings before being removed here.
          */
         MegaNode* getInboxNode();
 
@@ -15475,12 +15526,17 @@ class MegaApi
         bool isInRubbish(MegaNode *node);
 
         /**
-         * @brief Check if a node is in the Inbox tree
+         * @brief Check if a node is in the Vault tree
          *
          * @param node Node to check
-         * @return True if the node is in the Inbox
+         * @return True if the node is in the Vault
          */
-        bool isInInbox(MegaNode *node);
+        bool isInVault(MegaNode *node);
+
+        /**
+         * @deprecated Renamed to isInVault(). Should be replaced in external bindings before being removed here.
+         */
+        bool isInInbox(MegaNode* node) { return isInVault(node); }
 
         /**
          * @brief Set default permissions for new files
@@ -15722,7 +15778,7 @@ class MegaApi
          *
          * The search will consider every accessible node for the account:
          *  - Cloud drive
-         *  - Inbox
+         *  - Vault
          *  - Rubbish bin
          *  - Incoming shares from other users
          *
@@ -15803,7 +15859,7 @@ class MegaApi
          *
          * The search will consider every accessible node for the account:
          *  - Cloud drive
-         *  - Inbox
+         *  - Vault
          *  - Rubbish bin
          *  - Incoming shares from other users
          *
@@ -17810,6 +17866,7 @@ class MegaApi
          * - MegaRequest::getAccess - Returns zero (private mode)
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
          * - MegaRequest::getText - Returns the title of the chat.
+         * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -17817,6 +17874,7 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If more than 1 peer is provided for a 1on1 chatroom.
+         * - MegaError::API_EARGS   - If chatOptions param is provided for a 1on1 chat
          *
          * @note If peers list contains only one person, group chat is not set and a permament chat already
          * exists with that person, then this call will return the information for the existing chat, rather
@@ -17825,9 +17883,10 @@ class MegaApi
          * @param group Flag to indicate if the chat is a group chat or not
          * @param peers MegaTextChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
+         * @param chatOptions Bitmask that contains the chat options to create the chat
          * @param listener MegaRequestListener to track this request
          */
-        void createChat(bool group, MegaTextChatPeerList *peers, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createChat(bool group, MegaTextChatPeerList* peers, const char* title = NULL, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Creates a public chatroom for multiple participants (groupchat)
@@ -17853,6 +17912,7 @@ class MegaApi
          * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getNumber - Returns if chat room is a meeting room
+         * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -17865,9 +17925,36 @@ class MegaApi
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
          * @param meetingRoom Boolean indicating if room is a meeting room
+         * @param chatOptions Bitmask that contains the chat options to create the chat
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Enable or disable a option for a chatroom
+         *
+         * This function allows to enable or disable one of the following chatroom options:
+         * - 0x01:  SpeakRequest: during calls non-operator users must request permission to speak.
+         * - 0x02:  WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
+         * - 0x04:  OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
+         *
+         * The associated request type with this request is MegaChatRequest::TYPE_SET_CHAT_OPTIONS
+         * Valid data in the MegaChatRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::Access  - Returns the chat option we want to enable disable
+         * - MegaRequest::getFlag - Returns true if enabled was set true, otherwise it will return false
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS  - If the chatid is invalid
+         * - MegaError::API_EARGS  - If this method is called for a 1on1 chat
+         * - MegaError::API_ENOENT - If the chatroom does not exists
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param option Chat option that we want to enable/disable
+         * @param enabled True if we want to enable the option, otherwise false.
+         * @param listener MegaChatRequestListener to track this request
+         */
+        void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
@@ -19377,10 +19464,10 @@ public:
      *
      * This function can return:
      * - 0 (no info about any node)
-     * - 3 (info about the root node, the inbox node and the rubbish node)
-     * Use MegaApi::getRootNode MegaApi::getInboxNode and MegaApi::getRubbishNode to get those nodes.
+     * - 3 (info about the root node, the vault node and the rubbish node)
+     * Use MegaApi::getRootNode MegaApi::getVaultNode and MegaApi::getRubbishNode to get those nodes.
      *
-     * - >3 (info about root, inbox, rubbish and incoming shares)
+     * - >3 (info about root, vault, rubbish and incoming shares)
      * Use MegaApi::getInShares to get the incoming shares
      *
      * @return Number of items with account usage info
@@ -19394,7 +19481,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Used storage (in bytes)
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getStorageUsed(MegaHandle handle);
 
@@ -19405,7 +19492,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Number of files in the node
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getNumFiles(MegaHandle handle);
 
@@ -19416,7 +19503,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Number of folders in the node
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getNumFolders(MegaHandle handle);
 
@@ -19427,7 +19514,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Used storage by versions (in bytes)
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getVersionStorageUsed(MegaHandle handle);
 
@@ -19438,7 +19525,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Number of versioned files in the node
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getNumVersionFiles(MegaHandle handle);
 

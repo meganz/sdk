@@ -45,8 +45,6 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
     MEGATransferStageNone = 0,
     MEGATransferStageScan,
     MEGATransferStageCreateTree,
-    MEGATransferStageGenTransfers,
-    MEGATransferStageProcessTransferQueue,
     MEGATransferStageTransferringFiles,
     MEGATransferStageMax = MEGATransferStageTransferringFiles,
 };
@@ -299,9 +297,7 @@ typedef NS_ENUM (NSUInteger, MEGATransferStage) {
  * This method can return the following values:
  *  - MEGATransferStageScan                      = 1
  *  - MEGATransferStageCreateTreee               = 2
- *  - MEGATransferStageGenTransfers              = 3
- *  - MEGATransferStageProcessTransferQueue      = 4
- *  - MEGATransferStageTransferringFiles         = 5
+ *  - MEGATransferStageTransferringFiles         = 3
  * Any other returned value, must be ignored.
  *
  * Note: a recursive operation (folder upload/download) can be cancelled using a MEGACancelToken,

@@ -78,7 +78,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
     client->nodes[h] = this;
 
     if (t == ROOTNODE) client->rootnodes.files = h;
-    if (t == INCOMINGNODE) client->rootnodes.inbox = h;
+    if (t == VAULTNODE) client->rootnodes.vault = h;
     if (t == RUBBISHNODE) client->rootnodes.rubbish = h;
 
     // set parent linkage or queue for delayed parent linkage in case of
@@ -157,7 +157,7 @@ Node::~Node()
 
         const Node* fa = firstancestor();
         NodeHandle ancestor = fa->nodeHandle();
-        if (ancestor == client->rootnodes.files || ancestor == client->rootnodes.inbox || ancestor == client->rootnodes.rubbish || fa->inshare)
+        if (client->rootnodes.isRootNode(ancestor) || fa->inshare)
         {
             client->mNodeCounters[firstancestor()->nodeHandle()] -= subnodeCounts();
         }
@@ -849,7 +849,7 @@ string Node::displaypath() const
             }
             break;
 
-        case INCOMINGNODE:
+        case VAULTNODE:
             path.insert(0, "//in");
             return path;
 
@@ -1012,7 +1012,7 @@ bool Node::setparent(Node* p)
 
     const Node *originalancestor = firstancestor();
     NodeHandle oah = originalancestor->nodeHandle();
-    if (oah == client->rootnodes.files || oah == client->rootnodes.inbox || oah == client->rootnodes.rubbish || originalancestor->inshare)
+    if (client->rootnodes.isRootNode(oah) || originalancestor->inshare)
     {
         nc = subnodeCounts();
         gotnc = true;
@@ -1039,7 +1039,7 @@ bool Node::setparent(Node* p)
 
     const Node* newancestor = firstancestor();
     NodeHandle nah = newancestor->nodeHandle();
-    if (nah == client->rootnodes.files || nah == client->rootnodes.inbox || nah == client->rootnodes.rubbish || newancestor->inshare)
+    if (client->rootnodes.isRootNode(nah) || newancestor->inshare)
     {
         if (!gotnc)
         {

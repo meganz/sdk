@@ -347,7 +347,7 @@ typedef enum {
     FILENODE = 0,    // FILE - regular file nodes
     FOLDERNODE,      // FOLDER - regular folder nodes
     ROOTNODE,        // ROOT - the cloud drive root node
-    INCOMINGNODE,    // INCOMING - inbox
+    VAULTNODE,       // VAULT - vault, for "My backups" and other special folders
     RUBBISHNODE      // RUBBISH - rubbish bin
 } nodetype_t;
 
@@ -398,7 +398,7 @@ typedef uint64_t nameid;
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
 // FULL - all operations that do not require ownership permitted
-// OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
+// OWNER - node is in caller's ROOT, VAULT or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
 // operations for outgoing pending contacts
@@ -974,6 +974,51 @@ typedef enum
     BACKUP_UPLOAD = 5
 }
 BackupType;
+
+typedef mega::byte ChatOptions_t;
+struct ChatOptions
+{
+public:
+    enum: ChatOptions_t
+    {
+        kEmpty         = 0x00,
+        kSpeakRequest  = 0x01,
+        kWaitingRoom   = 0x02,
+        kOpenInvite    = 0x04,
+    };
+
+    // update with new options added, to get the max value allowed, with regard to the existing options
+    static constexpr ChatOptions_t maxValidValue = kSpeakRequest | kWaitingRoom | kOpenInvite;
+
+    ChatOptions(): mChatOptions(ChatOptions::kEmpty){}
+    ChatOptions(ChatOptions_t options): mChatOptions(options){}
+    ChatOptions(bool speakRequest, bool waitingRoom , bool openInvite)
+        : mChatOptions(static_cast<ChatOptions_t>((speakRequest ? kSpeakRequest : 0)
+                                            | (waitingRoom ? kWaitingRoom : 0)
+                                            | (openInvite ? kOpenInvite : 0)))
+    {
+    }
+
+    // setters/modifiers
+    void set(ChatOptions_t val)             { mChatOptions = val; }
+    void add(ChatOptions_t val)             { mChatOptions = mChatOptions | val; }
+    void remove(ChatOptions_t val)          { mChatOptions = mChatOptions & static_cast<ChatOptions_t>(~val); }
+    void updateSpeakRequest(bool enabled)   { enabled ? add(kSpeakRequest)  : remove(kSpeakRequest);}
+    void updateWaitingRoom(bool enabled)    { enabled ? add(kWaitingRoom)   : remove(kWaitingRoom);}
+    void updateOpenInvite(bool enabled)     { enabled ? add(kOpenInvite)    : remove(kOpenInvite);}
+
+    // getters
+    ChatOptions_t value() const             { return mChatOptions; }
+    bool areEqual(ChatOptions_t val)        { return mChatOptions == val; }
+    bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
+    bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
+    bool openInvite() const                 { return mChatOptions & kOpenInvite; }
+    bool isValid()                          { return mChatOptions >= kEmpty && mChatOptions <= maxValidValue; }
+    bool isEmpty()                          { return mChatOptions == kEmpty; }
+
+protected:
+    ChatOptions_t mChatOptions = kEmpty;
+};
 
 enum VersioningOption
 {
