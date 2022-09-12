@@ -9022,7 +9022,14 @@ TEST_F(SdkTest, SdkNodesOnDemandVersions)
     mApi[0].nodeUpdated = false;
     mApi[1].nodeUpdated = false;
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+#ifdef ENABLE_SYNC
+    MegaHandle nodeHandle = fh;
+    // If sync is enable, sdk forces to notify first node deletion and
+    // after that, the node is notify as new in other call to `nodes_updated`
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(nodeHandle, MegaNode::CHANGE_TYPE_REMOVED);
+#else
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+#endif
     string content2 = "test_2";
     createFile(fileName, false, content2);
     fh = 0;
