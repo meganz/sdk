@@ -1558,6 +1558,19 @@ public:
     CommandScheduledMeetingFetch(MegaClient *, handle, handle, CommandScheduledMeetingFetchCompletion completion);
 };
 
+typedef std::function<void(Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)> CommandScheduledMeetingFetchEventsCompletion;
+class MEGA_API CommandScheduledMeetingFetchEvents : public Command
+{
+    handle mChatId;
+    string mSince;
+    string mUntil;
+    int mCount;
+    CommandScheduledMeetingFetchEventsCompletion mCompletion;
+
+public:
+    bool procresult(Result) override;
+    CommandScheduledMeetingFetchEvents(MegaClient *, handle, const char *, const char *, int, CommandScheduledMeetingFetchEventsCompletion completion);
+};
 #endif
 
 } // namespace

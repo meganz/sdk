@@ -5192,6 +5192,11 @@ void MegaApi::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId
     pImpl->fetchScheduledMeeting(chatid, schedMeetingId, listener);
 }
 
+void MegaApi::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, int count, MegaRequestListener* listener)
+{
+    pImpl->fetchScheduledMeetingEvents(chatid, since, until, count, listener);
+}
+
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
 {
     pImpl->inviteToChat(chatid, uh, privilege, false, NULL, title, listener);

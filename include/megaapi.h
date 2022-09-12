@@ -3319,7 +3319,8 @@ class MegaRequest
             TYPE_ADD_SCHEDULED_MEETING                                      = 150,
             TYPE_DEL_SCHEDULED_MEETING                                      = 151,
             TYPE_FETCH_SCHEDULED_MEETING                                    = 152,
-            TOTAL_OF_REQUEST_TYPES                                          = 153,
+            TYPE_FETCH_SCHEDULED_MEETING_EVENTS                             = 153,
+            TOTAL_OF_REQUEST_TYPES                                          = 154,
         };
 
         virtual ~MegaRequest();
@@ -18036,6 +18037,14 @@ class MegaApi
          * TODO complete documentation
          */
         void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Fetch for scheduled meeting events
+         *
+         * TODO complete documentation
+         */
+        void fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, int count, MegaRequestListener* listener = NULL);
+
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
          * operator privilege in the chat, and the chat must be a group chat in private mode.

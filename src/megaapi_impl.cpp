@@ -4096,6 +4096,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_ADD_SCHEDULED_MEETING: return "ADD_SCHEDULED_MEETING";
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
+        case TYPE_FETCH_SCHEDULED_MEETING_EVENTS: return "FETCH_SCHEDULED_MEETING_EVENTS";
     }
     return "UNKNOWN";
 }
@@ -10731,6 +10732,16 @@ void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedMeeti
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING, listener);
     request->setNodeHandle(chatid);
     request->setParentHandle(schedMeetingId);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchScheduledMeetingEvents(MegaHandle chatid, const char* since, const char* until, int count, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_EVENTS, listener);
+    request->setNodeHandle(chatid);
+    request->setName(since);
+    request->setEmail(until);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23468,6 +23479,26 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedMeetingId, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+        case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING_EVENTS:
+        {
+            handle chatid = request->getNodeHandle();
+            const char* since = request->getName();
+            const char* until = request->getEmail();
+            int count = request->getAccess();
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, since, until, count, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
