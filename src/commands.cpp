@@ -9205,6 +9205,232 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
     return r.wasErrorOrOK();
 }
 
+CommandScheduledMeetingFetch::CommandScheduledMeetingFetch(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingFetchCompletion completion)
+    : mChatId(chatid), mSchedMeetingId(schedMeeting), mCompletion(completion)
+{
+    cmd("mcsmf");
+    if (schedMeeting != UNDEF) { arg("id", (byte*) &schedMeeting, MegaClient::CHATHANDLE); }
+    if (chatid != UNDEF)       { arg("cid", (byte*) &chatid, MegaClient::CHATHANDLE); }
+    tag = client->reqtag;
+}
+
+bool CommandScheduledMeetingFetch::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK(), nullptr);
+        return true;
+    }
+
+    auto it = client->chats.find(mChatId);
+    if (it == client->chats.end() || !r.hasJsonArray())
+    {
+        mCompletion(API_EINTERNAL, nullptr);
+        return true;
+    }
+
+    std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
+    while (client->json.enterobject())
+    {
+        bool exit = false;
+        std::unique_ptr<ScheduledMeeting> auxMeet(new ScheduledMeeting());
+        while (!exit)
+        {
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID3('c', 'i', 'd'): // chatid
+                {
+                    auxMeet->setChatid(client->json.gethandle(MegaClient::CHATHANDLE));
+                    break;
+                }
+                case MAKENAMEID2('i', 'd'):  // callid
+                {
+                    auxMeet->setCallid(client->json.gethandle(MegaClient::CHATHANDLE));
+                    break;
+                }
+                case MAKENAMEID1('p'):  // parent callid
+                {
+                    auxMeet->setParentCallid(client->json.gethandle(MegaClient::CHATHANDLE));
+                    break;
+                }
+                case MAKENAMEID1('u'): // organizer user Handle
+                {
+                    auxMeet->setOrganizerUserid(client->json.gethandle(MegaClient::CHATHANDLE));
+                    break;
+                }
+                case MAKENAMEID2('t', 'z'): // timezone
+                {
+                    string tz;
+                    client->json.storeobject(&tz);
+                    auxMeet->setTimezone(tz.c_str());
+                    break;
+                }
+                case MAKENAMEID1('s'): // start date time
+                {
+                    string startDateTime;
+                    client->json.storeobject(&startDateTime);
+                    auxMeet->setStartDateTime(startDateTime.c_str());
+                    break;
+                }
+                case MAKENAMEID1('e'): // end date time
+                {
+                    string endDateTime;
+                    client->json.storeobject(&endDateTime);
+                    auxMeet->setEndDateTime(endDateTime.c_str());
+                    break;
+                }
+                case MAKENAMEID1('t'):  // title
+                {
+                    string title;
+                    client->json.storeobject(&title);
+                    auxMeet->setTitle(title.c_str());
+                    break;
+                }
+                case MAKENAMEID1('d'): // description
+                {
+                    string description;
+                    client->json.storeobject(&description);
+                    auxMeet->setDescription(description.c_str());
+                    break;
+                }
+                case MAKENAMEID2('a', 't'): // attributes
+                {
+                    string attributes;
+                    client->json.storeobject(&attributes);
+                    auxMeet->setAttributes(attributes.c_str());
+                    break;
+                }
+                case MAKENAMEID1('o'): // override
+                {
+                    string overrides;
+                    client->json.storeobject(&overrides);
+                    auxMeet->setOverrides(overrides.c_str());
+                    break;
+                }
+                case MAKENAMEID1('c'): // cancelled
+                {
+                    auxMeet->setCancelled(static_cast<int>(client->json.getint()));
+                    break;
+                }
+                case MAKENAMEID1('f'): // flags
+                {
+                    ScheduledFlags auxFlags(static_cast<unsigned long>(client->json.getint()));
+                    auxMeet->setFlags(&auxFlags);
+                    break;
+                }
+                case MAKENAMEID1('r'): // scheduled meeting rules
+                {
+                    string freq;
+                    string until;
+                    int interval = ScheduledRules::INTERVAL_INVALID;
+                    ScheduledRules::rules_vector vWeek;
+                    ScheduledRules::rules_vector vMonth;
+                    ScheduledRules::rules_map mMonth;
+
+                    if (client->json.enterobject())
+                    {
+                        for (;;)
+                        {
+                            nameid id = client->json.getnameid();
+                            if (matchid("FREQ", id))
+                            {
+                                client->json.storeobject(&freq);
+                            }
+                            else if (matchid("INTERVAL", id))
+                            {
+                                interval = static_cast<int>(client->json.getint());
+                            }
+                            else if (matchid("UNTIL", id))
+                            {
+                                client->json.storeobject(&until);
+                            }
+                            else if (matchid("BYWEEKDAY", id))
+                            {
+                                if (client->json.enterarray())
+                                {
+                                    while(client->json.isnumeric())
+                                    {
+                                        vWeek.emplace_back(static_cast<int>(client->json.getint()));
+                                    }
+                                }
+                            }
+                            else if (matchid("BYMONTHDAY", id))
+                            {
+                                if (client->json.enterarray())
+                                {
+                                    while(client->json.isnumeric())
+                                    {
+                                        vMonth.emplace_back(static_cast<int>(client->json.getint()));
+                                    }
+                                }
+                            }
+                            else if (matchid("BYMONTHDAY", id))
+                            {
+                                if (client->json.enterarray())
+                                {
+                                    while(client->json.enterarray())
+                                    {
+                                        int key = -1;
+                                        int value = -1;
+                                        int i = 0;
+                                        while (client->json.isnumeric())
+                                        {
+                                            if (i == 0) { key = static_cast<int>(client->json.getint()); }
+                                            if (i == 1) { value = static_cast<int>(client->json.getint()); }
+                                            i++;
+                                        }
+
+                                        if (i > 2 || key == -1 || value == -1) // ensure that each array just contains a pair of elemements
+                                        {
+                                            mCompletion(API_EINTERNAL, nullptr);
+                                            return false;
+                                        }
+                                        mMonth.emplace(key, value);
+                                    }
+                                }
+                            }
+                            else if (id == EOO)
+                            {
+                                break;
+                            }
+                            else if (!client->json.storeobject()) // default
+                            {
+                                mCompletion(API_EINTERNAL, nullptr);
+                                return false;
+                            }
+
+                        }
+                        client->json.leaveobject();
+                    }
+
+                    std::unique_ptr<ScheduledRules>rules(new ScheduledRules(ScheduledRules::stringToFreq(freq.c_str()), interval,
+                                                                            until.c_str(), &vWeek, &vMonth, &mMonth));
+                    auxMeet->setRules(rules.get());
+                    break;
+                }
+                case EOO:
+                {
+                    exit = true;
+                    client->json.leaveobject();
+                    schedMeetings.emplace_back(std::move(auxMeet));
+                    break;
+                }
+                default:
+                {
+                    if (!client->json.storeobject())
+                    {
+                        mCompletion(API_EINTERNAL, nullptr);
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+
+    mCompletion(API_OK, &schedMeetings);
+    return true;
+}
+
 #endif
 
 } // namespace

@@ -2946,6 +2946,7 @@ class MegaApiImpl : public MegaApp
                                                  const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
                                                  const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener = NULL);
+        void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener = NULL);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);

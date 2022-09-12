@@ -4095,6 +4095,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHECK_RECOVERY_KEY: return "CHECK_RECOVERY_KEY";
         case TYPE_ADD_SCHEDULED_MEETING: return "ADD_SCHEDULED_MEETING";
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
+        case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
     }
     return "UNKNOWN";
 }
@@ -10719,6 +10720,15 @@ void MegaApiImpl::createScheduledMeeting(MegaHandle chatid, const char* timezone
 void MegaApiImpl::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_DEL_SCHEDULED_MEETING, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(schedMeetingId);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SCHEDULED_MEETING, listener);
     request->setNodeHandle(chatid);
     request->setParentHandle(schedMeetingId);
     requestQueue.push(request);
@@ -23440,6 +23450,24 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->reqs.add(new CommandScheduledMeetingRemove(client, chatid, schedMeetingId, [request, this] (Error e)
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+        case MegaRequest::TYPE_FETCH_SCHEDULED_MEETING:
+        {
+            handle chatid = request->getNodeHandle();
+            handle schedMeetingId = request->getParentHandle();
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            client->reqs.add(new CommandScheduledMeetingFetch(client, chatid, schedMeetingId, [request, this] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>* result)
             {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));

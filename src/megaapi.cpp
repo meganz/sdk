@@ -5187,6 +5187,11 @@ void MegaApi::removeScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingI
     pImpl->removeScheduledMeeting(chatid, schedMeetingId, listener);
 }
 
+void MegaApi::fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener)
+{
+    pImpl->fetchScheduledMeeting(chatid, schedMeetingId, listener);
+}
+
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
 {
     pImpl->inviteToChat(chatid, uh, privilege, false, NULL, title, listener);

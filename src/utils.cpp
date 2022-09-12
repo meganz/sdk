@@ -993,6 +993,14 @@ const char* ScheduledRules::freqToString ()
     }
 }
 
+int ScheduledRules::stringToFreq (const char* freq)
+{
+    if (strcmp(freq, "DAILY") == 0)     { return FREQ_DAILY; }
+    if (strcmp(freq, "WEEKLY") == 0)    { return FREQ_WEEKLY; }
+    if (strcmp(freq, "MONTHLY") == 0)   { return FREQ_WEEKLY; }
+    return FREQ_INVALID;
+}
+
 bool ScheduledRules::serialize(string* out)
 {
     //assert(out && !out->empty());
