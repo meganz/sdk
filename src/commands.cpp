@@ -9412,6 +9412,12 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
                 {
                     exit = true;
                     client->json.leaveobject();
+                    if (!auxMeet->isValid())
+                    {
+                        assert(false);
+                        mCompletion(API_EINTERNAL, nullptr);
+                        return false;
+                    }
                     schedMeetings.emplace_back(std::move(auxMeet));
                     break;
                 }

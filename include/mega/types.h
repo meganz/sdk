@@ -815,6 +815,7 @@ class ScheduledRules
         const rules_vector* byWeekDay();
         const rules_vector* byMonthDay();
         const rules_map* byMonthWeekDay();
+        bool isValid() const;
         const char* freqToString();
         static int stringToFreq (const char* freq);
         static bool isValidFreq(int freq)         { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
@@ -847,7 +848,7 @@ class ScheduledRules
 class ScheduledMeeting
 {
 public:
-    ScheduledMeeting() = default;
+    ScheduledMeeting();
     ScheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
                      const char* title, const char* description, handle organizerUserId, handle callid = UNDEF,
                      handle parentCallid = UNDEF, int cancelled = -1, const char* attributes = nullptr,
@@ -894,6 +895,7 @@ public:
     int cancelled() const;
     ScheduledFlags* flags() const;
     ScheduledRules* rules() const;
+    bool isValid() const;
 
     // serialization
     bool serialize(string* out);

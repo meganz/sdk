@@ -982,6 +982,11 @@ const char* ScheduledRules::until() const                            { return !m
 const ScheduledRules::rules_vector* ScheduledRules::byWeekDay()      { return mByWeekDay.get(); }
 const ScheduledRules::rules_vector* ScheduledRules::byMonthDay()     { return mByMonthDay.get(); }
 const ScheduledRules::rules_map* ScheduledRules::byMonthWeekDay()    { return mByMonthWeekDay.get(); }
+bool ScheduledRules::isValid() const
+{
+    return isValidFreq(mFreq);
+}
+
 const char* ScheduledRules::freqToString ()
 {
     switch (mFreq)
@@ -1121,6 +1126,24 @@ ScheduledRules* ScheduledRules::unserialize(string* in)
 }
 
 /* class scheduledMeeting */
+ScheduledMeeting::ScheduledMeeting()
+    : mChatid(UNDEF),
+      mOrganizerUserId(UNDEF),
+      mCallid(UNDEF),
+      mParentCallid(UNDEF),
+      mTimezone(std::string()),
+      mStartDateTime(std::string()),
+      mEndDateTime(std::string()),
+      mTitle(std::string()),
+      mDescription(std::string()),
+      mAttributes(std::string()),
+      mOverrides(std::string()),
+      mCancelled(-1),
+      mFlags(nullptr),
+      mRules(nullptr)
+{
+}
+
 ScheduledMeeting::ScheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
                                 const char* title, const char* description, handle organizerUserId, handle callid,
                                 handle parentCallid, int cancelled, const char* attributes,
@@ -1231,6 +1254,18 @@ int ScheduledMeeting::cancelled() const                             { return mCa
 ScheduledFlags* ScheduledMeeting::flags() const                     { return mFlags.get(); }
 ScheduledRules* ScheduledMeeting::rules() const                     { return mRules.get(); }
 
+bool ScheduledMeeting::isValid() const
+{
+    return mChatid != UNDEF
+            && mOrganizerUserId != UNDEF
+            && mCallid  != UNDEF
+            && !mTimezone.empty()
+            && !mStartDateTime.empty()
+            && !mEndDateTime.empty()
+            && !mTitle.empty()
+            && !mDescription.empty()
+            && (!mRules || mRules->isValid());
+}
 bool ScheduledMeeting::serialize(string* out)
 {
     //assert(out && !out->empty());
