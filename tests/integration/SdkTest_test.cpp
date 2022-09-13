@@ -7948,7 +7948,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
     ASSERT_EQ(API_OK, loginTracker->waitForResult()) << " Failed to fetch nodes for account " << differentApiIdx;
 
     // 1. Create Set
-    string name = "first Set";
+    string name = u8"Set name ideograms: 讓我們打破這個"; // "讓我們打破這個"
     differentApiDtls.setUpdated = false;
     MegaSet* newSet = nullptr;
     int err = doCreateSet(0, &newSet, name.c_str());
@@ -7986,7 +7986,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 2. Update Set name
     MegaHandle shu = INVALID_HANDLE;
-    name += " updated";
+    name += u8" updated";
     differentApiDtls.setUpdated = false;
     err = doUpdateSetName(0, &shu, sh, name.c_str());
     ASSERT_EQ(err, API_OK);
@@ -8020,7 +8020,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
         nullptr /*cancelToken*/)) << "Cannot upload a test file";
 
     // 4. Add Element
-    string elattrs = "element name";
+    string elattrs = u8"Element name emoji: 📞🎉❤️"; // "📞🎉❤️"
     differentApiDtls.setElementUpdated = false;
     MegaSetElementList* newEll = nullptr;
     err = doCreateSetElement(0, &newEll, sh, uploadedNode, elattrs.c_str());
@@ -8149,7 +8149,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 7. Update Element name
     MegaHandle el2 = INVALID_HANDLE;
-    elattrs += " updated";
+    elattrs += u8" updated";
     differentApiDtls.setElementUpdated = false;
     err = doUpdateSetElementName(0, &el2, sh, eh, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
@@ -8183,7 +8183,7 @@ TEST_F(SdkTest, SdkTestSetsAndElements)
 
     // 9. Add another element
     differentApiDtls.setElementUpdated = false;
-    elattrs += " again";
+    elattrs += u8" again";
     MegaSetElementList* newEll2 = nullptr;
     err = doCreateSetElement(0, &newEll2, sh, uploadedNode, elattrs.c_str());
     ASSERT_EQ(err, API_OK);
