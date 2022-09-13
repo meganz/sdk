@@ -64,7 +64,8 @@ struct TextChat : public Cacheable
 
     // maps a scheduled meeting id (callid) to a scheduled meeting occurrence
     // a scheduled meetings ocurrence is an event based on a scheduled meeting
-    // each scheduled meeting could have one or multiple ocurrences (check ScheduledMeeting class documentation)
+    // a scheduled meeting could have one or multiple ocurrences (unique key: <callid, startdatetime>)
+    // (check ScheduledMeeting class documentation)
     multimap<handle/*callid*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetingsOcurrences;
 
 private:        // use setter to modify these members

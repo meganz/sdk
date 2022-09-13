@@ -1565,11 +1565,15 @@ class MEGA_API CommandScheduledMeetingFetchEvents : public Command
     string mSince;
     string mUntil;
     int mCount;
+
+    // if true, invalidate cached occurrences by <callid, startdatetime>, to replace them by received ones at mcsmfo response
+    // if false, do not need to invalidate any cached scheduled meeting occurrence
+    bool mInvalidate;
     CommandScheduledMeetingFetchEventsCompletion mCompletion;
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingFetchEvents(MegaClient *, handle, const char *, const char *, int, CommandScheduledMeetingFetchEventsCompletion completion);
+    CommandScheduledMeetingFetchEvents(MegaClient *, handle, const char *, const char *, int, bool, CommandScheduledMeetingFetchEventsCompletion completion);
 };
 #endif
 
