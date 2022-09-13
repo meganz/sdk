@@ -1321,10 +1321,8 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
     // add to parent map by shortname
     if (parent && slocalname && (parentChange || shortnameChange))
     {
-#ifdef DEBUG
-        auto it = parent->schildren.find(*slocalname);
-        assert(it == parent->schildren.end());   // check we are not about to orphan the old one at this location... if we do then how did we get a clash in the first place?
-#endif
+        // it's quite possible that the new folder still has an older LocalNode with clashing shortname, that represents a file/folder since moved, but which we don't know about yet.
+        // just assign the new one, we forget the old reference.  The other LocalNode will not remove this one since the LocalNode* will not match.
         parent->schildren[*slocalname] = this;
     }
 
