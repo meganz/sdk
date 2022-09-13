@@ -17371,19 +17371,24 @@ void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Err
 
 bool MegaClient::procaesp()
 {
-    map<handle, Set> newSets;
-    map<handle, map<handle, SetElement>> newElements;
-    error e = json.enterobject() ? readSetsAndElements(json, newSets, newElements) : API_EINTERNAL;
-    if (e != API_OK || !json.leaveobject())
+    bool ok = json.enterobject();
+    if (ok)
     {
-        return false;
+        map<handle, Set> newSets;
+        map<handle, map<handle, SetElement>> newElements;
+        ok &= (readSetsAndElements(json, newSets, newElements) == API_OK);
+
+        if (ok)
+        {
+            // save new data
+            mSets.swap(newSets);
+            mSetElements.swap(newElements);
+        }
+
+        ok &= json.leaveobject();
     }
 
-    // save new data
-    mSets.swap(newSets);
-    mSetElements.swap(newElements);
-
-    return true;
+    return ok;
 }
 
 error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements)
