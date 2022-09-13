@@ -488,6 +488,55 @@ bool TextChat::isFlagSet(uint8_t offset) const
     return (flags >> offset) & 1U;
 }
 
+void TextChat::invalidateSchedMeetingOccurrence(handle id, const char* startDateTime)
+{
+   auto range = mScheduledMeetingsOcurrences.equal_range(id);
+   for (auto it = range.first; it != range.second; )
+   {
+       auto auxit = ++it;
+       if (!strcmp(it->second->startDateTime(),startDateTime))
+       {
+           mScheduledMeetingsOcurrences.erase(auxit);
+       }
+   }
+}
+
+void TextChat::addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting>&& sm)
+{
+    mScheduledMeetingsOcurrences.emplace(sm->callid(), std::move(sm));
+}
+
+void TextChat::clearSchedMeetingOccurrences()
+{
+    mScheduledMeetingsOcurrences.clear();
+}
+
+ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
+{
+    auto it = mScheduledMeetings.find(id);
+    if (it != mScheduledMeetings.end())
+    {
+        return it->second.get();
+    }
+    return nullptr;
+}
+
+void TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
+{
+    mScheduledMeetings.emplace(sm->callid(), std::move(sm));
+}
+
+void TextChat::removeSchedMeeting(handle callid)
+{
+    mScheduledMeetings.erase(callid);
+}
+
+void TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
+{
+    removeSchedMeeting(sm->callid());
+    addSchedMeeting(std::move(sm));
+}
+
 bool TextChat::setMode(bool publicchat)
 {
     if (this->publicchat == publicchat)

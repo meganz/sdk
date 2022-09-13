@@ -57,7 +57,15 @@ struct TextChat : public Cacheable
     bool publicchat;  // whether the chat is public or private
     bool meeting;     // chat is meeting room
     byte chatOptions; // each chat option is represented in 1 bit (check ChatOptions struct at types.h)
-    map<handle, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
+
+    // maps a scheduled meeting id (callid) to a scheduled meeting
+    // a scheduled meetings allows the user to specify an event that will occur in the future (check ScheduledMeeting class documentation)
+    map<handle/*callid*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
+
+    // maps a scheduled meeting id (callid) to a scheduled meeting occurrence
+    // a scheduled meetings ocurrence is an event based on a scheduled meeting
+    // each scheduled meeting could have one or multiple ocurrences (check ScheduledMeeting class documentation)
+    multimap<handle/*callid*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetingsOcurrences;
 
 private:        // use setter to modify these members
     byte flags;     // currently only used for "archive" flag at first bit
@@ -91,6 +99,16 @@ public:
     bool isFlagSet(uint8_t offset) const;
     bool setMode(bool publicchat);
 
+    // scheduled meetings ocurrences
+    void invalidateSchedMeetingOccurrence(handle id, const char* startDateTime);
+    void addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting>&& sm);
+    void clearSchedMeetingOccurrences();
+
+    // scheduled meetings
+    void updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
+    void addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
+    void removeSchedMeeting(handle callid);
+    ScheduledMeeting* getSchedMeetingById(handle id);
 };
 
 typedef vector<TextChat*> textchat_vector;
