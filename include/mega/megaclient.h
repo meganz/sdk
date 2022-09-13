@@ -442,7 +442,7 @@ public:
     error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
     // parse scheduled meeting or scheduled meeting occurrences
-    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>* schedMeetings, bool parsingOccurrences);
+    error parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>* schedMeetings, bool parsingOccurrences, JSON *j = nullptr);
 
     // open the SC database and get the SCSN from it
     void checkForResumeableSCDatabase();

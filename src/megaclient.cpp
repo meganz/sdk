@@ -9578,7 +9578,7 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
     return API_EARGS;
 }
 
-error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>* schedMeetings, bool parsingOccurrences)
+error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>* schedMeetings, bool parsingOccurrences, JSON *j)
 {
     if (!schedMeetings)
     {
@@ -9586,91 +9586,95 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
         return API_EARGS;
     }
 
-    while (json.enterobject())
+    JSON* auxJson = j
+            ? j         // custom Json provided
+            : &json;    // MegaClient-Server response JSON
+
+    while (auxJson->enterobject())
     {
         bool exit = false;
         std::unique_ptr<ScheduledMeeting> auxMeet(new ScheduledMeeting());
         while (!exit)
         {
-            switch (json.getnameid())
+            switch (auxJson->getnameid())
             {
                 case MAKENAMEID3('c', 'i', 'd'): // chatid
                 {
-                    auxMeet->setChatid(json.gethandle(MegaClient::CHATHANDLE));
+                    auxMeet->setChatid(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;
                 }
                 case MAKENAMEID2('i', 'd'):  // callid
                 {
-                    auxMeet->setCallid(json.gethandle(MegaClient::CHATHANDLE));
+                    auxMeet->setCallid(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;
                 }
                 case MAKENAMEID1('p'):  // parent callid
                 {
-                    auxMeet->setParentCallid(json.gethandle(MegaClient::CHATHANDLE));
+                    auxMeet->setParentCallid(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;
                 }
                 case MAKENAMEID1('u'): // organizer user Handle
                 {
-                    auxMeet->setOrganizerUserid(json.gethandle(MegaClient::CHATHANDLE));
+                    auxMeet->setOrganizerUserid(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;
                 }
                 case MAKENAMEID2('t', 'z'): // timezone
                 {
                     string tz;
-                    json.storeobject(&tz);
+                    auxJson->storeobject(&tz);
                     auxMeet->setTimezone(tz.c_str());
                     break;
                 }
                 case MAKENAMEID1('s'): // start date time
                 {
                     string startDateTime;
-                    json.storeobject(&startDateTime);
+                    auxJson->storeobject(&startDateTime);
                     auxMeet->setStartDateTime(startDateTime.c_str());
                     break;
                 }
                 case MAKENAMEID1('e'): // end date time
                 {
                     string endDateTime;
-                    json.storeobject(&endDateTime);
+                    auxJson->storeobject(&endDateTime);
                     auxMeet->setEndDateTime(endDateTime.c_str());
                     break;
                 }
                 case MAKENAMEID1('t'):  // title
                 {
                     string title;
-                    json.storeobject(&title);
+                    auxJson->storeobject(&title);
                     auxMeet->setTitle(title.c_str());
                     break;
                 }
                 case MAKENAMEID1('d'): // description
                 {
                     string description;
-                    json.storeobject(&description);
+                    auxJson->storeobject(&description);
                     auxMeet->setDescription(description.c_str());
                     break;
                 }
                 case MAKENAMEID2('a', 't'): // attributes
                 {
                     string attributes;
-                    json.storeobject(&attributes);
+                    auxJson->storeobject(&attributes);
                     auxMeet->setAttributes(attributes.c_str());
                     break;
                 }
                 case MAKENAMEID1('o'): // override
                 {
                     string overrides;
-                    json.storeobject(&overrides);
+                    auxJson->storeobject(&overrides);
                     auxMeet->setOverrides(overrides.c_str());
                     break;
                 }
                 case MAKENAMEID1('c'): // cancelled
                 {
-                    auxMeet->setCancelled(static_cast<int>(json.getint()));
+                    auxMeet->setCancelled(static_cast<int>(auxJson->getint()));
                     break;
                 }
                 case MAKENAMEID1('f'): // flags
                 {
-                    ScheduledFlags auxFlags(static_cast<unsigned long>(json.getint()));
+                    ScheduledFlags auxFlags(static_cast<unsigned long>(auxJson->getint()));
                     auxMeet->setFlags(&auxFlags);
                     break;
                 }
@@ -9696,56 +9700,56 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     ScheduledRules::rules_vector vMonth;
                     ScheduledRules::rules_map mMonth;
 
-                    if (json.enterobject())
+                    if (auxJson->enterobject())
                     {
                         for (;;)
                         {
-                            nameid id = json.getnameid();
+                            nameid id = auxJson->getnameid();
                             if (matchid("FREQ", id))
                             {
-                                json.storeobject(&freq);
+                                auxJson->storeobject(&freq);
                             }
                             else if (matchid("INTERVAL", id))
                             {
-                                interval = static_cast<int>(json.getint());
+                                interval = static_cast<int>(auxJson->getint());
                             }
                             else if (matchid("UNTIL", id))
                             {
-                                json.storeobject(&until);
+                                auxJson->storeobject(&until);
                             }
                             else if (matchid("BYWEEKDAY", id))
                             {
-                                if (json.enterarray())
+                                if (auxJson->enterarray())
                                 {
-                                    while(json.isnumeric())
+                                    while(auxJson->isnumeric())
                                     {
-                                        vWeek.emplace_back(static_cast<int>(json.getint()));
+                                        vWeek.emplace_back(static_cast<int>(auxJson->getint()));
                                     }
                                 }
                             }
                             else if (matchid("BYMONTHDAY", id))
                             {
-                                if (json.enterarray())
+                                if (auxJson->enterarray())
                                 {
-                                    while(json.isnumeric())
+                                    while(auxJson->isnumeric())
                                     {
-                                        vMonth.emplace_back(static_cast<int>(json.getint()));
+                                        vMonth.emplace_back(static_cast<int>(auxJson->getint()));
                                     }
                                 }
                             }
                             else if (matchid("BYMONTHWEEKDAY", id))
                             {
-                                if (json.enterarray())
+                                if (auxJson->enterarray())
                                 {
-                                    while(json.enterarray())
+                                    while(auxJson->enterarray())
                                     {
                                         int key = -1;
                                         int value = -1;
                                         int i = 0;
-                                        while (json.isnumeric())
+                                        while (auxJson->isnumeric())
                                         {
-                                            if (i == 0) { key = static_cast<int>(json.getint()); }
-                                            if (i == 1) { value = static_cast<int>(json.getint()); }
+                                            if (i == 0) { key = static_cast<int>(auxJson->getint()); }
+                                            if (i == 1) { value = static_cast<int>(auxJson->getint()); }
                                             i++;
                                         }
 
@@ -9762,13 +9766,13 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                             {
                                 break;
                             }
-                            else if (!json.storeobject()) // default
+                            else if (!auxJson->storeobject()) // default
                             {
                                 return API_EINTERNAL;
                             }
 
                         }
-                        json.leaveobject();
+                        auxJson->leaveobject();
                     }
 
                     std::unique_ptr<ScheduledRules>rules(new ScheduledRules(ScheduledRules::stringToFreq(freq.c_str()), interval,
@@ -9779,7 +9783,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 case EOO:
                 {
                     exit = true;
-                    json.leaveobject();
+                    auxJson->leaveobject();
                     if (!auxMeet->isValid())
                     {
                         assert(false);
@@ -9791,7 +9795,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 }
                 default:
                 {
-                    if (!json.storeobject())
+                    if (!auxJson->storeobject())
                     {
                         return API_EINTERNAL;
                     }
