@@ -222,16 +222,20 @@ void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
 UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    userHandle = un.gethandle('p', MegaClient::PCRHANDLE, UNDEF);
+    mPcrHandle = un.gethandle('p', MegaClient::PCRHANDLE, UNDEF);
+    userHandle = mPcrHandle;    // for backwards compatibility, due to legacy bug
 
     m_time_t dts = un.getint64(MAKENAMEID3('d', 't', 's'), 0);
     m_time_t rts = un.getint64(MAKENAMEID3('r', 't', 's'), 0);
     initTs(dts, rts);
 }
 
-UserAlert::IncomingPendingContact::IncomingPendingContact(m_time_t dts, m_time_t rts, handle uh, const string& email, m_time_t timestamp, unsigned int id)
-    : Base(UserAlert::type_ipc, uh, email, timestamp, id)
+UserAlert::IncomingPendingContact::IncomingPendingContact(m_time_t dts, m_time_t rts, handle p, const string& email, m_time_t timestamp, unsigned int id)
+    : Base(UserAlert::type_ipc, p, email, timestamp, id)
+    // passing PCR's handle as the user's handle for backwards compatibility, due to legacy bug
 {
+    mPcrHandle = p;
+
     initTs(dts, rts);
 }
 

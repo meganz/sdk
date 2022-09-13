@@ -712,25 +712,26 @@ class MegaUserAlertPrivate : public MegaUserAlert
 public:
     MegaUserAlertPrivate(UserAlert::Base* user, MegaClient* mc);
     //MegaUserAlertPrivate(const MegaUserAlertPrivate&); // default copy works for this type
-    virtual MegaUserAlert* copy() const;
+    MegaUserAlert* copy() const override;
 
-    virtual unsigned getId() const;
-    virtual bool getSeen() const;
-    virtual bool getRelevant() const;
-    virtual int getType() const;
-    virtual const char *getTypeString() const;
-    virtual MegaHandle getUserHandle() const;
-    virtual MegaHandle getNodeHandle() const;
-    virtual const char* getEmail() const;
-    virtual const char* getPath() const;
-    virtual const char* getName() const;
-    virtual const char* getHeading() const;
-    virtual const char* getTitle() const;
-    virtual int64_t getNumber(unsigned index) const;
-    virtual int64_t getTimestamp(unsigned index) const;
-    virtual const char* getString(unsigned index) const;
-    virtual MegaHandle getHandle(unsigned index) const;
-    virtual bool isOwnChange() const;
+    unsigned getId() const override;
+    bool getSeen() const override;
+    bool getRelevant() const override;
+    int getType() const override;
+    const char *getTypeString() const override;
+    MegaHandle getUserHandle() const override;
+    MegaHandle getNodeHandle() const override;
+    const char* getEmail() const override;
+    const char* getPath() const override;
+    const char* getName() const override;
+    const char* getHeading() const override;
+    const char* getTitle() const override;
+    int64_t getNumber(unsigned index) const override;
+    int64_t getTimestamp(unsigned index) const override;
+    const char* getString(unsigned index) const override;
+    MegaHandle getHandle(unsigned index) const override;
+    bool isOwnChange() const override;
+    MegaHandle getPcrHandle() const override;
 
 protected:
     unsigned id;
@@ -743,6 +744,7 @@ protected:
     handle userHandle;
     string email;
     handle nodeHandle;
+    handle mPcrHandle = UNDEF;
     string nodePath;
     string nodeName;
     vector<int64_t> numbers;

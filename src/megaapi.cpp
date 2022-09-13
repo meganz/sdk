@@ -750,6 +750,11 @@ MegaHandle MegaUserAlert::getNodeHandle() const
     return INVALID_HANDLE;
 }
 
+MegaHandle MegaUserAlert::getPcrHandle() const
+{
+    return INVALID_HANDLE;
+}
+
 const char* MegaUserAlert::getEmail() const
 {
     return NULL;

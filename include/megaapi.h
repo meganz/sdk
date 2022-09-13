@@ -1644,13 +1644,17 @@ public:
     * @brief Returns the handle of a user related to the alert
     *
     * This value is valid for user related alerts:
-    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
     *  TYPE_CONTACTCHANGE_BLOCKEDYOU, TYPE_CONTACTCHANGE_DELETEDYOU,
     *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
+    *
+    * @warning This value is still valid for user related alerts:
+    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    * However, the returned value is the handle of the Pending Contact Request. There is no
+    * user's handle associated to these type of alerts. Use MegaUserAlert::getPcrHandle.
     *
     * @return the associated user's handle, otherwise UNDEF
     */
@@ -1666,6 +1670,17 @@ public:
     * @return the relevant node handle, or UNDEF if this alert does not have one.
     */
     virtual MegaHandle getNodeHandle() const;
+
+    /**
+    * @brief Returns the handle of a Pending Contact Request related to the alert
+    *
+    * This value is valid for user related alerts:
+    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    *
+    * @return the relevant PCR handle, or UNDEF if this alert does not have one.
+    */
+    virtual MegaHandle getPcrHandle() const;
 
     /**
     * @brief Returns an email related to the alert
