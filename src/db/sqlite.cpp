@@ -723,11 +723,11 @@ void SqliteAccountState::createIndexes()
         LOG_err << "Data base error while creating index (parenthandleindex): " << sqlite3_errmsg(db);
     }
 
-    sql = "CREATE INDEX IF NOT EXISTS fingetprintindex on nodes (fingerprint)";
+    sql = "CREATE INDEX IF NOT EXISTS fingerprintindex on nodes (fingerprint)";
     result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
     {
-        LOG_err << "Data base error while creating index (fingetprintindex): " << sqlite3_errmsg(db);
+        LOG_err << "Data base error while creating index (fingerprintindex): " << sqlite3_errmsg(db);
     }
 
 #if defined( __ANDROID__) || defined(USE_IOS)
