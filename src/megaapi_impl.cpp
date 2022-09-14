@@ -1955,6 +1955,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
             type = TYPE_INCOMINGPENDINGCONTACT_REQUEST;
         }
         userHandle = p->userHandle;
+        mPcrHandle = p->mPcrHandle;
         email = p->userEmail;
     }
     break;
@@ -2145,6 +2146,11 @@ MegaHandle MegaUserAlertPrivate::getUserHandle() const
 MegaHandle MegaUserAlertPrivate::getNodeHandle() const
 {
     return nodeHandle;
+}
+
+MegaHandle mega::MegaUserAlertPrivate::getPcrHandle() const
+{
+    return mPcrHandle;
 }
 
 const char* MegaUserAlertPrivate::getEmail() const
