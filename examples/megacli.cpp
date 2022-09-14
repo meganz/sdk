@@ -1418,9 +1418,9 @@ static void listtrees()
     {
         cout << "ROOT on /" << endl;
     }
-    if (!client->mNodeManager.getRootNodeInbox().isUndef())
+    if (!client->mNodeManager.getRootNodeVault().isUndef())
     {
-        cout << "INBOX on //in" << endl;
+        cout << "VAULT on //in" << endl;
     }
     if (!client->mNodeManager.getRootNodeRubbish().isUndef())
     {
@@ -1462,9 +1462,9 @@ bool showattrs = false;
 // path naming conventions:
 // * path is relative to cwd
 // * /path is relative to ROOT
-// * //in is in INBOX
+// * //in is in VAULT (formerly INBOX)
 // * //bin is in RUBBISH
-// * X: is user X's INBOX
+// * X: is user X's VAULT (formerly INBOX)
 // * X:SHARE is share SHARE from user X
 // * Y:name is folder in FOLDERLINK, Y is the public handle
 // * : and / filename components, as well as the \, must be escaped by \.
@@ -1638,7 +1638,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodeByHandle(client->mNodeManager.getRootNodeInbox());
+                    n = client->nodeByHandle(client->mNodeManager.getRootNodeVault());
                 }
                 else if (c[2] == "bin")
                 {
@@ -5392,7 +5392,7 @@ void exec_share(autocomplete::ACState& s)
         cout << "Shared folders:" << endl;
 
         client->proctree(client->nodeByHandle(client->mNodeManager.getRootNodeFiles()), &listoutshares);
-        client->proctree(client->nodeByHandle(client->mNodeManager.getRootNodeInbox()), &listoutshares);
+        client->proctree(client->nodeByHandle(client->mNodeManager.getRootNodeVault()), &listoutshares);
         client->proctree(client->nodeByHandle(client->mNodeManager.getRootNodeRubbish()), &listoutshares);
 
         for (user_map::iterator uit = client->users.begin();
@@ -7343,7 +7343,7 @@ void exec_mediainfo(autocomplete::ACState& s)
 
             case FOLDERNODE:
             case ROOTNODE:
-            case INCOMINGNODE:
+            case VAULTNODE:
             case RUBBISHNODE:
             {
                 for (Node* m : client->getChildren(n))
@@ -8578,7 +8578,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
         cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
         reportNodeStorage(&ad->storage[client->mNodeManager.getRootNodeFiles().as8byte()], "/");
-        reportNodeStorage(&ad->storage[client->mNodeManager.getRootNodeInbox().as8byte()], "//in");
+        reportNodeStorage(&ad->storage[client->mNodeManager.getRootNodeVault().as8byte()], "//in");
         reportNodeStorage(&ad->storage[client->mNodeManager.getRootNodeRubbish().as8byte()], "//bin");
     }
 

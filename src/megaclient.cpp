@@ -1162,7 +1162,7 @@ void MegaClient::init()
 #endif
 
     mNodeManager.setRootNodeFiles(NodeHandle());
-    mNodeManager.setRootNodeInbox(NodeHandle());
+    mNodeManager.setRootNodeVault(NodeHandle());
     mNodeManager.setRootNodeRubbish(NodeHandle());
 
     pendingsc.reset();
@@ -2348,6 +2348,7 @@ void MegaClient::exec()
             if (r)
             {
                 // completed - initiate next SC request
+                jsonsc.pos = nullptr;
                 pendingsc.reset();
                 btsc.reset();
             }
@@ -4282,7 +4283,7 @@ void MegaClient::disconnect()
 // by closing pending sc, reset backoff and clear waitd URL
 void MegaClient::catchup()
 {
-    if (pendingsc)
+    if (pendingsc && !jsonsc.pos)
     {
         pendingsc->disconnect();
 
@@ -7546,7 +7547,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             {
                 if (c[2] == "in")
                 {
-                    n = nodeByHandle(mNodeManager.getRootNodeInbox());
+                    n = nodeByHandle(mNodeManager.getRootNodeVault());
                 }
                 else if (c[2] == "bin")
                 {
@@ -7843,7 +7844,7 @@ void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& n
     reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
 }
 
-// drop nodes into a user's inbox (must have RSA keypair)
+// drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
 void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
     User* u;
@@ -9149,7 +9150,7 @@ void MegaClient::applykeys()
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
     int noKeyExpected = (mNodeManager.getRootNodeFiles().isUndef() ? 0 : 1)
-                      + (mNodeManager.getRootNodeInbox().isUndef() ? 0 : 1)
+                      + (mNodeManager.getRootNodeVault().isUndef() ? 0 : 1)
                       + (mNodeManager.getRootNodeRubbish().isUndef() ? 0 : 1);
 
     mNodeManager.applyKeys(uint32_t(mAppliedKeyNodeCount + noKeyExpected));
@@ -12062,7 +12063,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                     // When all nodes are loaded we force a commit
                    isDbUpgraded = true;
 
-                   bool rootNode = n->type == ROOTNODE || n->type == RUBBISHNODE || n->type == INCOMINGNODE;
+                   bool rootNode = n->type == ROOTNODE || n->type == RUBBISHNODE || n->type == VAULTNODE;
                    if (rootNode)
                    {
                        mNodeManager.setrootnode(n);
@@ -13553,7 +13554,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
 {
-    // cannot sync files, rubbish bins or inboxes
+    // cannot sync files, rubbish bins or vault
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
         if(syncError)
@@ -13565,8 +13566,11 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
 
     // any active syncs below?
     bool anyBelow = false;
-    syncs.forEachRunningSyncContainingNode(remotenode, [&](Sync* sync) {
-        anyBelow = true;
+    syncs.forEachRunningSync([&](Sync* sync) {
+        if (sync->localroot->node && sync->localroot->node->isbelow(remotenode))
+        {
+            anyBelow = true;
+        }
     });
 
     if (anyBelow)
@@ -16962,8 +16966,8 @@ bool NodeManager::setrootnode(Node* node)
             setRootNodeFiles(node->nodeHandle());
             return true;
 
-        case INCOMINGNODE:
-            setRootNodeInbox(node->nodeHandle());
+        case VAULTNODE:
+            setRootNodeVault(node->nodeHandle());
             return true;
 
         case RUBBISHNODE:
@@ -16988,7 +16992,7 @@ bool NodeManager::addNode(Node *node, bool notify, bool isFetching)
     // 'notify' is false when loading nodes from API or DB. True when node is received from
     // actionpackets and/or from response of CommandPutnodes
 
-    bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == INCOMINGNODE;
+    bool rootNode = node->type == ROOTNODE || node->type == RUBBISHNODE || node->type == VAULTNODE;
     if (rootNode)
     {
         setrootnode(node);
@@ -17178,7 +17182,7 @@ uint64_t NodeManager::getNodeCount()
     {
         // Root nodes aren't taken into consideration as part of node counters
         count += 3;
-        assert(!mClient.mNodeManager.getRootNodeFiles().isUndef() && !mClient.mNodeManager.getRootNodeInbox().isUndef() && !mClient.mNodeManager.getRootNodeRubbish().isUndef());
+        assert(!mClient.mNodeManager.getRootNodeFiles().isUndef() && !mClient.mNodeManager.getRootNodeVault().isUndef() && !mClient.mNodeManager.getRootNodeRubbish().isUndef());
     }
 
 #ifdef DEBUG
@@ -17364,7 +17368,7 @@ node_vector NodeManager::getRootNodes()
 
         if (!mClient.loggedIntoFolder())
         {
-            Node* inBox = getNodeByHandle(mClient.mNodeManager.getRootNodeInbox());
+            Node* inBox = getNodeByHandle(mClient.mNodeManager.getRootNodeVault());
             assert(inBox);
             nodes.push_back(inBox);
 
@@ -18216,7 +18220,7 @@ void NodeManager::saveNodeInRAM(Node *node, bool isRootnode)
 bool NodeManager::isRootNode(NodeHandle h) const
 {
     return h == mClient.mNodeManager.getRootNodeFiles()
-            || h == mClient.mNodeManager.getRootNodeInbox()
+            || h == mClient.mNodeManager.getRootNodeVault()
             || h == mClient.mNodeManager.getRootNodeRubbish();
 }
 
@@ -18293,7 +18297,7 @@ NodeCounter NodeManager::getCounterOfRootNodes()
     if (mNodes.empty())
     {
         assert((mClient.mNodeManager.getRootNodeFiles().isUndef()
-                && mClient.mNodeManager.getRootNodeInbox().isUndef()
+                && mClient.mNodeManager.getRootNodeVault().isUndef()
                 && mClient.mNodeManager.getRootNodeRubbish().isUndef())
                || (mClient.loggedIntoFolder()));
 
