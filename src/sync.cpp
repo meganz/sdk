@@ -2976,8 +2976,10 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
                 for ( ; i != j; ++i)
                 {
-                    auto* request = new CommandBackupRemove(&client, i->mBackupId, nullptr); // Should there be a completion here?
+                    auto* request = new CommandBackupRemove(&client, i->mBackupId, nullptr);
                     client.reqs.add(request);
+                    // don't wait for the cleanup to notify the client about failure of import
+                    // (error/success of cleanup is irrelevant for the app)
                 }
 
                 // Let the client know the import has failed.
