@@ -124,7 +124,7 @@ SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, con
     checkDbFileAndAdjustLegacy(fsAccess, name, flags, dbPath);
 
     sqlite3* db;
-    int result = sqlite3_open_v2(dbPath.toPath().c_str(), &db,
+    int result = sqlite3_open_v2(dbPath.toPath(false).c_str(), &db,
         SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE // The database is opened for reading and writing, and is created if it does not already exist. This is the behavior that is always used for sqlite3_open() and sqlite3_open16().
         | SQLITE_OPEN_NOMUTEX // The new database connection will use the "multi-thread" threading mode. This means that separate threads are allowed to use SQLite at the same time, as long as each thread is using a different database connection.
         , nullptr);

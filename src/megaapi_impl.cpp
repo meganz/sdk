@@ -1259,7 +1259,7 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
     // syncs has its own thread safety
     for (auto& config : client->syncs.getConfigs(false))
     {
-        if (config.getLocalPath().toPath() == localPath)
+        if (config.getLocalPath().toPath(false) == localPath)
         {
             return new MegaSyncPrivate(config, client);
         }
@@ -1400,7 +1400,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     {
         LocalPath p = LocalPath::fromAbsolutePath(localPath);
         LocalPath l = p.leafName();
-        backupName = l.toPath();
+        backupName = l.toPath(true);
         request->setName(backupName.c_str()); // use this in putnodes_result()
     }
 
@@ -6516,7 +6516,7 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
     {
         string localProxyURL = localProxySettings->getProxyURL();
         string proxyURL;
-        LocalPath::local2path(&localProxyURL, &proxyURL);
+        LocalPath::local2path(&localProxyURL, &proxyURL, true);
         LOG_debug << "Autodetected proxy: " << proxyURL;
         proxySettings->setProxyURL(proxyURL.c_str());
     }
@@ -6605,18 +6605,18 @@ Error MegaApiImpl::createLocalFolder_unlocked(LocalPath & localPath,  FileSystem
     {
         if (!fsaccess.mkdirlocal(localPath, false, false))
         {
-            LOG_err << "Unable to create folder: " << localPath.toPath();
+            LOG_err << "Unable to create folder: " << localPath;
             return API_EWRITE;
         }
     }
     else if (da->type == FILENODE)
     {
-        LOG_err << "Local file detected where there should be a folder: " << localPath.toPath();
+        LOG_err << "Local file detected where there should be a folder: " << localPath;
         return API_EARGS;
     }
     else
     {
-        LOG_debug << "Already existing folder detected: " << localPath.toPath();
+        LOG_debug << "Already existing folder detected: " << localPath;
         return API_EEXIST;
     }
     return API_OK;
@@ -12295,12 +12295,12 @@ void MegaApiImpl::file_added(File *f)
         LocalNode *l = dynamic_cast<LocalNode *>(f);
         if (l)
         {
-            path = l->getLocalPath().toPath();
+            path = l->getLocalPath().toPath(false);
         }
         else
 #endif
         {
-            path = f->getLocalname().toPath();
+            path = f->getLocalname().toPath(false);
         }
         transfer->setPath(path.c_str());
     }
@@ -12351,7 +12351,7 @@ void MegaApiImpl::file_complete(File *f)
             // The final name can change when downloads are complete
             // if there is another file in the same path
 
-            string path = f->getLocalname().toPath();
+            string path = f->getLocalname().toPath(false);
             transfer->setPath(path.c_str());
         }
 
@@ -16203,8 +16203,8 @@ void MegaApiImpl::fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int 
     if (MegaTransferListener* listener = transfer->getListener())
     {
         listener->onFolderTransferUpdate(api, transfer, stage, foldercount, createdfoldercount, filecount,
-                    currentFolder ? currentFolder->toPath().c_str() : nullptr,
-                    currentFileLeafname ? currentFileLeafname->toPath().c_str() : nullptr);
+                    currentFolder ? currentFolder->toPath(false).c_str() : nullptr,
+                    currentFileLeafname ? currentFileLeafname->toPath(false).c_str() : nullptr);
     }
 }
 
@@ -18325,7 +18325,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transfer->setTag(nextTag);
                             transfer->setTotalBytes(fa->size);
                             transfer->setTransferredBytes(0);
-                            transfer->setPath(wLocalPath.toPath().c_str());
+                            transfer->setPath(wLocalPath.toPath(false).c_str());
                             transfer->setStartTime(Waiter::ds);
                             transfer->setUpdateTime(Waiter::ds);
                             totalDownloads++;
@@ -18362,7 +18362,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         f = new MegaFileGet(client, publicNode, wLocalPath);
                     }
 
-                    transfer->setPath(wLocalPath.toPath().c_str());
+                    transfer->setPath(wLocalPath.toPath(false).c_str());
 
                     f->setTransfer(transfer);
                     f->cancelToken = transfer->accessCancelToken();
@@ -21546,7 +21546,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (matched && sync)
                 {
-                    string path = sync->localroot->localname.toPath();
+                    string path = sync->localroot->localname.toPath(false);
                     if (!request->getFile())
                     {
                         request->setFile(path.c_str());
@@ -24359,7 +24359,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, MegaClient* client /*
 {
     this->megaHandle = config.mRemoteNode.as8byte();
     this->localFolder = NULL;
-    setLocalFolder(config.getLocalPath().toPath().c_str());
+    setLocalFolder(config.getLocalPath().toPath(false).c_str());
     this->mName= NULL;
     if (!config.mName.empty())
     {
@@ -24937,7 +24937,7 @@ void MegaFolderUploadController::start(MegaNode*)
     LocalPath path = LocalPath::fromAbsolutePath(transfer->getPath());
     auto leaf = transfer->getFileName()
             ? transfer->getFileName()
-            : path.leafName().toPath();
+            : path.leafName().toPath(false);
 
     // if folder node already exists in remote, set it as new subtree's megaNode, otherwise call putnodes_prepareOneFolder
     newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));
@@ -25113,7 +25113,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
     unique_ptr<DirAccess> da(fsaccess->newdiraccess());
     if (!da->dopen(&localPath, nullptr, false))
     {
-        LOG_err << "Can't open local directory" << localPath.toPath();
+        LOG_err << "Can't open local directory" << localPath;
         recursive--;
         return scanFolder_failed;
     }
@@ -25305,7 +25305,7 @@ bool MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 {
     for (const auto& localpath : tree.files)
     {
-        MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.lp.toPath().c_str(),
+        MegaTransferPrivate *subTransfer = megaApi->createUploadTransfer(false, localpath.lp.toPath(false).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
                                                                       MegaApi::INVALID_CUSTOM_MOD_TIME, tag, false, NULL, false, false, tree.fsType, transfer->accessCancelToken(), this, &localpath.fp);
         transferQueue.push(subTransfer);
@@ -26019,7 +26019,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                         pendingTransfers++;
 
                         totalFiles++;
-                        megaApi->startUpload(false, localPath.toPath().c_str(),
+                        megaApi->startUpload(false, localPath.toPath(false).c_str(),
                                                             parent, nullptr, nullptr, -1,folderTransferTag, true,
                                                             nullptr, false, false, fsType, CancelToken(), this);
                     }
@@ -26526,7 +26526,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
          : LocalPath::fromRelativeName(transfer->getFileName(), *megaapiThreadClient()->fsaccess, fsType);
 
     path.appendWithSeparator(name, true);
-    transfer->setPath(path.toPath().c_str());
+    transfer->setPath(path.toPath(false).c_str());
 
     // check we are not overwriting file with folder:
     auto tmpfileaccess = fsaccess->newfileaccess();
@@ -26640,7 +26640,7 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
 
     if (!children)
     {
-        LOG_err << "Child nodes not found: " << localpath.toPath();
+        LOG_err << "Child nodes not found: " << localpath;
         recursive--;
         return scanFolder_failed;
     }
@@ -26734,7 +26734,7 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              MegaNode &node = *(childrenNodes.at(i).get());
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromRelativeName(node.getName(), *fsaccess, fsType), true);
-             string utf8path = localpath.toPath();
+             string utf8path = localpath.toPath(false);
              MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), nullptr, tag, transfer->getAppData(), transfer->accessCancelToken(), this, fsType);
              transferQueue.push(transferDownload);
          }
@@ -26970,7 +26970,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
         {
             lp.appendWithSeparator(LocalPath(), true);
         }
-        string sBasePath = lp.toPath();
+        string sBasePath = lp.toPath(false);
         this->basePath = sBasePath;
     }
     semaphoresdestroyed = false;
@@ -28262,7 +28262,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
         {
             httpctx->tmpFileName=httpctx->server->basePath;
             httpctx->tmpFileName.append("httputfile");
-            httpctx->tmpFileName.append(LocalPath::tmpNameLocal().toPath());
+            httpctx->tmpFileName.append(LocalPath::tmpNameLocal().toPath(false));
 
             string ext;
             LocalPath localpath = LocalPath::fromAbsolutePath(httpctx->path);
@@ -29323,7 +29323,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             {
                 httpctx->tmpFileName=httpctx->server->basePath;
                 httpctx->tmpFileName.append("httputfile");
-                httpctx->tmpFileName.append(LocalPath::tmpNameLocal().toPath());
+                httpctx->tmpFileName.append(LocalPath::tmpNameLocal().toPath(false));
                 string ext;
                 if (httpctx->server->fsAccess->getextension(LocalPath::fromAbsolutePath(httpctx->path), ext))
                 {
@@ -32028,7 +32028,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         {
             ftpdatactx->tmpFileName = fds->basePath;
             ftpdatactx->tmpFileName.append("ftpstorfile");
-            ftpdatactx->tmpFileName.append(LocalPath::tmpNameLocal().toPath());
+            ftpdatactx->tmpFileName.append(LocalPath::tmpNameLocal().toPath(false));
 
             string ext;
             if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromAbsolutePath(fds->controlftpctx->arg1), ext))

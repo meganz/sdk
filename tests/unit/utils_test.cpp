@@ -944,21 +944,21 @@ TEST(LocalPath, AppendWithSeparator)
     source = LocalPath::fromRelativePath("a");
     target.appendWithSeparator(source, false);
 
-    EXPECT_EQ(target.toPath(), "a");
+    EXPECT_EQ(target.toPath(false), "a");
 
     // Doesn't add a separator if the source begins with one.
     source = LocalPath::fromRelativePath(SEP "b");
     target = LocalPath::fromRelativePath("a");
 
     target.appendWithSeparator(source, true);
-    EXPECT_EQ(target.toPath(), "a" SEP "b");
+    EXPECT_EQ(target.toPath(false), "a" SEP "b");
 
     // Doesn't add a separator if the target ends with one.
     source = LocalPath::fromRelativePath("b");
     target = LocalPath::fromRelativePath("a" SEP);
 
     target.appendWithSeparator(source, true);
-    EXPECT_EQ(target.toPath(), "a" SEP "b");
+    EXPECT_EQ(target.toPath(false), "a" SEP "b");
 
     // Adds a separator when:
     // - source doesn't begin with one.
@@ -966,7 +966,7 @@ TEST(LocalPath, AppendWithSeparator)
     target = LocalPath::fromRelativePath("a");
 
     target.appendWithSeparator(source, true);
-    EXPECT_EQ(target.toPath(), "a" SEP "b");
+    EXPECT_EQ(target.toPath(false), "a" SEP "b");
 }
 
 TEST(LocalPath, PrependWithSeparator)
@@ -978,20 +978,20 @@ TEST(LocalPath, PrependWithSeparator)
     source = LocalPath::fromRelativePath("b");
 
     target.prependWithSeparator(source);
-    EXPECT_EQ(target.toPath(), "b");
+    EXPECT_EQ(target.toPath(false), "b");
 
     // No separator if target begins with separator.
     target = LocalPath::fromRelativePath(SEP "a");
 
     target.prependWithSeparator(source);
-    EXPECT_EQ(target.toPath(), "b" SEP "a");
+    EXPECT_EQ(target.toPath(false), "b" SEP "a");
 
     // No separator if source ends with separator.
     source = LocalPath::fromRelativePath("b" SEP);
     target = LocalPath::fromRelativePath("a");
 
     target.prependWithSeparator(source);
-    EXPECT_EQ(target.toPath(), "b" SEP "a");
+    EXPECT_EQ(target.toPath(false), "b" SEP "a");
 }
 
 #undef SEP
