@@ -727,6 +727,7 @@ struct Syncs
 
     void enableBackupRestrictions(bool enable);
     bool backupRestrictionsEnabled() const;
+
 private:
     friend class Sync;
     friend struct UnifiedSync;

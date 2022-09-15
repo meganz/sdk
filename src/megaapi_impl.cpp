@@ -8706,7 +8706,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
         request->setName(request->getFile());
     }
     request->setParamType(type);
-    request->setLink(driveRootIfExternal);  // TYPE_BACKUP; continue in sendPendingRequest(), case MegaRequest::TYPE_ADD_SYNC.
+    request->setLink(driveRootIfExternal);
 
     requestQueue.push(request);
     waiter->notify();
@@ -21378,7 +21378,7 @@ void MegaApiImpl::sendPendingRequests()
 
             LocalPath localPathLP(LocalPath::fromAbsolutePath(localPath));
             const char* name = request->getName();
-            const string& syncName = name ? name : localPathLP.leafName().toPath();
+            const string& syncName = name ? name : localPathLP.leafOrParentName();
             const auto& drivePath = request->getLink() ? LocalPath::fromAbsolutePath(request->getLink()) : LocalPath();
 
             SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
