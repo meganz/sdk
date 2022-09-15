@@ -665,7 +665,7 @@ public:
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
      * It will persist the sync configuration if its call to checkSyncConfig succeeds
-     * @param syncConfig the Config to attempt to add
+     * @param syncConfig the Config to attempt to add (takes ownership)
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @param completion Completion function
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
@@ -732,6 +732,9 @@ public:
 private:
     void ensureSyncUserAttributesCompleted(Error e);
     std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
+
+    // remove the backup folder created for a new backup, when creation fails
+    // (no-op if folder not found, not empty, not in Vault or backup restrictions are disabled)
     void cleanupFailedBackup(const string& remotePath);
 
 public:
@@ -1817,6 +1820,7 @@ public:
 
     bool setlang(string *code);
 
+    // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
     error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
 
     // sets the auth token to be used when logged into a folder link
