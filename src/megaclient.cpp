@@ -7802,6 +7802,7 @@ Node* MegaClient::sc_deltree()
 
                     int creqtag = reqtag;
                     reqtag = 0;
+                    td.setOriginatingUser(originatingUser);
                     proctree(n, &td);
                     reqtag = creqtag;
 
