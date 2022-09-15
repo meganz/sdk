@@ -624,9 +624,9 @@ struct Syncs
                             NodeHandle moveTarget = NodeHandle());
 
     // Remove the sync described by the specified config.
-    void removeSyncByConfig(std::function<void(Error)> completion,
+    void removeSyncByConfig(const SyncConfig& config,
+                            std::function<void(Error)> completion,
                             bool moveOrUnlink,
-                            const SyncConfig& config,
                             NodeHandle moveTarget);
 
     // removes the sync from RAM; the config will be flushed to disk

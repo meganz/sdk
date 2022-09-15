@@ -3797,9 +3797,9 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
                                         _1);
 
             // Try and remove the sync.
-            mSyncs.removeSyncByConfig(std::move(completion),
+            mSyncs.removeSyncByConfig(config,
+                                      std::move(completion),
                                       config.isBackup() && mMoveOrUnlink,
-                                      config,
                                       mMoveTarget);
         }
 
@@ -3922,9 +3922,9 @@ void Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector,
     };
 
     // Remove the sync.
-    removeSyncByConfig(std::move(completion),
+    removeSyncByConfig(selected.back(),
+                       std::move(completion),
                        moveOrUnlink,
-                       selected.back(),
                        moveTarget);
 }
 
@@ -4002,9 +4002,9 @@ void Syncs::purgeSyncsLocal()
     }
 }
 
-void Syncs::removeSyncByConfig(std::function<void(Error)> completion,
+void Syncs::removeSyncByConfig(const SyncConfig& config,
+                               std::function<void(Error)> completion,
                                bool moveOrUnlink,
-                               const SyncConfig& config,
                                NodeHandle moveTarget)
 {
     // Sanity.

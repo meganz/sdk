@@ -7520,9 +7520,9 @@ void MegaClient::notifypurge(void)
                 };
 
                 // Try and remove the sync.
-                syncs.removeSyncByConfig(std::move(completion),
+                syncs.removeSyncByConfig(us.mConfig,
+                                         std::move(completion),
                                          false,
-                                         us.mConfig,
                                          NodeHandle());
             }
 
