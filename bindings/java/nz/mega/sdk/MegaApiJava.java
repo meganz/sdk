@@ -11484,6 +11484,7 @@ public class MegaApiJava {
      * - MegaError::API_EACCESS - Permissions Error (from API).
      *
      * @param name the name that should be given to the new Set
+     * @param listener MegaRequestListener to track this request
      */
     public void createSet(String name, MegaRequestListener listener) {
         megaApi.createSet(name, listener);
@@ -11525,6 +11526,7 @@ public class MegaApiJava {
      *
      * @param sid the id of the Set to be updated
      * @param name the new name that should be given to the Set
+     * @param listener MegaRequestListener to track this request
      */
     public void updateSetName(long sid, String name, MegaRequestListener listener) {
         megaApi.updateSetName(sid, name, listener);
@@ -11565,6 +11567,7 @@ public class MegaApiJava {
      *
      * @param sid the id of the Set to be updated
      * @param eid the id of the Element to be set as cover
+     * @param listener MegaRequestListener to track this request
      */
     public void putSetCover(long sid, long eid, MegaRequestListener listener) {
         megaApi.putSetCover(sid, eid, listener);
@@ -11602,6 +11605,7 @@ public class MegaApiJava {
      * - MegaError::API_EACCESS - Permissions Error (from API).
      *
      * @param sid the id of the Set to be removed
+     * @param listener MegaRequestListener to track this request
      */
     public void removeSet(long sid, MegaRequestListener listener) {
         megaApi.removeSet(sid, listener);
@@ -11641,6 +11645,7 @@ public class MegaApiJava {
      * - MegaError::API_EACCESS - Permissions Error (from API).
      *
      * @param sid the id of the Set to be fetched
+     * @param listener MegaRequestListener to track this request
      */
     public void fetchSet(long sid, MegaRequestListener listener) {
         megaApi.fetchSet(sid, listener);
@@ -11690,6 +11695,7 @@ public class MegaApiJava {
      * @param sid the id of the Set that will own the new Element
      * @param node the handle of the file-node that will be represented by the new Element
      * @param name the name that should be given to the new Element
+     * @param listener MegaRequestListener to track this request
      */
     public void createSetElement(long sid, long node, String name, MegaRequestListener listener) {
         megaApi.createSetElement(sid, node,name, listener);
@@ -11765,6 +11771,7 @@ public class MegaApiJava {
      * @param sid the id of the Set that owns the Element
      * @param eid the id of the Element that will be updated
      * @param name the new name that should be given to the Element
+     * @param listener MegaRequestListener to track this request
      */
     public void updateSetElementName(long sid, long eid, String name, MegaRequestListener listener) {
         megaApi.updateSetElementName(sid, eid, name, listener);
@@ -11809,6 +11816,7 @@ public class MegaApiJava {
      * @param sid the id of the Set that owns the Element
      * @param eid the id of the Element that will be updated
      * @param order the new order of the Element
+     * @param listener MegaRequestListener to track this request
      */
     public void updateSetElementOrder(long sid, long eid, long order, MegaRequestListener listener) {
         megaApi.updateSetElementOrder(sid, eid, order, listener);
@@ -11850,6 +11858,7 @@ public class MegaApiJava {
      *
      * @param sid the id of the Set that owns the Element
      * @param eid the id of the Element to be removed
+     * @param listener MegaRequestListener to track this request
      */
     public void removeSetElement(long sid, long eid, MegaRequestListener listener) {
         megaApi.removeSetElement(sid, eid, listener);
