@@ -737,7 +737,7 @@ public:
             ostream << "\t"
                     << node.dbid
                     << " [ label=\""
-                    << node.localname.toPath()
+                    << node.localname.toPath(false)
                     << "\" ];\n";
 
             // Parent link.
@@ -2358,7 +2358,7 @@ bool StandardClient::syncSet(handle backupId, SyncInfo& info) const
     if (found)
     {
         info.h = c.mRemoteNode;
-        info.localpath = c.getLocalPath().toPath();
+        info.localpath = c.getLocalPath().toPath(false);
         info.remotepath = c.mOriginalPathOfRemoteRootNode; // bit of a hack
 
         return true;
@@ -2606,12 +2606,12 @@ void StandardClient::setupSync_inThread(const string& rootPath,
         LOG_debug << "Asking engine to add the sync...";
 
         LOG_debug << "Local sync root will be: "
-                  << config.mLocalPath.toPath();
+                  << config.mLocalPath.toPath(false);
 
         if (!drivePath_.empty())
         {
             LOG_debug << "External drive will be: "
-                      << config.mExternalDrivePath.toPath();
+                      << config.mExternalDrivePath.toPath(false);
         }
 
         client.addsync(config,
@@ -2820,14 +2820,14 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
     {
         if (0 != compareUtf(mn->fsName(), true, n->localname, true, false))
         {
-            out() << "LocalNode name mismatch: " << mn->fsPath() << " " << n->localname.toPath();
+            out() << "LocalNode name mismatch: " << mn->fsPath() << " " << n->localname.toPath(false);
             return false;
         }
     }
 
     if (!mn->typematchesnodetype(n->type))
     {
-        out() << "LocalNode type mismatch: " << mn->fsPath() << ":" << mn->type << " " << n->localname.toPath() << ":" << n->type;
+        out() << "LocalNode type mismatch: " << mn->fsPath() << ":" << mn->type << " " << n->localname.toPath(false) << ":" << n->type;
         return false;
     }
 
@@ -2841,11 +2841,11 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
     {
         if (n->syncedCloudNodeHandle.isUndef())
         {
-            EXPECT_TRUE(!n->syncedCloudNodeHandle.isUndef()) << "expected synced non-undef handle at localnode: " << n->getLocalPath().toPath();
+            EXPECT_TRUE(!n->syncedCloudNodeHandle.isUndef()) << "expected synced non-undef handle at localnode: " << n->getLocalPath().toPath(false);
         }
         if (!client.nodeByHandle(n->syncedCloudNodeHandle))
         {
-            EXPECT_TRUE(!!client.nodeByHandle(n->syncedCloudNodeHandle)) << "expected synced handle that looks up node at localnode: " << n->getLocalPath().toPath();
+            EXPECT_TRUE(!!client.nodeByHandle(n->syncedCloudNodeHandle)) << "expected synced handle that looks up node at localnode: " << n->getLocalPath().toPath(false);
         }
     }
     Node* syncedNode = client.nodeByHandle(n->syncedCloudNodeHandle);
@@ -2892,7 +2892,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
         if (skipIgnoreFile && n2.second->isIgnoreFile())
             continue;
 
-        ns.emplace(n2.second->localname.toPath(), n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
+        ns.emplace(n2.second->localname.toPath(false), n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
     }
 
     int matched = 0;
@@ -6019,8 +6019,8 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
     ASSERT_EQ(2u, waitResult[0].stall.local.size());
     ASSERT_EQ(waitResult[0].stall.cloud.begin()->first, "/mega_test_sync/f/f_0");
     ASSERT_EQ(waitResult[0].stall.cloud.rbegin()->first, "/mega_test_sync/f/f_1/f_0");
-    ASSERT_EQ(waitResult[0].stall.local.begin()->first.toPath(), (client1LocalSyncRoot / "f_0" / "f_1").u8string() );
-    ASSERT_EQ(waitResult[0].stall.local.rbegin()->first.toPath(), (client1LocalSyncRoot / "f_1").u8string() );
+    ASSERT_EQ(waitResult[0].stall.local.begin()->first.toPath(false), (client1LocalSyncRoot / "f_0" / "f_1").u8string() );
+    ASSERT_EQ(waitResult[0].stall.local.rbegin()->first.toPath(false), (client1LocalSyncRoot / "f_1").u8string() );
 }
 
 
@@ -7460,13 +7460,13 @@ public:
                          const LocalPath& localPath,
                          const string& remotePath) override
     {
-        assert(startsWith(localPath.toPath(), mLocalRoot.toPath()));
+        assert(startsWith(localPath.toPath(false), mLocalRoot.toPath(false)));
         assert(startsWith(remotePath, mRemoteRoot));
 
         mAnomalies.emplace_back();
 
         auto& anomaly = mAnomalies.back();
-        anomaly.localPath = localPath.toPath().substr(mLocalRoot.toPath().size());
+        anomaly.localPath = localPath.toPath(false).substr(mLocalRoot.toPath(false).size());
         anomaly.remotePath = remotePath.substr(mRemoteRoot.size());
         anomaly.type = type;
     }
@@ -10093,7 +10093,7 @@ struct TwoWaySyncSymmetryCase
 
     void PrintLocalTree(const LocalNode& node)
     {
-        out() << node.getLocalPath().toPath();
+        out() << node.getLocalPath().toPath(false);
 
         if (node.type == FILENODE) return;
 
@@ -14120,7 +14120,7 @@ TEST_F(LocalToCloudFilterFixture, FilterNameClash)
     const auto& conflict = conflicts.front();
 
     // Detected at sync root?
-    ASSERT_EQ(conflict.localPath.toPath(),
+    ASSERT_EQ(conflict.localPath.toPath(false),
               (cu->fsBasePath / "s").u8string());
 
     // Two local name clashes detected?
@@ -16145,7 +16145,7 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
         auto localPath = c->fsBasePath / "s" / DIRECTORY_NAME;
         auto cloudPath = "/mega_test_sync/s/" + DIRECTORY_NAME;
 
-        ASSERT_EQ(stalls.local.begin()->first.toPath(),
+        ASSERT_EQ(stalls.local.begin()->first.toPath(false),
                   localPath.u8string());
 
         ASSERT_TRUE(stalls.local.begin()->second.localPath2.localPath.empty());
@@ -16191,9 +16191,9 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
 
         auto& sr = stalls.local.begin()->second;
 
-        ASSERT_TRUE(sr.localPath1.localPath.toPath().find(".getxfer") != string::npos);
+        ASSERT_TRUE(sr.localPath1.localPath.toPath(false).find(".getxfer") != string::npos);
 
-        ASSERT_EQ(sr.localPath2.localPath.toPath(),
+        ASSERT_EQ(sr.localPath2.localPath.toPath(false),
             localPath.u8string());
 
         ASSERT_EQ(sr.cloudPath1.cloudPath,
@@ -16269,10 +16269,10 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     auto& sr = stalls.local.begin()->second;
 
     // Was the stall due to the rename?
-    ASSERT_EQ(sr.localPath1.localPath.toPath(),
+    ASSERT_EQ(sr.localPath1.localPath.toPath(false),
               (c->fsBasePath / "s" / "d" / "f").u8string());
 
-    ASSERT_EQ(sr.localPath2.localPath.toPath(),
+    ASSERT_EQ(sr.localPath2.localPath.toPath(false),
               (c->fsBasePath / "s" / "d" / FILE_NAME).u8string());
 
     ASSERT_EQ(sr.cloudPath1.cloudPath,
@@ -16326,14 +16326,14 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
     ASSERT_EQ(cloud_sr.cloudPath2.cloudPath,
               "/mega_test_sync/s/" + FILE_NAME);
 
-    ASSERT_EQ(cloud_sr.localPath1.localPath.toPath(),
+    ASSERT_EQ(cloud_sr.localPath1.localPath.toPath(false),
               (c->fsBasePath / "s" / "d" / "ff").u8string());
 
 
-    ASSERT_EQ(local_sr.localPath1.localPath.toPath(),
+    ASSERT_EQ(local_sr.localPath1.localPath.toPath(false),
               (c->fsBasePath / "s" / "d" / "ff").u8string());
 
-    ASSERT_EQ(local_sr.localPath2.localPath.toPath(),
+    ASSERT_EQ(local_sr.localPath2.localPath.toPath(false),
               (c->fsBasePath / "s" / FILE_NAME).u8string());
 
     ASSERT_EQ(local_sr.cloudPath1.cloudPath,

@@ -166,7 +166,7 @@ public:
         assert(type < FILENAME_ANOMALY_NONE);
 
         mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
-                                  localPath.toPath().c_str(),
+                                  localPath.toPath(true).c_str(),
                                   remotePath.c_str());
     }
 
@@ -2298,8 +2298,8 @@ class MegaSyncStallPrivate : public MegaSyncStall
             {
                 if (lpConverted[0].empty() && lpConverted[1].empty())
                 {
-                    lpConverted[0] = info.localPath1.localPath.toPath();
-                    lpConverted[1] = info.localPath2.localPath.toPath();
+                    lpConverted[0] = info.localPath1.localPath.toPath(false);
+                    lpConverted[1] = info.localPath2.localPath.toPath(false);
                 }
                 if (index == 0) return lpConverted[0].c_str();
                 if (index == 1) return lpConverted[1].c_str();
@@ -2424,7 +2424,7 @@ public:
             {
                 LocalPath lp = mConflict.localPath;
                 lp.appendWithSeparator(mConflict.clashingLocalNames[index], true);
-                mCache2[index] = lp.toPath();
+                mCache2[index] = lp.toPath(false);
                 return mCache2[index].c_str();
             }
         }

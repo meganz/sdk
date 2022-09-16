@@ -817,7 +817,7 @@ int LinuxFileSystemAccess::checkevents(Waiter* waiter)
 
             LOG_debug << "Filesystem notification:"
                 << " Root: "
-                << node.localname.toPath()
+                << node.localname
                 << " Path: "
                 << name;
 
@@ -2294,7 +2294,7 @@ m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         auto result = errno;
 
         LOG_warn << "Unable to determine available disk space on volume: "
-                 << drivePath.toPath()
+                 << drivePath
                  << ". Error code was: "
                  << result;
 

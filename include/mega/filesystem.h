@@ -134,9 +134,9 @@ class MEGA_API LocalPath
     // there is still at least one use from outside this class
 public:
     static void path2local(const string*, string*);
-    static void local2path(const string*, string*);
+    static void local2path(const string*, string*, bool normalize);
 #if defined(_WIN32)
-    static void local2path(const std::wstring*, string*);
+    static void local2path(const std::wstring*, string*, bool normalize);
     static void path2local(const string*, std::wstring*);
 #endif
 
@@ -194,7 +194,7 @@ public:
 
     // Return a utf8 representation of the LocalPath
     // No escaping or unescaping is done.
-    string toPath() const;
+    string toPath(bool normalize) const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.

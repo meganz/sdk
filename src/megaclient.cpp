@@ -3419,20 +3419,19 @@ void MegaClient::dispatchTransfers()
                 }
                 else if (openfinished)
                 {
-                    string utf8path = nexttransfer->localfilename.toPath();
                     if (nexttransfer->type == GET)
                     {
-                        LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
+                        LOG_err << "Error dispatching transfer. Temporary file not writable: " << nexttransfer->localfilename;
                         nexttransfer->failed(API_EWRITE, committer);
                     }
                     else if (!ts->fa->retry)
                     {
-                        LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << utf8path;
+                        LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << nexttransfer->localfilename;
                         nexttransfer->failed(API_EREAD, committer);
                     }
                     else
                     {
-                        LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << utf8path;
+                        LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << nexttransfer->localfilename;
                         nexttransfer->failed(API_EREAD, committer);
                     }
                 }
@@ -13422,7 +13421,7 @@ void MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(
     handle driveId = UNDEF;
     if (config.isExternal())
     {
-        const string& p = config.mExternalDrivePath.toPath();
+        const string& p = config.mExternalDrivePath.toPath(false);
         e = readDriveId(*fsaccess, p.c_str(), driveId);
         if (e != API_OK)
         {

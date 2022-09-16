@@ -328,9 +328,6 @@ struct SyncPath
     // this one purely from the sync root (using cloud name, to avoid escaped names)
     string syncPath;
 
-    // convenience, performs the conversion
-    string localPath_utf8() const;
-
     bool appendRowNames(const syncRow& row, FileSystemType filesystemType);
 
     SyncPath(Syncs& s, const LocalPath& fs, const string& cloud) : localPath(fs), cloudPath(cloud), syncs(s) {}
@@ -827,7 +824,7 @@ struct SyncStallEntry
 
         string debugReport()
         {
-            string r = localPath.toPath();
+            string r = localPath.toPath(false);
             if (problem != PathProblem::NoProblem)
                 r += " (" + string(syncPathProblemDebugString(problem)) + ")";
             return r;

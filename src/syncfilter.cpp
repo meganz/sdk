@@ -319,7 +319,7 @@ void DefaultFilterChain::excludedPaths(const string_vector& paths)
     {
         LocalPath localPath = LocalPath::fromAbsolutePath(path);
 
-        LOG_debug << "Legacy excluded path: " << localPath.toPath();
+        LOG_debug << "Legacy excluded path: " << localPath;
 
         mExcludedPaths.emplace_back(std::move(localPath));
     }
@@ -340,7 +340,7 @@ void DefaultFilterChain::excludePath(const string &path)
 
     auto localPath = LocalPath::fromAbsolutePath(std::move(temp));
 
-    LOG_debug << "Excluded path: " << localPath.toPath();
+    LOG_debug << "Excluded path: " << localPath;
 
     mExcludedPaths.emplace_back(std::move(localPath));
 }

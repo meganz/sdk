@@ -1692,7 +1692,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         }
 
         LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
-            << rare().scanBlocked->scanBlockedTimer.retryin() << " for " << getLocalPath().toPath();
+            << rare().scanBlocked->scanBlockedTimer.retryin() << " for " << getLocalPath();
 
         // make sure path stays accurate in case this node moves
         rare().scanBlocked->scanBlockedLocalPath = getLocalPath();
@@ -1754,7 +1754,7 @@ void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath, vector<syncRow>
         if (nChecked == children.size())
         {
             // LocalNodes are now consistent with the last scan.
-            LOG_debug << sync->syncname << "Clearing regeneratable folder scan records (" << lastFolderScan->size() << ") at " << fullPath.localPath_utf8();
+            LOG_debug << sync->syncname << "Clearing regeneratable folder scan records (" << lastFolderScan->size() << ") at " << fullPath.localPath;
             lastFolderScan.reset();
         }
     }
@@ -1891,7 +1891,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             rare().scanRequest = ourScanRequest;
             *availableScanSlot = ourScanRequest;
 
-            LOG_verbose << sync->syncname << "Issuing Directory scan request for : " << fullPath.localPath_utf8() << (availableScanSlot == &sync->mActiveScanRequestUnscanned ? " (in unscanned slot)" : "");
+            LOG_verbose << sync->syncname << "Issuing Directory scan request for : " << fullPath.localPath << (availableScanSlot == &sync->mActiveScanRequestUnscanned ? " (in unscanned slot)" : "");
 
             if (neverScanned)
             {
@@ -1911,20 +1911,20 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
         if (SCAN_FSID_MISMATCH == ourScanRequest->completionResult())
         {
-            LOG_verbose << sync->syncname << "Directory scan detected outdated fsid : " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Directory scan detected outdated fsid : " << fullPath.localPath;
             scanObsolete = true;
         }
 
         if (SCAN_SUCCESS == ourScanRequest->completionResult()
             && ourScanRequest->fsidScanned() != row.fsNode->fsid)
         {
-            LOG_verbose << sync->syncname << "Directory scan returned was for now outdated fsid : " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Directory scan returned was for now outdated fsid : " << fullPath.localPath;
             scanObsolete = true;
         }
 
         if (scanObsolete)
         {
-            LOG_verbose << sync->syncname << "Directory scan outdated for : " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Directory scan outdated for : " << fullPath.localPath;
             scanObsolete = false;
 
             // Scan results are out of date but may still be useful.
@@ -1939,14 +1939,14 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
             for (auto& i : *lastFolderScan)
             {
-                if (isDoNotSyncFileName(i.localname.toPath()))
+                if (isDoNotSyncFileName(i.localname.toPath(true)))
                 {
                     // These are special shell-generated files for win & mac, only relevant in the filesystem they were created
                     i.type = TYPE_DONOTSYNC;
                 }
             }
 
-            LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath;
 
             scanDelayUntil = Waiter::ds + 20; // don't scan too frequently
             scanAgain = TREE_RESOLVED;
@@ -2323,7 +2323,7 @@ string LocalNode::debugGetParentList()
 
     for (const LocalNode* l = this; l != nullptr; l = l->parent)
     {
-        s += l->localname.toPath() + "(" + std::to_string((long long)(void*)l) + ") ";
+        s += l->localname.toPath(false) + "(" + std::to_string((long long)(void*)l) + ") ";
     }
     return s;
 }
@@ -2460,11 +2460,11 @@ void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
         {
             // checking for a race where we already sent putnodes and it hasn't completed,
             // then we discover something that means we should abandon the transfer
-            LOG_debug << sync->syncname << "Cancelling superceded transfer even though we have an outstanding putnodes request! " << transferSP->getLocalname().toPath();
+            LOG_debug << sync->syncname << "Cancelling superceded transfer even though we have an outstanding putnodes request! " << transferSP->getLocalname();
             assert(false);
         }
 
-        LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname().toPath();
+        LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname();
         resetTransfer(nullptr);
     }
 }
@@ -2703,7 +2703,8 @@ bool LocalNode::serialize(string* d)
                 // but we can log ERR to try to detect any issues during development.  Occasionally there will be false positives,
                 // but also please do investigate when it's not a test that got shut down while busy.
                 LOG_err << "Shortname mismatch on LocalNode serialize! " <<
-                           "localname: " << localname << " slocalname " << (slocalname?slocalname->toPath():"<null>") << " actual shorname " << (sn?sn->toPath():"<null") << " for path " << localpath;
+                           "localname: " << localname << " slocalname " << (slocalname?*slocalname:LocalPath()) << (slocalname?"":"<null>") <<
+                           " actual shorname " << (sn?*sn:LocalPath()) << (sn?"":"<null>") << " for path " << localpath;
 
             }
         }
@@ -2873,7 +2874,7 @@ WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
     // Do we need to (re)create a watch?
     if (mWatchHandle == fsid)
     {
-        LOG_verbose << "Watch for path: " << path.toPath()
+        LOG_verbose << "Watch for path: " << path
                     << " with mWatchHandle == fsid == " << fsid
                     << " Already in place";
         return WR_SUCCESS;
