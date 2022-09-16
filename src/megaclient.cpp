@@ -2271,6 +2271,7 @@ void MegaClient::exec()
             if (procsc())
             {
                 // completed - initiate next SC request
+                jsonsc.pos = nullptr;
                 pendingsc.reset();
                 btsc.reset();
             }
@@ -3599,7 +3600,7 @@ void MegaClient::disconnect()
 // by closing pending sc, reset backoff and clear waitd URL
 void MegaClient::catchup()
 {
-    if (pendingsc)
+    if (pendingsc && !jsonsc.pos)
     {
         pendingsc->disconnect();
 
@@ -7200,6 +7201,7 @@ Node* MegaClient::sc_deltree()
 
                     int creqtag = reqtag;
                     reqtag = 0;
+                    td.setOriginatingUser(originatingUser);
                     proctree(n, &td);
                     reqtag = creqtag;
 

@@ -177,7 +177,7 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
-void CacheableWriter::serializecompressed64(int64_t field)
+void CacheableWriter::serializecompressedu64(uint64_t field)
 {
     byte buf[sizeof field+1];
     dest.append((const char*)buf, Serialize64::serialize(buf, field));
@@ -423,7 +423,7 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
 
     for (auto it = mMacMap.find(npos);
         npos < fileSize &&
-        (npos - pos) <= maxReqSize &&
+        (npos - pos) < maxReqSize &&
         (it == mMacMap.end() || it->second.notStarted());
         it = mMacMap.find(npos))
     {
@@ -668,7 +668,7 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
     return false;
 }
 
-bool CacheableReader::unserializecompressed64(uint64_t& field)
+bool CacheableReader::unserializecompressedu64(uint64_t& field)
 {
     int fieldSize;
     if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)

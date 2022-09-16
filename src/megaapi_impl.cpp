@@ -1928,6 +1928,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
             type = TYPE_INCOMINGPENDINGCONTACT_REQUEST;
         }
         userHandle = p->userHandle;
+        mPcrHandle = p->mPcrHandle;
         email = p->userEmail;
     }
     break;
@@ -2118,6 +2119,11 @@ MegaHandle MegaUserAlertPrivate::getUserHandle() const
 MegaHandle MegaUserAlertPrivate::getNodeHandle() const
 {
     return nodeHandle;
+}
+
+MegaHandle mega::MegaUserAlertPrivate::getPcrHandle() const
+{
+    return mPcrHandle;
 }
 
 const char* MegaUserAlertPrivate::getEmail() const
@@ -15352,19 +15358,19 @@ void MegaApiImpl::whyamiblocked_result(int code)
     }
     else    // code > 0
     {
-        string reason = "Your account was terminated due to breach of Mega's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
+        string reason = "Your account was terminated due to a breach of Mega's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
 
         if (code == MegaApi::ACCOUNT_BLOCKED_EXCESS_DATA_USAGE)    // deprecated
         {
             reason = "You have been suspended due to excess data usage.";
         }
-        else if (code == MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT)
-        {
-            reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
-        }
         else if (code == MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT)
         {
             reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
+        }
+        else if (code == MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT)
+        {
+            reason = "Your account was terminated due to a breach of MEGA's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
         }
         else if (code == MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED)
         {

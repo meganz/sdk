@@ -8104,11 +8104,11 @@ void DemoApp::whyamiblocked_result(int code)
         }
         else if (code == 200)
         {
-            reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
+            reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
         }
         else if (code == 300)
         {
-            reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
+            reason = "Your account was terminated due to a breach of MEGA's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
         }
         else if (code == 400)
         {

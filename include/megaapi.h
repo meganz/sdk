@@ -1646,13 +1646,17 @@ public:
     * @brief Returns the handle of a user related to the alert
     *
     * This value is valid for user related alerts:
-    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
     *  TYPE_CONTACTCHANGE_BLOCKEDYOU, TYPE_CONTACTCHANGE_DELETEDYOU,
     *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
+    *
+    * @warning This value is still valid for user related alerts:
+    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    * However, the returned value is the handle of the Pending Contact Request. There is no
+    * user's handle associated to these type of alerts. Use MegaUserAlert::getPcrHandle.
     *
     * @return the associated user's handle, otherwise UNDEF
     */
@@ -1668,6 +1672,17 @@ public:
     * @return the relevant node handle, or UNDEF if this alert does not have one.
     */
     virtual MegaHandle getNodeHandle() const;
+
+    /**
+    * @brief Returns the handle of a Pending Contact Request related to the alert
+    *
+    * This value is valid for user related alerts:
+    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    *
+    * @return the relevant PCR handle, or UNDEF if this alert does not have one.
+    */
+    virtual MegaHandle getPcrHandle() const;
 
     /**
     * @brief Returns an email related to the alert
@@ -6991,11 +7006,11 @@ class MegaGlobalListener
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
          *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-         *              Suspension message for any type of suspension, but copyright suspension.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
          *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+         *              Suspension message for any type of suspension, but copyright suspension.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
          *              Subuser of the business account has been disabled.
@@ -7566,11 +7581,11 @@ class MegaListener
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
          *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-         *              Suspension message for any type of suspension, but copyright suspension.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
          *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+         *              Suspension message for any type of suspension, but copyright suspension.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
          *              Subuser of the business account has been disabled.
@@ -8051,8 +8066,8 @@ class MegaApi
         enum {
             ACCOUNT_NOT_BLOCKED = 0,
             ACCOUNT_BLOCKED_EXCESS_DATA_USAGE = 100,        // (deprecated)
-            ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200,        // suspended due to multiple breaches of MEGA ToS
-            ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300,            // suspended due to copyright violations
+            ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200,            // suspended due to copyright violations
+            ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300,        // suspended due to multiple breaches of MEGA ToS
             ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400,         // subuser disabled by business administrator
             ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401,          // subuser removed by business administrator
             ACCOUNT_BLOCKED_VERIFICATION_SMS = 500,         // temporary blocked, require SMS verification
@@ -9668,11 +9683,11 @@ class MegaApi
          *          - MegaApi::ACCOUNT_NOT_BLOCKED = 0
          *              Account is not blocked in any way.
          *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-         *              Suspension message for any type of suspension, but copyright suspension.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
          *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+         *              Suspension message for any type of suspension, but copyright suspension.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
          *              Subuser of the business account has been disabled.
@@ -12767,7 +12782,7 @@ class MegaApi
          *
          * @note Event types are restricted to the following ranges:
          *  - MEGAcmd:   [98900, 99000)
-         *  - MEGAchat:  [99000, 99150)
+         *  - MEGAchat:  [99000, 99199)
          *  - Android:   [99200, 99300)
          *  - iOS:       [99300, 99400)
          *  - MEGA SDK:  [99400, 99500)
