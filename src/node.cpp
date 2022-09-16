@@ -2874,7 +2874,7 @@ WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
     // Do we need to (re)create a watch?
     if (mWatchHandle == fsid)
     {
-        LOG_verbose << "Watch for path: " << path.toPath()
+        LOG_verbose << "Watch for path: " << path
                     << " with mWatchHandle == fsid == " << fsid
                     << " Already in place";
         return WR_SUCCESS;
