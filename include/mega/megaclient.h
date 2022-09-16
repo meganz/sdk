@@ -1666,6 +1666,9 @@ public:
     void procmcf(JSON*);
     void procmcna(JSON*);
 
+    // process mcsm array at fetchnodes
+    void procmcsm(JSON*);
+
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);
 

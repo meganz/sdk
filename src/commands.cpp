@@ -5821,6 +5821,11 @@ bool CommandFetchNodes::procresult(Result r)
                 // nodes shared in chatrooms
                 client->procmcna(&client->json);
                 break;
+
+            case MAKENAMEID4('m', 'c', 's', 'm'):
+                // scheduled meetings
+                client->procmcsm(&client->json);
+                break;
 #endif
             case EOO:
             {

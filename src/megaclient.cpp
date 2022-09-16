@@ -11685,6 +11685,36 @@ void MegaClient::procmcna(JSON *j)
         j->leavearray();
     }
 }
+
+// process mcsm array at fetchnodes
+void MegaClient::procmcsm(JSON *j)
+{
+    std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
+    if (j && j->enterarray())
+    {
+        if (parseScheduledMeetings(&schedMeetings, false, j) != API_OK) { return; }
+        j->leavearray();
+    }
+
+    for (auto &sm: schedMeetings)
+    {
+        textchat_map::iterator it = chats.find(sm->chatid());
+        if (it == chats.end())
+        {
+            assert(false);
+            LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
+            continue;
+        }
+
+        // add scheduled meeting
+        TextChat* chat = it->second;
+        chat->addSchedMeeting(std::move(sm));
+
+        // fetch scheduled meetings occurences (no previous events occurrences cached)
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, sm->chatid(), nullptr, nullptr, -1,
+                                                        [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
+    }
+}
 #endif
 
 // add node to vector, return position, deduplicate
