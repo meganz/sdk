@@ -28,6 +28,9 @@ using namespace ::std;
 
 namespace mega {
 
+    const string CommonSE::nameTag = "n";
+    const string Set::coverTag = "c";
+
     void CommonSE::setName(string&& name)
     {
         setAttr(nameTag, move(name));

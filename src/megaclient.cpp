@@ -17745,9 +17745,6 @@ error MegaClient::readElement(JSON& j, SetElement& el)
     }
 }
 
-const string CommonSE::nameTag = "n";
-const string Set::coverTag = "c";
-
 const Set* MegaClient::getSet(handle sid) const
 {
     auto it = mSets.find(sid);
