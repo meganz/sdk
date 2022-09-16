@@ -23444,7 +23444,7 @@ void MegaApiImpl::sendPendingRequests()
                     // although it's related scheduled meeting has not changed, re-request again [mcsmfo] this approach is an API requirement
                     TextChat* chat = it->second;
                     chat->clearSchedMeetingOccurrences();
-                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, nullptr, nullptr, -1, false, [] (Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)
+                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, nullptr, nullptr, -1, [] (Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)
                     {
                     }));
                 }

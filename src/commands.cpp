@@ -9249,12 +9249,11 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
     return true;
 }
 
-CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, const char* since, const char* until, int count, bool invalidate, CommandScheduledMeetingFetchEventsCompletion completion)
+CommandScheduledMeetingFetchEvents::CommandScheduledMeetingFetchEvents(MegaClient* client, handle chatid, const char* since, const char* until, int count, CommandScheduledMeetingFetchEventsCompletion completion)
  : mChatId(chatid),
    mSince(since ? since : string()),
    mUntil(until ? until : string()),
    mCount(count),
-   mInvalidate(invalidate),
    mCompletion(completion)
 {
     cmd("mcsmfo");
@@ -9288,18 +9287,8 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
         return false;
     }
 
-    TextChat* chat = it->second;
-    if (mInvalidate)
-    {
-        for (auto& schedMeeting: schedMeetings)
-        {
-           // invalidate old records (by scheduled meeting occurrence unique key: <callid, startdatetime>),
-           // to be replaced by received ones from API (schedMeetings)
-           chat->invalidateSchedMeetingOccurrence(schedMeeting->callid(), schedMeeting->startDateTime());
-        }
-    }
-
     // add received scheduled meetings occurrences
+    TextChat* chat = it->second;
     for (auto& schedMeeting: schedMeetings)
     {
         chat->addSchedMeetingOccurrence(std::move(schedMeeting));
