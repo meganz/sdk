@@ -19421,6 +19421,7 @@ class MegaApi
          * - MegaError::API_EACCESS - Permissions Error (from API).
          *
          * @param name the name that should be given to the new Set
+         * @param listener MegaRequestListener to track this request
          */
         void createSet(const char* name = nullptr, MegaRequestListener* listener = nullptr);
 
@@ -19441,6 +19442,7 @@ class MegaApi
          *
          * @param sid the id of the Set to be updated
          * @param name the new name that should be given to the Set
+         * @param listener MegaRequestListener to track this request
          */
         void updateSetName(MegaHandle sid, const char* name, MegaRequestListener* listener = nullptr);
 
@@ -19461,6 +19463,7 @@ class MegaApi
          *
          * @param sid the id of the Set to be updated
          * @param eid the id of the Element to be set as cover
+         * @param listener MegaRequestListener to track this request
          */
         void putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
@@ -19478,6 +19481,7 @@ class MegaApi
          * - MegaError::API_EACCESS - Permissions Error (from API).
          *
          * @param sid the id of the Set to be removed
+         * @param listener MegaRequestListener to track this request
          */
         void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
@@ -19500,6 +19504,7 @@ class MegaApi
          * - MegaError::API_EACCESS - Permissions Error (from API).
          *
          * @param sid the id of the Set to be fetched
+         * @param listener MegaRequestListener to track this request
          */
         void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
 
@@ -19527,6 +19532,7 @@ class MegaApi
          * @param sid the id of the Set that will own the new Element
          * @param node the handle of the file-node that will be represented by the new Element
          * @param name the name that should be given to the new Element
+         * @param listener MegaRequestListener to track this request
          */
         void createSetElement(MegaHandle sid, MegaHandle node, const char* name = nullptr, MegaRequestListener* listener = nullptr);
 
@@ -19549,6 +19555,7 @@ class MegaApi
          * @param sid the id of the Set that owns the Element
          * @param eid the id of the Element that will be updated
          * @param name the new name that should be given to the Element
+         * @param listener MegaRequestListener to track this request
          */
         void updateSetElementName(MegaHandle sid, MegaHandle eid, const char* name, MegaRequestListener* listener = nullptr);
 
@@ -19571,6 +19578,7 @@ class MegaApi
          * @param sid the id of the Set that owns the Element
          * @param eid the id of the Element that will be updated
          * @param order the new order of the Element
+         * @param listener MegaRequestListener to track this request
          */
         void updateSetElementOrder(MegaHandle sid, MegaHandle eid, int64_t order, MegaRequestListener* listener = nullptr);
 
@@ -19590,6 +19598,7 @@ class MegaApi
          *
          * @param sid the id of the Set that owns the Element
          * @param eid the id of the Element to be removed
+         * @param listener MegaRequestListener to track this request
          */
         void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
 
