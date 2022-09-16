@@ -531,7 +531,7 @@ void TextChat::removeSchedMeeting(handle callid)
     mScheduledMeetings.erase(callid);
 }
 
-void TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
+void TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
 {
     removeSchedMeeting(sm->callid());
     addSchedMeeting(std::move(sm));

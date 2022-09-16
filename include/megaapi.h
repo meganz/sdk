@@ -3316,7 +3316,7 @@ class MegaRequest
             TYPE_SET_CHAT_OPTIONS                                           = 147,
             TYPE_GET_RECENT_ACTIONS                                         = 148,
             TYPE_CHECK_RECOVERY_KEY                                         = 149,
-            TYPE_ADD_SCHEDULED_MEETING                                      = 150,
+            TYPE_ADD_UPDATE_SCHEDULED_MEETING                               = 150,
             TYPE_DEL_SCHEDULED_MEETING                                      = 151,
             TYPE_FETCH_SCHEDULED_MEETING                                    = 152,
             TYPE_FETCH_SCHEDULED_MEETING_EVENTS                             = 153,

@@ -1523,15 +1523,15 @@ public:
     CommandMeetingEnd(MegaClient*, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion);
 };
 
-typedef std::function<void(Error)> CommandScheduledMeetingAddCompletion;
-class MEGA_API CommandScheduledMeetingAdd : public Command
+typedef std::function<void(Error)> CommandScheduledMeetingAddOrUpdateCompletion;
+class MEGA_API CommandScheduledMeetingAddOrUpdate : public Command
 {
     std::unique_ptr<ScheduledMeeting> mScheduledMeeting;
-    CommandScheduledMeetingAddCompletion mCompletion;
+    CommandScheduledMeetingAddOrUpdateCompletion mCompletion;
 
 public:
     bool procresult(Result) override;
-    CommandScheduledMeetingAdd(MegaClient *, ScheduledMeeting *, CommandScheduledMeetingAddCompletion completion);
+    CommandScheduledMeetingAddOrUpdate(MegaClient *, ScheduledMeeting *, CommandScheduledMeetingAddOrUpdateCompletion completion);
 };
 
 typedef std::function<void(Error)> CommandScheduledMeetingRemoveCompletion;

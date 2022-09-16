@@ -4093,7 +4093,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SET_CHAT_OPTIONS: return "SET_CHAT_OPTIONS";
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_CHECK_RECOVERY_KEY: return "CHECK_RECOVERY_KEY";
-        case TYPE_ADD_SCHEDULED_MEETING: return "ADD_SCHEDULED_MEETING";
+        case TYPE_ADD_UPDATE_SCHEDULED_MEETING: return "ADD_SCHEDULED_MEETING";
         case TYPE_DEL_SCHEDULED_MEETING: return "DEL_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING: return "FETCH_SCHEDULED_MEETING";
         case TYPE_FETCH_SCHEDULED_MEETING_EVENTS: return "FETCH_SCHEDULED_MEETING_EVENTS";
@@ -10706,7 +10706,7 @@ void MegaApiImpl::createScheduledMeeting(MegaHandle chatid, const char* timezone
                                          const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
                                          const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SCHEDULED_MEETING, listener);
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
     std::unique_ptr<MegaScheduledMeeting> schedMeeting(MegaScheduledMeeting::createInstance(chatid, timezone, startDate, endDate,
                                                                                             title, description, freq, organizerUserId,
                                                                                             callid, parentCallid, cancelled, emailsDisabled,
@@ -23418,7 +23418,7 @@ void MegaApiImpl::sendPendingRequests()
            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
            break;
         }
-        case MegaRequest::TYPE_ADD_SCHEDULED_MEETING:
+        case MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING:
         {
             MegaScheduledMeetingPrivate* schedMeeting = static_cast<MegaScheduledMeetingPrivate*>(request->getScheduledMeetings());
             if (!schedMeeting)
@@ -23435,8 +23435,20 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandScheduledMeetingAdd(client, schedMeeting, [request, this] (Error e)
+            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, schedMeeting, [chatid, request, this] (Error e)
             {
+                textchat_map::iterator it = client->chats.find(chatid);
+                if (!e && it != client->chats.end())
+                {
+                    // if we have created or overwritten an existing scheduled meeting, clear all scheduled meeting occurrences for the chatroom, and re-fetch
+                    // although it's related scheduled meeting has not changed, re-request again [mcsmfo] this approach is an API requirement
+                    TextChat* chat = it->second;
+                    chat->clearSchedMeetingOccurrences();
+                    client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, nullptr, nullptr, -1, false, [] (Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)
+                    {
+                    }));
+                }
+
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
             break;

@@ -9057,7 +9057,7 @@ CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle c
     tag = client->reqtag;
 }
 
-CommandScheduledMeetingAdd::CommandScheduledMeetingAdd(MegaClient* client, ScheduledMeeting * schedMeeting, CommandScheduledMeetingAddCompletion completion)
+CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClient* client, ScheduledMeeting * schedMeeting, CommandScheduledMeetingAddOrUpdateCompletion completion)
     : mScheduledMeeting(schedMeeting ? schedMeeting->copy() : nullptr), mCompletion(completion)
 {
     assert(schedMeeting);
@@ -9145,7 +9145,7 @@ CommandScheduledMeetingAdd::CommandScheduledMeetingAdd(MegaClient* client, Sched
     tag = client->reqtag;
 }
 
-bool CommandScheduledMeetingAdd::procresult(Command::Result r)
+bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
 {
     if (r.wasErrorOrOK()) // if succeded, mError is API_OK but mOutcome is CmdItem (containing ScheduledMeetingHandle)
     {
@@ -9162,10 +9162,18 @@ bool CommandScheduledMeetingAdd::procresult(Command::Result r)
     }
 
     TextChat* chat = it->second;
-
     handle schedMeetingId = client->json.gethandle(MegaClient::CHATHANDLE);
     mScheduledMeeting->setCallid(schedMeetingId);
-    chat->mScheduledMeetings.emplace(schedMeetingId, std::move(mScheduledMeeting));
+
+    if ((mScheduledMeeting->parentCallid() == UNDEF || !mScheduledMeeting->overrides())
+            && chat->getSchedMeetingById(mScheduledMeeting->callid()))
+    {
+        // if we are not overwritting an existing scheduled meeting, it should not exist
+        assert(false);
+        LOG_warn << "Scheduled meeting with id [" <<  Base64Str<MegaClient::CHATHANDLE>(schedMeetingId) << "] should not already exist";
+    }
+
+    chat->addOrUpdateSchedMeeting(std::move(mScheduledMeeting)); // add or update scheduled meeting if already exists
     mCompletion(API_OK);
     return true;
 }

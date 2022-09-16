@@ -106,7 +106,7 @@ public:
     void clearSchedMeetingOccurrences();
 
     // scheduled meetings
-    void updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
+    void addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
     void addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
     void removeSchedMeeting(handle callid);
     ScheduledMeeting* getSchedMeetingById(handle id);
