@@ -1158,6 +1158,7 @@ private:
     void sc_chatupdate(bool readingPublicChat);
     void sc_chatnode();
     void sc_chatflags();
+    void sc_scheduledmeetings();
 #endif
     void sc_uac();
     void sc_la();

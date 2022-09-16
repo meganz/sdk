@@ -5031,6 +5031,11 @@ bool MegaClient::procsc()
                                 // granted / revoked access to a node
                                 sc_chatnode();
                                 break;
+
+                            case MAKENAMEID5('m', 'c', 's', 'm', 'p'):
+                                // scheduled meetings updates
+                                sc_scheduledmeetings();
+                                break;
 #endif
                             case MAKENAMEID3('u', 'a', 'c'):
                                 sc_uac();
@@ -7127,6 +7132,34 @@ void MegaClient::sc_chatflags()
                 }
                 break;
         }
+    }
+}
+
+// process mcsmp action packet
+void MegaClient::sc_scheduledmeetings()
+{
+    std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
+    if (parseScheduledMeetings(&schedMeetings, false, &jsonsc) != API_OK) { return; }
+
+    for (auto &sm: schedMeetings)
+    {
+        textchat_map::iterator it = chats.find(sm->chatid());
+        if (it == chats.end())
+        {
+            LOG_err << "Unknown chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(sm->chatid()) << "] received on mcsm";
+            continue;
+        }
+
+        // update scheduled meeting with updated record received at mcsmp AP
+        TextChat* chat = it->second;
+        chat->addOrUpdateSchedMeeting(std::move(sm));
+
+        // if just one scheduled meeting has changed for a chatroom, invalidate all meetings occurrences related for that chatid,
+        // although it's related scheduled meeting has not changed and re-request again [mcsmfo], this approach is an API requirement
+        LOG_debug << "Invalidating scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
+        chat->clearSchedMeetingOccurrences();
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, -1,
+                                                        [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
     }
 }
 
@@ -11708,7 +11741,7 @@ void MegaClient::procmcsm(JSON *j)
 
         // add scheduled meeting
         TextChat* chat = it->second;
-        chat->addSchedMeeting(std::move(sm));
+        chat->addOrUpdateSchedMeeting(std::move(sm));
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
         reqs.add(new CommandScheduledMeetingFetchEvents(this, sm->chatid(), nullptr, nullptr, -1,
