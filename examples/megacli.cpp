@@ -10202,6 +10202,11 @@ void exec_setsandelements(autocomplete::ACState& s)
         if (s.extractflagparam("-o", param))
         {
             el.setOrder(atoll(param.c_str()));
+            if (el.order() == 0 && param != "0")
+            {
+                cout << "Invalid order: " << param << endl;
+                return;
+            }
         }
 
         client->putSetElement(move(el), [createNew, setId, elemId](Error e, const SetElement* el)

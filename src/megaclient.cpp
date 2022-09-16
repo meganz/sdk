@@ -17302,7 +17302,9 @@ void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const 
     if (el.id() == UNDEF)
     {
         Node* n = nodebyhandle(el.node());
-        error e = !n ? API_ENOENT : (n->nodekey().empty() || !n->nodecipher() || n->attrstring ? API_EKEY : API_OK);
+        error e = !n ? API_ENOENT
+                     : (!n->keyApplied() || !n->nodecipher() || n->attrstring ? API_EKEY
+                        : (n->type != FILENODE ? API_EARGS : API_OK));
         if (e != API_OK)
         {
             LOG_err << "Sets: Invalid node for Element";
