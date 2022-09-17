@@ -76,6 +76,7 @@ typedef unsigned char byte;
 #include <memory>
 #include <string>
 #include <chrono>
+#include <mutex>
 
 namespace mega {
 
@@ -94,6 +95,12 @@ using std::streambuf;
 using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
+using std::shared_ptr;
+using std::weak_ptr;
+using std::move;
+using std::mutex;
+using std::recursive_mutex;
+using std::lock_guard;
 
 #ifdef WIN32
 using std::wstring;
@@ -132,7 +139,6 @@ struct PendingContactRequest;
 class TransferList;
 struct Achievement;
 class SyncConfig;
-class SimpleLogger;
 
 namespace UserAlert
 {
@@ -156,7 +162,11 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
+typedef enum { REQ_READY, REQ_GET_URL, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
+               REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED,
+               REQ_INFLIGHT,
+               REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO,
+               } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
@@ -167,22 +177,12 @@ typedef enum { REQ_BINARY, REQ_JSON } contenttype_t;
 // new node source types
 typedef enum { NEW_NODE, NEW_PUBLIC, NEW_UPLOAD } newnodesource_t;
 
-// file chunk MAC
-struct ChunkMAC
-{
-    ChunkMAC() : offset(0), finished(false) { }
-
-    byte mac[SymmCipher::BLOCKSIZE];
-    unsigned int offset;
-    bool finished;
-};
-
 class chunkmac_map;
 
 /**
  * @brief Declaration of API error codes.
  */
-typedef enum ErrorCodes
+typedef enum ErrorCodes : int
 {
     API_OK = 0,                     ///< Everything OK.
     API_EINTERNAL = -1,             ///< Internal error.
@@ -214,6 +214,7 @@ typedef enum ErrorCodes
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    LOCAL_ENOSPC = -1000,           ///< Insufficient space
 } error;
 
 class Error
@@ -257,7 +258,7 @@ private:
 };
 
 // returned by loggedin()
-typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } sessiontype_t;
+typedef enum { NOTLOGGEDIN = 0, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT, EPHEMERALACCOUNTPLUSPLUS } sessiontype_t;
 
 // node/user handles are 8-11 base64 characters, case sensitive, and thus fit
 // in a 64-bit int
@@ -269,20 +270,62 @@ class NodeHandle
     // This class helps avoid issues when we don't save/restore the top 2 bytes when using an 8 byte uint64 to represent it
     uint64_t h = 0xFFFFFFFFFFFFFFFF;
 public:
-    bool isUndef() { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
+    bool isUndef() const { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
+    void setUndef() { h = 0xFFFFFFFFFFFFFFFF; }
     NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0 || n == 0xFFFFFFFFFFFFFFFF); return *this; }
-    bool eq(NodeHandle b) { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
-    bool eq(handle b) { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
-    bool ne(handle b) { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    NodeHandle& setImpossibleValue(uint64_t n) { h = n; return *this; }
+    bool eq(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
+    bool eq(handle b) const { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
+    bool ne(handle b) const { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    bool ne(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) != (b.h & 0xFFFFFFFFFFFF); }
     bool operator<(const NodeHandle& rhs) const { return h < rhs.h; }
-    handle as8byte() { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
+    handle as8byte() const { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
 };
 
 inline bool operator==(NodeHandle a, NodeHandle b) { return a.eq(b); }
 inline bool operator==(NodeHandle a, handle b) { return a.eq(b); }
 inline bool operator!=(NodeHandle a, handle b) { return a.ne(b); }
+inline bool operator!=(NodeHandle a, NodeHandle b) { return a.ne(b); }
 std::ostream& operator<<(std::ostream&, NodeHandle h);
-SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
+
+struct UploadHandle
+{
+    handle h = 0xFFFFFFFFFFFFFFFF;
+    UploadHandle() {}
+    UploadHandle(handle uh) : h(uh) { assert( (h & 0xFFFF000000000000) != 0 ); }
+
+    // generate upload handle for the next upload
+    UploadHandle next();
+
+    bool isUndef() const { return h == 0xFFFFFFFFFFFFFFFF; }
+
+    bool eq(UploadHandle b) const { return h == b.h; }
+    bool operator<(const UploadHandle& rhs) const { return h < rhs.h; }
+};
+
+inline bool operator==(UploadHandle a, UploadHandle b) { return a.eq(b); }
+
+class NodeOrUploadHandle
+{
+    handle h = 0xFFFFFFFFFFFFFFFF;
+    bool mIsNodeHandle = true;
+
+public:
+    NodeOrUploadHandle() {}
+    explicit NodeOrUploadHandle(NodeHandle nh) : h(nh.as8byte()), mIsNodeHandle(true) {}
+    explicit NodeOrUploadHandle(UploadHandle uh) : h(uh.h), mIsNodeHandle(false) {}
+
+    NodeHandle nodeHandle() { return mIsNodeHandle ? NodeHandle().set6byte(h) : NodeHandle(); }
+    UploadHandle uploadHandle() { return mIsNodeHandle ? UploadHandle() : UploadHandle(h); }
+
+    bool isNodeHandle() { return mIsNodeHandle; }
+    bool isUndef() const { return h == 0xFFFFFFFFFFFFFFFF; }
+
+    bool eq(NodeOrUploadHandle b) const { return h == b.h && mIsNodeHandle == b.mIsNodeHandle; }
+    bool operator<(const NodeOrUploadHandle& rhs) const { return h < rhs.h || (h == rhs.h && int(mIsNodeHandle) < int(rhs.mIsNodeHandle)); }
+};
+
+inline bool operator==(NodeOrUploadHandle a, NodeOrUploadHandle b) { return a.eq(b); }
 
 // (can use unordered_set if available)
 typedef set<handle> handle_set;
@@ -294,12 +337,19 @@ typedef uint16_t fatype;
 typedef list<struct File*> file_list;
 
 // node types:
-// FILE - regular file nodes
-// FOLDER - regular folder nodes
-// ROOT - the cloud drive root node
-// INCOMING - inbox
-// RUBBISH - rubbish bin
-typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
+typedef enum {
+
+    // these first two are for sync rework, and should not be used before that branch is merged (directoyScan is from sync rework)
+    TYPE_DONOTSYNC = -3,
+    TYPE_SPECIAL = -2,
+
+    TYPE_UNKNOWN = -1,
+    FILENODE = 0,    // FILE - regular file nodes
+    FOLDERNODE,      // FOLDER - regular folder nodes
+    ROOTNODE,        // ROOT - the cloud drive root node
+    VAULTNODE,       // VAULT - vault, for "My backups" and other special folders
+    RUBBISHNODE      // RUBBISH - rubbish bin
+} nodetype_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
@@ -307,6 +357,27 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 // node type key lengths
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
+
+// Max nodes per putnodes command
+const unsigned MAXNODESUPLOAD = 1000;
+typedef union {
+    std::array<byte, FILENODEKEYLENGTH> bytes;
+    struct {
+        std::array<byte, FOLDERNODEKEYLENGTH> key;
+        union {
+            std::array<byte, 8> iv_bytes;
+            uint64_t iv_u64;
+        };
+        union {
+            std::array<byte, 8> crc_bytes;
+            uint64_t crc_u64;
+        };
+    };
+} FileNodeKey;
+
+const int UPLOADTOKENLEN = 36;
+
+typedef std::array<byte, UPLOADTOKENLEN> UploadToken;
 
 // persistent resource cache storage
 class Cacheable
@@ -327,7 +398,7 @@ typedef uint64_t nameid;
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
 // FULL - all operations that do not require ownership permitted
-// OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
+// OWNER - node is in caller's ROOT, VAULT or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
 // operations for outgoing pending contacts
@@ -345,8 +416,8 @@ typedef enum { VISIBILITY_UNKNOWN = -1, HIDDEN = 0, VISIBLE = 1, INACTIVE = 2, B
 
 typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 
-// maps handle-index pairs to file attribute handle
-typedef map<pair<handle, fatype>, pair<handle, int> > fa_map;
+// maps handle-index pairs to file attribute handle.  map value is (file attribute handle, tag)
+typedef map<pair<UploadHandle, fatype>, pair<handle, int> > fa_map;
 
 typedef enum {
     SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
@@ -367,6 +438,14 @@ typedef enum
 }
 SyncBackupState;
 
+enum ScanResult
+{
+    SCAN_INPROGRESS,
+    SCAN_SUCCESS,
+    SCAN_FSID_MISMATCH,
+    SCAN_INACCESSIBLE
+}; // ScanResult
+
 enum SyncError {
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
@@ -381,9 +460,9 @@ enum SyncError {
     BUSINESS_EXPIRED = 10,                  // Business account expired
     FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
     REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
-    REMOTE_PATH_DELETED = 13,               // Remote path has been deleted
+    REMOTE_PATH_DELETED = 13,               // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
     SHARE_NON_FULL_ACCESS = 14,             // Existing inbound share sync or part thereof lost full access
-    LOCAL_FINGERPRINT_MISMATCH = 15,        // Filesystem fingerprint does not match the one stored for the synchronization
+    LOCAL_FILESYSTEM_MISMATCH = 15,         // Filesystem fingerprint does not match the one stored for the synchronization
     PUT_NODES_ERROR = 16,                   // Error processing put nodes result
     ACTIVE_SYNC_BELOW_PATH = 17,            // There's a synced node below the path to be synced
     ACTIVE_SYNC_ABOVE_PATH = 18,            // There's a synced node above the path to be synced
@@ -396,7 +475,10 @@ enum SyncError {
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
     WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
-    BACKUP_MODIFIED = 28                    // Backup has been externally modified.
+    MISSING_PARENT_NODE = 28,               // Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+    BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
+    BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
+    SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
 };
 
 enum SyncWarning {
@@ -445,7 +527,7 @@ class deque_with_lazy_bulk_erase
     // Any other operation on the deque performs all the gathered erases in a single std::remove_if for efficiency.
     // This makes an enormous difference when cancelling 100k transfers in MEGAsync's transfers window for example.
     deque<E> mDeque;
-    bool mErasing = false;
+    size_t nErased = 0;
 
 public:
 
@@ -455,16 +537,31 @@ public:
     {
         assert(i != mDeque.end());
         i->erase();
-        mErasing = true;
+        ++nErased;
     }
 
     void applyErase()
     {
-        if (mErasing)
+        if (nErased)
         {
-            auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
-            mDeque.erase(newEnd, mDeque.end());
-            mErasing = false;
+            // quite often the elements are at the front, no need to traverse the whole thing
+            // removal from the front or back of a deque is cheap
+            while (nErased && !mDeque.empty() && mDeque.front().isErased())
+            {
+                mDeque.pop_front();
+                --nErased;
+            }
+            while (nErased && !mDeque.empty() && mDeque.back().isErased())
+            {
+                mDeque.pop_back();
+                --nErased;
+            }
+            if (nErased)
+            {
+                auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
+                mDeque.erase(newEnd, mDeque.end());
+                nErased = 0;
+            }
         }
     }
 
@@ -480,17 +577,29 @@ public:
 
 };
 
+template <class T1, class T2> class mapWithLookupExisting : public map<T1, T2>
+{
+    typedef map<T1, T2> base; // helps older gcc
+public:
+    T2* lookupExisting(T1 key)
+    {
+        auto it = base::find(key);
+        if (it == base::end()) return nullptr;
+        return &it->second;
+    }
+};
+
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
 
 // map a request tag with a pending dns request
 typedef map<int, GenericHttpReq*> pendinghttp_map;
 
-// map an upload handle to the corresponding transer
-typedef map<handle, Transfer*> handletransfer_map;
+// map an upload handle to the corresponding transfer
+typedef map<UploadHandle, Transfer*> uploadhandletransfer_map;
 
 // maps node handles to Node pointers
-typedef map<handle, Node*> node_map;
+typedef map<NodeHandle, Node*> node_map;
 
 struct NodeCounter
 {
@@ -503,7 +612,7 @@ struct NodeCounter
     void operator -= (const NodeCounter&);
 };
 
-typedef std::map<handle, NodeCounter> NodeCounterMap;
+typedef std::map<NodeHandle, NodeCounter> NodeCounterMap;
 
 // maps node handles to Share pointers
 typedef map<handle, struct Share*> share_map;
@@ -513,9 +622,6 @@ typedef list<struct NewShare*> newshare_list;
 
 // generic handle vector
 typedef vector<handle> handle_vector;
-
-// pairs of node handles
-typedef set<pair<handle, handle> > handlepair_set;
 
 // node and user vectors
 typedef vector<struct User*> user_vector;
@@ -564,7 +670,7 @@ typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIV
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
-typedef map<handle, PendingContactRequest*> handlepcr_map;
+typedef map<handle, unique_ptr<PendingContactRequest>> handlepcr_map;
 
 // Type-Value (for user attributes)
 typedef vector<string> string_vector;
@@ -607,9 +713,11 @@ typedef enum {
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
-    ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
+    //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
-    ATTR_JSON_SYNC_CONFIG_DATA = 34         // private - byte array - non-versioned
+    ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
+    ATTR_DRIVE_NAMES = 35,                  // private - byte array - versioned
+    ATTR_NO_CALLKIT = 36,                   // private, non-encrypted - char array in B64 - non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -627,64 +735,6 @@ typedef enum {
 } encryptionsetting_t;
 
 typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
-
-#ifdef ENABLE_CHAT
-typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
-typedef pair<handle, privilege_t> userpriv_pair;
-typedef vector< userpriv_pair > userpriv_vector;
-typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cacheable
-{
-    enum {
-        FLAG_OFFSET_ARCHIVE = 0
-    };
-
-    handle id;
-    privilege_t priv;
-    int shard;
-    userpriv_vector *userpriv;
-    bool group;
-    string title;        // byte array
-    string unifiedKey;   // byte array
-    handle ou;
-    m_time_t ts;     // creation time
-    attachments_map attachedNodes;
-    bool publicchat;  // whether the chat is public or private
-
-private:        // use setter to modify these members
-    byte flags;     // currently only used for "archive" flag at first bit
-
-public:
-    int tag;    // source tag, to identify own changes
-
-    TextChat();
-    ~TextChat();
-
-    bool serialize(string *d);
-    static TextChat* unserialize(class MegaClient *client, string *d);
-
-    void setTag(int tag);
-    int getTag();
-    void resetTag();
-
-    struct
-    {
-        bool attachments : 1;
-        bool flags : 1;
-        bool mode : 1;
-    } changed;
-
-    // return false if failed
-    bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
-    bool setFlag(bool value, uint8_t offset = 0xFF);
-    bool setFlags(byte newFlags);
-    bool isFlagSet(uint8_t offset) const;
-    bool setMode(bool publicchat);
-
-};
-typedef vector<TextChat*> textchat_vector;
-typedef map<handle, TextChat*> textchat_map;
-#endif
 
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
 
@@ -709,6 +759,12 @@ enum SmsVerificationState {
     SMS_STATE_ONLY_UNBLOCK = 1,   // Only unblock SMS allowed
     SMS_STATE_FULL = 2            // Opt-in and unblock SMS allowed
 };
+
+typedef enum
+{
+    END_CALL_REASON_REJECTED     = 0x02,    /// 1on1 call was rejected while ringing
+    END_CALL_REASON_BY_MODERATOR = 0x06,    /// group or meeting call has been ended by moderator
+} endCall_t;
 
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
@@ -736,6 +792,15 @@ typedef enum {
     ACCOUNT_TYPE_LITE = 4,
     ACCOUNT_TYPE_BUSINESS = 100,
 } AccountType;
+
+typedef enum
+{
+    ACTION_CREATE_ACCOUNT              = 0,
+    ACTION_RESUME_ACCOUNT              = 1,
+    ACTION_CANCEL_ACCOUNT              = 2,
+    ACTION_CREATE_EPLUSPLUS_ACCOUNT    = 3,
+    ACTION_RESUME_EPLUSPLUS_ACCOUNT    = 4,
+} AccountActionType;
 
 typedef enum {
     AUTH_METHOD_UNKNOWN     = -1,
@@ -773,18 +838,22 @@ namespace CodeCounter
         uint64_t starts = 0;
         uint64_t finishes = 0;
         high_resolution_clock::duration timeSpent{};
+        high_resolution_clock::duration longest{};
         std::string name;
         ScopeStats(std::string s) : name(std::move(s)) {}
 
         inline string report(bool reset = false)
         {
-            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count());
+            string s = " " + name + ": " + std::to_string(count) + " " +
+                    std::to_string(duration_cast<milliseconds>(timeSpent).count()) + " " +
+                    std::to_string(duration_cast<milliseconds>(longest).count());
             if (reset)
             {
                 count = 0;
                 starts -= finishes;
                 finishes = 0;
                 timeSpent = high_resolution_clock::duration{};
+                longest = high_resolution_clock::duration{};
             }
             return s;
         }
@@ -819,6 +888,7 @@ namespace CodeCounter
 #ifdef MEGA_MEASURE_CODE
         ScopeStats& scope;
         high_resolution_clock::time_point blockStart;
+        high_resolution_clock::duration diff{};
         bool done = false;
 
         ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
@@ -827,14 +897,24 @@ namespace CodeCounter
         }
         ~ScopeTimer()
         {
-            if (!done) complete();
+            complete();
+        }
+        high_resolution_clock::duration timeSpent()
+        {
+            return high_resolution_clock::now() - blockStart;
         }
         void complete()
         {
-            ++scope.count;
-            ++scope.finishes;
-            scope.timeSpent += high_resolution_clock::now() - blockStart;
-            done = true;
+            // can be called early in which case the destructor's call is ignored
+            if (!done)
+            {
+                ++scope.count;
+                ++scope.finishes;
+                diff = high_resolution_clock::now() - blockStart;
+                scope.timeSpent += diff;
+                if (diff > scope.longest) scope.longest = diff;
+                done = true;
+            }
         }
 #else
         ScopeTimer(ScopeStats& sm) {}
@@ -857,7 +937,7 @@ public:
         STATUS_PRO_LEVEL = 4,
     };
 
-    CacheableStatus(int64_t type, int64_t value);
+    CacheableStatus(Type type, int64_t value);
 
     // serializes the object to a string
     bool serialize(string* data) override;
@@ -865,17 +945,20 @@ public:
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
     static CacheableStatus* unserialize(MegaClient *client, const std::string& data);
-    int64_t type() const;
+    Type type() const;
     int64_t value() const;
 
     void setValue(const int64_t value);
+
+    string typeToStr();
+    static string typeToStr(Type type);
 
 private:
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
-    int64_t mType = STATUS_UNKNOWN;
+    Type mType = STATUS_UNKNOWN;
     int64_t mValue = 0;
 
 };
@@ -892,6 +975,62 @@ typedef enum
 }
 BackupType;
 
+typedef mega::byte ChatOptions_t;
+struct ChatOptions
+{
+public:
+    enum: ChatOptions_t
+    {
+        kEmpty         = 0x00,
+        kSpeakRequest  = 0x01,
+        kWaitingRoom   = 0x02,
+        kOpenInvite    = 0x04,
+    };
+
+    // update with new options added, to get the max value allowed, with regard to the existing options
+    static constexpr ChatOptions_t maxValidValue = kSpeakRequest | kWaitingRoom | kOpenInvite;
+
+    ChatOptions(): mChatOptions(ChatOptions::kEmpty){}
+    ChatOptions(ChatOptions_t options): mChatOptions(options){}
+    ChatOptions(bool speakRequest, bool waitingRoom , bool openInvite)
+        : mChatOptions(static_cast<ChatOptions_t>((speakRequest ? kSpeakRequest : 0)
+                                            | (waitingRoom ? kWaitingRoom : 0)
+                                            | (openInvite ? kOpenInvite : 0)))
+    {
+    }
+
+    // setters/modifiers
+    void set(ChatOptions_t val)             { mChatOptions = val; }
+    void add(ChatOptions_t val)             { mChatOptions = mChatOptions | val; }
+    void remove(ChatOptions_t val)          { mChatOptions = mChatOptions & static_cast<ChatOptions_t>(~val); }
+    void updateSpeakRequest(bool enabled)   { enabled ? add(kSpeakRequest)  : remove(kSpeakRequest);}
+    void updateWaitingRoom(bool enabled)    { enabled ? add(kWaitingRoom)   : remove(kWaitingRoom);}
+    void updateOpenInvite(bool enabled)     { enabled ? add(kOpenInvite)    : remove(kOpenInvite);}
+
+    // getters
+    ChatOptions_t value() const             { return mChatOptions; }
+    bool areEqual(ChatOptions_t val)        { return mChatOptions == val; }
+    bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
+    bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
+    bool openInvite() const                 { return mChatOptions & kOpenInvite; }
+    bool isValid()                          { return mChatOptions >= kEmpty && mChatOptions <= maxValidValue; }
+    bool isEmpty()                          { return mChatOptions == kEmpty; }
+
+protected:
+    ChatOptions_t mChatOptions = kEmpty;
+};
+
+enum VersioningOption
+{
+    // In the cases where these options are specified for uploads, the `ov` flag will be
+    // set if there is a pre-existing node in the target folder, with the same name.
+
+    NoVersioning,             // Node will be put directly to parent, with no versions, and no other node affected
+    ClaimOldVersion,          // The Node specified by `ov` (if any) will become the first version of the node put
+    ReplaceOldVersion,        // the Node specified by `ov` (if any) will be deleted, and this new node takes its place, retaining any version chain.
+    UseLocalVersioningFlag,   // One of the two above will occur, based on the versions_disabled flag
+    UseServerVersioningFlag   // One of those two will occur, based on the API's current state of that flag
+};
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
 // either always be NULL or if one refers to the other, the other refers to the one.
@@ -950,6 +1089,62 @@ public:
     // only allow move if the pointers are null (check at runtime with assert)
     crossref_ptr(crossref_ptr&& p) { assert(!p.ptr); }
     void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
+};
+
+class CancelToken
+{
+    // A small item with representation shared between many objects
+    // They can all be cancelled in one go by setting the token flag true
+    shared_ptr<bool> flag;
+
+public:
+
+    // invalid token, can't be cancelled.  No storage
+    CancelToken() {}
+
+    // create with a token available to be cancelled
+    explicit CancelToken(bool value)
+        : flag(std::make_shared<bool>(value))
+    {
+        if (value)
+        {
+            ++tokensCancelledCount;
+        }
+    }
+
+    void cancel()
+    {
+        if (flag)
+        {
+            *flag = true;
+            ++tokensCancelledCount;
+        }
+    }
+
+    bool isCancelled() const
+    {
+        return !!flag && *flag;
+    }
+
+    bool exists()
+    {
+        return !!flag;
+    }
+
+    static std::atomic<uint32_t> tokensCancelledCount;
+
+    static bool haveAnyCancelsOccurredSince(uint32_t& lastKnownCancelCount)
+    {
+        if (lastKnownCancelCount == tokensCancelledCount.load())
+        {
+            return false;
+        }
+        else
+        {
+            lastKnownCancelCount = tokensCancelledCount.load();
+            return true;
+        }
+    }
 };
 
 } // namespace

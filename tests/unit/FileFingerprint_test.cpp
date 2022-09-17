@@ -29,93 +29,93 @@
 
 namespace {
 
-class MockFileAccess : public mt::DefaultedFileAccess
-{
-public:
-    MockFileAccess(const mega::m_time_t mtime, std::vector<mega::byte> content, const bool readFails = false)
-    : mContent{std::move(content)}
-    , mReadFails{readFails}
-    {
-        this->size = mContent.size();
-        this->mtime = mtime;
-    }
-
-    MEGA_DISABLE_COPY_MOVE(MockFileAccess)
-
-    bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override
-    {
-        *curr_mtime = mtime;
-        *curr_size = size;
-        return true;
-    }
-
-    bool sysopen(bool async = false) override
-    {
-        return true;
-    }
-
-    bool sysread(mega::byte* buffer, const unsigned size, const m_off_t offset) override
-    {
-        if (mReadFails)
-        {
-            return false;
-        }
-        assert(static_cast<unsigned>(offset) + size <= mContent.size());
-        std::copy(mContent.begin() + static_cast<unsigned>(offset), mContent.begin() + static_cast<unsigned>(offset) + size, buffer);
-        return true;
-    }
-
-    void sysclose() override
-    {}
-
-    bool getReadFails() const
-    {
-        return mReadFails;
-    }
-
-private:
-    const std::vector<mega::byte> mContent;
-    const bool mReadFails = false;
-};
-
-class MockInputStreamAccess : public mega::InputStreamAccess
-{
-public:
-    MockInputStreamAccess(const mega::m_time_t mtime, std::vector<mega::byte> content, const bool readFails = false)
-    : mFa{mtime, std::move(content), readFails}
-    {}
-
-    mega::m_time_t getMTime() const
-    {
-        return mFa.mtime;
-    }
-
-    void setSize(const m_off_t size)
-    {
-        mFa.size = size;
-    }
-
-    m_off_t size() override
-    {
-        return mFa.size;
-    }
-
-    bool read(mega::byte* buffer, const unsigned size) override
-    {
-        if (mFa.getReadFails())
-        {
-            return false;
-        }
-        if (!buffer)
-        {
-            return true;
-        }
-        return mFa.frawread(buffer, size, 0);
-    }
-
-private:
-    MockFileAccess mFa;
-};
+//class MockFileAccess : public mt::DefaultedFileAccess
+//{
+//public:
+//    MockFileAccess(const mega::m_time_t mtime, std::vector<mega::byte> content, const bool readFails = false)
+//    : mContent{std::move(content)}
+//    , mReadFails{readFails}
+//    {
+//        this->size = mContent.size();
+//        this->mtime = mtime;
+//    }
+//
+//    MEGA_DISABLE_COPY_MOVE(MockFileAccess)
+//
+//    bool sysstat(mega::m_time_t* curr_mtime, m_off_t* curr_size) override
+//    {
+//        *curr_mtime = mtime;
+//        *curr_size = size;
+//        return true;
+//    }
+//
+//    bool sysopen(bool async = false) override
+//    {
+//        return true;
+//    }
+//
+//    bool sysread(mega::byte* buffer, const unsigned size, const m_off_t offset) override
+//    {
+//        if (mReadFails)
+//        {
+//            return false;
+//        }
+//        assert(static_cast<unsigned>(offset) + size <= mContent.size());
+//        std::copy(mContent.begin() + static_cast<unsigned>(offset), mContent.begin() + static_cast<unsigned>(offset) + size, buffer);
+//        return true;
+//    }
+//
+//    void sysclose() override
+//    {}
+//
+//    bool getReadFails() const
+//    {
+//        return mReadFails;
+//    }
+//
+//private:
+//    const std::vector<mega::byte> mContent;
+//    const bool mReadFails = false;
+//};
+//
+//class MockInputStreamAccess : public mega::InputStreamAccess
+//{
+//public:
+//    MockInputStreamAccess(const mega::m_time_t mtime, std::vector<mega::byte> content, const bool readFails = false)
+//    : mFa{mtime, std::move(content), readFails}
+//    {}
+//
+//    mega::m_time_t getMTime() const
+//    {
+//        return mFa.mtime;
+//    }
+//
+//    void setSize(const m_off_t size)
+//    {
+//        mFa.size = size;
+//    }
+//
+//    m_off_t size() override
+//    {
+//        return mFa.size;
+//    }
+//
+//    bool read(mega::byte* buffer, const unsigned size) override
+//    {
+//        if (mFa.getReadFails())
+//        {
+//            return false;
+//        }
+//        if (!buffer)
+//        {
+//            return true;
+//        }
+//        return mFa.frawread(buffer, size, 0);
+//    }
+//
+//private:
+//    MockFileAccess mFa;
+//};
 
 } // anonymous
 
@@ -258,7 +258,6 @@ TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfSize)
 }
 
 #ifndef __ANDROID__
-#ifndef WINDOWS_PHONE
 TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfMTime)
 {
     mega::FileFingerprint ffp;
@@ -270,7 +269,6 @@ TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfMTime)
 
     ASSERT_FALSE(ffp == ffp2);
 }
-#endif
 #endif
 
 TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfValid)
@@ -363,178 +361,178 @@ TEST(FileFingerprint, serializefingerprint_unserializefingerprint)
     ASSERT_EQ(ffp2.isvalid, ffp.isvalid);
 }
 
-TEST(FileFingerprint, genfingerprint_FileAccess_forTinyFile)
-{
-    mega::FileFingerprint ffp;
-    MockFileAccess fa{1, {3, 4, 5, 6}};
-    ASSERT_TRUE(ffp.genfingerprint(&fa));
-    ASSERT_EQ(4, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {100992003, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(true, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_FileAccess_forTinyFile_butReadFails)
-{
-    mega::FileFingerprint ffp;
-    MockFileAccess fa{1, {3, 4, 5, 6}, true};
-    ASSERT_TRUE(ffp.genfingerprint(&fa));
-    ASSERT_EQ(-1, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(false, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_FileAccess_forSmallFile)
-{
-    mega::FileFingerprint ffp;
-    std::vector<mega::byte> content(100);
-    std::iota(content.begin(), content.end(), mega::byte{0});
-    MockFileAccess fa{1, std::move(content)};
-    ASSERT_TRUE(ffp.genfingerprint(&fa));
-    ASSERT_EQ(100, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {215253208, 661795201, 937191950, 562141813};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(true, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_FileAccess_forSmallFile_butReadFails)
-{
-    mega::FileFingerprint ffp;
-    std::vector<mega::byte> content(100);
-    std::iota(content.begin(), content.end(), mega::byte{0});
-    MockFileAccess fa{1, std::move(content), true};
-    ASSERT_TRUE(ffp.genfingerprint(&fa));
-    ASSERT_EQ(-1, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(false, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_FileAccess_forLargeFile)
-{
-    mega::FileFingerprint ffp;
-    std::vector<mega::byte> content(20000);
-    std::iota(content.begin(), content.end(), mega::byte{0});
-    MockFileAccess fa{1, std::move(content)};
-    ASSERT_TRUE(ffp.genfingerprint(&fa));
-    ASSERT_EQ(20000, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {-1424885571, 1204627086, 1194313128, -177560448};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(true, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_FileAccess_forLargeFile_butReadFails)
-{
-    mega::FileFingerprint ffp;
-    std::vector<mega::byte> content(20000);
-    std::iota(content.begin(), content.end(), mega::byte{0});
-    MockFileAccess fa{1, std::move(content), true};
-    ASSERT_TRUE(ffp.genfingerprint(&fa));
-    ASSERT_EQ(-1, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(false, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_InputStreamAccess_forTinyFile)
-{
-    mega::FileFingerprint ffp;
-    MockInputStreamAccess is{1, {3, 4, 5, 6}};
-    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
-    ASSERT_EQ(4, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {100992003, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(true, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_InputStreamAccess_forTinyFile_butReadFails)
-{
-    mega::FileFingerprint ffp;
-    MockInputStreamAccess is{1, {3, 4, 5, 6}, true};
-    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
-    ASSERT_EQ(-1, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(false, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_InputStreamAccess_forTinyFile_butSizeNegative)
-{
-    mega::FileFingerprint ffp;
-    MockInputStreamAccess is{1, {3, 4, 5, 6}};
-    is.setSize(-1);
-    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
-    ASSERT_EQ(-1, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(false, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_InputStreamAccess_forSmallFile)
-{
-    mega::FileFingerprint ffp;
-    std::vector<mega::byte> content(100);
-    std::iota(content.begin(), content.end(), mega::byte{0});
-    MockInputStreamAccess is{1, std::move(content)};
-    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
-    ASSERT_EQ(100, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {215253208, 661795201, 937191950, 562141813};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(true, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_InputStreamAccess_forSmallFile_butReadFails)
-{
-    mega::FileFingerprint ffp;
-    std::vector<mega::byte> content(100);
-    std::iota(content.begin(), content.end(), mega::byte{0});
-    MockInputStreamAccess is{1, std::move(content), true};
-    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
-    ASSERT_EQ(-1, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(false, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile)
-{
-    mega::FileFingerprint ffp;
-    std::vector<mega::byte> content(20000);
-    std::iota(content.begin(), content.end(), mega::byte{0});
-    MockInputStreamAccess is{1, std::move(content)};
-    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
-    ASSERT_EQ(20000, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {-1236811658, -1236811658, -1236811658, -1236811658};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(true, ffp.isvalid);
-}
-
-TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile_butReadFails)
-{
-    mega::FileFingerprint ffp;
-    std::vector<mega::byte> content(20000);
-    std::iota(content.begin(), content.end(), mega::byte{0});
-    MockInputStreamAccess is{1, std::move(content), true};
-    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
-    ASSERT_EQ(-1, ffp.size);
-    ASSERT_EQ(1, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
-    ASSERT_EQ(expected, ffp.crc);
-    ASSERT_EQ(false, ffp.isvalid);
-}
+//TEST(FileFingerprint, genfingerprint_FileAccess_forTinyFile)
+//{
+//    mega::FileFingerprint ffp;
+//    MockFileAccess fa{1, {3, 4, 5, 6}};
+//    ASSERT_TRUE(ffp.genfingerprint(&fa));
+//    ASSERT_EQ(4, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {100992003, 0, 0, 0};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(true, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_FileAccess_forTinyFile_butReadFails)
+//{
+//    mega::FileFingerprint ffp;
+//    MockFileAccess fa{1, {3, 4, 5, 6}, true};
+//    ASSERT_TRUE(ffp.genfingerprint(&fa));
+//    ASSERT_EQ(-1, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(false, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_FileAccess_forSmallFile)
+//{
+//    mega::FileFingerprint ffp;
+//    std::vector<mega::byte> content(100);
+//    std::iota(content.begin(), content.end(), mega::byte{0});
+//    MockFileAccess fa{1, std::move(content)};
+//    ASSERT_TRUE(ffp.genfingerprint(&fa));
+//    ASSERT_EQ(100, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {215253208, 661795201, 937191950, 562141813};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(true, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_FileAccess_forSmallFile_butReadFails)
+//{
+//    mega::FileFingerprint ffp;
+//    std::vector<mega::byte> content(100);
+//    std::iota(content.begin(), content.end(), mega::byte{0});
+//    MockFileAccess fa{1, std::move(content), true};
+//    ASSERT_TRUE(ffp.genfingerprint(&fa));
+//    ASSERT_EQ(-1, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(false, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_FileAccess_forLargeFile)
+//{
+//    mega::FileFingerprint ffp;
+//    std::vector<mega::byte> content(20000);
+//    std::iota(content.begin(), content.end(), mega::byte{0});
+//    MockFileAccess fa{1, std::move(content)};
+//    ASSERT_TRUE(ffp.genfingerprint(&fa));
+//    ASSERT_EQ(20000, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {-1424885571, 1204627086, 1194313128, -177560448};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(true, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_FileAccess_forLargeFile_butReadFails)
+//{
+//    mega::FileFingerprint ffp;
+//    std::vector<mega::byte> content(20000);
+//    std::iota(content.begin(), content.end(), mega::byte{0});
+//    MockFileAccess fa{1, std::move(content), true};
+//    ASSERT_TRUE(ffp.genfingerprint(&fa));
+//    ASSERT_EQ(-1, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(false, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_InputStreamAccess_forTinyFile)
+//{
+//    mega::FileFingerprint ffp;
+//    MockInputStreamAccess is{1, {3, 4, 5, 6}};
+//    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
+//    ASSERT_EQ(4, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {100992003, 0, 0, 0};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(true, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_InputStreamAccess_forTinyFile_butReadFails)
+//{
+//    mega::FileFingerprint ffp;
+//    MockInputStreamAccess is{1, {3, 4, 5, 6}, true};
+//    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
+//    ASSERT_EQ(-1, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(false, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_InputStreamAccess_forTinyFile_butSizeNegative)
+//{
+//    mega::FileFingerprint ffp;
+//    MockInputStreamAccess is{1, {3, 4, 5, 6}};
+//    is.setSize(-1);
+//    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
+//    ASSERT_EQ(-1, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(false, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_InputStreamAccess_forSmallFile)
+//{
+//    mega::FileFingerprint ffp;
+//    std::vector<mega::byte> content(100);
+//    std::iota(content.begin(), content.end(), mega::byte{0});
+//    MockInputStreamAccess is{1, std::move(content)};
+//    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
+//    ASSERT_EQ(100, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {215253208, 661795201, 937191950, 562141813};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(true, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_InputStreamAccess_forSmallFile_butReadFails)
+//{
+//    mega::FileFingerprint ffp;
+//    std::vector<mega::byte> content(100);
+//    std::iota(content.begin(), content.end(), mega::byte{0});
+//    MockInputStreamAccess is{1, std::move(content), true};
+//    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
+//    ASSERT_EQ(-1, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(false, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile)
+//{
+//    mega::FileFingerprint ffp;
+//    std::vector<mega::byte> content(20000);
+//    std::iota(content.begin(), content.end(), mega::byte{0});
+//    MockInputStreamAccess is{1, std::move(content)};
+//    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
+//    ASSERT_EQ(20000, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {-1236811658, -1236811658, -1236811658, -1236811658};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(true, ffp.isvalid);
+//}
+//
+//TEST(FileFingerprint, genfingerprint_InputStreamAccess_forLargeFile_butReadFails)
+//{
+//    mega::FileFingerprint ffp;
+//    std::vector<mega::byte> content(20000);
+//    std::iota(content.begin(), content.end(), mega::byte{0});
+//    MockInputStreamAccess is{1, std::move(content), true};
+//    ASSERT_TRUE(ffp.genfingerprint(&is, is.getMTime()));
+//    ASSERT_EQ(-1, ffp.size);
+//    ASSERT_EQ(1, ffp.mtime);
+//    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+//    ASSERT_EQ(expected, ffp.crc);
+//    ASSERT_EQ(false, ffp.isvalid);
+//}
 
 TEST(FileFingerprint, light_genfingerprint)
 {

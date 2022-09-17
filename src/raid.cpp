@@ -610,8 +610,8 @@ void RaidBufferManager::combineLastRaidLine(byte* dest, size_t remainingbytes)
                     {
                         FilePiece* xs = raidinputparts[j].front();
                         for (size_t x = std::min(n, xs->buf.datalen()); x--; )
-                        {
-                            dest[x] ^= xs->buf.datastart()[x];
+                        { // Integer promotion with bitwise operators
+                            dest[x] = static_cast<byte>(dest[x] ^ xs->buf.datastart()[x]);
                         }
                     }
                 }
@@ -667,22 +667,20 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
     while (chunksize)
     {
         m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
-        ChunkMAC &chunkmac = chunkmacs[chunkid];
-        if (!chunkmac.finished)
+        if (!chunkmacs.finishedAt(chunkid))
         {
             if (source_chunkmacs)
             {
-                chunkmac = (*source_chunkmacs)[chunkid];
+                source_chunkmacs->copyEntryTo(chunkid, chunkmacs);
             }
             if (endpos == ChunkedHash::chunkceil(chunkid, filesize))
             {
                 if (parallel)
                 {
-                    // these parts can be done on a thread - they are independent chunks, or the earlier part of the chunk is already done.
-                    cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
+                    // executing on a worker thread (or synchronously on transferslot destruction)
+                    // these are independent chunks, or the earlier part of the chunk is already done.
+                    chunkmacs.ctr_decrypt(chunkid, cipher, chunkstart, chunksize, startpos, ctriv, true);
                     LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
-                    chunkmac.finished = true;
-                    chunkmac.offset = 0;
                 }
                 else
                 {
@@ -692,10 +690,8 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
             else if (!parallel)
             {
                 // these part chunks must be done serially (and first), since later parts of a chunk need the mac of earlier parts as input.
-                cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
+                chunkmacs.ctr_decrypt(chunkid, cipher, chunkstart, chunksize, startpos, ctriv, false);
                 LOG_debug << "Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
-                chunkmac.finished = false;
-                chunkmac.offset += chunksize;
             }
         }
         chunkstart += chunksize;
@@ -815,7 +811,7 @@ TransferBufferManager::TransferBufferManager()
 {
 }
 
-void TransferBufferManager::setIsRaid(Transfer* t, std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t maxRequestSize)
+void TransferBufferManager::setIsRaid(Transfer* t, const std::vector<std::string>& tempUrls,m_off_t resumepos, m_off_t maxRequestSize)
 {
     RaidBufferManager::setIsRaid(tempUrls, resumepos, t->size, t->size, maxRequestSize);
 
@@ -901,11 +897,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
 
 void TransferBufferManager::bufferWriteCompletedAction(FilePiece& r)
 {
-    for (chunkmac_map::iterator it = r.chunkmacs.begin(); it != r.chunkmacs.end(); it++)
-    {
-        transfer->chunkmacs[it->first] = it->second;
-    }
-
+    r.chunkmacs.copyEntriesTo(transfer->chunkmacs);
     r.chunkmacs.clear();
     transfer->progresscompleted += r.buf.datalen();
     LOG_debug << "Cached data at: " << r.pos << "   Size: " << r.buf.datalen();
@@ -938,7 +930,7 @@ void DirectReadBufferManager::finalize(FilePiece& fp)
     if (r)
     {
         byte buf[SymmCipher::BLOCKSIZE];
-        l = sizeof buf - r;
+        l = static_cast<int>(sizeof buf - r);
 
         if (l > t)
         {

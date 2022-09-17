@@ -22,7 +22,7 @@
 #ifndef MEGA_FILE_H
 #define MEGA_FILE_H 1
 
-#include "filefingerprint.h"
+#include "filesystem.h"
 
 namespace mega {
 
@@ -30,7 +30,7 @@ namespace mega {
 struct MEGA_API File: public FileFingerprint
 {
     // set localfilename in attached transfer
-    virtual void prepare();
+    virtual void prepare(FileSystemAccess&);
 
     // file transfer dispatched, expect updates/completion/failure
     virtual void start();
@@ -39,19 +39,26 @@ struct MEGA_API File: public FileFingerprint
     virtual void progress();
 
     // transfer completion
-    virtual void completed(Transfer*, LocalNode*);
+    virtual void completed(Transfer*, putsource_t source);
 
     // transfer terminated before completion (cancelled, failed too many times)
-    virtual void terminated();
+    virtual void terminated(error e);
 
-    // transfer failed
-    virtual bool failed(error);
+    // return true if the transfer should keep trying (limited to 16)
+    // return false to delete the transfer
+    virtual bool failed(error, MegaClient*);
 
     // update localname
     virtual void updatelocalname() { }
 
+    void sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
+                      const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
+                      std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>&& completion,
+                      LocalNode* l, const m_time_t* overrideMtime);
+
     // generic filename for this transfer
     void displayname(string*);
+    string displayname();
 
     // normalized name (UTF-8 with unescaped special chars)
     string name;
@@ -78,7 +85,10 @@ struct MEGA_API File: public FileFingerprint
 
         // is the source file temporary?
         bool temporaryfile : 1;
+
     };
+
+    VersioningOption mVersioningOption = NoVersioning;
 
     // private auth to access the node
     string privauth;
@@ -107,8 +117,11 @@ struct MEGA_API File: public FileFingerprint
 
     static File* unserialize(string*);
 
-    // tag of the file
+    // tag of the file transfer
     int tag;
+
+    // set the token true to cause cancellation of this transfer (this file of the transfer)
+    CancelToken cancelToken;
 };
 
 struct MEGA_API SyncFileGet: public File
@@ -117,17 +130,17 @@ struct MEGA_API SyncFileGet: public File
     Node* n;
 
     // set sync-specific temp filename, update treestate
-    void prepare();
-    bool failed(error);
-    void progress();
+    void prepare(FileSystemAccess&) override;
+    bool failed(error, MegaClient*) override;
+    void progress() override;
 
     // update localname (may have changed due to renames/moves of the synced files)
-    void updatelocalname();
+    void updatelocalname() override;
 
     // self-destruct after completion
-    void completed(Transfer*, LocalNode*);
+    void completed(Transfer*, putsource_t source) override;
 
-    void terminated();
+    void terminated(error e) override;
 
     SyncFileGet(Sync*, Node*, const LocalPath&);
     ~SyncFileGet();

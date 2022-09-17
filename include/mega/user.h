@@ -69,6 +69,7 @@ struct MEGA_API User : public Cacheable
         bool language : 1;      // preferred language code
         bool pwdReminder : 1;   // password-reminder-dialog information
         bool disableVersions : 1;   // disable fileversioning
+        bool noCallKit : 1;   // disable CallKit
         bool contactLinkVerification : 1; // Verify contact requests with contact links
         bool richPreviews : 1;  // enable messages with rich previews
         bool lastPsa : 1;
@@ -82,9 +83,9 @@ struct MEGA_API User : public Cacheable
         bool unshareablekey : 1;    // key to encrypt unshareable node attributes
         bool devicenames : 1; // device names
         bool myBackupsFolder : 1; // target folder for My Backups
-        bool backupNames : 1; // backup names
         bool cookieSettings : 1; // bit map to indicate whether some cookies are enabled or not
         bool jsonSyncConfigData : 1;
+        bool drivenames : 1;    // drive names
     } changed;
 
     // user's public key
@@ -113,6 +114,8 @@ public:
 
     bool serialize(string*) override;
     static User* unserialize(class MegaClient *, string*);
+
+    void removepkrs(MegaClient*);
 
     // attribute methods: set/get/invalidate...
     void setattr(attr_t at, string *av, string *v);

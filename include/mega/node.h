@@ -62,15 +62,14 @@ struct MEGA_API NodeCore
 struct MEGA_API NewNode : public NodeCore
 {
     static const int OLDUPLOADTOKENLEN = 27;
-    static const int UPLOADTOKENLEN = 36;
 
     string nodekey;
 
     newnodesource_t source = NEW_NODE;
 
-    handle ovhandle = UNDEF;
-    handle uploadhandle = UNDEF;
-    byte uploadtoken[UPLOADTOKENLEN]{};
+    NodeHandle ovhandle;
+    UploadHandle uploadhandle;
+    UploadToken uploadtoken;
 
     handle syncid = UNDEF;
 #ifdef ENABLE_SYNC
@@ -78,8 +77,10 @@ struct MEGA_API NewNode : public NodeCore
 #endif
     std::unique_ptr<string> fileattributes;
 
-    bool added = false;
-    handle mAddedHandle = UNDEF;
+    // versioning used for this new node, forced at server's side regardless the account's value
+    VersioningOption mVersioningOption = NoVersioning;
+    bool added = false;           // set true when the actionpacket arrives
+    handle mAddedHandle = UNDEF;  // updated as actionpacket arrives
 };
 
 struct MEGA_API PublicLink
@@ -138,8 +139,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // follow the parent links all the way to the top
     const Node* firstancestor() const;
 
-    // copy JSON-delimited string
-    static void copystring(string*, const char*);
+    // If this is a file, and has a file for a parent, it's not the latest version
+    const Node* latestFileVersion() const;
 
     // try to resolve node key string
     bool applykey();
@@ -152,6 +153,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // display name (UTF-8)
     const char* displayname() const;
+
+    // check if the name matches (UTF-8)
+    bool hasName(const string&) const;
 
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;
@@ -208,6 +212,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool parent : 1;
         bool publiclink : 1;
         bool newnode : 1;
+        bool name : 1;
+        bool favourite : 1;
 
 #ifdef ENABLE_SYNC
         // this field is only used internally in syncdown()
@@ -261,6 +267,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // check if node is below this node
     bool isbelow(Node*) const;
+    bool isbelow(NodeHandle) const;
 
     // handle of public link for the node
     PublicLink* plink = nullptr;
@@ -270,7 +277,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool serialize(string*) override;
     static Node* unserialize(MegaClient*, const string*, node_vector*);
 
-    Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
+    Node(MegaClient*, vector<Node*>*, NodeHandle, NodeHandle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
 #ifdef ENABLE_SYNC
@@ -286,7 +293,7 @@ private:
 
 inline const string& Node::nodekey() const
 {
-    assert(keyApplied() || type == ROOTNODE || type == INCOMINGNODE || type == RUBBISHNODE);
+    assert(keyApplied() || type == ROOTNODE || type == VAULTNODE || type == RUBBISHNODE);
     return nodekeydata;
 }
 
@@ -361,6 +368,9 @@ struct MEGA_API LocalNode : public File
 
         // checked for missing attributes
         bool checked : 1;
+
+        // set after the cloud node is created
+        bool needsRescan : 1;
     };
 
     // current subtree sync state: current and displayed
@@ -383,7 +393,6 @@ struct MEGA_API LocalNode : public File
     // build full local path to this node
     void getlocalpath(LocalPath&) const;
     LocalPath getLocalPath() const;
-    string localnodedisplaypath(FileSystemAccess& fsa) const;
 
     // return child node by name
     LocalNode* childbyname(LocalPath*);
@@ -393,9 +402,9 @@ struct MEGA_API LocalNode : public File
     handle dirnotifytag = mega::UNDEF;
 #endif
 
-    void prepare() override;
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void prepare(FileSystemAccess&) override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
 
     void setnode(Node*);
 
@@ -407,8 +416,8 @@ struct MEGA_API LocalNode : public File
 
     void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
 
-    LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
+    LocalNode(Sync*);
+    void init(nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
     bool serialize(string*) override;
     static LocalNode* unserialize( Sync* sync, const string* sData );
@@ -416,6 +425,8 @@ struct MEGA_API LocalNode : public File
     ~LocalNode();
 
     void detach(const bool recreate = false);
+
+    void setSubtreeNeedsRescan(bool includeFiles);
 };
 
 template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }

@@ -55,8 +55,17 @@ struct AppFileGet : public AppFile
 {
     void start() override;
     void update();
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
+
+    std::function<void()> onCompleted;
+
+    bool noRetries = false;
+    bool failed(error e, MegaClient* c) override
+    {
+        if (noRetries) return false;
+        return File::failed(e, c);
+    }
 
     AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
@@ -66,10 +75,19 @@ struct AppFilePut : public AppFile
 {
     void start() override;
     void update();
-    void completed(Transfer*, LocalNode*) override;
-    void terminated() override;
+    void completed(Transfer*, putsource_t source) override;
+    void terminated(error e) override;
 
     void displayname(string*);
+
+    std::function<void()> onCompleted;
+
+    bool noRetries = false;
+    bool failed(error e, MegaClient* c) override
+    {
+        if (noRetries) return false;
+        return File::failed(e, c);
+    }
 
     AppFilePut(const LocalPath&, NodeHandle, const char*);
     ~AppFilePut();
@@ -107,9 +125,7 @@ struct DemoApp : public MegaApp
     void whyamiblocked_result(int) override;
 
     void sendsignuplink_result(error) override;
-    void querysignuplink_result(error) override;
-    void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
-    void confirmsignuplink_result(error) override;
+
     void confirmsignuplink2_result(handle, const char*, const char*, error) override;
     void setkeypair_result(error) override;
 
@@ -144,7 +160,7 @@ struct DemoApp : public MegaApp
     virtual void chatpresenceurl_result(string *, error) override;
     void chatlink_result(handle, error) override;
     void chatlinkclose_result(error) override;
-    void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error) override;
+    void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, bool, handle, error) override;
     void chatlinkjoin_result(error) override;
 
     void chats_updated(textchat_map*, int) override;
@@ -155,16 +171,11 @@ struct DemoApp : public MegaApp
     void richlinkrequest_result(string*, error) override;
 #endif
 
-    void setattr_result(handle, error) override;
-    void rename_result(handle, error) override;
     void unlink_result(handle, error) override;
 
     void fetchnodes_result(const Error&) override;
 
     void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
-
-    void share_result(error, bool writable) override;
-    void share_result(int, error, bool writable) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
@@ -192,16 +203,10 @@ struct DemoApp : public MegaApp
     // sessionid is undef if all sessions except the current were killed
     void sessions_killed(handle sessionid, error e) override;
 
-    void exportnode_result(error) override;
-    void exportnode_result(handle, handle) override;
-
     void openfilelink_result(const Error&) override;
     void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
     void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
-
-    void checkfile_result(handle, const Error&) override;
-    void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) override;
 
     dstime pread_failure(const Error&, int, void*, dstime) override;
     bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) override;
@@ -214,29 +219,14 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_stateconfig(handle backupId) override;
-    void syncupdate_active(handle backupId, bool active) override;
-    void sync_auto_resume_result(const UnifiedSync&, bool attempted) override;
-    void sync_removed(handle backupId) override;
+    void syncupdate_stateconfig(const SyncConfig& config) override;
+    void syncupdate_active(const SyncConfig& config, bool active) override;
+    void sync_auto_resume_result(const SyncConfig&, bool attempted, bool hadAnError) override;
+    void sync_removed(const SyncConfig& config) override;
 
     void syncupdate_scanning(bool) override;
-    void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_folder_deletion(Sync* , LocalNode*) override;
-    void syncupdate_local_file_addition(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_file_deletion(Sync*, LocalNode*) override;
-    void syncupdate_local_file_change(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_move(Sync*, LocalNode*, const char*) override;
     void syncupdate_local_lockretry(bool) override;
-    void syncupdate_get(Sync*, Node*, const char*) override;
-    void syncupdate_put(Sync*, LocalNode*, const char*) override;
-    void syncupdate_remote_file_addition(Sync*, Node*) override;
-    void syncupdate_remote_file_deletion(Sync*, Node*) override;
-    void syncupdate_remote_folder_addition(Sync*, Node*) override;
-    void syncupdate_remote_folder_deletion(Sync*, Node*) override;
-    void syncupdate_remote_copy(Sync*, const char*) override;
-    void syncupdate_remote_move(Sync*, Node*, Node*) override;
-    void syncupdate_remote_rename(Sync*, Node*, const char*) override;
-    void syncupdate_treestate(LocalNode*) override;
+    void syncupdate_treestate(const SyncConfig& config, const LocalPath&, treestate_t, nodetype_t) override;
 
     bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
     bool sync_syncable(Sync*, const char*, LocalPath&) override;
@@ -247,13 +237,15 @@ struct DemoApp : public MegaApp
     void userattr_update(User*, int, const char*) override;
     void resetSmsVerifiedPhoneNumber_result(error e) override;
 
-    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) override;
+    void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned,
+                                    unsigned, unsigned, const char*, const char*, const char*,
+                                    std::unique_ptr<BusinessPlan>) override;
+    void enumeratequotaitems_result(unique_ptr<CurrencyData>) override;
     void enumeratequotaitems_result(error) override;
     void additem_result(error) override;
     void checkout_result(const char*, error) override;
 
     void getmegaachievements_result(AchievementsDetails*, error) override;
-    void getwelcomepdf_result(handle, string*, error) override;
 
     void contactlinkcreate_result(error, handle) override;
     void contactlinkquery_result(error, handle, string*, string*, string*, string*) override;
@@ -273,7 +265,12 @@ struct DemoApp : public MegaApp
 
     void notify_retry(dstime, retryreason_t) override;
 
-    string getExtraInfoErrorString(const Error&);
+    static string getExtraInfoErrorString(const Error&);
+
+protected:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    void drive_presence_changed(bool appeared, const LocalPath& driveRoot) override;
+#endif // USE_DRIVE_NOTIFICATIONS
 };
 
 struct DemoAppFolder : public DemoApp
@@ -293,13 +290,13 @@ void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);
 void exec_cancelsignup(autocomplete::ACState& s);
-void exec_confirm(autocomplete::ACState& s);
 void exec_session(autocomplete::ACState& s);
 void exec_mount(autocomplete::ACState& s);
 void exec_ls(autocomplete::ACState& s);
 void exec_cd(autocomplete::ACState& s);
 void exec_pwd(autocomplete::ACState& s);
 void exec_lcd(autocomplete::ACState& s);
+void exec_llockfile(autocomplete::ACState& s);
 void exec_lls(autocomplete::ACState& s);
 void exec_lpwd(autocomplete::ACState& s);
 void exec_lmkdir(autocomplete::ACState& s);
@@ -348,7 +345,6 @@ void exec_recon(autocomplete::ACState& s);
 void exec_reload(autocomplete::ACState& s);
 void exec_logout(autocomplete::ACState& s);
 void exec_locallogout(autocomplete::ACState& s);
-void exec_symlink(autocomplete::ACState& s);
 void exec_version(autocomplete::ACState& s);
 void exec_debug(autocomplete::ACState& s);
 void exec_verbose(autocomplete::ACState& s);
@@ -372,7 +368,6 @@ void exec_chatl(autocomplete::ACState& s);
 void exec_chatsm(autocomplete::ACState& s);
 void exec_chatlu(autocomplete::ACState& s);
 void exec_chatlj(autocomplete::ACState& s);
-void exec_enabletransferresumption(autocomplete::ACState& s);
 void exec_setmaxdownloadspeed(autocomplete::ACState& s);
 void exec_setmaxuploadspeed(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);
@@ -392,16 +387,20 @@ void exec_querytransferquota(autocomplete::ACState& s);
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
+void exec_drivemonitor(autocomplete::ACState& s);
+void exec_driveid(autocomplete::ACState& s);
+void exec_randomfile(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 
 void exec_syncadd(autocomplete::ACState& s);
-void exec_syncbackupadd(autocomplete::ACState& s);
-void exec_syncbackupremove(autocomplete::ACState& s);
-void exec_syncbackuprestore(autocomplete::ACState& s);
+void exec_syncrename(autocomplete::ACState& s);
+void exec_syncclosedrive(autocomplete::ACState& s);
+void exec_syncexport(autocomplete::ACState& s);
+void exec_syncimport(autocomplete::ACState& s);
+void exec_syncopendrive(autocomplete::ACState& s);
 void exec_synclist(autocomplete::ACState& s);
 void exec_syncremove(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
-

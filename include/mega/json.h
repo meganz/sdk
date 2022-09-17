@@ -39,6 +39,11 @@ struct MEGA_API JSON
     {
     }
 
+    explicit JSON(const char* data)
+      : pos(data)
+    {
+    }
+
     const char* pos;
 
     bool isnumeric();
@@ -65,6 +70,7 @@ struct MEGA_API JSON
     // MegaClient::NODEHANDLE
     bool ishandle(int = 6);
     handle gethandle(int = 6);
+    NodeHandle getNodeHandle();
 
     bool enterarray();
     bool leavearray();
@@ -73,6 +79,7 @@ struct MEGA_API JSON
     bool leaveobject();
 
     bool storeobject(string* = NULL);
+    bool skipnullvalue();
 
     static void unescape(string*);
 
@@ -92,6 +99,13 @@ struct MEGA_API JSON
 
     // Only advance the pointer if it's an error (0, -1, -2, -3, ...)
     bool isNumericError(error& e);
+
+    // copy JSON-delimited string
+    static void copystring(string*, const char*);
+
+    // Strip whitspace from a string in a JSON-safe manner.
+    static string stripWhitespace(const string& text);
+    static string stripWhitespace(const char* text);
 };
 
 class MEGA_API JSONWriter
@@ -99,7 +113,7 @@ class MEGA_API JSONWriter
 public:
     JSONWriter();
 
-    MEGA_DEFAULT_COPY_MOVE(JSONWriter);
+    MEGA_DEFAULT_COPY_MOVE(JSONWriter)
 
     void cmd(const char*);
     void notself(MegaClient*);
@@ -107,10 +121,18 @@ public:
     void arg(const char*, const string&, int = 1);
     void arg(const char*, const char*, int = 1);
     void arg(const char*, handle, int);
+    void arg(const char*, NodeHandle);
     void arg(const char*, const byte*, int);
     void arg(const char*, m_off_t);
     void arg_B64(const char*, const string&);
     void arg_fsfp(const char*, fsfp_t);
+
+    // These should only be used when producing JSON meant for human consumption.
+    // If you're generating JSON meant to be consumed by our servers, you
+    // should escape things using arg_B64 above.
+    void arg_stringWithEscapes(const char*, const char*, int = 1);
+    void arg_stringWithEscapes(const char*, const string&, int = 1);
+
     void addcomma();
     void appendraw(const char*);
     void appendraw(const char*, int);
@@ -123,7 +145,8 @@ public:
     void element(int);
     void element(handle, int = sizeof(handle));
     void element(const byte*, int);
-    void element(const char*);
+    void element(const char* data);
+    void element(const string& data);
     void element_B64(const string&);
 
     void openobject();
@@ -133,6 +156,10 @@ public:
     const string& getstring() const;
 
     size_t size() const;
+    void clear() { mJson.clear(); }
+
+protected:
+    string escape(const char* data, size_t length) const;
 
 private:
     static const int MAXDEPTH = 8;

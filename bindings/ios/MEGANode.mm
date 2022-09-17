@@ -165,10 +165,6 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSInteger)tag {
-    return self.megaNode ? self.megaNode->getTag() : 0;
-}
-
 - (int64_t)expirationTime {
     return self.megaNode ? self.megaNode->getExpirationTime() : -1;
 }
@@ -195,6 +191,16 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getOwner() : ::mega::INVALID_HANDLE;
 }
 
+- (NSString *)deviceId {
+    if (self.megaNode) {
+        const char *val = self.megaNode->getDeviceId();
+        if (val) {
+            return [NSString stringWithUTF8String:val];
+        }
+    }
+    return nil;
+}
+
 - (BOOL)isFile {
     return self.megaNode ? self.megaNode->isFile() : NO;
 }
@@ -212,7 +218,7 @@ using namespace mega;
 }
 
 - (MEGANodeChangeType)getChanges {
-    return (MEGANodeChangeType) self.megaNode->getChanges();
+    return (MEGANodeChangeType) (self.megaNode ? self.megaNode->getChanges() : 0);
 }
 
 - (BOOL)hasThumbnail {
@@ -249,6 +255,10 @@ using namespace mega;
 
 - (BOOL)isTakenDown {
     return self.megaNode ? self.megaNode->isTakenDown() : NO;
+}
+
+- (BOOL)isForeign {
+    return self.megaNode ? self.megaNode->isForeign() : NO;
 }
 
 + (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel {

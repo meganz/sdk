@@ -35,14 +35,16 @@ public:
 
     DefaultedFileSystemAccess()
     {
+#ifdef ENABLE_SYNC
         notifyerr = false;
         notifyfailed = true;
+#endif   // ENABLE_SYNC
     }
     std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {
         throw NotImplemented{__func__};
     }
-    mega::DirAccess* newdiraccess() override
+    std::unique_ptr<mega::DirAccess> newdiraccess() override
     {
         throw NotImplemented{__func__};
     }
@@ -50,67 +52,31 @@ public:
     {
         return type = mega::FS_UNKNOWN, false;
     }
-    void path2local(const std::string*, std::string*) const override
-    {
-        throw NotImplemented{__func__};
-    }
-
-#if defined(_WIN32)
-    void path2local(const std::string*, std::wstring*) const
-    {
-        throw NotImplemented{ __func__ };
-    }
-#endif
-
-    void local2path(const std::string* local, std::string* path) const override
-    {
-        throw NotImplemented{ __func__ };
-    }
-
-#if defined(_WIN32)
-    void local2path(const std::wstring* local, std::string* path) const override
-    {
-        path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
-
-        path->resize(WideCharToMultiByte(CP_UTF8, 0, local->data(),
-            int(local->size()),
-            (char*)path->data(),
-            int(path->size()),
-            NULL, NULL));
-
-        normalize(path);
-    }
-#endif
-
-    void tmpnamelocal(mega::LocalPath&) const override
-    {
-        throw NotImplemented{__func__};
-    }
     bool getsname(const mega::LocalPath&, mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};
     }
-    bool renamelocal(mega::LocalPath&, mega::LocalPath&, bool = true) override
+    bool renamelocal(const mega::LocalPath&, const mega::LocalPath&, bool = true) override
     {
         throw NotImplemented{__func__};
     }
-    bool copylocal(mega::LocalPath&, mega::LocalPath&, mega::m_time_t) override
+    bool copylocal(const mega::LocalPath&, const mega::LocalPath&, mega::m_time_t) override
     {
         throw NotImplemented{__func__};
     }
-    bool unlinklocal(mega::LocalPath&) override
+    bool unlinklocal(const mega::LocalPath&) override
     {
         throw NotImplemented{__func__};
     }
-    bool rmdirlocal(mega::LocalPath&) override
+    bool rmdirlocal(const mega::LocalPath&) override
     {
         throw NotImplemented{__func__};
     }
-    bool mkdirlocal(mega::LocalPath&, bool = false) override
+    bool mkdirlocal(const mega::LocalPath&, bool, bool) override
     {
         throw NotImplemented{__func__};
     }
-    bool setmtimelocal(mega::LocalPath&, mega::m_time_t) override
+    bool setmtimelocal(const mega::LocalPath&, mega::m_time_t) override
     {
         throw NotImplemented{__func__};
     }

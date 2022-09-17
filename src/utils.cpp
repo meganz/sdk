@@ -27,6 +27,7 @@
 #include "mega/filesystem.h"
 
 #include <iomanip>
+#include <cctype>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>
@@ -36,7 +37,14 @@
 #include <sys/sysctl.h>
 #endif
 
+#ifndef WIN32
+#include <sys/time.h>
+#include <sys/resource.h>
+#endif // ! WIN32
+
 namespace mega {
+
+std::atomic<uint32_t> CancelToken::tokensCancelledCount{0};
 
 string toNodeHandle(handle nodeHandle)
 {
@@ -49,12 +57,46 @@ string toNodeHandle(NodeHandle nodeHandle)
 {
     return toNodeHandle(nodeHandle.as8byte());
 }
+
 string toHandle(handle h)
 {
     char base64Handle[14];
     Base64::btoa((byte*)&(h), sizeof h, base64Handle);
     return string(base64Handle);
 }
+
+std::ostream& operator<<(std::ostream& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeHandle h)
+{
+    return s << toNodeHandle(h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, UploadHandle h)
+{
+    return s << toHandle(h.h);
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
+{
+    if (h.isNodeHandle())
+    {
+        return s << "nh:" << h.nodeHandle();
+    }
+    else
+    {
+        return s << "uh:" << h.uploadHandle();
+    }
+}
+
+SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp)
+{
+    return s << lp.toPath();
+}
+
 
 string backupTypeToStr(BackupType type)
 {
@@ -275,10 +317,10 @@ void chunkmac_map::serialize(string& d) const
 {
     unsigned short ll = (unsigned short)size();
     d.append((char*)&ll, sizeof(ll));
-    for (const_iterator it = begin(); it != end(); it++)
+    for (auto& it : mMacMap)
     {
-        d.append((char*)&it->first, sizeof(it->first));
-        d.append((char*)&it->second, sizeof(it->second));
+        d.append((char*)&it.first, sizeof(it.first));
+        d.append((char*)&it.second, sizeof(it.second));
     }
 }
 
@@ -297,47 +339,69 @@ bool chunkmac_map::unserialize(const char*& ptr, const char* end)
         m_off_t pos = MemAccess::get<m_off_t>(ptr);
         ptr += sizeof(m_off_t);
 
-        memcpy(&((*this)[pos]), ptr, sizeof(ChunkMAC));
+        memcpy(&(mMacMap[pos]), ptr, sizeof(ChunkMAC));
         ptr += sizeof(ChunkMAC);
+
+        if (mMacMap[pos].isMacsmacSoFar())
+        {
+            macsmacSoFarPos = pos;
+            assert(i == 0);
+        }
+        else
+        {
+            assert(pos > macsmacSoFarPos);
+        }
     }
     return true;
 }
 
-void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* lastblockprogress)
+void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* sumOfPartialChunks)
 {
     chunkpos = 0;
     progresscompleted = 0;
 
-    for (chunkmac_map::iterator it = begin(); it != end(); ++it)
+    for (auto& it : mMacMap)
     {
-        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, size);
+        m_off_t chunkceil = ChunkedHash::chunkceil(it.first, size);
 
-        if (chunkpos == it->first && it->second.finished)
+        if (it.second.isMacsmacSoFar())
+        {
+            assert(chunkpos == 0);
+            macsmacSoFarPos = it.first;
+
+            chunkpos = chunkceil;
+            progresscompleted = chunkceil;
+        }
+        else if (chunkpos == it.first && it.second.finished)
         {
             chunkpos = chunkceil;
             progresscompleted = chunkceil;
         }
-        else if (it->second.finished)
+        else if (it.second.finished)
         {
-            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it.first);
             progresscompleted += chunksize;
         }
         else
         {
-            progresscompleted += it->second.offset;
-            if (lastblockprogress)
+            progresscompleted += it.second.offset;  // sum of completed portions
+            if (sumOfPartialChunks)
             {
-                *lastblockprogress += it->second.offset;
+                *sumOfPartialChunks += it.second.offset;
             }
         }
     }
+
+    progresscontiguous = chunkpos;
 }
 
 m_off_t chunkmac_map::nextUnprocessedPosFrom(m_off_t pos)
 {
-    for (const_iterator it = find(ChunkedHash::chunkfloor(pos));
-        it != end();
-        it = find(ChunkedHash::chunkfloor(pos)))
+    assert(pos > macsmacSoFarPos);
+
+    for (auto it = mMacMap.find(ChunkedHash::chunkfloor(pos));
+        it != mMacMap.end();
+        it = mMacMap.find(ChunkedHash::chunkfloor(pos)))
     {
         if (it->second.finished)
         {
@@ -354,22 +418,181 @@ m_off_t chunkmac_map::nextUnprocessedPosFrom(m_off_t pos)
 
 m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize)
 {
-    for (iterator it = find(npos);
-        npos < fileSize && (npos - pos) <= maxReqSize && (it == end() || (!it->second.finished && !it->second.offset));
-        it = find(npos))
+    assert(pos > macsmacSoFarPos);
+
+    for (auto it = mMacMap.find(npos);
+        npos < fileSize &&
+        (npos - pos) <= maxReqSize &&
+        (it == mMacMap.end() || it->second.notStarted());
+        it = mMacMap.find(npos))
     {
         npos = ChunkedHash::chunkceil(npos, fileSize);
     }
     return npos;
 }
 
+m_off_t chunkmac_map::hasUnfinishedGap(m_off_t fileSize)
+{
+    bool sawUnfinished = false;
+
+    for (auto it = mMacMap.begin();
+        it != mMacMap.end(); )
+    {
+        if (!it->second.finished)
+        {
+            sawUnfinished = true;
+        }
+
+        auto nextpos = ChunkedHash::chunkceil(it->first, fileSize);
+        auto expected_it = mMacMap.find(nextpos);
+
+        if (sawUnfinished && expected_it != mMacMap.end() && expected_it->second.finished)
+        {
+            return true;
+        }
+
+        ++it;
+        if (it != expected_it)
+        {
+            sawUnfinished = true;
+        }
+    }
+    return false;
+}
+
+
+void chunkmac_map::ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk)
+{
+    assert(chunkid == startpos);
+    assert(startpos > macsmacSoFarPos);
+
+    // encrypt is always done on whole chunks
+    auto& chunk = mMacMap[chunkid];
+    cipher->ctr_crypt(chunkstart, unsigned(chunksize), startpos, ctriv, chunk.mac, true, true);
+    chunk.offset = 0;
+    chunk.finished = finishesChunk;  // when encrypting for uploads, only set finished after confirmation of the chunk uploading.
+}
+
+
+void chunkmac_map::ctr_decrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk)
+{
+    assert(chunkid > macsmacSoFarPos);
+    assert(startpos >= chunkid);
+    assert(startpos + chunksize <= ChunkedHash::chunkceil(chunkid));
+    ChunkMAC& chunk = mMacMap[chunkid];
+
+    cipher->ctr_crypt(chunkstart, chunksize, startpos, ctriv, chunk.mac, false, chunk.notStarted());
+
+    if (finishesChunk)
+    {
+        chunk.finished = true;
+        chunk.offset = 0;
+    }
+    else
+    {
+        assert(startpos + chunksize < ChunkedHash::chunkceil(chunkid));
+        chunk.finished = false;
+        chunk.offset += chunksize;
+    }
+}
+
 void chunkmac_map::finishedUploadChunks(chunkmac_map& macs)
 {
-    for (auto& m : macs)
+    for (auto& m : macs.mMacMap)
     {
+        assert(m.first > macsmacSoFarPos);
+        assert(mMacMap.find(m.first) == mMacMap.end() || !mMacMap[m.first].isMacsmacSoFar());
+
         m.second.finished = true;
-        (*this)[m.first] = m.second;
+        mMacMap[m.first] = m.second;
         LOG_verbose << "Upload chunk completed: " << m.first;
+    }
+}
+
+bool chunkmac_map::finishedAt(m_off_t pos)
+{
+    assert(pos > macsmacSoFarPos);
+
+    auto pcit = mMacMap.find(pos);
+    return pcit != mMacMap.end()
+        && pcit->second.finished;
+}
+
+m_off_t chunkmac_map::updateContiguousProgress(m_off_t fileSize)
+{
+    assert(progresscontiguous > macsmacSoFarPos);
+
+    while (finishedAt(progresscontiguous))
+    {
+        progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, fileSize);
+    }
+    return progresscontiguous;
+}
+
+void chunkmac_map::updateMacsmacProgress(SymmCipher *cipher)
+{
+    bool updated = false;
+    while (macsmacSoFarPos + 1024 * 1024 * 5 < progresscontiguous  // never go past contiguous-from-start section
+           && size() > 32 * 3 + 5)   // leave enough room for the mac-with-late-gaps corrective calculation to occur
+    {
+        if (mMacMap.begin()->second.isMacsmacSoFar())
+        {
+            auto it = mMacMap.begin();
+            auto& calcSoFar = it->second;
+            auto& next = (++it)->second;
+
+            assert(it->first == ChunkedHash::chunkfloor(it->first));
+            SymmCipher::xorblock(next.mac, calcSoFar.mac);
+            cipher->ecb_encrypt(calcSoFar.mac);
+            memcpy(next.mac, calcSoFar.mac, sizeof(next.mac));
+
+            macsmacSoFarPos = it->first;
+            next.offset = unsigned(-1);
+            assert(next.isMacsmacSoFar());
+            mMacMap.erase(mMacMap.begin());
+        }
+        else if (mMacMap.begin()->first == 0 && finishedAt(0))
+        {
+            auto& first = mMacMap.begin()->second;
+
+            byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+            SymmCipher::xorblock(first.mac, mac);
+            cipher->ecb_encrypt(mac);
+            memcpy(first.mac, mac, sizeof(mac));
+
+            first.offset = unsigned(-1);
+            assert(first.isMacsmacSoFar());
+            macsmacSoFarPos = 0;
+        }
+        updated = true;
+    }
+
+    if (updated)
+    {
+        LOG_verbose << "Macsmac calculation advanced to " << mMacMap.begin()->first;
+    }
+}
+
+void chunkmac_map::copyEntriesTo(chunkmac_map& other)
+{
+    for (auto& e : mMacMap)
+    {
+        assert(e.first > macsmacSoFarPos);
+        other.mMacMap[e.first] = e.second;
+    }
+}
+
+void chunkmac_map::copyEntryTo(m_off_t pos, chunkmac_map& other)
+{
+    assert(pos > macsmacSoFarPos);
+    mMacMap[pos] = other.mMacMap[pos];
+}
+
+void chunkmac_map::debugLogOuputMacs()
+{
+    for (auto& it : mMacMap)
+    {
+        LOG_debug << "macs: " << it.first << " " << Base64Str<SymmCipher::BLOCKSIZE>(it.second.mac) << " " << it.second.finished;
     }
 }
 
@@ -378,12 +601,19 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    for (chunkmac_map::iterator it = begin(); it != end(); it++)
+    for (auto& it : mMacMap)
     {
-        assert(it->first == ChunkedHash::chunkfloor(it->first));
-        // LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
-        SymmCipher::xorblock(it->second.mac, mac);
-        cipher->ecb_encrypt(mac);
+        if (it.second.isMacsmacSoFar())
+        {
+            assert(it.first == mMacMap.begin()->first);
+            memcpy(mac, it.second.mac, sizeof(mac));
+        }
+        else
+        {
+            assert(it.first == ChunkedHash::chunkfloor(it.first));
+            SymmCipher::xorblock(it.second.mac, mac);
+            cipher->ecb_encrypt(mac);
+        }
     }
 
     uint32_t* m = (uint32_t*)mac;
@@ -391,7 +621,6 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     m[0] ^= m[1];
     m[1] = m[2] ^ m[3];
 
-    // LOG_debug << "macsmac final: " << Base64Str<sizeof int64_t>(mac);
     return MemAccess::get<int64_t>((const char*)mac);
 }
 
@@ -399,14 +628,25 @@ int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, siz
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    int n = 0;
-    for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
+    size_t n = 0;
+    for (auto it = mMacMap.begin(); it != mMacMap.end(); it++, n++)
     {
-        if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
+        if (it->second.isMacsmacSoFar())
+        {
+            memcpy(mac, it->second.mac, sizeof(mac));
+            for (m_off_t pos = 0; pos <= it->first; pos = ChunkedHash::chunkceil(pos))
+            {
+                ++n;
+            }
+        }
+        else
+        {
+            if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
 
-        assert(it->first == ChunkedHash::chunkfloor(it->first));
-        SymmCipher::xorblock(it->second.mac, mac);
-        cipher->ecb_encrypt(mac);
+            assert(it->first == ChunkedHash::chunkfloor(it->first));
+            SymmCipher::xorblock(it->second.mac, mac);
+            cipher->ecb_encrypt(mac);
+        }
     }
 
     uint32_t* m = (uint32_t*)mac;
@@ -560,412 +800,6 @@ bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned
     fieldnum += 1;
     return true;
 }
-
-#ifdef ENABLE_CHAT
-TextChat::TextChat()
-{
-    id = UNDEF;
-    priv = PRIV_UNKNOWN;
-    shard = -1;
-    userpriv = NULL;
-    group = false;
-    ou = UNDEF;
-    resetTag();
-    ts = 0;
-    flags = 0;
-    publicchat = false;
-
-    memset(&changed, 0, sizeof(changed));
-}
-
-TextChat::~TextChat()
-{
-    delete userpriv;
-}
-
-bool TextChat::serialize(string *d)
-{
-    unsigned short ll;
-
-    d->append((char*)&id, sizeof id);
-    d->append((char*)&priv, sizeof priv);
-    d->append((char*)&shard, sizeof shard);
-
-    ll = (unsigned short)(userpriv ? userpriv->size() : 0);
-    d->append((char*)&ll, sizeof ll);
-    if (userpriv)
-    {
-        userpriv_vector::iterator it = userpriv->begin();
-        while (it != userpriv->end())
-        {
-            handle uh = it->first;
-            d->append((char*)&uh, sizeof uh);
-
-            privilege_t priv = it->second;
-            d->append((char*)&priv, sizeof priv);
-
-            it++;
-        }
-    }
-
-    d->append((char*)&group, sizeof group);
-
-    // title is a binary array
-    ll = (unsigned short)title.size();
-    d->append((char*)&ll, sizeof ll);
-    d->append(title.data(), ll);
-
-    d->append((char*)&ou, sizeof ou);
-    d->append((char*)&ts, sizeof(ts));
-
-    char hasAttachments = attachedNodes.size() != 0;
-    d->append((char*)&hasAttachments, 1);
-
-    d->append((char*)&flags, 1);
-
-    char mode = publicchat ? 1 : 0;
-    d->append((char*)&mode, 1);
-
-    char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
-    d->append((char *)&hasUnifiedKey, 1);
-
-    d->append("\0\0\0\0\0\0", 6); // additional bytes for backwards compatibility
-
-    if (hasAttachments)
-    {
-        ll = (unsigned short)attachedNodes.size();  // number of nodes with granted access
-        d->append((char*)&ll, sizeof ll);
-
-        for (attachments_map::iterator it = attachedNodes.begin(); it != attachedNodes.end(); it++)
-        {
-            d->append((char*)&it->first, sizeof it->first); // nodehandle
-
-            ll = (unsigned short)it->second.size(); // number of users with granted access to the node
-            d->append((char*)&ll, sizeof ll);
-            for (set<handle>::iterator ituh = it->second.begin(); ituh != it->second.end(); ituh++)
-            {
-                d->append((char*)&(*ituh), sizeof *ituh);   // userhandle
-            }
-        }
-    }
-
-    if (hasUnifiedKey)
-    {
-        ll = (unsigned short) unifiedKey.size();
-        d->append((char *)&ll, sizeof ll);
-        d->append((char*) unifiedKey.data(), unifiedKey.size());
-    }
-
-    return true;
-}
-
-TextChat* TextChat::unserialize(class MegaClient *client, string *d)
-{
-    handle id;
-    privilege_t priv;
-    int shard;
-    userpriv_vector *userpriv = NULL;
-    bool group;
-    string title;   // byte array
-    handle ou;
-    m_time_t ts;
-    byte flags;
-    char hasAttachments;
-    attachments_map attachedNodes;
-    bool publicchat;
-    string unifiedKey;
-
-    unsigned short ll;
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
-    if (ptr + sizeof(handle) + sizeof(privilege_t) + sizeof(int) + sizeof(short) > end)
-    {
-        return NULL;
-    }
-
-    id = MemAccess::get<handle>(ptr);
-    ptr += sizeof id;
-
-    priv = MemAccess::get<privilege_t>(ptr);
-    ptr += sizeof priv;
-
-    shard = MemAccess::get<int>(ptr);
-    ptr += sizeof shard;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof ll;
-    if (ll)
-    {
-        if (ptr + ll * (sizeof(handle) + sizeof(privilege_t)) > end)
-        {
-            return NULL;
-        }
-
-        userpriv = new userpriv_vector();
-
-        for (unsigned short i = 0; i < ll; i++)
-        {
-            handle uh = MemAccess::get<handle>(ptr);
-            ptr += sizeof uh;
-
-            privilege_t priv = MemAccess::get<privilege_t>(ptr);
-            ptr += sizeof priv;
-
-            userpriv->push_back(userpriv_pair(uh, priv));
-        }
-
-        if (priv == PRIV_RM)    // clear peerlist if removed
-        {
-            delete userpriv;
-            userpriv = NULL;
-        }
-    }
-
-    if (ptr + sizeof(bool) + sizeof(unsigned short) > end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    group = MemAccess::get<bool>(ptr);
-    ptr += sizeof group;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof ll;
-    if (ll)
-    {
-        if (ptr + ll > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-        title.assign(ptr, ll);
-    }
-    ptr += ll;
-
-    if (ptr + sizeof(handle) + sizeof(m_time_t) + sizeof(char) + 9 > end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    ou = MemAccess::get<handle>(ptr);
-    ptr += sizeof ou;
-
-    ts = MemAccess::get<m_time_t>(ptr);
-    ptr += sizeof(m_time_t);
-
-    hasAttachments = MemAccess::get<char>(ptr);
-    ptr += sizeof hasAttachments;
-
-    flags = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    char mode = MemAccess::get<char>(ptr);
-    publicchat = (mode == 1);
-    ptr += sizeof(char);
-
-    char hasUnifiedKey = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    for (int i = 6; i--;)
-    {
-        if (ptr + MemAccess::get<unsigned char>(ptr) < end)
-        {
-            ptr += MemAccess::get<unsigned char>(ptr) + 1;
-        }
-    }
-
-    if (hasAttachments)
-    {
-        unsigned short numNodes = 0;
-        if (ptr + sizeof numNodes > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        numNodes = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof numNodes;
-
-        for (int i = 0; i < numNodes; i++)
-        {
-            handle h = UNDEF;
-            unsigned short numUsers = 0;
-            if (ptr + sizeof h + sizeof numUsers > end)
-            {
-                delete userpriv;
-                return NULL;
-            }
-
-            h = MemAccess::get<handle>(ptr);
-            ptr += sizeof h;
-
-            numUsers = MemAccess::get<unsigned short>(ptr);
-            ptr += sizeof numUsers;
-
-            handle uh = UNDEF;
-            if (ptr + (numUsers * sizeof(uh)) > end)
-            {
-                delete userpriv;
-                return NULL;
-            }
-
-            for (int j = 0; j < numUsers; j++)
-            {
-                uh = MemAccess::get<handle>(ptr);
-                ptr += sizeof uh;
-
-                attachedNodes[h].insert(uh);
-            }
-        }
-    }
-
-    if (hasUnifiedKey)
-    {
-        unsigned short keylen = 0;
-        if (ptr + sizeof keylen > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        keylen = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof keylen;
-
-        if (ptr + keylen > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        unifiedKey.assign(ptr, keylen);
-        ptr += keylen;
-    }
-
-    if (ptr < end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    if (client->chats.find(id) == client->chats.end())
-    {
-        client->chats[id] = new TextChat();
-    }
-    else
-    {
-        LOG_warn << "Unserialized a chat already in RAM";
-    }
-    TextChat* chat = client->chats[id];
-    chat->id = id;
-    chat->priv = priv;
-    chat->shard = shard;
-    chat->userpriv = userpriv;
-    chat->group = group;
-    chat->title = title;
-    chat->ou = ou;
-    chat->resetTag();
-    chat->ts = ts;
-    chat->flags = flags;
-    chat->attachedNodes = attachedNodes;
-    chat->publicchat = publicchat;
-    chat->unifiedKey = unifiedKey;
-
-    memset(&chat->changed, 0, sizeof(chat->changed));
-
-    return chat;
-}
-
-void TextChat::setTag(int tag)
-{
-    if (this->tag != 0)    // external changes prevail
-    {
-        this->tag = tag;
-    }
-}
-
-int TextChat::getTag()
-{
-    return tag;
-}
-
-void TextChat::resetTag()
-{
-    tag = -1;
-}
-
-bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
-{
-    if (revoke)
-    {
-        attachments_map::iterator uhit = attachedNodes.find(h);
-        if (uhit != attachedNodes.end())
-        {
-            uhit->second.erase(uh);
-            if (uhit->second.empty())
-            {
-                attachedNodes.erase(h);
-                changed.attachments = true;
-            }
-            return true;
-        }
-    }
-    else
-    {
-        attachedNodes[h].insert(uh);
-        changed.attachments = true;
-        return true;
-    }
-
-    return false;
-}
-
-bool TextChat::setFlags(byte newFlags)
-{
-    if (flags == newFlags)
-    {
-        return false;
-    }
-
-    flags = newFlags;
-    changed.flags = true;
-
-    return true;
-}
-
-bool TextChat::isFlagSet(uint8_t offset) const
-{
-    return (flags >> offset) & 1U;
-}
-
-bool TextChat::setMode(bool publicchat)
-{
-    if (this->publicchat == publicchat)
-    {
-        return false;
-    }
-
-    this->publicchat = publicchat;
-    changed.mode = true;
-
-    return true;
-}
-
-bool TextChat::setFlag(bool value, uint8_t offset)
-{
-    if (bool((flags >> offset) & 1U) == value)
-    {
-        return false;
-    }
-
-    flags ^= (1U << offset);
-    changed.flags = true;
-
-    return true;
-}
-#endif
 
 /**
  * @brief Encrypts a string after padding it to block length.
@@ -1372,9 +1206,14 @@ string* TLVstore::tlvRecordsToContainer()
     return result;
 }
 
-std::string TLVstore::get(string type) const
+bool TLVstore::get(string type, string& value) const
 {
-    return tlv.at(type);
+    auto it = tlv.find(type);
+    if (it == tlv.cend())
+        return false;
+
+    value = it->second;
+    return true;
 }
 
 const TLV_map * TLVstore::getMap() const
@@ -1390,11 +1229,6 @@ vector<string> *TLVstore::getKeys() const
         keys->push_back(it->first);
     }
     return keys;
-}
-
-bool TLVstore::find(string type) const
-{
-    return (tlv.find(type) != tlv.end());
 }
 
 void TLVstore::set(string type, string value)
@@ -1622,6 +1456,63 @@ size_t Utils::utf8SequenceSize(unsigned char c)
     }
 }
 
+string  Utils::toUpperUtf8(const string& text)
+{
+    string result;
+
+    auto n = utf8proc_ssize_t(text.size());
+    auto d = text.data();
+
+    for (;;)
+    {
+        utf8proc_int32_t c;
+        auto nn = utf8proc_iterate((utf8proc_uint8_t *)d, n, &c);
+
+        if (nn == 0) break;
+
+        assert(nn <= n);
+        d += nn;
+        n -= nn;
+
+        c = utf8proc_toupper(c);
+
+        char buff[8];
+        auto charLen = utf8proc_encode_char(c, (utf8proc_uint8_t *)buff);
+        result.append(buff, charLen);
+    }
+
+    return result;
+}
+
+string  Utils::toLowerUtf8(const string& text)
+{
+    string result;
+
+    auto n = utf8proc_ssize_t(text.size());
+    auto d = text.data();
+
+    for (;;)
+    {
+        utf8proc_int32_t c;
+        auto nn = utf8proc_iterate((utf8proc_uint8_t *)d, n, &c);
+
+        if (nn == 0) break;
+
+        assert(nn <= n);
+        d += nn;
+        n -= nn;
+
+        c = utf8proc_tolower(c);
+
+        char buff[8];
+        auto charLen = utf8proc_encode_char(c, (utf8proc_uint8_t *)buff);
+        result.append(buff, charLen);
+    }
+
+    return result;
+}
+
+
 bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
 {
     uint8_t utf8cp1;
@@ -1656,7 +1547,7 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
                 if ((utf8cp1 == 0xC2 || utf8cp1 == 0xC3) && utf8cp2 >= 0x80 && utf8cp2 <= 0xBF)
                 {
                     unicodecp = ((utf8cp1 & 0x1F) <<  6) + (utf8cp2 & 0x3F);
-                    res[rescount++] = unicodecp & 0xFF;
+                    res[rescount++] = static_cast<byte>(unicodecp & 0xFF);
                 }
                 else
                 {
@@ -2262,8 +2153,9 @@ void NodeCounter::operator -= (const NodeCounter& o)
 }
 
 
-CacheableStatus::CacheableStatus(int64_t type, int64_t value)
-    : mType{type}, mValue{value}
+CacheableStatus::CacheableStatus(mega::CacheableStatus::Type type, int64_t value)
+    : mType(type)
+    , mValue(value)
 { }
 
 
@@ -2276,11 +2168,11 @@ bool CacheableStatus::serialize(std::string* data)
 
 CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
 {
-    int64_t type;
+    int64_t typeBuf;
     int64_t value;
 
-    CacheableReader reader{data};
-    if (!reader.unserializei64(type))
+    CacheableReader reader(data);
+    if (!reader.unserializei64(typeBuf))
     {
         return nullptr;
     }
@@ -2289,6 +2181,7 @@ CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const st
         return nullptr;
     }
 
+    CacheableStatus::Type type = static_cast<CacheableStatus::Type>(typeBuf);
     client->mCachedStatus.loadCachedStatus(type, value);
     return client->mCachedStatus.getPtr(type);
 }
@@ -2306,7 +2199,7 @@ int64_t CacheableStatus::value() const
     return mValue;
 }
 
-int64_t CacheableStatus::type() const
+CacheableStatus::Type CacheableStatus::type() const
 {
     return mType;
 }
@@ -2314,6 +2207,30 @@ int64_t CacheableStatus::type() const
 void CacheableStatus::setValue(const int64_t value)
 {
     mValue = value;
+}
+
+std::string CacheableStatus::typeToStr()
+{
+    return CacheableStatus::typeToStr(mType);
+}
+
+std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
+{
+    switch (type)
+    {
+    case STATUS_UNKNOWN:
+        return "unknown";
+    case STATUS_STORAGE:
+        return "storage";
+    case STATUS_BUSINESS:
+        return "business";
+    case STATUS_BLOCKED:
+        return "blocked";
+    case STATUS_PRO_LEVEL:
+        return "pro-level";
+    default:
+        return "undefined";
+    }
 }
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
@@ -2345,12 +2262,7 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 
         memset(&buffer[chunkLength], 0, SymmCipher::BLOCKSIZE);
 
-        cipher.ctr_crypt(&buffer[0],
-                         chunkLength,
-                         current,
-                         iv,
-                         chunkMacs[current].mac,
-                         1);
+        chunkMacs.ctr_encrypt(current, &cipher, buffer.get(), chunkLength, current, iv, true);
 
         current += chunkLength;
         remaining -= chunkLength;
@@ -2437,10 +2349,330 @@ void MegaClientAsyncQueue::asyncThreadLoop()
     }
 }
 
-bool islchex(const int c)
+bool islchex_high(const int c)
 {
+    // this one constrains two characters to the 0..127 range
+    return (c >= '0' && c <= '7');
+}
+
+bool islchex_low(const int c)
+{
+    // this one is the low nibble, unconstrained
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 
-} // namespace
+std::string getSafeUrl(const std::string &posturl)
+{
+#if !defined(__clang__) && defined(__GNUC__) && __GNUC__ <= 4
+    string safeurl;
+    safeurl.append(posturl);
+#else
+    string safeurl = posturl;
+#endif
+    size_t sid = safeurl.find("sid=");
+    if (sid != string::npos)
+    {
+        sid += 4;
+        size_t end = safeurl.find("&", sid);
+        if (end == string::npos)
+        {
+            end = safeurl.size();
+        }
+        safeurl.replace(sid, end - sid, end - sid, 'X');
+    }
+    size_t authKey = safeurl.find("&n=");
+    if (authKey != string::npos)
+    {
+        authKey += 3/*&n=*/ + 8/*public handle*/;
+        size_t end = safeurl.find("&", authKey);
+        if (end == string::npos)
+        {
+            end = safeurl.size();
+        }
+        safeurl.replace(authKey, end - authKey, end - authKey, 'X');
+    }
+    return safeurl;
+}
+
+bool wildcardMatch(const string& text, const string& pattern)
+{
+    return wildcardMatch(text.c_str(), pattern.c_str());
+}
+
+bool wildcardMatch(const char *pszString, const char *pszMatch)
+//  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
+{
+    const char *cp = nullptr;
+    const char *mp = nullptr;
+
+    while ((*pszString) && (*pszMatch != '*'))
+    {
+        if ((*pszMatch != *pszString) && (*pszMatch != '?'))
+        {
+            return false;
+        }
+        pszMatch++;
+        pszString++;
+    }
+
+    while (*pszString)
+    {
+        if (*pszMatch == '*')
+        {
+            if (!*++pszMatch)
+            {
+                return true;
+            }
+            mp = pszMatch;
+            cp = pszString + 1;
+        }
+        else if ((*pszMatch == *pszString) || (*pszMatch == '?'))
+        {
+            pszMatch++;
+            pszString++;
+        }
+        else
+        {
+            pszMatch = mp;
+            pszString = cp++;
+        }
+    }
+    while (*pszMatch == '*')
+    {
+        pszMatch++;
+    }
+    return !*pszMatch;
+}
+
+UploadHandle UploadHandle::next()
+{
+    do
+    {
+        // Since we start with UNDEF, the first update would overwrite the whole handle and at least 1 byte further, causing data corruption
+        if (h == UNDEF) h = 0;
+
+        byte* ptr = (byte*)(&h + 1);
+
+        while (!++*--ptr);
+    }
+    while ((h & 0xFFFF000000000000) == 0 || // if the top two bytes were all 0 then it could clash with NodeHandles
+            h == UNDEF);
+
+
+    return *this;
+}
+
+handle generateDriveId(PrnGen& rng)
+{
+    handle driveId;
+
+    rng.genblock((byte *)&driveId, sizeof(driveId));
+    driveId |= m_time(nullptr);
+
+    return driveId;
+}
+
+error readDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle& driveId)
+{
+    if (pathToDrive && strlen(pathToDrive))
+        return readDriveId(fsAccess, LocalPath::fromAbsolutePath(pathToDrive), driveId);
+
+    driveId = UNDEF;
+
+    return API_EREAD;
+}
+
+error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, handle& driveId)
+{
+    assert(!pathToDrive.empty());
+
+    driveId = UNDEF;
+
+    auto path = pathToDrive;
+
+    path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
+    path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
+
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    if (!fileAccess->fopen(path, true, false))
+    {
+        // This case is valid when only checking for file existence
+        return API_ENOENT;
+    }
+
+    if (!fileAccess->frawread((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to read drive-id from file: " << path;
+        return API_EREAD;
+    }
+
+    return API_OK;
+}
+
+error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle driveId)
+{
+    auto path = LocalPath::fromAbsolutePath(pathToDrive);
+
+    path.appendWithSeparator(LocalPath::fromRelativePath(".megabackup"), false);
+
+    // Try and create the backup configuration directory
+    if (!(fsAccess.mkdirlocal(path, false, false) || fsAccess.target_exists))
+    {
+        LOG_err << "Unable to create config DB directory: " << path;
+
+        // Couldn't create the directory and it doesn't exist.
+        return API_EWRITE;
+    }
+
+    path.appendWithSeparator(LocalPath::fromRelativePath("drive-id"), false);
+
+    // Open the file for writing
+    auto fileAccess = fsAccess.newfileaccess(false);
+    if (!fileAccess->fopen(path, false, true))
+    {
+        LOG_err << "Unable to open file to write drive-id: " << path;
+        return API_EWRITE;
+    }
+
+    // Write the drive-id to file
+    if (!fileAccess->fwrite((byte*)&driveId, sizeof(driveId), 0))
+    {
+        LOG_err << "Unable to write drive-id to file: " << path;
+        return API_EWRITE;
+    }
+
+    return API_OK;
+}
+
+int platformGetRLimitNumFile()
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return -1;
+    }
+
+    return int(rl.rlim_cur);
+#else
+    LOG_err << "Code for calling getrlimit is not available yet (or not relevant) on this platform";
+    return -1;
+#endif
+}
+
+bool platformSetRLimitNumFile(int newNumFileLimit)
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return false;
+    }
+    else
+    {
+        LOG_info << "rlimit for NOFILE before change is: " << rl.rlim_cur << ", " << rl.rlim_max;
+
+        if (newNumFileLimit < 0)
+        {
+            rl.rlim_cur = rl.rlim_max;
+        }
+        else
+        {
+            rl.rlim_cur = rlim_t(newNumFileLimit);
+
+            if (rl.rlim_cur > rl.rlim_max)
+            {
+                LOG_info << "Requested rlimit (" << newNumFileLimit << ") will be replaced by maximum allowed value (" << rl.rlim_max << ")";
+                rl.rlim_cur = rl.rlim_max;
+            }
+        }
+
+        if (0 < setrlimit(RLIMIT_NOFILE, &rl))
+        {
+            auto e = errno;
+            LOG_err << "Error calling setrlimit: " << e;
+            return false;
+        }
+    }
+    return true;
+#else
+    LOG_err << "Code for calling setrlimit is not available yet (or not relevant) on this platform";
+    return false;
+#endif
+}
+
+void debugLogHeapUsage()
+{
+#ifdef DEBUG
+#ifdef WIN32
+    _CrtMemState state;
+    _CrtMemCheckpoint(&state);
+
+    LOG_debug << "MEM use.  Heap: " << state.lTotalCount << " highwater: " << state.lHighWaterCount
+        << " _FREE_BLOCK/" << state.lCounts[_FREE_BLOCK] << "/" << state.lSizes[_FREE_BLOCK]
+        << " _NORMAL_BLOCK/" << state.lCounts[_NORMAL_BLOCK] << "/" << state.lSizes[_NORMAL_BLOCK]
+        << " _CRT_BLOCK/" << state.lCounts[_CRT_BLOCK] << "/" << state.lSizes[_CRT_BLOCK]
+        << " _IGNORE_BLOCK/" << state.lCounts[_IGNORE_BLOCK] << "/" << state.lSizes[_IGNORE_BLOCK]
+        << " _CLIENT_BLOCK/" << state.lCounts[_CLIENT_BLOCK] << "/" << state.lSizes[_CLIENT_BLOCK];
+#endif
+#endif
+}
+
+void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
+{
+    mCompleted -= rhs.mCompleted;
+    mCompletedBytes -= rhs.mCompletedBytes;
+    mPending -= rhs.mPending;
+    mPendingBytes -= rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator==(const SyncTransferCount& rhs) const
+{
+    return mCompleted == rhs.mCompleted
+        && mCompletedBytes == rhs.mCompletedBytes
+        && mPending == rhs.mPending
+        && mPendingBytes == rhs.mPendingBytes;
+}
+
+bool SyncTransferCount::operator!=(const SyncTransferCount& rhs) const
+{
+    return !(*this == rhs);
+}
+
+void SyncTransferCounts::operator-=(const SyncTransferCounts& rhs)
+{
+    mDownloads -= rhs.mDownloads;
+    mUploads -= rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator==(const SyncTransferCounts& rhs) const
+{
+    return mDownloads == rhs.mDownloads && mUploads == rhs.mUploads;
+}
+
+bool SyncTransferCounts::operator!=(const SyncTransferCounts& rhs) const
+{
+    return !(*this == rhs);
+}
+
+double SyncTransferCounts::progress(m_off_t inflightProgress) const
+{
+    auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
+
+    if (!pending)
+        return 1.0;
+
+    auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes + inflightProgress;
+    auto progress = static_cast<double>(completed) / static_cast<double>(pending);
+
+    return std::min(1.0, progress);
+}
+
+
+} // namespace mega
 

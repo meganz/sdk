@@ -79,7 +79,7 @@ void TreeProcDel::proc(MegaClient* client, Node* n)
     client->notifynode(n);
     if (n->owner != client->me)
     {
-        client->useralerts.noteSharedNode(n->owner, n->type, 0, NULL);
+        client->useralerts.noteSharedNode(n->owner, n->type, 0, n);
     }
 }
 
@@ -132,12 +132,12 @@ void LocalTreeProcMove::proc(MegaClient*, LocalNode* localnode)
     nc++;
 }
 
-void LocalTreeProcUpdateTransfers::proc(MegaClient *, LocalNode *localnode)
+void LocalTreeProcUpdateTransfers::proc(MegaClient *client, LocalNode *localnode)
 {
     if (localnode->transfer && !localnode->transfer->localfilename.empty())
     {
         LOG_debug << "Updating transfer path";
-        localnode->prepare();
+        localnode->prepare(*client->fsaccess);
     }
 }
 

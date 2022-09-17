@@ -7,6 +7,9 @@
 *.lo
 *.pyc
 
+#Compiled Headers
+*.gch
+
 # Compiled Dynamic libraries
 *.so
 *.dylib
@@ -83,6 +86,7 @@ doc/example/lsmega
 *~
 Debug
 Release
+/build-x??-*-mega*/
 /contrib/QtCreator/build-*
 /contrib/QtCreator/MEGAsdk.pro.user
 /contrib/QtCreator/MEGAcli/MEGAcli.pro.user
@@ -98,8 +102,14 @@ Release
 /contrib/cmake/build3rdParty/build
 megaclient_statecache*
 
+# Building stuff
+build-*Debug
+build-*Release
+*.pro.user*
+
 # Mega SDK runtime
 *.db-journal
 
 /third_party/Makefile
 /third_party/3rdparty
+/third_party/crashlytics*h

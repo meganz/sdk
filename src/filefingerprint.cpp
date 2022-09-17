@@ -19,7 +19,7 @@
  * program.
  */
 
-#include "mega/filefingerprint.h"
+#include "mega/filesystem.h"
 #include "mega/serialize64.h"
 #include "mega/base64.h"
 #include "mega/logging.h"
@@ -45,15 +45,11 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
     // mtime check disabled on Android due to this bug:
     // https://code.google.com/p/android/issues/detail?id=18624
 
-#ifndef WINDOWS_PHONE
-    // disabled on Windows Phone too because SetFileTime() isn't available
-
     // mtime differs - cannot be equal
     if (abs(lhs.mtime-rhs.mtime) > 2)
     {
         return false;
     }
-#endif
 #endif
 
     // FileFingerprints not fully available - give it the benefit of the doubt
@@ -63,6 +59,11 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
     }
 
     return !memcmp(lhs.crc.data(), rhs.crc.data(), sizeof lhs.crc);
+}
+
+bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs)
+{
+    return !(lhs == rhs);
 }
 
 bool FileFingerprint::serialize(string *d)
@@ -360,7 +361,7 @@ void FileFingerprint::serializefingerprint(string* d) const
     l = Serialize64::serialize(buf + sizeof crc, mtime);
 
     d->resize((sizeof crc + l) * 4 / 3 + 4);
-    d->resize(Base64::btoa(buf, sizeof crc + l, (char*)d->c_str()));
+    d->resize(Base64::btoa(buf, static_cast<int>(sizeof crc + l), (char*)d->c_str()));
 }
 
 // decode and set base64-encoded fingerprint
@@ -375,7 +376,7 @@ int FileFingerprint::unserializefingerprint(string* d)
         return 0;
     }
 
-    if (Serialize64::unserialize(buf + sizeof crc, l - sizeof crc, &t) < 0)
+    if (Serialize64::unserialize(buf + sizeof crc, static_cast<int>(l - sizeof crc), &t) < 0)
     {
         return 0;
     }

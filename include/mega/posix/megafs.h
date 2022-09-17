@@ -19,8 +19,12 @@
  * program.
  */
 
+#ifndef MEGA_POSIX_FS_H
+#define MEGA_POSIX_FS_H
+
 #ifndef FSACCESS_CLASS
 #define FSACCESS_CLASS PosixFileSystemAccess
+#endif // ! FSACCESS_CLASS
 
 #ifdef  __APPLE__
 // Apple calls it sendfile, but it isn't
@@ -82,31 +86,27 @@ public:
     static char *appbasepath;
 #endif
 
-    bool notifyerr;
     int defaultfilepermissions;
     int defaultfolderpermissions;
 
-    std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
-    DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
+    unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
+    unique_ptr<DirAccess>  newdiraccess() override;
+#ifdef ENABLE_SYNC
+    DirNotify* newdirnotify(const LocalPath&, const LocalPath&, Waiter*, LocalNode* syncroot) override;
+#endif
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
-    bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning);
-
-    void tmpnamelocal(LocalPath&) const override;
-
-    void local2path(const string*, string*) const override;
-    void path2local(const string*, string*) const override;
+    bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning) override;
 
     bool getsname(const LocalPath&, LocalPath&) const override;
 
-    bool renamelocal(LocalPath&, LocalPath&, bool) override;
-    bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
+    bool renamelocal(const LocalPath&, const LocalPath&, bool) override;
+    bool copylocal(const LocalPath&, const LocalPath&, m_time_t) override;
     bool rubbishlocal(string*);
-    bool unlinklocal(LocalPath&) override;
-    bool rmdirlocal(LocalPath&) override;
-    bool mkdirlocal(LocalPath&, bool) override;
-    bool setmtimelocal(LocalPath&, m_time_t) override;
+    bool unlinklocal(const LocalPath&) override;
+    bool rmdirlocal(const LocalPath&) override;
+    bool mkdirlocal(const LocalPath&, bool hidden, bool logAlreadyExistsError) override;
+    bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, std::string&) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
@@ -117,17 +117,37 @@ public:
     void osversion(string*, bool includeArchitecture) const override;
     void statsid(string*) const override;
 
-    static void emptydirlocal(LocalPath&, dev_t = 0);
+    static void emptydirlocal(const LocalPath&, dev_t = 0);
 
     int getdefaultfilepermissions();
     void setdefaultfilepermissions(int);
     int getdefaultfolderpermissions();
     void setdefaultfolderpermissions(int);
 
-    PosixFileSystemAccess(int = -1);
+    PosixFileSystemAccess();
     ~PosixFileSystemAccess();
 
+    static bool cwd_static(LocalPath& path);
     bool cwd(LocalPath& path) const override;
+
+    ScanResult directoryScan(const LocalPath& path,
+                             handle expectedFsid,
+                             map<LocalPath, FSNode>& known,
+                             std::vector<FSNode>& results,
+                             bool followSymLinks,
+                             unsigned& nFingerprinted) override;
+							 
+#ifdef ENABLE_SYNC
+    fsfp_t fsFingerprint(const LocalPath& path) const override;
+
+    bool fsStableIDs(const LocalPath& path) const override;
+
+    bool initFilesystemNotificationSystem() override;
+#endif // ENABLE_SYNC
+
+    bool hardLink(const LocalPath& source, const LocalPath& target) override;
+
+    m_off_t availableDiskSpace(const LocalPath& drivePath) override;
 };
 
 #ifdef HAVE_AIO_RT
@@ -155,7 +175,7 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
+    bool fopen(const LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false, bool skipcasecheck = false) override;
 
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
@@ -189,6 +209,7 @@ private:
 
 };
 
+#ifdef ENABLE_SYNC
 class MEGA_API PosixDirNotify : public DirNotify
 {
 public:
@@ -197,11 +218,9 @@ public:
     void addnotify(LocalNode*, const LocalPath&) override;
     void delnotify(LocalNode*) override;
 
-    fsfp_t fsfingerprint() const override;
-    bool fsstableids() const override;
-
-    PosixDirNotify(LocalPath&, const LocalPath&);
+    PosixDirNotify(const LocalPath&, const LocalPath&, Sync* s);
 };
+#endif
 
 } // namespace
 

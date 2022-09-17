@@ -47,10 +47,13 @@ class MEGA_API PubKeyActionCreateShare : public PubKeyAction
     string selfemail;  // optional personal representation when sharing to a non-contact
     bool mWritable = false;
 
+    std::function<void(Error, bool writable)> completion;
+
 public:
     void proc(MegaClient*, User*);
 
-    PubKeyActionCreateShare(handle, accesslevel_t, int, bool writable, const char* = NULL);
+    PubKeyActionCreateShare(handle, accesslevel_t, int, bool writable, const char*,
+	    std::function<void(Error, bool writable)> completion);
 };
 
 class MEGA_API PubKeyActionSendShareKey : public PubKeyAction
@@ -66,11 +69,12 @@ public:
 class MEGA_API PubKeyActionPutNodes : public PubKeyAction
 {
     vector<NewNode> nn;    // nodes to add
+    CommandPutNodes::Completion completion;
 
 public:
     void proc(MegaClient*, User*);
 
-    PubKeyActionPutNodes(vector<NewNode>&&, int);
+    PubKeyActionPutNodes(vector<NewNode>&&, int, CommandPutNodes::Completion&&);
 };
 
 class MEGA_API PubKeyActionNotifyApp : public PubKeyAction

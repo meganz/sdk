@@ -23,7 +23,7 @@
  */
 
 #include "mega/thread/cppthread.h"
-#if defined WINDOWS_PHONE || defined USE_CPPTHREAD
+#if defined USE_CPPTHREAD
 
 #include <ctime>
 #include <chrono>
@@ -48,6 +48,10 @@ void CppThread::start(void *(*start_routine)(void*), void *parameter)
 void CppThread::join()
 {
     thread->join();
+}
+
+bool CppThread::isCurrentThread() {
+    return thread->get_id() == std::this_thread::get_id();
 }
 
 unsigned long long CppThread::currentThreadId()

@@ -178,7 +178,7 @@ int evt_ctx_init(evt_ctx_t *tls)
         return -1;
     }
 
-    long options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+    uint32_t options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
     SSL_CTX_set_options(tls->ctx, options);
 
 #if defined(SSL_MODE_RELEASE_BUFFERS)
@@ -223,7 +223,7 @@ int evt_ctx_is_key_set(evt_ctx_t *t)
 static int evt__send_pending(evt_tls_t *conn)
 {
     assert( conn != NULL);
-    int pending = BIO_pending(conn->app_bio);
+    int pending = (int)BIO_pending(conn->app_bio);
     if ( !(pending > 0) )
         return 0;
 
@@ -239,7 +239,7 @@ static int evt__send_pending(evt_tls_t *conn)
     return p;
 }
 
-static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
+static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, size_t sz)
 {
     int r = 0;
     int bytes = 0;
@@ -260,7 +260,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
                 break;
             }
             // fall through to process possible data queued after the handshake
-        }
+        } // fall-through
 
         case EVT_TLS_OP_READ: {
             r = SSL_read(conn->ssl, tbuf, sizeof(tbuf));
@@ -280,7 +280,7 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 
         case EVT_TLS_OP_WRITE: {
             assert( sz > 0 && "number of bytes to write should be positive");
-            r = SSL_write(conn->ssl, buf, sz);
+            r = SSL_write(conn->ssl, buf, int(sz));
             if ( 0 == r) goto handle_shutdown;
             do {
                 bytes = evt__send_pending(conn);
@@ -377,7 +377,7 @@ int evt_tls_accept(evt_tls_t *tls, evt_handshake_cb cb)
     return 0;
 }
 
-int evt_tls_write(evt_tls_t *c, void *msg, int str_len, evt_write_cb on_write)
+int evt_tls_write(evt_tls_t *c, void *msg, size_t str_len, evt_write_cb on_write)
 {
     c->write_cb = on_write;
     return evt__tls__op(c, EVT_TLS_OP_WRITE, msg, str_len);

@@ -4,11 +4,9 @@ AndroidStudio project for developing a MEGA app for Android
 
 ## Setup development environment
 
-* [Android Studio](http://developer.android.com/intl/es/sdk/index.html)
+* [Android Studio and SDK tools](https://developer.android.com/studio)
 
-* [Android SDK Tools](http://developer.android.com/intl/es/sdk/index.html#Other)
-
-* [Android NDK](http://developer.android.com/intl/es/ndk/downloads/index.html): this is only required if you want to build the native libraries and Java bindings by yourself. **Required version of NDK**: r16b or newer.
+* [Android NDK](https://developer.android.com/ndk/downloads): this is only required if you want to build the native libraries and Java bindings by yourself. **Required version of NDK**: r21d or newer.
 
 ## Build & Run the example:
 
@@ -18,9 +16,9 @@ You have two options, using a prebuilt native library or building it by yourself
 
 * Download and extract the SDK to a folder in your computer: 
 ```
-git clone --recursive https://github.com/meganz/sdk.git
+git clone https://github.com/meganz/sdk.git
 ```
-* Download the prebuilt libraries (`libmega.so`) along with its corresponding Java classes from [here](https://mega.nz/#!UdJwVKJL!_0XsoFtnuVzzuQTb8Qiiwd5wpAk_SnXKJywhTiLhvdY). Generated with commit: 73f8a3ed6c7c9f49e3233fc90996735de233092e
+* Download the prebuilt libraries (`libmega.so`) along with its corresponding Java classes from [here](https://mega.nz/file/18B2URZb#DxEfqFuk1WhR4HCGLndVjbZUr8jt9TVEwMQSNweqbq8). Generated with commit: 7e494c55df631c18ef48ad70cfffde3ba7a0fc1c
 * Extract the content into `app/src/main`, keeping the folder structure.
 * Open the project with Android Studio, let it build the project and hit _*Run*_
 
@@ -31,10 +29,10 @@ Instead of downloading the prebuilt library, you can build it directly from the 
 * Ensure that you have installed `git`, `swig`, `autotools` (`automake`, `autoconf`) and other common tools (`wget`, `unzip`, `tar`, ...).
 * Download and extract the SDK to a folder in your computer: 
 ```
-git clone --recursive https://github.com/meganz/sdk.git
+git clone https://github.com/meganz/sdk.git
 ```
-* Configure the variable `NDK_ROOT` to point to your Android NDK installation path at `examples/android/ExampleApp/app/src/main/jni/build.sh`. Remember NDK r14b or newer is required.
-* Open a terminal in the path `examples/android/ExampleApp/app/src/main/jni/` and run `./build.sh all` to build the native library.
+* Export the environment variable `NDK_ROOT` pointing to your Android NDK installation path or create a symbolic link in your `HOME` folder pointing to it.
+* Open a terminal in the path `examples/android/ExampleApp/app/src/main/jni/` and run `./build.sh all` to build the native libraries.
 * Open the project with Android Studio, let it build the project and hit _*Run*_
 
 ### Notes

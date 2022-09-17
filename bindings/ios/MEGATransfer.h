@@ -25,7 +25,8 @@
 typedef NS_ENUM (NSInteger, MEGATransferType) {
     MEGATransferTypeDownload,
     MEGATransferTypeUpload,
-    MEGATransferTypeLocalHTTPDownload
+    MEGATransferTypeLocalTCPDownload,
+    MEGATransferTypeLocalHTTPDownload = 2 //Kept for backwards compatibility
 };
 
 typedef NS_ENUM (NSInteger, MEGATransferState) {
@@ -38,6 +39,14 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
     MEGATransferStateComplete,
     MEGATransferStateCancelled,
     MEGATransferStateFailed
+};
+
+typedef NS_ENUM (NSUInteger, MEGATransferStage) {
+    MEGATransferStageNone = 0,
+    MEGATransferStageScan,
+    MEGATransferStageCreateTree,
+    MEGATransferStageTransferringFiles,
+    MEGATransferStageMax = MEGATransferStageTransferringFiles,
 };
 
 /**
@@ -193,6 +202,14 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
 @property (readonly, nonatomic) BOOL isStreamingTransfer;
 
 /**
+ * @brief YES if the transfer has failed with MEGAErrorTypeApiEOverquota
+ * and the target is foreign.
+ *
+ * @return YES if the transfer has failed with MEGAErrorTypeApiEOverquota and the target is foreign.
+ */
+@property (readonly, nonatomic, getter=isForeignOverquota) BOOL foreignOverquota;
+
+/**
  * @brief The last error related to the transfer with extra info
  *
  */
@@ -238,8 +255,57 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
 
 /**
  * @brief State of the transfer
+ *
+ * It can be one of these values:
+ * - MEGATransferStateNone = 0
+ * Unknown state. This state should be never returned.
+ *
+ * - MEGATransferStateQueued = 1
+ * The transfer is queued. No data related to it is being transferred.
+ *
+ * - MEGATransferStateActive = 2
+ * The transfer is active. Its data is being transferred.
+ *
+ * - MEGATransferStatePaused= 3
+ * The transfer is paused. It won't be activated until it's resumed.
+ *
+ * - MEGATransferStateRetrying = 4
+ * The transfer is waiting to be retried due to a temporary error.
+ *
+ * - MEGATransferStateCompleting = 5
+ * The transfer is being completed. All data has been transferred
+ * but it's still needed to attach the resulting node to the
+ * account (uploads), to attach thumbnails/previews to the
+ * node (uploads of images) or to create the resulting local
+ * file (downloads). The transfer should be completed in a short time.
+ *
+ * - MEGATransferStateComplete = 6
+ * The transfer has being finished.
+ *
+ * - MEGATransferStateCancelled = 7
+ * The transfer was cancelled by the user.
+ *
+ * - MEGATransferStateFailed = 8
+ * The transfer was cancelled by the SDK due to a fatal error or
+ * after a high number of retries.
+ *
  */
 @property (readonly, nonatomic) MEGATransferState state;
+
+/**
+ * @brief The current stage in case this transfer represents a recursive operation.
+ * This method can return the following values:
+ *  - MEGATransferStageScan                      = 1
+ *  - MEGATransferStageCreateTreee               = 2
+ *  - MEGATransferStageTransferringFiles         = 3
+ * Any other returned value, must be ignored.
+ *
+ * Note: a recursive operation (folder upload/download) can be cancelled using a MEGACancelToken,
+ * but this cancellation mechanism will only have effect between the following stages:
+ * MEGATransferStageScan and MEGATransferStageProcessTransferQueue both included.
+ *
+ */
+@property (readonly, nonatomic) MEGATransferStage stage;
 
 /**
  * @brief Returns the priority of the transfer
@@ -249,5 +315,32 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
  * @return Priority of the transfer
  */
 @property (readonly, nonatomic) unsigned long long priority;
+
+/**
+ * @brief Returns a string that identify the recursive operation stage
+ *
+ * @return A string that identify the recursive operation stage
+ */
++ (NSString *)stringForTransferStage:(MEGATransferStage)stage;
+
+/**
+ * @brief Returns the notification number of the SDK when this MEGATransfer was generated
+ *
+ * The notification number of the SDK is increased every time the SDK sends a callback
+ * to the app.
+ *
+ * @return Notification number
+ */
+@property (readonly, nonatomic) long long notificationNumber;
+
+/**
+ * @brief Returns whether the target folder of the transfer was overriden by the API server
+ *
+ * It may happen that the target folder fo a transfer is deleted by the time the node
+ * is going to be added. Hence, the API will create the node in the rubbish bin.
+ *
+ * @return YES if target folder was overriden (apps can check the final parent)
+ */
+@property (readonly, nonatomic) BOOL targetOverride;
 
 @end

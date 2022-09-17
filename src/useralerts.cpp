@@ -69,7 +69,7 @@ nameid UserAlertRaw::getnameid(nameid nid, nameid default_value) const
     nameid id = 0;
     while (*j.pos)
     {
-        id = (id << 8) + *((const unsigned char*&)j.pos)++;
+        id = (id << 8) + static_cast<unsigned char>(*j.pos++);
     }
 
     return id ? id : default_value;
@@ -448,19 +448,22 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
 UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
     : Base(un, id), fileCount(0), folderCount(0)
 {
+    
     std::vector<UserAlertRaw::handletype> f;
     un.gethandletypearray('f', f);
     parentHandle = un.gethandle('n', MegaClient::NODEHANDLE, UNDEF);
 
     // Count the number of new files and folders
-    for (size_t n = f.size(); n--; )
+    for (UserAlertRaw::handletype ht: f)
     {
-        ++(f[n].t > 0 ? folderCount : fileCount);
+        ++(ht.t > 0 ? folderCount : fileCount);
+        items.push_back(ht.h);
     }
 }
 
-UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, handle uh, handle ph, m_time_t timestamp, unsigned int id)
+UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, const std::vector<handle> &iitems, handle uh, handle ph, m_time_t timestamp, unsigned int id)
     : Base(UserAlert::type_put, uh, string(), timestamp, id)
+    , items(iitems)
     , parentHandle(ph)
 {
     assert(!ISUNDEF(uh));
@@ -498,6 +501,9 @@ void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* 
     else if (fileCount == 1) {
         notificationText << "1 file";
     }
+    else {
+        notificationText << "nothing";
+    }
 
     // Set wording of the title
     if (!userEmail.empty())
@@ -522,7 +528,7 @@ UserAlert::RemovedSharedNode::RemovedSharedNode(UserAlertRaw& un, unsigned int i
     itemsNumber = handles.empty() ? 1 : handles.size();
 }
 
-UserAlert::RemovedSharedNode::RemovedSharedNode(int nitems, handle uh, m_time_t timestamp, unsigned int id)
+UserAlert::RemovedSharedNode::RemovedSharedNode(size_t nitems, handle uh, m_time_t timestamp, unsigned int id)
     : Base(UserAlert::type_d, uh, string(), timestamp, id)
 {
     itemsNumber = nitems;
@@ -833,8 +839,9 @@ void UserAlerts::add(UserAlert::Base* unb)
             if (np->userHandle == op->userHandle && np->timestamp - op->timestamp < 300 &&
                 np->parentHandle == op->parentHandle && !ISUNDEF(np->parentHandle))
             {
-                op->fileCount += np->fileCount;
                 op->folderCount += np->folderCount;
+                op->fileCount += np->fileCount;
+                op->items.insert(op->items.end(), np->items.begin(), np->items.end());
                 LOG_debug << "Merged user alert, type " << np->type << " ts " << np->timestamp;
 
                 if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
@@ -949,7 +956,13 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n)
         }
 
         ff& f = notedSharedNodes[std::make_pair(user, n ? n->parenthandle : UNDEF)];
-        ++(type == FOLDERNODE ? f.folders : f.files);
+        // no UNDEFs in items
+        if (n != nullptr)
+        {
+            handle h = n->nodehandle;
+            ++(type == FOLDERNODE ? f.folders : f.files);
+            f.items.push_back(h);
+        }
         if (!f.timestamp || (ts && ts < f.timestamp))
         {
             f.timestamp = ts;
@@ -965,8 +978,8 @@ void UserAlerts::convertNotedSharedNodes(bool added, handle originatingUser)
         using namespace UserAlert;
         for (map<pair<handle, handle>, ff>::iterator i = notedSharedNodes.begin(); i != notedSharedNodes.end(); ++i)
         {
-            add(added ? (Base*) new NewSharedNodes(i->second.folders, i->second.files, i->first.first, i->first.second, i->second.timestamp, nextId())
-                : (Base*) new RemovedSharedNode(i->second.folders + i->second.files, i->first.first, m_time(), nextId()));
+            add(added ? (Base*) new NewSharedNodes(i->second.folders, i->second.files, i->second.items, i->first.first, i->first.second, i->second.timestamp, nextId())
+                : (Base*) new RemovedSharedNode(i->second.items.size(), i->first.first, m_time(), nextId()));
         }
     }
     notedSharedNodes.clear();

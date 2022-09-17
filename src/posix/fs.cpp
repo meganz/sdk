@@ -26,6 +26,8 @@
 #include "mega.h"
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
+#include <sys/statvfs.h>
+#include <sys/resource.h>
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
 #endif
@@ -79,6 +81,22 @@ extern JavaVM *MEGAjvm;
 #define XFS_SUPER_MAGIC 0x58465342
 #endif /* ! XFS_SUPER_MAGIC */
 
+#ifndef CIFS_MAGIC_NUMBER
+#define CIFS_MAGIC_NUMBER 0xFF534D42
+#endif // ! CIFS_MAGIC_NUMBER
+
+#ifndef NFS_SUPER_MAGIC
+#define NFS_SUPER_MAGIC 0x6969
+#endif // ! NFS_SUPER_MAGIC
+
+#ifndef SMB_SUPER_MAGIC
+#define SMB_SUPER_MAGIC 0x517B
+#endif // ! SMB_SUPER_MAGIC
+
+#ifndef SMB2_MAGIC_NUMBER
+#define SMB2_MAGIC_NUMBER 0xfe534d42
+#endif // ! SMB2_MAGIC_NUMBER
+
 #endif /* __linux__ */
 
 #if defined(__APPLE__) || defined(USE_IOS)
@@ -118,28 +136,6 @@ const string& adjustBasePath(const LocalPath& name)
 }
 
 #endif /* ! USE_IOS */
-
-LocalPath NormalizeAbsolute(const LocalPath& path)
-{
-    LocalPath result = path;
-
-    // Convenience.
-    string& raw = result.localpath;
-
-    // Append the root separator if path is empty.
-    if (raw.empty())
-    {
-        raw.push_back('/');
-    }
-
-    // Remove trailing separator if we're not the root.
-    if (raw.size() > 1 && raw.back() == '/')
-    {
-        raw.pop_back();
-    }
-
-    return result;
-}
 
 int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
 {
@@ -506,7 +502,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool)
+bool PosixFileAccess::fopen(const LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool, bool skipcasecheck)
 {
     struct stat statbuf;
 
@@ -562,10 +558,13 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
             }
             rnamesize = strlen(rname) + 1;
 
-            if (rnamesize == fnamesize && memcmp(fname, rname, fnamesize))
+            if (!skipcasecheck)
             {
-                LOG_warn << "fopen failed due to invalid case: " << fstr;
-                return false;
+                if (rnamesize == fnamesize && memcmp(fname, rname, fnamesize))
+                {
+                    LOG_warn << "fopen failed due to invalid case: " << fstr;
+                    return false;
+                }
             }
         }
     }
@@ -677,12 +676,14 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
     return false;
 }
 
-PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
+PosixFileSystemAccess::PosixFileSystemAccess()
 {
     assert(sizeof(off_t) == 8);
 
+#ifdef ENABLE_SYNC
     notifyerr = false;
-    notifyfailed = true;
+    notifyfailed = false;
+#endif
     notifyfd = -1;
 
     defaultfilepermissions = 0600;
@@ -704,81 +705,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 #ifdef USE_INOTIFY
     lastcookie = 0;
     lastlocalnode = NULL;
-    if ((notifyfd = inotify_init1(IN_NONBLOCK)) >= 0)
-    {
-        notifyfailed = false;
-    }
-#endif
-
-#ifdef __MACH__
-#if __LP64__
-    typedef struct fsevent_clone_args {
-       int8_t *event_list;
-       int32_t num_events;
-       int32_t event_queue_depth;
-       int32_t *fd;
-    } fsevent_clone_args;
-#else
-    typedef struct fsevent_clone_args {
-       int8_t *event_list;
-       int32_t pad1;
-       int32_t num_events;
-       int32_t event_queue_depth;
-       int32_t *fd;
-       int32_t pad2;
-    } fsevent_clone_args;
-#endif
-
-#define FSE_IGNORE 0
-#define FSE_REPORT 1
-#define FSEVENTS_CLONE _IOW('s', 1, fsevent_clone_args)
-#define FSEVENTS_WANT_EXTENDED_INFO _IO('s', 102)
-
-    int fd;
-    fsevent_clone_args fca;
-    int8_t event_list[] = { // action to take for each event
-                              FSE_REPORT,  // FSE_CREATE_FILE,
-                              FSE_REPORT,  // FSE_DELETE,
-                              FSE_REPORT,  // FSE_STAT_CHANGED,
-                              FSE_REPORT,  // FSE_RENAME,
-                              FSE_REPORT,  // FSE_CONTENT_MODIFIED,
-                              FSE_REPORT,  // FSE_EXCHANGE,
-                              FSE_IGNORE,  // FSE_FINDER_INFO_CHANGED,
-                              FSE_REPORT,  // FSE_CREATE_DIR,
-                              FSE_REPORT,  // FSE_CHOWN,
-                              FSE_IGNORE,  // FSE_XATTR_MODIFIED,
-                              FSE_IGNORE,  // FSE_XATTR_REMOVED,
-                          };
-
-    // for this to succeed, geteuid() must be 0, or an existing /dev/fsevents fd must have
-    // been passed to the constructor
-    if ((fd = fseventsfd) >= 0 || (fd = open("/dev/fsevents", O_RDONLY)) >= 0)
-    {
-        fca.event_list = (int8_t*)event_list;
-        fca.num_events = sizeof event_list/sizeof(int8_t);
-        fca.event_queue_depth = 4096;
-        fca.fd = &notifyfd;
-
-        if (ioctl(fd, FSEVENTS_CLONE, (char*)&fca) >= 0)
-        {
-            close(fd);
-
-            if (ioctl(notifyfd, FSEVENTS_WANT_EXTENDED_INFO, NULL) >= 0)
-            {
-                notifyfailed = false;
-            }
-            else
-            {
-                close(notifyfd);
-            }
-        }
-        else
-        {
-            close(fd);
-        }
-    }
-#else
-    (void)fseventsfd;  // suppress warning
 #endif
 }
 
@@ -792,9 +718,12 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
 
 bool PosixFileSystemAccess::cwd(LocalPath& path) const
 {
-    string& buf = path.localpath;
+    return cwd_static(path);
+}
 
-    buf.resize(128);
+bool PosixFileSystemAccess::cwd_static(LocalPath& path)
+{
+    string buf(128, '\0');
 
     while (!getcwd(&buf[0], buf.size()))
     {
@@ -807,6 +736,8 @@ bool PosixFileSystemAccess::cwd(LocalPath& path) const
     }
 
     buf.resize(strlen(buf.c_str()));
+
+    path = LocalPath::fromPlatformEncodedAbsolute(std::move(buf));
 
     return true;
 }
@@ -841,7 +772,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     if (MEGA_FD_ISSET(notifyfd, &pw->rfds))
     {
         char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
-        int p, l;
+        ssize_t p, l;
         inotify_event* in;
         wdlocalnode_map::iterator it;
         string localpath;
@@ -883,7 +814,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                     LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
                                     lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                            lastlocalnode,
-                                                                           LocalPath::fromPlatformEncoded(lastname));
+                                                                           LocalPath::fromPlatformEncodedRelative(lastname),
+                                                                           false,
+                                                                           false);
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -902,7 +835,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 lastcookie = 0;
 
                                 ignore = &it->second->sync->dirnotify->ignore.localpath;
-                                unsigned int insize = strlen(in->name);
+                                size_t insize = strlen(in->name);
 
                                 if (insize < ignore->size()
                                  || memcmp(in->name, ignore->data(), ignore->size())
@@ -912,7 +845,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                     LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
                                     it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                         it->second,
-                                                                        LocalPath::fromPlatformEncoded(std::string(in->name, insize)));
+                                                                        LocalPath::fromPlatformEncodedRelative(std::string(in->name, insize)),
+                                                                        false,
+                                                                        false);
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -936,7 +871,9 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
                 lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                        lastlocalnode,
-                                                       LocalPath::fromPlatformEncoded(lastname));
+                                                       LocalPath::fromPlatformEncodedRelative(lastname),
+                                                       false,
+                                                       false);
 
                 r |= Waiter::NEEDEXEC;
             }
@@ -945,205 +882,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         }
     }
 #endif
-
-#ifdef __MACH__
-#define FSE_MAX_ARGS 12
-#define FSE_MAX_EVENTS 11
-#define FSE_ARG_DONE 0xb33f
-#define FSE_EVENTS_DROPPED 999
-#define FSE_TYPE_MASK 0xfff
-#define FSE_ARG_STRING 2
-#define FSE_RENAME 3
-#define FSE_GET_FLAGS(type) (((type) >> 12) & 15)
-
-    struct kfs_event_arg {
-        u_int16_t type;         // argument type
-        u_int16_t len;          // size of argument data that follows this field
-        union {
-            struct vnode *vp;
-            char *str;
-            void *ptr;
-            int32_t int32;
-            dev_t dev;
-            ino_t ino;
-            int32_t mode;
-            uid_t uid;
-            gid_t gid;
-            uint64_t timestamp;
-        } data;
-    };
-
-    struct kfs_event {
-        int32_t type; // event type
-        pid_t pid;  // pid of the process that performed the operation
-        kfs_event_arg args[FSE_MAX_ARGS]; // event arguments
-    };
-
-    // MacOS /dev/fsevents delivers all filesystem events as a unified stream,
-    // which we filter
-    int pos, avail;
-    int off;
-    int i, n;
-    kfs_event* kfse;
-    kfs_event_arg* kea;
-    char buffer[131072];
-    char* paths[2];
-    char* path;
-    Sync* pathsync[2];
-    mega_fd_set_t rfds;
-    timeval tv = { 0, 0 };
-    struct stat statbuf;
-    static char rsrc[] = "/..namedfork/rsrc";
-    static size_t rsrcsize = sizeof(rsrc) - 1;
-
-    for (;;)
-    {
-        MEGA_FD_ZERO(&rfds);
-        MEGA_FD_SET(notifyfd, &rfds);
-
-        // ensure nonblocking behaviour
-        if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;
-
-        if ((avail = read(notifyfd, buffer, int(sizeof buffer))) < 0)
-        {
-            notifyerr = true;
-            break;
-        }
-
-        for (pos = 0; pos < avail; )
-        {
-            kfse = (kfs_event*)(buffer + pos);
-
-            pos += sizeof(int32_t) + sizeof(pid_t);
-
-            if (kfse->type == FSE_EVENTS_DROPPED)
-            {
-                // force a full rescan
-                notifyerr = true;
-                pos += sizeof(u_int16_t);
-                continue;
-            }
-
-            n = 0;
-
-            for (kea = kfse->args; pos < avail; kea = (kfs_event_arg*)((char*)kea + off))
-            {
-                // no more arguments
-                if (kea->type == FSE_ARG_DONE)
-                {
-                    pos += sizeof(u_int16_t);
-                    break;
-                }
-
-                off = sizeof(kea->type) + sizeof(kea->len) + kea->len;
-                pos += off;
-
-                if (kea->type == FSE_ARG_STRING && n < 2)
-                {
-                    paths[n++] = ((char*)&(kea->data.str))-4;
-                }
-            }
-
-            // always skip paths that are outside synced fs trees or in a sync-local rubbish folder
-            for (i = n; i--; )
-            {
-                path = paths[i];
-                size_t psize = strlen(path);
-
-                bool foundOne = false;
-                client->syncs.forEachRunningSync([&](Sync* sync) {
-
-                    if (!foundOne)
-                    {
-                        std::string* ignore = &(sync)->dirnotify->ignore.localpath;
-                        std::string* localname = &(sync)->localroot->localname.localpath;
-
-                        size_t rsize = sync->mFsEventsPath.size() ? sync->mFsEventsPath.size() : localname->size();
-                        size_t isize = ignore->size();
-
-                        if (psize >= rsize
-                          && !memcmp(sync->mFsEventsPath.size() ? sync->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
-                          && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
-                          && (psize <= (rsize + isize)                          // not ignored
-                              || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
-                              || memcmp(path + rsize + 1, ignore->c_str(), isize))
-                          && (psize < rsrcsize                                  // it isn't a resource fork
-                              || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
-                            {
-                                if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
-                                {
-                                    LOG_debug << "Link skipped:  " << path;
-                                    paths[i] = NULL;
-                                    foundOne = true;
-                                }
-
-                                if (!foundOne)
-                                {
-                                    paths[i] += rsize + 1;
-                                    pathsync[i] = sync;
-                                    foundOne = true;
-                                }
-                            }
-                    }
-                });
-
-                if (!foundOne)
-                {
-                    paths[i] = NULL;
-                }
-            }
-
-            // for rename/move operations, skip source if both paths are synced
-            // (to handle rapid a -> b, b -> c without overwriting b).
-            if (n == 2 && paths[0] && paths[1] && (kfse->type & FSE_TYPE_MASK) == FSE_RENAME)
-            {
-                paths[0] = NULL;
-            }
-
-            for (i = n; i--; )
-            {
-                if (paths[i])
-                {
-                    LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->name << "   Path: " << paths[i];
-                    pathsync[i]->dirnotify->notify(DirNotify::DIREVENTS,
-                                                   pathsync[i]->localroot.get(),
-                                                   LocalPath::fromPlatformEncoded(paths[i]),
-                                                   strlen(paths[i]));
-
-                    r |= Waiter::NEEDEXEC;
-                }
-            }
-        }
-    }
-#endif
 #endif
     return r;
-}
-
-// generate unique local filename in the same fs as relatedpath
-void PosixFileSystemAccess::tmpnamelocal(LocalPath& localname) const
-{
-    static unsigned tmpindex;
-    char buf[128];
-
-    sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), tmpindex++);
-
-    localname = LocalPath::fromPlatformEncoded(buf);
-}
-
-void PosixFileSystemAccess::path2local(const string* path, string* local) const
-{
-#ifdef __MACH__
-    path2localMac(path, local);
-#else
-    *local = *path;
-#endif
-}
-
-void PosixFileSystemAccess::local2path(const string* local, string* path) const
-{
-    *path = *local;
-    normalize(path);
 }
 
 // no legacy DOS garbage here...
@@ -1152,7 +892,7 @@ bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
     return false;
 }
 
-bool PosixFileSystemAccess::renamelocal(LocalPath& oldname, LocalPath& newname, bool override)
+bool PosixFileSystemAccess::renamelocal(const LocalPath& oldname, const LocalPath& newname, bool override)
 {
 #ifdef USE_IOS
     const string oldnamestr = adjustBasePath(oldname);
@@ -1171,17 +911,18 @@ bool PosixFileSystemAccess::renamelocal(LocalPath& oldname, LocalPath& newname, 
     }
 
     target_exists = existingandcare  || errno == EEXIST || errno == EISDIR || errno == ENOTEMPTY || errno == ENOTDIR;
+    target_name_too_long = errno == ENAMETOOLONG;
     transient_error = !existingandcare && (errno == ETXTBSY || errno == EBUSY);
 
     int e = errno;
-    if (!skip_errorreport)
+    if (e != EEXIST  || !skip_targetexists_errorreport)
     {
         LOG_warn << "Unable to move file: " << oldnamestr << " to " << newnamestr << ". Error code: " << e;
     }
     return false;
 }
 
-bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_time_t mtime)
+bool PosixFileSystemAccess::copylocal(const LocalPath& oldname, const LocalPath& newname, m_time_t mtime)
 {
 #ifdef USE_IOS
     const string oldnamestr = adjustBasePath(oldname);
@@ -1223,6 +964,7 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
         {
             umask(mode);
             target_exists = errno == EEXIST;
+            target_name_too_long = errno == ENAMETOOLONG;
             transient_error = errno == ETXTBSY || errno == EBUSY;
 
             int e = errno;
@@ -1250,7 +992,7 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
     return !t;
 }
 
-bool PosixFileSystemAccess::unlinklocal(LocalPath& name)
+bool PosixFileSystemAccess::unlinklocal(const LocalPath& name)
 {
     if (!unlink(adjustBasePath(name).c_str()))
     {
@@ -1264,13 +1006,14 @@ bool PosixFileSystemAccess::unlinklocal(LocalPath& name)
 
 // delete all files, folders and symlinks contained in the specified folder
 // (does not recurse into mounted devices)
-void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
+void PosixFileSystemAccess::emptydirlocal(const LocalPath& nameParam, dev_t basedev)
 {
+    LocalPath name = nameParam;
+
     DIR* dp;
     dirent* d;
     int removed;
     struct stat statbuf;
-    PosixFileSystemAccess pfsa;
 #ifdef USE_IOS
     const string namestr = adjustBasePath(name);
 #else
@@ -1303,7 +1046,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
                 {
                     ScopedLengthRestore restore(name);
 
-                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
+                    name.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
 #ifdef USE_IOS
                     const string nameStr = adjustBasePath(name);
@@ -1358,7 +1101,7 @@ void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
     defaultfolderpermissions = permissions | 0700;
 }
 
-bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
+bool PosixFileSystemAccess::rmdirlocal(const LocalPath& name)
 {
     emptydirlocal(name);
 
@@ -1372,7 +1115,7 @@ bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
     return false;
 }
 
-bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
+bool PosixFileSystemAccess::mkdirlocal(const LocalPath& name, bool, bool logAlreadyExistsError)
 {
 #ifdef USE_IOS
     const string nameStr = adjustBasePath(name);
@@ -1388,9 +1131,14 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
     if (!r)
     {
         target_exists = errno == EEXIST;
+        target_name_too_long = errno == ENAMETOOLONG;
+
         if (target_exists)
         {
-            LOG_debug << "Error creating local directory: " << nameStr << " errno: " << errno;
+            if (logAlreadyExistsError)
+            {
+                LOG_debug << "Failed to create local directory: " << nameStr << " (already exists)";
+            }
         }
         else
         {
@@ -1402,7 +1150,7 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
     return r;
 }
 
-bool PosixFileSystemAccess::setmtimelocal(LocalPath& name, m_time_t mtime)
+bool PosixFileSystemAccess::setmtimelocal(const LocalPath& name, m_time_t mtime)
 {
 #ifdef USE_IOS
     const string nameStr = adjustBasePath(name);
@@ -1460,43 +1208,43 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string 
     return false;
 }
 
-bool PosixFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolutepathArg)
+bool PosixFileSystemAccess::expanselocalpath(LocalPath& source, LocalPath& destination)
 {
-    std::string* path = &pathArg.localpath;
-    std::string* absolutepath = &absolutepathArg.localpath;
+    // Sanity.
+    assert(!source.empty());
 
-    ostringstream os;
-    if (path->at(0) == '/')
+    // At worst, the destination mirrors the source.
+    destination = source;
+
+    // Are we dealing with a relative path?
+    if (!source.isAbsolute())
     {
-        *absolutepath = *path;
-        char canonical[PATH_MAX];
-        if (realpath(absolutepath->c_str(),canonical) != NULL)
+        // Sanity.
+        assert(source.localpath[0] != '/');
+
+        // Retrieve current working directory.
+        if (!cwd(destination))
         {
-            absolutepath->assign(canonical);
-        }
-        return true;
-    }
-    else
-    {
-        char cCurrentPath[PATH_MAX];
-        if (!getcwd(cCurrentPath, sizeof(cCurrentPath)))
-        {
-            *absolutepath = *path;
             return false;
         }
 
-        *absolutepath = cCurrentPath;
-        absolutepath->append("/");
-        absolutepath->append(*path);
-
-        char canonical[PATH_MAX];
-        if (realpath(absolutepath->c_str(),canonical) != NULL)
-        {
-            absolutepath->assign(canonical);
-        }
-
-        return true;
+        // Compute absolute path.
+        destination.appendWithSeparator(source, false);
     }
+
+    // Sanity.
+    assert(destination.isAbsolute());
+    assert(destination.localpath[0] == '/');
+
+    // Canonicalize the path.
+    char buffer[PATH_MAX];
+
+    if (!realpath(destination.localpath.c_str(), buffer))
+        return destination = source, false;
+
+    destination.localpath.assign(buffer);
+
+    return true;
 }
 
 #ifdef __linux__
@@ -1787,7 +1535,7 @@ void PosixFileSystemAccess::statsid(string *id) const
     }
 
     char buff[512];
-    int len = read(fd, buff, 512);
+    ssize_t len = read(fd, buff, 512);
     close(fd);
 
     if (len <= 0)
@@ -1807,8 +1555,10 @@ void PosixFileSystemAccess::statsid(string *id) const
 #endif
 }
 
-PosixDirNotify::PosixDirNotify(LocalPath& localbasepath, const LocalPath& ignore)
-  : DirNotify(localbasepath, ignore)
+#ifdef ENABLE_SYNC
+
+PosixDirNotify::PosixDirNotify(const LocalPath& localbasepath, const LocalPath& ignore, Sync* s)
+  : DirNotify(localbasepath, ignore, s)
 {
 #ifdef USE_INOTIFY
     setFailed(0, "");
@@ -1823,7 +1573,6 @@ PosixDirNotify::PosixDirNotify(LocalPath& localbasepath, const LocalPath& ignore
 
 void PosixDirNotify::addnotify(LocalNode* l, const LocalPath& path)
 {
-#ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     int wd;
 
@@ -1841,53 +1590,351 @@ void PosixDirNotify::addnotify(LocalNode* l, const LocalPath& path)
         LOG_warn << "Unable to addnotify path: " <<  path.localpath.c_str() << ". Error code: " << errno;
     }
 #endif
-#endif
 }
 
 void PosixDirNotify::delnotify(LocalNode* l)
 {
-#ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     if (fsaccess->wdnodes.erase((int)(long)l->dirnotifytag))
     {
         inotify_rm_watch(fsaccess->notifyfd, (int)l->dirnotifytag);
     }
 #endif
-#endif
+}
+#endif // ENABLE_SYNC
+
+
+#ifndef O_NOATIME
+#define O_NOATIME 0x0
+#endif // !O_NOATIME
+
+// Used by directoryScan(...) below to avoid extra stat(...) calls.
+class UnixStreamAccess
+    : public InputStreamAccess
+{
+public:
+    UnixStreamAccess(const char* path, m_off_t size)
+      : mDescriptor(open(path, O_NOATIME | O_RDONLY))
+      , mOffset(0)
+      , mSize(size)
+    {
+    }
+
+    MEGA_DISABLE_COPY_MOVE(UnixStreamAccess);
+
+    ~UnixStreamAccess()
+    {
+        if (mDescriptor >= 0)
+            close(mDescriptor);
+    }
+
+    operator bool() const
+    {
+        return mDescriptor >= 0;
+    }
+
+    bool read(byte* buffer, unsigned size) override
+    {
+        if (mDescriptor < 0)
+            return false;
+
+        if (!buffer)
+            return mOffset += (m_off_t)size, true;
+
+        auto result = pread(mDescriptor, (void*)buffer, size, mOffset);
+
+        if (result < 0 || (unsigned)result < size)
+            return false;
+
+        mOffset += result;
+
+        return true;
+    }
+
+    m_off_t size() override
+    {
+        return mDescriptor >= 0 ? mSize : -1;
+    }
+
+private:
+    int mDescriptor;
+    m_off_t mOffset;
+    m_off_t mSize;
+}; // UnixStreamAccess
+
+ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
+                                                handle expectedFsid,
+                                                map<LocalPath, FSNode>& known,
+                                                std::vector<FSNode>& results,
+                                                bool followSymLinks,
+                                                unsigned& nFingerprinted)
+{
+    // Scan path should always be absolute.
+    assert(targetPath.isAbsolute());
+
+    // Whether we can reuse an existing fingerprint.
+    // I.e. Can we avoid computing the CRC?
+    auto reuse = [](const FSNode& lhs, const FSNode& rhs) {
+        return lhs.type == rhs.type
+               && lhs.fsid == rhs.fsid
+               && lhs.fingerprint.mtime == rhs.fingerprint.mtime
+               && lhs.fingerprint.size == rhs.fingerprint.size;
+    };
+
+    // So we don't duplicate link chasing logic.
+    auto stat = [&](const char* path, struct stat& metadata) {
+        auto result = !lstat(path, &metadata);
+
+        if (!result || !followSymLinks || !S_ISLNK(metadata.st_mode))
+            return result;
+
+        return !::stat(path, &metadata);
+    };
+
+    // Where we store file information.
+    struct stat metadata;
+
+    // Try and get information about the scan target.
+    if (!stat(targetPath.localpath.c_str(), metadata))
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Unable to stat(...) scan target: "
+                 << targetPath
+                 << ". Error code was: "
+                 << errno;
+
+        return SCAN_INACCESSIBLE;
+    }
+
+    // Is the scan target a directory?
+    if (!S_ISDIR(metadata.st_mode))
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Scan target is not a directory: "
+                 << targetPath;
+
+        return SCAN_INACCESSIBLE;
+    }
+
+    // Are we scanning the directory we think we are?
+    if (expectedFsid != (handle)metadata.st_ino)
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Scan target mismatch on expected FSID: "
+                 << targetPath;
+
+        return SCAN_FSID_MISMATCH;
+    }
+
+    // Try and open the directory for iteration.
+    auto directory = opendir(targetPath.localpath.c_str());
+
+    if (!directory)
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Unable to open scan target for iteration: "
+                 << targetPath
+                 << ". Error code was: "
+                 << errno;
+
+        return SCAN_INACCESSIBLE;
+    }
+
+    // Iterate over the directory's children.
+    auto entry = readdir(directory);
+    auto path = targetPath;
+
+    for ( ; entry; entry = readdir(directory))
+    {
+        // Skip special hardlinks.
+        if (!strcmp(entry->d_name, "."))
+            continue;
+
+        if (!strcmp(entry->d_name, ".."))
+            continue;
+
+        // Push a new scan record.
+        auto& result = (results.emplace_back(), results.back());
+
+        result.fsid = (handle)entry->d_ino;
+        result.localname = LocalPath::fromPlatformEncodedRelative(entry->d_name);
+
+        // Compute this entry's absolute name.
+        ScopedLengthRestore restorer(path);
+
+        path.appendWithSeparator(result.localname, false);
+
+        // Try and get information about this entry.
+        if (!stat(path.localpath.c_str(), metadata))
+        {
+            LOG_warn << "directoryScan: "
+                     << "Unable to stat(...) file: "
+                     << path
+                     << ". Error code was: "
+                     << errno;
+
+            // Entry's unknown if we can't determine otherwise.
+            result.type = TYPE_UNKNOWN;
+            continue;
+        }
+
+        result.fingerprint.mtime = metadata.st_mtime;
+        captimestamp(&result.fingerprint.mtime);
+
+        // Are we dealing with a directory?
+        if (S_ISDIR(metadata.st_mode))
+        {
+            // Then no fingerprint is necessary.
+            result.fingerprint.size = 0;
+            result.type = FOLDERNODE;
+            continue;
+        }
+
+        result.fingerprint.size = metadata.st_size;
+
+        // Are we dealing with a special file?
+        if (!S_ISREG(metadata.st_mode))
+        {
+            LOG_warn << "directoryScan: "
+                     << "Encountered a special file: "
+                     << path
+                     << ". Mode flags were: "
+                     << (metadata.st_mode & S_IFMT);
+
+            result.isSymlink = S_ISLNK(metadata.st_mode);
+            result.type = TYPE_SPECIAL;
+            continue;
+        }
+
+        // We're dealing with a regular file.
+        result.type = FILENODE;
+
+#ifdef __MACH__
+        // 1904/01/01 00:00:00 +0000 GMT.
+        //
+        // Special marker set by Finder when it begins a long-lasting
+        // operation such as copying a file from/to USB storage.
+        //
+        // In some cases, attributes such as mtime or size can be unstable
+        // and effectively meaningless.
+        constexpr auto busyDate = -2082844800;
+
+        // The file's temporarily unaccessible while it's busy.
+        //
+        // Attributes such as size are pretty much meaningless.
+        result.isBlocked = metadata.st_birthtimespec.tv_sec == busyDate;
+
+        if (result.isBlocked)
+        {
+            LOG_warn << "directoryScan: "
+                     << "Finder has marked this file as busy: "
+                     << path;
+            continue;
+        }
+#endif // __MACH__
+
+        // Have we processed this file before?
+        auto it = known.find(result.localname);
+
+        // Can we avoid recomputing this file's fingerprint?
+        if (it != known.end() && reuse(result, it->second))
+        {
+            result.fingerprint = move(it->second.fingerprint);
+            continue;
+        }
+
+        // Try and open the file for reading.
+        UnixStreamAccess isAccess(path.localpath.c_str(),
+                                  result.fingerprint.size);
+
+        // Only fingerprint the file if we could actually open it.
+        if (!isAccess)
+        {
+            LOG_warn << "directoryScan: "
+                     << "Unable to open file for fingerprinting: "
+                     << path
+                     << ". Error was: "
+                     << errno;
+            continue;
+        }
+
+        // Fingerprint the file.
+        result.fingerprint.genfingerprint(
+          &isAccess, result.fingerprint.mtime);
+
+        ++nFingerprinted;
+    }
+
+    // We're done iterating the directory.
+    closedir(directory);
+
+    return SCAN_SUCCESS;
 }
 
-fsfp_t PosixDirNotify::fsfingerprint() const
+#ifdef ENABLE_SYNC
+fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
     struct statfs statfsbuf;
 
     // FIXME: statfs() does not really do what we want.
-    if (statfs(localbasepath.localpath.c_str(), &statfsbuf))
+    if (statfs(path.localpath.c_str(), &statfsbuf))
     {
         return 0;
     }
-
-    return *(fsfp_t*)&statfsbuf.f_fsid + 1;
+    fsfp_t tmp;
+    memcpy(&tmp, &statfsbuf.f_fsid, sizeof(fsfp_t));
+    return tmp+1;
 }
 
-bool PosixDirNotify::fsstableids() const
+bool PosixFileSystemAccess::fsStableIDs(const LocalPath& path) const
 {
-    struct statfs statfsbuf;
+    FileSystemType type;
 
-    if (statfs(localbasepath.localpath.c_str(), &statfsbuf))
+    if (!getlocalfstype(path, type))
     {
-        LOG_err << "Failed to get filesystem type. Error code: " << errno;
+        LOG_err << "Failed to get filesystem type. Error code:"
+                << errno;
+
         return true;
     }
 
-    LOG_info << "Filesystem type: " << statfsbuf.f_type;
+    return type != FS_EXFAT
+           && type != FS_FAT32
+           && type != FS_FUSE;
+}
 
-#ifdef __APPLE__
-    return statfsbuf.f_type != 0x1c // FAT32
-        && statfsbuf.f_type != 0x1d; // exFAT
-#else
-    return statfsbuf.f_type != 0x4d44 // FAT
-        && statfsbuf.f_type != 0x65735546; // FUSE
-#endif
+bool PosixFileSystemAccess::initFilesystemNotificationSystem()
+{
+#ifdef USE_INOTIFY
+    notifyfd = inotify_init1(IN_NONBLOCK);
+    notifyfailed = notifyfd < 0;
+#endif // USE_INOTIFY
+
+    return notifyfd >= 0;
+}
+
+#endif // ENABLE_SYNC
+
+bool PosixFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& target)
+{
+    using StringType = decltype(adjustBasePath(source));
+
+    StringType sourcePath = adjustBasePath(source);
+    StringType targetPath = adjustBasePath(target);
+
+    if (link(sourcePath.c_str(), targetPath.c_str()))
+    {
+        LOG_warn << "Unable to create hard link from "
+                 << sourcePath
+                 << " to "
+                 << targetPath
+                 << ". Error code was: "
+                 << errno;
+
+        return false;
+    }
+
+    return true;
 }
 
 std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymLinks)
@@ -1895,25 +1942,33 @@ std::unique_ptr<FileAccess> PosixFileSystemAccess::newfileaccess(bool followSymL
     return std::unique_ptr<FileAccess>{new PosixFileAccess{waiter, defaultfilepermissions, followSymLinks}};
 }
 
-DirAccess* PosixFileSystemAccess::newdiraccess()
+unique_ptr<DirAccess>  PosixFileSystemAccess::newdiraccess()
 {
-    return new PosixDirAccess();
+    return unique_ptr<DirAccess>(new PosixDirAccess());
 }
 
-DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter*)
+#ifdef ENABLE_SYNC
+DirNotify* PosixFileSystemAccess::newdirnotify(const LocalPath& localpath, const LocalPath& ignore, Waiter*, LocalNode* syncroot)
 {
-    PosixDirNotify* dirnotify = new PosixDirNotify(localpath, ignore);
+    PosixDirNotify* dirnotify = new PosixDirNotify(localpath, ignore, syncroot->sync);
 
     dirnotify->fsaccess = this;
 
     return dirnotify;
 }
+#endif
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {
-    isnetwork = false;
+    // What filesystem is hosting our sync?
+    auto type = getlocalfstype(localpathArg);
+
+    // Is it a known network filesystem?
+    isnetwork = isNetworkFilesystem(type);
+
     syncError = NO_SYNC_ERROR;
     syncWarning = NO_SYNC_WARNING;
+
     return true;
 }
 
@@ -1954,6 +2009,18 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
         case XFS_SUPER_MAGIC:
             type = FS_XFS;
             break;
+        case CIFS_MAGIC_NUMBER:
+            type = FS_CIFS;
+            break;
+        case NFS_SUPER_MAGIC:
+            type = FS_NFS;
+            break;
+        case SMB_SUPER_MAGIC:
+            type = FS_SMB;
+            break;
+        case SMB2_MAGIC_NUMBER:
+            type = FS_SMB2;
+            break;
         default:
             type = FS_UNKNOWN;
             break;
@@ -1965,10 +2032,15 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
 
 #if defined(__APPLE__) || defined(USE_IOS)
     static const map<string, FileSystemType> filesystemTypes = {
-        {"apfs",  FS_APFS},
-        {"hfs",   FS_HFS},
-        {"msdos", FS_FAT32},
-        {"ntfs",  FS_NTFS}
+        {"apfs",        FS_APFS},
+        {"exfat",       FS_EXFAT},
+        {"hfs",         FS_HFS},
+        {"msdos",       FS_FAT32},
+        {"nfs",         FS_NFS},
+        {"ntfs",        FS_NTFS}, // Apple NTFS
+        {"smbfs",       FS_SMB},
+        {"tuxera_ntfs", FS_NTFS}, // Tuxera NTFS for Mac
+        {"ufsd_NTFS",   FS_NTFS}  // Paragon NTFS for Mac
     }; /* filesystemTypes */
 
     struct statfs statbuf;
@@ -2037,7 +2109,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
                 if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evaluates false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
-                    name = LocalPath::fromPlatformEncoded(globbuf.gl_pathv[globindex]);
+                    name = LocalPath::fromPlatformEncodedAbsolute(globbuf.gl_pathv[globindex]);
                     *type = (statbuf.st_mode & S_IFREG) ? FILENODE : FOLDERNODE;
 
                     globindex++;
@@ -2052,7 +2124,6 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
     dirent* d;
     struct stat &statbuf = currentItemStat;
-    PosixFileSystemAccess pfsa;
 
     while ((d = readdir(dp)))
     {
@@ -2060,7 +2131,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
+            path.appendWithSeparator(LocalPath::fromPlatformEncodedRelative(d->d_name), true);
 
 #ifdef USE_IOS
             const string pathStr = adjustBasePath(path);
@@ -2085,7 +2156,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
                 if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evalves false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
-                    name = LocalPath::fromPlatformEncoded(d->d_name);
+                    name = LocalPath::fromPlatformEncodedRelative(d->d_name);
 
                     if (type)
                     {
@@ -2121,4 +2192,39 @@ PosixDirAccess::~PosixDirAccess()
         globfree(&globbuf);
     }
 }
+
+bool isReservedName(const string&, nodetype_t)
+{
+    return false;
+}
+
+// A more robust implementation would check whether the device has storage
+// quotas enabled and if so, return the amount of space available before
+// saturating that quota.
+m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
+{
+    struct statfs buffer;
+    m_off_t constexpr maximumBytes = std::numeric_limits<m_off_t>::max();
+
+    if (statfs(adjustBasePath(drivePath).c_str(), &buffer) < 0)
+    {
+        auto result = errno;
+
+        LOG_warn << "Unable to determine available disk space on volume: "
+                 << drivePath.toPath()
+                 << ". Error code was: "
+                 << result;
+
+        return maximumBytes;
+    }
+
+    uint64_t availableBytes = buffer.f_bavail * (uint64_t)buffer.f_bsize;
+
+    if (availableBytes >= (uint64_t)maximumBytes)
+        return maximumBytes;
+
+    return (m_off_t)availableBytes;
+}
+
 } // namespace
+

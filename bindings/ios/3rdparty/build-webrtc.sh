@@ -2,8 +2,8 @@
 
 set -e
 
-COMMIT=d91cdbd2dd2969889a1affce28c89b8c0f8bcdb7
-ARCHS="arm64 arm x64 x86"
+COMMIT=954f7274ac91594d0e06ec052d0d0401631d02ee
+ARCHS="arm64 x64"
 LIPO_COMMAND="lipo -create"
 LIBWEBRTC_A="libwebrtc.a"
 ADDITIONAL_LIBS="libnative_api.a libnative_video.a libvideocapture_objc.a libvideoframebuffer_objc.a"
@@ -14,17 +14,18 @@ pushd webrtc
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 DEPOT_TOOLS_PATH=$PWD/depot_tools/
 $DEPOT_TOOLS_PATH/fetch --nohooks webrtc_ios
-$DEPOT_TOOLS_PATH/gclient sync
 pushd src
 
 git checkout $COMMIT
+$DEPOT_TOOLS_PATH/gclient sync
 
 mkdir lib
 pushd lib
 
 for ARCH in $ARCHS
 do
-$DEPOT_TOOLS_PATH/gn gen $ARCH --args='target_os="ios" target_cpu="'$ARCH'" rtc_include_tests=false rtc_build_examples=false treat_warnings_as_errors=false fatal_linker_warnings=false use_custom_libcxx=false is_debug=false rtc_libvpx_build_vp9=false ios_deployment_target="10.0" rtc_build_tools=false rtc_enable_protobuf=false' 
+$DEPOT_TOOLS_PATH/gn gen $ARCH --args='target_os="ios" target_cpu="'$ARCH'" rtc_include_tests=false rtc_build_examples=false treat_warnings_as_errors=false fatal_linker_warnings=false use_custom_libcxx=false is_debug=false ios_deployment_target="13.0" rtc_build_tools=false rtc_enable_protobuf=false is_clang=true is_component_build=false ios_enable_code_signing=false'
+
 pushd $ARCH
 $DEPOT_TOOLS_PATH/ninja -C .
 popd
@@ -43,10 +44,6 @@ done
 done
 
 popd # lib -> src
-
-pushd api
-patch < ../../../../../../patches/webrtc_jsep_h.patch
-popd # api -> src
 
 popd # src -> webrtc
 

@@ -41,6 +41,8 @@ class RotativePerformanceLogger : public MegaLogger
 private:
     RotativePerformanceLogger();
 
+    void stopLogger();
+
 public:
     ~RotativePerformanceLogger();
 

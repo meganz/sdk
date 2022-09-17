@@ -53,7 +53,6 @@ public:
      * @param buf The buffer that takes the generated random bytes. Ensure that
      *     the buffer is of sufficient size to take `len` bytes.
      * @param len The number of random bytes to generate.
-     * @return Void.
      */
     void genblock(byte* buf, size_t len);
 
@@ -78,8 +77,6 @@ public:
 // symmetric cryptography: AES-128
 class MEGA_API SymmCipher
 {
-public:
-
 private:
     CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aesecb_e;
     CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aesecb_d;
@@ -106,7 +103,9 @@ public:
 
     typedef uint64_t ctr_iv;
 
-    void setkey(const byte*, int = 1);
+    // type != 1 will enatil xoring the second KEYLENGTH bytes into the first ones
+    // otherwise only first KEYLENGTH raw bytes will be used.
+    void setkey(const byte*, int type = 1);
     bool setkey(const std::string*);
 
     /**
@@ -116,7 +115,6 @@ public:
      * @param dst Target buffer to encrypt to. If NULL, encrypt in-place (to `data`).
      * @param len Length of data to be encrypted in bytes. Defaults to
      *     SymCipher::BLOCKSIZE.
-     * @return Void.
      */
     void ecb_encrypt(byte*, byte* = NULL, size_t = BLOCKSIZE);
 
@@ -126,7 +124,6 @@ public:
      * @param data Data to be decrypted (in-place).
      * @param len Length of data to be decrypted in bytes. Defaults to
      *     SymCipher::BLOCKSIZE.
-     * @return Void.
      */
     void ecb_decrypt(byte*, size_t = BLOCKSIZE);
 
@@ -137,9 +134,7 @@ public:
      *
      * @param data Data to be encrypted (encryption in-place).
      * @param len Length of data to be encrypted in bytes.
-     * @param iv Initialisation vector to use. Choose randomly and never re-use.
-     * @return Void.
-     */
+     * @param iv Initialisation vector to use. Choose randomly and never re-use.     */
     void cbc_encrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
@@ -150,7 +145,6 @@ public:
      * @param data Data to be decrypted (encryption in-place).
      * @param len Length of cipher text to be decrypted in bytes.
      * @param iv Initialisation vector.
-     * @return Void.
      */
     void cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
 
@@ -162,7 +156,6 @@ public:
      * @param data Data to be encrypted
      * @param iv Initialisation vector.
      * @param result Encrypted message
-     * @return Void.
      */
     void cbc_encrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
 
@@ -260,6 +253,22 @@ public:
     void gcm_encrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
+     * @brief Authenticated symmetric encryption using AES in GCM mode with additional authenticated data.
+     *
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     *
+     * @param data Data to be encrypted.
+     * @param additionalData Additional data for extra authentication
+     * @param additionalDatalen Length of additional data
+     * @param iv Initialisation vector or nonce to use for encryption. Choose randomly
+     * and never re-use. See note on size above.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag
+     * @param result Encrypted data, including the additional data, and the authentication tag.
+     */
+    bool gcm_encrypt_aad(const unsigned char *data, size_t datasize, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, byte *result, size_t resultSize);
+
+    /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
@@ -275,6 +284,24 @@ public:
     bool gcm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
+     * @brief Authenticated symmetric decryption using AES in GCM mode with additional authenticated data.
+     *
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
+     *
+     * @param data Data to be decrypted.
+     * @param additionalData Additional data for extra authentication
+     * @param additionalDatalen Length of additional data
+     * @param iv Initialisation vector or nonce.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
+     * @param result Decrypted data, not including the authentication tag.
+     */
+    bool gcm_decrypt_aad(const byte *data, unsigned datalen,
+                         const byte *additionalData, unsigned additionalDatalen,
+                         const byte *tag, unsigned taglen,
+                         const byte *iv, unsigned ivlen, byte *result, size_t resultSize);
+
+    /**
      * @brief Serialize key for compatibility with the webclient
      *
      * The key is serialized to a JSON array like this one:
@@ -284,7 +311,7 @@ public:
      */
     void serializekeyforjs(std::string *);
 
-    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool, bool initmac = true);
+    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *mac, bool encrypt, bool initmac = true);
 
     static void setint64(int64_t, byte*);
 
@@ -397,7 +424,6 @@ public:
      * @param d String to take the key.
      * @param keytype Key type indication by number of integers for key type
      *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
-     * @return Void.
      */
     void serializekey(std::string* d, int keytype);
 
@@ -408,7 +434,6 @@ public:
      * of the key, at reception from server, indicates it has zero-padding.
      *
      * @param d String to take the serialized key without size-headers
-     * @return Void.
      */
     void serializekeyforjs(std::string& d);
 
@@ -419,7 +444,6 @@ public:
      * @param privk Private key.
      * @param pubk Public key.
      * @param size Size of key to generate in bits (key strength).
-     * @return Always returns 1.
      */
     void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
 };

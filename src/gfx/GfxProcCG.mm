@@ -1,5 +1,5 @@
 /**
- * @file GfxProcCG.mm
+ * @file GfxProviderCG.mm
  * @brief Graphics layer using Cocoa Touch
  *
  * (c) 2013-2015 by Mega Limited, Auckland, New Zealand
@@ -20,7 +20,6 @@
  */
 
 #include "mega.h"
-#include "GfxProcCG.h"
 #include <CoreGraphics/CGBitmapContext.h>
 #include <ImageIO/CGImageDestination.h>
 #include <MobileCoreServices/UTCoreTypes.h>
@@ -32,9 +31,10 @@
 
 using namespace mega;
 
-GfxProcCG::GfxProcCG()
-    : GfxProc()
-    , imageSource(NULL)
+#ifndef USE_FREEIMAGE
+
+GfxProviderCG::GfxProviderCG()
+    : imageSource(NULL)
 {
     w = h = 0;
     thumbnailParams = CFDictionaryCreateMutable(kCFAllocatorDefault, 3,
@@ -48,7 +48,7 @@ GfxProcCG::GfxProcCG()
     CFRelease(compression);
 }
 
-GfxProcCG::~GfxProcCG() {
+GfxProviderCG::~GfxProviderCG() {
     freebitmap();
     if (thumbnailParams) {
         CFRelease(thumbnailParams);
@@ -58,14 +58,18 @@ GfxProcCG::~GfxProcCG() {
     }
 }
 
-const char* GfxProcCG::supportedformats() {
+const char* GfxProviderCG::supportedformats() {
     if ([[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleExecutable"] isEqualToString:@"MEGAFiles"]) {
         return "";
     }
     return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.webp.";
 }
 
-bool GfxProcCG::readbitmap(FileAccess* fa, const LocalPath& name, int size) {
+const char* GfxProviderCG::supportedvideoformats() {
+    return NULL;
+}
+
+bool GfxProviderCG::readbitmap(FileSystemAccess* fa, const LocalPath& name, int size) {
     string absolutename;
     NSString *sourcePath;
     if (PosixFileSystemAccess::appbasepath && !name.beginsWithSeparator()) {
@@ -75,6 +79,11 @@ bool GfxProcCG::readbitmap(FileAccess* fa, const LocalPath& name, int size) {
     } else {
         sourcePath = [NSString stringWithCString:name.platformEncoded().c_str() encoding:[NSString defaultCStringEncoding]];
     }
+    
+    if (sourcePath == nil) {
+        return false;
+    }
+    
     NSURL *sourceURL = [NSURL fileURLWithPath:sourcePath isDirectory:NO];
     if (sourceURL == nil) {
         return false;
@@ -145,7 +154,7 @@ bool GfxProcCG::readbitmap(FileAccess* fa, const LocalPath& name, int size) {
     return w && h;
 }
 
-CGImageRef GfxProcCG::createThumbnailWithMaxSize(int size) {
+CGImageRef GfxProviderCG::createThumbnailWithMaxSize(int size) {
     CFNumberRef maxSize = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &size);
     CFDictionarySetValue(thumbnailParams, kCGImageSourceThumbnailMaxPixelSize, maxSize);
     CFRelease(maxSize);
@@ -171,7 +180,7 @@ static inline CGRect tileRect(size_t w, size_t h)
     return res;
 }
 
-int GfxProcCG::maxSizeForThumbnail(const int rw, const int rh) {
+int GfxProviderCG::maxSizeForThumbnail(const int rw, const int rh) {
     if (rh) { // rectangular rw*rh bounding box
         return std::max(rw, rh);
     }
@@ -179,7 +188,7 @@ int GfxProcCG::maxSizeForThumbnail(const int rw, const int rh) {
     return ceil(rw * ((double)std::max(w, h) / (double)std::min(w, h)));
 }
 
-bool GfxProcCG::resizebitmap(int rw, int rh, string* jpegout) {
+bool GfxProviderCG::resizebitmap(int rw, int rh, string* jpegout) {
     if (!imageSource) {
         return false;
     }
@@ -215,13 +224,15 @@ bool GfxProcCG::resizebitmap(int rw, int rh, string* jpegout) {
     return success;
 }
 
-void GfxProcCG::freebitmap() {
+void GfxProviderCG::freebitmap() {
     if (imageSource) {
         CFRelease(imageSource);
         imageSource = NULL;
     }
     w = h = 0;
 }
+
+#endif
 
 void ios_statsid(std::string *statsid) {
     NSMutableDictionary *queryDictionary = [[NSMutableDictionary alloc] init];
@@ -231,6 +242,7 @@ void ios_statsid(std::string *statsid) {
     [queryDictionary setObject:(__bridge id)(kSecAttrSynchronizableAny) forKey:(__bridge id)(kSecAttrSynchronizable)];
     [queryDictionary setObject:@YES forKey:(__bridge id)kSecReturnData];
     [queryDictionary setObject:(__bridge id)kSecMatchLimitOne forKey:(__bridge id)kSecMatchLimit];
+    [queryDictionary setObject:(__bridge id)kSecAttrAccessibleAfterFirstUnlock forKey:(__bridge id)kSecAttrAccessible];
 
     CFTypeRef result = NULL;
     OSStatus status = SecItemCopyMatching((__bridge CFDictionaryRef)queryDictionary, &result);
@@ -247,6 +259,7 @@ void ios_statsid(std::string *statsid) {
 
             NSData *uuidData = [uuidString dataUsingEncoding:NSUTF8StringEncoding];
             [queryDictionary setObject:uuidData forKey:(__bridge id)kSecValueData];
+            [queryDictionary setObject:(__bridge id)kSecAttrAccessibleAfterFirstUnlock forKey:(__bridge id)kSecAttrAccessible];
             [queryDictionary removeObjectForKey:(__bridge id)kSecReturnData];
             [queryDictionary removeObjectForKey:(__bridge id)kSecMatchLimit];
 

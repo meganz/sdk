@@ -97,13 +97,13 @@ TEST(Crypto, xxTea)
     }
 
     {
-        int32_t key2[4] = { 0, -1, (-1 << 24) - 1, (-2<<24)-1 };
+        uint32_t key2[4] = { 0, 0xFFFFFFFF,  0xFEFFFFFF, 0xFDFFFFFF };
         uint32_t data2[16];
         for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--; ) data2[i] = -(int32_t)i;
         uint32_t encCmpData2[16] = { 1331968695, 2520133218, 2881973170, 783802011, 1812010991, 1359505125, 15067484, 3344073997, 4210258643, 824383226, 3584459687, 2866083302, 881254637, 502181030, 680349945, 1722488731 };
-        xxteaEncrypt(data2, 16, (uint32_t*)key2);
+        xxteaEncrypt(data2, 16, key2);
         ASSERT_TRUE(0 == memcmp(data2, encCmpData2, sizeof(data2)));
-        xxteaDecrypt(data2, 16, (uint32_t*)key2);
+        xxteaDecrypt(data2, 16, key2);
         for (unsigned i = sizeof(data2) / sizeof(data2[0]); i--; )
         {
             ASSERT_TRUE(data2[i] == uint32_t(-(int)i));
@@ -302,3 +302,56 @@ TEST(Crypto, Ed25519_Signing)
 }
 
 #endif
+
+TEST(Crypto, SymmCipher_xorblock_bytes)
+{
+    byte src[10] = { (byte)0, (byte)1, (byte)2, (byte)3, (byte)4, (byte)5, (byte)6, (byte)7, (byte)8, (byte)9 };
+    byte dest[10] = { (byte)20, (byte)30, (byte)40, (byte)50, (byte)60, (byte)70, (byte)80, (byte)90, (byte)100, (byte)110 };
+    SymmCipher::xorblock(src, dest, sizeof(dest));
+    byte result[10] = { (byte)(0 ^ (byte)20), (byte)(1 ^ (byte)30), (byte)(2 ^ (byte)40), (byte)(3 ^ (byte)50), (byte)(4 ^ (byte)60), (byte)(5 ^ (byte)70), (byte)(6 ^ (byte)80), (byte)(7 ^ (byte)90), (byte)(8 ^ (byte)100), (byte)(9 ^ (byte)110) };
+    ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
+}
+
+TEST(Crypto, SymmCipher_xorblock_block_aligned)
+{
+    size_t alignSrc = 0; // force dest to be word aligned on all platforms
+    byte src[SymmCipher::BLOCKSIZE];
+    byte n = 0;
+    std::generate(src, src + sizeof(src), [&n]() {return n++; });
+    size_t alignDest = 0; // force dest to be word aligned on all platforms
+    alignDest += alignSrc; // force use of vars only existing for alignment
+    ASSERT_EQ(ptrdiff_t((ptrdiff_t)src % sizeof(ptrdiff_t)), (ptrdiff_t)0);
+
+    byte dest[SymmCipher::BLOCKSIZE];
+    n = 100;
+    std::generate(dest, dest + sizeof(src), [&n]() { return n = static_cast<byte>(n + 3); });
+    ASSERT_EQ(ptrdiff_t((ptrdiff_t)dest % sizeof(ptrdiff_t)), (ptrdiff_t)0);
+
+    byte result[SymmCipher::BLOCKSIZE];
+    byte* output = result;
+    std::transform(src, src + sizeof(src), dest, output, [](byte a, byte b) { return (byte)(a ^ b); });
+    SymmCipher::xorblock(src, dest); // aligned case
+
+    ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
+}
+
+TEST(Crypto, SymmCipher_xorblock_block_unaligned)
+{
+    size_t alignSrc = 0; // force dest to be word aligned on all platforms
+    byte src[SymmCipher::BLOCKSIZE + 1];
+    byte n = 0;
+    std::generate(src, src + sizeof(src), [&n]() {return n++; });
+
+    size_t alignDest = 0; // force dest to be word aligned on all platforms
+    alignDest += alignSrc; // force use of vars only existing for alignment
+    byte dest[SymmCipher::BLOCKSIZE];
+    n = 100;
+    std::generate(dest, dest + sizeof(dest), [&n]() { return n = static_cast<byte>(n + 3); });
+
+    byte result[SymmCipher::BLOCKSIZE];
+    byte* output = result;
+    std::transform(src + 1, src + sizeof(src), dest, output, [](byte a, byte b) { return (byte)(a ^ b); });
+    SymmCipher::xorblock(src + 1, dest); // un-aligned case
+    
+    ASSERT_EQ(memcmp(dest, result, sizeof(dest)), 0);
+}

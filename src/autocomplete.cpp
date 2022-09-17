@@ -31,8 +31,13 @@
 #define HAVE_FILESYSTEM
 
 #if (__cplusplus >= 201700L)
-    #include <filesystem>
-    namespace fs = std::filesystem;
+    #if __has_include(<filesystem>)
+        #include <filesystem>
+        namespace fs = std::filesystem;
+    #else
+        #include <experimental/filesystem>
+        namespace fs = std::experimental::filesystem;
+    #endif
 #else
 #ifdef WIN32
     #include <filesystem>
@@ -736,12 +741,12 @@ bool MegaFS::addCompletions(ACState& s)
                     if (s.word().s.size() >= 5 && !strncmp(s.word().s.c_str(), "//in/", 5))
                     {
                         pathprefix = "//in/";
-                        n = client->nodebyhandle(client->rootnodes[1]);
+                        n = client->nodeByHandle(client->rootnodes.vault);
                     }
                     else if (s.word().s.size() >= 6 && !strncmp(s.word().s.c_str(), "//bin/", 6))
                     {
                         pathprefix = "//bin/";
-                        n = client->nodebyhandle(client->rootnodes[2]);
+                        n = client->nodeByHandle(client->rootnodes.rubbish);
                     }
                     else
                     {
@@ -753,7 +758,7 @@ bool MegaFS::addCompletions(ACState& s)
                 else
                 {
                     pathprefix = "/";
-                    n = client->nodebyhandle(client->rootnodes[0]);
+                    n = client->nodeByHandle(client->rootnodes.files);
                 }
             }
             else
@@ -887,6 +892,98 @@ bool MegaContactEmail::match(ACState& s) const
     }
     return false;
 }
+
+#ifdef ENABLE_SYNC
+
+BackupID::BackupID(MegaClient& client, bool onlyActive)
+  : mClient(client)
+  , mOnlyActive(onlyActive)
+{
+}
+
+bool BackupID::addCompletions(ACState& state)
+{
+    auto ids = backupIDs();
+
+    if (state.atCursor())
+    {
+        for (auto& id : filter(ids, state))
+            state.addCompletion(std::move(id));
+
+        return true;
+    }
+
+    return match(ids, state);
+}
+
+std::ostream& BackupID::describe(std::ostream& ostream) const
+{
+    return ostream << "BackupID";
+}
+
+string_vector& BackupID::filter(string_vector& ids, const ACState& state) const
+{
+    if (state.i >= state.words.size())
+        return ids;
+
+    auto& word = state.words.back();
+    auto& prefix = word.s;
+
+    if (prefix.empty())
+        return ids;
+
+    auto predicate = [&prefix](const string& id) {
+        return prefix.size() > id.size()
+               || id.compare(0, prefix.size(), prefix);
+    };
+
+    auto i = remove_if(ids.begin(), ids.end(), predicate);
+    ids.erase(i, ids.end());
+
+    return ids;
+}
+
+bool BackupID::match(ACState& state) const
+{
+    return state.i < state.words.size()
+           && match(backupIDs(), state);
+}
+
+string_vector BackupID::backupIDs() const
+{
+    string_vector result;
+    handle_set seen;
+
+    for (auto& config : mClient.syncs.getConfigs(mOnlyActive))
+    {
+        if (seen.emplace(config.mBackupId).second)
+            result.emplace_back(toHandle(config.mBackupId));
+    }
+
+    return result;
+}
+
+bool BackupID::match(const string_vector& ids, ACState& state) const
+{
+    auto& word = state.words[state.i];
+
+    if (word.s.empty() || (!word.q.quoted && word.s[0] == '-'))
+        return false;
+
+    auto i = find(ids.begin(), ids.end(), word.s);
+
+    if (i != ids.end())
+        return ++state.i, true;
+
+    return false;
+}
+
+ACN backupID(MegaClient& client, bool onlyActive)
+{
+    return make_shared<BackupID>(client, onlyActive);
+}
+
+#endif // ENABLE_SYNC
 
 std::ostream& MegaContactEmail::describe(std::ostream& s) const
 {
@@ -1143,7 +1240,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
         if (!s.unixStyle)
         {
             int index = ((!forwards && s.lastAppliedIndex == -1) ? -1 : (s.lastAppliedIndex + (forwards ? 1 : -1))) + (int)s.completions.size();
-            index %= s.completions.size();
+            index = static_cast<int>(index % s.completions.size());
 
             // restore quotes if it had them already
             auto& c = s.completions[index];
@@ -1267,7 +1364,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
 
 ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n9, ACN n10, ACN n11, ACN n12, ACN n13)
 {
-    auto n = std::unique_ptr<Either>(new Either());
+    auto n = std::make_shared<Either>();
     n->Add(n1);
     n->Add(n2);
     n->Add(n3);
@@ -1281,7 +1378,7 @@ ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n
     n->Add(n11);
     n->Add(n12);
     n->Add(n13);
-    return std::move(n);
+    return n;
 }
 
 static ACN sequenceBuilder(ACN n1, ACN n2)

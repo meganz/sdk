@@ -23,6 +23,7 @@
 #define MEGA_DB_H 1
 
 #include "filesystem.h"
+#include "logging.h"
 
 namespace mega {
 // generic host transactional database access interface
@@ -92,6 +93,7 @@ class MEGA_API DBTableTransactionCommitter
 {
     DbTable* mTable;
     bool mStarted = false;
+    std::thread::id threadId;
 
 public:
     void beginOnce()
@@ -130,12 +132,13 @@ public:
     }
 
     explicit DBTableTransactionCommitter(unique_ptr<DbTable>& t)
-        : mTable(t.get())
+        : mTable(t.get()), threadId(std::this_thread::get_id())
     {
         if (mTable)
         {
             if (mTable->mTransactionCommitter)
             {
+                assert(mTable->mTransactionCommitter->threadId == threadId);
                 mTable = nullptr;  // we are nested; this one does nothing.  This can occur during eg. putnodes response when the core sdk and the intermediate layer both do db work.
             }
             else
@@ -147,6 +150,30 @@ public:
 
 
     MEGA_DISABLE_COPY_MOVE(DBTableTransactionCommitter)
+};
+
+
+class MEGA_API TransferDbCommitter : public DBTableTransactionCommitter
+{
+public:
+
+    uint32_t addFileCount = 0;
+    uint32_t addTransferCount = 0;
+    uint32_t removeFileCount = 0;
+    uint32_t removeTransferCount = 0;
+
+    explicit TransferDbCommitter(unique_ptr<DbTable>& t) : DBTableTransactionCommitter(t) {}
+
+    ~TransferDbCommitter()
+    {
+        if (addFileCount || addTransferCount || removeFileCount || removeTransferCount)
+        {
+            LOG_debug << "Committed transfer db with new transfers : " << addTransferCount <<
+                            " and new transfer files: " << addFileCount <<
+                            " removed transfers: " << removeTransferCount <<
+                            " and removed transfer files: " << removeFileCount;
+        }
+    }
 };
 
 enum DbOpenFlag
@@ -165,6 +192,8 @@ struct MEGA_API DbAccess
     DbAccess();
 
     virtual ~DbAccess() { }
+
+    virtual bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) = 0;
 
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 

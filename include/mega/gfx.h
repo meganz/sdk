@@ -25,9 +25,7 @@
 #include <mutex>
 
 #include "megawaiter.h"
-#include "mega/thread/qtthread.h"
 #include "mega/thread/posixthread.h"
-#include "mega/thread/win32thread.h"
 #include "mega/thread/cppthread.h"
 
 namespace mega {
@@ -44,13 +42,10 @@ public:
     vector<fatype> imagetypes;
 
     // handle related to the image
-    handle h;
+    NodeOrUploadHandle h;
 
     // key related to the image
     byte key[SymmCipher::KEYLENGTH];
-
-    // flag related to the job
-    bool flag;
 
     // resulting images
     vector<string *> images;
@@ -68,6 +63,39 @@ class MEGA_API GfxJobQueue
         GfxJob *pop();
 };
 
+// Interface for graphic processor provider used by GfxProc
+// Implementations should be able to allocate/deallocate and manipulate bitmaps,
+// as well as inform about its supported format capabilities
+// No thread safety is requied among the operations
+class MEGA_API IGfxProvider
+{
+public: // read and store bitmap
+    virtual ~IGfxProvider();
+
+    virtual bool readbitmap(FileSystemAccess*, const LocalPath&, int) = 0;
+
+    // resize stored bitmap and store result as JPEG
+    virtual bool resizebitmap(int, int, string* result) = 0;
+
+    // free stored bitmap
+    virtual void freebitmap() = 0;
+
+    // list of supported extensions (NULL if no pre-filtering is needed)
+    virtual const char* supportedformats() = 0;
+
+    // list of supported video extensions (NULL if no pre-filtering is needed)
+    virtual const char* supportedvideoformats() = 0;
+
+    // coordinate transformation
+    static void transform(int&, int&, int&, int&, int&, int&);
+
+    int width() { return w; }
+    int height() { return h; }
+
+protected:
+    int w, h;
+};
+
 // bitmap graphics processor
 class MEGA_API GfxProc
 {
@@ -79,48 +107,35 @@ class MEGA_API GfxProc
     SymmCipher mCheckEventsKey;
     GfxJobQueue requests;
     GfxJobQueue responses;
+    std::unique_ptr<IGfxProvider>  mGfxProvider;
+
     static void *threadEntryPoint(void *param);
     void loop();
 
-    // read and store bitmap
-    virtual bool readbitmap(FileAccess*, const LocalPath&, int) = 0;
-
-    // resize stored bitmap and store result as JPEG
-    virtual bool resizebitmap(int, int, string* result) = 0;
-
-    // free stored bitmap
-    virtual void freebitmap() = 0;
-
-protected:
-    // coordinate transformation
-    static void transform(int&, int&, int&, int&, int&, int&);
-
-    // list of supported extensions (NULL if no pre-filtering is needed)
-    virtual const char* supportedformats();
-
-    // list of supported video extensions (NULL if no pre-filtering is needed)
-    virtual const char* supportedvideoformats();
-
 public:
-    virtual int checkevents(Waiter*);
+    // synchronously processes the results of gendimensionsputfa() (if any) in a thread safe manner
+    int checkevents(Waiter*);
 
-    // check whether the filename looks like a supported media type
+    // synchronously check whether the filename looks like a supported media type
     bool isgfx(const LocalPath&);
 
-    // check whether the filename looks like a video
+    // synchronously check whether the filename looks like a video
     bool isvideo(const LocalPath&);
 
-    // generate all dimensions, write to metadata server and attach to PUT transfer or existing node
+    // synchronously generate all dimensions and returns the count
+    // asynchronously write to metadata server and attach to PUT transfer or existing node,
+    // upon finalization the job is stored in responses object in a thread safe manner, and client waiter is notified
+    // The results can be processed by calling checkevents()
     // handle is uploadhandle or nodehandle
     // - must respect JPEG EXIF rotation tag
     // - must save at 85% quality (120*120 pixel result: ~4 KB)
-    int gendimensionsputfa(FileAccess*, const LocalPath&, handle, SymmCipher*, int = -1, bool checkAccess = true);
+    int gendimensionsputfa(FileAccess*, const LocalPath&, NodeOrUploadHandle, SymmCipher*, int missingattr);
 
     // FIXME: read dynamically from API server
     typedef enum { THUMBNAIL, PREVIEW } meta_t;
     typedef enum { AVATAR250X250 } avatar_t;
 
-    // generate and save a fa to a file
+    // synchronously generate and save a fa to a file
     bool savefa(const LocalPath& source, int, int, LocalPath& destination);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
@@ -129,12 +144,13 @@ public:
     static const int dimensionsavatar[][2];
 
     MegaClient* client;
-    int w, h;
 
     // start a thread that will do the processing
     void startProcessingThread();
 
-    GfxProc();
+    // The provided IGfxProvider implements library specific image processing
+    // Thread safety among IGfxProvider methods is guaranteed by GfxProc
+    GfxProc(std::unique_ptr<IGfxProvider>);
     virtual ~GfxProc();
 };
 } // namespace

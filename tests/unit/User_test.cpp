@@ -56,8 +56,7 @@ void checkUsers(mega::User& exp, mega::User& act)
 TEST(User, serialize_unserialize)
 {
     mega::MegaApp app;
-    mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
 
     const std::string email = "foo@bar.com";
     mega::User user{email.c_str()};
@@ -83,8 +82,7 @@ TEST(User, serialize_unserialize)
 TEST(User, unserialize_32bit)
 {
     mega::MegaApp app;
-    mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
     const std::string email = "foo@bar.com";
     mega::User user{email.c_str()};
     user.userhandle = 13;

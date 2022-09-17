@@ -71,7 +71,7 @@ void Waiter::bumpds()
 
     m_clock_getmonotonictime(&ts);
 
-    ds = ts.tv_sec * 10 + ts.tv_nsec / 100000000;
+    ds = static_cast<dstime>(ts.tv_sec * 10 + ts.tv_nsec / 100000000);
 }
 
 // update maxfd for select()
@@ -113,11 +113,11 @@ int PosixWaiter::wait()
         dstime us = 1000000 / 10 * maxds;
 
         tv.tv_sec = us / 1000000;
-        tv.tv_usec = us - tv.tv_sec * 1000000;
+        tv.tv_usec = (suseconds_t)(us - tv.tv_sec * 1000000);
     }
 
 #ifdef USE_POLL
-    dstime us = 1000000 / 10 * maxds;
+    dstime ms = 1000 / 10 * maxds;
 
     auto total = rfds.size() +  wfds.size() +  efds.size();
     struct pollfd fds[total];
@@ -144,7 +144,7 @@ int PosixWaiter::wait()
         polli++;
     }
 
-    numfd = poll(fds, total,  us);
+    numfd = poll(fds, total,  ms);
 #else
     numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 #endif

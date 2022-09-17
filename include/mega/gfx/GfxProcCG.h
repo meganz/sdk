@@ -1,5 +1,5 @@
 /**
- * @file GfxProcCG.h
+ * @file GfxProviderCG.h
  * @brief Graphics layer using Cocoa Touch
  *
  * (c) 2013-2015 by Mega Limited, Auckland, New Zealand
@@ -21,13 +21,13 @@
 
 #ifdef USE_IOS
 #ifndef GFX_CLASS
-#define GFX_CLASS GfxProcCG
+#define GFX_CLASS GfxProviderCG
 
 #include "mega.h"
 #include <ImageIO/CGImageSource.h>
 
 // bitmap graphics processor
-class MEGA_API GfxProcCG : public mega::GfxProc
+class MEGA_API GfxProviderCG : public mega::IGfxProvider
 {
     CGImageSourceRef imageSource;
     CFDictionaryRef imageParams;
@@ -35,17 +35,17 @@ class MEGA_API GfxProcCG : public mega::GfxProc
     CGImageRef createThumbnailWithMaxSize(int size);
     int maxSizeForThumbnail(const int rw, const int rh);
 private: // mega::GfxProc implementations
-    const char* supportedformats();
-    bool readbitmap(mega::FileAccess*, const mega::LocalPath&, int);
-    bool resizebitmap(int, int, mega::string*);
-    void freebitmap();
+    const char* supportedformats() override;
+    const char* supportedvideoformats() override;
+    bool readbitmap(mega::FileSystemAccess*, const mega::LocalPath&, int) override;
+    bool resizebitmap(int, int, mega::string*) override;
+    void freebitmap() override;
 public:
-    GfxProcCG();
-    ~GfxProcCG();
+    GfxProviderCG();
+    ~GfxProviderCG();
 };
+#endif
 
 void ios_statsid(std::string *statsid);
 void ios_appbasepath(std::string *appbasepath);
-
-#endif
 #endif

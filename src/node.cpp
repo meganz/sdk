@@ -30,10 +30,11 @@
 #include "mega/transferslot.h"
 #include "mega/logging.h"
 #include "mega/heartbeats.h"
+#include "megafs.h"
 
 namespace mega {
 
-Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
+Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {
     client = cclient;
@@ -42,8 +43,8 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     tag = 0;
     appdata = NULL;
 
-    nodehandle = h;
-    parenthandle = ph;
+    nodehandle = h.as8byte();
+    parenthandle = ph.as8byte();
 
     parent = NULL;
 
@@ -60,7 +61,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     size = s;
     owner = u;
 
-    copystring(&fileattrstring, fa);
+    JSON::copystring(&fileattrstring, fa);
 
     ctime = ts;
 
@@ -76,14 +77,13 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     client->nodes[h] = this;
 
-    if (t >= ROOTNODE && t <= RUBBISHNODE)
-    {
-        client->rootnodes[t - ROOTNODE] = h;
-    }
+    if (t == ROOTNODE) client->rootnodes.files = h;
+    if (t == VAULTNODE) client->rootnodes.vault = h;
+    if (t == RUBBISHNODE) client->rootnodes.rubbish = h;
 
     // set parent linkage or queue for delayed parent linkage in case of
     // out-of-order delivery
-    if ((p = client->nodebyhandle(ph)))
+    if ((p = client->nodeByHandle(ph)))
     {
         setparent(p);
     }
@@ -156,15 +156,15 @@ Node::~Node()
         }
 
         const Node* fa = firstancestor();
-        handle ancestor = fa->nodehandle;
-        if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+        NodeHandle ancestor = fa->nodeHandle();
+        if (client->rootnodes.isRootNode(ancestor) || fa->inshare)
         {
-            client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+            client->mNodeCounters[firstancestor()->nodeHandle()] -= subnodeCounts();
         }
 
         if (inshare)
         {
-            client->mNodeCounters.erase(nodehandle);
+            client->mNodeCounters.erase(nodeHandle());
         }
 
         // delete child-parent associations (normally not used, as nodes are
@@ -212,7 +212,7 @@ void Node::detach(const bool recreate)
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
-    Node::copystring(&nodekeydata, k);
+    JSON::copystring(&nodekeydata, k);
     if (keyApplied()) ++client->mAppliedKeyNodeCount;
     assert(client->mAppliedKeyNodeCount >= 0);
 }
@@ -374,7 +374,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         skey = NULL;
     }
 
-    n = new Node(client, dp, h, ph, t, s, u, fa, ts);
+    n = new Node(client, dp, NodeHandle().set6byte(h), NodeHandle().set6byte(ph), t, s, u, fa, ts);
 
     if (k)
     {
@@ -417,7 +417,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     attr_map::iterator it = n->attrs.map.find('n');
     if (it != n->attrs.map.end())
     {
-        client->fsaccess->normalize(&(it->second));
+        LocalPath::utf8_normalize(&(it->second));
     }
 
     PublicLink *plink = NULL;
@@ -569,11 +569,11 @@ bool Node::serialize(string* d)
         numshares = 0;
         if (outshares)
         {
-            numshares += (short)outshares->size();
+            numshares = static_cast<short int>(numshares + outshares->size());
         }
         if (pendingshares)
         {
-            numshares += (short)pendingshares->size();
+            numshares = static_cast<short int>(numshares + pendingshares->size());
         }
     }
 
@@ -620,28 +620,6 @@ bool Node::serialize(string* d)
     }
 
     return true;
-}
-
-// copy remainder of quoted string (no unescaping, use for base64 data only)
-void Node::copystring(string* s, const char* p)
-{
-    if (p)
-    {
-        const char* pp;
-
-        if ((pp = strchr(p, '"')))
-        {
-            s->assign(p, pp - p);
-        }
-        else
-        {
-            *s = p;
-        }
-    }
-    else
-    {
-        s->clear();
-    }
 }
 
 // decrypt attrstring and check magic number prefix
@@ -718,12 +696,7 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
-    if (client->tmpnodecipher.setkey(&nodekeydata))
-    {
-        return &client->tmpnodecipher;
-    }
-
-    return NULL;
+    return client->getRecycledTemporaryNodeCipher(&nodekeydata);
 }
 
 // decrypt attributes and build attribute hash
@@ -738,6 +711,7 @@ void Node::setattr()
         nameid name;
         string* t;
 
+        AttrMap oldAttrs(attrs);
         attrs.map.clear();
         json.begin((char*)buf + 5);
 
@@ -747,9 +721,12 @@ void Node::setattr()
 
             if (name == 'n')
             {
-                client->fsaccess->normalize(t);
+                LocalPath::utf8_normalize(t);
             }
         }
+
+        changed.name = attrs.hasDifferentValue('n', oldAttrs.map);
+        changed.favourite = attrs.hasDifferentValue(AttrMap::string2nameid("fav"), oldAttrs.map);
 
         setfingerprint();
 
@@ -787,6 +764,12 @@ void Node::setfingerprint()
 
         client->mFingerprints.add(this);
     }
+}
+
+bool Node::hasName(const string& name) const
+{
+    auto it = attrs.map.find('n');
+    return it != attrs.map.end() && it->second == name;
 }
 
 // return file/folder name or special status strings
@@ -866,7 +849,7 @@ string Node::displaypath() const
             }
             break;
 
-        case INCOMINGNODE:
+        case VAULTNODE:
             path.insert(0, "//in");
             return path;
 
@@ -877,6 +860,8 @@ string Node::displaypath() const
             path.insert(0, "//bin");
             return path;
 
+        case TYPE_DONOTSYNC:
+        case TYPE_SPECIAL:
         case TYPE_UNKNOWN:
         case FILENODE:
             path.insert(0, n->displayname());
@@ -919,7 +904,7 @@ bool Node::applykey()
     handle h;
     const char* k = NULL;
     SymmCipher* sc = &client->key;
-    handle me = client->loggedin() ? client->me : *client->rootnodes;
+    handle me = client->loggedin() ? client->me : client->rootnodes.files.as8byte();
 
     while ((t = nodekeydata.find_first_of(':', t)) != string::npos)
     {
@@ -1026,8 +1011,8 @@ bool Node::setparent(Node* p)
     bool gotnc = false;
 
     const Node *originalancestor = firstancestor();
-    handle oah = originalancestor->nodehandle;
-    if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
+    NodeHandle oah = originalancestor->nodeHandle();
+    if (client->rootnodes.isRootNode(oah) || originalancestor->inshare)
     {
         nc = subnodeCounts();
         gotnc = true;
@@ -1053,8 +1038,8 @@ bool Node::setparent(Node* p)
     }
 
     const Node* newancestor = firstancestor();
-    handle nah = newancestor->nodehandle;
-    if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
+    NodeHandle nah = newancestor->nodeHandle();
+    if (client->rootnodes.isRootNode(nah) || newancestor->inshare)
     {
         if (!gotnc)
         {
@@ -1081,6 +1066,7 @@ bool Node::setparent(Node* p)
 
         if (!p || p->type == FILENODE)
         {
+            DBTableTransactionCommitter committer(client->tctable); // potentially stopping many transfers here
             TreeProcDelSyncGet tdsg;
             client->proctree(this, &tdsg);
         }
@@ -1105,6 +1091,19 @@ const Node* Node::firstancestor() const
     return n;
 }
 
+const Node* Node::latestFileVersion() const
+{
+    const Node* n = this;
+    if (type == FILENODE)
+    {
+        while (n->parent && n->parent->type == FILENODE)
+        {
+            n = n->parent;
+        }
+    }
+    return n;
+}
+
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
 {
@@ -1118,6 +1117,26 @@ bool Node::isbelow(Node* p) const
         }
 
         if (n == p)
+        {
+            return true;
+        }
+
+        n = n->parent;
+    }
+}
+
+bool Node::isbelow(NodeHandle p) const
+{
+    const Node* n = this;
+
+    for (;;)
+    {
+        if (!n)
+        {
+            return false;
+        }
+
+        if (n->nodeHandle() == p)
         {
             return true;
         }
@@ -1193,6 +1212,8 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     int nc = 0;
     Sync* oldsync = NULL;
 
+    assert(!newparent || newparent->node || newnode);
+
     if (parent)
     {
         // remove existing child linkage
@@ -1208,14 +1229,14 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     if (newlocalpath)
     {
         // extract name component from localpath, check for rename unless newnode
-        size_t p = newlocalpath->getLeafnameByteIndex(*sync->client->fsaccess);
+        size_t p = newlocalpath->getLeafnameByteIndex();
 
         // has the name changed?
         if (!newlocalpath->backEqual(p, localname))
         {
             // set new name
             localname = newlocalpath->subpathFrom(p);
-            name = localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
+            name = localname.toName(*sync->client->fsaccess);
 
             if (node)
             {
@@ -1227,15 +1248,13 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     }
                     else
                     {
-                        sync->client->app->syncupdate_treestate(this);
+                        sync->client->app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
                     }
 
                     string prevname = node->attrs.map['n'];
 
                     // set new name
-                    node->attrs.map['n'] = name;
-                    sync->client->nextreqtag(); //make reqtag advance to use the next one
-                    sync->client->setattr(node, prevname.c_str());
+                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr);
                 }
             }
         }
@@ -1254,11 +1273,9 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
 
             if (!newnode && node)
             {
-                assert(parent->node);
-
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
-                LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
+                LOG_debug << "Moving node: " << node->displaypath() << " to " << parent->node->displaypath();
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, nullptr) == API_EACCESS
                         && sync != parent->sync)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
@@ -1347,23 +1364,25 @@ void LocalNode::bumpnagleds()
     nagleds = sync->client->waiter->ds + 11;
 }
 
-LocalNode::LocalNode()
-: deleted{false}
+LocalNode::LocalNode(Sync* csync)
+: sync(csync)
+, deleted{false}
 , created{false}
 , reported{false}
 , checked{false}
+, needsRescan(false)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
-void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
+void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
 {
-    sync = csync;
     parent = NULL;
     node.reset();
     notseen = 0;
     deleted = false;
     created = false;
     reported = false;
+    needsRescan = false;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1385,7 +1404,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
-        name = localname.toPath(*sync->client->fsaccess);
+        name = localname.toPath();
     }
 
     scanseqno = sync->scanseqno;
@@ -1394,7 +1413,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const Lo
     fsid_it = sync->client->fsidnode.end();
 
     // enable folder notification
-    if (type == FOLDERNODE)
+    if (type == FOLDERNODE && sync->dirnotify)
     {
         sync->dirnotify->addnotify(this, cfullpath);
     }
@@ -1422,7 +1441,7 @@ void LocalNode::treestate(treestate_t newts)
 
     if (ts != dts)
     {
-        sync->client->app->syncupdate_treestate(this);
+        sync->client->app->syncupdate_treestate(sync->getConfig(), getLocalPath(), ts, type);
     }
 
     if (parent && ((newts == TREESTATE_NONE && ts != TREESTATE_NONE)
@@ -1555,17 +1574,17 @@ LocalNode::~LocalNode()
     }
 
     if (!sync->mDestructorRunning && (
-        sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
+        sync->state() == SYNC_ACTIVE || sync->state() == SYNC_INITIALSCAN))
     {
         sync->statecachedel(this);
 
         if (type == FOLDERNODE)
         {
-            sync->client->app->syncupdate_local_folder_deletion(sync, this);
+            LOG_debug << "Sync - local folder deletion detected: " << getLocalPath().toPath();
         }
         else
         {
-            sync->client->app->syncupdate_local_file_deletion(sync, this);
+            LOG_debug << "Sync - local file deletion detected: " << getLocalPath().toPath();
         }
     }
 
@@ -1619,7 +1638,7 @@ LocalNode::~LocalNode()
     {
         // move associated node to SyncDebris unless the sync is currently
         // shutting down
-        if (sync->state >= SYNC_INITIALSCAN)
+        if (sync->state() >= SYNC_INITIALSCAN)
         {
             sync->client->movetosyncdebris(node, sync->inshare);
         }
@@ -1633,6 +1652,25 @@ void LocalNode::detach(const bool recreate)
     {
         node.reset();
         created &= !recreate;
+    }
+}
+
+void LocalNode::setSubtreeNeedsRescan(bool includeFiles)
+{
+    assert(type != FILENODE);
+
+    needsRescan = true;
+
+    for (auto& child : children)
+    {
+        if (child.second->type != FILENODE)
+        {
+            child.second->setSubtreeNeedsRescan(includeFiles);
+        }
+        else
+        {
+            child.second->needsRescan |= includeFiles;
+        }
     }
 }
 
@@ -1652,7 +1690,7 @@ void LocalNode::getlocalpath(LocalPath& path) const
         return;
     }
 
-    path.erase();
+    path.clear();
 
     for (const LocalNode* l = this; l != nullptr; l = l->parent)
     {
@@ -1661,13 +1699,6 @@ void LocalNode::getlocalpath(LocalPath& path) const
         // sync root has absolute path, the rest are just their leafname
         path.prependWithSeparator(l->localname);
     }
-}
-
-string LocalNode::localnodedisplaypath(FileSystemAccess& fsa) const
-{
-    LocalPath local;
-    getlocalpath(local);
-    return local.toPath(fsa);
 }
 
 // locate child by localname or slocalname
@@ -1683,9 +1714,11 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
     return it->second;
 }
 
-void LocalNode::prepare()
+void LocalNode::prepare(FileSystemAccess&)
 {
     getlocalpath(transfer->localfilename);
+    assert(transfer->localfilename.isAbsolute());
+
 
     // is this transfer in progress? update file's filename.
     if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
@@ -1696,24 +1729,24 @@ void LocalNode::prepare()
     treestate(TREESTATE_SYNCING);
 }
 
-void LocalNode::terminated()
+void LocalNode::terminated(error e)
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
+    sync->threadSafeState->transferComplete(PUT, size);
 
-    File::terminated();
+    File::terminated(e);
 }
 
 // complete a sync upload: complete to //bin if a newer node exists (which
 // would have been caused by a race condition)
-void LocalNode::completed(Transfer* t, LocalNode*)
+void LocalNode::completed(Transfer* t, putsource_t source)
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
+    sync->threadSafeState->transferFailed(PUT, size);
 
     // complete to rubbish for later retrieval if the parent node does not
     // exist or is newer
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
-        h = NodeHandle().set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
+        h = t->client->rootnodes.rubbish;
     }
     else
     {
@@ -1722,7 +1755,9 @@ void LocalNode::completed(Transfer* t, LocalNode*)
         h = parent->node->nodeHandle();
     }
 
-    File::completed(t, this);
+    // we are overriding completed() for sync upload, we don't use the File::completed version at all.
+    assert(t->type == PUT);
+    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr);
 }
 
 // serialize/unserialize the following LocalNode properties:
@@ -1808,7 +1843,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     }
     assert(!r.hasdataleft());
 
-    LocalNode* l = new LocalNode();
+    LocalNode* l = new LocalNode(sync);
 
     l->type = type;
     l->size = size;
@@ -1818,10 +1853,10 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->fsid = fsid;
     l->fsid_it = sync->client->fsidnode.end();
 
-    l->localname = LocalPath::fromPlatformEncoded(localname);
-    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncoded(shortname)));
+    l->localname = LocalPath::fromPlatformEncodedRelative(localname);
+    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncodedRelative(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
-    l->name = l->localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
+    l->name = l->localname.toName(*sync->client->fsaccess);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;
@@ -1836,6 +1871,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->created = false;
     l->reported = false;
     l->checked = h != UNDEF; // TODO: Is this a bug? h will never be UNDEF
+    l->needsRescan = false;
 
     return l;
 }

@@ -1,6 +1,7 @@
 CONFIG(debug, debug|release) {
     CONFIG -= debug release
     CONFIG += debug
+    CONFIG += ENABLE_WERROR_COMPILATION
 }
 CONFIG(release, debug|release) {
     CONFIG -= debug release
@@ -22,7 +23,25 @@ CONFIG += USE_CONSOLE
 CONFIG += USE_MEDIAINFO
 CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
+CONFIG += USE_DRIVE_NOTIFICATIONS
+
+unix:!macx {
+    exists(/usr/include/fpdfview.h) {
+        CONFIG += USE_PDFIUM
+    }
+}
+else {
+    CONFIG += USE_PDFIUM
+}
 
 SOURCES += ../../../examples/megacli.cpp
 HEADERS += ../../../examples/megacli.h
 include(../../../bindings/qt/sdk.pri)
+
+
+macx{
+    vcpkg:CONFIG(USE_PDFIUM){
+        LIBS += -framework CoreGraphics
+    }
+    LIBS += -framework Cocoa
+}

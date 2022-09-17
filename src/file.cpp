@@ -207,7 +207,7 @@ File *File::unserialize(string *d)
     delete fp;
 
     file->name.assign(name, namelen);
-    file->localname = LocalPath::fromPlatformEncoded(std::string(localname, localnamelen));
+    file->localname = LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
@@ -272,7 +272,7 @@ File *File::unserialize(string *d)
     return file;
 }
 
-void File::prepare()
+void File::prepare(FileSystemAccess&)
 {
     transfer->localfilename = localname;
 }
@@ -285,131 +285,130 @@ void File::progress()
 {
 }
 
-void File::completed(Transfer* t, LocalNode* l)
+void File::completed(Transfer* t, putsource_t source)
 {
+    assert(!transfer || t == transfer);
+    assert(source == PUTNODES_APP);  // derived class for sync doesn't use this code path
+
     if (t->type == PUT)
     {
-        vector<NewNode> newnodes(1);
-        NewNode* newnode = &newnodes[0];
-
-        // build new node
-        newnode->source = NEW_UPLOAD;
-
-        // upload handle required to retrieve/include pending file attributes
-        newnode->uploadhandle = t->uploadhandle;
-
-        // reference to uploaded file
-        memcpy(newnode->uploadtoken, t->ultoken.get(), sizeof newnode->uploadtoken);
-
-        // file's crypto key
-        newnode->nodekey.assign((char*)t->filekey, FILENODEKEYLENGTH);
-        newnode->type = FILENODE;
-        newnode->parenthandle = UNDEF;
-#ifdef ENABLE_SYNC
-        if (l)
-        {
-            l->newnode.crossref(newnode, l);
-            newnode->syncid = l->syncid;
-        }
-#endif
-        AttrMap attrs;
-        t->client->honorPreviousVersionAttrs(previousNode, attrs);
-
-        // store filename
-        attrs.map['n'] = name;
-
-        // store fingerprint
-        t->serializefingerprint(&attrs.map['c']);
-
-        string tattrstring;
-
-        attrs.getjson(&tattrstring);
-
-        newnode->attrstring.reset(new string);
-        t->client->makeattr(t->transfercipher(), newnode->attrstring, tattrstring.c_str());
-
-        if (targetuser.size())
-        {
-            // drop file into targetuser's inbox
-            int creqtag = t->client->reqtag;
-            t->client->reqtag = tag;
-            t->client->putnodes(targetuser.c_str(), move(newnodes));
-            t->client->reqtag = creqtag;
-        }
-        else
-        {
-            handle th = h.as8byte();
-
-            // inaccessible target folder - use //bin instead
-            if (!t->client->nodebyhandle(th))
-            {
-                th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
-            }
-#ifdef ENABLE_SYNC
-            if (l)
-            {
-                // tag the previous version in the synced folder (if any) or move to SyncDebris
-                if (l->node && l->node->parent && l->node->parent->localnode)
-                {
-                    if (t->client->versions_disabled)
-                    {
-                        t->client->movetosyncdebris(l->node, l->sync->inshare);
-                        t->client->execsyncdeletions();
-                    }
-                    else
-                    {
-                        newnode->ovhandle = l->node->nodehandle;
-                    }
-                }
-
-                t->client->syncadding++;
-            }
-#endif
-            if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
-            {
-                newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
-            }
-
-            t->client->reqs.add(new CommandPutNodes(t->client,
-                                                                  th, NULL,
-                                                                  move(newnodes),
-                                                                  tag,
-#ifdef ENABLE_SYNC
-                                                                  l ? PUTNODES_SYNC : PUTNODES_APP));
-#else
-                                                                  PUTNODES_APP));
-#endif
-        }
+        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr);
     }
 }
 
-void File::terminated()
+
+void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
+                        const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
+                        CommandPutNodes::Completion&& completion,
+                        LocalNode* l, const m_time_t* overrideMtime)
+{
+    assert(!!l == syncxfer);
+
+    vector<NewNode> newnodes(1);
+    NewNode* newnode = &newnodes[0];
+
+    // build new node
+    newnode->source = NEW_UPLOAD;
+
+    // upload handle required to retrieve/include pending file attributes
+    newnode->uploadhandle = fileAttrMatchHandle;
+
+    // reference to uploaded file
+    newnode->uploadtoken = ultoken;
+
+    // file's crypto key
+    static_assert(sizeof(filekey) == FILENODEKEYLENGTH, "File completed: filekey size doesn't match with FILENODEKEYLENGTH");
+    newnode->nodekey.assign((char*)&filekey, FILENODEKEYLENGTH);
+    newnode->type = FILENODE;
+    newnode->parenthandle = UNDEF;
+#ifdef ENABLE_SYNC
+    if (l)
+    {
+        l->newnode.crossref(newnode, l);
+        newnode->syncid = l->syncid;
+    }
+#endif
+    AttrMap attrs;
+    MegaClient::honorPreviousVersionAttrs(previousNode, attrs);
+
+    // store filename
+    attrs.map['n'] = name;
+
+    // store fingerprint
+    auto oldMtime = mtime;
+    if (overrideMtime) mtime = *overrideMtime;
+    serializefingerprint(&attrs.map['c']);
+    if (overrideMtime) mtime = oldMtime;
+
+    string tattrstring;
+
+    attrs.getjson(&tattrstring);
+
+    newnode->attrstring.reset(new string);
+    MegaClient::makeattr(client->getRecycledTemporaryTransferCipher(filekey.bytes.data(), FILENODE),
+                         newnode->attrstring, tattrstring.c_str());
+
+    if (targetuser.size())
+    {
+        // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
+        client->putnodes(targetuser.c_str(), move(newnodes), tag, move(completion));
+    }
+    else
+    {
+        NodeHandle th = h;
+#ifdef ENABLE_SYNC
+        if (l)
+        {
+            // tag the previous version in the synced folder (if any) or move to SyncDebris
+            if (l->node && l->node->parent && l->node->parent->localnode)
+            {
+                if (client->versions_disabled)
+                {
+                    client->movetosyncdebris(l->node, l->sync->inshare);
+                    client->execsyncdeletions();
+                }
+                else
+                {
+                    newnode->ovhandle = l->node->nodeHandle();
+                }
+            }
+
+            client->syncadding++;
+        }
+#endif
+        if (mVersioningOption != NoVersioning &&
+            newnode->ovhandle.isUndef())
+        {
+            // for manual upload, let the API apply the `ov` according to the global versions_disabled flag.
+            // with versions on, the API will make the ov the first version of this new node
+            // with versions off, the API will permanently delete `ov`, replacing it with this (and attaching the ov's old versions)
+            if (Node* ovNode = client->getovnode(client->nodeByHandle(th), &name))
+            {
+                newnode->ovhandle = ovNode->nodeHandle();
+            }
+        }
+
+        client->reqs.add(new CommandPutNodes(client,
+                                             th, NULL,
+                                             mVersioningOption,
+                                             move(newnodes),
+                                             tag,
+                                             source, nullptr, move(completion)));
+    }
+}
+
+void File::terminated(error)
 {
 
 }
 
 // do not retry crypto errors or administrative takedowns; retry other types of
 // failuresup to 16 times, except I/O errors (6 times)
-bool File::failed(error e)
+bool File::failed(error e, MegaClient*)
 {
     if (e == API_EKEY)
     {
-        if (!transfer->hascurrentmetamac)
-        {
-            // several integrity check errors uploading chunks
-            return transfer->failcount < 1;
-        }
-
-        if (transfer->hasprevmetamac && transfer->prevmetamac == transfer->currentmetamac)
-        {
-            // integrity check failed after download, two times with the same value
-            return false;
-        }
-
-        // integrity check failed once, try again
-        transfer->prevmetamac = transfer->currentmetamac;
-        transfer->hasprevmetamac = true;
-        return transfer->failcount < 16;
+        return false; // mac error; do not retry
     }
 
     return  // Non fatal errors, up to 16 retries
@@ -444,6 +443,15 @@ void File::displayname(string* dname)
     }
 }
 
+string File::displayname()
+{
+    string result;
+
+    displayname(&result);
+
+    return result;
+}
+
 #ifdef ENABLE_SYNC
 SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
 {
@@ -457,7 +465,7 @@ SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
     syncxfer = true;
     n->syncget = this;
 
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
+    sync->threadSafeState->transferBegin(GET, size);
 }
 
 SyncFileGet::~SyncFileGet()
@@ -469,11 +477,11 @@ SyncFileGet::~SyncFileGet()
 }
 
 // create sync-specific temp download directory and set unique filename
-void SyncFileGet::prepare()
+void SyncFileGet::prepare(FileSystemAccess&)
 {
     if (transfer->localfilename.empty())
     {
-        LocalPath tmpname = LocalPath::fromName("tmp", *sync->client->fsaccess, sync->mFilesystemType);
+        LocalPath tmpname = LocalPath::fromRelativeName("tmp", *sync->client->fsaccess, sync->mFilesystemType);
 
         if (!sync->tmpfa)
         {
@@ -484,13 +492,13 @@ void SyncFileGet::prepare()
             {
                 LOG_verbose << "Creating tmp folder";
                 transfer->localfilename = sync->localdebris;
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true);
+                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true, true);
 
                 transfer->localfilename.appendWithSeparator(tmpname, true);
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename);
+                sync->client->fsaccess->mkdirlocal(transfer->localfilename, false, true);
 
                 // lock it
-                LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess, sync->mFilesystemType);
+                LocalPath lockname = LocalPath::fromRelativeName("lock", *sync->client->fsaccess, sync->mFilesystemType);
                 transfer->localfilename.appendWithSeparator(lockname, true);
 
                 if (sync->tmpfa->fopen(transfer->localfilename, false, true))
@@ -517,8 +525,7 @@ void SyncFileGet::prepare()
             transfer->localfilename = sync->localroot->localname;
         }
 
-        LocalPath tmpfilename;
-        sync->client->fsaccess->tmpnamelocal(tmpfilename);
+        LocalPath tmpfilename = LocalPath::tmpNameLocal();
         transfer->localfilename.appendWithSeparator(tmpfilename, true);
     }
 
@@ -528,9 +535,9 @@ void SyncFileGet::prepare()
     }
 }
 
-bool SyncFileGet::failed(error e)
+bool SyncFileGet::failed(error e, MegaClient* client)
 {
-    bool retry = File::failed(e);
+    bool retry = File::failed(e, client);
 
     if (n->parent && n->parent->localnode)
     {
@@ -540,6 +547,7 @@ bool SyncFileGet::failed(error e)
         {
             if (e == API_EKEY)
             {
+                assert(client == n->parent->client);
                 int creqtag = n->parent->client->reqtag;
                 n->parent->client->reqtag = 0;
                 n->parent->client->sendevent(99433, "Undecryptable file");
@@ -571,15 +579,15 @@ void SyncFileGet::updatelocalname()
         if (n->parent && n->parent->localnode)
         {
             localname = n->parent->localnode->getLocalPath();
-            localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
+            localname.appendWithSeparator(LocalPath::fromRelativeName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
         }
     }
 }
 
 // add corresponding LocalNode (by path), then self-destruct
-void SyncFileGet::completed(Transfer*, LocalNode*)
+void SyncFileGet::completed(Transfer*, putsource_t source)
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
+    sync->threadSafeState->transferComplete(GET, size);
 
     LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
@@ -594,9 +602,9 @@ void SyncFileGet::completed(Transfer*, LocalNode*)
     delete this;
 }
 
-void SyncFileGet::terminated()
+void SyncFileGet::terminated(error e)
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
+    sync->threadSafeState->transferFailed(GET, size);
 
     delete this;
 }

@@ -78,12 +78,6 @@ AC_TYPE_UINT64_T
 AC_TYPE_PID_T
 AC_TYPE_OFF_T
 
-AH_VERBATIM([__STDC_FORMAT_MACROS],
-            [/* C99 says: define this to get the PRI... macros from stdint.h */
-#ifndef __STDC_FORMAT_MACROS
-# define __STDC_FORMAT_MACROS 1
-#endif])
-
 AC_CHECK_TYPES([ssize_t])
 
 AC_CANONICAL_HOST
@@ -115,9 +109,22 @@ AC_HEADER_STDC
 AC_HEADER_STDBOOL
 AC_HEADER_DIRENT
 
-AC_DEFINE(__STDC_CONSTANT_MACROS, [], [Force definition of constant macros for C++])
-AC_DEFINE(__STDC_FORMAT_MACROS, [], [Force definition of format macros for C++])
-AC_DEFINE(__STDC_LIMIT_MACROS, [], [Force definition of limit macros for C++])
+
+AH_VERBATIM([__STDC_CONSTANT_MACROS], [/*Force definition of constant macros for C++*/
+#ifndef __STDC_CONSTANT_MACROS
+#define __STDC_CONSTANT_MACROS
+#endif])
+
+AH_VERBATIM([__STDC_FORMAT_MACROS], [/*Force definition of format macros for C++*/
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif])
+
+AH_VERBATIM([__STDC_LIMIT_MACROS], [/*Force definition of limit macros for C++*/
+#ifndef __STDC_LIMIT_MACROS
+#define __STDC_LIMIT_MACROS
+#endif])
+
 
 # Add 64-bits file support on some hosts
 AC_SYS_LARGEFILE
@@ -138,15 +145,26 @@ AC_ARG_ENABLE(debug,
     AS_HELP_STRING([--enable-debug], [enable support for running in debug mode]),
     [], [enable_debug=no])
 
+CXXFLAGS="$CXXFLAGS -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter"
 # Enable debug flags / build
 if test "x$enable_debug" = "xyes" ; then
     AM_CXXFLAGS="-Wall -g -ggdb3 -O0"
-    CXXFLAGS="$CXXFLAGS -Wall -g -ggdb3 -O0"
+    CXXFLAGS="$CXXFLAGS -g -ggdb3 -O0"
     AC_SUBST([AM_CXXFLAGS])
     AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
+
+    # Limit -Werror to debug builds
+    if test "x$enable_werror" = "xyes" ; then
+       CXXFLAGS="$CXXFLAGS -Werror"
+    fi
 else
     CXXFLAGS="$CXXFLAGS -DNDEBUG=1"
 fi
+
+# Warnings as errors
+AC_ARG_ENABLE(werror,
+    AS_HELP_STRING([--enable-werror], [enable warnings promotion to errors]),
+    [], [enable_werror=no])
 
 # Check if we can use -fPIC flag
 AX_CHECK_COMPILE_FLAG([-fPIC], [
@@ -288,6 +306,44 @@ if test x$enable_sync = xyes; then
 fi
 
 
+# Drive Notifications
+AC_ARG_ENABLE(drive-notifications,
+    AS_HELP_STRING([--enable-drive-notifications], [enable Drive Notifications support [default=no]]),
+    [enable_drive_notifications=${enableval}],
+    [enable_drive_notifications=no])
+AS_IF([test "x$enable_drive_notifications" = "xyes"], [
+    # Add USE_DRIVE_NOTIFICATIONS preprocessor definition to config.h
+    AC_DEFINE(USE_DRIVE_NOTIFICATIONS, 1, [Define to enable Drive Notifications])
+    # Add -DUSE_DRIVE_NOTIFICATIONS to build command
+    CXXFLAGS="$CXXFLAGS -DUSE_DRIVE_NOTIFICATIONS"
+    # Add lib to linker command
+    if test "x$LINUX" = "xyes"; then
+        LDFLAGS="$LDFLAGS -ludev"
+    elif test "x$WIN32" = "xyes"; then
+        LDFLAGS="$LDFLAGS -lwbemuuid"
+    elif test "x$DARWIN" = "xyes"; then
+        LDFLAGS="$LDFLAGS -framework CoreFoundation -framework DiskArbitration"
+    fi
+])
+AM_CONDITIONAL([USE_DRIVE_NOTIFICATIONS], [test "x$enable_drive_notifications" = "xyes"])
+
+
+# MEGA_USE_C_ARES symbol for c-ares
+AC_ARG_ENABLE(mega-c-ares,
+    AS_HELP_STRING([--disable-mega-c-ares], [don't define MEGA_USE_C_ARES symbol]),
+    [enable_mega_c_ares=${enableval}],
+    [enable_mega_c_ares=yes])
+AS_IF([test "x$enable_mega_c_ares" != "xno"], [
+    # Add MEGA_USE_C_ARES preprocessor definition to config.h
+    AC_DEFINE(MEGA_USE_C_ARES, 1, [Define MEGA_USE_C_ARES symbol])
+    # Add -DMEGA_USE_C_ARES to build command
+    CXXFLAGS="$CXXFLAGS -DMEGA_USE_C_ARES"
+    # Reset it to a relevant and readable value, to be used in the final report
+    enable_mega_c_ares=yes
+])
+AM_CONDITIONAL([MEGA_USE_C_ARES], [test "x$enable_mega_c_ares" = "xyes"])
+
+
 # MEGA API
 AC_ARG_ENABLE(megaapi,
     AS_HELP_STRING([--disable-megaapi], [disable MEGA API support]),
@@ -298,6 +354,16 @@ if test "x$enable_megaapi" != "xno"; then
     AC_DEFINE(USE_MEGAAPI, 1, [Defined if MEGA API enabled])
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "x$enable_megaapi" = "xyes"])
+
+# MEGA API RPC
+AC_ARG_ENABLE(megaapirpc,
+    AS_HELP_STRING([--disable-megaapirpc], [disable MEGA API RPC support]),
+    [enable_megaapirpc=${enableval}],
+    [enable_megaapirpc=no])
+if test "x$enable_megaapirpc" != "xno"; then
+    [enable_megaapirpc=yes]
+    AC_DEFINE(HAVE_MEGAAPI_RPC, 1, [Defined if MEGA API enabled])
+fi
 
 # Rotative Performance Logger
 AC_ARG_ENABLE(rotative-performance-logger,
@@ -1581,6 +1647,7 @@ AC_ARG_ENABLE(examples,
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
+
 # FreeImage
 freeimage=false
 AC_MSG_CHECKING(for FreeImage)
@@ -1663,6 +1730,78 @@ if test "x$freeimage" = "xtrue" ; then
     AC_DEFINE(USE_FREEIMAGE, [1], [Define to use FreeImage library.])
 fi
 AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
+
+#pdfium
+pdfium=false
+AC_MSG_CHECKING(for PDFium)
+AC_ARG_WITH(pdfium,
+  AS_HELP_STRING(--with-pdfium=PATH, base of PDFium installation),
+  [AC_MSG_RESULT($with_pdfium)
+  case $with_pdfium in
+    no)
+      pdfium=false
+    ;;
+    yes)
+      AC_CHECK_HEADERS([fpdfview.h],, [
+          AC_MSG_ERROR([fpdfview.h header not found or not usable])
+      ])
+      AC_CHECK_LIB([pdfium], [main], [PDF_LIBS="-lpdfium"], [
+          AC_MSG_ERROR([PDFium library is not found!])])
+
+       pdfium=true
+    ;;
+    *)
+    # determine if library is installed
+    if test -d "$with_pdfium/lib"; then
+        LDFLAGS="-L$with_pdfium/lib $LDFLAGS"
+        CXXFLAGS="-I$with_pdfium/include $CXXFLAGS"
+        CPPFLAGS="-I$with_pdfium/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS([fpdfview.h],[
+         PDF_LDFLAGS="-L$with_pdfium/lib"
+         PDF_CXXFLAGS="-I$with_pdfium/include"
+         PDF_CPPFLAGS="-I$with_pdfium/include"],
+         AC_MSG_ERROR([fpdfview.h header not found or not usable])
+        )
+    else
+        LDFLAGS="-L$with_pdfium/Dist $LDFLAGS"
+        CXXFLAGS="-I$with_pdfium/Dist $CXXFLAGS"
+        CPPFLAGS="-I$with_pdfium/Dist $CPPFLAGS"
+
+        AC_CHECK_HEADERS([fpdfview.h],[
+         PDF_LDFLAGS="-L$with_pdfium/Dist"
+         PDF_CXXFLAGS="-I$with_pdfium/Dist"
+         PDF_CPPFLAGS="-I$with_pdfium/Dist"],
+         AC_MSG_ERROR([fpdfview.h header not found or not usable])
+        )
+    fi
+    # check and set PDFium library
+    AC_CHECK_LIB([pdfium], [main], [PDF_LIBS="-lpdfium"], [
+        AC_MSG_ERROR([PDFium library is not found!])])
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    pdfium=true
+    ;;
+   esac
+   ],
+   [AC_MSG_RESULT([--with-pdfium not specified])
+    AC_CHECK_HEADERS([fpdfview.h],AC_CHECK_LIB([pdfium], [main],
+        [PDF_LIBS="-lpdfium"
+        pdfium=true
+        ],),)
+   ]
+   )
+
+if test "x$pdfium" = "xtrue" ; then
+AC_SUBST(PDF_LDFLAGS)
+AC_SUBST(PDF_LIBS)
+AC_SUBST(PDF_CXXFLAGS)
+AC_SUBST(PDF_CPPFLAGS)
+AC_DEFINE(HAVE_PDFIUM, [1], [Define to use PDFium library.])
+fi
+AM_CONDITIONAL([USE_PDFIUM], [test "x$pdfium" = "xtrue"])
 
 USE_FUSE=0
 # if Examples are enables, check for specific libraries
@@ -2071,8 +2210,11 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   sync subsystem:   $enable_sync
   chat:             $enable_chat
   MEGA API          $enable_megaapi
+  MEGA API RPC      $enable_megaapirpc
   example apps:     $enable_examples
   Rot Perf Logger:  $enable_rotative_performance_logger
+  Drive Notif:      $enable_drive_notifications
+  MEGA_USE_C_ARES:  $enable_mega_c_ares
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads
@@ -2083,7 +2225,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   SWIG_FLAGS_PHP:   $SWIG_FLAGS_PHP
   
   Java bindings:    $enable_java
-
+  
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
   Crypto++:         $CRYPTO_CXXFLAGS $CRYPTO_LDFLAGS $CRYPTO_LIBS
   Sodium:           $SODIUM_CXXFLAGS $SODIUM_LDFLAGS $SODIUM_LIBS
@@ -2092,6 +2234,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   c-ares:           $CARES_FLAGS $CARES_LDFLAGS $CARES_LIBS
   cURL:             $LIBCURL_FLAGS $LIBCURL_LIBS
   FreeImage:        $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
+  PDFium:           $PDF_CXXFLAGS $PDF_LDFLAGS $PDF_LIBS
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
@@ -2099,4 +2242,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   LIBRAW:           $LIBRAW_CXXFLAGS $LIBRAW_LDFLAGS $LIBRAW_LIBS
   LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
   FFMPEG:           $FFMPEG_CXXFLAGS $FFMPEG_LDFLAGS $FFMPEG_LIBS
+
 ])

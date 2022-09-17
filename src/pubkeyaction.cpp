@@ -29,8 +29,9 @@ PubKeyAction::PubKeyAction()
     cmd = NULL;
 }
 
-PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag)
+PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag, CommandPutNodes::Completion&& c)
     : nn(move(newnodes))
+    , completion(move(c))
 {
     tag = ctag;
 }
@@ -47,18 +48,20 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
         {
             if (!(t = u->pubk.encrypt(client->rng, (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
             {
-                client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
+                if (completion) completion(API_EINTERNAL, USER_HANDLE, nn, false);
+                else client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
                 return;
             }
 
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), move(nn), tag));
+        client->reqs.add(new CommandPutNodes(client, NodeHandle(), u->uid.c_str(), NoVersioning, move(nn), tag, PUTNODES_APP, nullptr, move(completion)));
     }
     else
     {
-        client->app->putnodes_result(API_ENOENT, USER_HANDLE, nn);
+        if (completion) completion(API_ENOENT, USER_HANDLE, nn, false);
+        else client->app->putnodes_result(API_ENOENT, USER_HANDLE, nn);
     }
 }
 
@@ -93,7 +96,8 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     // node vanished: bail
     if (!(n = client->nodebyhandle(h)))
     {
-        return client->app->share_result(API_ENOENT, mWritable);
+        completion(API_ENOENT, mWritable);
+        return;
     }
 
     // do we already have a share key for this node?
@@ -109,18 +113,18 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
 
     // we have all ingredients ready: the target user's public key, the share
     // key and all nodes to share
-    client->restag = tag;
-    client->reqs.add(new CommandSetShare(client, n, u, a, newshare, NULL, mWritable, selfemail.c_str()));
+    client->reqs.add(new CommandSetShare(client, n, u, a, newshare, NULL, mWritable, selfemail.c_str(), tag, move(completion)));
 }
 
-
 // share node sh with access level sa
-PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, bool writable, const char* personal_representation)
+PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, bool writable, const char* personal_representation, std::function<void(Error, bool writeable)> f)
 {
     h = sh;
     a = sa;
     tag = ctag;
     mWritable = writable;
+    completion = move(f);
+    assert(completion);
 
     if (personal_representation)
     {
