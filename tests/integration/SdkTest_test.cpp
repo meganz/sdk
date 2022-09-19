@@ -1295,45 +1295,6 @@ void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, co
     ASSERT_EQ(API_OK, err) << "Cannot complete media upload (error: " << err << ")";
 }
 
-string runProgram(const string& command)
-{
-    string output;
-    FILE* pPipe =
-#ifdef _WIN32
-        _popen(command.c_str(), "rt");
-#else
-        popen(command.c_str(), "r");
-#endif
-
-    if (!pPipe)
-    {
-        LOG_err << "Failed to run command\n" << command;
-        return output;
-    }
-
-    /* Read pipe until file ends or error occurs. */
-
-    char   psBuffer[128];
-    while (fgets(psBuffer, 128, pPipe))
-    {
-        output += psBuffer;
-    }
-
-    /* Close pipe. */
-    if (!feof(pPipe))
-    {
-        LOG_err << "Failed to read command output.";
-    }
-
-#ifdef _WIN32
-    _pclose(pPipe);
-#else
-    pclose(pPipe);
-#endif
-
-    return output;
-}
-
 string getLinkFromMailbox(const string& exe,         // Python
                           const string& script,      // email_processor.py
                           const string& realAccount, // user
