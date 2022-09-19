@@ -722,6 +722,44 @@ void SqliteAccountState::createIndexes()
     {
         LOG_err << "Data base error while creating index (parenthandleindex): " << sqlite3_errmsg(db);
     }
+
+    sql = "CREATE INDEX IF NOT EXISTS fingerprintindex on nodes (fingerprint)";
+    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_err << "Data base error while creating index (fingerprintindex): " << sqlite3_errmsg(db);
+    }
+
+#if defined( __ANDROID__) || defined(USE_IOS)
+    sql = "CREATE INDEX IF NOT EXISTS origFingerprintindex on nodes (origFingerprint)";
+    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_err << "Data base error while creating index (origFingerprintindex): " << sqlite3_errmsg(db);
+    }
+#endif
+
+    sql = "CREATE INDEX IF NOT EXISTS shareindex on nodes (share)";
+    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_err << "Data base error while creating index (shareindex): " << sqlite3_errmsg(db);
+    }
+
+
+    sql = "CREATE INDEX IF NOT EXISTS favindex on nodes (fav)";
+    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_err << "Data base error while creating index (favindex): " << sqlite3_errmsg(db);
+    }
+
+    sql = "CREATE INDEX IF NOT EXISTS ctimeindex on nodes (ctime)";
+    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_err << "Data base error while creating index (ctimeindex): " << sqlite3_errmsg(db);
+    }
 }
 
 void SqliteAccountState::remove()
