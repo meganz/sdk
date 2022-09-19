@@ -5721,8 +5721,13 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
 
+    // get timestamp
+    struct tm tms;
+    char timestamp[32];
+    strftime(timestamp, sizeof timestamp, "%Y%m%d%H%M%S", m_localtime(m_time(), &tms));
+
     // test setter/getter
-    string deviceName = "SdkDeviceNamesTest";
+    string deviceName = string("SdkDeviceNamesTest") + timestamp;
     auto err = synchronousSetDeviceName(0, deviceName.c_str());
     ASSERT_EQ(API_OK, err) << "setDeviceName failed (error: " << err << ")";
     err = synchronousGetDeviceName(0);
