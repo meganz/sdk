@@ -2645,13 +2645,13 @@ bool LocalNodeCore::write(string& destination, uint32_t parentID)
         if (syncedFingerprint.isvalid)
         {
             w.serializebinary((byte*)syncedFingerprint.crc.data(), sizeof(syncedFingerprint.crc));
-            w.serializecompressed64(syncedFingerprint.mtime);
+            w.serializecompressedi64(syncedFingerprint.mtime);
         }
         else
         {
             static FileFingerprint zeroFingerprint;
             w.serializebinary((byte*)zeroFingerprint.crc.data(), sizeof(zeroFingerprint.crc));
-            w.serializecompressed64(zeroFingerprint.mtime);
+            w.serializecompressedi64(zeroFingerprint.mtime);
         }
     }
 
@@ -2763,7 +2763,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     handle fsid;
     handle h = 0;
     string localname, shortname;
-    uint64_t mtime = 0;
+    m_time_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
     byte syncable = 1;
@@ -2775,7 +2775,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
         !r.unserializenodehandle(h) ||
         !r.unserializestring(localname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
-        (type == FILENODE && !r.unserializecompressed64(mtime)) ||
+        (type == FILENODE && !r.unserializecompressedi64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
         (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 2)) ||
         (expansionflags[0] && !r.unserializecstr(shortname, false)) ||

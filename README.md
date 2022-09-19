@@ -64,8 +64,7 @@ We use vcpkg, cmake, and provide scripts to build the 3rd party libraries and se
 	* cmake -DTRIPLET=x64-windows-mega -DEXTRA_ARGS="-DUSE_PDFIUM=0" -P build_from_scratch.cmake
 * Visual Studio solution is generated at mybuild\sdk\build-x64-windows-mega
 * That folder contains Debug and Release subfolders which contain build products
-* Later, if you want to include pdfium (which is used to generate thumbnails and previews for .pdf files), see 3rdparty_deps.txt.
-* Similar steps work for other platforms too (Linux with triplet x64-linux (including WSL), Mac with triplet x64-osx-mega).
+* Similar steps work for other platforms too (Linux with triplet x64-linux-mega (including WSL), Mac with triplet x64-osx-mega or arm64-osx-mega).
 
 ### Building with POSIX Autotools  (Linux/Darwin/BSD/OSX ...)
 
