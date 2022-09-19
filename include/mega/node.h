@@ -80,6 +80,7 @@ struct MEGA_API NewNode : public NodeCore
     // versioning used for this new node, forced at server's side regardless the account's value
     VersioningOption mVersioningOption = NoVersioning;
     bool added = false;           // set true when the actionpacket arrives
+    bool canChangeVault = false;
     handle mAddedHandle = UNDEF;  // updated as actionpacket arrives
 };
 
@@ -162,6 +163,11 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // node attributes
     AttrMap attrs;
+
+    // {backup-id, state} pairs received in "sds" node attribute
+    vector<pair<handle, int>> getSdsBackups() const;
+    static nameid sdsId();
+    static string toSdsString(const vector<pair<handle, int>>&);
 
     // owner
     handle owner = mega::UNDEF;
@@ -255,11 +261,11 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     syncdel_t syncdeleted = SYNCDEL_NONE;
 
     // location in the todebris node_set
-    node_set::iterator todebris_it;
+    unlink_or_debris_set::iterator todebris_it;
 
     // location in the tounlink node_set
     // FIXME: merge todebris / tounlink
-    node_set::iterator tounlink_it;
+    unlink_or_debris_set::iterator tounlink_it;
 #endif
 
     // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
