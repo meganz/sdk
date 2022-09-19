@@ -52,8 +52,8 @@ Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
     syncget = NULL;
 
     syncdeleted = SYNCDEL_NONE;
-    todebris_it = client->todebris.end();
-    tounlink_it = client->tounlink.end();
+    todebris_it = client->toDebris.end();
+    tounlink_it = client->toUnlink.end();
 #endif
 
     type = t;
@@ -78,7 +78,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
     client->nodes[h] = this;
 
     if (t == ROOTNODE) client->rootnodes.files = h;
-    if (t == INCOMINGNODE) client->rootnodes.inbox = h;
+    if (t == VAULTNODE) client->rootnodes.vault = h;
     if (t == RUBBISHNODE) client->rootnodes.rubbish = h;
 
     // set parent linkage or queue for delayed parent linkage in case of
@@ -114,15 +114,15 @@ Node::~Node()
 
 #ifdef ENABLE_SYNC
     // remove from todebris node_set
-    if (todebris_it != client->todebris.end())
+    if (todebris_it != client->toDebris.end())
     {
-        client->todebris.erase(todebris_it);
+        client->toDebris.erase(todebris_it);
     }
 
     // remove from tounlink node_set
-    if (tounlink_it != client->tounlink.end())
+    if (tounlink_it != client->toUnlink.end())
     {
-        client->tounlink.erase(tounlink_it);
+        client->toUnlink.erase(tounlink_it);
     }
 #endif
 
@@ -157,7 +157,7 @@ Node::~Node()
 
         const Node* fa = firstancestor();
         NodeHandle ancestor = fa->nodeHandle();
-        if (ancestor == client->rootnodes.files || ancestor == client->rootnodes.inbox || ancestor == client->rootnodes.rubbish || fa->inshare)
+        if (client->rootnodes.isRootNode(ancestor) || fa->inshare)
         {
             client->mNodeCounters[firstancestor()->nodeHandle()] -= subnodeCounts();
         }
@@ -736,6 +736,69 @@ void Node::setattr()
     }
 }
 
+nameid Node::sdsId()
+{
+    constexpr nameid nid = MAKENAMEID3('s', 'd', 's');
+    return nid;
+}
+
+vector<pair<handle, int>> Node::getSdsBackups() const
+{
+    vector<pair<handle, int>> bkps;
+
+    auto it = attrs.map.find(sdsId());
+    if (it != attrs.map.end())
+    {
+        std::istringstream is(it->second);  // "b64aa:8,b64bb:8"
+        while (!is.eof())
+        {
+            string b64BkpIdStr;
+            std::getline(is, b64BkpIdStr, ':');
+            if (!is.good())
+            {
+                LOG_err << "Invalid format in 'sds' attr value for backup id";
+                break;
+            }
+            handle bkpId = UNDEF;
+            Base64::atob(b64BkpIdStr.c_str(), (byte*)&bkpId, MegaClient::BACKUPHANDLE);
+            assert(bkpId != UNDEF);
+
+            string stateStr;
+            std::getline(is, stateStr, ',');
+            try
+            {
+                int state = std::stoi(stateStr);
+                bkps.push_back(std::make_pair(bkpId, state));
+            }
+            catch (...)
+            {
+                LOG_err << "Invalid backup state in 'sds' attr value";
+                break;
+            }
+        }
+    }
+
+    return bkps;
+}
+
+string Node::toSdsString(const vector<pair<handle, int>>& ids)
+{
+    string value;
+
+    for (const auto& i : ids)
+    {
+        std::string idStr(Base64Str<MegaClient::BACKUPHANDLE>(i.first));
+        value += idStr + ':' + std::to_string(i.second) + ','; // `b64aa:8,b64bb:8,`
+    }
+
+    if (!value.empty())
+    {
+        value.pop_back(); // remove trailing ','
+    }
+
+    return value;
+}
+
 // if present, configure FileFingerprint from attributes
 // otherwise, the file's fingerprint is derived from the file's mtime/size/key
 void Node::setfingerprint()
@@ -849,7 +912,7 @@ string Node::displaypath() const
             }
             break;
 
-        case INCOMINGNODE:
+        case VAULTNODE:
             path.insert(0, "//in");
             return path;
 
@@ -1012,7 +1075,7 @@ bool Node::setparent(Node* p)
 
     const Node *originalancestor = firstancestor();
     NodeHandle oah = originalancestor->nodeHandle();
-    if (oah == client->rootnodes.files || oah == client->rootnodes.inbox || oah == client->rootnodes.rubbish || originalancestor->inshare)
+    if (client->rootnodes.isRootNode(oah) || originalancestor->inshare)
     {
         nc = subnodeCounts();
         gotnc = true;
@@ -1039,7 +1102,7 @@ bool Node::setparent(Node* p)
 
     const Node* newancestor = firstancestor();
     NodeHandle nah = newancestor->nodeHandle();
-    if (nah == client->rootnodes.files || nah == client->rootnodes.inbox || nah == client->rootnodes.rubbish || newancestor->inshare)
+    if (client->rootnodes.isRootNode(nah) || newancestor->inshare)
     {
         if (!gotnc)
         {
@@ -1211,6 +1274,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
     Node* todelete = NULL;
     int nc = 0;
     Sync* oldsync = NULL;
+    bool canChangeVault = sync->isBackup();
 
     assert(!newparent || newparent->node || newnode);
 
@@ -1254,7 +1318,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
                     string prevname = node->attrs.map['n'];
 
                     // set new name
-                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr);
+                    sync->client->setattr(node, attr_map('n', name), sync->client->nextreqtag(), prevname.c_str(), nullptr, canChangeVault);
                 }
             }
         }
@@ -1275,7 +1339,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             {
                 sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displaypath() << " to " << parent->node->displaypath();
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, nullptr) == API_EACCESS
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodeHandle() : NodeHandle(), nullptr, canChangeVault, nullptr) == API_EACCESS
                         && sync != parent->sync)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
@@ -1327,13 +1391,14 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
             sync->client->syncup(parent, &nds);
 
             // check if nodes can be immediately created
-            bool immediatecreation = (int) sync->client->synccreate.size() == nc;
+            bool immediatecreation = nc == (int) (sync->client->synccreateForVault.size()
+                                                + sync->client->synccreateGeneral.size());
 
             sync->client->syncupdate();
 
             // try to keep nodes in syncdebris if they can't be immediately created
             // to avoid uploads
-            sync->client->movetosyncdebris(todelete, immediatecreation || oldsync->inshare);
+            sync->client->movetosyncdebris(todelete, immediatecreation || oldsync->inshare, sync->isBackup());
         }
 
         if (oldsync)
@@ -1640,7 +1705,7 @@ LocalNode::~LocalNode()
         // shutting down
         if (sync->state() >= SYNC_INITIALSCAN)
         {
-            sync->client->movetosyncdebris(node, sync->inshare);
+            sync->client->movetosyncdebris(node, sync->inshare, sync->isBackup());
         }
     }
 }
@@ -1731,7 +1796,7 @@ void LocalNode::prepare(FileSystemAccess&)
 
 void LocalNode::terminated(error e)
 {
-    sync->threadSafeState->transferComplete(PUT, size);
+    sync->threadSafeState->transferFailed(PUT, size);
 
     File::terminated(e);
 }
@@ -1740,7 +1805,7 @@ void LocalNode::terminated(error e)
 // would have been caused by a race condition)
 void LocalNode::completed(Transfer* t, putsource_t source)
 {
-    sync->threadSafeState->transferFailed(PUT, size);
+    sync->threadSafeState->transferComplete(PUT, size);
 
     // complete to rubbish for later retrieval if the parent node does not
     // exist or is newer
@@ -1755,9 +1820,11 @@ void LocalNode::completed(Transfer* t, putsource_t source)
         h = parent->node->nodeHandle();
     }
 
+    bool canChangeVault = sync->isBackup();
+
     // we are overriding completed() for sync upload, we don't use the File::completed version at all.
     assert(t->type == PUT);
-    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr);
+    sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, this, nullptr, canChangeVault);
 }
 
 // serialize/unserialize the following LocalNode properties:
@@ -1778,7 +1845,7 @@ bool LocalNode::serialize(string* d)
     if (type == FILENODE)
     {
         w.serializebinary((byte*)crc.data(), sizeof(crc));
-        w.serializecompressed64(mtime);
+        w.serializecompressedi64(mtime);
     }
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
@@ -1822,7 +1889,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     uint32_t parent_dbid;
     handle h = 0;
     string localname, shortname;
-    uint64_t mtime = 0;
+    m_time_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
     byte syncable = 1;
@@ -1833,7 +1900,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         !r.unserializenodehandle(h) ||
         !r.unserializestring(localname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
-        (type == FILENODE && !r.unserializecompressed64(mtime)) ||
+        (type == FILENODE && !r.unserializecompressedi64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
         (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 1)) ||
         (expansionflags[0] && !r.unserializecstr(shortname, false)))

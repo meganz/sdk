@@ -2002,18 +2002,6 @@ using namespace mega;
     }
 }
 
-- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->getMyBackupsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
-    }
-}
-
-- (void)getMyBackupsFolder {
-    if (self.megaApi) {
-        self.megaApi->getMyBackupsFolder();
-    }
-}
-
 - (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);

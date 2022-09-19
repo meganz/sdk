@@ -750,6 +750,11 @@ MegaHandle MegaUserAlert::getNodeHandle() const
     return INVALID_HANDLE;
 }
 
+MegaHandle MegaUserAlert::getPcrHandle() const
+{
+    return INVALID_HANDLE;
+}
+
 const char* MegaUserAlert::getEmail() const
 {
     return NULL;
@@ -1295,8 +1300,6 @@ const char* MegaTransfer::stageToString(unsigned stage)
         case MegaTransfer::STAGE_NONE:                      return "Not initialized stage";
         case MegaTransfer::STAGE_SCAN:                      return "Scan stage";
         case MegaTransfer::STAGE_CREATE_TREE:               return "Create tree stage";
-        case MegaTransfer::STAGE_GEN_TRANSFERS:             return "Generating file transfers stage";
-        case MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE:    return "Processing transfers queue stage";
         case MegaTransfer::STAGE_TRANSFERRING_FILES:        return "Transferring files stage";
         default:                                            return "Invalid stage";
     }
@@ -1605,6 +1608,8 @@ void MegaTransferListener::onTransferStart(MegaApi *, MegaTransfer *)
 void MegaTransferListener::onTransferFinish(MegaApi*, MegaTransfer *, MegaError*)
 { }
 void MegaTransferListener::onTransferUpdate(MegaApi *, MegaTransfer *)
+{ }
+void MegaTransferListener::onFolderTransferUpdate(MegaApi *, MegaTransfer *, int stage, uint32_t foldercount, uint32_t filecount, uint32_t createdfoldercount, const char* currentFolder, const char* currentFileLeafname)
 { }
 bool MegaTransferListener::onTransferData(MegaApi *, MegaTransfer *, char *, size_t)
 { return true; }
@@ -2889,14 +2894,9 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
     pImpl->getMyChatFilesFolder(listener);
 }
 
-void MegaApi::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+void MegaApi::setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener)
 {
-    pImpl->setMyBackupsFolder(nodehandle, listener);
-}
-
-void MegaApi::getMyBackupsFolder(MegaRequestListener *listener)
-{
-    pImpl->getMyBackupsFolder(listener);
+    pImpl->setMyBackupsFolder(localizedName, listener);
 }
 
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
@@ -3205,7 +3205,7 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *f
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
+    pImpl->startUpload(true /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
                        0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
                        true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
 }
@@ -3373,19 +3373,14 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
+void MegaApi::removeSync(MegaSync *sync, MegaHandle backupDestination, MegaRequestListener *listener)
 {
-    pImpl->removeSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
+    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, backupDestination, listener);
 }
 
-void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
+void MegaApi::removeSync(MegaHandle backupId, MegaHandle backupDestination, MegaRequestListener *listener)
 {
-    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
-}
-
-void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
-{
-    pImpl->removeSyncById(backupId, listener);
+    pImpl->removeSyncById(backupId, backupDestination, listener);
 }
 
 void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3423,9 +3418,9 @@ const char* MegaApi::exportSyncConfigs()
     return pImpl->exportSyncConfigs();
 }
 
-void MegaApi::removeSyncs(MegaRequestListener *listener)
+void MegaApi::removeSyncs(MegaHandle backupDestination, MegaRequestListener *listener)
 {
-   pImpl->stopSyncs(listener);
+   pImpl->stopSyncs(backupDestination, listener);
 }
 
 MegaSyncList* MegaApi::getSyncs()
@@ -3560,9 +3555,14 @@ MegaNode *MegaApi::getRootNode()
     return pImpl->getRootNode();
 }
 
-MegaNode* MegaApi::getInboxNode()
+MegaNode *MegaApi::getVaultNode()
 {
-    return pImpl->getInboxNode();
+    return pImpl->getVaultNode();
+}
+
+MegaNode *MegaApi::getInboxNode()
+{
+    return pImpl->getVaultNode();
 }
 
 MegaNode* MegaApi::getRubbishNode()
@@ -3585,7 +3585,7 @@ bool MegaApi::isInRubbish(MegaNode *node)
     return pImpl->isInRootnode(node, 2);
 }
 
-bool MegaApi::isInInbox(MegaNode *node)
+bool MegaApi::isInVault(MegaNode *node)
 {
     return pImpl->isInRootnode(node, 1);
 }
@@ -5149,14 +5149,19 @@ char *MegaApi::getMimeType(const char *extension)
 }
 
 #ifdef ENABLE_CHAT
-void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
+void MegaApi::createChat(bool group, MegaTextChatPeerList* peers, const char* title, int chatOptions, MegaRequestListener* listener)
 {
-    pImpl->createChat(group, false, peers, NULL, title, false, listener);
+    pImpl->createChat(group, false, peers, NULL, title, false, chatOptions, listener);
 }
 
-void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, MegaRequestListener *listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char* title, bool meetingRoom, int chatOptions, MegaRequestListener* listener)
 {
-    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, listener);
+    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, chatOptions, listener);
+}
+
+void MegaApi::setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener)
+{
+     pImpl->setChatOption(chatid, option, enabled, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
@@ -6489,6 +6494,11 @@ const char * MegaTextChat::getTitle() const
 const char * MegaTextChat::getUnifiedKey() const
 {
     return NULL;
+}
+
+unsigned char MegaTextChat::getChatOptions() const
+{
+    return 0;
 }
 
 bool MegaTextChat::hasChanged(int) const
