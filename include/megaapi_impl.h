@@ -2575,14 +2575,14 @@ class MegaApiImpl : public MegaApp
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void importSyncConfigs(const char* configs, MegaRequestListener* listener);
         const char* exportSyncConfigs();
-        void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
-        void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
+        void removeSync(handle nodehandle, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener=NULL);
+        void removeSyncById(handle backupId, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         MegaSyncList *getSyncs();
 
-        void stopSyncs(MegaRequestListener *listener=NULL);
+        void stopSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
         void setExcludedPaths(vector<string> *excludedPaths);
@@ -2924,8 +2924,7 @@ class MegaApiImpl : public MegaApp
         void setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener = NULL);
         void setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener);
         void getCameraUploadsFolder(bool secondary, MegaRequestListener *listener = NULL);
-        void setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener = nullptr);
-        void getMyBackupsFolder(MegaRequestListener *listener = nullptr);
+        void setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener = nullptr);
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 
@@ -3378,7 +3377,6 @@ protected:
 #endif
 
         void backupput_result(const Error&, handle backupId) override;
-        void backupremove_result(const Error&, handle) override;
 
 protected:
         // suggest reload due to possible race condition with other clients
@@ -3450,7 +3448,10 @@ private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 #ifdef ENABLE_SYNC
-        error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
+        error addSyncByRequest(MegaRequestPrivate* request, const string& syncName,
+                               const LocalPath& localPath, const LocalPath& drivePath, const SyncConfig::Type syncType);
+        error addBackupByRequest(MegaRequestPrivate* request, const string& syncName,
+                                 const LocalPath& localPath, const LocalPath& drivePath);
 #endif
 };
 

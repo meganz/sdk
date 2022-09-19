@@ -11469,81 +11469,28 @@ public class MegaApiJava {
     }
 
     /**
-     * Set My Backups folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     * - MegaRequest::getFlag - Returns false
-     * - MegaRequest::getNodehandle - Returns the provided node handle
-     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
-     * <p>
-     * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
-     * the request will fail with the error code MegaError::API_EACCESS.
+     * @brief Creates the special folder for backups ("My backups")
      *
-     * @param nodehandle MegaHandle of the node to be used as target folder
-     * @param listener   MegaRequestListener to track this request
-     */
-    public void setMyBackupsFolder(long handle, MegaRequestListenerInterface listener) {
-        megaApi.setMyBackupsFolder(handle, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Set My Backups folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     * - MegaRequest::getFlag - Returns false
-     * - MegaRequest::getNodehandle - Returns the provided node handle
-     * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-     * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
-     * <p>
-     * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
-     * the request will fail with the error code MegaError::API_EACCESS.
+     * It creates a new folder inside the Vault rootnode and later stores the node's
+     * handle in a user's attribute, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER.
      *
-     * @param nodehandle MegaHandle of the node to be used as target folder
-     */
-    public void setMyBackupsFolder(long handle) {
-        megaApi.setMyBackupsFolder(handle);
-    }
-
-    /**
-     * Gets My Backups target folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Apps should first check if this folder exists already, by calling
+     * MegaApi::getUserAttribute for the corresponding attribute.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_MY_BACKUPS
      * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     * - MegaRequest::getFlag - Returns false
-     * <p>
+     * - MegaRequest::getText - Returns the name provided as parameter
+     *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
-     * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
-     * <p>
-     * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+     * - MegaRequest::getNodehandle - Returns the node handle of the folder created
      *
+     * If the folder for backups already existed, the request will fail with the error API_EACCESS.
+     *
+     * @param localizedName Localized name for "My backups" folder
      * @param listener MegaRequestListener to track this request
      */
-    public void getMyBackupsFolder(MegaRequestListenerInterface listener) {
-        megaApi.getMyBackupsFolder(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Gets My Backups target folder.
-     * <p>
-     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-     * - MegaRequest::getFlag - Returns false
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
-     * <p>
-     * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
-     */
-    public void getMyBackupsFolder() {
-        megaApi.getMyBackupsFolder();
+    public void setMyBackupsFolder(String localizedName, MegaRequestListenerInterface listener) {
+        megaApi.setMyBackupsFolder(localizedName, createDelegateRequestListener(listener));
     }
 }

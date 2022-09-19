@@ -1166,8 +1166,8 @@ class MegaNode
         virtual MegaHandle getOwner() const;
 
         /**
-         * @brief Returns the device id stored as a Node attribute of a Backup folder.
-         * It will be an empty string for other nodes.
+         * @brief Returns the device id stored as a Node attribute.
+         * It will be an empty string for other nodes than device folders related to backups.
          *
          * The MegaNode object retains the ownership of the returned string, it will be valid until
          * the MegaNode object is deleted.
@@ -3267,7 +3267,8 @@ class MegaRequest
             TYPE_SET_CHAT_OPTIONS                                           = 147,
             TYPE_GET_RECENT_ACTIONS                                         = 148,
             TYPE_CHECK_RECOVERY_KEY                                         = 149,
-            TOTAL_OF_REQUEST_TYPES                                          = 150,
+            TYPE_SET_MY_BACKUPS                                             = 150,
+            TOTAL_OF_REQUEST_TYPES                                          = 151,
         };
 
         virtual ~MegaRequest();
@@ -7847,7 +7848,7 @@ class MegaApi
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
-            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
+            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
@@ -12262,41 +12263,28 @@ class MegaApi
         void getCameraUploadsFolderSecondary(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set My Backups folder.
+         * @brief Creates the special folder for backups ("My backups")
          *
-         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * It creates a new folder inside the Vault rootnode and later stores the node's
+         * handle in a user's attribute, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER.
+         *
+         * Apps should first check if this folder exists already, by calling
+         * MegaApi::getUserAttribute for the corresponding attribute.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_MY_BACKUPS
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-         * - MegaRequest::getFlag - Returns false
-         * - MegaRequest::getNodehandle - Returns the provided node handle
-         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-         * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
-         *
-         * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
-         * the request will fail with the error code MegaError::API_EACCESS.
-         *
-         * @param nodehandle MegaHandle of the node to be used as target folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener = nullptr);
-
-        /**
-         * @brief Gets My Backups target folder.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getText - Returns the name provided as parameter
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
+         * - MegaRequest::getNodehandle - Returns the node handle of the folder created
          *
-         * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+         * If the folder for backups already existed, the request will fail with the error API_EACCESS.
          *
+         * @param localizedName Localized name for "My backups" folder
          * @param listener MegaRequestListener to track this request
          */
-        void getMyBackupsFolder(MegaRequestListener *listener = nullptr);
+        void setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Gets the alias for an user
@@ -13759,18 +13747,19 @@ class MegaApi
          * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId
          *
-          * On the onRequestFinish error, the error code associated to the MegaError can be:
-          * - MegaError::API_EARGS - If the local folder was not set.
-          * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
-          * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-          * wrong 'dev-id'/'drv-id' tag.
-          * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
-          * the handle.
-          * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
-          * - or the node could not be found.
-          * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
-          * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
-          * or device name was empty.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
+         * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
+         * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
+         * wrong 'dev-id'/'drv-id' tag.
+         * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
+         * the handle.
+         * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+         * - or the node could not be found.
+         * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
+         * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
+         * or device name was empty.
+         * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
          *
          * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
          * @param localSyncRootFolder Path of the Local folder to sync/backup.
@@ -13919,55 +13908,23 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         *
-         * @param megaFolder MEGA folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void removeSync(MegaNode *megaFolder, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Remove a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
+        void removeSync(MegaHandle backupId, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Remove a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         *
-         * @param sync Synchronization to cancel
-         * @param listener MegaRequestListener to track this request
+        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        void removeSync(MegaSync *sync, MegaRequestListener *listener = NULL);
+        MEGA_DEPRECATED
+        void removeSync(MegaSync *sync, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Disable a synced folder
@@ -14082,15 +14039,19 @@ class MegaApi
         /**
          * @brief Remove all active synced folders
          *
-         * All folders will stop being synced. Nothing in the local nor in the remote folders
-         * will be deleted due to the usage of this function.
+         * All folders will stop being synced. Nothing in the local folders
+         * will be deleted due to the usage of this function. In the remote folders,
+         * only backup syncs in Vault will be either permanently deleted or moved to the new destination.
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNCS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSyncs(MegaRequestListener *listener = NULL);
-
+        void removeSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get all configured syncs
@@ -14513,7 +14474,7 @@ class MegaApi
         enum { SEARCH_TARGET_INSHARE = 0,
                SEARCH_TARGET_OUTSHARE,
                SEARCH_TARGET_PUBLICLINK,
-               SEARCH_TARGET_ROOTNODE,
+               SEARCH_TARGET_ROOTNODE,      // search in Cloud and Vault rootnodes
                SEARCH_TARGET_ALL, };
 
         /**
@@ -16299,7 +16260,7 @@ class MegaApi
          * - SEARCH_TARGET_INSHARE = 0
          * - SEARCH_TARGET_OUTSHARE = 1
          * - SEARCH_TARGET_PUBLICLINK = 2
-         * - SEARCH_TARGET_ROOTNODE = 3
+         * - SEARCH_TARGET_ROOTNODE = 3 --> search in Cloud and Vault rootnodes
          * - SEARCH_TARGET_ALL = 4
          *
          * @return List of nodes that match with the search parameters
