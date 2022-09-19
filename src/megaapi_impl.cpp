@@ -1290,22 +1290,30 @@ bool MegaApiImpl::is_syncable(long long size)
 
 int MegaApiImpl::isNodeSyncable(MegaNode *megaNode)
 {
+    MegaError *merror = isNodeSyncableWithError(megaNode);
+    int r = merror->getErrorCode();
+    delete merror;
+    return r;
+}
+
+MegaError* MegaApiImpl::isNodeSyncableWithError(MegaNode* megaNode) {
     if (!megaNode)
     {
-        return MegaError::API_EARGS;
+        return new MegaErrorPrivate(MegaError::API_EARGS);
     }
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(megaNode->getHandle());
+    Node* node = client->nodebyhandle(megaNode->getHandle());
     if (!node)
     {
         sdkMutex.unlock();
-        return MegaError::API_ENOENT;
+        return new MegaErrorPrivate(MegaError::API_ENOENT);
     }
 
-    error e = client->isnodesyncable(node);
+    SyncError se = SyncError::NO_SYNC_ERROR;
+    error e = client->isnodesyncable(node, nullptr, &se);
     sdkMutex.unlock();
-    return e;
+    return new MegaErrorPrivate(e, se);
 }
 
 bool MegaApiImpl::isIndexing()
@@ -24065,6 +24073,17 @@ MegaErrorPrivate::MegaErrorPrivate(int errorCode)
     : MegaError(errorCode)
 {
 }
+
+MegaErrorPrivate::MegaErrorPrivate(int errorCode, SyncError syncError)
+: MegaError(errorCode, syncError)
+{
+}
+#ifdef ENABLE_SYNC
+MegaErrorPrivate::MegaErrorPrivate(int errorCode, MegaSync::Error syncError)
+: MegaError(errorCode, syncError)
+{
+}
+#endif
 
 MegaErrorPrivate::MegaErrorPrivate(int errorCode, long long value)
     : MegaError(errorCode)

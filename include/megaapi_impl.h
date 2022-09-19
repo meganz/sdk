@@ -124,8 +124,27 @@ public:
 class MegaErrorPrivate : public MegaError
 {
 public:
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode = MegaError::API_OK);
+
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
+    MegaErrorPrivate(int errorCode, SyncError syncError);
+
+#ifdef ENABLE_SYNC
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
+    MegaErrorPrivate(int errorCode, MegaSync::Error syncError);
+#endif
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode, long long value);
+
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);
     ~MegaErrorPrivate() override;
@@ -2596,6 +2615,7 @@ class MegaApiImpl : public MegaApp
         bool is_syncable(Sync*, const char*, const LocalPath&);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
+        MegaError *isNodeSyncableWithError(MegaNode* node);
         bool isIndexing();
         bool isSyncing();
 
