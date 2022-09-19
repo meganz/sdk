@@ -202,8 +202,8 @@ typedef NS_ENUM(NSInteger, SMSState) {
 
 typedef NS_ENUM(NSInteger, AccountSuspensionType) {
     AccountSuspensionTypeNone = 0, // The account is not blocked
-    AccountSuspensionTypeNonCopyright = 200, // suspension for any type of suspension, but copyright suspension
-    AccountSuspensionTypeCopyright = 300, // suspension only for multiple copyright violations
+    AccountSuspensionTypeCopyright = 200, // suspension only for multiple copyright violations
+    AccountSuspensionTypeNonCopyright = 300, // suspension for any type of suspension, but copyright suspension
     AccountSuspensionTypeBusinessDisabled = 400, // the subuser of a business account has been disabled
     AccountSuspensionTypeBusinessRemoved = 401, // the subuser of a business account has been removed
     AccountSuspensionTypeSMSVerification = 500, // The account needs to be verified by an SMS code.
@@ -5399,40 +5399,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * If the secondary folder is not set, the request will fail with the error code MEGAErrorTypeApiENoent.
  */
 - (void)getCameraUploadsFolderSecondary;
-
-/**
- * @brief Gets My Backups target folder.
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
- * - [MEGARequest flag] - Returns NO
- *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
- *
- * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
- *
- * @param delegate MEGARequestDelegate to track this request
- */
-- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Gets My Backups target folder.
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeBackupsFolder
- * - [MEGARequest flag] - Returns NO
- *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest nodeHandle] - Returns the handle of the node where My Backups files are stored
- *
- * If the folder was not set, the request will fail with the error code MEGAErrorTypeApiENoent.
- */
-- (void)getMyBackupsFolder;
 
 /**
  * @brief Get the number of days for rubbish-bin cleaning scheduler

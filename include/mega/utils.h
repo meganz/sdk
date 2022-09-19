@@ -954,6 +954,8 @@ struct SyncTransferCounts
     bool operator==(const SyncTransferCounts& rhs) const;
     bool operator!=(const SyncTransferCounts& rhs) const;
     void operator-=(const SyncTransferCounts& rhs);
+
+    // returns progress 0.0 to 1.0
     double progress(m_off_t inflightProgress) const;
 
     SyncTransferCount mDownloads;
