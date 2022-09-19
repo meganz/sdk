@@ -739,13 +739,6 @@ void SqliteAccountState::createIndexes()
     }
 #endif
 
-    sql = "CREATE INDEX IF NOT EXISTS nameindex on nodes (name)";
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
-    {
-        LOG_err << "Data base error while creating index (nameindex): " << sqlite3_errmsg(db);
-    }
-
     sql = "CREATE INDEX IF NOT EXISTS shareindex on nodes (share)";
     result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
