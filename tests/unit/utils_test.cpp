@@ -794,3 +794,28 @@ TEST(JSON, stripWhitespace)
     ASSERT_EQ(computed, expected);
 }
 
+TEST(Utils, replace_char)
+{
+    ASSERT_EQ(Utils::replace(string(""), '*', '@'), "");
+    ASSERT_EQ(Utils::replace(string("*"), '*', '@'), "@");
+    ASSERT_EQ(Utils::replace(string("**"), '*', '@'), "@@");
+    ASSERT_EQ(Utils::replace(string("*aa"), '*', '@'), "@aa");
+    ASSERT_EQ(Utils::replace(string("*aa*bb*"), '*', '@'), "@aa@bb@");
+    ASSERT_EQ(Utils::replace(string("sd*"), '*', '@'), "sd@");
+    ASSERT_EQ(Utils::replace(string("*aa**bb*"), '*', '@'), "@aa@@bb@");
+}
+
+TEST(Utils, replace_string)
+{
+    ASSERT_EQ(Utils::replace(string(""), "*", "@"), "");
+    ASSERT_EQ(Utils::replace(string("*"), "*", "@"), "@");
+    ASSERT_EQ(Utils::replace(string("**"), "*", "@"), "@@");
+    ASSERT_EQ(Utils::replace(string("*aa"), "*", "@"), "@aa");
+    ASSERT_EQ(Utils::replace(string("*aa*bb*"), "*", "@"), "@aa@bb@");
+    ASSERT_EQ(Utils::replace(string("sd*"), "*", "@"), "sd@");
+    ASSERT_EQ(Utils::replace(string("*aa**bb*"), "*", "@"), "@aa@@bb@");
+    ASSERT_EQ(Utils::replace(string("*aa**bb*"), "*", "@"), "@aa@@bb@");
+
+    ASSERT_EQ(Utils::replace(string(""), "", "@"), "");
+    ASSERT_EQ(Utils::replace(string("abc"), "", "@"), "abc");
+}

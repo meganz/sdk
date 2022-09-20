@@ -27,9 +27,7 @@ extern string_vector envVarPass;
 std::string logTime();
 void WaitMillisec(unsigned n);
 
-#ifdef __linux__
-std::string exec(const char* cmd);
-#endif
+string runProgram(const string& command);
 
 // platform specific Http POST
 void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata);
@@ -581,7 +579,7 @@ struct StandardClient : public MegaApp
     void importSyncConfigs(string configs, PromiseBoolSP result);
     bool importSyncConfigs(string configs);
     string exportSyncConfigs();
-    bool delSync_inthread(handle backupId);
+    void delSync_inthread(handle backupId, PromiseBoolSP result);
 
     struct CloudNameLess
     {

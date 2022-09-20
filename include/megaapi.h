@@ -1170,8 +1170,8 @@ class MegaNode
         virtual MegaHandle getOwner() const;
 
         /**
-         * @brief Returns the device id stored as a Node attribute of a Backup folder.
-         * It will be an empty string for other nodes.
+         * @brief Returns the device id stored as a Node attribute.
+         * It will be an empty string for other nodes than device folders related to backups.
          *
          * The MegaNode object retains the ownership of the returned string, it will be valid until
          * the MegaNode object is deleted.
@@ -1648,13 +1648,17 @@ public:
     * @brief Returns the handle of a user related to the alert
     *
     * This value is valid for user related alerts:
-    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
-    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST,
     *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
     *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
     *  TYPE_CONTACTCHANGE_BLOCKEDYOU, TYPE_CONTACTCHANGE_DELETEDYOU,
     *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
+    *
+    * @warning This value is still valid for user related alerts:
+    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    * However, the returned value is the handle of the Pending Contact Request. There is no
+    * user's handle associated to these type of alerts. Use MegaUserAlert::getPcrHandle.
     *
     * @return the associated user's handle, otherwise UNDEF
     */
@@ -1670,6 +1674,17 @@ public:
     * @return the relevant node handle, or UNDEF if this alert does not have one.
     */
     virtual MegaHandle getNodeHandle() const;
+
+    /**
+    * @brief Returns the handle of a Pending Contact Request related to the alert
+    *
+    * This value is valid for user related alerts:
+    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    *
+    * @return the relevant PCR handle, or UNDEF if this alert does not have one.
+    */
+    virtual MegaHandle getPcrHandle() const;
 
     /**
     * @brief Returns an email related to the alert
@@ -3258,7 +3273,8 @@ class MegaRequest
             TYPE_SET_CHAT_OPTIONS                                           = 147,
             TYPE_GET_RECENT_ACTIONS                                         = 148,
             TYPE_CHECK_RECOVERY_KEY                                         = 149,
-            TOTAL_OF_REQUEST_TYPES                                          = 150,
+            TYPE_SET_MY_BACKUPS                                             = 150,
+            TOTAL_OF_REQUEST_TYPES                                          = 151,
         };
 
         virtual ~MegaRequest();
@@ -5576,7 +5592,7 @@ public:
      * @param errorCode Error code for which the description will be returned
      * @return Description associated with the error code
      */
-    static const char *getMegaSyncErrorCode(int errorCode);
+    static const char* getMegaSyncErrorCode(int errorCode);
 
     /**
      * @brief Returns a readable description of the sync warning
@@ -5980,7 +5996,6 @@ public:
     virtual MegaTransferList *getFailedTransfers();
 };
 
-
 /**
  * @brief Provides information about an error
  */
@@ -6032,7 +6047,6 @@ public:
         LOCAL_ENOSPC = -1000, ///< Insufficient space.
     };
 
-
     /**
      * @brief Api error code context.
      */
@@ -6080,13 +6094,19 @@ public:
          */
         virtual MegaError* copy() const;
 
-
 		/**
 		 * @brief Returns the error code associated with this MegaError
          *
-		 * @return Error code associated with this MegaError
+		 * @return Error code, an Errors enum, associated with this MegaError
 		 */
         virtual int getErrorCode() const;
+
+        /**
+         * @brief Returns the sync error associated with this MegaError
+         *
+         * @return MegaSync::Error associated with this MegaError
+         */
+        virtual int getSyncError() const;
 
         /**
          * @brief Returns a value associated with the error
@@ -6219,9 +6239,14 @@ public:
 
 protected:
         MegaError(int e);
+        MegaError(int e, int se);
 
         //< 0 = API error code, > 0 = http error, 0 = No error
+        // MegaError::Errors enum/ErrorCodes
         int errorCode;
+
+        // SyncError/MegaSync::Error 
+        int syncError;
 
         friend class MegaTransfer;
         friend class MegaApiImpl;
@@ -6835,11 +6860,11 @@ class MegaGlobalListener
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
          *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-         *              Suspension message for any type of suspension, but copyright suspension.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
          *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+         *              Suspension message for any type of suspension, but copyright suspension.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
          *              Subuser of the business account has been disabled.
@@ -7457,11 +7482,11 @@ class MegaListener
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
          *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-         *              Suspension message for any type of suspension, but copyright suspension.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
          *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+         *              Suspension message for any type of suspension, but copyright suspension.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
          *              Subuser of the business account has been disabled.
@@ -7838,7 +7863,7 @@ class MegaApi
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
-            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
+            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
@@ -7942,8 +7967,8 @@ class MegaApi
         enum {
             ACCOUNT_NOT_BLOCKED = 0,
             ACCOUNT_BLOCKED_EXCESS_DATA_USAGE = 100,        // (deprecated)
-            ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200,        // suspended due to multiple breaches of MEGA ToS
-            ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300,            // suspended due to copyright violations
+            ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200,            // suspended due to copyright violations
+            ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300,        // suspended due to multiple breaches of MEGA ToS
             ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400,         // subuser disabled by business administrator
             ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401,          // subuser removed by business administrator
             ACCOUNT_BLOCKED_VERIFICATION_SMS = 500,         // temporary blocked, require SMS verification
@@ -9559,11 +9584,11 @@ class MegaApi
          *          - MegaApi::ACCOUNT_NOT_BLOCKED = 0
          *              Account is not blocked in any way.
          *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-         *              Suspension message for any type of suspension, but copyright suspension.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
          *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+         *              Suspension message for any type of suspension, but copyright suspension.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
          *              Subuser of the business account has been disabled.
@@ -12251,41 +12276,28 @@ class MegaApi
         void getCameraUploadsFolderSecondary(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set My Backups folder.
+         * @brief Creates the special folder for backups ("My backups")
          *
-         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * It creates a new folder inside the Vault rootnode and later stores the node's
+         * handle in a user's attribute, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER.
+         *
+         * Apps should first check if this folder exists already, by calling
+         * MegaApi::getUserAttribute for the corresponding attribute.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_MY_BACKUPS
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-         * - MegaRequest::getFlag - Returns false
-         * - MegaRequest::getNodehandle - Returns the provided node handle
-         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-         * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
-         *
-         * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
-         * the request will fail with the error code MegaError::API_EACCESS.
-         *
-         * @param nodehandle MegaHandle of the node to be used as target folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener = nullptr);
-
-        /**
-         * @brief Gets My Backups target folder.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getText - Returns the name provided as parameter
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
+         * - MegaRequest::getNodehandle - Returns the node handle of the folder created
          *
-         * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+         * If the folder for backups already existed, the request will fail with the error API_EACCESS.
          *
+         * @param localizedName Localized name for "My backups" folder
          * @param listener MegaRequestListener to track this request
          */
-        void getMyBackupsFolder(MegaRequestListener *listener = nullptr);
+        void setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Gets the alias for an user
@@ -12643,7 +12655,7 @@ class MegaApi
          *
          * @note Event types are restricted to the following ranges:
          *  - MEGAcmd:   [98900, 99000)
-         *  - MEGAchat:  [99000, 99150)
+         *  - MEGAchat:  [99000, 99199)
          *  - Android:   [99200, 99300)
          *  - iOS:       [99300, 99400)
          *  - MEGA SDK:  [99400, 99500)
@@ -13748,18 +13760,19 @@ class MegaApi
          * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId
          *
-          * On the onRequestFinish error, the error code associated to the MegaError can be:
-          * - MegaError::API_EARGS - If the local folder was not set.
-          * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
-          * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-          * wrong 'dev-id'/'drv-id' tag.
-          * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
-          * the handle.
-          * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
-          * - or the node could not be found.
-          * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
-          * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
-          * or device name was empty.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
+         * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
+         * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
+         * wrong 'dev-id'/'drv-id' tag.
+         * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
+         * the handle.
+         * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+         * - or the node could not be found.
+         * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
+         * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
+         * or device name was empty.
+         * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
          *
          * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
          * @param localSyncRootFolder Path of the Local folder to sync/backup.
@@ -13908,55 +13921,23 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         *
-         * @param megaFolder MEGA folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void removeSync(MegaNode *megaFolder, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Remove a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
+        void removeSync(MegaHandle backupId, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Remove a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         *
-         * @param sync Synchronization to cancel
-         * @param listener MegaRequestListener to track this request
+        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        void removeSync(MegaSync *sync, MegaRequestListener *listener = NULL);
+        MEGA_DEPRECATED
+        void removeSync(MegaSync *sync, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Disable a synced folder
@@ -14071,15 +14052,19 @@ class MegaApi
         /**
          * @brief Remove all active synced folders
          *
-         * All folders will stop being synced. Nothing in the local nor in the remote folders
-         * will be deleted due to the usage of this function.
+         * All folders will stop being synced. Nothing in the local folders
+         * will be deleted due to the usage of this function. In the remote folders,
+         * only backup syncs in Vault will be either permanently deleted or moved to the new destination.
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNCS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSyncs(MegaRequestListener *listener = NULL);
-
+        void removeSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get all configured syncs
@@ -14191,6 +14176,28 @@ class MegaApi
          * @return MegaError::API_OK if the node is syncable, otherwise it returns an error.
          */
         int isNodeSyncable(MegaNode *node);
+
+        /**
+         * @brief Check if it's possible to start synchronizing a folder node. Return SyncError errors.
+         * 
+         * Possible return values for this function are:
+         * - MegaError::API_OK if the folder is syncable
+         * - MegaError::API_ENOENT if the node doesn't exist in the account
+         * - MegaError::API_EARGS if the node is NULL or is not a folder
+         * 
+         * - MegaError::API_EACCESS:
+         *              SyncError: SHARE_NON_FULL_ACCESS An ancestor node does not have full access
+         *              SyncError: REMOTE_NODE_INSIDE_RUBBISH
+         * - MegaError::API_EEXIST if there is a conflicting synchronization (nodes can't be synced twice)
+         *              SyncError: ACTIVE_SYNC_BELOW_PATH - There's a synced node below the path to be synced
+         *              SyncError: ACTIVE_SYNC_ABOVE_PATH - There's a synced node above the path to be synced
+         * - MegaError::API_EINCOMPLETE if the SDK hasn't been built with support for synchronization
+         *
+         *  @return API_OK if syncable. Error otherwise sets syncError in the returned MegaError
+         *          caller must free
+
+         */
+        MegaError* isNodeSyncableWithError(MegaNode* node);
 
         /**
          * @brief Get the corresponding local path of a synced node
@@ -14502,7 +14509,7 @@ class MegaApi
         enum { SEARCH_TARGET_INSHARE = 0,
                SEARCH_TARGET_OUTSHARE,
                SEARCH_TARGET_PUBLICLINK,
-               SEARCH_TARGET_ROOTNODE,
+               SEARCH_TARGET_ROOTNODE,      // search in Cloud and Vault rootnodes
                SEARCH_TARGET_ALL, };
 
         /**
@@ -16292,7 +16299,7 @@ class MegaApi
          * - SEARCH_TARGET_INSHARE = 0
          * - SEARCH_TARGET_OUTSHARE = 1
          * - SEARCH_TARGET_PUBLICLINK = 2
-         * - SEARCH_TARGET_ROOTNODE = 3
+         * - SEARCH_TARGET_ROOTNODE = 3 --> search in Cloud and Vault rootnodes
          * - SEARCH_TARGET_ALL = 4
          *
          * @return List of nodes that match with the search parameters

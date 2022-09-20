@@ -124,8 +124,27 @@ public:
 class MegaErrorPrivate : public MegaError
 {
 public:
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode = MegaError::API_OK);
+
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
+    MegaErrorPrivate(int errorCode, SyncError syncError);
+
+#ifdef ENABLE_SYNC
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
+    MegaErrorPrivate(int errorCode, MegaSync::Error syncError);
+#endif
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode, long long value);
+
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);
     ~MegaErrorPrivate() override;
@@ -715,25 +734,26 @@ class MegaUserAlertPrivate : public MegaUserAlert
 public:
     MegaUserAlertPrivate(UserAlert::Base* user, MegaClient* mc);
     //MegaUserAlertPrivate(const MegaUserAlertPrivate&); // default copy works for this type
-    virtual MegaUserAlert* copy() const;
+    MegaUserAlert* copy() const override;
 
-    virtual unsigned getId() const;
-    virtual bool getSeen() const;
-    virtual bool getRelevant() const;
-    virtual int getType() const;
-    virtual const char *getTypeString() const;
-    virtual MegaHandle getUserHandle() const;
-    virtual MegaHandle getNodeHandle() const;
-    virtual const char* getEmail() const;
-    virtual const char* getPath() const;
-    virtual const char* getName() const;
-    virtual const char* getHeading() const;
-    virtual const char* getTitle() const;
-    virtual int64_t getNumber(unsigned index) const;
-    virtual int64_t getTimestamp(unsigned index) const;
-    virtual const char* getString(unsigned index) const;
-    virtual MegaHandle getHandle(unsigned index) const;
-    virtual bool isOwnChange() const;
+    unsigned getId() const override;
+    bool getSeen() const override;
+    bool getRelevant() const override;
+    int getType() const override;
+    const char *getTypeString() const override;
+    MegaHandle getUserHandle() const override;
+    MegaHandle getNodeHandle() const override;
+    const char* getEmail() const override;
+    const char* getPath() const override;
+    const char* getName() const override;
+    const char* getHeading() const override;
+    const char* getTitle() const override;
+    int64_t getNumber(unsigned index) const override;
+    int64_t getTimestamp(unsigned index) const override;
+    const char* getString(unsigned index) const override;
+    MegaHandle getHandle(unsigned index) const override;
+    bool isOwnChange() const override;
+    MegaHandle getPcrHandle() const override;
 
 protected:
     unsigned id;
@@ -746,6 +766,7 @@ protected:
     handle userHandle;
     string email;
     handle nodeHandle;
+    handle mPcrHandle = UNDEF;
     string nodePath;
     string nodeName;
     vector<int64_t> numbers;
@@ -2486,14 +2507,14 @@ class MegaApiImpl : public MegaApp
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void importSyncConfigs(const char* configs, MegaRequestListener* listener);
         const char* exportSyncConfigs();
-        void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
-        void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
+        void removeSync(handle nodehandle, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener=NULL);
+        void removeSyncById(handle backupId, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void disableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         MegaSyncList *getSyncs();
 
-        void stopSyncs(MegaRequestListener *listener=NULL);
+        void stopSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
         void setExcludedPaths(vector<string> *excludedPaths);
@@ -2507,6 +2528,7 @@ class MegaApiImpl : public MegaApp
         bool is_syncable(Sync*, const char*, const LocalPath&);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
+        MegaError *isNodeSyncableWithError(MegaNode* node);
         bool isIndexing();
         bool isSyncing();
 
@@ -2835,8 +2857,7 @@ class MegaApiImpl : public MegaApp
         void setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener = NULL);
         void setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener);
         void getCameraUploadsFolder(bool secondary, MegaRequestListener *listener = NULL);
-        void setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener = nullptr);
-        void getMyBackupsFolder(MegaRequestListener *listener = nullptr);
+        void setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener = nullptr);
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 
@@ -3292,7 +3313,6 @@ protected:
 #endif
 
         void backupput_result(const Error&, handle backupId) override;
-        void backupremove_result(const Error&, handle) override;
 
 protected:
         // suggest reload due to possible race condition with other clients
@@ -3364,7 +3384,10 @@ private:
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 
 #ifdef ENABLE_SYNC
-        error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
+        error addSyncByRequest(MegaRequestPrivate* request, const string& syncName,
+                               const LocalPath& localPath, const LocalPath& drivePath, const SyncConfig::Type syncType);
+        error addBackupByRequest(MegaRequestPrivate* request, const string& syncName,
+                                 const LocalPath& localPath, const LocalPath& drivePath);
 #endif
 };
 

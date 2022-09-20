@@ -750,6 +750,11 @@ MegaHandle MegaUserAlert::getNodeHandle() const
     return INVALID_HANDLE;
 }
 
+MegaHandle MegaUserAlert::getPcrHandle() const
+{
+    return INVALID_HANDLE;
+}
+
 const char* MegaUserAlert::getEmail() const
 {
     return NULL;
@@ -1303,6 +1308,13 @@ const char* MegaTransfer::stageToString(unsigned stage)
 MegaError::MegaError(int e)
 {
     errorCode = e;
+    syncError = NO_SYNC_ERROR;
+}
+
+MegaError::MegaError(int e, int se)
+{
+    errorCode = e;
+    syncError = se;
 }
 
 MegaError::~MegaError()
@@ -1318,6 +1330,11 @@ MegaError* MegaError::copy() const
 int MegaError::getErrorCode() const
 {
     return errorCode;
+}
+
+int MegaError::getSyncError() const
+{
+    return syncError;
 }
 
 long long MegaError::getValue() const
@@ -2889,14 +2906,9 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
     pImpl->getMyChatFilesFolder(listener);
 }
 
-void MegaApi::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+void MegaApi::setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener)
 {
-    pImpl->setMyBackupsFolder(nodehandle, listener);
-}
-
-void MegaApi::getMyBackupsFolder(MegaRequestListener *listener)
-{
-    pImpl->getMyBackupsFolder(listener);
+    pImpl->setMyBackupsFolder(localizedName, listener);
 }
 
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
@@ -3373,19 +3385,14 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
+void MegaApi::removeSync(MegaSync *sync, MegaHandle backupDestination, MegaRequestListener *listener)
 {
-    pImpl->removeSync(megaFolder ? megaFolder->getHandle() : UNDEF, listener);
+    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, backupDestination, listener);
 }
 
-void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
+void MegaApi::removeSync(MegaHandle backupId, MegaHandle backupDestination, MegaRequestListener *listener)
 {
-    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
-}
-
-void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
-{
-    pImpl->removeSyncById(backupId, listener);
+    pImpl->removeSyncById(backupId, backupDestination, listener);
 }
 
 void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3423,9 +3430,9 @@ const char* MegaApi::exportSyncConfigs()
     return pImpl->exportSyncConfigs();
 }
 
-void MegaApi::removeSyncs(MegaRequestListener *listener)
+void MegaApi::removeSyncs(MegaHandle backupDestination, MegaRequestListener *listener)
 {
-   pImpl->stopSyncs(listener);
+   pImpl->stopSyncs(backupDestination, listener);
 }
 
 MegaSyncList* MegaApi::getSyncs()
@@ -3486,6 +3493,10 @@ bool MegaApi::isSyncable(const char *path, long long size)
 int MegaApi::isNodeSyncable(MegaNode *node)
 {
     return pImpl->isNodeSyncable(node);
+}
+
+MegaError *MegaApi::isNodeSyncableWithError(MegaNode* node) {
+    return pImpl->isNodeSyncableWithError(node);
 }
 
 void MegaApi::setExcludedNames(vector<string> *excludedNames)

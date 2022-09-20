@@ -431,7 +431,7 @@ void SyncApp::fetchnodes_result(const Error &e)
             {
 #ifdef ENABLE_SYNC
                 SyncConfig syncConfig(LocalPath::fromAbsolutePath(local_folder), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
-                client->addsync(syncConfig, false,
+                client->addsync(move(syncConfig), false,
                                 [](error err, const SyncError& serr, handle backupId) {
                     if (err)
                     {

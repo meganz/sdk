@@ -88,7 +88,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool expanselocalpath(mega::LocalPath& path, mega::LocalPath& absolutepath) override
+    bool expanselocalpath(const mega::LocalPath& path, mega::LocalPath& absolutepath) override
     {
         throw NotImplemented{__func__};
     }
