@@ -1829,15 +1829,15 @@ bool MegaSetElementPrivate::hasChanged(int changeType) const
 
 MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     : id(b->id)
-    , seen(b->seen)
-    , relevant(b->relevant)
+    , seen(b->seen())
+    , relevant(b->relevant())
     , type(-1)
     , tag(b->tag)
     , userHandle(UNDEF)
     , nodeHandle(UNDEF)
 {
     b->text(heading, title, mc);
-    timestamps.push_back(b->timestamp);
+    timestamps.push_back(b->ts());
 
     switch (b->type)
     {
@@ -1856,9 +1856,9 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         {
             type = TYPE_INCOMINGPENDINGCONTACT_REQUEST;
         }
-        userHandle = p->userHandle;
+        userHandle = p->user();
         mPcrHandle = p->mPcrHandle;
-        email = p->userEmail;
+        email = p->email();
     }
     break;
     case UserAlert::type_c:
@@ -1871,8 +1871,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         case 2: type = TYPE_CONTACTCHANGE_ACCOUNTDELETED; break;
         case 3: type = TYPE_CONTACTCHANGE_BLOCKEDYOU; break;
         }
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
     }
     break;
     case UserAlert::type_upci:
@@ -1884,8 +1884,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         case 2: type = TYPE_UPDATEDPENDINGCONTACTINCOMING_ACCEPTED; break;
         case 3: type = TYPE_UPDATEDPENDINGCONTACTINCOMING_DENIED; break;
         }
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
     }
     break;
     case UserAlert::type_upco:
@@ -1897,16 +1897,16 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         case 2: type = TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED; break;
         case 3: type = TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED; break;
         }
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
     }
     break;
     case UserAlert::type_share:
     {
         UserAlert::NewShare* p = static_cast<UserAlert::NewShare*>(b);
         type = TYPE_NEWSHARE;
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
         nodeHandle = p->folderhandle;
         if (Node* node = mc->nodebyhandle(p->folderhandle))
         {
@@ -1919,12 +1919,12 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     {
         UserAlert::DeletedShare* p = static_cast<UserAlert::DeletedShare*>(b);
         type = TYPE_DELETEDSHARE;
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
         nodePath = p->folderPath;
         nodeName = p->folderName;
         nodeHandle = p->folderHandle;
-        bool accessRevoked = p->userHandle == p->ownerHandle;
+        bool accessRevoked = p->user() == p->ownerHandle;
         numbers.push_back(accessRevoked ? 1 : 0);
     }
     break;
@@ -1932,8 +1932,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     {
         UserAlert::NewSharedNodes* p = static_cast<UserAlert::NewSharedNodes*>(b);
         type = TYPE_NEWSHAREDNODES;
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
         nodeHandle = p->parentHandle;
         numbers.push_back(p->folderNodeHandles.size());
         numbers.push_back(p->fileNodeHandles.size());
@@ -1945,8 +1945,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     {
         UserAlert::RemovedSharedNode* p = static_cast<UserAlert::RemovedSharedNode*>(b);
         type = TYPE_REMOVEDSHAREDNODES;
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
         numbers.push_back(p->nodeHandles.size());
     }
     break;
@@ -1954,8 +1954,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     {
         UserAlert::UpdatedSharedNode* p = static_cast<UserAlert::UpdatedSharedNode*>(b);
         type = TYPE_UPDATEDSHAREDNODES;
-        userHandle = p->userHandle;
-        email = p->userEmail;
+        userHandle = p->user();
+        email = p->email();
         numbers.push_back(p->nodeHandles.size());
     }
     break;
@@ -10797,7 +10797,7 @@ int MegaApiImpl::getNumUnreadUserAlerts()
     sdkMutex.lock();
     for (UserAlerts::Alerts::iterator it = client->useralerts.alerts.begin(); it != client->useralerts.alerts.end(); ++it)
     {
-        if (!(*it)->seen)
+        if (!(*it)->seen())
         {
             result++;
         }

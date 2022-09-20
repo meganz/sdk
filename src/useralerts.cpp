@@ -174,12 +174,10 @@ UserAlert::Base::Base(UserAlertRaw& un, unsigned int cid)
     id = cid;
     type = un.t;
     m_time_t timeDelta = un.getint64(MAKENAMEID2('t', 'd'), 0);
-    timestamp = m_time() - timeDelta;
-    userHandle = un.gethandle('u', MegaClient::USERHANDLE, UNDEF);
-    userEmail = un.getstring('m', "");
+    cmn.timestamp = m_time() - timeDelta;
+    cmn.userHandle = un.gethandle('u', MegaClient::USERHANDLE, UNDEF);
+    cmn.userEmail = un.getstring('m', "");
 
-    seen = false; // to be updated on EOO
-    relevant = true;
     tag = -1;
 }
 
@@ -187,11 +185,9 @@ UserAlert::Base::Base(nameid t, handle uh, const string& email, m_time_t ts, uns
 {
     id = cid;
     type = t;
-    userHandle = uh;
-    userEmail = email;
-    timestamp = ts;
-    seen = false;
-    relevant = true;
+    cmn.userHandle = uh;
+    cmn.userEmail = email;
+    cmn.timestamp = ts;
     tag = -1;
 }
 
@@ -201,9 +197,9 @@ UserAlert::Base::~Base()
 
 void UserAlert::Base::updateEmail(MegaClient* mc)
 {
-    if (User* u = mc->finduser(userHandle))
+    if (User* u = mc->finduser(user()))
     {
-        userEmail = u->email;
+        cmn.userEmail = u->email;
     }
 }
 
@@ -217,16 +213,16 @@ void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
     // should be overridden
     updateEmail(mc);
     ostringstream s;
-    s << "notification: type " << type << " time " << timestamp << " user " << userHandle << " seen " << seen;
+    s << "notification: type " << type << " time " << ts() << " user " << user() << " seen " << seen();
     title =  s.str();
-    header = userEmail;
+    header = email();
 }
 
 UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
     mPcrHandle = un.gethandle('p', MegaClient::PCRHANDLE, UNDEF);
-    userHandle = mPcrHandle;    // for backwards compatibility, due to legacy bug
+    cmn.userHandle = mPcrHandle;    // for backwards compatibility, due to legacy bug
 
     m_time_t dts = un.getint64(MAKENAMEID3('d', 't', 's'), 0);
     m_time_t rts = un.getint64(MAKENAMEID3('r', 't', 's'), 0);
@@ -247,8 +243,8 @@ void UserAlert::IncomingPendingContact::initTs(m_time_t dts, m_time_t rts)
     requestWasDeleted = dts != 0;
     requestWasReminded = rts != 0;
 
-    if (requestWasDeleted)       timestamp = dts;
-    else if (requestWasReminded) timestamp = rts;
+    if (requestWasDeleted)       cmn.timestamp = dts;
+    else if (requestWasReminded) cmn.timestamp = rts;
 }
 
 void UserAlert::IncomingPendingContact::text(string& header, string& title, MegaClient* mc)
@@ -266,14 +262,14 @@ void UserAlert::IncomingPendingContact::text(string& header, string& title, Mega
     {
         title = "Sent you a contact request"; // 5851
     }
-    header = userEmail;
+    header = email();
 }
 
 UserAlert::ContactChange::ContactChange(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
     action = un.getint('c', -1);
-    relevant = action >= 0 && action < 4;
+    cmn.relevant = action >= 0 && action < 4;
     assert(action >= 0 && action < 4);
     otherUserHandle = un.gethandle(MAKENAMEID2('o', 'u'), MegaClient::USERHANDLE, UNDEF);
 }
@@ -310,14 +306,14 @@ void UserAlert::ContactChange::text(string& header, string& title, MegaClient* m
     {
         title = "Blocked you as a contact"; //7143
     }
-    header = userEmail;
+    header = email();
 }
 
 UserAlert::UpdatedPendingContactIncoming::UpdatedPendingContactIncoming(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
     action = un.getint('s', -1);
-    relevant = action >= 1 && action < 4;
+    cmn.relevant = action >= 1 && action < 4;
 }
 
 UserAlert::UpdatedPendingContactIncoming::UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id)
@@ -341,14 +337,14 @@ void UserAlert::UpdatedPendingContactIncoming::text(string& header, string& titl
     {
         title = "You denied a contact request"; // 7147
     }
-    header = userEmail;
+    header = email();
 }
 
 UserAlert::UpdatedPendingContactOutgoing::UpdatedPendingContactOutgoing(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
     action = un.getint('s', -1);
-    relevant = action == 2 || action == 3;
+    cmn.relevant = action == 2 || action == 3;
 }
 
 UserAlert::UpdatedPendingContactOutgoing::UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id)
@@ -368,7 +364,7 @@ void UserAlert::UpdatedPendingContactOutgoing::text(string& header, string& titl
     {
         title = "Denied your contact request"; // 5853
     }
-    header = userEmail;
+    header = email();
 }
 
 UserAlert::NewShare::NewShare(UserAlertRaw& un, unsigned int id)
@@ -386,15 +382,15 @@ UserAlert::NewShare::NewShare(handle h, handle uh, const string& email, m_time_t
 void UserAlert::NewShare::text(string& header, string& title, MegaClient* mc)
 {
     updateEmail(mc);
-    if (!userEmail.empty())
+    if (!email().empty())
     {
-        title =  "New shared folder from " + userEmail; // 824
+        title =  "New shared folder from " + email(); // 824
     }
     else
     {
         title = "New shared folder"; // 825
     }
-    header = userEmail;
+    header = email();
 }
 
 UserAlert::DeletedShare::DeletedShare(UserAlertRaw& un, unsigned int id)
@@ -427,11 +423,11 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
     updateEmail(mc);
     ostringstream s;
 
-    if (userHandle == ownerHandle)
+    if (user() == ownerHandle)
     {
-        if (!userEmail.empty())
+        if (!email().empty())
         {
-            s << "Access to folders shared by " << userEmail << " was removed"; // 7879
+            s << "Access to folders shared by " << email() << " was removed"; // 7879
         }
         else
         {
@@ -440,9 +436,9 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
     }
     else
     {
-       if (!userEmail.empty())
+       if (!email().empty())
        {
-           s << "User " << userEmail << " has left the shared folder " << folderName;  //19153
+           s << "User " << email() << " has left the shared folder " << folderName;  //19153
        }
        else
        {
@@ -450,7 +446,7 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
        }
     }
     title = s.str();
-    header = userEmail;
+    header = email();
 }
 
 UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
@@ -520,9 +516,9 @@ void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* 
     }
 
     // Set wording of the title
-    if (!userEmail.empty())
+    if (!email().empty())
     {
-        title = userEmail + " added " + notificationText.str();
+        title = email() + " added " + notificationText.str();
     }
     else if ((fileCount + folderCount) > 1)
     {
@@ -531,7 +527,7 @@ void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* 
     else {
         title = notificationText.str() + " has been added";
     }
-    header = userEmail;
+    header = email();
 }
 
 UserAlert::RemovedSharedNode::RemovedSharedNode(UserAlertRaw& un, unsigned int id)
@@ -566,7 +562,7 @@ void UserAlert::RemovedSharedNode::text(string& header, string& title, MegaClien
         s << "Removed item from shared folder"; // 8910
     }
     title = s.str();
-    header = userEmail;
+    header = email();
 }
 
 UserAlert::UpdatedSharedNode::UpdatedSharedNode(UserAlertRaw& un, unsigned int id)
@@ -590,7 +586,7 @@ UserAlert::UpdatedSharedNode::UpdatedSharedNode(handle uh, m_time_t timestamp, u
 void UserAlert::UpdatedSharedNode::text(string& header, string& title, MegaClient* mc)
 {
     updateEmail(mc);
-    header = userEmail;
+    header = email();
     const auto itemsNumber = nodeHandles.size();
     const string& itemText = (itemsNumber == 1) ? "" : "s";
     title = "Updated " + to_string(itemsNumber) + " item" + itemText + " in shared folder";
@@ -645,15 +641,13 @@ void UserAlert::Payment::text(string& header, string& title, MegaClient* mc)
 UserAlert::PaymentReminder::PaymentReminder(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    expiryTime = un.getint64(MAKENAMEID2('t', 's'), timestamp);
-    relevant = true;  // relevant until we see a subsequent payment
+    expiryTime = un.getint64(MAKENAMEID2('t', 's'), ts());
 }
 
 UserAlert::PaymentReminder::PaymentReminder(m_time_t expiryts, unsigned int id)
     : Base(type_pses, UNDEF, "", m_time(), id)
 {
     expiryTime = expiryts;
-    relevant = true; // relevant until we see a subsequent payment
 }
 
 void UserAlert::PaymentReminder::text(string& header, string& title, MegaClient* mc)
@@ -682,7 +676,7 @@ UserAlert::Takedown::Takedown(UserAlertRaw& un, unsigned int id)
     isTakedown = n == 1;
     isReinstate = n == 0;
     nodeHandle = un.gethandle('h', MegaClient::NODEHANDLE, UNDEF);
-    relevant = isTakedown || isReinstate;
+    cmn.relevant = isTakedown || isReinstate;
 }
 
 UserAlert::Takedown::Takedown(bool down, bool reinstate, int /*t*/, handle nh, m_time_t timestamp, unsigned int id)
@@ -691,7 +685,7 @@ UserAlert::Takedown::Takedown(bool down, bool reinstate, int /*t*/, handle nh, m
     isTakedown = down;
     isReinstate = reinstate;
     nodeHandle = nh;
-    relevant = isTakedown || isReinstate;
+    cmn.relevant = isTakedown || isReinstate;
 }
 
 void UserAlert::Takedown::text(string& header, string& title, MegaClient* mc)
@@ -866,11 +860,11 @@ void UserAlerts::add(UserAlert::Base* unb)
         return;
     }
 
-    if (!catchupdone && unb->timestamp > catchup_last_timestamp)
+    if (!catchupdone && unb->ts() > catchup_last_timestamp)
     {
-        catchup_last_timestamp = unb->timestamp;
+        catchup_last_timestamp = unb->ts();
     }
-    else if (catchupdone && unb->timestamp < catchup_last_timestamp)
+    else if (catchupdone && unb->ts() < catchup_last_timestamp)
     {
         // this is probably a duplicate from the initial set, generated from normal sc packets
         LOG_warn << "discarding duplicate user alert of type " << unb->type;
@@ -885,17 +879,17 @@ void UserAlerts::add(UserAlert::Base* unb)
         UserAlert::NewSharedNodes* op = dynamic_cast<UserAlert::NewSharedNodes*>(alerts.back());
         if (np && op)
         {
-            if (np->userHandle == op->userHandle && np->timestamp - op->timestamp < 300 &&
+            if (np->user() == op->user() && np->ts() - op->ts() < 300 &&
                 np->parentHandle == op->parentHandle && !ISUNDEF(np->parentHandle))
             {
                 op->fileNodeHandles.insert(end(op->fileNodeHandles), begin(np->fileNodeHandles), end(np->fileNodeHandles));
                 op->folderNodeHandles.insert(end(op->folderNodeHandles),
                                              begin(np->folderNodeHandles), end(np->folderNodeHandles));
-                LOG_debug << "Merged user alert, type " << np->type << " ts " << np->timestamp;
+                LOG_debug << "Merged user alert, type " << np->type << " ts " << np->ts();
 
                 if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
                 {
-                    alerts.back()->seen = false;
+                    alerts.back()->setSeen(false);
                     alerts.back()->tag = 0;
                     useralertnotify.push_back(alerts.back());
                     LOG_debug << "Updated user alert added to notify queue";
@@ -913,14 +907,14 @@ void UserAlerts::add(UserAlert::Base* unb)
         UserAlert::RemovedSharedNode* od = dynamic_cast<UserAlert::RemovedSharedNode*>(alerts.back());
         if (nd && od)
         {
-            if (nd->userHandle == od->userHandle && nd->timestamp - od->timestamp < 300)
+            if (nd->user() == od->user() && nd->ts() - od->ts() < 300)
             {
                 od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
-                LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->timestamp;
+                LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->ts();
 
                 if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
                 {
-                    alerts.back()->seen = false;
+                    alerts.back()->setSeen(false);
                     alerts.back()->tag = 0;
                     useralertnotify.push_back(alerts.back());
                     LOG_debug << "Updated user alert added to notify queue";
@@ -938,14 +932,14 @@ void UserAlerts::add(UserAlert::Base* unb)
         UserAlert::UpdatedSharedNode* od = dynamic_cast<UserAlert::UpdatedSharedNode*>(alerts.back());
         if (nd && od)
         {
-            if (nd->userHandle == od->userHandle && nd->timestamp - od->timestamp < 300)
+            if (nd->user() == od->user() && nd->ts() - od->ts() < 300)
             {
                 od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
-                LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->timestamp;
+                LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->ts();
 
                 if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
                 {
-                    alerts.back()->seen = false;
+                    alerts.back()->setSeen(false);
                     alerts.back()->tag = 0;
                     useralertnotify.push_back(alerts.back());
                     LOG_debug << "Updated user alert added to notify queue";
@@ -961,9 +955,9 @@ void UserAlerts::add(UserAlert::Base* unb)
         // if a successful payment is made then hide/remove any reminders received
         for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
         {
-            if ((*i)->type == UserAlert::type_pses && (*i)->relevant)
+            if ((*i)->type == UserAlert::type_pses && (*i)->relevant())
             {
-                (*i)->relevant = false;
+                (*i)->setRelevant(false);
                 if (catchupdone)
                 {
                     useralertnotify.push_back(*i);
@@ -974,7 +968,7 @@ void UserAlerts::add(UserAlert::Base* unb)
 
     unb->updateEmail(&mc);
     alerts.push_back(unb);
-    LOG_debug << "Added user alert, type " << alerts.back()->type << " ts " << alerts.back()->timestamp;
+    LOG_debug << "Added user alert, type " << alerts.back()->type << " ts " << alerts.back()->ts();
 
     if (catchupdone)
     {
@@ -1374,9 +1368,7 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
     for(auto n : newSNToConvertToUpdatedSN)
     {
         // for an update alert, only files are relevant because folders are not versioned
-        add(new UserAlert::UpdatedSharedNode(
-                n->userHandle, n->timestamp, nextId(),
-                {nodeHandleToUpdate}));
+        add(new UserAlert::UpdatedSharedNode(n->user(), n->ts(), nextId(), {nodeHandleToUpdate}));
     }
     newSNToConvertToUpdatedSN.clear();
 
@@ -1498,17 +1490,17 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
             for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
             {
                 UserAlert::Base* b = *i;
-                b->seen = b->timestamp + lastTimeDelta < m_time();
+                b->setSeen(b->ts() + lastTimeDelta < m_time());
 
-                if (b->userEmail.empty() && b->userHandle != UNDEF)
+                if (b->email().empty() && b->user() != UNDEF)
                 {
-                    map<handle, UserAlertPendingContact>::iterator i = pendingContactUsers.find(b->userHandle);
+                    map<handle, UserAlertPendingContact>::iterator i = pendingContactUsers.find(b->user());
                     if (i != pendingContactUsers.end())
                     {
-                        b->userEmail = i->second.m;
-                        if (b->userEmail.empty() && !i->second.m2.empty())
+                        b->setEmail(i->second.m);
+                        if (b->email().empty() && !i->second.m2.empty())
                         {
-                            b->userEmail = i->second.m2[0];
+                            b->setEmail(i->second.m2[0]);
                         }
                     }
                 }
@@ -1581,9 +1573,9 @@ void UserAlerts::acknowledgeAll()
 {
     for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
     {
-        if (!(*i)->seen)
+        if (!(*i)->seen())
         {
-            (*i)->seen = true;
+            (*i)->setSeen(true);
             if ((*i)->tag != 0)
             {
                 (*i)->tag = mc.reqtag;
@@ -1602,9 +1594,9 @@ void UserAlerts::onAcknowledgeReceived()
     {
         for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
         {
-            if (!(*i)->seen)
+            if (!(*i)->seen())
             {
-                (*i)->seen = true;
+                (*i)->setSeen(true);
                 (*i)->tag = 0;
                 useralertnotify.push_back(*i);
             }

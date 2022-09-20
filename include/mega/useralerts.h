@@ -67,8 +67,8 @@ namespace UserAlert
     static const nameid type_c = 'c';                                               // contact change
     static const nameid type_upci = MAKENAMEID4('u', 'p', 'c', 'i');                // updating pending contact incoming
     static const nameid type_upco = MAKENAMEID4('u', 'p', 'c', 'o');                // updating pending contact outgoing
-    static const nameid type_share = MAKENAMEID5('s', 'h', 'a', 'r', 'e');          // new shared node
-    static const nameid type_dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');    // deleted shared node
+    static const nameid type_share = MAKENAMEID5('s', 'h', 'a', 'r', 'e');          // new share
+    static const nameid type_dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');    // deleted share
     static const nameid type_put = MAKENAMEID3('p', 'u', 't');                      // new shared nodes
     static const nameid type_d = 'd';                                               // removed shared node
     static const nameid type_u = 'u';                                               // updated shared node
@@ -82,19 +82,24 @@ namespace UserAlert
     {
         // shared fields from the notification or action
         nameid type;
-        m_time_t timestamp;
-        handle userHandle;
-        string userEmail;
+
+        const m_time_t& ts() const { return cmn.timestamp; }
+        const handle& user() const { return cmn.userHandle; }
+        const string& email() const { return cmn.userEmail; }
+        void setEmail(const string& eml) { cmn.userEmail = eml; }
+
+        // if false, not worth showing, eg obsolete payment reminder
+        bool relevant() const { return cmn.relevant; }
+        void setRelevant(bool r) { cmn.relevant = r; }
+
+        // user already saw it (based on 'last notified' time)
+        bool seen() const { return cmn.seen; }
+        void setSeen(bool s) { cmn.seen = s; }
+
         int tag;
 
         // incremented for each new one.  There will be gaps sometimes due to merging.
         unsigned int id;
-
-        // user already saw it (based on 'last notified' time)
-        bool seen;
-
-        // if false, not worth showing, eg obsolete payment reminder
-        bool relevant;
 
         Base(UserAlertRaw& un, unsigned int id);
         Base(nameid t, handle uh, const string& email, m_time_t timestamp, unsigned int id);
@@ -107,6 +112,16 @@ namespace UserAlert
         virtual void updateEmail(MegaClient* mc);
 
         virtual bool checkprovisional(handle ou, MegaClient* mc);
+
+    protected:
+        struct Common // variables required by all Alerts to initialize Base
+        {
+            m_time_t timestamp = 0;
+            handle userHandle = 0;
+            string userEmail;
+            bool relevant = true;
+            bool seen = false;
+        } cmn;
     };
 
     struct IncomingPendingContact : public Base
