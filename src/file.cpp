@@ -292,7 +292,7 @@ void File::completed(Transfer* t, putsource_t source)
 
     if (t->type == PUT)
     {
-        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr);
+        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, nullptr, false);
     }
 }
 
@@ -300,7 +300,7 @@ void File::completed(Transfer* t, putsource_t source)
 void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                         const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
                         CommandPutNodes::Completion&& completion,
-                        LocalNode* l, const m_time_t* overrideMtime)
+                        LocalNode* l, const m_time_t* overrideMtime, bool canChangeVault)
 {
     assert(!!l == syncxfer);
 
@@ -309,6 +309,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
 
     // build new node
     newnode->source = NEW_UPLOAD;
+    newnode->canChangeVault = canChangeVault;
 
     // upload handle required to retrieve/include pending file attributes
     newnode->uploadhandle = fileAttrMatchHandle;
@@ -364,7 +365,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
             {
                 if (client->versions_disabled)
                 {
-                    client->movetosyncdebris(l->node, l->sync->inshare);
+                    client->movetosyncdebris(l->node, l->sync->inshare, l->sync->isBackup());
                     client->execsyncdeletions();
                 }
                 else
@@ -393,7 +394,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
                                              mVersioningOption,
                                              move(newnodes),
                                              tag,
-                                             source, nullptr, move(completion)));
+                                             source, nullptr, move(completion), canChangeVault));
     }
 }
 
@@ -553,7 +554,7 @@ bool SyncFileGet::failed(error e, MegaClient* client)
                 n->parent->client->sendevent(99433, "Undecryptable file");
                 n->parent->client->reqtag = creqtag;
             }
-            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare);
+            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare, n->parent->localnode->sync->isBackup());
         }
     }
 

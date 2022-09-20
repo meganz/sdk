@@ -1208,7 +1208,7 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string 
     return false;
 }
 
-bool PosixFileSystemAccess::expanselocalpath(LocalPath& source, LocalPath& destination)
+bool PosixFileSystemAccess::expanselocalpath(const LocalPath& source, LocalPath& destination)
 {
     // Sanity.
     assert(!source.empty());

@@ -878,6 +878,10 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
     {
         fsBasePath = ensureDir(workingFolder / fs::u8path(name));
     }
+
+    // SyncTests want to skip backup restrictions, so they are not
+    // restricted to the path "Vault/My backups/<device>/<backup>"
+    client.syncs.enableBackupRestrictions(false);
 }
 
 StandardClient::~StandardClient()
@@ -1380,6 +1384,7 @@ void StandardClient::copy(const CloudItem& source,
                     std::move(proc.nn),
                     nullptr,
                     0,
+                    false,
                     BasicPutNodesCompletion(std::move(completion)));
 }
 
@@ -1430,13 +1435,14 @@ void StandardClient::putnodes(const CloudItem& parent,
                     std::move(nodes),
                     nullptr,
                     0,
+                    false,
                     std::move(completion));
 }
 
 void StandardClient::uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes)
 {
     NewNode n;
-    client.putnodes_prepareOneFolder(&n, p.filename().u8string());
+    client.putnodes_prepareOneFolder(&n, p.filename().u8string(), false);
     handle thishandle = n.nodehandle = h++;
     n.parenthandle = parent;
     newnodes.emplace_back(std::move(n));
@@ -1461,7 +1467,7 @@ void StandardClient::uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb)
             vector<NewNode> newnodes;
             handle h = 1;
             uploadFolderTree_recurse(UNDEF, h, p, newnodes);
-            client.putnodes(n2->nodeHandle(), NoVersioning, move(newnodes), nullptr, 0, std::move(completion));
+            client.putnodes(n2->nodeHandle(), NoVersioning, move(newnodes), nullptr, 0, false, std::move(completion));
         },
         nullptr);
 }
@@ -1673,7 +1679,8 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                          NodeHandle(),
                          std::move(trampoline),
                          nullptr,
-                         nullptr);
+                         nullptr,
+                         false);    // it's a putnodes from app, not from a sync
 
             // Destroy ourselves.
             delete this;
@@ -1796,7 +1803,7 @@ bool StandardClient::fetchnodes(bool noCache)
 NewNode StandardClient::makeSubfolder(const string& utf8Name)
 {
     NewNode newnode;
-    client.putnodes_prepareOneFolder(&newnode, utf8Name);
+    client.putnodes_prepareOneFolder(&newnode, utf8Name, false);
     return newnode;
 }
 
@@ -1856,7 +1863,7 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting, bool deleted, Pr
                 };
 
                 resultproc.prepresult(COMPLETION, ++next_request_tag,
-                    [&](){ client.unlink(basenode, false, 0, std::move(completion)); },
+                    [&](){ client.unlink(basenode, false, 0, false, std::move(completion)); },
                     nullptr);
                 return;
             }
@@ -1899,7 +1906,7 @@ void StandardClient::ensureTestBaseFolder(bool mayneedmaking, PromiseBoolSP pb)
 
             resultproc.prepresult(PUTNODES, ++next_request_tag,
                 [&](){
-                    client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, client.reqtag, nullptr);
+                    client.putnodes(root->nodeHandle(), NoVersioning, move(nn), nullptr, client.reqtag, false, nullptr);
                 },
                 [pb, this](error e){
                     out() << clientname << "ensureTestBaseFolder putnodes completed with: " << e;
@@ -1980,7 +1987,7 @@ void StandardClient::makeCloudSubdirs(const string& prefix, int depth, int fanou
 
         resultproc.prepresult(COMPLETION, ++next_request_tag,
             [&]() {
-                client.putnodes(atnode->nodeHandle(), NoVersioning, move(nodearray), nullptr, 0, std::move(completion));
+                client.putnodes(atnode->nodeHandle(), NoVersioning, move(nodearray), nullptr, 0, false, std::move(completion));
             },
             nullptr);
     }
@@ -2235,7 +2242,7 @@ void StandardClient::setupSync_inThread(const string& drivePath,
 
         LOG_debug << "Asking engine to add the sync...";
 
-        auto result = client.addsync(config, true, std::move(completion), rootPath + " ");
+        auto result = client.addsync(std::move(config), true, std::move(completion), rootPath + " ");
         EXPECT_EQ(result, API_OK);
     };
 
@@ -2297,22 +2304,12 @@ string StandardClient::exportSyncConfigs()
     return result.get();
 }
 
-bool StandardClient::delSync_inthread(handle backupId)
+void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
 {
-    const auto handle = syncSet(backupId).h;
-    bool removed = false;
-
     client.syncs.removeSelectedSyncs(
-        [&](SyncConfig& c, Sync*)
-        {
-            const bool matched = c.mRemoteNode == handle;
-
-            removed |= matched;
-
-            return matched;
-        });
-
-    return removed;
+      [=](SyncConfig& config, Sync*) { return config.mBackupId == backupId; },
+      [=](Error error) { result->set_value(error == API_OK); },
+      false);
 }
 
 bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)
@@ -2909,7 +2906,7 @@ void StandardClient::setattr(const CloudItem& item, attr_map&& updates, PromiseB
                                     return result->set_value(false);
 
                                 client.setattr(node, attr_map(updates), client.reqtag, nullptr,
-                                    [result](NodeHandle, error e) { result->set_value(!e); });
+                                    [result](NodeHandle, error e) { result->set_value(!e); }, false);
                             }, nullptr);
 }
 
@@ -2963,7 +2960,7 @@ void StandardClient::deleteremote(const CloudItem& item, PromiseBoolSP result)
     if (!node)
         return result->set_value(false);
 
-    client.unlink(node, false, 0, [result](NodeHandle, Error e) {
+    client.unlink(node, false, 0, false, [result](NodeHandle, Error e) {
         result->set_value(e == API_OK);
     });
 }
@@ -3017,7 +3014,7 @@ void StandardClient::deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb)
             };
 
             resultproc.prepresult(COMPLETION, ++next_request_tag,
-                [&](){ client.unlink(ns[i], false, 0, std::move(completion)); },
+                [&](){ client.unlink(ns[i], false, 0, false, std::move(completion)); },
                 nullptr);
         }
     }
@@ -3062,6 +3059,7 @@ void StandardClient::movenode(const CloudItem& source,
                   SYNCDEL_NONE,
                   NodeHandle(),
                   newName.empty() ? nullptr : newName.c_str(),
+                  false,
                   std::move(completion));
 }
 
@@ -3074,7 +3072,7 @@ void StandardClient::movenodetotrash(string path, PromiseBoolSP pb)
         resultproc.prepresult(COMPLETION, ++next_request_tag,
             [pb, n, p, this]()
             {
-                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr,
+                client.rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, false,
                     [pb](NodeHandle h, Error e) { pb->set_value(!e); });
             },
             nullptr);
@@ -3122,7 +3120,7 @@ void StandardClient::waitonsyncs(chrono::seconds d)
                     any_add_del |= !s->insertq.empty();
                 });
 
-            if (!(client.todebris.empty() && client.tounlink.empty() /*&& client.synccreate.empty()*/))
+            if (!(client.toDebris.empty() && client.toUnlink.empty() /*&& client.synccreate.empty()*/))
             {
                 any_add_del = true;
             }
@@ -3308,12 +3306,10 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     future<bool> p1;
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
 
-        // currently synchronous
-        sc.client.syncs.removeSelectedSyncs(
-            [](SyncConfig&, Sync*){ return true; }
-            );
 
-        pb->set_value(true);
+        sc.client.syncs.purgeSyncs([=](Error error) {
+            pb->set_value(error == API_OK);
+        });
     }, __FILE__, __LINE__);
     if (!waitonresults(&p1))
     {
@@ -3500,7 +3496,7 @@ bool StandardClient::login_fetchnodes(const string& session)
 
 bool StandardClient::delSync_mainthread(handle backupId)
 {
-    future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId)); }, __FILE__, __LINE__);
+    future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { mc.delSync_inthread(backupId, pb); }, __FILE__, __LINE__);
     return fb.get();
 }
 
@@ -4068,10 +4064,11 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
                               busy |= !s->insertq.empty();
                           });
 
-                        if (!(mc.client.todebris.empty()
+                        if (!(mc.client.toDebris.empty()
                             && mc.client.localsyncnotseen.empty()
-                            && mc.client.tounlink.empty()
-                            && mc.client.synccreate.empty()
+                            && mc.client.toUnlink.empty()
+                            && mc.client.synccreateForVault.empty()
+                            && mc.client.synccreateGeneral.empty()
                             && mc.client.transferlist.transfers[GET].empty()
                             && mc.client.transferlist.transfers[PUT].empty()))
                         {
@@ -5631,10 +5628,10 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
     ASSERT_TRUE(CatchupClients(standardclient));
 
     vector<NewNode> newnodes(4);
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1");
-    standardclient->client.putnodes_prepareOneFolder(&newnodes[3], "folder2.2");
+    standardclient->client.putnodes_prepareOneFolder(&newnodes[0], "folder1", false);
+    standardclient->client.putnodes_prepareOneFolder(&newnodes[1], "folder2", false);
+    standardclient->client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1", false);
+    standardclient->client.putnodes_prepareOneFolder(&newnodes[3], "folder2.2", false);
 
     newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
 
@@ -5642,7 +5639,7 @@ TEST_F(SyncTest, PutnodesForMultipleFolders)
 
     std::atomic<bool> putnodesDone{false};
     standardclient->resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
-        [&](){ standardclient->client.putnodes(targethandle, NoVersioning, move(newnodes), nullptr, standardclient->client.reqtag); },
+        [&](){ standardclient->client.putnodes(targethandle, NoVersioning, move(newnodes), nullptr, standardclient->client.reqtag, false); },
         [&putnodesDone](error e) { putnodesDone = true; return true; });
 
     while (!putnodesDone)
@@ -6522,8 +6519,8 @@ TEST_F(SyncTest, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
         vector<NewNode> nodes(2);
 
         // Only some platforms will escape BEL.
-        cu.client.putnodes_prepareOneFolder(&nodes[0], "d\7");
-        cu.client.putnodes_prepareOneFolder(&nodes[1], "d");
+        cu.client.putnodes_prepareOneFolder(&nodes[0], "d\7", false);
+        cu.client.putnodes_prepareOneFolder(&nodes[1], "d", false);
 
         ASSERT_TRUE(cu.putnodes(node->nodeHandle(), NoVersioning, std::move(nodes)));
 
@@ -7029,8 +7026,8 @@ TEST_F(SyncTest, AnomalousSyncDownload)
             vector<NewNode> nodes(2);
 
             // Prepare nodes.
-            cu->client.putnodes_prepareOneFolder(&nodes[0], "d");
-            cu->client.putnodes_prepareOneFolder(&nodes[1], "d/0");
+            cu->client.putnodes_prepareOneFolder(&nodes[0], "d", false);
+            cu->client.putnodes_prepareOneFolder(&nodes[1], "d/0", false);
 
             // Create the nodes in the cloud.
             ASSERT_TRUE(cu->putnodes("s", NoVersioning, std::move(nodes)));
@@ -7937,7 +7934,7 @@ TEST_F(SyncTest, DownloadedDirectoriesHaveFilesystemWatch)
         vector<NewNode> nodes(1);
 
         // Initialize new node.
-        c->client.putnodes_prepareOneFolder(&nodes[0], "d");
+        c->client.putnodes_prepareOneFolder(&nodes[0], "d", false);
 
         // Get our hands on the sync root.
         auto* root = c->drillchildnodebyname(c->gettestbasenode(), "s");
@@ -8867,7 +8864,7 @@ struct TwoWaySyncSymmetryCase
         if (reportaction) out() << name() << " action: remote rename " << n->displaypath() << " to " << newname;
 
         attr_map updates('n', newname);
-        auto e = changeClient().client.setattr(n, move(updates), ++next_request_tag, nullptr, nullptr);
+        auto e = changeClient().client.setattr(n, move(updates), ++next_request_tag, nullptr, nullptr, false);
 
         ASSERT_EQ(API_OK, error(e));
     }
@@ -8888,7 +8885,7 @@ struct TwoWaySyncSymmetryCase
 
         if (reportaction) out() << name() << " action: remote move " << n1->displaypath() << " to " << n2->displaypath();
 
-        auto e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), nullptr, nullptr);
+        auto e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), nullptr, false, nullptr);
         ASSERT_EQ(API_OK, e);
     }
 
@@ -8919,7 +8916,7 @@ struct TwoWaySyncSymmetryCase
         attrs = n1->attrs;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag, false);
     }
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -8954,7 +8951,7 @@ struct TwoWaySyncSymmetryCase
         attrs.map['n'] = newname;
         attrs.getjson(&attrstring);
         client1().client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
-        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag);
+        changeClient().client.putnodes(n2->nodeHandle(), NoVersioning, move(tc.nn), nullptr, ++next_request_tag, false);
     }
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
@@ -8974,7 +8971,7 @@ struct TwoWaySyncSymmetryCase
 
         if (reportaction) out() << name() << " action: remote rename + move " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname;
 
-        error e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), newname.c_str(), nullptr);
+        error e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, NodeHandle(), newname.c_str(), false, nullptr);
         EXPECT_EQ(e, API_OK);
     }
 
@@ -8992,7 +8989,7 @@ struct TwoWaySyncSymmetryCase
 
         if (updatemodel) remoteModel.emulate_delete(nodepath);
 
-        auto e = changeClient().client.unlink(n, false, ++next_request_tag);
+        auto e = changeClient().client.unlink(n, false, false, ++next_request_tag);
         ASSERT_TRUE(!e);
     }
 
@@ -9663,8 +9660,12 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Stopping full-sync";
-    ASSERT_TRUE(clientA1Steady.delSync_mainthread(backupId1));
+    // remove syncs in reverse order, just in case removeSyncByIndex() will benefit from that
     ASSERT_TRUE(clientA1Resume.delSync_mainthread(backupId2));
+    ASSERT_TRUE(clientA1Steady.delSync_mainthread(backupId1));
+    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
+    CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
+    waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Setting up each sub-test's Two-way sync of 'f'";
     for (auto& testcase : cases)
@@ -9930,7 +9931,7 @@ TEST_F(SyncTest, ForeignChangesInTheCloudDisablesMonitoringBackup)
         // Create a directory.
         vector<NewNode> node(1);
 
-        cu->client.putnodes_prepareOneFolder(&node[0], "d");
+        cu->client.putnodes_prepareOneFolder(&node[0], "d", false);
 
         ASSERT_TRUE(cu->putnodes(c->syncSet(id).h, NoVersioning, std::move(node)));
     }
@@ -10043,7 +10044,7 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
     {
         vector<NewNode> node(1);
 
-        cb.client.putnodes_prepareOneFolder(&node[0], "g");
+        cb.client.putnodes_prepareOneFolder(&node[0], "g", false);
 
         ASSERT_TRUE(cb.putnodes(rootHandle, NoVersioning, std::move(node)));
     }
@@ -10115,7 +10116,7 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
     {
         vector<NewNode> node(1);
 
-        cb->client.putnodes_prepareOneFolder(&node[0], "g");
+        cb->client.putnodes_prepareOneFolder(&node[0], "g", false);
 
         auto rootHandle = cb->syncSet(id).h;
         ASSERT_TRUE(cb->putnodes(rootHandle, NoVersioning, std::move(node)));
@@ -10228,7 +10229,7 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         // Make some changes to the cloud.
         vector<NewNode> node(1);
 
-        cf->client.putnodes_prepareOneFolder(&node[0], "g");
+        cf->client.putnodes_prepareOneFolder(&node[0], "g", false);
 
         ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
 
@@ -10270,8 +10271,8 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
     {
         vector<NewNode> nodes(2);
 
-        cf->client.putnodes_prepareOneFolder(&nodes[0], "h0");
-        cf->client.putnodes_prepareOneFolder(&nodes[1], "h1");
+        cf->client.putnodes_prepareOneFolder(&nodes[0], "h0", false);
+        cf->client.putnodes_prepareOneFolder(&nodes[1], "h1", false);
 
         ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(nodes)));
     }
@@ -10382,7 +10383,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
         {
             vector<NewNode> node(1);
 
-            cf->client.putnodes_prepareOneFolder(&node[0], "g");
+            cf->client.putnodes_prepareOneFolder(&node[0], "g", false);
 
             ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
         }
@@ -10426,7 +10427,7 @@ TEST_F(SyncTest, MonitoringInternalBackupResumesInMonitoringMode)
     {
         vector<NewNode> node(1);
 
-        cf->client.putnodes_prepareOneFolder(&node[0], "h");
+        cf->client.putnodes_prepareOneFolder(&node[0], "h", false);
 
         ASSERT_TRUE(cf->putnodes(rootHandle, NoVersioning, std::move(node)));
     }
@@ -10736,7 +10737,7 @@ TEST_F(SyncTest, UndecryptableSharesBehavior)
 
             model.addfolder("w");
 
-            client2.client.putnodes_prepareOneFolder(&node[0], "w");
+            client2.client.putnodes_prepareOneFolder(&node[0], "w", false);
             ASSERT_TRUE(client2.putnodes(xs->nodeHandle(), NoVersioning, std::move(node)));
             ASSERT_TRUE(client1.waitForNodesUpdated(30));
         }

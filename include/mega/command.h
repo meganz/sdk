@@ -449,13 +449,14 @@ private:
     NodeHandle pp;  // previous parent
     NodeHandle np;  // new parent
     bool syncop;
+    bool mCanChangeVault;
     syncdel_t syncdel;
     Completion completion;
 
 public:
     bool procresult(Result) override;
 
-    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c);
+    CommandMoveNode(MegaClient*, Node*, Node*, syncdel_t, NodeHandle prevParent, Completion&& c, bool canChangeVault = false);
 };
 
 class MEGA_API CommandSingleKeyCR : public Command
@@ -474,7 +475,7 @@ class MEGA_API CommandDelNode : public Command
 public:
     bool procresult(Result) override;
 
-    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&);
+    CommandDelNode(MegaClient*, NodeHandle, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&&, bool canChangeVault = false);
 };
 
 class MEGA_API CommandDelVersions : public Command
@@ -618,7 +619,7 @@ public:
 
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&);
+    CommandPutNodes(MegaClient*, NodeHandle, const char*, VersioningOption, vector<NewNode>&&, int, putsource_t, const char *cauth, Completion&&, bool canChangeVault);
 };
 
 class MEGA_API CommandSetAttr : public Command
@@ -635,7 +636,7 @@ private:
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char*, Completion&& c);
+    CommandSetAttr(MegaClient*, Node*, SymmCipher*, const char*, Completion&& c, bool canChangeVault);
 };
 
 class MEGA_API CommandSetShare : public Command
@@ -1393,6 +1394,7 @@ public:
         PAUSE_UP = 5,           // Active but upload transfers paused in the SDK
         PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
         PAUSE_FULL = 7,         // Active but transfers paused in the SDK
+        DELETED = 8,            // Sync needs to be deleted, as required by sync-desired-state received from BackupCenter (WebClient)
     };
 
     struct BackupInfo
@@ -1418,11 +1420,12 @@ public:
 class MEGA_API CommandBackupRemove : public Command
 {
     handle mBackupId;
+    std::function<void(const Error&)> mCompletion;
 
 public:
     bool procresult(Result) override;
 
-    CommandBackupRemove(MegaClient* client, handle backupId);
+    CommandBackupRemove(MegaClient* client, handle backupId, std::function<void(Error)> completion);
 };
 
 class MEGA_API CommandBackupPutHeartBeat : public Command

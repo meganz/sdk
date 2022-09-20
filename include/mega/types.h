@@ -473,7 +473,7 @@ enum SyncError {
     REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
     VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
     LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
-    ACCOUNT_BLOCKED= 23,                    // Account blocked
+    ACCOUNT_BLOCKED = 23,                   // Account blocked
     UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
@@ -502,7 +502,15 @@ typedef set<LocalNode*> localnode_set;
 
 typedef multimap<int32_t, LocalNode*> idlocalnode_map;
 
-typedef set<Node*> node_set;
+struct UnlinkOrDebris {
+    bool unlink = false;
+    bool debris = false;
+    bool canChangeVault = false;
+    UnlinkOrDebris(bool u, bool d, bool v) : unlink(u), debris(d), canChangeVault(v) {}
+};
+
+typedef map<Node*, UnlinkOrDebris> unlink_or_debris_set;
+
 
 // enumerates a node's children
 // FIXME: switch to forward_list once C++11 becomes more widely available
@@ -696,13 +704,13 @@ typedef enum {
     ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
-    ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
+    ATTR_PUSH_SETTINGS = 25,                // private - non-encrypted - char array in B64 - non-versioned
     ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
     ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
-    ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
+    ATTR_MY_BACKUPS_FOLDER = 31,            // private - non-encrypted - char array in B64 - non-versioned
     //ATTR_BACKUP_NAMES = 32,               // (deprecated) private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
     ATTR_JSON_SYNC_CONFIG_DATA = 34,        // private - byte array - non-versioned
