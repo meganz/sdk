@@ -285,10 +285,8 @@ using namespace mega;
     NSMutableArray<MEGASetElement *> *setElements = [[NSMutableArray alloc] initWithCapacity:size];
     
     for (int i = 0; i < size; i++) {
-        const MegaSetElement *setElement = setElementList->get(i);
-        
         [setElements addObject:[[MEGASetElement alloc]
-                                initWithMegaSetElement:setElement->copy()
+                                initWithMegaSetElement:setElementList->get(i)->copy()
                                             cMemoryOwn:YES]];
     }
     
