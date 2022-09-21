@@ -221,8 +221,6 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
         return false;
     }
 
-    sqlite3_extended_result_codes(*db, 1);
-
 #if !(TARGET_OS_IPHONE)
     result = sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
     if (result)
