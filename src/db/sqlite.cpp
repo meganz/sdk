@@ -164,6 +164,16 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
+#if __ANDROID__
+    std::string tempDirectory = "PRAGMA temp_store_directory='" + mRootPath.toPath() + "';";
+    result = sqlite3_exec(db, tempDirectory.c_str(), nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_err << "PRAGMA temp_store_directory error " << sqlite3_errmsg(db);
+    }
+#endif
+
+
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
@@ -210,6 +220,8 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
 
         return false;
     }
+
+    sqlite3_extended_result_codes(*db, 1);
 
 #if !(TARGET_OS_IPHONE)
     result = sqlite3_exec(*db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
