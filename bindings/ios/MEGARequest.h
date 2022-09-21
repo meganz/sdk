@@ -20,6 +20,8 @@
  */
 #import <Foundation/Foundation.h>
 #import "MEGANode.h"
+#import "MEGASet+init.h"
+#import "MEGASetElement+init.h"
 #import "MEGAAccountDetails.h"
 #import "MEGAPricing.h"
 #import "MEGAAchievementsDetails.h"
@@ -31,6 +33,8 @@
 #import "MEGAHandleList.h"
 #import "MEGACurrency.h"
 #import "MEGARecentActionBucket.h"
+#import "MEGASet.h"
+#import "MEGASetElement.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -177,6 +181,11 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeGetDownloadUrls,
     MEGARequestTypeExecuteOnThread,
     MEGARequestTypeGetRecentActions,
+    MEGARequestTypePutSet,
+    MEGARequestTypeRemoveSet,
+    MEGARequestTypeFetchSet,
+    MEGARequestTypePutSetElement,
+    MEGARequestTypeRemoveSetElement,
     TotalOfRequestTypes
 };
 
@@ -574,6 +583,14 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 /// - [MEGASdk getRecentActionsAsyncSinceDays:maxNodes:]
 /// 
 @property (readonly, nonatomic) NSArray<MEGARecentActionBucket *> *recentActionsBuckets;
+
+
+
+@property (readonly, nonatomic) MEGASet *set;
+
+
+@property (readonly, nonatomic) NSArray<MEGASetElement *> *elementsInSet;
+
 
 /**
  * @brief Creates a copy of this MEGARequest object

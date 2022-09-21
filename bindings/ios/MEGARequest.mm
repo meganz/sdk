@@ -274,4 +274,24 @@ using namespace mega;
     return recentActionBucketMutableArray;
 }
 
+- (MEGASet *)set {
+    return self.megaRequest ? [[MEGASet alloc] initWithMegaSet:self.megaRequest->getMegaSet()->copy() cMemoryOwn:YES] : nil;
+}
+
+- (NSArray<MEGASetElement *> *)elementsInSet {
+    MegaSetElementList *setElementList = self.megaRequest->getMegaSetElementList();
+    int size = setElementList->size();
+    
+    NSMutableArray<MEGASetElement *> *setElements = [[NSMutableArray alloc] initWithCapacity:size];
+    
+    for (int i = 0; i < size; i++) {
+        const MegaSetElement *setElement = setElementList->get(i);
+        
+        [setElements addObject:[[MEGASetElement alloc]
+                                initWithMegaSetElement:setElement->copy()
+                                            cMemoryOwn:YES]];
+    }
+    return [setElements copy];
+}
+
 @end

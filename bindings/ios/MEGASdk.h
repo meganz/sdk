@@ -151,6 +151,18 @@ typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeFav = 4
 };
 
+typedef NS_ENUM(NSInteger, MEGASetAttribute) {
+    MEGASetAttributeCreate = 0,
+    MEGASetAttributeName   = 1,
+    MEGASetAttributeCover  = 2
+};
+
+typedef NS_ENUM(NSInteger, MEGASetElementAttribute) {
+    MEGASetElementAttributeCreate = 0,
+    MEGASetElementAttributeName   = 1,
+    MEGASetElementAttributeOrder  = 2
+};
+
 typedef NS_ENUM(NSInteger, HTTPServer) {
     HTTPServerDenyAll                = -1,
     HTTPServerAllowAll               = 0,
@@ -3401,6 +3413,276 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  */
 - (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count;
 
+/**
+ * @brief Request creation of a new Set
+ *
+ * The associated request type with this request is MEGARequestTypePutSet
+ * Valid data in the MEGARequest object received on callbacks:
+ *
+ * - [MEGARequest parentHandle] - Returns INVALID_HANDLE
+ * - [MEGARequest text] - Returns name of the Set
+ * - [MEGARequest paramType] - Returns MEGASetAttributeCreate, possibly combined with MEGASetAttributeName
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest set] - Returns either the new Set, or null if it was not created.
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiEArgs - Malformed
+ * - MEGAErrorTypeApiEAccess - Permissions Error
+ *
+ * @param name the name that should be given to the new Set
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)createSet:(nullable NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to fetch a Set and its Elements
+ *
+ * The associated request type with this request is MEGARequestTypeFetchSet
+ * Valid data in the MEGARequest object received on callbacks:
+ * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest set]           - Returns the Set
+ * - [MEGARequest elementsInSet] - Returns Elements in Set
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Set could not be found
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set to be fetched
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)fetchSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to update the name of a Set
+ *
+ * The associated request type with this request is MEGARequestTypePutSet
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Set to be updated
+ * - [MEGARequest text]         - Returns new name of the Set
+ * - [MEGARequest paramType]    - Returns MEGASetAttributeName
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Set with the given id could not be found (before or after the request)
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set to be updated
+ * @param name the new name that should be given to the Set
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)updateSetName:(MEGAHandle)sid name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+* @brief Request to remove a Set
+*
+* The associated request type with this request is MEGARequestTypeRemoveSet
+* Valid data in the MEGARequest object received on callbacks:
+* - [MEGARequest parentHandle] - Returns id of the Set to be removed
+*
+* On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+* - MEGAErrorTypeApiENoent    - Set could not be found
+* - MEGAErrorTypeApiEInternal - Received answer could not be read
+* - MEGAErrorTypeApiEArgs     - Malformed
+* - MEGAErrorTypeApiEAccess   - Permissions Error
+*
+* @param sid the id of the Set to be removed
+* @param delegate MEGARequestDelegate to track this request
+*/
+-(void)removeSet:(MEGAHandle)sid delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to update the cover of a Set
+ *
+ * The associated request type with this request is MEGARequestTypePutSet
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Set to be updated
+ * - [MEGARequest nodeHandle]   - Returns Element id to be set as the new cover
+ * - [MEGARequest paramType]    - Returns MEGASetAttributeCover
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Set with the given id could not be found (before or after the request).
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read.
+ * - MEGAErrorTypeApiEArgs     - Given Element id was not part of the current Set; Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set to be updated
+ * @param eid the id of the Element to be set as cover
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)putSetCover:(MEGAHandle)sid eid:(MEGAHandle)eid delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request creation of a new Element for a Set
+ *
+ * The associated request type with this request is MEGARequestTypePutSetElement
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns INVALID_HANDLE
+ * - [MEGARequest totalBytes]   - Returns the id of the Set
+ * - [MEGARequest paramType]    - Returns MEGASetElementAttributeCreate, possibly combined with MEGASetElementAttributeName
+ * - [MEGARequest text]         - Returns new name of the Element
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest elementsInSet] - Returns a list containing only the new Element
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Set could not be found, or node could not be found.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted.
+ * - MEGAErrorTypeApiEKey      - File-node had no key.
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid      the id of the Set that will own the new Element
+ * @param nodeId   the handle of the file-node that will be represented by the new Element
+ * @param name     the name that should be given to the new Element
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)createSetElement:(MEGAHandle)sid
+                 nodeId:(MEGAHandle)nodeId
+                   name:(nullable NSString *)name
+               delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to update the name of an Element
+ *
+ * The associated request type with this request is MEGARequestTypePutSetElement
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Element to be updated
+ * - [MEGARequest totalBytes]   - Returns the id of the Set
+ * - [MEGARequest paramType]    - Returns MEGASetElementAttributeName
+ * - [MEGARequest text]         - Returns new name of the Element
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Element could not be found.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted.
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set that owns the Element
+ * @param eid the id of the Element that will be updated
+ * @param name the new name that should be given to the Element
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)updateSetElement:(MEGAHandle)sid
+                    eid:(MEGAHandle)eid
+                   name:(NSString *)name
+               delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to update the order of an Element
+ *
+ * The associated request type with this request is MEGARequestTypePutSetElement
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Element to be updated
+ * - [MEGARequest totalBytes]   - Returns the id of the Set
+ * - [MEGARequest paramType]    - Returns MEGASetElementAttributeOrder
+ * - [MEGARequest number]       - Returns order of the Element
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - Element could not be found.
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read or decrypted.
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set that owns the Element
+ * @param eid the id of the Element that will be updated
+ * @param order the new order of the Element
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)updateSetElementOrder:(MEGAHandle)sid
+                         eid:(MEGAHandle)eid
+                        order:(int64_t)order
+                    delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Request to remove an Element
+ *
+ * The associated request type with this request is MEGARequestTypeRemoveSetElement
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest parentHandle] - Returns id of the Element to be removed
+ * - [MEGARequest totalBytes]   - Returns the id of the Set
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
+ * - MEGAErrorTypeApiENoent    - No Set or no Element with given ids could be found (before or after the request).
+ * - MEGAErrorTypeApiEInternal - Received answer could not be read.
+ * - MEGAErrorTypeApiEArgs     - Malformed
+ * - MEGAErrorTypeApiEAccess   - Permissions Error
+ *
+ * @param sid the id of the Set that owns the Element
+ * @param eid the id of the Element to be removed
+ * @param delegate MEGARequestDelegate to track this request
+ */
+-(void)removeSetElement:(MEGAHandle)sid
+                    eid:(MEGAHandle)eid
+               delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the Set with the given id, for current user.
+ *
+ * The response value is stored as a MEGASet.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param sid the id of the Set to be retrieved
+ *
+ * @return the requested Set, or null if not found
+ */
+-(MEGASet *)getSet:(MEGAHandle)sid;
+
+/**
+ * @brief Get a list of all Sets available for current user.
+ *
+ * The response value is stored as a MEGASet array.
+ *
+ * You take the ownership of the returned value
+ *
+ * @return list of Sets
+ */
+-(NSArray<MEGASet *>*)getSets;
+
+/**
+ * @brief Get the cover (Element id) of the Set with the given id, for current user.
+ *
+ * @param sid the id of the Set to retrieve the cover for
+ *
+ * @return Element id of the cover, or INVALIDHANDLE if not set or invalid id
+ */
+-(MEGAHandle)getSetCover:(MEGAHandle)sid;
+
+/**
+ * @brief Get a particular Element in a particular Set, for current user.
+ *
+ * The response value is stored as a MEGASetElement.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param sid the id of the Set owning the Element
+ * @param eid the id of the Element to be retrieved
+ *
+ * @return requested Element, or null if not found
+ */
+-(MEGASetElement *)getSetElement:(MEGAHandle)sid eid:(MEGAHandle)eid;
+
+/**
+ * @brief Get all Elements in the Set with given id, for current user.
+ *
+ * The response value is stored as a MEGASetElement array.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param sid the id of the Set owning the Elements
+ *
+ * @return all Elements in that Set, or null if not found or none added
+ */
+-(NSArray<MEGASetElement *>*)getSetElements:(MEGAHandle)sid;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
