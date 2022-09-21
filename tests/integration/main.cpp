@@ -44,7 +44,7 @@ void WaitMillisec(unsigned n)
 #endif
 }
 
-string runProgram(const string& command)
+string runProgram(const string& command, PROG_OUTPUT_TYPE ot)
 {
     FILE* pPipe =
 #ifdef _WIN32
@@ -62,14 +62,33 @@ string runProgram(const string& command)
     // Read pipe until file ends or error occurs.
     string output;
     char   psBuffer[128];
-    while (fgets(psBuffer, 128, pPipe))
-    {
-        output += psBuffer;
-    }
 
-    if (!feof(pPipe))
+    while (!feof(pPipe))
     {
-        LOG_err << "Failed to read full command output.";
+        switch (ot)
+        {
+        case PROG_OUTPUT_TYPE::TEXT:
+        {
+            if (fgets(psBuffer, 128, pPipe))
+            {
+                output += psBuffer;
+            }
+            else if (!feof(pPipe))
+            {
+                LOG_err << "Failed to read full command output.";
+            }
+            break;
+        }
+
+        case PROG_OUTPUT_TYPE::BINARY:
+        {
+            size_t lastRead = fread(psBuffer, 1, sizeof(psBuffer), pPipe);
+            if (lastRead)
+            {
+                output.append(psBuffer, lastRead);
+            }
+        }
+        } // end switch()
     }
 
 #ifdef _WIN32
@@ -203,7 +222,7 @@ void synchronousHttpPOSTFile(const string& url, const string& filepath, string& 
 #else
     string command = "curl -s --data-binary @";
     command.append(filepath).append(" ").append(url.c_str());
-    responsedata = runProgram(command);
+    responsedata = runProgram(command, PROG_OUTPUT_TYPE::BINARY);
 #endif
 #endif
 }
