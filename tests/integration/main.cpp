@@ -63,7 +63,7 @@ string runProgram(const string& command, PROG_OUTPUT_TYPE ot)
     string output;
     char   psBuffer[128];
 
-    while (!feof(pPipe))
+    while (!feof(pPipe) && !ferror(pPipe))
     {
         switch (ot)
         {
@@ -72,10 +72,6 @@ string runProgram(const string& command, PROG_OUTPUT_TYPE ot)
             if (fgets(psBuffer, 128, pPipe))
             {
                 output += psBuffer;
-            }
-            else if (!feof(pPipe))
-            {
-                LOG_err << "Failed to read full command output.";
             }
             break;
         }
@@ -89,6 +85,11 @@ string runProgram(const string& command, PROG_OUTPUT_TYPE ot)
             }
         }
         } // end switch()
+    }
+
+    if (ferror(pPipe))
+    {
+        LOG_err << "Failed to read full command output.";
     }
 
 #ifdef _WIN32
