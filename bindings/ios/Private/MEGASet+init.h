@@ -1,5 +1,5 @@
 /**
- * @file MEGANode+init.h
+ * @file MEGASet+init.h
  * @brief Private functions of MEGAError
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand

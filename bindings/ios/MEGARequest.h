@@ -584,13 +584,25 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 /// 
 @property (readonly, nonatomic) NSArray<MEGARecentActionBucket *> *recentActionsBuckets;
 
-
-
+/**
+ * @brief Returns a MEGASet explicitly fetched from online API (typically using 'aft' command)
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk fetchSet:delegate:]
+ *
+ * @return requested MEGASet or null if not found
+ */
 @property (readonly, nonatomic) MEGASet *set;
 
-
+/**
+ * @brief Returns the list of elements, part of the MEGASetElement explicitly fetched from online API (typically using 'aft' command)
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk fetchSet:delegate:]
+ *
+ * @return list of elements in the requested MEGASet, or null if Set not found
+ */
 @property (readonly, nonatomic) NSArray<MEGASetElement *> *elementsInSet;
-
 
 /**
  * @brief Creates a copy of this MEGARequest object

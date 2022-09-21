@@ -291,6 +291,9 @@ using namespace mega;
                                 initWithMegaSetElement:setElement->copy()
                                             cMemoryOwn:YES]];
     }
+    
+    delete setElementList;
+    
     return [setElements copy];
 }
 
