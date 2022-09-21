@@ -6537,8 +6537,8 @@ bool Sync::syncItem_checkMoves(syncRow& row, syncRow& parentRow, SyncPath& fullP
     }
 
     // Don't perform any moves until we know the row's exclusion state.
-    if ((row.cloudNode && parentRow.exclusionState(*row.cloudNode)) == ES_UNKNOWN ||
-        (row.fsNode && parentRow.exclusionState(*row.fsNode)) == ES_UNKNOWN)
+    if ((row.cloudNode && parentRow.exclusionState(*row.cloudNode) == ES_UNKNOWN) ||
+        (row.fsNode && parentRow.exclusionState(*row.fsNode) == ES_UNKNOWN))
     {
         row.itemProcessed = true;
         row.suppressRecursion = true;
