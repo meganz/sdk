@@ -2655,6 +2655,18 @@ void debugLogHeapUsage()
 #endif
 }
 
+bool haveDuplicatedValues(const string_map& m1, const string_map& m2)
+{
+    return
+        any_of(m1.begin(), m1.end(), [&m2](const string_map::value_type& p1)
+            {
+                return any_of(m2.begin(), m2.end(), [&p1](const string_map::value_type& p2)
+                    {
+                        return p1.first != p2.first && p1.second == p2.second;
+                    });
+            });
+}
+
 void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
 {
     mCompleted -= rhs.mCompleted;
