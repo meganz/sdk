@@ -395,7 +395,6 @@ struct MEGA_API MegaApp
     virtual void getmiscflags_result(error) { }
 
     virtual void backupput_result(const Error&, handle /*backup id*/) { }
-    virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual void getbanners_result(error) { }
     virtual void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) { }
