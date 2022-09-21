@@ -194,7 +194,6 @@ void DelegateMEGAListener::onSetsUpdate(mega::MegaApi *api, mega::MegaSetList *s
     }
 }
 
-
 void DelegateMEGAListener::onSetElementsUpdate(mega::MegaApi* api, mega::MegaSetElementList* setElementList) {
     if (listener !=nil && [listener respondsToSelector:@selector(onSetElementsUpdate:setElements:)]) {
         int size = setElementList->size();
