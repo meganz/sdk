@@ -5733,6 +5733,7 @@ class MegaSyncStall
             UndecryptedCloudNode,
             WaitingForScanningToComplete,
             WaitingForAnotherMoveToComplete,
+            SourceWasMovedElsewhere,
 
             SyncPathProblem_LastPlusOne
         };

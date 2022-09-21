@@ -502,7 +502,7 @@ void DemoApp::sync_added(const SyncConfig& config)
 {
     handle backupId = config.mBackupId;
     conlock(cout) << "Sync - added " << toHandle(backupId) << " " << config.getLocalPath().toPath(false) << " enabled: "
-        << config.getEnabled() << " syncError: " << config.mError << " " << int(config.mRunState);
+        << config.getEnabled() << " syncError: " << config.mError << " " << int(config.mRunState) << endl;
 }
 
 void DemoApp::sync_removed(const SyncConfig& config)

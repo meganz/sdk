@@ -2548,6 +2548,7 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::UndecryptedCloudNode: return "UndecryptedCloudNode";
     case PathProblem::WaitingForScanningToComplete: return "WaitingForScanningToComplete";
     case PathProblem::WaitingForAnotherMoveToComplete: return "WaitingForAnotherMoveToComplete";
+    case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
 
     case PathProblem::PathProblem_LastPlusOne: break;
     }

@@ -1106,6 +1106,7 @@ enum class PathProblem : unsigned short {
     UndecryptedCloudNode,
     WaitingForScanningToComplete,
     WaitingForAnotherMoveToComplete,
+    SourceWasMovedElsewhere,
 
     PathProblem_LastPlusOne
 };
