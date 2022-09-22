@@ -164,6 +164,18 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         return nullptr;
     }
 
+#if __ANDROID__
+    // Android doesn't provide a temporal directory -> change default policy for temp
+    // store (FILE=1) to avoid failures on large queries, so it relies on MEMORY=2
+    result = sqlite3_exec(db, "PRAGMA temp_store=2;", nullptr, nullptr, nullptr);
+    if (result)
+    {
+        LOG_err << "PRAGMA temp_store error " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+#endif
+
     return new SqliteAccountState(rng,
                                 db,
                                 fsAccess,
