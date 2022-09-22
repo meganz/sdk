@@ -2,8 +2,8 @@
 
 set -e
 
-COMMIT=954f7274ac91594d0e06ec052d0d0401631d02ee
-ARCHS="arm64 x64"
+COMMIT=2a0e94657dab8087c534d68536a31c89ab6832a1
+ARCHS="arm64 x64 arm64-simulator"
 LIPO_COMMAND="lipo -create"
 LIBWEBRTC_A="libwebrtc.a"
 ADDITIONAL_LIBS="libnative_api.a libnative_video.a libvideocapture_objc.a libvideoframebuffer_objc.a"
@@ -24,23 +24,36 @@ pushd lib
 
 for ARCH in $ARCHS
 do
-$DEPOT_TOOLS_PATH/gn gen $ARCH --args='target_os="ios" target_cpu="'$ARCH'" rtc_include_tests=false rtc_build_examples=false treat_warnings_as_errors=false fatal_linker_warnings=false use_custom_libcxx=false is_debug=false ios_deployment_target="13.0" rtc_build_tools=false rtc_enable_protobuf=false is_clang=true is_component_build=false ios_enable_code_signing=false'
+
+TARGET_CPU=$ARCH
+TARGET_ENVIRONMENT=""
+if [ "${ARCH}" == "arm64-simulator" ]; then
+TARGET_CPU="arm64"
+TARGET_ENVIRONMENT="simulator"
+fi
+echo $ARCH
+echo $TARGET_ENVIRONMENT
+echo $TARGET_CPU
+
+$DEPOT_TOOLS_PATH/gn gen $ARCH --args='target_os="ios" target_environment="'$TARGET_ENVIRONMENT'" target_cpu="'$TARGET_CPU'" rtc_include_tests=false rtc_build_examples=false treat_warnings_as_errors=false fatal_linker_warnings=false use_custom_libcxx=false is_debug=false ios_deployment_target="13.0" rtc_build_tools=false rtc_enable_protobuf=false is_clang=true is_component_build=false ios_enable_code_signing=false'
 
 pushd $ARCH
 $DEPOT_TOOLS_PATH/ninja -C .
 popd
-LIPO_COMMAND="$LIPO_COMMAND $PWD/$ARCH/obj/$LIBWEBRTC_A"
 done
-`$LIPO_COMMAND -output ../../../lib/$LIBWEBRTC_A`
+LIPO_COMMAND="$LIPO_COMMAND $PWD/x64/obj/$LIBWEBRTC_A"
+LIPO_COMMAND="$LIPO_COMMAND $PWD/arm64-simulator/obj/$LIBWEBRTC_A"
+`$LIPO_COMMAND -output $LIBWEBRTC_A`
+xcodebuild -create-xcframework -library $LIBWEBRTC_A -library $PWD/arm64/obj/$LIBWEBRTC_A -output ../../../xcframework/libwebrtc.xcframework
 
 for ADDITIONAL_LIB in $ADDITIONAL_LIBS
 do
 LIPO_COMMAND="lipo -create"
-for ARCH in $ARCHS
-do
-LIPO_COMMAND="$LIPO_COMMAND $PWD/$ARCH/obj/sdk/$ADDITIONAL_LIB"
-done
-`$LIPO_COMMAND -output ../../../lib/$ADDITIONAL_LIB`
+LIPO_COMMAND="$LIPO_COMMAND $PWD/x64/obj/sdk/$ADDITIONAL_LIB"
+LIPO_COMMAND="$LIPO_COMMAND $PWD/arm64-simulator/obj/sdk/$ADDITIONAL_LIB"
+`$LIPO_COMMAND -output $ADDITIONAL_LIB`
+
+xcodebuild -create-xcframework -library $ADDITIONAL_LIB -library $PWD/arm64/obj/sdk/$ADDITIONAL_LIB -output ../../../xcframework/${ADDITIONAL_LIB%.*}.xcframework
 done
 
 popd # lib -> src
