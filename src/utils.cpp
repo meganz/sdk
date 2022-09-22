@@ -2655,6 +2655,18 @@ void debugLogHeapUsage()
 #endif
 }
 
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals)
+{
+    return
+        any_of(readableVals.begin(), readableVals.end(), [&b64Vals](const string_map::value_type& p1)
+            {
+                return any_of(b64Vals.begin(), b64Vals.end(), [&p1](const string_map::value_type& p2)
+                    {
+                        return p1.first != p2.first && p1.second == Base64::atob(p2.second);
+                    });
+            });
+}
+
 void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
 {
     mCompleted -= rhs.mCompleted;

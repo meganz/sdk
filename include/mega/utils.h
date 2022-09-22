@@ -945,6 +945,8 @@ bool platformSetRLimitNumFile(int newNumFileLimit = -1);
 
 void debugLogHeapUsage();
 
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals);
+
 struct SyncTransferCount
 {
     bool operator==(const SyncTransferCount& rhs) const;
