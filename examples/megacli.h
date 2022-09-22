@@ -375,6 +375,7 @@ void exec_chatlu(autocomplete::ACState& s);
 void exec_chatlj(autocomplete::ACState& s);
 void exec_setmaxdownloadspeed(autocomplete::ACState& s);
 void exec_setmaxuploadspeed(autocomplete::ACState& s);
+void exec_setmaxloglinesize(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);
 void exec_httpsonly(autocomplete::ACState& s);
 void exec_mfac(autocomplete::ACState& s);
