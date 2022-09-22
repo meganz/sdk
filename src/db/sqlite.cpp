@@ -165,14 +165,12 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 
 #if __ANDROID__
-    std::string tempDirectory = "PRAGMA temp_store_directory='" + mRootPath.toPath() + "';";
-    result = sqlite3_exec(db, tempDirectory.c_str(), nullptr, nullptr, nullptr);
+    result = sqlite3_exec(db, "PRAGMA temp_store=2;", nullptr, nullptr, nullptr);
     if (result)
     {
-        LOG_err << "PRAGMA temp_store_directory error " << sqlite3_errmsg(db);
+        LOG_err << "PRAGMA temp_store error " << sqlite3_errmsg(db);
     }
 #endif
-
 
     return new SqliteAccountState(rng,
                                 db,
