@@ -1381,23 +1381,16 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
     std::string debug_msg = "New-alert replaced by update-alert for nodehandle |"
         + std::to_string(nodeHandleToUpdate) + "|";
 
-    auto isAlertToBeRemovedAndUpdateNodeAlert =
+    vector<UserAlert::NewSharedNodes*> nodesToUpdate;
+    auto isAlertToBeRemoved =
         // context captured as reference to avoid copying debug_msg string
-        [&](UserAlert::Base* alertToCheck)
+        [&nodeHandleToUpdate, &debug_msg, &nodesToUpdate, this](UserAlert::Base* alertToCheck)
             {
-                using handletoalert_t = UserAlert::handle_alerttype_map_t;
                 bool ret = false;
                 UserAlert::NewSharedNodes* ptrNewNodeAlert = eraseNewNodeAlert(nodeHandleToUpdate, alertToCheck);
                 if (ptrNewNodeAlert)
                 {
-                    // for an update alert, it doesn't matter if the node is a file or a folder
-                    add(new UserAlert::UpdatedSharedNode(ptrNewNodeAlert->userHandle,
-                                                         ptrNewNodeAlert->timestamp,
-                                                         nextId(),
-                                                         handletoalert_t {{nodeHandleToUpdate,
-                                                                           UserAlert::type_u}},
-                                                         handletoalert_t {}));
-
+                    nodesToUpdate.push_back(ptrNewNodeAlert);
                     // if there are no files or folders for this entry in the alerts, we can remove the whole alert
                     ret = ptrNewNodeAlert->fileNodeHandles.empty()
                           && ptrNewNodeAlert->folderNodeHandles.empty();
@@ -1405,26 +1398,43 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
                 }
                 return ret;
             };
+    auto createUpdateAlerts = [&nodeHandleToUpdate, &nodesToUpdate, this]()
+           {
+               using handletoalert_t = UserAlert::handle_alerttype_map_t;
 
+               for(auto n : nodesToUpdate)
+               {
+                   // for an update alert, it doesn't matter if the node is a file or a folder
+                   add(new UserAlert::UpdatedSharedNode(
+                           n->userHandle, n->timestamp, nextId(),
+                           handletoalert_t {{nodeHandleToUpdate, UserAlert::type_u}},
+                           handletoalert_t {}));
+               }
+               nodesToUpdate.clear();
+           };
+    bool done = false;
     // remove from existing alerts
     {
-        auto newEnd = remove_if(begin(alerts), end(alerts), isAlertToBeRemovedAndUpdateNodeAlert);
+        auto newEnd = remove_if(begin(alerts), end(alerts), isAlertToBeRemoved);
         if (end(alerts) != newEnd)
         {
             alerts.erase(newEnd, end(alerts));
-            return;
+            done = true;
         }
+        createUpdateAlerts();
+        if (done) return;
     }
 
     // remove from notifications meant to be alerts
     {
-        auto newEnd = remove_if(begin(useralertnotify), end(useralertnotify),
-                                     isAlertToBeRemovedAndUpdateNodeAlert);
+        auto newEnd = remove_if(begin(useralertnotify), end(useralertnotify), isAlertToBeRemoved);
         if (end(useralertnotify) != newEnd)
         {
             useralertnotify.erase(newEnd, end(useralertnotify));
-            return;
+            done = true;
         }
+        createUpdateAlerts();
+        if (done) return;
     }
 
     // remove from noted nodes pending to be notifications meant to be alerts
