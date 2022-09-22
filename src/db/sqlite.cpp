@@ -165,6 +165,8 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 
 #if __ANDROID__
+    // Android doesn't provide a temporal directory -> change default policy for temp
+    // store (FILE=1) to avoid failures on large queries, so it relies on MEMORY=2
     result = sqlite3_exec(db, "PRAGMA temp_store=2;", nullptr, nullptr, nullptr);
     if (result)
     {
