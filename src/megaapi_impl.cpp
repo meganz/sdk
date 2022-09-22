@@ -15161,7 +15161,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             if ((type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES) &&
                 haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
             {
-                e = API_ETOOMANY;
+                e = API_EEXIST;
                 LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value";
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }
