@@ -4317,7 +4317,7 @@ namespace mega
 
             unsigned oldvalue = tbm->raidLinesPerChunk;
             unsigned minDivisorSize = 4 * 1024 * 1024; //  raidLinesPerChunk is defined by MAX_REQ_SIZE value, which depends on the system -> division factor of 4 for different max_req_sizes
-            unsigned divideBy = std::max((TransferSlot::MAX_REQ_SIZE / minDivisorSize), static_cast<unsigned>(1));
+            unsigned divideBy = std::max<unsigned>(static_cast<unsigned>(TransferSlot::MAX_REQ_SIZE / minDivisorSize), static_cast<unsigned>(1));
             tbm->raidLinesPerChunk /= divideBy;
             tbm->setAvoidSmallLastRequest(false);
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk << " and set AvoidSmallLastRequest flag to false";
