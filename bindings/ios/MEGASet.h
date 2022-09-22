@@ -77,15 +77,12 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Returns name of current Set.
  *
- * The MegaSet object retains the ownership of the returned string, it will be valid until
- * the MegaSet object is deleted.
- *
  * @return name of current Set.
  */
 @property (readonly, nonatomic, nullable) NSString *name;
 
 /**
- * @brief Returns true if this Set has a specific change
+ * @brief Returns YES if this Set has a specific change
  *
  * This value is only useful for Sets notified by [MEGADelegate onSetsUpdate:sets:]  or
  * [MEGAGlobalDelegate onSetsUpdate:sets:] that can notify about Set modifications.
@@ -106,20 +103,9 @@ NS_ASSUME_NONNULL_BEGIN
  * - MEGASetChangeTypeRemoved              = 0x08
  * Check if the Set was removed
  *
- * @return true if this Set has a specific change
+ * @return YES if this Set has a specific change
  */
 - (BOOL)hasChangedType:(MEGASetChangeType)changeType;
-
-/**
- * @brief Creates a copy of this MEGASet object.
- *
- * The resulting object is fully independent of the source MEGASet,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * @return Copy of the MEGASet object.
- */
-- (instancetype)clone;
 
 @end
 

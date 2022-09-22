@@ -106,17 +106,6 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (BOOL)hasChangedType:(MEGASetElementChangeType)changeType;
 
-/**
- * @brief Creates a copy of this MEGASetElement object.
- *
- * The resulting object is fully independent of the source MEGASetElement,
- * it contains a copy of all internal attributes, so it will be valid after
- * the original object is deleted.
- *
- * @return Copy of the MEGASetElement object.
- */
-- (instancetype)clone;
-
 @end
 
 NS_ASSUME_NONNULL_END

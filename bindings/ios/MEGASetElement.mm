@@ -50,10 +50,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.setElement ? [[MEGASetElement alloc] initWithMegaSetElement:self.setElement->copy() cMemoryOwn:YES] : nil;
-}
-
 - (uint64_t)handle {
     return self.setElement ? self.setElement->id() : ::mega::INVALID_HANDLE;
 }
