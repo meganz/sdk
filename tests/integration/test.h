@@ -27,6 +27,18 @@ extern string_vector envVarPass;
 std::string logTime();
 void WaitMillisec(unsigned n);
 
+enum class PROG_OUTPUT_TYPE
+{
+    TEXT,   // skip \n and concatenate lines; uses fgets()
+    BINARY  // read everything just as it was received; uses fread()
+};
+
+string runProgram(const string& command, PROG_OUTPUT_TYPE ot);
+
+// platform specific Http POST
+void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata);
+void synchronousHttpPOSTData(const string& url, const string& senddata, string& responsedata);
+
 class LogStream
 {
 public:
@@ -115,7 +127,7 @@ void moveToTrash(const fs::path& p);
 fs::path makeNewTestRoot();
 
 std::unique_ptr<::mega::FileSystemAccess> makeFsAccess();
-
+fs::path makeReusableClientFolder(const string& subfolder);
 #ifdef ENABLE_SYNC
 
 template<typename T>
@@ -151,8 +163,8 @@ struct Model
         ModelNode& cloudName(const string& name);
         const string& cloudName() const;
         void generate(const fs::path& path, bool force);
-        string path();
-        string fsPath();
+        string path() const;
+        string fsPath() const;
         ModelNode* addkid();
         ModelNode* addkid(unique_ptr<ModelNode>&& p);
         bool typematchesnodetype(nodetype_t nodetype) const;
@@ -189,6 +201,31 @@ struct Model
     unique_ptr<ModelNode> root;
 };
 
+struct StandardClient;
+
+class CloudItem
+{
+public:
+    CloudItem(const Node* node);
+
+    CloudItem(const Node& node);
+
+    CloudItem(const string& path, bool fromRoot = false);
+
+    CloudItem(const char* path, bool fromRoot = false);
+
+    CloudItem(const NodeHandle& nodeHandle);
+
+    CloudItem(handle nodeHandle);
+
+    Node* resolve(StandardClient& client) const;
+
+private:
+    NodeHandle mNodeHandle;
+    string mPath;
+    bool mFromRoot = false;
+}; // CloudItem
+
 struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
@@ -205,6 +242,8 @@ struct StandardClient : public MegaApp
     string clientname;
     std::function<void()> nextfunctionMC;
     std::function<void()> nextfunctionSC;
+    string nextfunctionMC_sourcefile, nextfunctionSC_sourcefile;
+    int nextfunctionMC_sourceline = -1, nextfunctionSC_sourceline = -1;
     std::condition_variable functionDone;
     std::mutex functionDoneMutex;
     std::string salt;
@@ -228,11 +267,13 @@ struct StandardClient : public MegaApp
             handle h = UNDEF;
             std::function<bool(error)> f;
             id_callback(std::function<bool(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
+            id_callback(id_callback&&) = default;
         };
 
         recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
-        map<resultprocenum, deque<id_callback>> m;
+        map<resultprocenum, map<int, id_callback>> m;
 
+        // f is to return true if no more callbacks are expected, and the expected-entry will be removed
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF);
         void processresult(resultprocenum rpe, error e, handle h = UNDEF);
     } resultproc;
@@ -245,7 +286,7 @@ struct StandardClient : public MegaApp
     StandardClient(const fs::path& basepath, const string& name, const fs::path& workingFolder = fs::path());
     ~StandardClient();
     void localLogout();
-    void logout(bool keepSyncsConfigFile);
+    bool logout(bool keepSyncsConfigFile);
 
     static mutex om;
     bool logcb = false;
@@ -271,6 +312,12 @@ struct StandardClient : public MegaApp
 
     void syncupdate_stateconfig(const SyncConfig& config) override;
 
+    bool received_user_alerts = false;
+    std::condition_variable user_alerts_updated_cv;
+
+    void useralerts_updated(UserAlert::Base**, int) override;
+    bool waitForUserAlertsUpdated(unsigned numSeconds);
+
     std::function<void(const SyncConfig&)> mOnSyncStateConfig;
 
     void syncupdate_scanning(bool b) override;
@@ -294,7 +341,18 @@ struct StandardClient : public MegaApp
 
     std::atomic<unsigned> transfersAdded{0}, transfersRemoved{0}, transfersPrepared{0}, transfersFailed{0}, transfersUpdated{0}, transfersComplete{0};
 
-    void transfer_added(Transfer*) override { onCallback(); ++transfersAdded; }
+    void transfer_added(Transfer* transfer) override
+    {
+        onCallback();
+
+        ++transfersAdded;
+
+        if (mOnTransferAdded)
+            mOnTransferAdded(*transfer);
+    }
+
+    std::function<void(Transfer&)> mOnTransferAdded;
+
     void transfer_removed(Transfer*) override { onCallback(); ++transfersRemoved; }
     void transfer_prepare(Transfer*) override { onCallback(); ++transfersPrepared; }
     void transfer_failed(Transfer*,  const Error&, dstime = 0) override { onCallback(); ++transfersFailed; }
@@ -320,11 +378,13 @@ struct StandardClient : public MegaApp
     static bool debugging;  // turn this on to prevent the main thread timing out when stepping in the MegaClient
 
     template <class PROMISE_VALUE>
-    future<PROMISE_VALUE> thread_do(std::function<void(MegaClient&, shared_promise<PROMISE_VALUE>)> f)
+    future<PROMISE_VALUE> thread_do(std::function<void(MegaClient&, shared_promise<PROMISE_VALUE>)> f, string sf, int sl)
     {
         unique_lock<mutex> guard(functionDoneMutex);
         std::shared_ptr<promise<PROMISE_VALUE>> promiseSP(new promise<PROMISE_VALUE>());
         nextfunctionMC = [this, promiseSP, f](){ f(this->client, promiseSP); };
+        nextfunctionMC_sourcefile = sf;
+        nextfunctionMC_sourceline = sl;
         waiter.notify();
         while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionMC; }))
         {
@@ -338,11 +398,13 @@ struct StandardClient : public MegaApp
     }
 
     template <class PROMISE_VALUE>
-    future<PROMISE_VALUE> thread_do(std::function<void(StandardClient&, shared_promise<PROMISE_VALUE>)> f)
+    future<PROMISE_VALUE> thread_do(std::function<void(StandardClient&, shared_promise<PROMISE_VALUE>)> f, string sf, int sl)
     {
         unique_lock<mutex> guard(functionDoneMutex);
         std::shared_ptr<promise<PROMISE_VALUE>> promiseSP(new promise<PROMISE_VALUE>());
-        nextfunctionMC = [this, promiseSP, f]() { f(*this, promiseSP); };
+        nextfunctionSC_sourcefile = sf;
+        nextfunctionSC_sourceline = sl;
+        nextfunctionSC = [this, promiseSP, f]() { f(*this, promiseSP); };
         waiter.notify();
         while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionSC; }))
         {
@@ -358,7 +420,6 @@ struct StandardClient : public MegaApp
     void preloginFromEnv(const string& userenv, PromiseBoolSP pb);
     void loginFromEnv(const string& userenv, const string& pwdenv, PromiseBoolSP pb);
     void loginFromSession(const string& session, PromiseBoolSP pb);
-    bool cloudCopyTreeAs(Node* from, Node* to, string name);
 
     class BasicPutNodesCompletion
     {
@@ -377,11 +438,30 @@ struct StandardClient : public MegaApp
         std::function<void(const Error&)> mCallable;
     }; // BasicPutNodesCompletion
 
-    void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb);
-    void putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP pb);
-    bool putnodes(NodeHandle parentHandle, VersioningOption vo, std::vector<NewNode>&& nodes);
-    void putnodes(const string& parentPath, VersioningOption vo, std::vector<NewNode>&& nodes, PromiseBoolSP result);
-    bool putnodes(const string &parentPath, VersioningOption vo, std::vector<NewNode>&& nodes);
+    bool copy(const CloudItem& source,
+              const CloudItem& target,
+              const string& name,
+              VersioningOption versioningPolicy = NoVersioning);
+
+    bool copy(const CloudItem& source,
+              const CloudItem& target,
+              VersioningOption versioningPolicy = NoVersioning);
+
+    void copy(const CloudItem& source,
+              const CloudItem& target,
+              string name,
+              PromiseBoolSP result,
+              VersioningOption versioningPolicy);
+
+    bool putnodes(const CloudItem& parent,
+                  VersioningOption versioningPolicy,
+                  std::vector<NewNode>&& nodes);
+
+    void putnodes(const CloudItem& parent,
+                  VersioningOption versioningPolicy,
+                  std::vector<NewNode>&& nodes,
+                  PromiseBoolSP result);
+
     void uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes);
     void uploadFolderTree(fs::path p, Node* n2, PromiseBoolSP pb);
 
@@ -403,8 +483,8 @@ struct StandardClient : public MegaApp
         PromiseBoolSP result;
     }; // FileGet
 
-    void downloadFile(const Node& node, const fs::path& destination, PromiseBoolSP result);
-    bool downloadFile(const Node& node, const fs::path& destination);
+    void downloadFile(const CloudItem& item, const fs::path& destination, PromiseBoolSP result);
+    bool downloadFile(const CloudItem& item, const fs::path& destination);
 
     struct FilePut : public File {
         void completed(Transfer* t, putsource_t source) override
@@ -420,24 +500,26 @@ struct StandardClient : public MegaApp
     }; // FilePut
 
     bool uploadFolderTree(fs::path p, Node* n2);
-    void uploadFile(const fs::path& path, const string& name, const Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo = NoVersioning);
+
+    void uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, VersioningOption vo = NoVersioning);
     void uploadFile(const fs::path& path, const string& name, const Node* parent, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
-    bool uploadFile(const fs::path& path, const string& name, const Node* parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
-    bool uploadFile(const fs::path& path, const string& name, string parentPath, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
-    bool uploadFile(const fs::path& path, const Node* parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
-    bool uploadFile(const fs::path& path, const string& parentPath, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
-    void uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo);
-    bool uploadFilesInTree(fs::path p, const Node* n2, VersioningOption vo = NoVersioning);
-    void uploadFilesInTree(fs::path p, const Node* n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
+
+    bool uploadFile(const fs::path& path, const string& name, const CloudItem& parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
+
+    bool uploadFile(const fs::path& path, const CloudItem& parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
+
+    void uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, TransferDbCommitter& committer, VersioningOption vo);
+    bool uploadFilesInTree(fs::path p, const CloudItem& n2, VersioningOption vo = NoVersioning);
+    void uploadFilesInTree(fs::path p, const CloudItem& n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 
     void uploadFile(const fs::path& sourcePath,
                     const string& targetName,
-                    const Node& parent,
+                    const CloudItem& parent,
                     std::function<void(error)> completion,
                     const VersioningOption versioningPolicy = NoVersioning);
 
     void uploadFile(const fs::path& sourcePath,
-                    const Node& parent,
+                    const CloudItem& parent,
                     std::function<void(error)> completion,
                     const VersioningOption versioningPolicy = NoVersioning);
 
@@ -487,42 +569,23 @@ struct StandardClient : public MegaApp
     Node* drillchildnodebyname(Node* n, const string& path);
     vector<Node*> drillchildnodesbyname(Node* n, const string& path);
 
-    void backupAdd_inthread(const string& drivePath,
-        string sourcePath,
-        const string& targetPath,
-        std::function<void(error, SyncError, handle)> completion,
-        const string& logname);
+    handle setupSync_mainthread(const string& rootPath,
+                                const CloudItem& remoteItem,
+                                const bool isBackup,
+                                const bool uploadIgnoreFile,
+                                const string& drivePath = string(1, '\0'));
 
-    handle backupAdd_mainthread(const string& drivePath,
-        const string& sourcePath,
-        const string& targetPath,
-        const string& logname);
-
-    handle setupSync_mainthread(const string& localPath,
-                                const Node& remoteNode,
-                                const bool isBackup = false,
-                                const bool uploadIgnoreFile = true);
-
-    void setupSync_inThread(const string& localPath,
-                            const Node& remoteNode,
+    void setupSync_inThread(const string& drivePath,
+                            const string& rootPath,
+                            const CloudItem& remoteItem,
                             const bool isBackup,
                             const bool uploadIgnoreFile,
                             PromiseHandleSP result);
 
-    handle setupSync_mainthread(const string& localPath,
-                                const string& remotePath,
-                                const bool isBackup = false,
-                                const bool uploadIgnoreFile = true);
-
-    handle setupSync_mainthread(const string& localPath,
-                                const handle remoteHandle,
-                                const bool isBackup = false,
-                                const bool uploadIgnoreFile = true);
-
     void importSyncConfigs(string configs, PromiseBoolSP result);
     bool importSyncConfigs(string configs);
     string exportSyncConfigs();
-    bool delSync_inthread(handle backupId);
+    void delSync_inthread(handle backupId, PromiseBoolSP result);
 
     struct CloudNameLess
     {
@@ -575,9 +638,9 @@ struct StandardClient : public MegaApp
     void prelogin_result(int, string*, string* salt, error e) override;
     void login_result(error e) override;
     void fetchnodes_result(const Error& e) override;
-    bool setattr(Node* node, attr_map&& updates);
-    void setattr(Node* node, attr_map&& updates, PromiseBoolSP result);
-    bool rename(const string& path, const string& newName);
+    bool setattr(const CloudItem& item, attr_map&& updates);
+    void setattr(const CloudItem& item, attr_map&& updates, PromiseBoolSP result);
+    bool rename(const CloudItem& item, const string& newName);
     void unlink_result(handle h, error e) override;
 
     handle lastPutnodesResultFirstHandle = UNDEF;
@@ -612,23 +675,30 @@ struct StandardClient : public MegaApp
 
         return std::move(defaultValue);
     }
-    void deleteremote(string path, bool fromroot, PromiseBoolSP pb);
-    bool deleteremote(string path, bool fromroot = false);
-    bool deleteremote(Node* node);
-    void deleteremote(Node* node, PromiseBoolSP result);
+
+    void deleteremote(const CloudItem& item, PromiseBoolSP result);
+    bool deleteremote(const CloudItem& item);
+
     bool deleteremotedebris();
     void deleteremotedebris(PromiseBoolSP result);
-    bool deleteremotenode(Node* node);
     void deleteremotenodes(vector<Node*> ns, PromiseBoolSP pb);
-    bool movenode(string path, string newParentPath);
-    void movenode(string path, string newparentpath, PromiseBoolSP pb);
-    void movenode(handle h1, handle h2, PromiseBoolSP pb);
-    bool movenode(handle h1, handle h2);
+
+    bool movenode(const CloudItem& source,
+                  const CloudItem& target,
+                  const string& newName = "");
+
+    void movenode(const CloudItem& source,
+                  const CloudItem& target,
+                  const string& newName,
+                  PromiseBoolSP result);
+
     void movenodetotrash(string path, PromiseBoolSP pb);
     void exportnode(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, bool megaHosted, promise<Error>& pb);
     void waitonsyncs(chrono::seconds d = chrono::seconds(2));
     bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
+    bool resetBaseFolderMulticlient(StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr);
+    void cleanupForTestReuse(int loginIndex);
     bool login_reset_makeremotenodes(const string& prefix, int depth = 0, int fanout = 0, bool noCache = false);
     bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false);
     void ensureSyncUserAttributes(PromiseBoolSP result);
@@ -644,10 +714,34 @@ struct StandardClient : public MegaApp
     void match(handle id, const Model::ModelNode* source, PromiseBoolSP result);
     bool match(NodeHandle handle, const Model::ModelNode* source);
     void match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result);
-    bool waitFor(std::function<bool(StandardClient&)>&& predicate, const std::chrono::seconds &timeout);
+    bool waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
+    bool makeremotenodes(const string& prefix, int depth, int fanout);
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
+
+    FileFingerprint fingerprint(const fs::path& fsPath);
+
+    vector<FileFingerprint> fingerprints(const string& path);
+
+#ifndef NDEBUG
+    virtual void move_begin(const LocalPath& source, const LocalPath& target) override
+    {
+        if (mOnMoveBegin)
+            mOnMoveBegin(source, target);
+    }
+
+    function<void(const LocalPath&, const LocalPath&)> mOnMoveBegin;
+
+    void putnodes_begin(const LocalPath& path) override
+    {
+        if (mOnPutnodesBegin)
+            mOnPutnodesBegin(path);
+    }
+
+    std::function<void(const LocalPath&)> mOnPutnodesBegin;
+#endif // ! NDEBUG
+
     void backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result);
 
     void ipcr(handle id, ipcactions_t action, PromiseBoolSP result);
@@ -663,8 +757,8 @@ struct StandardClient : public MegaApp
     void rmcontact(const string& email, PromiseBoolSP result);
     bool rmcontact(const string& email);
 
-    void share(Node& node, const string& email, accesslevel_t permissions, PromiseBoolSP result);
-    bool share(Node& node, const string& email, accesslevel_t permissions);
+    void share(const CloudItem& item, const string& email, accesslevel_t permissions, PromiseBoolSP result);
+    bool share(const CloudItem& item, const string& email, accesslevel_t permissions);
 
     function<void(File&)> mOnFileAdded;
     function<void(File&)> mOnFileComplete;
@@ -675,4 +769,73 @@ struct StandardClient : public MegaApp
 
 
 
+
+struct StandardClientInUseEntry
+{
+    bool inUse = false;
+    shared_ptr<StandardClient> ptr;
+    string name;
+    int loginIndex;
+
+    StandardClientInUseEntry(bool iu, shared_ptr<StandardClient> sp, string n, int index)
+    : inUse(iu)
+    , ptr(sp)
+    , name(n)
+    , loginIndex(index)
+    {}
+};
+
+
+class StandardClientInUse
+{
+    list<StandardClientInUseEntry>::iterator entry;
+
+public:
+
+    StandardClientInUse(list<StandardClientInUseEntry>::iterator i)
+    : entry(i)
+    {
+        assert(!entry->inUse);
+        entry->inUse = true;
+    }
+
+    ~StandardClientInUse()
+    {
+        entry->ptr->cleanupForTestReuse(entry->loginIndex);
+        entry->inUse = false;
+    }
+
+    StandardClient* operator->()
+    {
+        return entry->ptr.get();
+    }
+
+    operator StandardClient*()
+    {
+        return entry->ptr.get();
+    }
+
+    operator StandardClient&()
+    {
+        return *entry->ptr;
+    }
+
+};
+
+class ClientManager
+{
+    // reuse the same client for subsequent tests, to save all the time of logging in, fetchnodes, etc.
+
+    map<int, list<StandardClientInUseEntry>> clients;
+
+public:
+
+    StandardClientInUse getCleanStandardClient(int loginIndex, fs::path workingFolder);
+
+    ~ClientManager();
+};
+
+extern ClientManager* g_clientManager;
+
 #endif // ENABLE_SYNC
+

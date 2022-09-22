@@ -26,6 +26,8 @@
 #include "mega.h"
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
+#include <sys/statvfs.h>
+#include <sys/resource.h>
 #ifdef TARGET_OS_MAC
 #include "mega/osx/osxutils.h"
 #endif
@@ -1206,7 +1208,7 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string 
     return false;
 }
 
-bool PosixFileSystemAccess::expanselocalpath(LocalPath& source, LocalPath& destination)
+bool PosixFileSystemAccess::expanselocalpath(const LocalPath& source, LocalPath& destination)
 {
     // Sanity.
     assert(!source.empty());
@@ -1599,7 +1601,277 @@ void PosixDirNotify::delnotify(LocalNode* l)
     }
 #endif
 }
+#endif // ENABLE_SYNC
 
+
+#ifndef O_NOATIME
+#define O_NOATIME 0x0
+#endif // !O_NOATIME
+
+// Used by directoryScan(...) below to avoid extra stat(...) calls.
+class UnixStreamAccess
+    : public InputStreamAccess
+{
+public:
+    UnixStreamAccess(const char* path, m_off_t size)
+      : mDescriptor(open(path, O_NOATIME | O_RDONLY))
+      , mOffset(0)
+      , mSize(size)
+    {
+    }
+
+    MEGA_DISABLE_COPY_MOVE(UnixStreamAccess);
+
+    ~UnixStreamAccess()
+    {
+        if (mDescriptor >= 0)
+            close(mDescriptor);
+    }
+
+    operator bool() const
+    {
+        return mDescriptor >= 0;
+    }
+
+    bool read(byte* buffer, unsigned size) override
+    {
+        if (mDescriptor < 0)
+            return false;
+
+        if (!buffer)
+            return mOffset += (m_off_t)size, true;
+
+        auto result = pread(mDescriptor, (void*)buffer, size, mOffset);
+
+        if (result < 0 || (unsigned)result < size)
+            return false;
+
+        mOffset += result;
+
+        return true;
+    }
+
+    m_off_t size() override
+    {
+        return mDescriptor >= 0 ? mSize : -1;
+    }
+
+private:
+    int mDescriptor;
+    m_off_t mOffset;
+    m_off_t mSize;
+}; // UnixStreamAccess
+
+ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
+                                                handle expectedFsid,
+                                                map<LocalPath, FSNode>& known,
+                                                std::vector<FSNode>& results,
+                                                bool followSymLinks,
+                                                unsigned& nFingerprinted)
+{
+    // Scan path should always be absolute.
+    assert(targetPath.isAbsolute());
+
+    // Whether we can reuse an existing fingerprint.
+    // I.e. Can we avoid computing the CRC?
+    auto reuse = [](const FSNode& lhs, const FSNode& rhs) {
+        return lhs.type == rhs.type
+               && lhs.fsid == rhs.fsid
+               && lhs.fingerprint.mtime == rhs.fingerprint.mtime
+               && lhs.fingerprint.size == rhs.fingerprint.size;
+    };
+
+    // So we don't duplicate link chasing logic.
+    auto stat = [&](const char* path, struct stat& metadata) {
+        auto result = !lstat(path, &metadata);
+
+        if (!result || !followSymLinks || !S_ISLNK(metadata.st_mode))
+            return result;
+
+        return !::stat(path, &metadata);
+    };
+
+    // Where we store file information.
+    struct stat metadata;
+
+    // Try and get information about the scan target.
+    if (!stat(targetPath.localpath.c_str(), metadata))
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Unable to stat(...) scan target: "
+                 << targetPath
+                 << ". Error code was: "
+                 << errno;
+
+        return SCAN_INACCESSIBLE;
+    }
+
+    // Is the scan target a directory?
+    if (!S_ISDIR(metadata.st_mode))
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Scan target is not a directory: "
+                 << targetPath;
+
+        return SCAN_INACCESSIBLE;
+    }
+
+    // Are we scanning the directory we think we are?
+    if (expectedFsid != (handle)metadata.st_ino)
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Scan target mismatch on expected FSID: "
+                 << targetPath;
+
+        return SCAN_FSID_MISMATCH;
+    }
+
+    // Try and open the directory for iteration.
+    auto directory = opendir(targetPath.localpath.c_str());
+
+    if (!directory)
+    {
+        LOG_warn << "Failed to directoryScan: "
+                 << "Unable to open scan target for iteration: "
+                 << targetPath
+                 << ". Error code was: "
+                 << errno;
+
+        return SCAN_INACCESSIBLE;
+    }
+
+    // Iterate over the directory's children.
+    auto entry = readdir(directory);
+    auto path = targetPath;
+
+    for ( ; entry; entry = readdir(directory))
+    {
+        // Skip special hardlinks.
+        if (!strcmp(entry->d_name, "."))
+            continue;
+
+        if (!strcmp(entry->d_name, ".."))
+            continue;
+
+        // Push a new scan record.
+        auto& result = (results.emplace_back(), results.back());
+
+        result.fsid = (handle)entry->d_ino;
+        result.localname = LocalPath::fromPlatformEncodedRelative(entry->d_name);
+
+        // Compute this entry's absolute name.
+        ScopedLengthRestore restorer(path);
+
+        path.appendWithSeparator(result.localname, false);
+
+        // Try and get information about this entry.
+        if (!stat(path.localpath.c_str(), metadata))
+        {
+            LOG_warn << "directoryScan: "
+                     << "Unable to stat(...) file: "
+                     << path
+                     << ". Error code was: "
+                     << errno;
+
+            // Entry's unknown if we can't determine otherwise.
+            result.type = TYPE_UNKNOWN;
+            continue;
+        }
+
+        result.fingerprint.mtime = metadata.st_mtime;
+        captimestamp(&result.fingerprint.mtime);
+
+        // Are we dealing with a directory?
+        if (S_ISDIR(metadata.st_mode))
+        {
+            // Then no fingerprint is necessary.
+            result.fingerprint.size = 0;
+            result.type = FOLDERNODE;
+            continue;
+        }
+
+        result.fingerprint.size = metadata.st_size;
+
+        // Are we dealing with a special file?
+        if (!S_ISREG(metadata.st_mode))
+        {
+            LOG_warn << "directoryScan: "
+                     << "Encountered a special file: "
+                     << path
+                     << ". Mode flags were: "
+                     << (metadata.st_mode & S_IFMT);
+
+            result.isSymlink = S_ISLNK(metadata.st_mode);
+            result.type = TYPE_SPECIAL;
+            continue;
+        }
+
+        // We're dealing with a regular file.
+        result.type = FILENODE;
+
+#ifdef __MACH__
+        // 1904/01/01 00:00:00 +0000 GMT.
+        //
+        // Special marker set by Finder when it begins a long-lasting
+        // operation such as copying a file from/to USB storage.
+        //
+        // In some cases, attributes such as mtime or size can be unstable
+        // and effectively meaningless.
+        constexpr auto busyDate = -2082844800;
+
+        // The file's temporarily unaccessible while it's busy.
+        //
+        // Attributes such as size are pretty much meaningless.
+        result.isBlocked = metadata.st_birthtimespec.tv_sec == busyDate;
+
+        if (result.isBlocked)
+        {
+            LOG_warn << "directoryScan: "
+                     << "Finder has marked this file as busy: "
+                     << path;
+            continue;
+        }
+#endif // __MACH__
+
+        // Have we processed this file before?
+        auto it = known.find(result.localname);
+
+        // Can we avoid recomputing this file's fingerprint?
+        if (it != known.end() && reuse(result, it->second))
+        {
+            result.fingerprint = move(it->second.fingerprint);
+            continue;
+        }
+
+        // Try and open the file for reading.
+        UnixStreamAccess isAccess(path.localpath.c_str(),
+                                  result.fingerprint.size);
+
+        // Only fingerprint the file if we could actually open it.
+        if (!isAccess)
+        {
+            LOG_warn << "directoryScan: "
+                     << "Unable to open file for fingerprinting: "
+                     << path
+                     << ". Error was: "
+                     << errno;
+            continue;
+        }
+
+        // Fingerprint the file.
+        result.fingerprint.genfingerprint(
+          &isAccess, result.fingerprint.mtime);
+
+        ++nFingerprinted;
+    }
+
+    // We're done iterating the directory.
+    closedir(directory);
+
+    return SCAN_SUCCESS;
+}
+
+#ifdef ENABLE_SYNC
 fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
     struct statfs statfsbuf;
@@ -1926,4 +2198,33 @@ bool isReservedName(const string&, nodetype_t)
     return false;
 }
 
+// A more robust implementation would check whether the device has storage
+// quotas enabled and if so, return the amount of space available before
+// saturating that quota.
+m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
+{
+    struct statfs buffer;
+    m_off_t constexpr maximumBytes = std::numeric_limits<m_off_t>::max();
+
+    if (statfs(adjustBasePath(drivePath).c_str(), &buffer) < 0)
+    {
+        auto result = errno;
+
+        LOG_warn << "Unable to determine available disk space on volume: "
+                 << drivePath.toPath()
+                 << ". Error code was: "
+                 << result;
+
+        return maximumBytes;
+    }
+
+    uint64_t availableBytes = buffer.f_bavail * (uint64_t)buffer.f_bsize;
+
+    if (availableBytes >= (uint64_t)maximumBytes)
+        return maximumBytes;
+
+    return (m_off_t)availableBytes;
+}
+
 } // namespace
+

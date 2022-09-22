@@ -74,7 +74,7 @@ public:
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, string&) const override;
-    bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
+    bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
 
@@ -88,6 +88,9 @@ public:
     void statsid(string*) const override;
 
     static void emptydirlocal(const LocalPath&, dev_t = 0);
+
+    ScanResult directoryScan(const LocalPath& path, handle expectedFsid,
+        map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted) override;
 
     WinFileSystemAccess();
     ~WinFileSystemAccess();
@@ -103,6 +106,11 @@ public:
 #endif
 
     bool hardLink(const LocalPath& source, const LocalPath& target) override;
+
+    m_off_t availableDiskSpace(const LocalPath& drivePath) override;
+	
+private:
+    bool CheckForSymlink(const LocalPath& lp);
 };
 
 #ifdef ENABLE_SYNC

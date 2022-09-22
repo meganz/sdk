@@ -270,6 +270,30 @@ public:
      */
     virtual void freeBitmap();
 
+    /**
+    * @brief Indicate which file extensions (file/image types) are supported
+    *
+    * Return a string with all the supported extensions concatenated, with . separating
+    * Make sure to include a trailing .   eg.  ".jpg.png.bmp.jpeg."
+    *
+    * The caller does not take ownership of the string.
+    *
+    * If not supplied, all relevant files will be attempted.
+    */
+    virtual const char* supportedImageFormats();
+
+    /**
+    * @brief Indicate which file extensions (file/image types) are supported
+    *
+    * Return a string with all the supported extensions concatenated, with . separating
+    * Make sure to include a trailing .   eg.  ".mpeg.mp4.avi.mkv."
+    *
+    * The caller does not take ownership of the string.
+    *
+    * If not supplied, all relevant files will be attempted.
+    */
+    virtual const char* supportedVideoFormats();
+
     virtual ~MegaGfxProcessor();
 };
 
@@ -462,12 +486,13 @@ class MegaNode
 {
     public:
 		enum {
-			TYPE_UNKNOWN = -1,
-			TYPE_FILE = 0,
-			TYPE_FOLDER,
-			TYPE_ROOT,
-			TYPE_INCOMING,
-            TYPE_RUBBISH
+            TYPE_UNKNOWN    = -1,
+            TYPE_FILE       = 0,
+            TYPE_FOLDER     = 1,
+            TYPE_ROOT       = 2,
+            TYPE_VAULT      = 3,
+            TYPE_INCOMING   = TYPE_VAULT,    // kept for backwards-compatibility (renamed to Vault)
+            TYPE_RUBBISH    = 4
 		};
 
         enum {
@@ -532,8 +557,8 @@ class MegaNode
          * - TYPE_ROOT = 2
          * The MegaNode object represents root of the MEGA Cloud Drive
          *
-         * - TYPE_INCOMING = 3
-         * The MegaNode object represents root of the MEGA Inbox
+         * - TYPE_VAULT = 3
+         * The MegaNode object represents root of the MEGA Vault
          *
          * - TYPE_RUBBISH = 4
          * The MegaNode object represents root of the MEGA Rubbish Bin
@@ -1141,8 +1166,8 @@ class MegaNode
         virtual MegaHandle getOwner() const;
 
         /**
-         * @brief Returns the device id stored as a Node attribute of a Backup folder.
-         * It will be an empty string for other nodes.
+         * @brief Returns the device id stored as a Node attribute.
+         * It will be an empty string for other nodes than device folders related to backups.
          *
          * The MegaNode object retains the ownership of the returned string, it will be valid until
          * the MegaNode object is deleted.
@@ -1619,7 +1644,18 @@ public:
     /**
     * @brief Returns the handle of a user related to the alert
     *
-    * This value is valid for user related alerts.
+    * This value is valid for user related alerts:
+    *  TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
+    *  TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
+    *  TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_ACCOUNTDELETED,
+    *  TYPE_CONTACTCHANGE_BLOCKEDYOU, TYPE_CONTACTCHANGE_DELETEDYOU,
+    *  TYPE_NEWSHARE, TYPE_DELETEDSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
+    *
+    * @warning This value is still valid for user related alerts:
+    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    * However, the returned value is the handle of the Pending Contact Request. There is no
+    * user's handle associated to these type of alerts. Use MegaUserAlert::getPcrHandle.
     *
     * @return the associated user's handle, otherwise UNDEF
     */
@@ -1629,10 +1665,23 @@ public:
     * @brief Returns the handle of a node related to the alert
     *
     * This value is valid for alerts that relate to a single node.
+    *  TYPE_NEWSHARE (folder handle), TYPE_DELETEDSHARE (folder handle), TYPE_NEWSHAREDNODES (parent handle), TYPE_TAKEDOWN (node handle),
+    *  TYPE_TAKEDOWN_REINSTATED (node handle)
     *
     * @return the relevant node handle, or UNDEF if this alert does not have one.
     */
     virtual MegaHandle getNodeHandle() const;
+
+    /**
+    * @brief Returns the handle of a Pending Contact Request related to the alert
+    *
+    * This value is valid for user related alerts:
+    *  TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *  TYPE_INCOMINGPENDINGCONTACT_REQUEST
+    *
+    * @return the relevant PCR handle, or UNDEF if this alert does not have one.
+    */
+    virtual MegaHandle getPcrHandle() const;
 
     /**
     * @brief Returns an email related to the alert
@@ -1643,6 +1692,14 @@ public:
     *
     * The SDK retains the ownership of the returned value. It will be valid until
     * the MegaUserAlert object is deleted.
+    *   TYPE_CONTACTCHANGE_ACCOUNTDELETED,TYPE_CONTACTCHANGE_BLOCKEDYOU,
+    *   TYPE_CONTACTCHANGE_CONTACTESTABLISHED, TYPE_CONTACTCHANGE_DELETEDYOU,
+    *   TYPE_DELETEDSHARE,
+    *   TYPE_INCOMINGPENDINGCONTACT_CANCELLED, TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+    *   TYPE_INCOMINGPENDINGCONTACT_REQUEST,
+    *   TYPE_NEWSHARE, TYPE_NEWSHAREDNODES, TYPE_REMOVEDSHAREDNODES
+    *   TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED, TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
+    *   TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
     *
     * @return email string of the relevant user, or NULL if not available
     */
@@ -1657,6 +1714,7 @@ public:
     * This value is valid for those alerts that relate to a single path, provided
     * it could be looked up from the cached nodes at the time the alert arrived.
     * Otherwise, it may be obtainable via the nodeHandle.
+    *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
     *
     * @return the path string if relevant and available, otherwise NULL
     */
@@ -1671,6 +1729,7 @@ public:
      * This value is valid for those alerts that relate to a single name, provided
      * it could be looked up from the cached nodes at the time the alert arrived.
      * Otherwise, it may be obtainable via the nodeHandle.
+     *   TYPE_DELETEDSHARE, TYPE_NEWSHARE?, TYPE_TAKEDOWN?, TYPE_TAKEDOWN_REINSTATED?
      *
      * @return the name string if relevant and available, otherwise NULL
      */
@@ -1706,10 +1765,10 @@ public:
     * @brief Returns a number related to this alert
     *
     * This value is valid for these alerts:
-    * TYPE_NEWSHAREDNODES (0: folder count 1: file count )
-    * TYPE_REMOVEDSHAREDNODES (0: item count )
-    * TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
-    *                       value 0 if someone left the folder)
+    *   TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
+    *                        value 0 if someone left the folder)
+    *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
+    *   TYPE_REMOVEDSHAREDNODES (0: item count)
     *
     * @return Number related to this request, or -1 if the index is invalid
     */
@@ -1726,14 +1785,23 @@ public:
     virtual int64_t getTimestamp(unsigned index) const;
 
     /**
+    * @brief Returns a handle related to this alert
+    *
+    * TYPE_NEWSHAREDNODES (folder and files)
+    *
+    * @return MegaHandle related to this request, or INVALID_HANDLE if the index is invalid
+    */
+    virtual MegaHandle getHandle(unsigned index) const;
+
+    /**
     * @brief Returns an additional string, related to the alert
     *
     * The SDK retains the ownership of the returned value. It will be valid until
     * the MegaUserAlert object is deleted.
     *
     * This value is currently only valid for
-    *   TYPE_PAYMENT_SUCCEEDED   index 0: the plan name
     *   TYPE_PAYMENT_FAILED      index 0: the plan name
+    *   TYPE_PAYMENT_SUCCEEDED   index 0: the plan name
     *
     * @return a pointer to the string if index is valid; otherwise NULL
     */
@@ -2017,7 +2085,8 @@ public:
     {
         CHANGE_TYPE_ATTACHMENT      = 0x01,
         CHANGE_TYPE_FLAGS           = 0x02,
-        CHANGE_TYPE_MODE            = 0x04
+        CHANGE_TYPE_MODE            = 0x04,
+        CHANGE_TYPE_CHAT_OPTIONS    = 0x08,
     };
 
     virtual ~MegaTextChat();
@@ -2112,6 +2181,16 @@ public:
     virtual const char *getUnifiedKey() const;
 
     /**
+     * @brief Returns the chat options.
+     *
+     * The returned value contains the chat options represented in 1 Byte, where each individual option is stored in 1 bit.
+     * Check ChatOptions struct at types.h
+     *
+     * @return The chat options in a numeric format
+     */
+    virtual unsigned char getChatOptions() const;
+
+    /**
      * @brief Returns true if this chat has an specific change
      *
      * This value is only useful for chats notified by MegaListener::onChatsUpdate or
@@ -2121,14 +2200,17 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaUser::CHANGE_TYPE_ATTACHMENT       = 0x01
+     * - MegaTextChat::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
      *
-     * - MegaUser::CHANGE_TYPE_FLAGS            = 0x02
+     * - MegaTextChat::CHANGE_TYPE_FLAGS            = 0x02
      * Check if flags have changed (like archive flag)
      *
-     * - MegaUser::CHANGE_TYPE_MODE             = 0x04
+     * - MegaTextChat::CHANGE_TYPE_MODE             = 0x04
      * Check if operation mode has changed to private mode (from public mode)
+     *
+     * - MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS     = 0x08
+     * Check if chat options have changed
      *
      * @return true if this chat has an specific change
      */
@@ -2142,14 +2224,17 @@ public:
      *
      * @return The returned value is an OR combination of these flags:
      *
-     * - MegaUser::CHANGE_TYPE_ATTACHMENT       = 0x01
+     * - MegaTextChat::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
      *
-     * - MegaUser::CHANGE_TYPE_FLAGS            = 0x02
+     * - MegaTextChat::CHANGE_TYPE_FLAGS            = 0x02
      * Check if flags have changed (like archive flag)
      *
-     * - MegaUser::CHANGE_TYPE_MODE             = 0x04
+     * - MegaTextChat::CHANGE_TYPE_MODE             = 0x04
      * Check if operation mode has changed to private mode (from public mode)
+     *
+     * - MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS     = 0x08
+     * Check if chat options have changed
      */
     virtual int getChanges() const;
 
@@ -3179,7 +3264,12 @@ class MegaRequest
             TYPE_JOIN_CHAT_CALL                                             = 143,
             TYPE_END_CHAT_CALL                                              = 144,
             TYPE_GET_FA_UPLOAD_URL                                          = 145,
-            TOTAL_OF_REQUEST_TYPES                                          = 146,
+            TYPE_EXECUTE_ON_THREAD                                          = 146,
+            TYPE_SET_CHAT_OPTIONS                                           = 147,
+            TYPE_GET_RECENT_ACTIONS                                         = 148,
+            TYPE_CHECK_RECOVERY_KEY                                         = 149,
+            TYPE_SET_MY_BACKUPS                                             = 150,
+            TOTAL_OF_REQUEST_TYPES                                          = 151,
         };
 
         virtual ~MegaRequest();
@@ -3567,6 +3657,7 @@ class MegaRequest
          * - MegaApi::setMaxConnections - Returns the direction of transfers
          * - MegaApi::dismissBanner - Returns the id of the banner
          * - MegaApi::sendBackupHeartbeat - Returns the number of backup files uploaded
+         * - MegaApi::getRecentActions - Returns the maximum number of nodes
          *
          * @return Type of parameter related to the request
          */
@@ -3636,6 +3727,7 @@ class MegaRequest
          * - MegaApi::creditCardQuerySubscriptions - Returns the number of credit card subscriptions
          * - MegaApi::getPaymentMethods - Returns a bitfield with the available payment methods
          * - MegaApi::getCloudStorageUsed - Returns the sum of the sizes of file cloud nodes.
+         * - MegaApi::getRecentActions - Returns the number of days since nodes will be considerated
          *
          * @return Number related to this request
          */
@@ -3962,6 +4054,19 @@ class MegaRequest
          * @return MegaHandle list
          */
         virtual MegaHandleList* getMegaHandleList() const;
+
+        /**
+         * @brief Returns the recent actions bucket list
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::getRecentActions
+         *
+         * @return MegaRecentActionBucketList list
+         */
+        virtual MegaRecentActionBucketList *getRecentActions() const;
 };
 
 /**
@@ -4090,6 +4195,14 @@ class MegaTransfer
             MOVE_TYPE_DOWN,
             MOVE_TYPE_TOP,
             MOVE_TYPE_BOTTOM
+        };
+
+        enum {
+            STAGE_NONE = 0,
+            STAGE_SCAN,
+            STAGE_CREATE_TREE,
+            STAGE_TRANSFERRING_FILES,
+            STAGE_MAX = STAGE_TRANSFERRING_FILES,
         };
 
         virtual ~MegaTransfer();
@@ -4279,6 +4392,25 @@ class MegaTransfer
 		 * @return Mmximum number of times that the transfer will be retried
 		 */
 		virtual int getMaxRetries() const;
+
+        /**
+         * @brief Returns the current stage in case this transfer represents a folder upload/download operation.
+         * This method can return the following values:
+         *  - MegaTransfer::STAGE_SCAN                      = 1
+         *  - MegaTransfer::STAGE_CREATE_TREE               = 2
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
+         * Any other returned value, must be ignored.
+         *
+         * The value returned by this method, can only be considered as valid, when we receive MegaTransferListener::onTransferUpdate
+         * or MegaListener::onTransferUpdate, and the returned value is in between the range specified above.
+         *
+         * Note: any specific stage can only be notified once at most.
+         *
+         * @deprecated use the stage in the onFolderTransferUpdate callback instead
+         *
+         * @return The current stage for a folder upload/download operation
+         */
+        virtual unsigned getStage() const;
 
 		/**
 		 * @brief Returns an integer that identifies this transfer
@@ -4508,6 +4640,35 @@ class MegaTransfer
          * @return True if target folder was overriden (apps can check the final parent)
          */
         virtual bool getTargetOverride() const;
+
+        /**
+         * @brief Returns a pointer to the cancel token associated to a MegaTransfer in case it exists.
+         *
+         * CancelToken can be used to cancel a batch of transfers (upload or download) that contains at least one folder.
+         *
+         * When user wants to upload/download a batch of items that at least contains one folder, SDK mutex will be partially
+         * locked until:
+         *  - we have received onTransferStart for every file in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+         *    for every folder in the batch
+         *
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+         * This method will cancel all transfers(not finished yet).
+         *
+         * Important considerations:
+         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+         *    of those transfers.
+         *
+         * @return A pointer to a cancelToken instance associated to the transfer in case it exists
+         */
+        virtual MegaCancelToken* getCancelToken();
+
+        /**
+         * @brief Returns a string that identify the recursive operation stage
+         *
+         * @return A string that identify the recursive operation stage
+         */
+        static const char* stageToString(unsigned stage);
 };
 
 /**
@@ -5426,7 +5587,7 @@ public:
      * @param errorCode Error code for which the description will be returned
      * @return Description associated with the error code
      */
-    static const char *getMegaSyncErrorCode(int errorCode);
+    static const char* getMegaSyncErrorCode(int errorCode);
 
     /**
      * @brief Returns a readable description of the sync warning
@@ -5830,7 +5991,6 @@ public:
     virtual MegaTransferList *getFailedTransfers();
 };
 
-
 /**
  * @brief Provides information about an error
  */
@@ -5877,9 +6037,10 @@ public:
         PAYMENT_EFRAUD = -103,
         PAYMENT_ETOOMANY = -104,
         PAYMENT_EBALANCE = -105,
-        PAYMENT_EGENERIC = -106
-    };
+        PAYMENT_EGENERIC = -106,
 
+        LOCAL_ENOSPC = -1000, ///< Insufficient space.
+    };
 
     /**
      * @brief Api error code context.
@@ -5928,13 +6089,19 @@ public:
          */
         virtual MegaError* copy() const;
 
-
 		/**
 		 * @brief Returns the error code associated with this MegaError
          *
-		 * @return Error code associated with this MegaError
+		 * @return Error code, an Errors enum, associated with this MegaError
 		 */
         virtual int getErrorCode() const;
+
+        /**
+         * @brief Returns the sync error associated with this MegaError
+         *
+         * @return MegaSync::Error associated with this MegaError
+         */
+        virtual int getSyncError() const;
 
         /**
          * @brief Returns a value associated with the error
@@ -6067,9 +6234,14 @@ public:
 
 protected:
         MegaError(int e);
+        MegaError(int e, int se);
 
         //< 0 = API error code, > 0 = http error, 0 = No error
+        // MegaError::Errors enum/ErrorCodes
         int errorCode;
+
+        // SyncError/MegaSync::Error 
+        int syncError;
 
         friend class MegaTransfer;
         friend class MegaApiImpl;
@@ -6332,12 +6504,53 @@ class MegaTransferListener
          * The api object is the one created by the application, it will be valid until
          * the application deletes it.
          *
+         * In case this transfer represents a recursive operation (folder upload/download) SDK will
+         * notify apps about the stages transition.
+         *
+         * Current recursive operation stage can be retrieved with method MegaTransfer::getStage.
+         * This method returns the following values:
+         *  - MegaTransfer::STAGE_SCAN                      = 1
+         *  - MegaTransfer::STAGE_CREATE_TREE               = 2
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
+         * For more information about stages refer to MegaTransfer::getStage
+         *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          *
-         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed
+         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
          */
         virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+
+        /**
+         * @brief This function is called to inform about the progress of a folder transfer
+         *
+         * The SDK retains the ownership of all parameters.
+         * Don't use any after this functions returns.
+         *
+         * The api object is the one created by the application, it will be valid until
+         * the application deletes it.
+         *
+         * This callback is only made for folder transfers, and only to the listener for that
+         * transfer, not for any globally registered listeners.  The callback is only made
+         * during the scanning phase.
+         *
+         * This function can be used to give feedback to the user as to how scanning is progressing,
+         * since scanning may take a while and the application may be showing a modal dialog during
+         * this time.
+         *
+         * Note that this function could be called from a variety of threads during the
+         * overall operation, so proper thread safety should be observed.
+         *
+         * @param api MegaApi object that started the transfer
+         * @param transfer Information about the transfer
+         * @stage MegaTransfer::STAGE_SCAN or a later value in that enum
+         * @param foldercount The count of folders scanned so far
+         * @param foldercount The count of folders created so far (only relevant in MegaTransfer::STAGE_CREATE_TREE)
+         * @param filecount The count of files scanned (and fingerprinted) so far.  0 if not in scanning stage
+         * @param currentFolder The path of the folder currently being scanned (NULL except in the scan stage)
+         * @param currentFileLeafname The leaft name of the file currently being fingerprinted (can be NULL for the first call in a new folder, and when not scanning anymore)
+         */
+        virtual void onFolderTransferUpdate(MegaApi *api, MegaTransfer *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname);
 
         /**
          * @brief This function is called when there is a temporary error processing a transfer
@@ -6642,11 +6855,11 @@ class MegaGlobalListener
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
          *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-         *              Suspension message for any type of suspension, but copyright suspension.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
          *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+         *              Suspension message for any type of suspension, but copyright suspension.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
          *              Subuser of the business account has been disabled.
@@ -6868,7 +7081,17 @@ class MegaListener
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
          *
-         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed
+         * In case this transfer represents a recursive operation (folder upload/download) SDK will
+         * notify apps about the stages transition.
+         *
+         * Current recursive operation stage can be retrieved with method MegaTransfer::getStage.
+         * This method returns the following values:
+         *  - MegaTransfer::STAGE_SCAN                      = 1
+         *  - MegaTransfer::STAGE_CREATE_TREE               = 2
+         *  - MegaTransfer::STAGE_TRANSFERRING_FILES        = 3
+         * For more information about stages refer to MegaTransfer::getStage
+         *
+         * @see MegaTransfer::getTransferredBytes, MegaTransfer::getSpeed, MegaTransfer::getStage
          */
         virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
 
@@ -7254,11 +7477,11 @@ class MegaListener
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
          *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-         *              Suspension message for any type of suspension, but copyright suspension.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
          *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+         *              Suspension message for any type of suspension, but copyright suspension.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
          *              Subuser of the business account has been disabled.
@@ -7635,7 +7858,7 @@ class MegaApi
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
-            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
+            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
@@ -7739,8 +7962,8 @@ class MegaApi
         enum {
             ACCOUNT_NOT_BLOCKED = 0,
             ACCOUNT_BLOCKED_EXCESS_DATA_USAGE = 100,        // (deprecated)
-            ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200,        // suspended due to multiple breaches of MEGA ToS
-            ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300,            // suspended due to copyright violations
+            ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200,            // suspended due to copyright violations
+            ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300,        // suspended due to multiple breaches of MEGA ToS
             ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400,         // subuser disabled by business administrator
             ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401,          // subuser removed by business administrator
             ACCOUNT_BLOCKED_VERIFICATION_SMS = 500,         // temporary blocked, require SMS verification
@@ -7774,6 +7997,9 @@ class MegaApi
             CREATE_EPLUSPLUS_ACCOUNT    = 3,
             RESUME_EPLUSPLUS_ACCOUNT    = 4,
         };
+
+        static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
+        static constexpr int CHAT_OPTIONS_EMPTY = 0;
 
         /**
          * @brief Constructor suitable for most applications
@@ -9152,6 +9378,19 @@ class MegaApi
          */
         void confirmResetPassword(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
 
+
+        /**
+         * @brief Check that the provided recovery key (master key) is correct
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHECK_RECOVERY_KEY
+         * No data in the MegaRequest object received on all callbacks
+         *
+         * @param link The recovery link sent to the user's email address.
+         * @param recoveryKey Base64-encoded string containing the recoveryKey (masterKey).
+         * @param listener MegaRequestListener to track this request
+         */
+        void checkRecoveryKey(const char* link, const char* recoveryKey, MegaRequestListener* listener = NULL);
+
         /**
          * @brief Initialize the cancellation of an account.
          *
@@ -9340,11 +9579,11 @@ class MegaApi
          *          - MegaApi::ACCOUNT_NOT_BLOCKED = 0
          *              Account is not blocked in any way.
          *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
-         *              Suspension message for any type of suspension, but copyright suspension.
-         *
-         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 200
          *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 300
+         *              Suspension message for any type of suspension, but copyright suspension.
          *
          *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
          *              Subuser of the business account has been disabled.
@@ -10126,6 +10365,9 @@ class MegaApi
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
+         * @obsolete The Inbox rootnode has been recycled for Vault and will no longer
+         * accept to put nodes in user's Inbox. This method could be removed in the future.
+         *
          * @param node Node to send
          * @param user User that receives the node
          * @param listener MegaRequestListener to track this request
@@ -10142,6 +10384,9 @@ class MegaApi
         *
         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+        *
+        * @obsolete The Inbox rootnode has been recycled for Vault and will no longer
+        * accept to put nodes in user's Inbox. This method could be removed in the future.
         *
         * @param node Node to send
         * @param email Email of the user that receives the node
@@ -12028,41 +12273,28 @@ class MegaApi
         void getCameraUploadsFolderSecondary(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set My Backups folder.
+         * @brief Creates the special folder for backups ("My backups")
          *
-         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * It creates a new folder inside the Vault rootnode and later stores the node's
+         * handle in a user's attribute, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER.
+         *
+         * Apps should first check if this folder exists already, by calling
+         * MegaApi::getUserAttribute for the corresponding attribute.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_MY_BACKUPS
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-         * - MegaRequest::getFlag - Returns false
-         * - MegaRequest::getNodehandle - Returns the provided node handle
-         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-         * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
-         *
-         * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
-         * the request will fail with the error code MegaError::API_EACCESS.
-         *
-         * @param nodehandle MegaHandle of the node to be used as target folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener = nullptr);
-
-        /**
-         * @brief Gets My Backups target folder.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getText - Returns the name provided as parameter
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
+         * - MegaRequest::getNodehandle - Returns the node handle of the folder created
          *
-         * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+         * If the folder for backups already existed, the request will fail with the error API_EACCESS.
          *
+         * @param localizedName Localized name for "My backups" folder
          * @param listener MegaRequestListener to track this request
          */
-        void getMyBackupsFolder(MegaRequestListener *listener = nullptr);
+        void setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Gets the alias for an user
@@ -12420,7 +12652,7 @@ class MegaApi
          *
          * @note Event types are restricted to the following ranges:
          *  - MEGAcmd:   [98900, 99000)
-         *  - MEGAchat:  [99000, 99150)
+         *  - MEGAchat:  [99000, 99199)
          *  - Android:   [99200, 99300)
          *  - iOS:       [99300, 99400)
          *  - MEGA SDK:  [99400, 99500)
@@ -12524,7 +12756,6 @@ class MegaApi
          */
         void startUploadForSupport(const char* localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
 
-
         /**
          * @brief Upload a file or a folder
          *
@@ -12532,176 +12763,30 @@ class MegaApi
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
          *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder, saving custom app data during the transfer
+         * When user wants to upload a batch of items that at least contains one folder, SDK mutex will be partially
+         * locked until:
+         *  - we have received onTransferStart for every file in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+         *    for every folder in the batch
          *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+         * This method will cancel all transfers(not finished yet).
          *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer. If a transfer is started with exactly the same data
-         * (local path and target parent) as another one in the transfer queue, the new transfer
-         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-         * the appData of the old transfer, using a '!' separator if the old transfer had already
-         * appData.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder, saving custom app data during the transfer
+         * Important considerations:
+         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+         *    of those transfers.
          *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
+         *    that shares the same cancel token instance.
          *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer. If a transfer is started with exactly the same data
-         * (local path and target parent) as another one in the transfer queue, the new transfer
-         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-         * the appData of the old transfer, using a '!' separator if the old transfer had already
-         * appData.
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder, putting the transfer on top of the upload queue
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer. If a transfer is started with exactly the same data
-         * (local path and target parent) as another one in the transfer queue, the new transfer
-         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-         * the appData of the old transfer, using a '!' separator if the old transfer had already
-         * appData.
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUploadWithTopPriority(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder, putting the transfer on top of the upload queue
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer. If a transfer is started with exactly the same data
-         * (local path and target parent) as another one in the transfer queue, the new transfer
-         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-         * the appData of the old transfer, using a '!' separator if the old transfer had already
-         * appData.
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-         * @param fileName Custom file name for the file or folder in MEGA
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUploadWithTopPriority(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder with a custom modification time
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
-         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-         * @param listener MegaTransferListener to track this transfer
-         *
-         * @note The custom modification time will be only applied for file transfers. If a folder
-         * is transferred using this function, the custom modification time won't have any effect,
-         */
-        void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or a folder with a custom modification time
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
-         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener=NULL);
-
-        /**
-         * @brief Upload a file or folder with a custom name
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param fileName Custom file name for the file or folder in MEGA
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-
-        /**
-         * @brief Upload a file or a folder with a custom name and a custom modification time
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
-         * @param fileName Custom file name for the file in MEGA
+         *  + If you don't need this param provide NULL as value
          * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
-         * @param listener MegaTransferListener to track this transfer
-         *
-         * The custom modification time will be only applied for file transfers. If a folder
-         * is transferred using this function, the custom modification time won't have any effect
-         */
-        void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
-
-        /**
-         * @brief Upload a file or a folder with a custom name and a custom modification time
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file
-         * @param parent Parent node for the file in the MEGA account
+         *  + If you don't need this param provide MegaApi::INVALID_CUSTOM_MOD_TIME as value
          * @param appData Custom app data to save in the MegaTransfer object
          * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
          * related to the transfer. If a transfer is started with exactly the same data
@@ -12709,14 +12794,19 @@ class MegaApi
          * fails with the error API_EEXISTS and the appData of the new transfer is appended to
          * the appData of the old transfer, using a '!' separator if the old transfer had already
          * appData.
-         * @param fileName Custom file name for the file in MEGA
-         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+         *  + If you don't need this param provide NULL as value
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         *  + If you don't need this param provide false as value
+         * @param startFirst puts the transfer on top of the upload queue
+         *  + If you don't need this param provide false as value
+         * @param cancelToken MegaCancelToken to be able to cancel a folder/file upload process.
+         * This param is required to be able to cancel the transfer safely.
+         * App retains the ownership of this param.
          * @param listener MegaTransferListener to track this transfer
-         *
-         * The custom modification time will be only applied for file transfers. If a folder
-         * is transferred using this function, the custom modification time won't have any effect
          */
-        void startUpload(const char* localPath, MegaNode* parent, const char* appData, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
+        void startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData, bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder
@@ -12726,33 +12816,7 @@ class MegaApi
          * this method will force a new upload from the scratch (ensuring the file attributes are set),
          * instead of doing a remote copy.
          *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param localPath Local path of the file or folder
-         * @param parent Parent node for the file or folder in the MEGA account
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer. If a transfer is started with exactly the same data
-         * (local path and target parent) as another one in the transfer queue, the new transfer
-         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
-         * the appData of the old transfer, using a '!' separator if the old transfer had already
-         * appData.
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener = nullptr);
-
-        /**
-         * @brief Upload a file or a folder
-         *
-         * This method should be used ONLY to share by chat a local file. In case the file
-         * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
-         * this method will force a new upload from the scratch (ensuring the file attributes are set),
-         * instead of doing a remote copy.
+         * This method always puts the transfer on top of the upload queue.
          *
          * If the status of the business account is expired, onTransferFinish will be called with the error
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
@@ -12773,24 +12837,7 @@ class MegaApi
          * @param fileName Custom file name for the file or folder in MEGA
          * @param listener MegaTransferListener to track this transfer
          */
-        void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = nullptr);
-
-        /**
-         * @brief Download a file or a folder from MEGA
-         *
-         *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param node MegaNode that identifies the file or folder
-         * @param localPath Destination path for the file or folder
-         * If this path is a local folder, it must end with a '\' or '/' character and the file name
-         * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-         * one of these characters, the file will be downloaded to a file in that path.
-         *
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
+        void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
@@ -12799,36 +12846,43 @@ class MegaApi
          * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
          * "Your business account is overdue, please contact your administrator."
          *
+         * When user wants to download a batch of items that at least contains one folder, SDK mutex will be partially
+         * locked until:
+         *  - we have received onTransferStart for every file in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
+         *    for every folder in the batch
+         *
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
+         * This method will cancel all transfers(not finished yet).
+         *
+         * Important considerations:
+         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
+         *    of those transfers.
+         *
+         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
+         *    that shares the same cancel token instance.
+         *
+         * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
+         *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
          * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
          * one of these characters, the file will be downloaded to a file in that path.
+         * @param customName Custom file name for the file or folder in local destination
+         *  + If you don't need this param provide NULL as value
          * @param appData Custom app data to save in the MegaTransfer object
          * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
          * related to the transfer.
+         *  + If you don't need this param provide NULL as value
+         * @param startFirst puts the transfer on top of the download queue
+         *  + If you don't need this param provide false as value
+         * @param cancelToken MegaCancelToken to be able to cancel a folder/file download process.
+         * This param is required to be able to cancel transfers safely.
+         * App retains the ownership of this param.
          * @param listener MegaTransferListener to track this transfer
          */
-        void startDownloadWithData(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
-
-        /**
-         * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
-         *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
-         *
-         * @param node MegaNode that identifies the file or folder
-         * @param localPath Destination path for the file or folder
-         * If this path is a local folder, it must end with a '\' or '/' character and the file name
-         * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
-         * one of these characters, the file will be downloaded to a file in that path.
-         * @param appData Custom app data to save in the MegaTransfer object
-         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer.
-         * @param listener MegaTransferListener to track this transfer
-         */
-        void startDownloadWithTopPriority(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
+        void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA
@@ -12897,6 +12951,9 @@ class MegaApi
          * If the transfer parameter is NULL or is not of type MegaTransfer::TYPE_DOWNLOAD or
          * MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
          * MegaApi::startUpload) the function returns without doing anything.
+         *
+         * Note that retried transfers will always start first, so the user see them progressing
+         * immediately.
          *
          * @param transfer Transfer to be retried
          * @param listener MegaTransferListener to track this transfer
@@ -13700,18 +13757,19 @@ class MegaApi
          * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId
          *
-          * On the onRequestFinish error, the error code associated to the MegaError can be:
-          * - MegaError::API_EARGS - If the local folder was not set.
-          * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
-          * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-          * wrong 'dev-id'/'drv-id' tag.
-          * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
-          * the handle.
-          * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
-          * - or the node could not be found.
-          * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
-          * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
-          * or device name was empty.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
+         * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
+         * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
+         * wrong 'dev-id'/'drv-id' tag.
+         * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
+         * the handle.
+         * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+         * - or the node could not be found.
+         * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
+         * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
+         * or device name was empty.
+         * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
          *
          * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
          * @param localSyncRootFolder Path of the Local folder to sync/backup.
@@ -13860,55 +13918,23 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         *
-         * @param megaFolder MEGA folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void removeSync(MegaNode *megaFolder, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Remove a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
+        void removeSync(MegaHandle backupId, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Remove a synced folder
-         *
-         * The folder will stop being synced. No files in the local nor in the remote folder
-         * will be deleted due to the usage of this function.
-         *
-         * The synchronization will stop and the cache of local files will be deleted
-         * If you don't want to delete the local cache use MegaApi::disableSync
-         *
-         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync backupId
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
-         *
-         * @param sync Synchronization to cancel
-         * @param listener MegaRequestListener to track this request
+        * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        void removeSync(MegaSync *sync, MegaRequestListener *listener = NULL);
+        MEGA_DEPRECATED
+        void removeSync(MegaSync *sync, MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Disable a synced folder
@@ -14023,15 +14049,19 @@ class MegaApi
         /**
          * @brief Remove all active synced folders
          *
-         * All folders will stop being synced. Nothing in the local nor in the remote folders
-         * will be deleted due to the usage of this function.
+         * All folders will stop being synced. Nothing in the local folders
+         * will be deleted due to the usage of this function. In the remote folders,
+         * only backup syncs in Vault will be either permanently deleted or moved to the new destination.
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNCS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of destination folder node (for backup syncs in Vault only); INVALID_HANDLE means permanent deletion
          *
+         * @param backupDestination Used only by MegaSync::SyncType::TYPE_BACKUP syncs.
+         *                          If INVALID_HANDLE, files will be permanently deleted, otherwise files will be moved there.
          * @param listener MegaRequestListener to track this request
          */
-        void removeSyncs(MegaRequestListener *listener = NULL);
-
+        void removeSyncs(MegaHandle backupDestination = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get all configured syncs
@@ -14143,6 +14173,28 @@ class MegaApi
          * @return MegaError::API_OK if the node is syncable, otherwise it returns an error.
          */
         int isNodeSyncable(MegaNode *node);
+
+        /**
+         * @brief Check if it's possible to start synchronizing a folder node. Return SyncError errors.
+         * 
+         * Possible return values for this function are:
+         * - MegaError::API_OK if the folder is syncable
+         * - MegaError::API_ENOENT if the node doesn't exist in the account
+         * - MegaError::API_EARGS if the node is NULL or is not a folder
+         * 
+         * - MegaError::API_EACCESS:
+         *              SyncError: SHARE_NON_FULL_ACCESS An ancestor node does not have full access
+         *              SyncError: REMOTE_NODE_INSIDE_RUBBISH
+         * - MegaError::API_EEXIST if there is a conflicting synchronization (nodes can't be synced twice)
+         *              SyncError: ACTIVE_SYNC_BELOW_PATH - There's a synced node below the path to be synced
+         *              SyncError: ACTIVE_SYNC_ABOVE_PATH - There's a synced node above the path to be synced
+         * - MegaError::API_EINCOMPLETE if the SDK hasn't been built with support for synchronization
+         *
+         *  @return API_OK if syncable. Error otherwise sets syncError in the returned MegaError
+         *          caller must free
+
+         */
+        MegaError* isNodeSyncableWithError(MegaNode* node);
 
         /**
          * @brief Get the corresponding local path of a synced node
@@ -14454,7 +14506,7 @@ class MegaApi
         enum { SEARCH_TARGET_INSHARE = 0,
                SEARCH_TARGET_OUTSHARE,
                SEARCH_TARGET_PUBLICLINK,
-               SEARCH_TARGET_ROOTNODE,
+               SEARCH_TARGET_ROOTNODE,      // search in Cloud and Vault rootnodes
                SEARCH_TARGET_ALL, };
 
         /**
@@ -14755,9 +14807,11 @@ class MegaApi
         bool hasChildren(MegaNode *parent);
 
         /**
-         * @brief Get the child node with the provided name
+         * @brief Get the first child node with the provided name
          *
          * If the node doesn't exist, this function returns NULL
+         * It's possible to have multiple nodes with the same name.
+         * This function will return one of them.
          *
          * You take the ownership of the returned value
          *
@@ -14766,6 +14820,24 @@ class MegaApi
          * @return The MegaNode that has the selected parent and name
          */
         MegaNode *getChildNode(MegaNode *parent, const char* name);
+
+        /**
+         * @brief Get the first child node with the name and type provided
+         *
+         * Allowed types for type parameter: MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER
+         *
+         * If the node doesn't exist, this function returns nullptr
+         * It's possible to have multiple nodes with the same name.
+         * This function will return one of them.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param parent Parent node
+         * @param name Name of the node
+         * @param type Type of the node.
+         * @return The MegaNode that has the selected parent, name and type
+         */
+        MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type);
 
         /**
          * @brief Get the parent node of a MegaNode
@@ -14813,7 +14885,7 @@ class MegaApi
          *
          * The path separator character is '/'
          * The Root node is /
-         * The Inbox root node is //in/
+         * The Vault root node is //in/
          * The Rubbish root node is //bin/
          *
          * Paths with names containing '/', '\' or ':' aren't compatible
@@ -15407,14 +15479,19 @@ class MegaApi
         MegaNode *getRootNode();
 
         /**
-         * @brief Returns the inbox node of the account
+         * @brief Returns the Vault node of the account
          *
          * You take the ownership of the returned value
          *
          * If you haven't successfully called MegaApi::fetchNodes before,
          * this function returns NULL
          *
-         * @return Inbox node of the account
+         * @return Vault node of the account
+         */
+        MegaNode *getVaultNode();
+
+        /**
+         * @deprecated Renamed to getVaultNode(). Should be replaced in external bindings before being removed here.
          */
         MegaNode* getInboxNode();
 
@@ -15457,12 +15534,17 @@ class MegaApi
         bool isInRubbish(MegaNode *node);
 
         /**
-         * @brief Check if a node is in the Inbox tree
+         * @brief Check if a node is in the Vault tree
          *
          * @param node Node to check
-         * @return True if the node is in the Inbox
+         * @return True if the node is in the Vault
          */
-        bool isInInbox(MegaNode *node);
+        bool isInVault(MegaNode *node);
+
+        /**
+         * @deprecated Renamed to isInVault(). Should be replaced in external bindings before being removed here.
+         */
+        bool isInInbox(MegaNode* node) { return isInVault(node); }
 
         /**
          * @brief Set default permissions for new files
@@ -15704,7 +15786,7 @@ class MegaApi
          *
          * The search will consider every accessible node for the account:
          *  - Cloud drive
-         *  - Inbox
+         *  - Vault
          *  - Rubbish bin
          *  - Incoming shares from other users
          *
@@ -15785,7 +15867,7 @@ class MegaApi
          *
          * The search will consider every accessible node for the account:
          *  - Cloud drive
-         *  - Inbox
+         *  - Vault
          *  - Rubbish bin
          *  - Incoming shares from other users
          *
@@ -16210,7 +16292,7 @@ class MegaApi
          * - SEARCH_TARGET_INSHARE = 0
          * - SEARCH_TARGET_OUTSHARE = 1
          * - SEARCH_TARGET_PUBLICLINK = 2
-         * - SEARCH_TARGET_ROOTNODE = 3
+         * - SEARCH_TARGET_ROOTNODE = 3 --> search in Cloud and Vault rootnodes
          * - SEARCH_TARGET_ALL = 4
          *
          * @return List of nodes that match with the search parameters
@@ -16221,6 +16303,8 @@ class MegaApi
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
+         *
+         * @deprecated use getRecentActionsAsync
          *
          * @param days Age of actions since added/modified nodes will be considered (in days)
          * @param maxnodes Maximum amount of nodes to be considered
@@ -16239,9 +16323,36 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
+         * @deprecated use getRecentActionsAsync
+         *
          * @return List of buckets containing nodes that were added/modifed as a set
          */
         MegaRecentActionBucketList* getRecentActions();
+
+
+        /**
+         * @brief Get a list of buckets, each bucket containing a list of recently added/modified nodes
+         *
+         * Each bucket contains files that were added/modified in a set, by a single user.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
+         * - MegaRequest::getParamType - Returns the maximun number of nodes
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_RECENT_ACTIONS
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getRecentsBucket - Returns buckets with a list of recently added/modified nodes
+         *
+         * The recommended values for the following parameters are to consider
+         * interactions during the last 30 days and maximum 500 nodes.
+         *
+         * @param days Age of actions since added/modified nodes will be considered (in days)
+         * @param maxnodes Maximum amount of nodes to be considered
+
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRecentActionsAsync(unsigned days, unsigned maxnodes, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Process a node tree using a MegaTreeProcessor implementation
@@ -17763,6 +17874,7 @@ class MegaApi
          * - MegaRequest::getAccess - Returns zero (private mode)
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
          * - MegaRequest::getText - Returns the title of the chat.
+         * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -17770,6 +17882,7 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If more than 1 peer is provided for a 1on1 chatroom.
+         * - MegaError::API_EARGS   - If chatOptions param is provided for a 1on1 chat
          *
          * @note If peers list contains only one person, group chat is not set and a permament chat already
          * exists with that person, then this call will return the information for the existing chat, rather
@@ -17778,9 +17891,10 @@ class MegaApi
          * @param group Flag to indicate if the chat is a group chat or not
          * @param peers MegaTextChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
+         * @param chatOptions Bitmask that contains the chat options to create the chat
          * @param listener MegaRequestListener to track this request
          */
-        void createChat(bool group, MegaTextChatPeerList *peers, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createChat(bool group, MegaTextChatPeerList* peers, const char* title = NULL, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Creates a public chatroom for multiple participants (groupchat)
@@ -17806,6 +17920,7 @@ class MegaApi
          * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
          * - MegaRequest::getText - Returns the title of the chat.
          * - MegaRequest::getNumber - Returns if chat room is a meeting room
+         * - MegaRequest::getParamType - Returns a Bitmask with the chat options that will be enabled in creation
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -17818,9 +17933,36 @@ class MegaApi
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
          * @param meetingRoom Boolean indicating if room is a meeting room
+         * @param chatOptions Bitmask that contains the chat options to create the chat
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char *title = NULL, bool meetingRoom = false, int chatOptions = CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Enable or disable a option for a chatroom
+         *
+         * This function allows to enable or disable one of the following chatroom options:
+         * - 0x01:  SpeakRequest: during calls non-operator users must request permission to speak.
+         * - 0x02:  WaitingRoom: during calls non-operator members will be placed into a waiting room, an operator level user must grant each user access to the call.
+         * - 0x04:  OpenInvite: when enabled allows non-operator level users to invite others into the chat room.
+         *
+         * The associated request type with this request is MegaChatRequest::TYPE_SET_CHAT_OPTIONS
+         * Valid data in the MegaChatRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::Access  - Returns the chat option we want to enable disable
+         * - MegaRequest::getFlag - Returns true if enabled was set true, otherwise it will return false
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS  - If the chatid is invalid
+         * - MegaError::API_EARGS  - If this method is called for a 1on1 chat
+         * - MegaError::API_ENOENT - If the chatroom does not exists
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param option Chat option that we want to enable/disable
+         * @param enabled True if we want to enable the option, otherwise false.
+         * @param listener MegaChatRequestListener to track this request
+         */
+        void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
@@ -19330,10 +19472,10 @@ public:
      *
      * This function can return:
      * - 0 (no info about any node)
-     * - 3 (info about the root node, the inbox node and the rubbish node)
-     * Use MegaApi::getRootNode MegaApi::getInboxNode and MegaApi::getRubbishNode to get those nodes.
+     * - 3 (info about the root node, the vault node and the rubbish node)
+     * Use MegaApi::getRootNode MegaApi::getVaultNode and MegaApi::getRubbishNode to get those nodes.
      *
-     * - >3 (info about root, inbox, rubbish and incoming shares)
+     * - >3 (info about root, vault, rubbish and incoming shares)
      * Use MegaApi::getInShares to get the incoming shares
      *
      * @return Number of items with account usage info
@@ -19347,7 +19489,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Used storage (in bytes)
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getStorageUsed(MegaHandle handle);
 
@@ -19358,7 +19500,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Number of files in the node
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getNumFiles(MegaHandle handle);
 
@@ -19369,7 +19511,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Number of folders in the node
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getNumFolders(MegaHandle handle);
 
@@ -19380,7 +19522,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Used storage by versions (in bytes)
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getVersionStorageUsed(MegaHandle handle);
 
@@ -19391,7 +19533,7 @@ public:
      *
      * @param handle Handle of the node to check
      * @return Number of versioned files in the node
-     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getInboxNode
+     * @see MegaApi::getRootNode, MegaApi::getRubbishNode, MegaApi::getVaultNode
      */
     virtual long long getNumVersionFiles(MegaHandle handle);
 
@@ -20086,15 +20228,14 @@ public:
 
     /**
      * @brief Allows to set the value of the flag
-     * @param newValue True to force the cancelation of the processing. False to reset.
      */
-    virtual void cancel(bool newValue = true);
+    virtual void cancel() = 0;
 
     /**
      * @brief Returns the state of the flag
      * @return The state of the flag
      */
-    virtual bool isCancelled() const;
+    virtual bool isCancelled() const = 0;
 };
 
 }

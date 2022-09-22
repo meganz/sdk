@@ -67,7 +67,7 @@ using namespace mega;
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
-- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate;
+- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate  queueType:(ListenerQueueType)queueType;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
 - (MegaLogger *)createDelegateMegaLogger:(id<MEGALoggerDelegate>)delegate;
 
@@ -282,8 +282,12 @@ using namespace mega;
 }
 
 - (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate {
+    [self addMEGAGlobalDelegate:delegate queueType:ListenerQueueTypeMain];
+}
+
+- (void)addMEGAGlobalDelegate:(id<MEGAGlobalDelegate>)delegate queueType:(ListenerQueueType)queueType {
     if (self.megaApi) {
-        self.megaApi->addGlobalListener([self createDelegateMEGAGlobalListener:delegate]);
+        self.megaApi->addGlobalListener([self createDelegateMEGAGlobalListener:delegate queueType:queueType]);
     }
 }
 
@@ -1998,18 +2002,6 @@ using namespace mega;
     }
 }
 
-- (void)getMyBackupsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->getMyBackupsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
-    }
-}
-
-- (void)getMyBackupsFolder {
-    if (self.megaApi) {
-        self.megaApi->getMyBackupsFolder();
-    }
-}
-
 - (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -2227,119 +2219,39 @@ using namespace mega;
     }
 }
 
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent delegate:(id<MEGATransferDelegate>)delegate {
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(nullable MEGACancelToken *)cancelToken {
     if (self.megaApi) {
-        self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+        self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr, fileName.UTF8String, MegaApi::INVALID_CUSTOM_MOD_TIME, appData.UTF8String, isSourceTemporary, startFirst, cancelToken.getCPtr);
     }
 }
 
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent {
+- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent fileName:(nullable NSString *)fileName appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary startFirst:(BOOL)startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr);
+        self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr, fileName.UTF8String, MegaApi::INVALID_CUSTOM_MOD_TIME, appData.UTF8String, isSourceTemporary, startFirst, cancelToken.getCPtr, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
     }
 }
 
-- (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent filename:(NSString *)filename delegate:(id<MEGATransferDelegate>)delegate {
+- (void)startUploadForChatWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary fileName:(nullable NSString*)fileName {
     if (self.megaApi) {
-        self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr, filename.UTF8String, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+        self.megaApi->startUploadForChat(localPath.UTF8String, parent.getCPtr, appData.UTF8String, isSourceTemporary, fileName.UTF8String);
     }
 }
 
-- (void)startUploadToFileWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent filename:(NSString *)filename {
+- (void)startUploadForChatWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary fileName:(nullable NSString*)fileName delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->startUpload(localPath.UTF8String, parent.getCPtr, filename.UTF8String);
+        self.megaApi->startUploadForChat(localPath.UTF8String, parent.getCPtr, appData.UTF8String, isSourceTemporary, fileName.UTF8String, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
     }
 }
 
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate {
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken {
     if (self.megaApi) {
-        self.megaApi->startUploadWithData(localPath.UTF8String, parent.getCPtr, appData.UTF8String, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr);
     }
 }
 
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData {
+- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->startUploadWithData(localPath.UTF8String, parent.getCPtr, appData.UTF8String);
-    }
-}
-
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->startUploadWithData(localPath.UTF8String, parent.getCPtr, appData.UTF8String, isSourceTemporary, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary {
-    if (self.megaApi) {
-        self.megaApi->startUploadWithData(localPath.UTF8String, parent.getCPtr, appData.UTF8String, isSourceTemporary);
-    }
-}
-
-- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->startUploadWithTopPriority(localPath.UTF8String, parent.getCPtr, appData.UTF8String, isSourceTemporary, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary {
-    if (self.megaApi) {
-        self.megaApi->startUploadWithTopPriority(localPath.UTF8String, parent.getCPtr, appData.UTF8String, isSourceTemporary);
-    }
-}
-
-- (void)startUploadForChatWithLocalPath:(NSString *)localPath
-                                 parent:(MEGANode *)parent
-                                appData:(nullable NSString *)appData
-                      isSourceTemporary:(BOOL)isSourceTemporary
-                               delegate:(id<MEGATransferDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->startUploadForChat(localPath.UTF8String,
-                                         parent.getCPtr,
-                                         appData.UTF8String,
-                                         isSourceTemporary,
-                                         [self createDelegateMEGATransferListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath delegate:(id<MEGATransferDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath {
-    if (self.megaApi) {
-        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String);
-    }
-}
-
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData {
-    if (self.megaApi) {
-        self.megaApi->startDownloadWithData(node.getCPtr, localPath.UTF8String, appData.UTF8String);
-    }
-}
-
-- (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->startDownloadWithData(node.getCPtr, localPath.UTF8String, appData.UTF8String, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData delegate:(id<MEGATransferDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->startDownloadWithTopPriority(node.getCPtr, localPath.UTF8String, appData.UTF8String, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(nullable NSString *)appData {
-    if (self.megaApi) {
-        self.megaApi->startDownloadWithTopPriority(node.getCPtr, localPath.UTF8String, appData.UTF8String);
-    }
-}
-
-- (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size delegate:(id<MEGATransferDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->startStreaming(node.getCPtr, (startPos != nil) ? [startPos longLongValue] : 0, (size != nil) ? [size longLongValue] : 0, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+        self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
     }
 }
 
@@ -2595,6 +2507,14 @@ using namespace mega;
     if (parent == nil || name == nil || self.megaApi == nil) return nil;
     
     MegaNode *node = self.megaApi->getChildNode([parent getCPtr], [name UTF8String]);
+    
+    return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
+}
+
+- (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name type:(NSInteger)type {
+    if (parent == nil || name == nil || self.megaApi == nil) return nil;
+    
+    MegaNode *node = self.megaApi->getChildNodeOfType(parent.getCPtr, name.UTF8String, (int)type);
     
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
 }
@@ -2923,6 +2843,18 @@ using namespace mega;
     }
     
     return recentActionBucketMutableArray;
+}
+
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi != nil) {
+        self.megaApi->getRecentActionsAsync((int)days, (unsigned int)maxNodes, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes {
+    if (self.megaApi != nil) {
+        self.megaApi->getRecentActionsAsync((int)days, (unsigned int)maxNodes);
+    }
 }
 
 - (BOOL)processMEGANodeTree:(MEGANode *)node recursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate {
@@ -3433,9 +3365,9 @@ using namespace mega;
     }
 }
 
-- (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(NSDate *)lastActionDate lastBackupNode:(MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate {
+- (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(nullable NSDate *)lastActionDate lastBackupNode:(nullable MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
-        self.megaApi->sendBackupHeartbeat(backupId, (int)status, (int)progress, (int)pendingUploadCount, 0, (long long)[lastActionDate timeIntervalSince1970], lastBackupNode.handle, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
+        self.megaApi->sendBackupHeartbeat(backupId, (int)status, (int)progress, (int)pendingUploadCount, 0, lastActionDate != nil ? (long long)[lastActionDate timeIntervalSince1970] : (long long)0, lastBackupNode != nil ? lastBackupNode.handle : INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
     }
 }
 
@@ -3527,10 +3459,11 @@ using namespace mega;
     return delegateListener;
 }
 
-- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate {
+- (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate
+                                               queueType:(ListenerQueueType)queueType {
     if (delegate == nil) return nil;
     
-    DelegateMEGAGlobalListener *delegateListener = new DelegateMEGAGlobalListener(self, delegate);
+    DelegateMEGAGlobalListener *delegateListener = new DelegateMEGAGlobalListener(self, delegate, queueType);
     pthread_mutex_lock(&listenerMutex);
     _activeGlobalListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);

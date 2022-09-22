@@ -741,7 +741,7 @@ bool MegaFS::addCompletions(ACState& s)
                     if (s.word().s.size() >= 5 && !strncmp(s.word().s.c_str(), "//in/", 5))
                     {
                         pathprefix = "//in/";
-                        n = client->nodeByHandle(client->rootnodes.inbox);
+                        n = client->nodeByHandle(client->rootnodes.vault);
                     }
                     else if (s.word().s.size() >= 6 && !strncmp(s.word().s.c_str(), "//bin/", 6))
                     {
@@ -892,6 +892,98 @@ bool MegaContactEmail::match(ACState& s) const
     }
     return false;
 }
+
+#ifdef ENABLE_SYNC
+
+BackupID::BackupID(MegaClient& client, bool onlyActive)
+  : mClient(client)
+  , mOnlyActive(onlyActive)
+{
+}
+
+bool BackupID::addCompletions(ACState& state)
+{
+    auto ids = backupIDs();
+
+    if (state.atCursor())
+    {
+        for (auto& id : filter(ids, state))
+            state.addCompletion(std::move(id));
+
+        return true;
+    }
+
+    return match(ids, state);
+}
+
+std::ostream& BackupID::describe(std::ostream& ostream) const
+{
+    return ostream << "BackupID";
+}
+
+string_vector& BackupID::filter(string_vector& ids, const ACState& state) const
+{
+    if (state.i >= state.words.size())
+        return ids;
+
+    auto& word = state.words.back();
+    auto& prefix = word.s;
+
+    if (prefix.empty())
+        return ids;
+
+    auto predicate = [&prefix](const string& id) {
+        return prefix.size() > id.size()
+               || id.compare(0, prefix.size(), prefix);
+    };
+
+    auto i = remove_if(ids.begin(), ids.end(), predicate);
+    ids.erase(i, ids.end());
+
+    return ids;
+}
+
+bool BackupID::match(ACState& state) const
+{
+    return state.i < state.words.size()
+           && match(backupIDs(), state);
+}
+
+string_vector BackupID::backupIDs() const
+{
+    string_vector result;
+    handle_set seen;
+
+    for (auto& config : mClient.syncs.getConfigs(mOnlyActive))
+    {
+        if (seen.emplace(config.mBackupId).second)
+            result.emplace_back(toHandle(config.mBackupId));
+    }
+
+    return result;
+}
+
+bool BackupID::match(const string_vector& ids, ACState& state) const
+{
+    auto& word = state.words[state.i];
+
+    if (word.s.empty() || (!word.q.quoted && word.s[0] == '-'))
+        return false;
+
+    auto i = find(ids.begin(), ids.end(), word.s);
+
+    if (i != ids.end())
+        return ++state.i, true;
+
+    return false;
+}
+
+ACN backupID(MegaClient& client, bool onlyActive)
+{
+    return make_shared<BackupID>(client, onlyActive);
+}
+
+#endif // ENABLE_SYNC
 
 std::ostream& MegaContactEmail::describe(std::ostream& s) const
 {

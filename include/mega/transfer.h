@@ -42,7 +42,7 @@ struct TransferCategory
     unsigned directionIndex();
 };
 
-class DBTableTransactionCommitter;
+class TransferDbCommitter;
 
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
 struct MEGA_API Transfer : public FileFingerprint
@@ -90,14 +90,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // upload handle for file attribute attachment (only set if file attribute queued)
     UploadHandle uploadhandle;
 
-    // minimum number of file attributes that need to be posted before a PUT transfer can complete
-    int minfa;
-
     // position in transfers[type]
     transfer_map::iterator transfers_it;
-
-    // position in faputcompletion[uploadhandle]
-    uploadhandletransfer_map::iterator faputcompletion_it;
 
     // upload result
     unique_ptr<UploadToken> ultoken;
@@ -107,16 +101,20 @@ struct MEGA_API Transfer : public FileFingerprint
     int tag;
 
     // signal failure.  Either the transfer's slot or the transfer itself (including slot) will be deleted.
-    void failed(const Error&, DBTableTransactionCommitter&, dstime = 0);
+    void failed(const Error&, TransferDbCommitter&, dstime = 0);
 
     // signal completion
-    void complete(DBTableTransactionCommitter&);
+    void complete(TransferDbCommitter&);
 
     // execute completion
     void completefiles();
 
     // remove file from transfer including in cache
-    void removeTransferFile(error, File* f, DBTableTransactionCommitter* committer);
+    void removeTransferFile(error, File* f, TransferDbCommitter* committer);
+
+    void removeCancelledTransferFiles(TransferDbCommitter* committer);
+
+    void removeAndDeleteSelf(transferstate_t finalState);
 
     // previous wrong fingerprint
     FileFingerprint badfp;
@@ -184,26 +182,27 @@ public:
     typedef deque_with_lazy_bulk_erase<Transfer*, LazyEraseTransferPtr> transfer_list;
 
     TransferList();
-    void addtransfer(Transfer* transfer, DBTableTransactionCommitter&, bool startFirst = false);
+    void addtransfer(Transfer* transfer, TransferDbCommitter&, bool startFirst = false);
     void removetransfer(Transfer *transfer);
-    void movetransfer(Transfer *transfer, Transfer *prevTransfer, DBTableTransactionCommitter& committer);
-    void movetransfer(Transfer *transfer, unsigned int position, DBTableTransactionCommitter& committer);
-    void movetransfer(Transfer *transfer, transfer_list::iterator dstit, DBTableTransactionCommitter&);
-    void movetransfer(transfer_list::iterator it, transfer_list::iterator dstit, DBTableTransactionCommitter&);
-    void movetofirst(Transfer *transfer, DBTableTransactionCommitter& committer);
-    void movetofirst(transfer_list::iterator it, DBTableTransactionCommitter& committer);
-    void movetolast(Transfer *transfer, DBTableTransactionCommitter& committer);
-    void movetolast(transfer_list::iterator it, DBTableTransactionCommitter& committer);
-    void moveup(Transfer *transfer, DBTableTransactionCommitter& committer);
-    void moveup(transfer_list::iterator it, DBTableTransactionCommitter& committer);
-    void movedown(Transfer *transfer, DBTableTransactionCommitter& committer);
-    void movedown(transfer_list::iterator it, DBTableTransactionCommitter& committer);
-    error pause(Transfer *transfer, bool enable, DBTableTransactionCommitter& committer);
+    void movetransfer(Transfer *transfer, Transfer *prevTransfer, TransferDbCommitter& committer);
+    void movetransfer(Transfer *transfer, unsigned int position, TransferDbCommitter& committer);
+    void movetransfer(Transfer *transfer, transfer_list::iterator dstit, TransferDbCommitter&);
+    void movetransfer(transfer_list::iterator it, transfer_list::iterator dstit, TransferDbCommitter&);
+    void movetofirst(Transfer *transfer, TransferDbCommitter& committer);
+    void movetofirst(transfer_list::iterator it, TransferDbCommitter& committer);
+    void movetolast(Transfer *transfer, TransferDbCommitter& committer);
+    void movetolast(transfer_list::iterator it, TransferDbCommitter& committer);
+    void moveup(Transfer *transfer, TransferDbCommitter& committer);
+    void moveup(transfer_list::iterator it, TransferDbCommitter& committer);
+    void movedown(Transfer *transfer, TransferDbCommitter& committer);
+    void movedown(transfer_list::iterator it, TransferDbCommitter& committer);
+    error pause(Transfer *transfer, bool enable, TransferDbCommitter& committer);
     transfer_list::iterator begin(direction_t direction);
     transfer_list::iterator end(direction_t direction);
     bool getIterator(Transfer *transfer, transfer_list::iterator&, bool canHandleErasedElements = false);
     std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction,
-	                                               std::function<bool(direction_t)>& directionContinuefunction);
+	                                               std::function<bool(direction_t)>& directionContinuefunction,
+                                                   TransferDbCommitter& committer);
     Transfer *transferat(direction_t direction, unsigned int position);
 
     std::array<transfer_list, 2> transfers;
@@ -211,7 +210,7 @@ public:
     uint64_t currentpriority;
 
 private:
-    void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit, DBTableTransactionCommitter& committer);
+    void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit, TransferDbCommitter& committer);
     void prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
     bool isReady(Transfer *transfer);
 };

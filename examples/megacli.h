@@ -58,6 +58,15 @@ struct AppFileGet : public AppFile
     void completed(Transfer*, putsource_t source) override;
     void terminated(error e) override;
 
+    std::function<void()> onCompleted;
+
+    bool noRetries = false;
+    bool failed(error e, MegaClient* c) override
+    {
+        if (noRetries) return false;
+        return File::failed(e, c);
+    }
+
     AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
 };
@@ -70,6 +79,15 @@ struct AppFilePut : public AppFile
     void terminated(error e) override;
 
     void displayname(string*);
+
+    std::function<void()> onCompleted;
+
+    bool noRetries = false;
+    bool failed(error e, MegaClient* c) override
+    {
+        if (noRetries) return false;
+        return File::failed(e, c);
+    }
 
     AppFilePut(const LocalPath&, NodeHandle, const char*);
     ~AppFilePut();
@@ -240,7 +258,6 @@ struct DemoApp : public MegaApp
     void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
 
     void dismissbanner_result(error) override;
-    void backupremove_result(const Error&, handle /*backup id*/) override;
 
     void reload(const char*) override;
     void clearing() override;
@@ -371,6 +388,7 @@ void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
 void exec_drivemonitor(autocomplete::ACState& s);
 void exec_driveid(autocomplete::ACState& s);
+void exec_randomfile(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 

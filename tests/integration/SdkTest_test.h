@@ -191,11 +191,12 @@ struct OneShotListener : public ::mega::MegaRequestListener
     }
 };
 
+using onNodesUpdateCompletion_t = std::function<void(size_t apiIndex, MegaNodeList* nodes)>;
+
 // Fixture class with common code for most of tests
 class SdkTest : public ::testing::Test, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
 
 public:
-
     struct PerApi
     {
         MegaApi* megaApi = nullptr;
@@ -216,10 +217,13 @@ public:
         std::unique_ptr<MegaCurrency> mMegaCurrency;
 
         // flags to monitor the updates of nodes/users/PCRs due to actionpackets
-        bool nodeUpdated;
         bool userUpdated;
         bool contactRequestUpdated;
         bool accountUpdated;
+        bool nodeUpdated; // flag to check specific updates for a node (upon onNodesUpdate)
+
+        // unique_ptr to custom functions that will be called upon reception of MegaApi callbacks
+        onNodesUpdateCompletion_t mOnNodesUpdateCompletion;
 
 #ifdef ENABLE_SYNC
         int lastSyncError;
@@ -274,11 +278,12 @@ protected:
     void Cleanup();
 
     int getApiIndex(MegaApi* api);
+    bool getApiIndex(MegaApi* api, size_t& apindex);
 
     bool checkAlert(int apiIndex, const string& title, const string& path);
-    bool checkAlert(int apiIndex, const string& title, handle h, int n);
+    bool checkAlert(int apiIndex, const string& title, handle h, int64_t n = -1, MegaHandle mh = INVALID_HANDLE);
 
-    MegaHandle syncTestMyBackupsRemoteFolder(unsigned apiIdx);
+    void syncTestMyBackupsRemoteFolder(unsigned apiIdx);
 
     void onRequestStart(MegaApi *api, MegaRequest *request) override {}
     void onRequestUpdate(MegaApi*api, MegaRequest *request) override {}
@@ -303,6 +308,8 @@ protected:
 #endif
     void onEvent(MegaApi* api, MegaEvent *event) override;
 
+    void resetOnNodeUpdateCompletionCBs();
+    onNodesUpdateCompletion_t createOnNodesUpdateLambda(MegaHandle&, int);
 public:
     //void login(unsigned int apiIndex, int timeout = maxTimeout);
     //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
@@ -350,14 +357,13 @@ public:
     template<typename ... Args> int synchronousUpdateBackup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_PUT, [this, apiIndex, args...]() { megaApi[apiIndex]->updateBackup(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousRemoveBackup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_REMOVE, [this, apiIndex, args...]() { megaApi[apiIndex]->removeBackup(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSendBackupHeartbeat(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT, [this, apiIndex, args...]() { megaApi[apiIndex]->sendBackupHeartbeat(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousSetMyBackupsFolder(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setMyBackupsFolder(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousGetMyBackupsFolder(unsigned apiIndex, MegaHandle& backupFolder, Args... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->getMyBackupsFolder(args..., &rt); rt.waitForResult(); backupFolder = rt.getNodeHandle(); return rt.result; }
+    template<typename ... Args> int synchronousSetMyBackupsFolder(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_MY_BACKUPS, [this, apiIndex, args...]() { megaApi[apiIndex]->setMyBackupsFolder(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetDeviceName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setDeviceName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetDeviceName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getDeviceName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetDriveName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setDriveName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetDriveName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getDriveName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setUserAlias(args...); }); return mApi[apiIndex].lastError; }
-    template<typename ... Args> int synchronousGetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAlias(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousGetUserAlias(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getUserAlias(args...); }); return mApi[apiIndex].lastError; }
 
     // *** USE THESE ONES INSTEAD ***
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
@@ -388,7 +394,7 @@ public:
     template<typename ... requestArgs> int doPutPreview(unsigned apiIndex, MegaBackgroundMediaUpload* mbmu, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->putPreview(mbmu, args..., &rt); rt.waitForResult(); mbmu->setPreview(rt.getNodeHandle()); return rt.result; }
 #ifdef ENABLE_SYNC
     template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, MegaHandle* newSyncRootNodeResult, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->syncFolder(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails(); mApi[apiIndex].lastSyncBackupId = rt.request->getParentHandle(); if (newSyncRootNodeResult) *newSyncRootNodeResult = rt.getNodeHandle(); return rt.result; }
-    template<typename ... requestArgs> int synchronousRemoveSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSync(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousRemoveSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSync(args..., INVALID_HANDLE, &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousDisableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableSync(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousEnableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->enableSync(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails() ; return rt.result; }
 #endif // ENABLE_SYNC
@@ -401,6 +407,10 @@ public:
     template<typename ... requestArgs> int synchronousInviteContact(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->inviteContact(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousReplyContactRequest(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get());  megaApi[apiIndex]->replyContactRequest(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousRemove(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->remove(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousCancelTransfers(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->cancelTransfers(args..., &rt); return rt.waitForResult(); }
+
+    // Checkup methods called from MegaApi callbacks
+    void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change = -1);
 
     bool createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);

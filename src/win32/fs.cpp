@@ -23,11 +23,13 @@
 #include <cwctype>
 
 #include "mega.h"
+#include <limits>
 #include <wow64apiset.h>
 
 #if defined(_WIN32)
 #include <winsock2.h>
 #include <Windows.h>
+#include <winioctl.h>
 #endif
 
 namespace mega {
@@ -1054,9 +1056,10 @@ bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, std::strin
     return false;
 }
 
-bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolutepathArg)
+bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& absolutepathArg)
 {
-    int len = GetFullPathNameW(pathArg.localpath.data(), 0, NULL, NULL);
+    int len = GetFullPathNameW(pathArg.localpath.c_str(), 0, NULL, NULL); 
+    // just get size including NUL terminator
     if (len <= 0)
     {
         absolutepathArg = pathArg;
@@ -1064,12 +1067,14 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
     }
 
     absolutepathArg.localpath.resize(len);
-    int newlen = GetFullPathNameW(pathArg.localpath.data(), len, const_cast<wchar_t*>(absolutepathArg.localpath.data()), NULL);
+    int newlen = GetFullPathNameW(pathArg.localpath.c_str(), len, const_cast<wchar_t*>(absolutepathArg.localpath.data()), NULL);
+    // length not including terminating NUL
     if (newlen <= 0 || newlen >= len)
     {
         absolutepathArg = pathArg;
         return false;
     }
+    absolutepathArg.localpath.resize(newlen);
 
     if (memcmp(absolutepathArg.localpath.data(), L"\\\\?\\", 8))
     {
@@ -1607,6 +1612,268 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& i
     return result;
 }
 
+bool reuseFingerprint(const FSNode& lhs, const FSNode& rhs)
+{
+    // it might look like fingerprint.crc comparison has been missed out here
+    // but that is intentional.  The point is to avoid re-fingerprinting files
+    // when we rescan a folder, if we already have good info about them and
+    // nothing we can see from outside the file had changed,
+    // mtime is the same, and no notifications arrived
+    // for this particular file.
+    return lhs.type == rhs.type
+        && lhs.fsid == rhs.fsid
+        && lhs.fingerprint.mtime == rhs.fingerprint.mtime
+        && lhs.fingerprint.size == rhs.fingerprint.size;
+};
+
+bool  WinFileSystemAccess::CheckForSymlink(const LocalPath& lp)
+{
+
+    ScopedFileHandle rightTypeHandle = CreateFileW(lp.localpath.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
+        NULL);
+
+    typedef struct _REPARSE_DATA_BUFFER {
+        ULONG  ReparseTag;
+        USHORT ReparseDataLength;
+        USHORT Reserved;
+        union {
+            struct {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                ULONG  Flags;
+                WCHAR  PathBuffer[1];
+            } SymbolicLinkReparseBuffer;
+            struct {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                WCHAR  PathBuffer[1];
+            } MountPointReparseBuffer;
+            struct {
+                UCHAR DataBuffer[1];
+            } GenericReparseBuffer;
+        } DUMMYUNIONNAME;
+    } REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
+
+    union rightSizeBuffer {
+        REPARSE_DATA_BUFFER rdb;
+        char pad[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+    } rdb;
+
+    DWORD bytesReturned = 0;
+
+    if (rightTypeHandle.get() != INVALID_HANDLE_VALUE  &&
+        DeviceIoControl(
+        rightTypeHandle.get(),
+        FSCTL_GET_REPARSE_POINT,
+        NULL,
+        0,
+        &rdb,
+        sizeof(rdb),
+        &bytesReturned,
+        NULL))
+    {
+        return rdb.rdb.ReparseTag == IO_REPARSE_TAG_SYMLINK;
+    }
+
+    return false;
+}
+
+ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path, handle expectedFsid, map<LocalPath, FSNode>& known, std::vector<FSNode>& results, bool followSymlinks, unsigned& nFingerprinted)
+{
+    assert(path.isAbsolute());
+    assert(!followSymlinks && "Symlinks are not supported on Windows!");
+
+    ScopedFileHandle rightTypeHandle = CreateFileW(path.localpath.c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ |
+        FILE_SHARE_WRITE |
+        FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        NULL);
+
+    if (rightTypeHandle.get() == INVALID_HANDLE_VALUE)
+    {
+        LOG_warn << "Failed to directoryScan, no handle for: " << path;
+        return SCAN_INACCESSIBLE;
+    }
+
+    BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
+    if (!GetFileInformationByHandle(rightTypeHandle.get(), &bhfi))
+    {
+        LOG_warn << "Failed to directoryScan, no info for: " << path;
+        return SCAN_INACCESSIBLE;
+    }
+
+    auto folderFsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
+    if (folderFsid != expectedFsid)
+    {
+        LOG_warn << "Failed to directoryScan, mismatch on expected FSID: " << path;
+        return SCAN_FSID_MISMATCH;
+    }
+
+    if (!(bhfi.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        LOG_warn << "Failed to directoryScan, not a directory: " << path;
+        return SCAN_INACCESSIBLE;
+    }
+
+    alignas(8) byte bytes[1024 * 10];
+
+    if (GetFileInformationByHandleEx( rightTypeHandle.get(),
+        FileIdBothDirectoryRestartInfo,  // starts the listing from the beginning
+        bytes, sizeof(bytes)))
+    {
+        do
+        {
+            bool loopDone = false;
+            for (byte* ptr = bytes; !loopDone;)
+            {
+                auto info = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(ptr);
+                if (!info->NextEntryOffset) loopDone = true;
+                else ptr += info->NextEntryOffset;
+
+                FSNode result;
+                result.localname = LocalPath::fromPlatformEncodedRelative(wstring(info->FileName, info->FileNameLength/2));
+                assert(result.localname.localpath.back() != 0);
+
+                if (result.localname.localpath == L"." ||
+                    result.localname.localpath == L"..")
+                {
+                    continue;
+                }
+
+                // Are we dealing with a reparse point?
+                if ((info->FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+                {
+                    auto filePath = path;
+
+                    filePath.appendWithSeparator(result.localname, false);
+
+                    LOG_warn << "directoryScan: "
+                             << "Encountered a reparse point: "
+                             << filePath;
+
+                    // Provide basic information about the reparse point.
+                    result.fingerprint.mtime = FileTime_to_POSIX((FILETIME*)&info->LastWriteTime);
+                    result.fingerprint.size = (m_off_t)info->EndOfFile.QuadPart;
+                    result.fsid = (handle)info->FileId.QuadPart;
+                    result.type = TYPE_SPECIAL;
+
+                    if (CheckForSymlink(filePath))
+                    {
+                        result.isSymlink = true;
+                    }
+
+
+                    results.emplace_back(std::move(result));
+
+                    // Process the next directory entry.
+                    continue;
+                }
+
+                // For now at least, do the same as the old system: ignore system+hidden.
+                // desktop.ini seem to be at least one problem solved this way, they are
+                // (at least sometimes) unopenable
+                // anyway, so no valid fingerprint can be extracted.
+                if (WinFileAccess::skipattributes(info->FileAttributes))
+                {
+                    result.type = TYPE_DONOTSYNC;
+                }
+                else
+                {
+                    result.type = (info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? FOLDERNODE : FILENODE;
+                }
+                result.fsid = (handle) info->FileId.QuadPart;
+
+                result.fingerprint.mtime = FileTime_to_POSIX((FILETIME*)&info->LastWriteTime);
+                result.fingerprint.size = (m_off_t)info->EndOfFile.QuadPart;
+
+                if (info->ShortNameLength > 0)
+                {
+                    wstring wstr(info->ShortName, info->ShortNameLength/2);
+                    assert(wstr.back() != 0);
+                    if (wstr != result.localname.localpath)
+                    {
+                        result.shortname.reset(new LocalPath(LocalPath::fromPlatformEncodedRelative(move(wstr))));
+                    }
+                }
+
+                if (result.shortname &&
+                    *result.shortname == result.localname)
+                {
+                    result.shortname.reset();
+                }
+
+                    //// Warn about symlinks.
+                    //if (result.isSymlink)
+                    //{
+                    //    LOG_debug << "Interrogated path is a symlink: "
+                    //        << path.toPath();
+                    //}
+
+                if (result.type == FOLDERNODE)
+                {
+                    memset(result.fingerprint.crc.data(), 0, sizeof(result.fingerprint.crc));
+                }
+                else if (result.type == FILENODE)
+                {
+                    // Fingerprint the file if it's new or changed
+                    // (caller has to not supply 'known' items we aready know changed in case mtime+size is still a match)
+                    auto it = known.find(result.localname);
+                    if (it != known.end() && reuseFingerprint(it->second, result))
+                    {
+                        result.fingerprint = std::move(it->second.fingerprint);
+                        known.erase(it);
+                    }
+                    else
+                    {
+                        LocalPath p = path;
+                        p.appendWithSeparator(result.localname, false);
+                        auto fa = newfileaccess();
+                        if (fa->fopen(p, true, false))
+                        {
+                            result.fingerprint.genfingerprint(fa.get());
+                            nFingerprinted += 1;
+                        }
+                        else
+                        {
+                            // The file may be opened exclusively by another process
+                            // In this case, the fingerprint (the crc portion) is invalid (for now)
+                        }
+                    }
+                }
+
+                results.push_back(move(result));
+            }
+        }
+        while (GetFileInformationByHandleEx( rightTypeHandle.get(),
+            FileIdBothDirectoryInfo,  // continues but does not restart
+            bytes, sizeof(bytes)));
+
+    }
+
+    auto err = GetLastError();
+    if (err != ERROR_NO_MORE_FILES)
+    {
+        LOG_err << "Failed in directoryScan, error " << err;
+        return SCAN_INACCESSIBLE;
+    }
+
+    return SCAN_SUCCESS;
+}
+
+
 bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
 {
     assert(nameArg || f);
@@ -1625,7 +1892,11 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
         std::wstring name = nameArg->localpath;
         if (!glob)
         {
-            name.append(L"\\*");
+            if (!name.empty() && name.back() != L'\\')
+            {
+                name.append(L"\\");
+            }
+            name.append(L"*");
         }
 
         hFind = FindFirstFileW(name.c_str(), &ffd);
@@ -1740,6 +2011,29 @@ bool isReservedName(const string& name, nodetype_t type)
     }
 
     return false;
+}
+
+m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
+{
+    m_off_t maximumBytes = std::numeric_limits<m_off_t>::max();
+    ULARGE_INTEGER numBytes;
+
+    if (!GetDiskFreeSpaceExW(drivePath.localpath.c_str(), &numBytes, nullptr, nullptr))
+    {
+        auto result = GetLastError();
+
+        LOG_warn << "Unable to retrieve available disk space for: "
+                 << drivePath.toPath()
+                 << ". Error code was: "
+                 << result;
+
+         return maximumBytes;
+    }
+
+    if (numBytes.QuadPart >= (uint64_t)maximumBytes)
+        return maximumBytes;
+
+    return (m_off_t)numBytes.QuadPart;
 }
 
 } // namespace

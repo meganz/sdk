@@ -369,8 +369,7 @@ public:
     static const dstime RECENT_VERSION_INTERVAL_SECS;
 
     // Change state to (DISABLED, BACKUP_MODIFIED).
-    // Always returns false.
-    bool backupModified();
+    void backupModified();
 
     // Whether this is a backup sync.
     bool isBackup() const;
@@ -612,8 +611,23 @@ struct Syncs
     // disable all active syncs.  Cache is kept
     void disableSyncs(bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void(size_t)> completion);
 
-    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
-    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered, and backup syncs in Vault are permanently deleted (if request came from SDK) or moved
+    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
+                             std::function<void(Error)> completion,
+                             bool moveOrUnlink,
+                             NodeHandle moveTarget = NodeHandle());
+
+    // remove at most one sync
+    void removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector,
+                            std::function<void(Error)> completion,
+                            bool moveOrUnlink,
+                            NodeHandle moveTarget = NodeHandle());
+
+    // Remove the sync described by the specified config.
+    void removeSyncByConfig(const SyncConfig& config,
+                            std::function<void(Error)> completion,
+                            bool moveOrUnlink,
+                            NodeHandle moveTarget);
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -621,8 +635,11 @@ struct Syncs
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
-    // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
-    void purgeSyncs();
+    // removes all configured backups from cache and API (BackupCenter)
+    void purgeSyncs(std::function<void(Error)> completion);
+
+    // remove all configured backups from cache, not from API
+    void purgeSyncsLocal();
 
     void resetSyncConfigStore();
     void clear();
@@ -683,7 +700,7 @@ struct Syncs
      * @return
      * The result of restoring the external backups.
      */
-    error backupOpenDrive(LocalPath drivePath);
+    error backupOpenDrive(const LocalPath& drivePath);
 
     // Returns a reference to this user's internal configuration database.
     SyncConfigStore* syncConfigStore();
@@ -707,6 +724,9 @@ struct Syncs
     string exportSyncConfigs() const;
 
     void importSyncConfigs(const char* data, std::function<void(error)> completion);
+
+    void enableBackupRestrictions(bool enable);
+    bool backupRestrictionsEnabled() const;
 
 private:
     friend class Sync;
@@ -740,16 +760,19 @@ private:
     mutable mutex mSyncVecMutex;  // will be relevant for sync rework
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
-    // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
-    void removeSyncByIndex(size_t index);
+    // Collect configs satisfying the specified selector.
+    vector<SyncConfig> selectedSyncConfigs(std::function<bool(SyncConfig&, Sync*)> selector, size_t maxCount = 0) const;
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
+    bool unloadSyncByBackupID(handle id);
     void unloadSyncByIndex(size_t index);
-
 
     bool mDownloadsPaused = false;
     bool mUploadsPaused = false;
 
+    // backup rework implies certain restrictions that can be skipped
+    // by setting this flag (see enableBackupRestrictions())
+    bool mBackupRestrictionsEnabled = true;
 };
 
 } // namespace

@@ -178,7 +178,7 @@ int evt_ctx_init(evt_ctx_t *tls)
         return -1;
     }
 
-    long options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
+    uint32_t options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
     SSL_CTX_set_options(tls->ctx, options);
 
 #if defined(SSL_MODE_RELEASE_BUFFERS)
@@ -223,7 +223,7 @@ int evt_ctx_is_key_set(evt_ctx_t *t)
 static int evt__send_pending(evt_tls_t *conn)
 {
     assert( conn != NULL);
-    int pending = BIO_pending(conn->app_bio);
+    int pending = (int)BIO_pending(conn->app_bio);
     if ( !(pending > 0) )
         return 0;
 

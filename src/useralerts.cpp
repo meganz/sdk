@@ -225,25 +225,30 @@ void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
 UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    requestWasDeleted = un.getint64(MAKENAMEID3('d', 't', 's'), 0) != 0;
-    requestWasReminded = un.getint64(MAKENAMEID3('r', 't', 's'), 0) != 0;
+    mPcrHandle = un.gethandle('p', MegaClient::PCRHANDLE, UNDEF);
+    userHandle = mPcrHandle;    // for backwards compatibility, due to legacy bug
+
+    m_time_t dts = un.getint64(MAKENAMEID3('d', 't', 's'), 0);
+    m_time_t rts = un.getint64(MAKENAMEID3('r', 't', 's'), 0);
+    initTs(dts, rts);
 }
 
-UserAlert::IncomingPendingContact::IncomingPendingContact(m_time_t dts, m_time_t rts, handle uh, const string& email, m_time_t timestamp, unsigned int id)
-    : Base(UserAlert::type_ipc, uh, email, timestamp, id)
+UserAlert::IncomingPendingContact::IncomingPendingContact(m_time_t dts, m_time_t rts, handle p, const string& email, m_time_t timestamp, unsigned int id)
+    : Base(UserAlert::type_ipc, p, email, timestamp, id)
+    // passing PCR's handle as the user's handle for backwards compatibility, due to legacy bug
+{
+    mPcrHandle = p;
+
+    initTs(dts, rts);
+}
+
+void UserAlert::IncomingPendingContact::initTs(m_time_t dts, m_time_t rts)
 {
     requestWasDeleted = dts != 0;
     requestWasReminded = rts != 0;
 
-    if (requestWasDeleted)
-    {
-        this->timestamp = dts;
-    }
-
-    if (requestWasReminded)
-    {
-        this->timestamp = rts;
-    }
+    if (requestWasDeleted)       timestamp = dts;
+    else if (requestWasReminded) timestamp = rts;
 }
 
 void UserAlert::IncomingPendingContact::text(string& header, string& title, MegaClient* mc)
@@ -451,6 +456,7 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
 UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
+
     vector<UserAlertRaw::handletype> f;
     un.gethandletypearray('f', f);
     parentHandle = un.gethandle('n', MegaClient::NODEHANDLE, UNDEF);
@@ -517,6 +523,9 @@ void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* 
     }
     else if (fileCount == 1) {
         notificationText << "1 file";
+    }
+    else {
+        notificationText << "nothing";
     }
 
     // Set wording of the title

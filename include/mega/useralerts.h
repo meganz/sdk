@@ -111,11 +111,15 @@ namespace UserAlert
 
     struct IncomingPendingContact : public Base
     {
+        handle mPcrHandle = UNDEF;
+
         bool requestWasDeleted;
         bool requestWasReminded;
 
         IncomingPendingContact(UserAlertRaw& un, unsigned int id);
-        IncomingPendingContact(m_time_t dts, m_time_t rts, handle uh, const string& email, m_time_t timestamp, unsigned int id);
+        IncomingPendingContact(m_time_t dts, m_time_t rts, handle p, const string& email, m_time_t timestamp, unsigned int id);
+
+        void initTs(m_time_t dts, m_time_t rts);
 
         virtual void text(string& header, string& title, MegaClient* mc);
     };

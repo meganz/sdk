@@ -43,7 +43,7 @@ set (ENABLE_CHAT 0 CACHE STRING "Turns on chat management functionality")
 set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "Faster log message generation")
 set (USE_ROTATIVEPERFORMANCELOGGER 0 CACHE STRING "Internal logger, not just callbacks")
 set (HAVE_FFMPEG 1 CACHE STRING "Used to create previews/thumbnails for video files")
-set (USE_WEBRTC 0 CACHE STRING "Declare that your app will link wtih WebRTC")
+set (USE_WEBRTC 0 CACHE STRING "Declare that your app will link with WebRTC")
 set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web and ftp server functionality")
 set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
 set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
@@ -119,6 +119,17 @@ if (WIN32)
         message(STATUS "CMAKE_CXX_COMPILER ${CMAKE_CXX_COMPILER}")
         message(FATAL_ERROR "Can't tell if we should build 32 bit or 64 bit")
     endif()
+elseif(APPLE AND NOT IOS)
+    set (build_64_bit 1)
+
+    if (CMAKE_OSX_ARCHITECTURES MATCHES "arm64" OR (NOT CMAKE_OSX_ARCHITECTURES AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64"))
+        set(build_arm64 1)
+        message("Building for macOS arm64 in a ${CMAKE_HOST_SYSTEM_PROCESSOR} host.")
+    else()
+        set(build_arm64 0)
+        message("Building for macOS x86_64 in a ${CMAKE_HOST_SYSTEM_PROCESSOR} host.")
+    endif()
+
 else()
     set (build_64_bit 1 CACHE STRING "Build for a 64 bit target")
     message(STATUS "Building 64 bit")
@@ -215,18 +226,19 @@ if (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
                     set(VCPKG_TRIPLET "x86-windows-mega" CACHE STRING "")
                 endif(build_64_bit)
             endif()
-
-        ELSE(WIN32)
-             IF(CMAKE_HOST_APPLE)
-                if(NOT IOS)
-                    set(VCPKG_TRIPLET "x64-osx-mega" CACHE STRING "")
+        ELSEIF(CMAKE_HOST_APPLE)
+            if(NOT IOS)
+                if(build_arm64)
+                    set(VCPKG_TRIPLET "arm64-osx-mega" CACHE STRING "")
                 else()
-                    set(VCPKG_TRIPLET "arm64-ios" CACHE STRING "")
+                    set(VCPKG_TRIPLET "x64-osx-mega" CACHE STRING "")
                 endif()
-            ELSE(CMAKE_HOST_APPLE)
-                set(VCPKG_TRIPLET "x64-linux" CACHE STRING "")
-            endif(CMAKE_HOST_APPLE)
-        ENDIF(WIN32)
+            else()
+                set(VCPKG_TRIPLET "arm64-ios" CACHE STRING "")
+            endif()
+        ELSE()
+            set(VCPKG_TRIPLET "x64-linux" CACHE STRING "")
+        ENDIF()
     endif()
 
 
@@ -721,6 +733,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/http.h
             ${MegaDir}/include/mega/useralerts.h
             ${MegaDir}/include/mega/pendingcontactrequest.h
+            ${MegaDir}/include/mega/textchat.h
             ${MegaDir}/include/mega/megaapp.h
             ${MegaDir}/include/mega/wincurl/megafs.h
             ${MegaDir}/include/mega/wincurl/meganet.h
@@ -810,6 +823,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/megaclient.cpp
             ${MegaDir}/src/node.cpp
             ${MegaDir}/src/pendingcontactrequest.cpp
+            ${MegaDir}/src/textchat.cpp
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
@@ -1028,19 +1042,13 @@ if(APPLE)
     add_dependencies(test_integration_fsevents_loader test_integration)
 endif()
 
-add_executable(tool_purge_account
-    ${MegaDir}/tests/tool/purge_account.cpp
-)
-
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gmock gtest Mega )
 target_link_libraries(test_integration gmock gtest Mega )
 if(APPLE)
     target_link_libraries(test_integration "-framework Security" )
 endif()
-target_link_libraries(tool_purge_account gmock gtest Mega )
 
 if (USE_ASIO)
     if (USE_THIRDPARTY_FROM_VCPKG)
@@ -1120,11 +1128,22 @@ if (WIN32)
     set_property(TARGET megasimplesync PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET test_integration PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     set_property(TARGET test_unit PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
-    set_property(TARGET tool_purge_account PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     if (HAVE_ASIO)
         set_property(TARGET tool_tcprelay PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
     endif()
 
 else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -Wextra -Wconversion -Wno-unused-parameter")
+
+    if (ENABLE_WERROR)
+        if (CMAKE_BUILD_TYPE STREQUAL "Debug" )
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+            if (APPLE)
+              set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-conversion -Wno-overloaded-virtual -Wno-inconsistent-missing-override -Wno-unused-variable -Wno-unused-private-field -Wno-string-conversion -Wno-unused-lambda-capture -Wno-implicit-int-conversion -Wno-shorten-64-to-32 -Wno-unused-value")
+            endif()
+        endif()
+        message(STATUS, "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+        message(STATUS, "CMAKE_CXX_FLAGS_DEBUG: ${CMAKE_CXX_FLAGS_DEBUG}")
+    endif(ENABLE_WERROR)
 endif()

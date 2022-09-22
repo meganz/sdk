@@ -217,16 +217,45 @@ public:
 
 std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
-class SyncdownContext
+struct SyncdownContext
 {
-public:
-    SyncdownContext()
-      : mActionsPerformed(false)
-    {
-    }
-
-    bool mActionsPerformed;
+    bool mBackupActionsPerformed = false;
+    bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
+
+
+// Class to help with upload of file attributes
+struct UploadWaitingForFileAttributes
+{
+    struct FileAttributeValues {
+        handle fileAttributeHandle = UNDEF;
+        bool valueIsSet = false;
+    };
+
+    mapWithLookupExisting<fatype, FileAttributeValues> pendingfa;
+
+    // The transfer must always be known, so we can check for cancellation
+    Transfer* transfer = nullptr;
+
+    // This flag is set true if its data upload completes, and we removed it from transfers[]
+    // In which case, this is now the "owning" object for the transfer
+    bool uploadCompleted = false;
+};
+
+// Class to help with upload of file attributes
+// One entry for each active upload that has file attribute involvement
+// Should the transfer be cancelled, this data structure is easily cleaned.
+struct FileAttributesPending : public mapWithLookupExisting<UploadHandle, UploadWaitingForFileAttributes>
+{
+    void setFileAttributePending(UploadHandle h, fatype type, Transfer* t, bool alreadyavailable = false)
+    {
+        auto& entry = operator[](h);
+        entry.pendingfa[type].valueIsSet = alreadyavailable;
+        assert(entry.transfer == t || entry.transfer == nullptr);
+        entry.transfer = t;
+    }
+};
+
 
 class MEGA_API MegaClient
 {
@@ -235,12 +264,16 @@ public:
     handle me;
     string uid;
 
-    // root nodes (files, incoming, rubbish)
+    // root nodes (files, vault, rubbish)
     struct Rootnodes
     {
         NodeHandle files;
-        NodeHandle inbox;
+        NodeHandle vault;
         NodeHandle rubbish;
+
+        // returns true if the 'h' provided matches any of the rootnodes.
+        // (when logged into folder links, the handle of the folder is set to 'files')
+        bool isRootNode(NodeHandle h) { return (h == files || h == vault || h == rubbish); }
     } rootnodes;
 
 
@@ -471,7 +504,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c, bool canChangeVault);
 
     // prefix and encrypt attribute json
     static void makeattr(SymmCipher*, string*, const char*, int = -1);
@@ -486,21 +519,21 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
+    error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c);
+    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption);
-    void stopxfer(File* f, DBTableTransactionCommitter* committer);
-    void pausexfers(direction_t, bool pause, bool hard, DBTableTransactionCommitter& committer);
+    bool startxfer(direction_t, File*, TransferDbCommitter&, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption, error* cause = nullptr);
+    void stopxfer(File* f, TransferDbCommitter* committer);
+    void pausexfers(direction_t, bool pause, bool hard, TransferDbCommitter& committer);
 
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 6;
@@ -535,11 +568,14 @@ public:
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
 
     // helper function for preparing a putnodes call for new folders
-    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, bool canChangeVault, std::function<void (AttrMap&)> addAttrs = nullptr);
+
+    // static version to be used from worker threads, which cannot rely on the MegaClient::tmpnodecipher as SymCipher (not thread-safe))
+    static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher &tmpnodecipher, bool canChangeVault, std::function<void(AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
+    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, bool canChangeVault, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
@@ -551,7 +587,7 @@ public:
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
 
     // notify delayed upload completion subsystem about new file attribute
-    void checkfacompletion(UploadHandle, Transfer* = NULL);
+    void checkfacompletion(UploadHandle, Transfer* = NULL, bool uploadCompleted = false);
 
     // attach/update/delete a user attribute
     void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0,
@@ -629,12 +665,35 @@ public:
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
      * It will persist the sync configuration if its call to checkSyncConfig succeeds
-     * @param syncConfig the Config to attempt to add
+     * @param syncConfig the Config to attempt to add (takes ownership)
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @param completion Completion function
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    error addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+
+    /**
+     * @brief
+     * Create the remote backup dir under //in/"My Backups"/`DEVICE_NAME`/. If `DEVICE-NAME` folder is missing, create that first.
+     *
+     * @param bkpName
+     * The name of the remote backup dir (desired final outcome is //in/"My Backups"/`DEVICE_NAME`/bkpName)
+     *
+     * @param extDriveRoot
+     * Drive root in case backup is from external drive; empty otherwise
+     *
+     * @param completion
+     * Completion function
+     *
+     * @return
+     * API_OK if remote backup dir has been successfully created.
+     * API_EACCESS if "My Backups" handle could not be obtained from user attribute, or if `DEVICE_NAME` was not a dir,
+     * or if remote backup dir already existed.
+     * API_ENOENT if "My Backups" handle was invalid or its Node was missing.
+     * API_EINCOMPLETE if device-id or device-name could not be obtained
+     * Any error returned by readDriveId(), in case of external drive.
+     */
+    error registerbackup(const string& bkpName, const string& extDriveRoot, CommandPutNodes::Completion completion = nullptr);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
@@ -674,6 +733,10 @@ private:
     void ensureSyncUserAttributesCompleted(Error e);
     std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
 
+    // remove the backup folder created for a new backup, when creation fails
+    // (no-op if folder not found, not empty, not in Vault or backup restrictions are disabled)
+    void cleanupFailedBackup(const string& remotePath);
+
 public:
 
     // disable synchronization. syncError specifies why we are disabling it.
@@ -700,7 +763,7 @@ public:
     void abortlockrequest();
 
     // abort session and free all state information
-    void logout(bool keepSyncConfigsFile);
+    void logout(bool keepSyncConfigsFile, CommandLogout::Completion completion = nullptr);
 
     // free all state information
     void locallogout(bool removecaches, bool keepSyncsConfigFile);
@@ -793,7 +856,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const string_map *userkeymap = NULL, const char *title = NULL, bool meetingRoom = false);
+    void createChat(bool group, bool publicchat, const userpriv_vector* userpriv = NULL, const string_map* userkeymap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = ChatOptions::kEmpty);
 
     // invite a user to a chat
     void inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey = NULL, const char *title = NULL);
@@ -941,6 +1004,9 @@ public:
 
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
+
+    // user handle for customer support user
+    static const string SUPPORT_USER_HANDLE;
 
     // root URL for chat stats
     static const string SFUSTATSURL;
@@ -1200,7 +1266,7 @@ public:
     unique_ptr<DbTable> tctable;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
-    DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
+    TransferDbCommitter* mTctableRequestCommitter = nullptr;
 
     // status cache table for logged in user. For data pertaining status which requires immediate commits
     unique_ptr<DbTable> statusTable;
@@ -1216,10 +1282,12 @@ public:
     // have we just completed fetching new nodes?  (ie, caught up on all the historic actionpackets since the fetchnodes)
     bool statecurrent;
 
-    // pending file attribute writes
+    // File Attribute upload system.  These can come from:
+    //  - upload transfers
+    //  - app requests to attach a thumbnail/preview to a node
+    //  - app requests for media upload (which return the fa handle)
+    // initially added to queuedfa, and up to 10 moved to activefa.
     putfa_list queuedfa;
-
-    // current file attributes being sent
     putfa_list activefa;
 
     // API request queue double buffering:
@@ -1291,11 +1359,8 @@ public:
     // mapping of pending contact handles to their structure
     handlepcr_map pcrindex;
 
-    // pending file attributes
-    fa_map pendingfa;
-
-    // upload waiting for file attributes
-    uploadhandletransfer_map faputcompletion;
+    // A record of which file attributes are needed (or now available) per upload transfer
+    FileAttributesPending fileAttributesUploading;
 
     // file attribute fetch channels
     fafc_map fafcs;
@@ -1316,6 +1381,7 @@ public:
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
     BackoffTimerGroupTracker transferRetryBackoffs[2];
+    uint32_t lastKnownCancelCount = 0;
 
     // transfer list to manage the priority of transfers
     TransferList transferlist;
@@ -1386,16 +1452,16 @@ public:
     void notifynode(Node*);
 
     // update transfer in the persistent cache
-    void transfercacheadd(Transfer*, DBTableTransactionCommitter*);
+    void transfercacheadd(Transfer*, TransferDbCommitter*);
 
     // remove a transfer from the persistent cache
-    void transfercachedel(Transfer*, DBTableTransactionCommitter* committer);
+    void transfercachedel(Transfer*, TransferDbCommitter* committer);
 
     // add a file to the persistent cache
-    void filecacheadd(File*, DBTableTransactionCommitter& committer);
+    void filecacheadd(File*, TransferDbCommitter& committer);
 
     // remove a file from the persistent cache
-    void filecachedel(File*, DBTableTransactionCommitter* committer);
+    void filecachedel(File*, TransferDbCommitter* committer);
 
 #ifdef ENABLE_CHAT
     textchat_map chatnotify;
@@ -1523,7 +1589,10 @@ public:
     handlelocalnode_map fsidnode;
 
     // local nodes that need to be added remotely
-    localnode_vector synccreate;
+    // we need to distinguish those that are allowed to alter vault
+    // since the node create command applies the vw flag for all contained nodes
+    localnode_vector synccreateForVault;
+    localnode_vector synccreateGeneral;
 
     // number of sync-initiated putnodes() in progress
     int syncadding;
@@ -1541,6 +1610,7 @@ public:
     // if no sync putnodes operation is in progress, apply the updates stored
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
     void syncupdate();
+    void syncupdate(localnode_vector&, bool canChangeVault);
 
     // create missing folders, copy/start uploading missing files
     bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
@@ -1554,15 +1624,15 @@ public:
     bool syncdown(LocalNode*, LocalPath&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
-    void movetosyncdebris(Node*, bool);
+    void movetosyncdebris(Node*, bool unlink, bool canChangeVault);
 
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris();
-    node_set todebris;
+    unlink_or_debris_set toDebris;
 
     // unlink queued nodes directly (for inbound share syncing)
     void execsyncunlink();
-    node_set tounlink;
+    unlink_or_debris_set toUnlink;
 
     // commit all queueud deletions
     void execsyncdeletions();
@@ -1576,7 +1646,7 @@ public:
 #endif
 
     // recursively cancel transfers in a subtree
-    void stopxfers(LocalNode*, DBTableTransactionCommitter& committer);
+    void stopxfers(LocalNode*, TransferDbCommitter& committer);
 
     // update paths of all PUT transfers
     void updateputs();
@@ -1594,9 +1664,6 @@ public:
 
     // returns if the current pendingcs includes a fetch nodes command
     bool isFetchingNodesPendingCS();
-
-    // upload handle -> node handle map (filled by upload completion)
-    set<pair<UploadHandle, NodeHandle>> uhnh;
 
     // transfer chunk failed
     void setchunkfailed(string*);
@@ -1644,6 +1711,7 @@ public:
     Node* childnodebyattribute(Node*, nameid, const char*);
     static void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
+    Node* childNodeTypeByName(Node *p, const char *name, nodetype_t type);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc(bool keepOwnUser);
@@ -1752,11 +1820,17 @@ public:
 
     bool setlang(string *code);
 
+    // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
+    error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
+
     // sets the auth token to be used when logged into a folder link
     void setFolderLinkAccountAuth(const char *auth);
 
     // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
     handle getFolderLinkPublicHandle();
+
+    // check if end call reason is valid
+    bool isValidEndCallReason(int reason);
 
     // check if there is a valid folder link (rootnode received and the valid key)
     bool isValidFolderLink();
@@ -1883,12 +1957,14 @@ public:
         CodeCounter::ScopeStats transferslotDoio = { "TransferSlot_doio" };
         CodeCounter::ScopeStats execdirectreads = { "execdirectreads" };
         CodeCounter::ScopeStats transferComplete = { "transfer_complete" };
+        CodeCounter::ScopeStats megaapiSendPendingTransfers = { "megaapi_sendtransfers" };
         CodeCounter::ScopeStats prepareWait = { "MegaClient_prepareWait" };
         CodeCounter::ScopeStats doWait = { "MegaClient_doWait" };
         CodeCounter::ScopeStats checkEvents = { "MegaClient_checkEvents" };
         CodeCounter::ScopeStats applyKeys = { "MegaClient_applyKeys" };
         CodeCounter::ScopeStats dispatchTransfers = { "dispatchTransfers" };
         CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
+        CodeCounter::ScopeStats csSuccessProcessingTime = { "cs batch received processing" };
         CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
         uint64_t transferStarts = 0, transferFinishes = 0;
         uint64_t transferTempErrors = 0, transferFails = 0;

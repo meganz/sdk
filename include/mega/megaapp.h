@@ -44,9 +44,6 @@ struct MEGA_API MegaApp
     // login result
     virtual void login_result(error) { }
 
-    // logout result
-    virtual void logout_result(error) { }
-
     virtual void loggedInStateChanged(sessiontype_t, handle me) { }
 
     // user data result
@@ -116,6 +113,14 @@ struct MEGA_API MegaApp
 
     // notify about a modified key
     virtual void key_modified(handle, attr_t) { }
+
+#ifndef NDEBUG
+    // So that tests can make a change as soon as a cloud node is moved.
+    virtual void move_begin(const LocalPath&, const LocalPath&) { };
+
+    // So that tests can make a change as soon as a putnodes is sent.
+    virtual void putnodes_begin(const LocalPath&) { };
+#endif // ! NDEBUG
 
     // node addition has failed
     virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride = false) { }
@@ -382,7 +387,6 @@ struct MEGA_API MegaApp
     virtual void getmiscflags_result(error) { }
 
     virtual void backupput_result(const Error&, handle /*backup id*/) { }
-    virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual void getbanners_result(error) { }
     virtual void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) { }

@@ -98,6 +98,7 @@
 		B6657E9C225C2B6200EF8D91 /* raid.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B6657E9B225C2B6200EF8D91 /* raid.cpp */; };
 		B698890D2198CCE300D0EE89 /* MEGAFileInputStream.mm in Sources */ = {isa = PBXBuildFile; fileRef = B698890B2198CCE300D0EE89 /* MEGAFileInputStream.mm */; };
 		B6A6CB662170125A009032C9 /* MEGABackgroundMediaUpload.mm in Sources */ = {isa = PBXBuildFile; fileRef = B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */; };
+		B6DAED3728AB1B6000703E28 /* textchat.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B6DAED3628AB1B6000703E28 /* textchat.cpp */; };
 		B6DBB54925BE9A89005F46A5 /* ListenerDispatch.mm in Sources */ = {isa = PBXBuildFile; fileRef = B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */; };
 		BF9CF0D12541737500A3EBBB /* heartbeats.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BF9CF0D02541737500A3EBBB /* heartbeats.cpp */; };
 		BFD7F5172341B3A60039A6EE /* MEGAPushNotificationSettings.mm in Sources */ = {isa = PBXBuildFile; fileRef = BFD7F5162341B3A60039A6EE /* MEGAPushNotificationSettings.mm */; };
@@ -339,6 +340,8 @@
 		B698890C2198CCE300D0EE89 /* MEGAFileInputStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAFileInputStream.h; sourceTree = "<group>"; };
 		B6A6CB642170125A009032C9 /* MEGABackgroundMediaUpload.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGABackgroundMediaUpload.h; sourceTree = "<group>"; };
 		B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGABackgroundMediaUpload.mm; sourceTree = "<group>"; };
+		B6DAED3528AB1B2100703E28 /* textchat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = textchat.h; sourceTree = "<group>"; };
+		B6DAED3628AB1B6000703E28 /* textchat.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = textchat.cpp; path = ../../src/textchat.cpp; sourceTree = "<group>"; };
 		B6DBB54725BE99AB005F46A5 /* ListenerDispatch.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ListenerDispatch.h; sourceTree = "<group>"; };
 		B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ListenerDispatch.mm; sourceTree = "<group>"; };
 		BF9CF0CF2541734200A3EBBB /* heartbeats.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = heartbeats.h; sourceTree = "<group>"; };
@@ -369,6 +372,7 @@
 				940BEFDC19ED9351007E7FA2 /* gfx */,
 				940BEFE019ED9351007E7FA2 /* posix */,
 				940BEFE619ED9351007E7FA2 /* thread */,
+				B6DAED3628AB1B6000703E28 /* textchat.cpp */,
 				940BEF9819ED92C2007E7FA2 /* attrmap.cpp */,
 				940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */,
 				940BEF9A19ED92C2007E7FA2 /* base64.cpp */,
@@ -540,6 +544,8 @@
 				A873E86526E23AF000CBB174 /* MEGACurrency.mm */,
 				A88120A32742B2500079B31B /* MEGAPaymentMethod.h */,
 				A8E1D8EE277F3466009093C5 /* MEGALogLevel.h */,
+				B6DBB54725BE99AB005F46A5 /* ListenerDispatch.h */,
+				B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */,
 			);
 			name = bindings;
 			sourceTree = "<group>";
@@ -559,6 +565,7 @@
 		940BF03C19EDBCAD007E7FA2 /* mega */ = {
 			isa = PBXGroup;
 			children = (
+				B6DAED3528AB1B2100703E28 /* textchat.h */,
 				A8FD7B621E93B3FB0031FC50 /* osx */,
 				940BF03D19EDBCAD007E7FA2 /* account.h */,
 				940BF03E19EDBCAD007E7FA2 /* attrmap.h */,
@@ -705,8 +712,6 @@
 				B622FC762174261F00CF707C /* MEGABackgroundMediaUpload+init.h */,
 				A8FD7335230AC42B0070A5E8 /* MEGACancelToken+init.h */,
 				BFD7F5182341B3B50039A6EE /* MEGAPushNotificationSettings+init.h */,
-				B6DBB54725BE99AB005F46A5 /* ListenerDispatch.h */,
-				B6DBB54825BE9A76005F46A5 /* ListenerDispatch.mm */,
 				A873E86726E23CB800CBB174 /* MEGACurrency+init.h */,
 			);
 			path = Private;
@@ -882,6 +887,7 @@
 				A827F4DD204D3D14006A1962 /* MEGAFolderInfo.mm in Sources */,
 				B6A6CB662170125A009032C9 /* MEGABackgroundMediaUpload.mm in Sources */,
 				940BEFC719ED92C2007E7FA2 /* megaclient.cpp in Sources */,
+				B6DAED3728AB1B6000703E28 /* textchat.cpp in Sources */,
 				940BEFEB19ED9351007E7FA2 /* sodium.cpp in Sources */,
 				41B2AEDB1A0A859C006C40FB /* DelegateMEGARequestListener.mm in Sources */,
 				940BEFBB19ED92C2007E7FA2 /* commands.cpp in Sources */,
@@ -1063,6 +1069,78 @@
 			};
 			name = Release;
 		};
+		BF8A1E18287D29AB0088E373 /* QA */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = YES;
+				ENABLE_BITCODE = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = QA;
+		};
+		BF8A1E19287D29AB0088E373 /* QA */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_BITCODE = NO;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					_DARWIN_C_SOURCE,
+					HAVE_LIBUV,
+					ENABLE_CHAT,
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
+					3rdparty/include,
+					../../third_party/utf8proc,
+					3rdparty/webrtc/third_party/boringssl/src/include,
+				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				OTHER_CFLAGS = "-DNDEBUG";
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_NAME = MEGASDK;
+				SKIP_INSTALL = YES;
+				USER_HEADER_SEARCH_PATHS = ". ../../include/** Private";
+			};
+			name = QA;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1071,6 +1149,7 @@
 			buildConfigurations = (
 				9472045219ED916F00F6805F /* Debug */,
 				9472045319ED916F00F6805F /* Release */,
+				BF8A1E18287D29AB0088E373 /* QA */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1080,6 +1159,7 @@
 			buildConfigurations = (
 				9472045519ED916F00F6805F /* Debug */,
 				9472045619ED916F00F6805F /* Release */,
+				BF8A1E19287D29AB0088E373 /* QA */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
