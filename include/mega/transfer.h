@@ -275,16 +275,16 @@ public:
     *   For RAID files (or for any multi-connection approach) this value is used to calculate minChunk value,
     *   having this value divided by the number of connections an padded to RAIDSECTOR
     *
-    *   @see DirectReadSlot::mMinChunk
+    *   @see DirectReadSlot::mMaxChunkSize
     */
-    static constexpr unsigned MIN_DELIVERY_CHUNK = 5 * 1024 * 1024;
+    static constexpr unsigned MAX_DELIVERY_CHUNK = 6 * 1024 * 1024;
 
     /**
     *   @brief Min chunk size for a given connection to be throughput-comparable to another connection.
     *
     *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
     */
-    static constexpr unsigned MIN_COMPARABLE_THROUGHPUT = MIN_DELIVERY_CHUNK;
+    static constexpr unsigned DEFAULT_MIN_COMPARABLE_THROUGHPUT = MAX_DELIVERY_CHUNK;
 
     /**
     *   @brief Max times a DirectReadSlot is allowed to detect a slower connection and switch it to the unused one.
@@ -304,6 +304,7 @@ public:
     *   @see DirectReadSlot::waitForPartsInFlight()
     */
     static constexpr bool WAIT_FOR_PARTS_IN_FLIGHT = true;
+
     /**
     *   @brief Relation of X Y multiplying factor to consider connection A to be faster than connection B
     *
@@ -367,6 +368,7 @@ public:
     *   @return Connection throughput: average number of bytes fetched per millisecond.
     *
     *   @see DirectReadSlot::detectSlowestStartConnection()
+    *   @see DirectReadSlot::calcThroughput()
     *   @see DirectReadSlot::mThroughPut
     */
     m_off_t getThroughput(size_t connectionNum);
@@ -379,8 +381,8 @@ public:
     *
     *   @param connectionNum Connection index in mReq vector.
     *   @return True if the slowest connection has been found and disconnected, False otherwise.
-    *   @see DirectReadSlot::MIN_DELIVERY_CHUNK
-    *   @see DirectReadSlot::mMinChunk
+    *   @see DirectReadSlot::MAX_DELIVERY_CHUNK
+    *   @see DirectReadSlot::mMaxChunkSize
     */
     bool detectSlowestStartConnection(size_t connectionNum);
 
@@ -401,18 +403,24 @@ public:
     /**
     *   @brief Decrease counter for requests with REQ_INFLIGHT status
     *
+    *   Valid only for 2+ connections
+    *
+    *   @return True if counter was decreased, false otherwise (i.e.: if we only have one connection)
     *   @see DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT
     *   @see DirectReadSlot:::mNumReqsInflight
     */
-    void decreaseReqsInflight();
+    bool decreaseReqsInflight();
 
     /**
     *   @brief Increase counter for requests with REQ_INFLIGHT status
     *
+    *   Valid only for 2+ connections
+    *
+    *   @return True if counter was decreased, false otherwise (i.e.: if we only have one connection)
     *   @see DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT
     *   @see DirectReadSlot::mNumReqsInflight
     */
-    void increaseReqsInflight();
+    bool increaseReqsInflight();
 
     /**
     *   @brief Calculate speed and mean speed for DirectRead aggregated operations.
@@ -542,14 +550,42 @@ private:
     m_off_t mMeanSpeed;
 
     /**
-    *   @brief Min chunk size allowed to submit the request data to the transfer buffer.
+    *   @brief Max chunk size allowed to submit the request data to the transfer buffer.
     *
-    *   For NON-RAID files, this value is got from MIN_CHUNK_DELIVERY_SIZE (so submitting buffer size and delivering buffer size are the same).
-    *   For RAID files, this value is calculated from MIN_CHUNK_DELIVERY_SIZE divided by the number of raid parts and padding it to RAIDSECTOR value.
+    *   This value is dynamically set depending on the average throughput of each connection,
+    *   so the DirectReadSlot will try to submit buffers as big as possible depending
+    *   on connection(s) capacity and general limits (memory, etc.).
     *
-    *   @see DirectReadSlot::MIN_DELIVERY_CHUNK
+    *   For NON-RAID files, the upper limit is defined by MAX_DELIVERY_CHUNK.
+    *   For RAID files, the upper limit is calculated from MAX_DELIVERY_CHUNK divided by the number of raid parts and padding it to RAIDSECTOR value.
+    *
+    *   @see DirectReadSlot::MAX_DELIVERY_CHUNK
     */
-    unsigned mMinChunk;
+    unsigned mMaxChunkSize;
+
+    /**
+    *   @brief Min submitted bytes needed for a connection to be throughput-comparable with others.
+    *
+    *   This value is set on global delivery throughput.
+    *   Ex:
+    *       1. Raid file, each connection submits 1MB.
+    *       2. Delivery chunk size from combined data is 5MB -> min comparable throughtput until next deliver will be 5MB.
+    *
+    *   @see detectSlowestStartConnection()
+    *   @see searchAndDisconnectSlowestConnection()
+    *   @see processAnyOutputPieces()
+    */
+    m_off_t mMinComparableThroughput;
+
+    /**
+    *   @brief Max chunk size submitted from one of the connections to the transfer buffer.
+    *
+    *   For NON-RAID files, this value is got from MAX_DELIVERY_CHUNK (so submitting buffer size and delivering buffer size are the same).
+    *   For RAID files, this value is calculated from MAX_DELIVERY_CHUNK divided by the number of raid parts and padding it to RAIDSECTOR value.
+    *
+    *   @see DirectReadSlot::MAX_DELIVERY_CHUNK
+    */
+    unsigned mMaxChunkSubmitted;
 
 
     /* =======================*\
@@ -571,10 +607,22 @@ private:
     *    - Deliver final combined chunks to the client.
     *
     *   @return True if DirectReadSlot can continue, False if some delivery has failed.
-    *   @see DirectReadSlot::MIN_DELIVERY_CHUNK
+    *   @see DirectReadSlot::MAX_DELIVERY_CHUNK
     *   @see MegaApiImpl::pread_data()
     */
     bool processAnyOutputPieces();
+
+    /**
+    *   @brief Aux method to calculate the throughput: numBytes for 1 unit of timeCount
+    *
+    *
+    *   @param numBytes Total numBytes received for timeCount period
+    *   @param timeCount Time period spent for receiving numBytes
+    *   @return Throughput: average number of bytes fetched for timeCount=1
+    *
+    *   @see DirectReadSlot::mThroughPut
+    */
+    m_off_t calcThroughput(m_off_t numBytes, m_off_t timeCount);
 };
 
 struct MEGA_API DirectRead

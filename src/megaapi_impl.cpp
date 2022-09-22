@@ -26957,23 +26957,40 @@ void StreamingBuffer::init(size_t capacity)
     assert(this->length > 0);
     assert(capacity > 0);
     size_t bitRate = getBitRate();
-    size_t minMaxBufferCapacityInSeconds = 10 * bitRate;
-    size_t minDeliveryChunk = static_cast<size_t>(DirectReadSlot::MIN_DELIVERY_CHUNK);
-    maxBufferSize = (std::max(maxBufferSize, minMaxBufferCapacityInSeconds) / minDeliveryChunk) * minDeliveryChunk;
-    size_t deliveryChunksPerBitRate = (bitRate / minDeliveryChunk) + ((bitRate % minDeliveryChunk != 0) ? 1 : 0);
-    maxOutputSize = std::min(deliveryChunksPerBitRate * minDeliveryChunk, capacity);
-    if (capacity > maxBufferSize)
+    size_t maxReadChunkSize = static_cast<size_t>(DirectReadSlot::MAX_DELIVERY_CHUNK);
+    // Set maxBufferSize taking into account the value already set by the http server (by client's request) and the minimum needed for the StreamingBuffer to work
+    size_t minMaxBufferCapacity = std::max(std::min(10 * bitRate, maxBufferSize * 2), maxReadChunkSize); // Avoid giant chunks or exceeding too much the requested capacity from client... and also avoid the streaming buffer from discarding data (maxReadChunkSize)
+    maxBufferSize = (std::max(maxBufferSize, minMaxBufferCapacity) / maxReadChunkSize) * maxReadChunkSize;
+    // Set maxOutputSize depending on the final buffer size and the max chunk size which could be read from transfer (DirectReadSlot)
+    size_t bufferSize = std::min(capacity, maxBufferSize);
+    size_t maxDeliveryChunksPerBitRate = (bitRate / maxReadChunkSize) + ((bitRate % maxReadChunkSize != 0) ? 1 : 0);
+    maxOutputSize = std::min(maxDeliveryChunksPerBitRate * maxReadChunkSize, bufferSize);
+    // Truncate capacity if needed
+    if (capacity > bufferSize)
     {
-        LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize. "
+        LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize."
                  << " Capacity requested = " << capacity << " bytes"
-                 << ", truncated to = " << maxBufferSize << " bytes"
+                 << ", truncated to = " << bufferSize << " bytes"
                  << " [file length = " << length << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / getBitRate())).append(" secs")
+                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(bufferSize / getBitRate())).append(" secs")
                                     .append(", max length to be served: ").append(std::to_string(maxOutputSize / getBitRate())).append(" secs")
+                                    .append(", bit rate: ").append(std::to_string(getBitRate() / 1024)).append(" KB/s")
                                 : "")
                  << "]";
-        capacity = maxBufferSize;
+        capacity = bufferSize;
+    }
+    else
+    {
+        LOG_debug << "[Streaming] Init Streaming Buffer."
+                  << " Capacity requested = " << capacity << " bytes"
+                  << " [file length = " << length << " bytes"
+                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
+                  << (duration ? std::string(", estimated duration in buffer: ").append(std::to_string(capacity / getBitRate())).append(" secs")
+                                    .append(", max length to be served: ").append(std::to_string(maxOutputSize / getBitRate())).append(" secs")
+                                    .append(", bit rate: ").append(std::to_string(getBitRate() / 1024)).append(" KB/s")
+                                : "")
+                  << "]";
     }
 
     this->capacity = static_cast<unsigned>(capacity);
