@@ -13895,6 +13895,19 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
         return API_EACCESS;
     }
 
+    bool alreadySynced = false;
+    syncs.forEachRunningSync([&](Sync* sync) {
+        if (sync->localroot->node == remotenode)
+        {
+            alreadySynced = true;
+        }
+    });
+    if (alreadySynced)
+    {
+        if (syncError) *syncError = ACTIVE_SYNC_SAME_PATH;
+        return API_EEXIST;
+    }
+
     // any active syncs below?
     bool anyBelow = false;
     syncs.forEachRunningSync([&](Sync* sync) {
