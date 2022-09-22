@@ -169,6 +169,8 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     if (result)
     {
         LOG_err << "PRAGMA temp_store error " << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
     }
 #endif
 
