@@ -1044,7 +1044,7 @@ public:
 
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
-    LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
+    bool findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, Sync* sameSync, bool& unsureDueToIncompleteScanning);
 
     // manage syncdown flags inside the syncs
     void setSyncsNeedFullSync(bool andFullScan, handle backupId = UNDEF);

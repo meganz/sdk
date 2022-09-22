@@ -18544,6 +18544,8 @@ public:
 
         // Wait for a stall to be signalled.
         ASSERT_TRUE(c->waitFor(SyncStallState(true), DEFAULTWAIT));
+        ASSERT_TRUE(c->confirmModel_mainthread(mc.root.get(), id, true, StandardClient::CONFIRM_REMOTE));
+        ASSERT_TRUE(c->confirmModel_mainthread(mf.root.get(), id, true, StandardClient::CONFIRM_LOCALFS));
     }
 
     // Client we're using to perform the tests.
@@ -18557,33 +18559,53 @@ public:
     handle id;
 }; // ContradictoryMoveFixture
 
-TEST_F(ContradictoryMoveFixture, DISABLED_MoveLocally)
+TEST_F(ContradictoryMoveFixture, MoveLocally)
 {
-    {
-        ScopedSyncPauser pauser(*c, id);
-        std::error_code result;
-
-        // Move da -> dc/da.
-        mf.movenode("da", "dc");
-
-        fs::rename(c->fsBasePath / "s" / "da",
-                   c->fsBasePath / "s" / "dc" / "da",
-                   result);
-
-        ASSERT_FALSE(result);
-    }
+    // undo the local side of the clash
+    std::error_code err;
+    fs::rename(c->fsBasePath / "s" / "da" / "db",
+               c->fsBasePath / "s" / "db", err);
+    ASSERT_TRUE(!err);
 
     // Wait for the stall to temporarily resolve.
     ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
 
     // Wait for the engine to become idle.
-    auto result = waitonsyncs(DEFAULTWAIT, c);
+    auto result = waitonsyncs(std::chrono::seconds(5), c);
 
-    // Engine should've signalled another stall.
-    EXPECT_FALSE(result.front().syncStalled);
+    // both should now be in the target state, given by cloud-side model
+    EXPECT_TRUE(!result.front().syncStalled);
 
-    // Neither disk nor cloud should've changed.
     EXPECT_TRUE(c->confirmModel_mainthread(mc.root.get(),
+                                           id,
+                                           false,
+                                           StandardClient::CONFIRM_REMOTE,
+                                           false,
+                                           false));
+
+    EXPECT_TRUE(c->confirmModel_mainthread(mc.root.get(),
+                                           id,
+                                           false,
+                                           StandardClient::CONFIRM_LOCALFS,
+                                           false,
+                                           false));
+}
+
+TEST_F(ContradictoryMoveFixture, MoveRemotely)
+{
+    // undo the cloud side of the clash
+    ASSERT_TRUE(c->movenode("s/db/da", "s"));
+
+    // Wait for the stall to resolve.
+    ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
+
+    // Wait for the engine to become idle.
+    auto result = waitonsyncs(std::chrono::seconds(5), c);
+
+    // both should now be in the target state, given by file-side model
+    EXPECT_TRUE(!result.front().syncStalled);
+
+    EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(),
                                            id,
                                            false,
                                            StandardClient::CONFIRM_REMOTE,
@@ -18598,44 +18620,7 @@ TEST_F(ContradictoryMoveFixture, DISABLED_MoveLocally)
                                            false));
 }
 
-TEST_F(ContradictoryMoveFixture, DISABLED_MoveRemotely)
-{
-    {
-        ScopedSyncPauser pauser(*c, id);
-
-        // Move db -> dc/db.
-        mc.movenode("db", "dc");
-
-        ASSERT_TRUE(c->movenode("s/db", "s/dc"));
-        ASSERT_TRUE(c->waitFor(SyncRemoteMatch("s", mc.root.get()), DEFAULTWAIT));
-    }
-
-    // Wait for the stall to temporarily resolve.
-    ASSERT_TRUE(c->waitFor(SyncStallState(false), DEFAULTWAIT));
-
-    // Wait for the engine to become idle.
-    auto result = waitonsyncs(DEFAULTWAIT, c);
-
-    // Engine should've signalled another stall.
-    EXPECT_TRUE(result.front().syncStalled);
-
-    // Neither disk nor cloud should've changed.
-    EXPECT_TRUE(c->confirmModel_mainthread(mc.root.get(),
-                                           id,
-                                           false,
-                                           StandardClient::CONFIRM_REMOTE,
-                                           false,
-                                           false));
-
-    EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(),
-                                           id,
-                                           false,
-                                           StandardClient::CONFIRM_LOCALFS,
-                                           false,
-                                           false));
-}
-
-TEST_F(ContradictoryMoveFixture, DISABLED_ResolveLocally)
+TEST_F(ContradictoryMoveFixture, ResolveLocally)
 {
     // Manually make the disk look like the cloud.
     {
@@ -18674,7 +18659,7 @@ TEST_F(ContradictoryMoveFixture, DISABLED_ResolveLocally)
     EXPECT_TRUE(c->confirmModel_mainthread(mf.root.get(), id));
 }
 
-TEST_F(ContradictoryMoveFixture, DISABLED_ResolveRemotely)
+TEST_F(ContradictoryMoveFixture, ResolveRemotely)
 {
     // Manually make the cloud look like the disk.
     {
