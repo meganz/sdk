@@ -1,8 +1,10 @@
 /**
  * @file MEGASet.h
- * @brief Represents a node (file/folder) in the MEGA account
+ * @brief Represents a MEGASet in MEGA
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * It allows to get all data related to a Set in MEGA.
+ *
+ * (c) 2022- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

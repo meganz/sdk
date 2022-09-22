@@ -2,7 +2,7 @@
  * @file MEGASet.mm
  * @brief Represents a node (file/folder) in the MEGA account
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2022- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

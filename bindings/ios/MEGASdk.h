@@ -699,7 +699,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 /**
  * @brief Converts the handle of a node to a Base64-encoded NSString
  *
- * You take the ownership of the returned value
  * You can revert this operation using [MEGASdk handleForBase64Handle:]
  *
  * @param handle Node handle to be converted
@@ -3425,7 +3424,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest set] - Returns either the new Set, or null if it was not created.
+ * - [MEGARequest set] - Returns either the new Set, or nil if it was not created.
  *
  * On the onRequestFinish error, the error code associated to the MEGAErrorType can be:
  * - MEGAErrorTypeApiEArgs - Malformed
@@ -3441,7 +3440,7 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * The associated request type with this request is MEGARequestTypeFetchSet
  * Valid data in the MEGARequest object received on callbacks:
- * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
+ * - [MEGARequest parentHandle] - Returns id of the Set to be fetched
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -3629,60 +3628,52 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * The response value is stored as a MEGASet.
  *
- * You take the ownership of the returned value
- *
  * @param sid the id of the Set to be retrieved
  *
- * @return the requested Set, or null if not found
+ * @return the requested MEGASet, or nil if not found
  */
--(MEGASet *)getSet:(MEGAHandle)sid;
+-(MEGASet *)setBySid:(MEGAHandle)sid;
 
 /**
  * @brief Get a list of all Sets available for current user.
  *
  * The response value is stored as a MEGASet array.
  *
- * You take the ownership of the returned value
- *
- * @return list of Sets
+ * @return array of MEGASets
  */
--(NSArray<MEGASet *>*)getSets;
+-(NSArray<MEGASet *>*)megaSets;
 
 /**
  * @brief Get the cover (Element id) of the Set with the given id, for current user.
  *
  * @param sid the id of the Set to retrieve the cover for
  *
- * @return Element id of the cover, or INVALIDHANDLE if not set or invalid id
+ * @return Element id of the cover, or INVALID_HANDLE if not set or invalid id
  */
--(MEGAHandle)getSetCover:(MEGAHandle)sid;
+-(MEGAHandle)megaSetCoverBySid:(MEGAHandle)sid;
 
 /**
  * @brief Get a particular Element in a particular Set, for current user.
  *
  * The response value is stored as a MEGASetElement.
  *
- * You take the ownership of the returned value
- *
  * @param sid the id of the Set owning the Element
  * @param eid the id of the Element to be retrieved
  *
- * @return requested Element, or null if not found
+ * @return requested Element, or nil if not found
  */
--(MEGASetElement *)getSetElement:(MEGAHandle)sid eid:(MEGAHandle)eid;
+-(MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid;
 
 /**
  * @brief Get all Elements in the Set with given id, for current user.
  *
  * The response value is stored as a MEGASetElement array.
  *
- * You take the ownership of the returned value
- *
  * @param sid the id of the Set owning the Elements
  *
- * @return all Elements in that Set, or null if not found or none added
+ * @return all Elements in that Set, or nil if not found or none added
  */
--(NSArray<MEGASetElement *>*)getSetElements:(MEGAHandle)sid;
+-(NSArray<MEGASetElement *>*)megaSetElementsBySid:(MEGAHandle)sid;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -6193,8 +6184,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * EventStorage, reporting StorageStatePaywall.
  * The value will become invalid once the state of storage changes.
  *
- * You take the ownership of the returned value.
- *
  * @return An array of `NSDate` with the timestamp corresponding to each warning
 */
 -(NSArray<NSDate *> *)overquotaWarningDateList;
@@ -6221,8 +6210,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * @brief Get the transfer with a transfer tag
  *
  * That tag can be got using [MEGATransfer tag]
- *
- * You take the ownership of the returned value
  *
  * @param transferTag tag to check
  * @return MEGATransfer object with that tag, or nil if there isn't any
@@ -7335,8 +7322,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
 /**
  * @brief Get all MEGAUserAlerts for the logged in user
  *
- * You take the ownership of the returned value
- *
  * @return List of MEGAUserAlert objects
  */
 - (MEGAUserAlertList *)userAlertList;
@@ -8000,8 +7985,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * The input string must be UTF8 encoded. The returned value will be UTF8 too.
  *
- * You take the ownership of the returned value
- *
  * @param name Name to convert (UTF8)
  * @return Converted name (UTF8)
  */
@@ -8014,8 +7997,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  * You can revert this operation using [MEGASdk unescapeFsIncompatible:]
  *
  * The input string must be UTF8 encoded. The returned value will be UTF8 too.
- *
- * You take the ownership of the returned value
  *
  * @param name Name to convert (UTF8)
  * @param destinationPath Destination file path
@@ -8545,8 +8526,6 @@ typedef NS_ENUM(NSInteger, AccountActionType) {
  *
  * The HTTP proxy server must be running before using this function, otherwise
  * it will return nil.
- *
- * You take the ownership of the returned value
  *
  * @param node Node to generate the local HTTP link
  * @return URL to the node in the local HTTP proxy server, otherwise nil

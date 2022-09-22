@@ -1476,14 +1476,14 @@ using namespace mega;
     }
 }
 
-- (MEGASet *)getSet:(MEGAHandle)sid {
+- (MEGASet *)setBySid:(MEGAHandle)sid {
     if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return nil;
     
     MegaSet *set = self.megaApi->getSet(sid);
     return set ? [[MEGASet alloc] initWithMegaSet:set->copy() cMemoryOwn:YES] : nil;
 }
 
-- (NSArray<MEGASet *> *)getSets {
+- (NSArray<MEGASet *> *)megaSets {
     if (self.megaApi == nil) return nil;
     
     MegaSetList *setList = self.megaApi->getSets();
@@ -1501,13 +1501,13 @@ using namespace mega;
     return [sets copy];
 }
 
-- (MEGAHandle)getSetCover:(MEGAHandle)sid {
+- (MEGAHandle)megaSetCoverBySid:(MEGAHandle)sid {
     if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE) return ::mega::INVALID_HANDLE;
     
     return self.megaApi->getSetCover(sid);
 }
 
-- (MEGASetElement *)getSetElement:(MEGAHandle)sid eid:(MEGAHandle)eid {
+- (MEGASetElement *)megaSetElementBySid:(MEGAHandle)sid eid:(MEGAHandle)eid {
     if (self.megaApi == nil || sid == ::mega::INVALID_HANDLE || eid == ::mega::INVALID_HANDLE) return nil;
     
     MegaSetElement *element = self.megaApi->getSetElement(sid, eid);
@@ -1518,7 +1518,7 @@ using namespace mega;
     return setElement;
 }
 
-- (NSArray<MEGASetElement *> *)getSetElements:(MEGAHandle)sid {
+- (NSArray<MEGASetElement *> *)megaSetElementsBySid:(MEGAHandle)sid {
     if (self.megaApi == nil) return nil;
     
     MegaSetElementList *setElementList = self.megaApi->getSetElements(sid);

@@ -590,7 +590,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * This value is valid for these requests:
  * - [MEGASdk fetchSet:delegate:]
  *
- * @return requested MEGASet or null if not found
+ * @return requested MEGASet or nil if not found
  */
 @property (readonly, nonatomic) MEGASet *set;
 
@@ -600,7 +600,7 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * This value is valid for these requests:
  * - [MEGASdk fetchSet:delegate:]
  *
- * @return list of elements in the requested MEGASet, or null if Set not found
+ * @return list of elements in the requested MEGASet, or nil if Set not found
  */
 @property (readonly, nonatomic) NSArray<MEGASetElement *> *elementsInSet;
 

@@ -176,16 +176,16 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief This function is called when a Set has been updated (created / updated / removed)
  *
- * @param api MegaApi object connected to the account
- * @param sets List that contains the new or updated Sets
+ * @param api MEGASdk object connected to the account
+ * @param sets Array that contains the new or updated Sets
  */
 - (void)onSetsUpdate:(MEGASdk *)api sets:(NSArray<MEGASet *> *)sets;
 
 /**
  * @brief This function is called when a SetElement has been updated (created / updated / removed)
  *
- * @param api MegaApi object connected to the account
- * @param setElements List that contains the new or updated Set-Elements
+ * @param api MEGASdk object connected to the account
+ * @param setElements Array that contains the new or updated Set-Elements
  */
 - (void)onSetElementsUpdate:(MEGASdk *)api setElements:(NSArray<MEGASetElement *> *)setElements;
 

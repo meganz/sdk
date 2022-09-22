@@ -1,8 +1,10 @@
 /**
  * @file MEGASetElement.h
- * @brief Represents a node (file/folder) in the MEGA account
+ * @brief Represents an MEGASetElement of a MEGASet in MEGA
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * It allows to get all data related to an Element of a Set in MEGA.
+ *
+ * (c) 2022- by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -79,7 +81,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic, nullable) NSString *name;
 
 /**
- * @brief Returns true if this SetElement has a specific change
+ * @brief Returns YES if this SetElement has a specific change
  *
  * This value is only useful for Sets notified by [MEGADelegate onSetElementsUpdate:sets:]  or
  * [MEGAGlobalDelegate onSetElementsUpdate:sets:] that can notify about Set modifications.
@@ -100,7 +102,7 @@ NS_ASSUME_NONNULL_BEGIN
  * - MEGASetElementChangeTypeSize         = 0x08
  * Check if the Set was removed
  *
- * @return true if this SetElement has a specific change
+ * @return YES if this SetElement has a specific change
  */
 - (BOOL)hasChangedType:(MEGASetElementChangeType)changeType;
 
