@@ -19995,7 +19995,7 @@ void MegaApiImpl::sendPendingRequests()
                 if ((type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES) &&
                     haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
                 {
-                    e = API_ETOOMANY;
+                    e = API_EEXIST;
                     LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value";
                 }
                 else if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
