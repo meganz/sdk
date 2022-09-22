@@ -22,8 +22,6 @@
 #ifndef MEGAUSERNOTIFICATIONS_H
 #define MEGAUSERNOTIFICATIONS_H 1
 
-#include <megaapi.h> // SDK-1866::DEBUG <= MegaUserAlert::TYPE_ enum dependency
-
 namespace mega {
 
 struct UserAlertRaw
@@ -77,6 +75,8 @@ namespace UserAlert
     static const nameid type_psts = MAKENAMEID4('p', 's', 't', 's');                // payment
     static const nameid type_pses = MAKENAMEID4('p', 's', 'e', 's');                // payment reminder
     static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
+
+    using handle_alerttype_map_t = map<handle, nameid>;
 
     struct Base
     {
@@ -179,8 +179,8 @@ namespace UserAlert
 
         NewSharedNodes(UserAlertRaw& un, unsigned int id);
         NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
-                       map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
-                       map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode);
+                       handle_alerttype_map_t alertTypePerFileNode,
+                       handle_alerttype_map_t alertTypePerFolderNode);
 
         virtual void text(string& header, string& title, MegaClient* mc);
     };
@@ -191,8 +191,8 @@ namespace UserAlert
 
         RemovedSharedNode(UserAlertRaw& un, unsigned int id);
         RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
-                          map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
-                          map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode);
+                          handle_alerttype_map_t alertTypePerFileNode,
+                          handle_alerttype_map_t alertTypePerFolderNode);
 
         virtual void text(string& header, string& title, MegaClient* mc);
     };
@@ -203,8 +203,8 @@ namespace UserAlert
 
         UpdatedSharedNode(UserAlertRaw& un, unsigned int id);
         UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
-                          map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
-                          map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode);
+                          handle_alerttype_map_t alertTypePerFileNode,
+                          handle_alerttype_map_t alertTypePerFolderNode);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -285,8 +285,8 @@ private:
         int files;
         int folders;
         m_time_t timestamp;
-        map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode;
-        map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode;
+        UserAlert::handle_alerttype_map_t alertTypePerFileNode;
+        UserAlert::handle_alerttype_map_t alertTypePerFolderNode;
         ff() : files(0), folders(0), timestamp(0) {}
     };
     typedef map<pair<handle, handle>, ff> notedShNodesMap;
@@ -329,7 +329,7 @@ public:
 
     // keep track of incoming nodes in shares, and convert to a notification
     void beginNotingSharedNodes();
-    void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n, int alertType = MegaUserAlert::TYPE_REMOVEDSHAREDNODES);
+    void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n, nameid alertType = UserAlert::type_d);
     void convertNotedSharedNodes(bool added, handle originatingUser);
     void ignoreNextSharedNodesUnder(handle h);
 

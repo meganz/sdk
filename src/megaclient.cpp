@@ -8648,7 +8648,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
                 {
-                    useralerts.noteSharedNode(u, t, ts, n, MegaUserAlert::TYPE_NEWSHAREDNODES);
+                    useralerts.noteSharedNode(u, t, ts, n, UserAlert::type_put);
                 }
 
                 if (nn && nni >= 0 && nni < int(nn->size()))

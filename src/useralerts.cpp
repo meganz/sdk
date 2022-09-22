@@ -470,8 +470,8 @@ UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
 }
 
 UserAlert::NewSharedNodes::NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
-                                          map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
-                                          map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode)
+                                          handle_alerttype_map_t alertTypePerFileNode,
+                                          handle_alerttype_map_t alertTypePerFolderNode)
     : Base(UserAlert::type_put, uh, string(), timestamp, id)
     , parentHandle(ph)
 {
@@ -547,8 +547,8 @@ UserAlert::RemovedSharedNode::RemovedSharedNode(UserAlertRaw& un, unsigned int i
 }
 
 UserAlert::RemovedSharedNode::RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
-                                                map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
-                                                map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode)
+                                                handle_alerttype_map_t alertTypePerFileNode,
+                                                handle_alerttype_map_t alertTypePerFolderNode)
     : Base(UserAlert::type_d, uh, string(), timestamp, id)
 {
     for (auto& item: alertTypePerFileNode)
@@ -591,8 +591,8 @@ UserAlert::UpdatedSharedNode::UpdatedSharedNode(UserAlertRaw& un, unsigned int i
 }
 
 UserAlert::UpdatedSharedNode::UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
-                                                map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFileNode,
-                                                map<handle, int /* MegaUserAlert::TYPE_ */> alertTypePerFolderNode)
+                                                handle_alerttype_map_t alertTypePerFileNode,
+                                                handle_alerttype_map_t alertTypePerFolderNode)
     : Base(UserAlert::type_u, uh, string(), timestamp, id)
 {
     for (auto& item: alertTypePerFileNode)
@@ -1031,13 +1031,13 @@ void UserAlerts::beginNotingSharedNodes()
     notedSharedNodes.clear();
 }
 
-void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n, int /* MegaUserAlert::TYPE_  */ alertType)
+void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n, nameid alertType)
 {
     if (catchupdone && notingSharedNodes && (type == FILENODE || type == FOLDERNODE))
     {
         assert(!ISUNDEF(user));
 
-        if (!ISUNDEF(ignoreNodesUnderShare) && (alertType != MegaUserAlert::TYPE_REMOVEDSHAREDNODES))
+        if (!ISUNDEF(ignoreNodesUnderShare) && (alertType != UserAlert::type_d))
         {
             // don't make alerts on files/folders already in the new share
             for (Node* p = n; p != NULL; p = p->parent)
@@ -1111,11 +1111,12 @@ void UserAlerts::ignoreNextSharedNodesUnder(handle h)
 
 UserAlerts::notedShNodesMap::iterator UserAlerts::findNotedSharedNodeIn(handle nodeHandle, notedShNodesMap& notedSharedNodesMap)
 {
+    using handletoalert_t = UserAlert::handle_alerttype_map_t;
     return find_if(begin(notedSharedNodesMap), end(notedSharedNodesMap),
                         [=](const pair<pair<handle, handle>, ff>& element)
                         {
-                            const map<handle,int>& fileAlertTypes = element.second.alertTypePerFileNode;
-                            const map<handle,int>& folderAlertTypes = element.second.alertTypePerFolderNode;
+                            const handletoalert_t& fileAlertTypes = element.second.alertTypePerFileNode;
+                            const handletoalert_t& folderAlertTypes = element.second.alertTypePerFolderNode;
                             return ((fileAlertTypes.find(nodeHandle) != end(fileAlertTypes))
                                     || (folderAlertTypes.find(nodeHandle) != end(folderAlertTypes)));
                         });
@@ -1189,24 +1190,25 @@ bool UserAlerts::isSharedNodeNotedAsRemoved(handle nodeHandleToFind)
 
 bool UserAlerts::isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, notedShNodesMap& notedSharedNodesMap)
 {
+    using handletoalert_t = UserAlert::handle_alerttype_map_t;
     if (catchupdone && notingSharedNodes)
     {
         auto itToNotedSharedNodes = find_if(begin(notedSharedNodesMap),
                                                  end(notedSharedNodesMap),
         [=](const pair<pair<handle, handle>, ff>& element)
         {
-            const map<handle,int>& fileAlertTypes = element.second.alertTypePerFileNode;
+            const handletoalert_t& fileAlertTypes = element.second.alertTypePerFileNode;
             auto itToFileNodeHandleAndAlertType = fileAlertTypes.find(nodeHandleToFind);
-            const map<handle,int>& folderAlertTypes = element.second.alertTypePerFolderNode;
+            const handletoalert_t& folderAlertTypes = element.second.alertTypePerFolderNode;
             auto itToFolderNodeHandleAndAlertType = folderAlertTypes.find(nodeHandleToFind);
 
             bool isInFileNodes = ((itToFileNodeHandleAndAlertType != end(fileAlertTypes))
-                                  && (itToFileNodeHandleAndAlertType->second == MegaUserAlert::TYPE_REMOVEDSHAREDNODES));
+                                  && (itToFileNodeHandleAndAlertType->second == UserAlert::type_d));
 
             // shortcircuit in case it was already found
             bool isInFolderNodes = isInFileNodes ||
                 ((itToFolderNodeHandleAndAlertType != end(folderAlertTypes)
-                  && (itToFolderNodeHandleAndAlertType->second == MegaUserAlert::TYPE_REMOVEDSHAREDNODES)));
+                  && (itToFolderNodeHandleAndAlertType->second == UserAlert::type_d)));
 
             return (isInFileNodes || isInFolderNodes);
         });
@@ -1254,6 +1256,7 @@ bool UserAlerts::removeNotedSharedNodeFrom(Node* n, notedShNodesMap& notedShared
 
 bool UserAlerts::setNotedSharedNodeToUpdate(Node* nodeToChange)
 {
+    using handletoalert_t = UserAlert::handle_alerttype_map_t;
     // noted nodes stash contains only deleted noted nodes, thus, we only check noted nodes map
     if (catchupdone && notingSharedNodes)
     {
@@ -1261,10 +1264,9 @@ bool UserAlerts::setNotedSharedNodeToUpdate(Node* nodeToChange)
         add(new UserAlert::UpdatedSharedNode(itToNotedSharedNodes->first.first,
                                              itToNotedSharedNodes->second.timestamp,
                                              nextId(),
-                                             map<handle,int>{
-                                                 {nodeToChange->nodehandle,
-                                                  MegaUserAlert::TYPE_UPDATEDSHAREDNODES}},
-                                             map<handle,int>{}));
+                                             handletoalert_t{{nodeToChange->nodehandle,
+                                                              UserAlert::type_u}},
+                                             handletoalert_t{}));
         if (removeNotedSharedNodeFrom(itToNotedSharedNodes, nodeToChange, notedSharedNodes))
         {
             LOG_debug << "Node with node handle |" << nodeToChange->nodehandle << "| removed from annotated node add-alerts and update-alert created in its place";
@@ -1374,6 +1376,7 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
         // context captured as reference to avoid copying debug_msg string
         [&](UserAlert::Base* alertToCheck)
             {
+                using handletoalert_t = UserAlert::handle_alerttype_map_t;
                 bool ret = false;
                 UserAlert::NewSharedNodes* ptrNewNodeAlert = eraseNewNodeAlert(nodeHandleToUpdate, alertToCheck);
                 if (ptrNewNodeAlert)
@@ -1382,9 +1385,9 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
                     add(new UserAlert::UpdatedSharedNode(ptrNewNodeAlert->userHandle,
                                                          ptrNewNodeAlert->timestamp,
                                                          nextId(),
-                                                         map<handle, int> {{nodeHandleToUpdate,
-                                                                     MegaUserAlert::TYPE_UPDATEDSHAREDNODES}},
-                                                         map<handle,int> {}));
+                                                         handletoalert_t {{nodeHandleToUpdate,
+                                                                           UserAlert::type_u}},
+                                                         handletoalert_t {}));
 
                     // if there are no files or folders for this entry in the alerts, we can remove the whole alert
                     ret = ptrNewNodeAlert->fileNodeHandles.empty()
