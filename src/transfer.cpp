@@ -787,7 +787,7 @@ void Transfer::complete(TransferDbCommitter& committer)
 
                             attr_map attrUpdate;
                             n->serializefingerprint(&attrUpdate['c']);
-                            client->setattr(n, std::move(attrUpdate), nullptr);
+                            client->setattr(n, std::move(attrUpdate), nullptr, false);
                         }
                     }
                 }

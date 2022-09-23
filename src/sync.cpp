@@ -558,7 +558,7 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
 , localroot(nullptr)
 , mUnifiedSync(us)
 , syncscanbt(us.syncs.rng)
-, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient))
+, threadSafeState(new SyncThreadsafeState(us.mConfig.mBackupId, &syncs.mClient, us.mConfig.isBackup())) // assuming backups are only in Vault
 {
     assert(syncs.onSyncThread());
     assert(cdebris.empty() || clocaldebris.empty());
@@ -1888,11 +1888,12 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
 
                         bool inshareFlag = inshare;
                         auto deleteHandle = row.cloudNode->handle;
-                        simultaneousMoveReplacedNodeToDebris = [deleteHandle, inshareFlag, deletePtr](MegaClient& mc, TransferDbCommitter& committer)
+                        bool canChangeVault = threadSafeState->mCanChangeVault;
+                        simultaneousMoveReplacedNodeToDebris = [deleteHandle, inshareFlag, deletePtr, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(deleteHandle))
                                 {
-                                    mc.movetosyncdebris(n, inshareFlag, nullptr);
+                                    mc.movetosyncdebris(n, inshareFlag, nullptr, canChangeVault);
                                 }
 
                                 // deletePtr lives until this moment
@@ -1965,7 +1966,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " to " << newName  << logTriplet(row, fullPath);
 
                         auto renameHandle = sourceCloudNode.handle;
-                        syncs.queueClient([renameHandle, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin](MegaClient& mc, TransferDbCommitter& committer)
+                        bool canChangeVault = threadSafeState->mCanChangeVault;
+                        syncs.queueClient([renameHandle, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                             {
                                 if (auto n = mc.nodeByHandle(renameHandle))
                                 {
@@ -1988,7 +1990,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                         LOG_debug << mc.clientname << "SYNC Rename completed: " << newName << " err:" << err;
 
                                         if (!err && anomalyReport) anomalyReport(mc);
-                                    });
+                                    }, canChangeVault);
                                 }
                             });
 
@@ -2007,7 +2009,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                   << " into " << targetCloudNodePath
                                   << (newName.empty() ? "" : (" as " + newName).c_str()) << logTriplet(row, fullPath);
 
-                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin](MegaClient& mc, TransferDbCommitter& committer)
+                        bool canChangeVault = threadSafeState->mCanChangeVault;
+                        syncs.queueClient([sourceCloudNode, targetCloudNode, newName, movePtr, anomalyReport, simultaneousMoveReplacedNodeToDebris, signalMoveBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                         {
                             if (signalMoveBegin)
                                 signalMoveBegin(mc);
@@ -2029,6 +2032,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                                             SYNCDEL_NONE,
                                             sourceCloudNode.parentHandle,
                                             newName.empty() ? nullptr : newName.c_str(),
+                                            canChangeVault,
                                             [&mc, movePtr, anomalyReport](NodeHandle, Error err){
 
                                                 movePtr->succeeded = !error(err);
@@ -4059,7 +4063,7 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
 
                 for ( ; i != j; ++i)
                 {
-                    auto* request = new CommandBackupRemove(&client, i->mBackupId);
+                    auto* request = new CommandBackupRemove(&client, i->mBackupId, nullptr);
                     client.reqs.add(request);
                 }
 
@@ -5090,8 +5094,10 @@ void Syncs::removeSyncByIndex(size_t index, bool notifyApp, bool unregisterHeart
 
     if (index < mSyncVec.size())
     {
+        bool canChangeVault = false;
         if (auto& syncPtr = mSyncVec[index]->mSync)
         {
+            canChangeVault = syncPtr->threadSafeState->mCanChangeVault;
             syncPtr->changestate(DECONFIGURING_SYNC, false, false, false);
             assert(!syncPtr->statecachetable);
             syncPtr.reset(); // deletes sync
@@ -5111,16 +5117,16 @@ void Syncs::removeSyncByIndex(size_t index, bool notifyApp, bool unregisterHeart
         if (unregisterHeartbeat)
         {
             // unregister this sync/backup from API (backup center)
-            queueClient([configCopy](MegaClient& mc, TransferDbCommitter& committer)
+            queueClient([configCopy, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                 {
-                    mc.reqs.add(new CommandBackupRemove(&mc, configCopy.mBackupId));
+                    mc.reqs.add(new CommandBackupRemove(&mc, configCopy.mBackupId, nullptr));
 
                     if (auto n = mc.nodeByHandle(configCopy.mRemoteNode))
                     {
                         attr_map m;
                         m[AttrMap::string2nameid("dev-id")] = "";
                         m[AttrMap::string2nameid("drv-id")] = "";
-                        mc.setattr(n, move(m), nullptr);
+                        mc.setattr(n, move(m), nullptr, canChangeVault);
                     }
                 });
         }
@@ -7713,7 +7719,8 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 }
             }
 
-            syncs.queueClient([existingUpload, displaceHandle, noDebris, signalFilenameAnomaly, signalPutnodesBegin](MegaClient& mc, TransferDbCommitter& committer)
+            bool canChangeVault = threadSafeState->mCanChangeVault;
+            syncs.queueClient([existingUpload, displaceHandle, noDebris, signalFilenameAnomaly, signalPutnodesBegin, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                 {
                     // Signal detected anomaly, if any.
                     if (signalFilenameAnomaly)
@@ -7731,7 +7738,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                                     signalPutnodesBegin(*c);
 
                                 existingUpload->sendPutnodes(c, NodeHandle());
-                            });
+                            }, canChangeVault);
 
                         // putnodes will be executed after or simultaneous with the
                         // move to sync debris
@@ -7786,14 +7793,15 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
                 LOG_verbose << syncname << "Creating cloud node for: " << fullPath.localPath << " as " << foldername << logTriplet(row, fullPath);
                 // while the operation is in progress sync() will skip over the parent folder
 
+                bool canChangeVault = threadSafeState->mCanChangeVault;
                 NodeHandle targethandle = parentRow.cloudNode->handle;
                 auto createFolderPtr = std::make_shared<LocalNode::RareFields::CreateFolderInProgress>();
                 row.syncNode->rare().createFolderHere = createFolderPtr;
-                syncs.queueClient([foldername, targethandle, createFolderPtr](MegaClient& mc, TransferDbCommitter& committer)
+                syncs.queueClient([foldername, targethandle, createFolderPtr, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                     {
                         vector<NewNode> nn(1);
-                        mc.putnodes_prepareOneFolder(&nn[0], foldername);
-                        mc.putnodes(targethandle, NoVersioning, move(nn), nullptr, 0,
+                        mc.putnodes_prepareOneFolder(&nn[0], foldername, canChangeVault);
+                        mc.putnodes(targethandle, NoVersioning, move(nn), nullptr, 0, canChangeVault,
                             [createFolderPtr](const Error&, targettype_t, vector<NewNode>&, bool targetOverride){
                                 //createFolderPtr.reset();  // lives until this point
                             });
@@ -8799,8 +8807,9 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
                     auto deletePtr = std::make_shared<LocalNode::RareFields::DeleteToDebrisInProgress>();
                     deletePtr->pathDeleting = fullPath.cloudPath;
+                    bool canChangeVault = threadSafeState->mCanChangeVault;
 
-                    syncs.queueClient([debrisNodeHandle, fromInshare, deletePtr](MegaClient& mc, TransferDbCommitter& committer)
+                    syncs.queueClient([debrisNodeHandle, fromInshare, deletePtr, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                         {
                             if (auto n = mc.nodeByHandle(debrisNodeHandle, true))
                             {
@@ -8818,7 +8827,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
                                     // deletePtr lives until this moment
                                     LOG_debug << "Sync delete to sync debris completed: " << deletePtr->pathDeleting;
 
-                                });
+                                }, canChangeVault);
                             }
                         });
                     row.syncNode->rare().removeNodeHere = deletePtr;
