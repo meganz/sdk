@@ -308,7 +308,7 @@ void File::completed(Transfer* t, putsource_t source)
 
     if (t->type == PUT)
     {
-        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr);
+        sendPutnodes(t->client, t->uploadhandle, *t->ultoken, t->filekey, source, NodeHandle(), nullptr, nullptr, false);
     }
 }
 
@@ -316,13 +316,14 @@ void File::completed(Transfer* t, putsource_t source)
 void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                         const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
                         CommandPutNodes::Completion&& completion,
-                        const m_time_t* overrideMtime)
+                        const m_time_t* overrideMtime, bool canChangeVault)
 {
     vector<NewNode> newnodes(1);
     NewNode* newnode = &newnodes[0];
 
     // build new node
     newnode->source = NEW_UPLOAD;
+    newnode->canChangeVault = canChangeVault;
 
     // upload handle required to retrieve/include pending file attributes
     newnode->uploadhandle = fileAttrMatchHandle;
@@ -331,7 +332,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
     newnode->uploadtoken = ultoken;
 
     // file's crypto key
-    static_assert(sizeof(filekey) == FILENODEKEYLENGTH, "");
+    static_assert(sizeof(filekey) == FILENODEKEYLENGTH, "File completed: filekey size doesn't match with FILENODEKEYLENGTH");
     newnode->nodekey.assign((char*)&filekey, FILENODEKEYLENGTH);
     newnode->type = FILENODE;
     newnode->parenthandle = UNDEF;
@@ -386,7 +387,7 @@ void File::sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, co
                                              mVersioningOption,
                                              move(newnodes),
                                              tag,
-                                             source, nullptr, move(completion)));
+                                             source, nullptr, move(completion), canChangeVault));
     }
 }
 
@@ -511,7 +512,7 @@ bool SyncDownload_inClient::failed(error e, MegaClient* mc)
     {
         // Still exists in the cloud?
         if (auto* n = mc->nodeByHandle(h))
-            mc->movetosyncdebris(n, fromInsycShare, nullptr);
+            mc->movetosyncdebris(n, fromInsycShare, nullptr, syncThreadSafeState->mCanChangeVault);
     }
 
     return false;

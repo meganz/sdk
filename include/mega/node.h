@@ -167,6 +167,7 @@ struct MEGA_API NewNode : public NodeCore
     // versioning used for this new node, forced at server's side regardless the account's value
     VersioningOption mVersioningOption = NoVersioning;
     bool added = false;           // set true when the actionpacket arrives
+    bool canChangeVault = false;
     handle mAddedHandle = UNDEF;  // updated as actionpacket arrives
     error mError = API_OK;        // per-node error (updated in cs response)
 };

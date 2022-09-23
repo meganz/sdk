@@ -24,7 +24,6 @@
 #include <fstream>
 #include <bitset>
 #include "mega/testhooks.h"
-#include <iterator>
 
 #if defined(_WIN32) && defined(_DEBUG)
 // so we can delete a secret internal CrytpoPP singleton
@@ -374,7 +373,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
             else if (onCompleted_foward) onCompleted_foward();
 
         },
-        nullptr);
+        nullptr, false);
 
     delete this;
 }
@@ -2655,7 +2654,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
             if (moveToTrash)
             {
                 cout << "moving to trash: " << c->displaypath() << endl;
-                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
+                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
             }
             else
             {
@@ -3498,7 +3497,7 @@ void exec_backupcentre(autocomplete::ACState& s)
     {
         handle backupId;
         Base64::atob(s.words[1].s.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
-        client->reqs.add(new CommandBackupRemove(client, backupId));
+        client->reqs.add(new CommandBackupRemove(client, backupId, nullptr));
     }
 }
 
@@ -4262,7 +4261,7 @@ void exec_rm(autocomplete::ACState& s)
         {
             if (client->checkaccess(d, FULL))
             {
-                error e = client->unlink(d, false, 0);
+                error e = client->unlink(d, false, 0, false);
 
                 if (e)
                 {
@@ -4322,7 +4321,7 @@ void exec_mv(autocomplete::ACState& s)
                             // rename
                             LocalPath::utf8_normalize(&newname);
 
-                            if ((e = client->setattr(n, attr_map('n', newname), setattr_result)))
+                            if ((e = client->setattr(n, attr_map('n', newname), setattr_result, false)))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -4353,7 +4352,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), setattr_result);
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), setattr_result, false);
 
                             if (e)
                             {
@@ -4363,7 +4362,7 @@ void exec_mv(autocomplete::ACState& s)
                             if (n != tn)
                             {
                                 // ...delete target...
-                                e = client->unlink(tn, false, 0);
+                                e = client->unlink(tn, false, 0, false);
 
                                 if (e)
                                 {
@@ -4385,7 +4384,7 @@ void exec_mv(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
+                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
 
                         if (e)
                         {
@@ -4450,7 +4449,7 @@ void exec_cp(autocomplete::ACState& s)
                         }
 
                         // ...delete target...
-                        e = client->unlink(tn, false, 0);
+                        e = client->unlink(tn, false, 0, false);
 
                         if (e)
                         {
@@ -4554,7 +4553,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodeHandle(), vo, move(tc.nn), nullptr, gNextClientTag++);
+                client->putnodes(tn->nodeHandle(), vo, move(tc.nn), nullptr, gNextClientTag++, false);
             }
             else
             {
@@ -4890,14 +4889,14 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
         else
         {
             vector<NewNode> nn(1);
-            client->putnodes_prepareOneFolder(&nn[0], name);
+            client->putnodes_prepareOneFolder(&nn[0], name, false);
 
             gOnPutNodeTag[gNextClientTag] = [localname, vo](Node* parent) {
                 auto tmp = localname;
                 uploadLocalFolderContent(tmp, parent, vo, true);
             };
 
-            client->putnodes(parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
+            client->putnodes(parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
         }
     }
 }
@@ -5632,8 +5631,8 @@ void exec_mkdir(autocomplete::ACState& s)
             if (newname.size())
             {
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], newname);
-                client->putnodes(n->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
+                client->putnodes_prepareOneFolder(&nn[0], newname, false);
+                client->putnodes(n->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -5642,8 +5641,8 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], leafname);
-                client->putnodes(n->parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
+                client->putnodes_prepareOneFolder(&nn[0], leafname, false);
+                client->putnodes(n->parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
             }
             else
             {
@@ -8342,7 +8341,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, move(nn), nullptr, client->restag);
+        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, move(nn), nullptr, client->restag, false);
     }
     else
     {
@@ -8893,18 +8892,6 @@ void DemoApp::dismissbanner_result(error e)
     else
     {
         cout << "Dismissing Smart Banner succeeded" << endl;
-    }
-}
-
-void DemoApp::backupremove_result(const Error &e, handle backupId)
-{
-    if (e != API_OK)
-    {
-        cout << "Removal of backup " << toHandle(backupId) << " failed: " << errorstring(e) <<endl;
-    }
-    else
-    {
-        cout << "Backup " << toHandle(backupId) << " removed successfully" << endl;
     }
 }
 
@@ -9601,7 +9588,7 @@ void exec_syncadd(autocomplete::ACState& s)
 
     // Try and add the new sync.
 	// All validation is performed in this function.
-    client->addsync(config, false, sync_completion, "");
+    client->addsync(move(config), false, sync_completion, "");
 }
 
 void exec_syncrename(autocomplete::ACState& s)

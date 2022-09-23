@@ -117,7 +117,10 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                    client->setattr(n, attr_map('f', me64), nullptr);
+                    // 'canChangeVault' is false here because restoration of file attributes is triggered by
+                    // downloads, so it cannot be triggered by a Backup operation
+                    bool canChangeVault = false;
+                    client->setattr(n, attr_map('f', me64), nullptr, canChangeVault);
                 }
             }
 
@@ -932,8 +935,9 @@ bool CommandGetFile::procresult(Result r)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, attr_map&& attrMapUpdates, Completion&& c)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, attr_map&& attrMapUpdates, Completion&& c, bool canChangeVault)
     : mAttrMapUpdates(attrMapUpdates)
+    , mCanChangeVault(canChangeVault)
 {
     h = n->nodeHandle();
     generationError = API_OK;
@@ -992,6 +996,11 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("at", (byte*)at.c_str(), int(at.size()));
 
+    if (mCanChangeVault)
+    {
+        arg("vw", 1);
+    }
+
     return jsonWriter.getstring().c_str();
 }
 
@@ -1008,12 +1017,16 @@ bool CommandSetAttr::procresult(Result r)
 CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
                                  const char* userhandle, VersioningOption vo,
                                  vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
-                                 Completion&& resultFunction)
+                                 Completion&& resultFunction, bool canChangeVault)
   : mResultFunction(resultFunction)
 {
     byte key[FILENODEKEYLENGTH];
 
+#ifdef DEBUG
     assert(newnodes.size() > 0);
+    for (auto& n : newnodes) assert(n.canChangeVault == canChangeVault);
+#endif
+
     nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
@@ -1036,6 +1049,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     if (cauth)
     {
         arg("cauth", cauth);
+    }
+
+    if (canChangeVault)
+    {
+        arg("vw", 1);
     }
 
     // "vb": when provided, it force to override the account-wide versioning behavior by the value indicated by client
@@ -1316,13 +1334,14 @@ bool CommandPutNodes::procresult(Result r)
 }
 
 
-CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c)
+CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, NodeHandle prevparent, Completion&& c, bool canChangeVault)
 {
     h = n->nodeHandle();
     syncdel = csyncdel;
     np = t->nodeHandle();
     pp = prevparent;
     syncop = !pp.isUndef();
+    mCanChangeVault = canChangeVault;
 
     cmd("m");
 
@@ -1330,6 +1349,11 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     // This is needed for backward compatibility, old versions used memcmp to detect if a 'd' actionpacket was followed by a 't'  actionpacket with the same 'i' (ie, a move)
     // Additionally the servers can't deliver `st` in that packet for the same reason.  And of course we will not ignore this `t` packet, despite setting 'i'.
     notself(client);
+
+    if (mCanChangeVault)
+    {
+        arg("vw", 1);
+    }
 
     arg("n", h);
     arg("t", t->nodeHandle());
@@ -1422,7 +1446,7 @@ bool CommandMoveNode::procresult(Result r)
     return r.wasErrorOrActionpacket();
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f)
+CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversions, int cmdtag, std::function<void(NodeHandle, Error)>&& f, bool canChangeVault)
     : mResultFunction(move(f))
 {
     cmd("d");
@@ -1432,6 +1456,11 @@ CommandDelNode::CommandDelNode(MegaClient* client, NodeHandle th, bool keepversi
     if (keepversions)
     {
         arg("v", 1);
+    }
+
+    if (canChangeVault)
+    {
+        arg("vw", 1);
     }
 
     h = th;
@@ -5387,7 +5416,7 @@ bool CommandGetPH::procresult(Result r)
                         newnode->parenthandle = UNDEF;
                         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
                         newnode->attrstring.reset(new string(a));
-                        client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0);
+                        client->putnodes(client->rootnodes.files, NoVersioning, move(newnodes), nullptr, 0, false);
                     }
                     else if (havekey)
                     {
@@ -8773,18 +8802,22 @@ bool CommandBackupPutHeartBeat::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
+CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId, std::function<void(Error)> completion)
     : mBackupId(backupId)
 {
     cmd("sr");
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
 
     tag = client->reqtag;
+    mCompletion = completion;
 }
 
 bool CommandBackupRemove::procresult(Result r)
 {
-    client->app->backupremove_result(r.errorOrOK(), mBackupId);
+    if (mCompletion)
+    {
+        mCompletion(r.errorOrOK());
+    }
     return r.wasErrorOrOK();
 }
 

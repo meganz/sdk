@@ -54,7 +54,7 @@ struct MEGA_API File: public FileFingerprint
     void sendPutnodes(MegaClient* client, UploadHandle fileAttrMatchHandle, const UploadToken& ultoken,
                       const FileNodeKey& filekey, putsource_t source, NodeHandle ovHandle,
                       std::function<void(const Error&, targettype_t, vector<NewNode>&, bool targetOverride)>&& completion,
-                      const m_time_t* overrideMtime);
+                      const m_time_t* overrideMtime, bool canChangeVault);
 
     // generic filename for this transfer
     void displayname(string*);

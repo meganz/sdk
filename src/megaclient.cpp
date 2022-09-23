@@ -7260,7 +7260,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 }
 
 // update node attributes
-error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completion&& c)
+error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -7285,7 +7285,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
         }
     }
     // we only update the values stored in the node once the command completes successfully
-    reqs.add(new CommandSetAttr(this, n, std::move(updates), move(c)));
+    reqs.add(new CommandSetAttr(this, n, std::move(updates), move(c), canChangeVault));
 
     return API_OK;
 }
@@ -7355,12 +7355,12 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     return e;
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, bool canChangeVault, std::function<void(AttrMap&)> addAttrs)
 {
-    MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, addAttrs);
+    MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, canChangeVault, addAttrs);
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, std::function<void(AttrMap&)> addAttrs)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, bool canChangeVault, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
@@ -7370,6 +7370,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     newnode->type = FOLDERNODE;
     newnode->nodehandle = 0;
     newnode->parenthandle = UNDEF;
+    newnode->canChangeVault = canChangeVault;
 
     // generate fresh random key for this folder node
     rng.genblock(buf, FOLDERNODEKEYLENGTH);
@@ -7392,9 +7393,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, bool canChangeVault, CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
+    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction), canChangeVault));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
@@ -7528,7 +7529,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& completion)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c)
 {
     if (mBizStatus == BIZ_STATUS_EXPIRED)
     {
@@ -7600,10 +7601,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
     if (!attrUpdates.empty())
     {
         // send attribute changes first so that any rename is already applied when the move node completes
-        setattr(n, std::move(attrUpdates), nullptr);  // no completion function, result is after the move completes
+        setattr(n, std::move(attrUpdates), nullptr, canChangeVault);  // no completion function, result is after the move completes
     }
 
-    reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(completion)));
+    reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c), canChangeVault));
 
     return API_OK;
 }
@@ -7643,7 +7644,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
     if (mBizStatus == BIZ_STATUS_EXPIRED)
     {
@@ -7669,7 +7670,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction)));
+    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction), canChangeVault));
 
     return API_OK;
 }
@@ -13401,7 +13402,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-void MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
@@ -14541,21 +14542,21 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
 // dupes)
-void MegaClient::movetosyncdebris(Node* dn, bool unlink, std::function<void(NodeHandle, Error)>&& completion)
+void MegaClient::movetosyncdebris(Node* dn, bool unlink, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
 {
     if (unlink)
     {
-        execsyncunlink(dn, move(completion));
+        execsyncunlink(dn, move(completion), canChangeVault);
     }
     else
     {
-        execmovetosyncdebris(dn, move(completion));
+        execmovetosyncdebris(dn, move(completion), canChangeVault);
     }
 }
 
-void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion)
+void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
 {
-    error err = unlink(n, false, 0, move(completion));
+    error err = unlink(n, false, 0, canChangeVault, move(completion));
     if (err)
     {
         // if an err was returned from unlink(), then it has not actually move()d from the completion function rvalue ref
@@ -14563,7 +14564,7 @@ void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&
     }
 }
 
-void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion)
+void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
 {
     if (requestedNode)
     {
@@ -14577,7 +14578,7 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
             if (Node* n = nodeByHandle(rec.nodeHandle))
             {
                 LOG_debug << "Moving to Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, move(rec.completion));
+                rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, canChangeVault, move(rec.completion));
             }
             else
             {
@@ -14667,8 +14668,8 @@ Node* MegaClient::getOrCreateSyncdebrisFolder()
             syncdebrisadding = false;
             // on completion, send the queued nodes
             LOG_debug << "Daily SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
-            execmovetosyncdebris(nullptr, nullptr);
-        }));
+            execmovetosyncdebris(nullptr, nullptr, false);
+        }, false));
     return nullptr;
 }
 

@@ -369,6 +369,9 @@ class SyncThreadsafeState
     handle mBackupId = 0;
 
 public:
+
+    const bool mCanChangeVault;
+
     // Remember which Nodes we created from upload,
     // until the corresponding LocalNodes are updated.
     void addExpectedUpload(NodeHandle parentHandle, const string& name, weak_ptr<SyncUpload_inClient>);
@@ -387,7 +390,7 @@ public:
     LocalPath syncTmpFolder() const;
     void setSyncTmpFolder(const LocalPath&);
 
-    SyncThreadsafeState(handle backupId, MegaClient* client) : mClient(client), mBackupId(backupId)  {}
+    SyncThreadsafeState(handle backupId, MegaClient* client, bool canChangeVault) : mClient(client), mBackupId(backupId), mCanChangeVault(canChangeVault)  {}
     handle backupId() const { return mBackupId; }
     MegaClient* client() const { return mClient; }
 };
