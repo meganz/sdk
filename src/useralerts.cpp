@@ -1267,9 +1267,11 @@ bool UserAlerts::setNotedSharedNodeToUpdate(Node* nodeToChange)
 {
     using handletoalert_t = UserAlert::handle_alerttype_map_t;
     // noted nodes stash contains only deleted noted nodes, thus, we only check noted nodes map
-    if (catchupdone && notingSharedNodes)
+    if (catchupdone && notingSharedNodes && !notedSharedNodes.empty())
     {
         auto itToNotedSharedNodes = findNotedSharedNodeIn(nodeToChange->nodehandle, notedSharedNodes);
+        if (itToNotedSharedNodes == end(notedSharedNodes)) return false;
+
         add(new UserAlert::UpdatedSharedNode(itToNotedSharedNodes->first.first,
                                              itToNotedSharedNodes->second.timestamp,
                                              nextId(),
