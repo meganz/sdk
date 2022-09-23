@@ -2961,7 +2961,7 @@ void cycleUpload(LocalPath lp, int count)
         string leaf2 = lp.leafName().toPath(true) + "_" + std::to_string(count-1);
         if (Node* lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf2.c_str(), true))
         {
-            client->unlink(lastuploaded, false, client->nextreqtag(), nullptr);
+            client->unlink(lastuploaded, false, client->nextreqtag(), false, nullptr);
         }
     }
 
