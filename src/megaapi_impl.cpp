@@ -19045,7 +19045,7 @@ void MegaApiImpl::sendPendingRequests()
                             if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                             {
                                 request->setNodeHandle(UNDEF);
-                                e = client->unlink(node, false, false, request->getTag());
+                                e = client->unlink(node, false, request->getTag(), false);
                                 break;  // request finishes now if error, otherwise on unlink_result
                             }
 

@@ -8986,7 +8986,7 @@ struct TwoWaySyncSymmetryCase
 
         if (updatemodel) remoteModel.emulate_delete(nodepath);
 
-        auto e = changeClient().client.unlink(n, false, false, ++next_request_tag);
+        auto e = changeClient().client.unlink(n, false, ++next_request_tag, false);
         ASSERT_TRUE(!e);
     }
 
