@@ -482,6 +482,7 @@ enum SyncError {
     BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
+    ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
 };
 
 enum SyncWarning {

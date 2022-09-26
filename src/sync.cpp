@@ -717,6 +717,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Backup source path not below drive path.";
     case SYNC_CONFIG_WRITE_FAILURE:
         return "Unable to write sync config to disk.";
+    case ACTIVE_SYNC_SAME_PATH:
+        return "Active sync same path";
     default:
         return "Undefined error";
     }
