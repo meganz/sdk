@@ -114,6 +114,10 @@ public:
     {
       return 0;
     }
+    bool getNodesByMimetype(mega::MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes, mega::CancelToken cancelFlag) override
+    {
+
+    }
     void updateCounter(mega::NodeHandle, const std::string&) override
     {
 

@@ -11724,18 +11724,26 @@ node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *
         return nodeVector;
     }
 
-    nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelToken);
-
-    auto it = nodeVector.begin();
-    while (it != nodeVector.end() && !cancelToken.isCancelled())
+    if (!searchString || strcmp("", searchString) == 0)
     {
-        if (!isValidTypeNode(*it, type))
+        assert(type != MegaApi::FILE_TYPE_DEFAULT);
+        nodeVector = client->mNodeManager.getNodesByMimeType(static_cast<MimeType_t>(type), NodeHandle().set6byte(nodeHandle), cancelToken);
+    }
+    else
+    {
+        nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelToken);
+
+        auto it = nodeVector.begin();
+        while (it != nodeVector.end() && !cancelToken.isCancelled())
         {
-            it = nodeVector.erase(it);
-        }
-        else
-        {
-            ++it;
+            if (!isValidTypeNode(*it, type))
+            {
+                it = nodeVector.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
         }
     }
 

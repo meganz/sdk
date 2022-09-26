@@ -199,6 +199,20 @@ bool Node::isAncestor(NodeHandle ancestorHandle) const
     return false;
 }
 
+MimeType_t Node::getMimeType()
+{
+    if (client->nodeIsPhoto(this, false))
+        return MimeType_t::PHOTO_MIME_TYPE;
+    if (client->nodeIsVideo(this))
+        return MimeType_t::VIDEO_MIME_TYPE;
+    if (client->nodeIsAudio(this))
+        return MimeType_t::AUDIO_MIME_TYPE;
+    if (client->nodeIsDocument(this))
+        return MimeType_t::DOCUMENT_MINE_TYPE;
+
+    return MimeType_t::NO_MIME_TYPE;
+}
+
 #ifdef ENABLE_SYNC
 
 void Node::detach(const bool recreate)

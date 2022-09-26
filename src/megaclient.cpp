@@ -16523,6 +16523,7 @@ static bool nodes_ctime_greater(const Node* a, const Node* b)
 
 namespace action_bucket_compare
 {
+     // NOTE: In case of modidy/add some of this extension, the column mimetype from table nodes should be re-build
     // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
     const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
     const static string webclient_is_image_raw = ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
@@ -17733,6 +17734,20 @@ node_vector NodeManager::getNodesWithPendingOutShares()
 node_vector NodeManager::getNodesWithLinks()
 {
     return getNodesWithSharesOrLink(ShareType_t::LINK);
+}
+
+node_vector NodeManager::getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag)
+{
+    if (!mTable)
+    {
+        assert(false);
+        return node_vector();
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    mTable->getNodesByMimetype(mimeType, nodesFromTable, cancelFlag);
+
+    return filterByAncestor(nodesFromTable, ancestorHandle, cancelFlag);
 }
 
 node_vector NodeManager::getNodesWithSharesOrLink(ShareType_t shareType)

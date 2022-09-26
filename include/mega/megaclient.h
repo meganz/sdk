@@ -323,6 +323,8 @@ public:
     node_vector getNodesWithPendingOutShares();
     node_vector getNodesWithLinks();
 
+    node_vector getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag);
+
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
 
@@ -508,6 +510,8 @@ private:
     // If a valid cancelFlag is passed and takes true value, this method returns without complete operation
     // If a valid object is passed, it must be kept alive until this method returns.
     node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag);
+
+    node_vector loadNodesFromDB(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, bool fiterByAncetor = false);
 
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;

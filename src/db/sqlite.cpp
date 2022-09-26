@@ -154,7 +154,7 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     // Create specific table for handle nodes
     std::string sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, "
                       "parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, "
-                      "type tinyint, size int64, share tinyint, fav tinyint, "
+                      "type tinyint, size int64, share tinyint, fav tinyint, mimetype tinyint, "
                       "ctime int64, counter BLOB NOT NULL, node BLOB NOT NULL)";
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
@@ -582,6 +582,7 @@ SqliteAccountState::~SqliteAccountState()
     sqlite3_finalize(mStmtChildren);
     sqlite3_finalize(mStmtNumChildren);
     sqlite3_finalize(mStmtNodeByName);
+    sqlite3_finalize(mStmtNodeByMimeType);
     sqlite3_finalize(mStmtNodesByFp);
     sqlite3_finalize(mStmtNodeByFp);
     sqlite3_finalize(mStmtNodeByOrigFp);
@@ -797,6 +798,9 @@ void SqliteAccountState::remove()
     sqlite3_finalize(mStmtNodeByName);
     mStmtNodeByName = nullptr;
 
+    sqlite3_finalize(mStmtNodeByMimeType);
+    mStmtNodeByMimeType = nullptr;
+
     sqlite3_finalize(mStmtNodesByFp);
     mStmtNodesByFp = nullptr;
 
@@ -834,8 +838,8 @@ bool SqliteAccountState::put(Node *node)
     if (!mStmtPutNode)
     {
         sqlResult = sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
-                                           "name, fingerprint, origFingerprint, type, size, share, fav, ctime, counter, node) "
-                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
+                                           "name, fingerprint, origFingerprint, type, size, share, fav, mimetype, ctime, counter, node) "
+                                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &mStmtPutNode, NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -873,10 +877,11 @@ bool SqliteAccountState::put(Node *node)
         auto favIt = node->attrs.map.find(favId);
         bool fav = (favIt != node->attrs.map.end() && favIt->second == "1"); // test 'fav' attr value (only "1" is valid)
         sqlite3_bind_int(mStmtPutNode, 9, fav);
-        sqlite3_bind_int64(mStmtPutNode, 10, node->ctime);
+        sqlite3_bind_int(mStmtPutNode, 10, node->getMimeType());
+        sqlite3_bind_int64(mStmtPutNode, 11, node->ctime);
         std::string nodeCountersBlob = node->getCounter().serialize();
-        sqlite3_bind_blob(mStmtPutNode, 11, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
-        sqlite3_bind_blob(mStmtPutNode, 12, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 12, nodeCountersBlob.data(), static_cast<int>(nodeCountersBlob.size()), SQLITE_STATIC);
+        sqlite3_bind_blob(mStmtPutNode, 13, nodeSerialized.data(), static_cast<int>(nodeSerialized.size()), SQLITE_STATIC);
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
@@ -1546,6 +1551,50 @@ uint64_t SqliteAccountState::getNumberOfChildrenByType(NodeHandle parentHandle, 
     sqlite3_reset(mStmtNumChild);
 
     return count;
+}
+
+bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    if (cancelFlag.exists())
+    {
+        sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
+    }
+
+    bool result = false;
+    int sqlResult = SQLITE_OK;
+    if (!mStmtNodeByMimeType)
+    {
+        std::string query = "SELECT n1.nodehandle, n1.counter, n1.node FROM nodes n1  INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.mimetype = ? AND n2.type !=";
+        query.append(std::to_string(FILENODE));
+        sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeType, nullptr);
+
+    }
+    if (sqlResult == SQLITE_OK)
+    {
+        if ((sqlResult = sqlite3_bind_int(mStmtNodeByMimeType, 1, static_cast<int>(mimeType))) == SQLITE_OK)
+        {
+            result = processSqlQueryNodes(mStmtNodeByMimeType, nodes);
+        }
+    }
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
+    if (sqlResult != SQLITE_OK)
+    {
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(sqlResult));
+        LOG_err << "Unable to get node by Mime type from database: " << dbfile << err;
+        assert(!"Unable to get node by Mime type from database.");
+    }
+
+    sqlite3_reset(mStmtNodeByMimeType);
+
+    return result;
 }
 
 } // namespace

@@ -354,6 +354,8 @@ typedef enum {
 
 typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
 
+typedef enum { NO_MIME_TYPE = 0, PHOTO_MIME_TYPE = 1, AUDIO_MIME_TYPE = 2, VIDEO_MIME_TYPE = 3, DOCUMENT_MINE_TYPE = 4} MimeType_t;
+
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
 
