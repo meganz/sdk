@@ -11719,10 +11719,6 @@ void MegaApiImpl::resumeActionPackets()
 node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int type, CancelToken cancelToken)
 {
     node_vector nodeVector;
-    if (!searchString)
-    {
-        return nodeVector;
-    }
 
     if (!searchString || strcmp("", searchString) == 0)
     {
