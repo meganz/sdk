@@ -137,7 +137,7 @@ class DetailsNodeInfoViewController: UIViewController, MEGADelegate, UIAlertView
             let fileExists = FileManager.default.fileExists(atPath: documentFilePath)
             
             if !fileExists {
-                megaapi.startDownloadNode(node, localPath: documentFilePath)
+                megaapi.startDownload(node, localPath: documentFilePath, customName: nil, appData: nil, startFirst: false, cancelToken: nil)
             }
         }
     }
