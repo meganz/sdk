@@ -1124,6 +1124,8 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
         return false;
     }
 
+    assert(name != "");
+
     // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
     // (with or without any additional char at the beginning and/or end of the name). The '%' is the wildcard in SQL
     std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE LOWER(name) LIKE LOWER(?)";
