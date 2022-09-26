@@ -488,19 +488,6 @@ bool TextChat::isFlagSet(uint8_t offset) const
     return (flags >> offset) & 1U;
 }
 
-void TextChat::invalidateSchedMeetingOccurrence(handle id, const char* startDateTime)
-{
-   auto range = mScheduledMeetingsOcurrences.equal_range(id);
-   for (auto it = range.first; it != range.second; )
-   {
-       auto auxit = ++it;
-       if (!strcmp(it->second->startDateTime(),startDateTime))
-       {
-           mScheduledMeetingsOcurrences.erase(auxit);
-       }
-   }
-}
-
 void TextChat::addSchedMeetingOccurrence(std::unique_ptr<ScheduledMeeting>&& sm)
 {
     mScheduledMeetingsOcurrences.emplace(sm->callid(), std::move(sm));
