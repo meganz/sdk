@@ -511,8 +511,6 @@ private:
     // If a valid object is passed, it must be kept alive until this method returns.
     node_vector filterByAncestor(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, NodeHandle ancestorHandle, CancelToken cancelFlag);
 
-    node_vector loadNodesFromDB(const std::vector<std::pair<NodeHandle, NodeSerialized>>& nodesFromTable, bool fiterByAncetor = false);
-
     // node temporary in memory, which will be removed upon write to DB
     unique_ptr<Node> mNodeToWriteInDb;
 };
