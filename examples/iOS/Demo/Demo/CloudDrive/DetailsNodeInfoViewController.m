@@ -109,7 +109,7 @@
         NSString *documentFilePath = [Helper pathForNode:self.node searchPath:NSDocumentDirectory];
         BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:documentFilePath];
         if (!fileExists) {
-            [[MEGASdkManager sharedMEGASdk] startDownloadNode:self.node localPath:documentFilePath];
+            [[MEGASdkManager sharedMEGASdk] startDownload:self.node localPath:documentFilePath nil nil false nil];
         }
     }
 }

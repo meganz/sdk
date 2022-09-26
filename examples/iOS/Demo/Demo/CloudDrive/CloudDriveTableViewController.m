@@ -302,7 +302,7 @@
             NSLog(@"Error change modification date of file %@", error);
         }
         
-        [[MEGASdkManager sharedMEGASdk] startUploadWithLocalPath:localFilePath parent:self.parentNode];
+        [[MEGASdkManager sharedMEGASdk] startUpload: localFilePath parent:self.parentNode nil 0 nil false false false];
     } failureBlock:nil];
     
     [self dismissViewControllerAnimated:YES completion:NULL];
