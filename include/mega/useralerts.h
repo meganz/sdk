@@ -293,14 +293,14 @@ private:
         UserAlert::handle_alerttype_map_t alertTypePerFolderNode;
         ff() : files(0), folders(0), timestamp(0) {}
     };
-    typedef map<pair<handle, handle>, ff> notedShNodesMap;
+    using notedShNodesMap = map<pair<handle, handle>, ff>;
     notedShNodesMap notedSharedNodes;
     notedShNodesMap deletedSharedNodesStash;
     bool notingSharedNodes;
     handle ignoreNodesUnderShare;
 
     bool isUnwantedAlert(nameid type, int action);
-    bool isConvertReadyToAdd(handle originatinguser);
+    bool isConvertReadyToAdd(handle originatinguser) const;
     void convertNotedSharedNodes(bool added);
     void clearNotedSharedMembers();
 
@@ -309,8 +309,8 @@ private:
     UserAlert::NewSharedNodes* eraseNewNodeAlert(handle nodeHandleToRemove, UserAlert::Base* alertToCheck);
     UserAlert::RemovedSharedNode* eraseRemovedNodeAlert(handle nh, UserAlert::Base* a);
     notedShNodesMap::iterator findNotedSharedNodeIn(handle nodeHandle, notedShNodesMap& notedSharedNodesMap);
-    bool isSharedNodeNotedAsRemoved(handle nodeHandleToFind);
-    bool isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, notedShNodesMap& notedSharedNodesMap);
+    bool isSharedNodeNotedAsRemoved(handle nodeHandleToFind) const;
+    bool isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, const notedShNodesMap& notedSharedNodesMap) const;
     bool removeNotedSharedNodeFrom(notedShNodesMap::iterator itToNodeToRemove, Node* node, notedShNodesMap& notedSharedNodesMap);
     bool removeNotedSharedNodeFrom(Node* n, notedShNodesMap& notedSharedNodesMap);
     bool setNotedSharedNodeToUpdate(Node* n);
@@ -349,7 +349,7 @@ public:
 
     // stash removal-alert noted nodes
     void convertStashedDeletedSharedNodes();
-    bool isDeletedSharedNodesStashEmpty();
+    bool isDeletedSharedNodesStashEmpty() const;
     void stashDeletedNotedSharedNodes(handle originatingUser);
 
     // marks all as seen, and notifies the API also

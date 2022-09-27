@@ -1076,7 +1076,7 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n, nam
     }
 }
 
-bool UserAlerts::isConvertReadyToAdd(handle originatingUser)
+bool UserAlerts::isConvertReadyToAdd(handle originatingUser) const
 {
     return catchupdone && notingSharedNodes && (originatingUser != mc.me);
 }
@@ -1122,7 +1122,7 @@ UserAlerts::notedShNodesMap::iterator UserAlerts::findNotedSharedNodeIn(handle n
 {
     using handletoalert_t = UserAlert::handle_alerttype_map_t;
     return find_if(begin(notedSharedNodesMap), end(notedSharedNodesMap),
-                        [=](const pair<pair<handle, handle>, ff>& element)
+                        [nodeHandle](const pair<pair<handle, handle>, ff>& element)
                         {
                             const handletoalert_t& fileAlertTypes = element.second.alertTypePerFileNode;
                             const handletoalert_t& folderAlertTypes = element.second.alertTypePerFolderNode;
@@ -1190,14 +1190,15 @@ UserAlert::RemovedSharedNode* UserAlerts::eraseRemovedNodeAlert(handle nh, UserA
     return findRemovedNodeAlert(nh, a, true);
 }
 
-bool UserAlerts::isSharedNodeNotedAsRemoved(handle nodeHandleToFind)
+bool UserAlerts::isSharedNodeNotedAsRemoved(handle nodeHandleToFind) const
 {
     // check first in the stash
     return isSharedNodeNotedAsRemovedFrom(nodeHandleToFind, deletedSharedNodesStash)
         || isSharedNodeNotedAsRemovedFrom(nodeHandleToFind, notedSharedNodes);
 }
 
-bool UserAlerts::isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, notedShNodesMap& notedSharedNodesMap)
+bool UserAlerts::isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind,
+                                                const notedShNodesMap& notedSharedNodesMap) const
 {
     using handletoalert_t = UserAlert::handle_alerttype_map_t;
     if (catchupdone && notingSharedNodes)
@@ -1216,8 +1217,8 @@ bool UserAlerts::isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, notedSh
 
             // shortcircuit in case it was already found
             bool isInFolderNodes = isInFileNodes ||
-                ((itToFolderNodeHandleAndAlertType != end(folderAlertTypes)
-                  && (itToFolderNodeHandleAndAlertType->second == UserAlert::type_d)));
+                ((itToFolderNodeHandleAndAlertType != end(folderAlertTypes))
+                  && (itToFolderNodeHandleAndAlertType->second == UserAlert::type_d));
 
             return (isInFileNodes || isInFolderNodes);
         });
@@ -1457,7 +1458,7 @@ void UserAlerts::convertStashedDeletedSharedNodes()
     LOG_debug << "Removal-alert noted-nodes stashed alert notifications converted to notifications";
 }
 
-bool UserAlerts::isDeletedSharedNodesStashEmpty()
+bool UserAlerts::isDeletedSharedNodesStashEmpty() const
 {
     return deletedSharedNodesStash.empty();
 }
