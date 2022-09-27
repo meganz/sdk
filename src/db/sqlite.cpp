@@ -1126,12 +1126,6 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
 
     assert(name != "");
 
-    // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
-    // (with or without any additional char at the beginning and/or end of the name). The '%' is the wildcard in SQL
-    std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE LOWER(name) LIKE LOWER(?)";
-    // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
-    // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
-
     if (cancelFlag.exists())
     {
         sqlite3_progress_handler(db, NUM_VIRTUAL_MACHINE_INSTRUCTIONS, SqliteAccountState::progressHandler, static_cast<void*>(&cancelFlag));
@@ -1140,6 +1134,14 @@ bool SqliteAccountState::getNodesByName(const std::string &name, std::vector<std
     int sqlResult = SQLITE_OK;
     if (!mStmtNodeByName)
     {
+        // select nodes whose 'name', in lowercase, matches the 'name' received by parameter, in lowercase,
+        // (with or without any additional char at the beginning and/or end of the name). The '%' is the wildcard in SQL
+        // exclude previous versions <- n2.type != FILENODE
+        std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node FROM nodes n1  INNER JOIN nodes n2 on "
+                               "n2.nodehandle = n1.parenthandle where LOWER(n1.name) LIKE LOWER(?) AND n2.type !=";
+        sqlQuery.append(std::to_string(FILENODE));
+        // TODO: lower() works only with ASCII chars. If we want to add support to names in UTF-8, a new
+        // test should be added, in example to search for 'ñam' when there is a node called 'Ñam'
         sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByName, NULL);
     }
 
@@ -1300,11 +1302,12 @@ bool SqliteAccountState::getFavouritesHandles(NodeHandle node, uint32_t count, s
         return false;
     }
 
+    // exclude previous versions <- n2.type != FILENODE
     sqlite3_stmt *stmt = nullptr;
     std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle, fav) AS (SELECT nodehandle, parenthandle, fav "
                            "FROM nodes WHERE parenthandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle, A.fav "
-                           "FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.parenthandle = E.nodehandle)) SELECT * "
-                           "FROM nodesCTE where fav = 1;";
+                           "FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.parenthandle = E.nodehandle)) SELECT n1.nodehandle "
+                           "FROM nodesCTE AS n1 INNER JOIN nodes n2 on n1.parenthandle = n2.nodehandle AND n1.fav=1 AND n2.type!=" + std::to_string(FILENODE);
 
     int sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
