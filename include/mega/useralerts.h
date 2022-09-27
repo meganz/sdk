@@ -304,11 +304,10 @@ private:
     void convertNotedSharedNodes(bool added);
     void clearNotedSharedMembers();
 
-    bool containsRemovedNodeAlert(handle nh, UserAlert::Base* a);
-    UserAlert::RemovedSharedNode* findRemovedNodeAlert(handle nodeHandleToFind, UserAlert::Base* alertToCheck, bool eraseAlert);
+    bool containsRemovedNodeAlert(handle nh, UserAlert::Base* a) const;
     UserAlert::NewSharedNodes* eraseNewNodeAlert(handle nodeHandleToRemove, UserAlert::Base* alertToCheck);
     UserAlert::RemovedSharedNode* eraseRemovedNodeAlert(handle nh, UserAlert::Base* a);
-    notedShNodesMap::iterator findNotedSharedNodeIn(handle nodeHandle, notedShNodesMap& notedSharedNodesMap);
+    notedShNodesMap::iterator findNotedSharedNodeIn(handle nodeHandle, notedShNodesMap& notedSharedNodesMap) const;
     bool isSharedNodeNotedAsRemoved(handle nodeHandleToFind) const;
     bool isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, const notedShNodesMap& notedSharedNodesMap) const;
     bool removeNotedSharedNodeFrom(notedShNodesMap::iterator itToNodeToRemove, Node* node, notedShNodesMap& notedSharedNodesMap);
@@ -343,7 +342,7 @@ public:
     void evalprovisional(handle originatinguser);
 
     // update node alerts management
-    bool isHandleInAlertsAsRemoved(handle nodeHandleToFind);
+    bool isHandleInAlertsAsRemoved(handle nodeHandleToFind) const;
     void removeNodeAlerts(Node* n);
     void setNewNodeAlertToUpdateNodeAlert(Node* n);
 

@@ -1118,7 +1118,7 @@ void UserAlerts::ignoreNextSharedNodesUnder(handle h)
     ignoreNodesUnderShare = h;
 }
 
-UserAlerts::notedShNodesMap::iterator UserAlerts::findNotedSharedNodeIn(handle nodeHandle, notedShNodesMap& notedSharedNodesMap)
+UserAlerts::notedShNodesMap::iterator UserAlerts::findNotedSharedNodeIn(handle nodeHandle, notedShNodesMap& notedSharedNodesMap) const
 {
     using handletoalert_t = UserAlert::handle_alerttype_map_t;
     return find_if(begin(notedSharedNodesMap), end(notedSharedNodesMap),
@@ -1131,29 +1131,13 @@ UserAlerts::notedShNodesMap::iterator UserAlerts::findNotedSharedNodeIn(handle n
                         });
 }
 
-bool UserAlerts::containsRemovedNodeAlert(handle nh, UserAlert::Base* a)
+bool UserAlerts::containsRemovedNodeAlert(handle nh, UserAlert::Base* a) const
 {
-    return (nullptr != findRemovedNodeAlert(nh, a, false));
-}
+    UserAlert::RemovedSharedNode* delNodeAlert = dynamic_cast<UserAlert::RemovedSharedNode*>(a);
+    if (!delNodeAlert) return false;
 
-UserAlert::RemovedSharedNode* UserAlerts::findRemovedNodeAlert(handle nodeHandleToFind, UserAlert::Base* alertToCheck, bool eraseAlert)
-{
-    UserAlert::RemovedSharedNode* ptrDelNodeAlert = dynamic_cast<UserAlert::RemovedSharedNode*>(alertToCheck);
-
-    bool found = false;
-    if (ptrDelNodeAlert)
-    {
-        auto it = find(begin(ptrDelNodeAlert->nodeHandles), end(ptrDelNodeAlert->nodeHandles),
-                            nodeHandleToFind);
-        found = it != end(ptrDelNodeAlert->nodeHandles);
-
-        if (found && eraseAlert)
-        {
-            ptrDelNodeAlert->nodeHandles.erase(it);
-        }
-    }
-
-    return found ? ptrDelNodeAlert : nullptr;
+    return (find(begin(delNodeAlert->nodeHandles), end(delNodeAlert->nodeHandles), nh)
+            != end(delNodeAlert->nodeHandles));
 }
 
 UserAlert::NewSharedNodes* UserAlerts::eraseNewNodeAlert(handle nodeHandleToRemove, UserAlert::Base* alertToCheck)
@@ -1187,7 +1171,18 @@ UserAlert::NewSharedNodes* UserAlerts::eraseNewNodeAlert(handle nodeHandleToRemo
 
 UserAlert::RemovedSharedNode* UserAlerts::eraseRemovedNodeAlert(handle nh, UserAlert::Base* a)
 {
-    return findRemovedNodeAlert(nh, a, true);
+    UserAlert::RemovedSharedNode* ret = dynamic_cast<UserAlert::RemovedSharedNode*>(a);
+
+    if (ret)
+    {
+        auto it = find(begin(ret->nodeHandles), end(ret->nodeHandles), nh);
+        if (it != end(ret->nodeHandles))
+        {
+            ret->nodeHandles.erase(it);
+        }
+    }
+
+    return ret;
 }
 
 bool UserAlerts::isSharedNodeNotedAsRemoved(handle nodeHandleToFind) const
@@ -1288,7 +1283,7 @@ bool UserAlerts::setNotedSharedNodeToUpdate(Node* nodeToChange)
     return false;
 }
 
-bool UserAlerts::isHandleInAlertsAsRemoved(handle nodeHandleToFind)
+bool UserAlerts::isHandleInAlertsAsRemoved(handle nodeHandleToFind) const
 {
     std::function<bool (UserAlert::Base*)> isAlertWithTypeRemoved =
         [nodeHandleToFind, this](UserAlert::Base* alertToCheck)
