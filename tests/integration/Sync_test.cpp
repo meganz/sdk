@@ -2242,8 +2242,7 @@ void StandardClient::setupSync_inThread(const string& drivePath,
 
         LOG_debug << "Asking engine to add the sync...";
 
-        auto result = client.addsync(std::move(config), true, std::move(completion), rootPath + " ");
-        EXPECT_EQ(result, API_OK);
+        client.addsync(std::move(config), true, std::move(completion), rootPath + " ");
     };
 
     // Do we need to upload an ignore file?

@@ -4478,6 +4478,13 @@ void Syncs::saveSyncConfig(const SyncConfig& config)
 {
     if (auto* store = syncConfigStore())
     {
+
+        // If the app hasn't opened this drive itself, then we open it now (loads any syncs that already exist there)
+        if (!config.mExternalDrivePath.empty() && !store->driveKnown(config.mExternalDrivePath))
+        {
+            backupOpenDrive(config.mExternalDrivePath);
+        }
+
         store->markDriveDirty(config.mExternalDrivePath);
     }
 }
