@@ -1205,7 +1205,7 @@ bool UserAlerts::isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind,
     {
         auto itToNotedSharedNodes = find_if(begin(notedSharedNodesMap),
                                                  end(notedSharedNodesMap),
-        [=](const pair<pair<handle, handle>, ff>& element)
+        [nodeHandleToFind](const pair<pair<handle, handle>, ff>& element)
         {
             const handletoalert_t& fileAlertTypes = element.second.alertTypePerFileNode;
             auto itToFileNodeHandleAndAlertType = fileAlertTypes.find(nodeHandleToFind);
@@ -1291,7 +1291,7 @@ bool UserAlerts::setNotedSharedNodeToUpdate(Node* nodeToChange)
 bool UserAlerts::isHandleInAlertsAsRemoved(handle nodeHandleToFind)
 {
     std::function<bool (UserAlert::Base*)> isAlertWithTypeRemoved =
-        [=](UserAlert::Base* alertToCheck)
+        [nodeHandleToFind, this](UserAlert::Base* alertToCheck)
             {
                 return containsRemovedNodeAlert(nodeHandleToFind, alertToCheck);
             };
