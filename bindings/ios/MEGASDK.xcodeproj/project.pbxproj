@@ -26,6 +26,8 @@
 		5B72A14D20D3B3FB007FE4FD /* mega_ccronexpr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5B72A14C20D3B3FB007FE4FD /* mega_ccronexpr.cpp */; };
 		5D830393256232A00082CA18 /* MEGABannerList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5D830392256232A00082CA18 /* MEGABannerList.mm */; };
 		5D830397256240320082CA18 /* MEGABanner.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5D830396256240320082CA18 /* MEGABanner.mm */; };
+		6D6390D128DA7C2C0083F2AF /* MEGASet.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6D6390D028DA7C2C0083F2AF /* MEGASet.mm */; };
+		6D6390D428DA7C460083F2AF /* MEGASetElement.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6D6390D328DA7C460083F2AF /* MEGASetElement.mm */; };
 		7765A76720528445004C2FEB /* mega_evt_tls.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7765A76620528445004C2FEB /* mega_evt_tls.cpp */; };
 		940BEFB719ED92C2007E7FA2 /* attrmap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9819ED92C2007E7FA2 /* attrmap.cpp */; };
 		940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */; };
@@ -165,6 +167,12 @@
 		5D830396256240320082CA18 /* MEGABanner.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGABanner.mm; sourceTree = "<group>"; };
 		5D830399256240A70082CA18 /* MEGABanner+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGABanner+init.h"; sourceTree = "<group>"; };
 		5D83039B256244230082CA18 /* MEGABannerList+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGABannerList+init.h"; sourceTree = "<group>"; };
+		6D6390CF28DA7C2C0083F2AF /* MEGASet.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGASet.h; sourceTree = "<group>"; };
+		6D6390D028DA7C2C0083F2AF /* MEGASet.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGASet.mm; sourceTree = "<group>"; };
+		6D6390D228DA7C460083F2AF /* MEGASetElement.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGASetElement.h; sourceTree = "<group>"; };
+		6D6390D328DA7C460083F2AF /* MEGASetElement.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGASetElement.mm; sourceTree = "<group>"; };
+		6D6390D528DAAECE0083F2AF /* MEGASet+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGASet+init.h"; sourceTree = "<group>"; };
+		6D6390D628DAAEEA0083F2AF /* MEGASetElement+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGASetElement+init.h"; sourceTree = "<group>"; };
 		7765A76620528445004C2FEB /* mega_evt_tls.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = mega_evt_tls.cpp; path = ../../src/mega_evt_tls.cpp; sourceTree = "<group>"; };
 		940BEF9819ED92C2007E7FA2 /* attrmap.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = attrmap.cpp; path = ../../src/attrmap.cpp; sourceTree = "<group>"; };
 		940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = backofftimer.cpp; path = ../../src/backofftimer.cpp; sourceTree = "<group>"; };
@@ -492,6 +500,10 @@
 				A8827A591F176BCA0097B5DE /* MEGATreeProcessorDelegate.h */,
 				940BF08F19EDBD62007E7FA2 /* MEGANode.h */,
 				940BF00119ED97B9007E7FA2 /* MEGANode.mm */,
+				6D6390CF28DA7C2C0083F2AF /* MEGASet.h */,
+				6D6390D028DA7C2C0083F2AF /* MEGASet.mm */,
+				6D6390D228DA7C460083F2AF /* MEGASetElement.h */,
+				6D6390D328DA7C460083F2AF /* MEGASetElement.mm */,
 				940BF09019EDBD62007E7FA2 /* MEGANodeList.h */,
 				940BF00219ED97B9007E7FA2 /* MEGANodeList.mm */,
 				940BF09119EDBD62007E7FA2 /* MEGARequest.h */,
@@ -684,6 +696,8 @@
 				41B2AED71A0A859C006C40FB /* DelegateMEGATransferListener.h */,
 				41B2AED81A0A859C006C40FB /* DelegateMEGATransferListener.mm */,
 				940BF09C19EDBD62007E7FA2 /* MEGAError+init.h */,
+				6D6390D528DAAECE0083F2AF /* MEGASet+init.h */,
+				6D6390D628DAAEEA0083F2AF /* MEGASetElement+init.h */,
 				940BF09E19EDBD62007E7FA2 /* MEGANode+init.h */,
 				940BF0A019EDBD62007E7FA2 /* MEGANodeList+init.h */,
 				940BF0A219EDBD62007E7FA2 /* MEGARequest+init.h */,
@@ -888,6 +902,7 @@
 				940BEFD419ED92C2007E7FA2 /* utils.cpp in Sources */,
 				A87843F5215D078700E809EB /* useralerts.cpp in Sources */,
 				B698890D2198CCE300D0EE89 /* MEGAFileInputStream.mm in Sources */,
+				6D6390D428DA7C460083F2AF /* MEGASetElement.mm in Sources */,
 				940BEFF319ED9351007E7FA2 /* fs.cpp in Sources */,
 				A88722DC1FFE6A8B00E3F443 /* mediafileattribute.cpp in Sources */,
 				A827F4DD204D3D14006A1962 /* MEGAFolderInfo.mm in Sources */,
@@ -895,6 +910,7 @@
 				940BEFC719ED92C2007E7FA2 /* megaclient.cpp in Sources */,
 				B6DAED3728AB1B6000703E28 /* textchat.cpp in Sources */,
 				940BEFEB19ED9351007E7FA2 /* sodium.cpp in Sources */,
+				6D6390D128DA7C2C0083F2AF /* MEGASet.mm in Sources */,
 				41B2AEDB1A0A859C006C40FB /* DelegateMEGARequestListener.mm in Sources */,
 				940BEFBB19ED92C2007E7FA2 /* commands.cpp in Sources */,
 				5B23B77C2164FC7C00600733 /* MEGAUserAlert.mm in Sources */,
