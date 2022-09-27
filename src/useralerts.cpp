@@ -1118,22 +1118,24 @@ void UserAlerts::ignoreNextSharedNodesUnder(handle h)
     ignoreNodesUnderShare = h;
 }
 
-UserAlerts::notedShNodesMap::iterator UserAlerts::findNotedSharedNodeIn(handle nodeHandle, notedShNodesMap& notedSharedNodesMap) const
+pair<bool, UserAlert::handle_alerttype_map_t::difference_type>
+UserAlerts::findNotedSharedNodeIn(handle nodeHandle, const notedShNodesMap& notedSharedNodesMap) const
 {
-    using handletoalert_t = UserAlert::handle_alerttype_map_t;
-    return find_if(begin(notedSharedNodesMap), end(notedSharedNodesMap),
+    auto it = find_if(begin(notedSharedNodesMap), end(notedSharedNodesMap),
                         [nodeHandle](const pair<pair<handle, handle>, ff>& element)
                         {
-                            const handletoalert_t& fileAlertTypes = element.second.alertTypePerFileNode;
-                            const handletoalert_t& folderAlertTypes = element.second.alertTypePerFolderNode;
-                            return ((fileAlertTypes.find(nodeHandle) != end(fileAlertTypes))
-                                    || (folderAlertTypes.find(nodeHandle) != end(folderAlertTypes)));
+                            const auto& fileAlertTypes = element.second.alertTypePerFileNode;
+                            const auto& folderAlertTypes = element.second.alertTypePerFolderNode;
+                            return (std::distance(fileAlertTypes.find(nodeHandle), end(fileAlertTypes))
+                                || std::distance(folderAlertTypes.find(nodeHandle), end(folderAlertTypes)));
                         });
+
+    return make_pair(it != end(notedSharedNodesMap), std::distance(begin(notedSharedNodesMap), it));
 }
 
-bool UserAlerts::containsRemovedNodeAlert(handle nh, UserAlert::Base* a) const
+bool UserAlerts::containsRemovedNodeAlert(handle nh, const UserAlert::Base* a) const
 {
-    UserAlert::RemovedSharedNode* delNodeAlert = dynamic_cast<UserAlert::RemovedSharedNode*>(a);
+    const UserAlert::RemovedSharedNode* delNodeAlert = dynamic_cast<const UserAlert::RemovedSharedNode*>(a);
     if (!delNodeAlert) return false;
 
     return (find(begin(delNodeAlert->nodeHandles), end(delNodeAlert->nodeHandles), nh)
@@ -1253,8 +1255,13 @@ bool UserAlerts::removeNotedSharedNodeFrom(Node* n, notedShNodesMap& notedShared
 {
     if (catchupdone && notingSharedNodes)
     {
-        auto itToStashedNotedSharedNodes = findNotedSharedNodeIn(n->nodehandle, notedSharedNodesMap);
-        return removeNotedSharedNodeFrom(itToStashedNotedSharedNodes, n, notedSharedNodesMap);
+        auto found = findNotedSharedNodeIn(n->nodehandle, notedSharedNodesMap);
+        if (found.first)
+        {
+            auto it = notedSharedNodesMap.begin();
+            std::advance(it, found.second);
+            return removeNotedSharedNodeFrom(it, n, notedSharedNodesMap);
+        }
     }
     return false;
 }
@@ -1265,7 +1272,10 @@ bool UserAlerts::setNotedSharedNodeToUpdate(Node* nodeToChange)
     // noted nodes stash contains only deleted noted nodes, thus, we only check noted nodes map
     if (catchupdone && notingSharedNodes && !notedSharedNodes.empty())
     {
-        auto itToNotedSharedNodes = findNotedSharedNodeIn(nodeToChange->nodehandle, notedSharedNodes);
+        auto found = findNotedSharedNodeIn(nodeToChange->nodehandle, notedSharedNodes);
+        if (!found.first) return false;
+        auto itToNotedSharedNodes = notedSharedNodes.begin();
+        std::advance(itToNotedSharedNodes, found.second);
         if (itToNotedSharedNodes == end(notedSharedNodes)) return false;
 
         add(new UserAlert::UpdatedSharedNode(itToNotedSharedNodes->first.first,

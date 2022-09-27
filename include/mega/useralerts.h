@@ -304,10 +304,11 @@ private:
     void convertNotedSharedNodes(bool added);
     void clearNotedSharedMembers();
 
-    bool containsRemovedNodeAlert(handle nh, UserAlert::Base* a) const;
+    bool containsRemovedNodeAlert(handle nh, const UserAlert::Base* a) const;
     UserAlert::NewSharedNodes* eraseNewNodeAlert(handle nodeHandleToRemove, UserAlert::Base* alertToCheck);
     UserAlert::RemovedSharedNode* eraseRemovedNodeAlert(handle nh, UserAlert::Base* a);
-    notedShNodesMap::iterator findNotedSharedNodeIn(handle nodeHandle, notedShNodesMap& notedSharedNodesMap) const;
+    pair<bool, UserAlert::handle_alerttype_map_t::difference_type>
+        findNotedSharedNodeIn(handle nodeHandle, const notedShNodesMap& notedSharedNodesMap) const;
     bool isSharedNodeNotedAsRemoved(handle nodeHandleToFind) const;
     bool isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, const notedShNodesMap& notedSharedNodesMap) const;
     bool removeNotedSharedNodeFrom(notedShNodesMap::iterator itToNodeToRemove, Node* node, notedShNodesMap& notedSharedNodesMap);
