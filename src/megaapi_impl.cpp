@@ -27127,6 +27127,13 @@ size_t StreamingBuffer::getBitRate() const
     {
         return 0;
     }
+    if (length < duration)
+    {
+        LOG_err << "[Streaming] Getting the bitRate of a file whose length is SMALLER THAN its duration !!!! Media file is likely to be corrupted or invalid."
+                << " [length = " << length << " bytes"
+                << " , duration = " << duration << " secs]";
+        return static_cast<size_t>(1);
+    }
     return length / duration;
 }
 
