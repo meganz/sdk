@@ -14340,52 +14340,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-void MegaClient::cleanupFailedBackup(const string& remotePath)
-{
-    if (!syncs.backupRestrictionsEnabled())
-    {
-        LOG_warn << "Skipping cleanup of remote dir of backup: restrictions disabled";
-        return;
-    }
-
-    Node* n = nodeByPath(remotePath.c_str());
-    if (!n)
-    {
-        return;
-    }
-    if (getrootnode(n)->nodeHandle() != rootnodes.vault)
-    {
-        LOG_err << "Failed to cleanup remote dir of backup "
-                << remotePath
-                << " (path outside Vault).";
-        assert(getrootnode(n)->nodeHandle() == rootnodes.vault);
-        return;
-    }
-    if (!n->children.empty())
-    {
-        LOG_err << "Failed to cleanup remote dir of backup "
-                << remotePath
-                << " (dir not empty).";
-        assert(n->children.empty());
-        return;
-    }
-
-    error errUnlink = unlink(n, false, 0, true, [remotePath](NodeHandle, Error err)
-        {
-            LOG_err << "Failed to cleanup remote dir of external backup "
-                    << remotePath
-                    << " (error " << error(err) << ").";
-        });
-
-    if (errUnlink)
-    {
-        LOG_err << "Failed to cleanup remote dir of backup "
-                << remotePath
-                << " (error " << errUnlink << ").";
-    }
-}
-
-error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
@@ -14401,72 +14356,21 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
     {
         // the cause is already logged in checkSyncConfig
         completion(e, config.mError, UNDEF);
-
-        // A new backup will have its dir created in Vault by now. Let's clean that up.
-        if (config.isBackup())
-        {
-            cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
-        }
-
-        return e;
+        return;
     }
 
     // Are we adding an external backup?
     handle driveId = UNDEF;
     if (config.isExternal())
     {
-        const auto& drivePath = config.mExternalDrivePath;
-        const auto& sourcePath = config.mLocalPath;
-        auto* store = syncs.syncConfigStore();
-
-        // Can we get our hands on the config store?
-        if (!store)
+        const string& p = config.mExternalDrivePath.toPath();
+        e = readDriveId(*fsaccess, p.c_str(), driveId);
+        if (e != API_OK)
         {
-            LOG_err << "Unable to add backup "
-                    << sourcePath
-                    << " on "
-                    << drivePath
-                    << " as there is no config store.";
-
-            completion(API_EINTERNAL, NO_SYNC_ERROR, UNDEF);
-            if (config.isBackup())
-            {
-                cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
-            }
-
-            return API_EINTERNAL;
+            LOG_debug << "readDriveId failed for sync add";
+            completion(e, config.mError, UNDEF);
+            return;
         }
-
-        // Do we already know about this drive?
-        if (!store->driveKnown(drivePath))
-        {
-            // Restore the drive's backups, if any.
-            auto result = syncs.backupOpenDrive(drivePath);
-
-            if (result != API_OK && result != API_ENOENT)
-            {
-                // Couldn't read an existing database.
-                LOG_err << "Unable to add backup "
-                        << sourcePath
-                        << " on "
-                        << drivePath
-                        << " as we could not read its config database.";
-
-                completion(API_EFAILED, NO_SYNC_ERROR, UNDEF);
-                if (config.isBackup())
-                {
-                    cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
-                }
-
-                return API_EFAILED;
-            }
-        }
-
-        driveId = store->driveID(drivePath);
-        assert(driveId != UNDEF);
-
-        config.mExternalDrivePath = std::move(drivePath);
-        config.mLocalPath = std::move(sourcePath);
     }
 
     // Add the sync.
@@ -14483,10 +14387,6 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
             if (e)
             {
                 completion(e, config.mError, backupId);
-                if (config.isBackup())
-                {
-                    cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
-                }
             }
             else
             {
@@ -14502,12 +14402,10 @@ error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<voi
                 completion(e, unifiedSync->mConfig.mError, backupId);
             }
         }));
-
-    return API_OK;
 }
 
 
-error MegaClient::registerbackup(const string& backupName, const string& extDriveRoot, CommandPutNodes::Completion completion)
+void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConfig, UndoFunction revertOnError)> completion)
 {
     // get current user
     User* u = ownuser();
@@ -14516,13 +14414,13 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
     {
         LOG_err << "Add backup: \"My Backups\" folder was not set";
-        return API_EACCESS;
+        return completion(API_EACCESS, sc, nullptr);
     }
     const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
     if (!handleContainerStr)
     {
         LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute had null value";
-        return API_EACCESS;
+        return completion(API_EACCESS, sc, nullptr);
     }
 
     handle h = 0;
@@ -14530,7 +14428,7 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     if (!h || h == UNDEF)
     {
         LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute contained invalid handler value";
-        return API_ENOENT;
+        return completion(API_ENOENT, sc, nullptr);
     }
 
     // get Node of remote "My Backups" folder
@@ -14538,12 +14436,12 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     if (!myBackupsNode)
     {
         LOG_err << "Add backup: \"My Backups\" folder could not be found using the stored handle";
-        return API_ENOENT;
+        return completion(API_ENOENT, sc, nullptr);
     }
 
     // get 'device-id'
     string deviceId;
-    bool isInternalDrive = extDriveRoot.empty();
+    bool isInternalDrive = sc.mExternalDrivePath.empty();
     if (isInternalDrive)
     {
         deviceId = getDeviceidHash();
@@ -14552,11 +14450,11 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     {
         // drive-id must have been already written to external drive, since a name was given to it
         handle driveId;
-        error e = readDriveId(*fsaccess, extDriveRoot.c_str(), driveId);
+        error e = readDriveId(*fsaccess, sc.mExternalDrivePath.toPath().c_str(), driveId);
         if (e != API_OK)
         {
             LOG_err << "Add backup (external): failed to read drive id";
-            return e;
+            return completion(e, sc, nullptr);
         }
 
         // create the device id from the drive id
@@ -14566,7 +14464,7 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     if (deviceId.empty())
     {
         LOG_err << "Add backup: invalid device id";
-        return API_EINCOMPLETE;
+        return completion(API_EINCOMPLETE, sc, nullptr);
     }
 
     // prepare for new nodes
@@ -14579,22 +14477,22 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         attrs.map[attrId] = deviceId;
     };
 
-    // serch for remote folder "My Backups"/`DEVICE_NAME`/
+    // search for remote folder "My Backups"/`DEVICE_NAME`/
     Node* deviceNameNode = childnodebyattribute(myBackupsNode, attrId, deviceId.c_str());
     if (deviceNameNode) // validate this node
     {
         if (deviceNameNode->type != FOLDERNODE)
         {
             LOG_err << "Add backup: device-name node did not have FOLDERNODE type";
-            return API_EACCESS;
+            return completion(API_EACCESS, sc, nullptr);
         }
 
         // make sure there is no folder with the same name as the backup
-        Node* backupNameNode = childnodebyname(deviceNameNode, backupName.c_str());
+        Node* backupNameNode = childnodebyname(deviceNameNode, sc.mName.c_str());
         if (backupNameNode)
         {
-            LOG_err << "Add backup: a backup with the same name (" << backupName << ") already existed";
-            return API_EACCESS;
+            LOG_err << "Add backup: a backup with the same name (" << sc.mName << ") already existed";
+            return completion(API_EACCESS, sc, nullptr);
         }
     }
     else // create `DEVICE_NAME` remote dir
@@ -14604,13 +14502,13 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (!u->isattrvalid(attrType))
         {
             LOG_err << "Add backup: device/drive name not set";
-            return API_EINCOMPLETE;
+            return completion(API_EINCOMPLETE, sc, nullptr);
         }
         const string* deviceNameContainerStr = u->getattr(attrType);
         if (!deviceNameContainerStr)
         {
             LOG_err << "Add backup: null attribute value for device/drive name";
-            return API_EINCOMPLETE;
+            return completion(API_EINCOMPLETE, sc, nullptr);
         }
 
         string deviceName;
@@ -14618,7 +14516,7 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty())
         {
             LOG_err << "Add backup: device/drive name not found";
-            return API_EINCOMPLETE;
+            return completion(API_EINCOMPLETE, sc, nullptr);
         }
 
         // is there a folder with the same device-name already?
@@ -14626,7 +14524,7 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
         if (deviceNameNode)
         {
             LOG_err << "Add backup: new device, but a folder with the same device-name (" << deviceName << ") already existed";
-            return API_EEXIST;
+            return completion(API_EEXIST, sc, nullptr);
         }
 
         // add a new node for it
@@ -14641,7 +14539,7 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
     newnodes.emplace_back();
     NewNode& backupNameNode = newnodes.back();
 
-    putnodes_prepareOneFolder(&backupNameNode, backupName, true);    // backup node should not include dev-id/drv-id
+    putnodes_prepareOneFolder(&backupNameNode, sc.mName, true);    // backup node should not include dev-id/drv-id
     if (!deviceNameNode)
     {
         // Set parent handle if part of the new nodes array (it cannot be from an existing node)
@@ -14650,9 +14548,48 @@ error MegaClient::registerbackup(const string& backupName, const string& extDriv
 
     // create the new node(s)
     putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
-             NoVersioning, move(newnodes), nullptr, reqtag, true, move(completion));  // followup in completion
+             NoVersioning, move(newnodes), nullptr, reqtag, true,
+             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool targetOverride){
 
-    return API_OK;
+                if (e)
+                {
+                    completion(e, sc, nullptr);
+                }
+                else
+                {
+                    handle newBackupNodeHandle = nn.back().mAddedHandle;
+
+                    SyncConfig updatedConfig = sc;
+                    updatedConfig.mRemoteNode.set6byte(newBackupNodeHandle);
+
+                    if (Node* backupRoot = nodeByHandle(updatedConfig.mRemoteNode))
+                    {
+                        updatedConfig.mOriginalPathOfRemoteRootNode = backupRoot->displaypath();
+                    }
+                    else
+                    {
+                        LOG_err << "Node created for backup is missing already";
+                        completion(API_EEXIST, updatedConfig, nullptr);
+                    }
+
+                    // Offer the option to the caller, to remove the new Backup node if a later step fails
+                    UndoFunction undoOnFail = [newBackupNodeHandle, this](std::function<void()> continuation){
+                        if (Node* n = nodebyhandle(newBackupNodeHandle))
+                        {
+                            unlink(n, false, 0, true, [continuation](NodeHandle, Error){
+                                if (continuation) continuation();
+                            });
+                        }
+                        else
+                        {
+                            if (continuation) continuation();
+                        }
+                    };
+
+                    completion(API_OK, updatedConfig, undoOnFail);
+                }
+
+             });
 }
 
 
