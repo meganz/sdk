@@ -1571,7 +1571,9 @@ bool SqliteAccountState::getNodesByMimetype(MimeType_t mimeType, std::vector<std
     int sqlResult = SQLITE_OK;
     if (!mStmtNodeByMimeType)
     {
-        std::string query = "SELECT n1.nodehandle, n1.counter, n1.node FROM nodes n1  INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.mimetype = ? AND n2.type !=";
+        // exclude previous versions <- parent handle is of type != FILENODE
+        std::string query = "SELECT n1.nodehandle, n1.counter, n1.node FROM nodes n1 "
+                "INNER JOIN nodes n2 on n2.nodehandle = n1.parenthandle where n1.mimetype = ? AND n2.type !=";
         query.append(std::to_string(FILENODE));
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &mStmtNodeByMimeType, nullptr);
 
