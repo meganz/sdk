@@ -201,6 +201,11 @@ bool Node::isAncestor(NodeHandle ancestorHandle) const
 
 MimeType_t Node::getMimeType()
 {
+    if (type != FILENODE)
+    {
+        return MimeType_t::MIME_TYPE_UNKNOWN;
+    }
+
     if (client->nodeIsPhoto(this, false))
         return MimeType_t::MIME_TYPE_PHOTO;
     if (client->nodeIsVideo(this))
