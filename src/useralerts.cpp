@@ -1059,12 +1059,10 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n, nam
         ff& f = notedSharedNodes[make_pair(user, n ? n->parenthandle : UNDEF)];
         if (n && type == FOLDERNODE)
         {
-            ++f.folders;
             f.alertTypePerFolderNode[n->nodehandle] = alertType;
         }
         else if (n && type == FILENODE)
         {
-            ++f.files;
             f.alertTypePerFileNode[n->nodehandle] = alertType;
         }
         // there shouldn't be any other types
@@ -1232,17 +1230,15 @@ bool UserAlerts::removeNotedSharedNodeFrom(notedShNodesMap::iterator itToStashed
         ff& f = itToStashedNodeToRemove->second;
         if (nodeToRemove->type == FOLDERNODE)
         {
-            --f.folders;
-            itToStashedNodeToRemove->second.alertTypePerFolderNode.erase(nodeToRemove->nodehandle);
+            f.alertTypePerFolderNode.erase(nodeToRemove->nodehandle);
         }
         else if (nodeToRemove->type == FILENODE)
         {
-            --f.files;
-            itToStashedNodeToRemove->second.alertTypePerFileNode.erase(nodeToRemove->nodehandle);
+            f.alertTypePerFileNode.erase(nodeToRemove->nodehandle);
         }
         // there shouldn't be any other type
 
-        if (!(f.folders + f.files))
+        if (f.alertTypePerFolderNode.empty() && f.alertTypePerFileNode.empty())
         {
             notedSharedNodesMap.erase(itToStashedNodeToRemove);
         }
