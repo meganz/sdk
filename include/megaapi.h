@@ -2312,6 +2312,143 @@ public:
     virtual int size() const;
 };
 
+class MegaScheduledMeeting
+{
+public:
+    virtual ~MegaScheduledMeeting();
+
+    /**
+     * @brief Creates a new instance of MegaScheduledMeeting
+     *
+     * @param chatid        [required]: chat handle
+     * @param callid        [optional]: scheduled meeting handle
+     * @param parentCallid  [optional]: parent scheduled meeting handle
+     * @param cancelled     [optional]: cancelled flag
+     * @param timezone      [required]: timeZone
+     * @param startDateTime [required]: start dateTime (format: 20220726T133000)
+     * @param endDateTime   [required]: end dateTime (format: 20220726T133000)
+     * @param title         [required]: meeting title
+     * @param description   [required]: meeting description
+     * @param attributes    [optional]: attributes to store any additional data
+     * @param overrides     [optional]: start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+     * @param flags         [optional]: flags bitmask (used to store additional boolean settings as a bitmask)
+     * @param rules         [optional]: scheduled meetings rules
+     *
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaScheduledMeeting* createInstance (MegaHandle chatid, MegaHandle callid, MegaHandle parentCallid,
+                                                     int cancelled, const char* timezone, const char* startDateTime,
+                                                     const char* endDateTime, const char* title, const char* description, const char* attributes,
+                                                     const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
+
+    /**
+     * @brief Creates a copy of this MegaScheduledMeeting object
+     *
+     * The resulting object is fully independent of the source MegaScheduledMeeting,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You take the ownership of the returned object
+     *
+     * @return Copy of the MegaScheduledMeeting object
+     */
+    virtual MegaScheduledMeeting* copy();
+
+    /**
+     * @brief Returns if scheduled meeting is cancelled or not
+     *
+     * @return True if scheduled meeting is cancelled, otherwise returns false
+     */
+    virtual int cancelled() const;
+
+    /**
+     * @brief Returns the MegaHandle of the chat
+     *
+     * @return MegaHandle of the chat
+     */
+    virtual MegaHandle chatid() const;
+
+    /**
+     * @brief Returns the MegaHandle that identifies the scheduled meeting
+     *
+     * @return MegaHandle that identifies the scheduled meeting
+     */
+    virtual MegaHandle callid() const;
+
+    /**
+     * @brief Returns the MegaHandle that identifies the parent scheduled meeting
+     *
+     * @return MegaHandle that identifies the parent scheduled meeting
+     */
+    virtual MegaHandle parentCallid() const;
+
+    /**
+     * @brief Returns the time zone B64 encoded
+     *
+     * @return time zone B64 encoded
+     */
+    virtual const char* timezone() const;
+
+    /**
+     * @brief Returns the start dateTime of the scheduled Meeting (format: 20220726T133000)
+     *
+     * @return the start dateTime of the scheduled Meeting
+     */
+    virtual const char* startDateTime() const;
+
+    /**
+     * @brief Returns the end dateTime of the scheduled Meeting (format: 20220726T133000)
+     *
+     * @return the end dateTime of the scheduled Meeting
+     */
+    virtual const char* endDateTime() const;
+
+    /**
+     * @brief Returns the scheduled meeting title B64 encoded
+     *
+     * @return The title of the scheduled meeting B64 encoded
+     */
+    virtual const char* title() const;
+
+    /**
+     * @brief Returns the scheduled meeting description B64 encoded
+     *
+     * @return The description of the scheduled meeting B64 encoded
+     */
+    virtual const char* description() const;
+
+    /**
+     * @brief Returns additional scheduled meetings attributes B64 encoded
+     *
+     * @return Additional scheduled meetings attributes B64 encoded
+     */
+    virtual const char* attributes() const;
+
+    /**
+     * @brief Returns the start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+     *
+     * @return the start dateTime of the original meeting series event to be replaced
+     */
+    virtual const char* overrides() const;
+
+    /**
+     * @brief Returns a pointer to MegaScheduledFlags that contains the scheduled meetings flags
+     *
+     * The SDK retains the ownership of the MegaScheduledFlags
+     *
+     * @return A pointer to MegaScheduledFlags that contains the scheduled meetings flags
+     */
+    virtual MegaScheduledFlags* flags() const;
+
+    /**
+     * @brief Returns a pointer to MegaScheduledRules that contains the scheduled meetings rules
+     *
+     * The SDK retains the ownership of the MegaScheduledRules
+     *
+     * @return A pointer to MegaScheduledRules that contains the scheduled meetings rules
+     */
+    virtual MegaScheduledRules* rules() const;
+};
 /**
  * @brief This class represents a set of meetings flags in a bit mask format, where every flag is represented by 1 bit
  */

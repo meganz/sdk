@@ -6933,6 +6933,33 @@ MegaScheduledMeeting* MegaScheduledMeeting::copy()
     return NULL;
 }
 
+/* Class MegaScheduledMeeting */
+MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, MegaHandle callid, MegaHandle parentCallid,
+                                                                   int cancelled, const char* timezone, const char* startDateTime,
+                                                                   const char* endDateTime, const char* title, const char* description, const char* attributes,
+                                                                   const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules)
+{
+    return new MegaScheduledMeetingPrivate(chatid, timezone, startDateTime, endDateTime, title,
+                                               description, callid, parentCallid, cancelled,
+                                               attributes, overrides, flags, rules);
+}
+
+MegaScheduledMeeting::~MegaScheduledMeeting()                           {}
+int MegaScheduledMeeting::cancelled() const                             { return 0; }
+MegaHandle MegaScheduledMeeting::chatid() const                         { return INVALID_HANDLE; }
+MegaHandle MegaScheduledMeeting::callid() const                         { return INVALID_HANDLE; }
+MegaHandle MegaScheduledMeeting::parentCallid() const                   { return INVALID_HANDLE; }
+MegaScheduledMeeting* MegaScheduledMeeting::copy()                      { return NULL; }
+const char* MegaScheduledMeeting::timezone() const                      { return NULL; }
+const char* MegaScheduledMeeting::startDateTime() const                 { return NULL; }
+const char* MegaScheduledMeeting::endDateTime() const                   { return NULL; }
+const char* MegaScheduledMeeting::title() const                         { return NULL; }
+const char* MegaScheduledMeeting::description() const                   { return NULL; }
+const char* MegaScheduledMeeting::attributes() const                    { return NULL; }
+const char* MegaScheduledMeeting::overrides() const                     { return NULL; }
+MegaScheduledRules* MegaScheduledMeeting::rules() const                 { return NULL; }
+MegaScheduledFlags* MegaScheduledMeeting::flags() const                 { return NULL; }
+
 /* class MegaScheduledFlags */
 MegaScheduledFlags* MegaScheduledFlags::createInstance()
 {

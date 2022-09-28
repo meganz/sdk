@@ -4134,6 +4134,96 @@ private:
     std::unique_ptr<mega::MegaIntegerMap> mByMonthWeekDay;
 };
 
+class MegaScheduledMeetingPrivate: public MegaScheduledMeeting
+{
+public:
+    MegaScheduledMeetingPrivate(MegaHandle chatid,
+                                    const char* timezone,
+                                    const char* startDateTime,
+                                    const char* endDateTime,
+                                    const char* title,
+                                    const char* description,
+                                    MegaHandle callid = INVALID_HANDLE,
+                                    MegaHandle parentCallid = INVALID_HANDLE,
+                                    int cancelled = -1,
+                                    const char* attributes = nullptr,
+                                    const char* overrides = nullptr,
+                                    MegaScheduledFlags* flags = nullptr,
+                                    MegaScheduledRules* rules = nullptr);
+
+    MegaScheduledMeetingPrivate(MegaScheduledMeetingPrivate* scheduledMeeting);
+    virtual ~MegaScheduledMeetingPrivate();
+    MegaScheduledMeetingPrivate* copy();
+
+    void setRules(MegaScheduledRules* rules);
+    void setFlags(MegaScheduledFlags* flags);
+    void setCancelled(int cancelled);
+    void setOverrides(const char* overrides);
+    void setAttributes(const char* attributes);
+    void setDescription(const char* description);
+    void setTitle(const char* title);
+    void setEndDateTime(const char* endDateTime);
+    void setStartDateTime(const char* startDateTime);
+    void setTimezone(const char* timezone);
+    void setParentCallid(MegaHandle parentCallid);
+    void setCallid(MegaHandle callid);
+    void setChatid(MegaHandle chatid);
+
+    MegaHandle chatid() const;
+    MegaHandle callid() const;
+    MegaHandle parentCallid() const;
+    const char* timezone() const;
+    const char* startDateTime() const;
+    const char* endDateTime() const;
+    const char* title() const;
+    const char* description() const;
+    const char* attributes() const;
+    const char* overrides() const;
+    int cancelled() const;
+    MegaScheduledFlags* flags() const;
+    MegaScheduledRules* rules() const;
+
+private:
+    // [required]: chat handle
+    MegaHandle mChatid;
+
+    // [optional]: scheduled meeting handle
+    MegaHandle mCallid;
+
+    // [optional]: parent scheduled meeting handle
+    MegaHandle mParentCallid;
+
+    // [required]: timeZone (B64 encoded)
+    std::string mTimezone;
+
+    // [required]: start dateTime (format: 20220726T133000)
+    std::string mStartDateTime;
+
+    // [required]: end dateTime (format: 20220726T133000)
+    std::string mEndDateTime;
+
+    // [required]: meeting title
+    std::string mTitle;
+
+    // [required]: meeting description
+    std::string mDescription;
+
+    // [optional]: attributes to store any additional data (B64 encoded)
+    std::string mAttributes;
+
+    // [optional]: start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+    std::string mOverrides;
+
+    // [optional]: cancelled flag
+    int mCancelled;
+
+    // [optional]: flags bitmask (used to store additional boolean settings as a bitmask)
+    std::unique_ptr<MegaScheduledFlags> mFlags;
+
+    // [optional]: scheduled meetings rules
+    std::unique_ptr<MegaScheduledRules> mRules;
+};
+
 class MegaScheduledMeetingPrivate: public MegaScheduledMeeting, public ScheduledMeeting
 {
 public:
