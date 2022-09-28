@@ -830,11 +830,12 @@ bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void
 void SdkTest::onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change)
 {
     // if change == -1 this method just checks if we have received onNodesUpdate for the node specified in target
-    ASSERT_TRUE(nodes && mApi.size() > apiIndex && target != INVALID_HANDLE);
+    ASSERT_TRUE(nodes && mApi.size() > apiIndex && (target != INVALID_HANDLE || target == INVALID_HANDLE && change == MegaNode::CHANGE_TYPE_NEW));
     for (int i = 0; i < nodes->size(); i++)
     {
         MegaNode* n = nodes->get(i);
-        if (n->getHandle() == target && (n->hasChanged(change) || change == -1))
+        if ((n->getHandle() == target && (n->hasChanged(change) || change == -1))
+                || (target == INVALID_HANDLE && change == MegaNode::CHANGE_TYPE_NEW && n->hasChanged(change)))
         {
             mApi[apiIndex].nodeUpdated = true;
         }
@@ -2821,13 +2822,40 @@ TEST_F(SdkTest, SdkTestShares)
     // Since the source and target folders belong to different trees, it will attempt to copy+delete
     // (hfile1 copied to rubbish, renamed to "copy", copied back to hfolder2, move
     // Since there is a file with same name and fingerprint, it will skip the copy and will do delete
-    MegaHandle copiedNodeHandle = UNDEF;
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+    MegaHandle copiedNodeHandle = INVALID_HANDLE;
     ASSERT_EQ(API_OK, doCopyNode(1, &copiedNodeHandle, megaApi[1]->getNodeByHandle(hfile2), megaApi[1]->getNodeByHandle(hfolder1), "copy")) << "Copying shared file (not owned) to same place failed";
-    MegaHandle copiedNodeHandleInRubbish = UNDEF;
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    resetOnNodeUpdateCompletionCBs();
+
+    mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+    MegaHandle copiedNodeHandleInRubbish = INVALID_HANDLE;
     ASSERT_EQ(API_OK, doCopyNode(1, &copiedNodeHandleInRubbish, megaApi[1]->getNodeByHandle(copiedNodeHandle), megaApi[1]->getRubbishNode())) << "Copying shared file (not owned) to Rubbish bin failed";
-    MegaHandle copyAndDeleteNodeHandle = UNDEF;
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    resetOnNodeUpdateCompletionCBs();
+
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(copiedNodeHandle, MegaNode::CHANGE_TYPE_REMOVED);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(copiedNodeHandle, MegaNode::CHANGE_TYPE_REMOVED);
+    MegaHandle copyAndDeleteNodeHandle = INVALID_HANDLE;
     ASSERT_EQ(API_OK, doMoveNode(1, &copyAndDeleteNodeHandle, megaApi[0]->getNodeByHandle(copiedNodeHandle), megaApi[1]->getRubbishNode())) << "Moving shared file, same name and fingerprint";
     ASSERT_EQ(megaApi[1]->getNodeByHandle(copiedNodeHandle), nullptr) << "Move didn't delete source file";
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    resetOnNodeUpdateCompletionCBs();
+
 
     // --- Move shared file (not owned) to Rubbish bin ---
     MegaHandle movedNodeHandle = UNDEF;
@@ -5823,7 +5851,7 @@ void SdkTest::resetOnNodeUpdateCompletionCBs()
              [](PerApi& api) { if (api.mOnNodesUpdateCompletion) api.mOnNodesUpdateCompletion = nullptr; });
 }
 
-onNodesUpdateCompletion_t SdkTest::createOnNodesUpdateLambda(MegaHandle& hfolder, int change)
+onNodesUpdateCompletion_t SdkTest::createOnNodesUpdateLambda(const MegaHandle& hfolder, int change)
 {
     return [this, hfolder, change](size_t apiIndex, MegaNodeList* nodes)
            { onNodesUpdateCheck(apiIndex, hfolder, nodes, change); };
