@@ -11719,23 +11719,27 @@ void MegaApiImpl::resumeActionPackets()
 node_vector MegaApiImpl::searchInNodeManager(MegaHandle nodeHandle, const char *searchString, int type, CancelToken cancelToken)
 {
     node_vector nodeVector;
-    if (!searchString)
+
+    if (!searchString || strcmp("", searchString) == 0)
     {
-        return nodeVector;
+        assert(type != MegaApi::FILE_TYPE_DEFAULT);
+        nodeVector = client->mNodeManager.getNodesByMimeType(static_cast<MimeType_t>(type), NodeHandle().set6byte(nodeHandle), cancelToken);
     }
-
-    nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelToken);
-
-    auto it = nodeVector.begin();
-    while (it != nodeVector.end() && !cancelToken.isCancelled())
+    else
     {
-        if (!isValidTypeNode(*it, type))
+        nodeVector = client->mNodeManager.search(NodeHandle().set6byte(nodeHandle), searchString, cancelToken);
+
+        auto it = nodeVector.begin();
+        while (it != nodeVector.end() && !cancelToken.isCancelled())
         {
-            it = nodeVector.erase(it);
-        }
-        else
-        {
-            ++it;
+            if (!isValidTypeNode(*it, type))
+            {
+                it = nodeVector.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
         }
     }
 

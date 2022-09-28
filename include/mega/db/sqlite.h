@@ -80,6 +80,7 @@ public:
     bool isAncestor(mega::NodeHandle node, mega::NodeHandle ancestor, CancelToken cancelFlag) override;
     uint64_t getNumberOfNodes() override;
     uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) override;
+    bool getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized> >& nodes, CancelToken cancelFlag) override;
     bool put(Node* node) override;
     bool remove(mega::NodeHandle nodehandle) override;
     bool removeNodes() override;
@@ -107,6 +108,7 @@ private:
     sqlite3_stmt* mStmtChildren = nullptr;
     sqlite3_stmt* mStmtNumChildren = nullptr;
     sqlite3_stmt* mStmtNodeByName = nullptr;
+    sqlite3_stmt* mStmtNodeByMimeType = nullptr;
     sqlite3_stmt* mStmtNodesByFp = nullptr;
     sqlite3_stmt* mStmtNodeByFp = nullptr;
     sqlite3_stmt* mStmtNodeByOrigFp = nullptr;

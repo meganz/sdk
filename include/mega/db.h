@@ -123,6 +123,7 @@ public:
     virtual bool getNodesWithSharesOrLink(std::vector<std::pair<NodeHandle, NodeSerialized>>&, ShareType_t shareType) = 0;
     virtual bool getFavouritesHandles(NodeHandle node, uint32_t count, std::vector<mega::NodeHandle>& nodes) = 0;
     virtual bool childNodeByNameType(NodeHandle parentHandle, const std::string& name, nodetype_t nodeType, std::pair<NodeHandle, NodeSerialized>& node) = 0;
+    virtual bool getNodesByMimetype(MimeType_t mimeType, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag) = 0;
 
     virtual bool isAncestor(NodeHandle node, NodeHandle ancestror, CancelToken cancelFlag) = 0;
 

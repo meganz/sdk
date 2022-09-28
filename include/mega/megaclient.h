@@ -323,6 +323,8 @@ public:
     node_vector getNodesWithPendingOutShares();
     node_vector getNodesWithLinks();
 
+    node_vector getNodesByMimeType(MimeType_t mimeType, NodeHandle ancestorHandle, CancelToken cancelFlag);
+
     std::vector<NodeHandle> getFavouritesNodeHandles(NodeHandle node, uint32_t count);
     size_t getNumberOfChildrenFromNode(NodeHandle parentHandle);
 
