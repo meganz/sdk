@@ -242,7 +242,7 @@ LogStream::~LogStream()
     }
 }
 
-std::string getCurrentTimestamp()
+std::string getCurrentTimestamp(bool includeDate = false)
 {
     using std::chrono::system_clock;
     auto currentTime = std::chrono::system_clock::now();
@@ -256,7 +256,9 @@ std::string getCurrentTimestamp()
     std::time_t tt;
     tt = system_clock::to_time_t ( currentTime );
     auto timeinfo = localtime (&tt);
-    size_t timeStrSz = strftime (buffer, buffSz,"%H:%M:%S",timeinfo);
+    string fmt = "%H:%M:%S";
+    if (includeDate) fmt = "%Y-%m-%d_" + fmt;
+    size_t timeStrSz = strftime (buffer, buffSz, fmt.c_str(),timeinfo);
     snprintf(buffer + timeStrSz , buffSz - timeStrSz, ":%03d",(int)millis);
 
     return std::string(buffer);

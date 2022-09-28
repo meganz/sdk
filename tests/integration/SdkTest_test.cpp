@@ -1350,6 +1350,8 @@ string getUniqueAlias()
     return alias;
 }
 
+std::string getCurrentTimestamp(bool includeDate);
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -5335,9 +5337,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     LOG_info << "___TEST BackupFolder___";
 
     // get timestamp
-    struct tm tms;
-    char timestamp[32];
-    strftime(timestamp, sizeof timestamp, "%Y%m%d%H%M%S", m_localtime(m_time(), &tms));
+    string timestamp = getCurrentTimestamp(true);
 
     // look for Device Name attr
     string deviceName;
@@ -5348,7 +5348,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
     else
     {
-        deviceName = string("Jenkins ") + timestamp;
+        deviceName = "Jenkins " + timestamp;
         synchronousSetDeviceName(0, deviceName.c_str());
 
         // make sure Device Name attr was set
@@ -5711,13 +5711,8 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
 
-    // get timestamp
-    struct tm tms;
-    char timestamp[32];
-    strftime(timestamp, sizeof timestamp, "%Y%m%d%H%M%S", m_localtime(m_time(), &tms));
-
     // test setter/getter
-    string deviceName = string("SdkDeviceNamesTest") + timestamp;
+    string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
     auto err = synchronousSetDeviceName(0, deviceName.c_str());
     ASSERT_EQ(API_OK, err) << "setDeviceName failed (error: " << err << ")";
     err = synchronousGetDeviceName(0);
@@ -5737,11 +5732,7 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     fs::create_directory(pathToDrive);
 
     // drive name
-    string driveName = "SdkExternalDriveTest_";
-    char today[50];
-    auto rawtime = time(NULL);
-    strftime(today, sizeof today, "%Y-%m-%d_%H:%M:%S", localtime(&rawtime));
-    driveName += today;
+    string driveName = "SdkExternalDriveTest_" + getCurrentTimestamp(true);
 
     // set drive name
     const string& pathToDriveStr = pathToDrive.u8string();
