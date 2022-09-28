@@ -15228,10 +15228,9 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
             case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
-            case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
             {
                 // If attr is CAMERA_UPLOADS_FOLDER determine if we want to retrieve primary or secondary folder
-                // If attr is MY_CHAT_FILES_FOLDER or MY_BACKUPS_FOLDER there's no secondary folder
+                // If attr is MY_CHAT_FILES_FOLDER, there's no secondary folder
                 const char *key = request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                         && request->getFlag()
                             ? "sh"
@@ -15247,11 +15246,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 {
                    handle nodehandle = 0;  // make sure top two bytes are 0
                    Base64::atob(value, (byte*) &nodehandle, MegaClient::NODEHANDLE);
-                   if (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER && !client->nodebyhandle(nodehandle))
-                   {
-                       LOG_warn << "'My Backups' node was missing, or invalid handle in USER_ATTR_MY_BACKUPS_FOLDER";
-                       e = API_ENOENT; // should probably apply to all folders here
-                   }
                    request->setNodeHandle(nodehandle);
                 }
                 break;
