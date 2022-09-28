@@ -510,10 +510,23 @@ error MegaClient::setbackupfolder(const char* foldername, int tag, std::function
     }
 
     User* u = ownuser();
-    if (!u || u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    if (!u)
     {
-        // cannot set a new folder if not logged in or it already exists
-        return API_EEXIST;
+        return API_EACCESS; // not logged in?
+    }
+
+    if (u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    {
+        // if the attribute was previously set, only allow setting it again if the folder node was missing
+        // (should never happen, but it already did)
+        const string* buf = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+        handle h = 0;
+        memcpy(&h, buf->data(), NODEHANDLE);
+        if (nodebyhandle(h))
+        {
+            // cannot set a new folder if it already exists
+            return API_EEXIST;
+        }
     }
 
     // 1. prepare the NewNode and create it via putnodes(), with flag `vw:1`
@@ -6253,8 +6266,9 @@ void MegaClient::sc_userattr()
                                     case ATTR_MY_BACKUPS_FOLDER:
                                     // there should be no actionpackets for this attribute. It is
                                     // created and never updated afterwards
-                                    assert(type != ATTR_MY_BACKUPS_FOLDER);
+                                    LOG_err << "The node handle for My backups folder has changed";
                                     //fall-through
+
                                     case ATTR_AUTHRING:              // fall-through
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
