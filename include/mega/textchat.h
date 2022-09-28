@@ -92,6 +92,13 @@ public:
         bool options : 1;
     } changed;
 
+    // maps a scheduled meeting id (schedMeetingId) to a scheduled meeting
+    // a scheduled meetings allows the user to specify an event that will occur in the future (check ScheduledMeeting class documentation)
+    map<handle/*schedMeetingId*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
+
+    // maps a scheduled meeting id (schedMeetingId) to a bitmap with the updates for that scheduled meeting
+    std::map<handle /*sched meeting id*/, ScheduledMeeting::sched_bs_t> mSchedMeetingsChanged;
+
     // return false if failed
     bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
     bool addOrUpdateChatOptions(int speakRequest = -1, int waitingRoom = -1, int openInvite = -1);
@@ -105,9 +112,10 @@ public:
     void clearSchedMeetingOccurrences();
 
     // scheduled meetings
-    void addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
-    void addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
-    void removeSchedMeeting(handle callid);
+    bool addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
+    bool addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
+    bool removeSchedMeeting(handle callid);
+    bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
     ScheduledMeeting* getSchedMeetingById(handle id);
 };
 

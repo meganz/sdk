@@ -7005,6 +7005,10 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                             reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, nullptr, nullptr, -1,
                                                                                      [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
                         }
+                        else
+                        {
+                            LOG_warn << "Skipping fetch scheduled meetings occurrences for chat: " << Base64Str<MegaClient::CHATHANDLE>(chatid) << ", due to scheduled meetings fetching error";
+                        }
                     }));
 
                     chat->setTag(0);    // external change
@@ -7587,6 +7591,7 @@ void MegaClient::notifypurge(void)
             chat->notified = false;
             chat->resetTag();
             memset(&(chat->changed), 0, sizeof(chat->changed));
+            chat->mSchedMeetingsChanged.clear();
         }
 
         chatnotify.clear();
@@ -9648,7 +9653,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     auxMeet->setChatid(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;
                 }
-                case MAKENAMEID2('i', 'd'):  // callid
+                case MAKENAMEID2('i', 'd'):  // scheduled meeting id (callid)
                 {
                     auxMeet->setCallid(auxJson->gethandle(MegaClient::CHATHANDLE));
                     break;

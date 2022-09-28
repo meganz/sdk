@@ -886,6 +886,7 @@ void ScheduledFlags::setEmailsDisabled(bool enabled)
 unsigned long ScheduledFlags::getNumericValue()             { return mFlags.to_ulong(); }
 bool ScheduledFlags::EmailsDisabled() const                 { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
 bool ScheduledFlags::isEmpty() const                        { return mFlags.none(); }
+bool ScheduledFlags::equalTo(const ScheduledFlags* f) const { return mFlags.to_ulong() == f->mFlags.to_ulong();}
 
 bool ScheduledFlags::serialize(string* out)
 {
@@ -987,7 +988,7 @@ bool ScheduledRules::isValid() const
     return isValidFreq(mFreq);
 }
 
-const char* ScheduledRules::freqToString ()
+const char* ScheduledRules::freqToString () const
 {
     switch (mFreq)
     {
@@ -996,6 +997,16 @@ const char* ScheduledRules::freqToString ()
         case 2: return "MONTHLY";
         default: return nullptr;
     }
+}
+
+bool ScheduledRules::equalTo(mega::ScheduledRules *r)
+{
+    return mFreq == r->freq()
+            && mInterval == r->interval()
+            && !mUntil.compare(r->until())
+            && std::equal(mByWeekDay->begin(), mByWeekDay->end(), r->byWeekDay()->begin())
+            && std::equal(mByMonthDay->begin(), mByMonthDay->end(), r->byMonthDay()->begin())
+            && std::equal(mByMonthWeekDay->begin(), mByMonthWeekDay->end(), r->byMonthWeekDay()->begin());
 }
 
 int ScheduledRules::stringToFreq (const char* freq)
@@ -1267,6 +1278,24 @@ bool ScheduledMeeting::isValid() const
             && (!mRules || mRules->isValid());
 }
 
+ScheduledMeeting::sched_bs_t ScheduledMeeting::compare(ScheduledMeeting* sm) const
+{
+    // scheduled meeting Handle and chatroom can't change
+    sched_bs_t bs = 0;
+    if (parentCallid() != sm->parentCallid())            { bs[SC_PARENT] = 1; }
+    if (timezone() != sm->timezone())                    { bs[SC_TZONE] = 1; }
+    if (!strcmp(startDateTime(), sm->startDateTime()))   { bs[SC_START] = 1; }
+    if (!strcmp(endDateTime(), sm->endDateTime()))       { bs[SC_END] = 1; }
+    if (!strcmp(title(), sm->title()))                   { bs[SC_TITLE] = 1; }
+    if (!strcmp(description(), sm->description()))       { bs[SC_DESC] = 1; }
+    if (!strcmp(attributes(), sm->attributes()))         { bs[SC_ATTR] = 1; }
+    if (!strcmp(overrides(), sm->overrides()))           { bs[SC_OVERR] = 1; }
+    if (cancelled() != sm->cancelled())                  { bs[SC_CANC] = 1; }
+    if (!flags()->equalTo(sm->flags()))                  { bs[SC_FLAGS] = 1; }
+    if (!rules()->equalTo(sm->rules()))                  { bs[SC_RULES] = 1; }
+    return bs;
+}
+
 bool ScheduledMeeting::serialize(string* out)
 {
     //assert(out && !out->empty());
@@ -1376,7 +1405,6 @@ ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
                                 hasOverrides ? overrides.c_str() : nullptr,
                                 flags.get(), rules.get());
 }
-
 #endif
 
 /**

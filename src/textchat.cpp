@@ -22,6 +22,7 @@
 #include "mega/textchat.h"
 #include "mega/utils.h"
 #include "mega/megaclient.h"
+#include "mega/base64.h"
 
 namespace mega {
 
@@ -508,20 +509,70 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
     return nullptr;
 }
 
-void TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
+bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
 {
+    assert(sm);
+    if (mScheduledMeetings.find(sm->callid()) != mScheduledMeetings.end())
+    {
+        LOG_err << "addSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(sm->callid()) << " already exits";
+        return false;
+    }
+
+    // Set all bits to 1
+    auto bs = ScheduledMeeting::sched_bs_t{}.set();
+    mSchedMeetingsChanged[sm->callid()] = bs;
     mScheduledMeetings.emplace(sm->callid(), std::move(sm));
+    return true;
 }
 
-void TextChat::removeSchedMeeting(handle callid)
+bool TextChat::removeSchedMeeting(handle callid)
 {
+    assert(callid != UNDEF);
+    if (mScheduledMeetings.find(callid) == mScheduledMeetings.end())
+    {
+        LOG_err << "removeSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(callid) << " doesn't exists anymore";
+        return false;
+    }
+
     mScheduledMeetings.erase(callid);
+    ScheduledMeeting::sched_bs_t bs = 0;
+    mSchedMeetingsChanged[callid] = bs;
+    return true;
 }
 
-void TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
+bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
 {
-    removeSchedMeeting(sm->callid());
-    addSchedMeeting(std::move(sm));
+    assert(sm);
+    auto it = mScheduledMeetings.find(sm->callid());
+    if (it == mScheduledMeetings.end())
+    {
+        LOG_err << "updateSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(sm->callid()) << " doesn't exists anymore";
+        return false;
+    }
+
+    // compare current scheduled meeting with received from API
+    ScheduledMeeting::sched_bs_t bs = sm->compare(it->second.get());
+    if (bs.any()) // if changed add to changed map and update in ram
+    {
+        mSchedMeetingsChanged[sm->callid()] = bs;
+        it->second = std::move(sm);
+    }
+
+    return true;
+}
+
+bool TextChat::addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
+{
+    if (!sm)
+    {
+        LOG_err << "addOrUpdateSchedMeeting: invalid scheduled meeting provided";
+        assert(false);
+        return false;
+    }
+
+    return mScheduledMeetings.find(sm->callid()) == mScheduledMeetings.end()
+            ? addSchedMeeting(std::move(sm))
+            : updateSchedMeeting(std::move(sm));
 }
 
 bool TextChat::setMode(bool publicchat)

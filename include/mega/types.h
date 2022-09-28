@@ -764,6 +764,7 @@ class ScheduledFlags
         unsigned long getNumericValue();
         bool EmailsDisabled() const;
         bool isEmpty() const;
+        bool equalTo(const ScheduledFlags*) const;
 
         // serialization
         bool serialize(string* out);
@@ -816,7 +817,8 @@ class ScheduledRules
         const rules_vector* byMonthDay();
         const rules_map* byMonthWeekDay();
         bool isValid() const;
-        const char* freqToString();
+        const char* freqToString() const;
+        bool equalTo(ScheduledRules*);
         static int stringToFreq (const char* freq);
         static bool isValidFreq(int freq)         { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
         static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
@@ -848,6 +850,24 @@ class ScheduledRules
 class ScheduledMeeting
 {
 public:
+    typedef enum
+    {
+        SC_PARENT           = 0,
+        SC_TZONE            = 1,
+        SC_START            = 2,
+        SC_END              = 3,
+        SC_TITLE            = 4,
+        SC_DESC             = 5,
+        SC_ATTR             = 6,
+        SC_OVERR            = 7,
+        SC_CANC             = 8,
+        SC_FLAGS            = 9,
+        SC_RULES            = 10,
+        SC_SIZE             = 11,
+    } scheduled_changed_flags_t;
+
+    typedef std::bitset<SC_SIZE> sched_bs_t;
+
     ScheduledMeeting();
     ScheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
                      const char* title, const char* description, handle organizerUserId, handle callid = UNDEF,
@@ -896,6 +916,9 @@ public:
     ScheduledFlags* flags() const;
     ScheduledRules* rules() const;
     bool isValid() const;
+
+    // compare 2 scheduled meetings objects and returns the differences in a bitset
+    sched_bs_t compare(ScheduledMeeting* sm) const;
 
     // serialization
     bool serialize(string* out);
