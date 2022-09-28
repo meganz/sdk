@@ -10701,18 +10701,17 @@ void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, 
 }
 
 void MegaApiImpl::createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                         const char* description, int freq, MegaHandle organizerUserId, MegaHandle callid, MegaHandle parentCallid,
+                                         const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                                          int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                         const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
-                                         const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener)
+                                         const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                                         const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
-    std::unique_ptr<MegaScheduledMeeting> schedMeeting(MegaScheduledMeeting::createInstance(chatid, timezone, startDate, endDate,
-                                                                                            title, description, freq, organizerUserId,
-                                                                                            callid, parentCallid, cancelled, emailsDisabled,
-                                                                                            attributes, overrides, interval, until,
-                                                                                            byWeekDay, byMonthDay, byMonthWeekDay));
 
+    std::unique_ptr<MegaScheduledFlags> flags(MegaScheduledFlags::createInstance(emailsDisabled));
+    std::unique_ptr<MegaScheduledRules> rules(MegaScheduledRules::createInstance(freq, interval, until, byWeekDay, byMonthDay, byMonthWeekDay));
+    std::unique_ptr<MegaScheduledMeeting> schedMeeting(MegaScheduledMeeting::createInstance(chatid, callid, parentCallid, cancelled, timezone, startDate,
+                                                                                       endDate, title, description, attributes, overrides, flags.get(), rules.get()));
     request->setScheduledMeetings(schedMeeting.get());
     requestQueue.push(request);
     waiter->notify();
@@ -33275,9 +33274,9 @@ void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)
     mFlags[FLAGS_DONT_SEND_EMAILS] = enabled;
 }
 
-unsigned long MegaScheduledFlagsPrivate::getNumericValue() const       { return mFlags.to_ulong();}
-bool MegaScheduledFlagsPrivate::EmailsDisabled() const                 { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
-bool MegaScheduledFlagsPrivate::isEmpty() const                        { return mFlags.none(); }
+unsigned long MegaScheduledFlagsPrivate::getNumericValue() const        { return mFlags.to_ulong();}
+bool MegaScheduledFlagsPrivate::EmailsDisabled() const                  { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
+bool MegaScheduledFlagsPrivate::isEmpty() const                         { return mFlags.none(); }
 ScheduledFlags* MegaScheduledFlagsPrivate::getSdkScheduledFlags() const { return new ScheduledFlags(getNumericValue()); }
 
 /* Class MegaScheduledRulesPrivate */

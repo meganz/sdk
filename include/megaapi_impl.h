@@ -2941,10 +2941,10 @@ class MegaApiImpl : public MegaApp
         void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
         void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
         void createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                                 const char* description, int freq, MegaHandle organizerUserId, MegaHandle callid, MegaHandle parentCallid,
+                                                 const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                                                  int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                                 const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
-                                                 const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
+                                                 const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                                                 const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
         void removeScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener = NULL);
         void fetchScheduledMeeting(MegaHandle chatid, MegaHandle schedMeetingId, MegaRequestListener* listener = NULL);
         void fetchScheduledMeetingEvents(MegaHandle chatid, const char *since, const char* until, int count, MegaRequestListener* listener = NULL);

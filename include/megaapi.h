@@ -2700,7 +2700,7 @@ public:
 };
 
 /**
- * @brief Map of integer values with integer keys (map<long long, long long>)
+ * @brief Map (multimap) of integer values with integer keys (map<long long, long long>)
  */
 class MegaIntegerMap
 {
@@ -18332,10 +18332,10 @@ class MegaApi
          * TODO complete documentation
          */
         void createScheduledMeeting(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                                 const char* description, int freq, MegaHandle organizerUserId, MegaHandle callid, MegaHandle parentCallid,
+                                                 const char* description, int freq, MegaHandle callid, MegaHandle parentCallid,
                                                  int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                                 const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay,
-                                                 const MegaSmallIntMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
+                                                 const char* until, const MegaIntegerList* byWeekDay, const MegaIntegerList* byMonthDay,
+                                                 const MegaIntegerMap* byMonthWeekDay, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Removes a scheduled meeting
