@@ -906,8 +906,9 @@ public:
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @param completion Completion function
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
+     * Completion is used to signal success/failure.  That may occur during this call, or in future (after server request/reply etc)
      */
-    error addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
 
     /**
      * @brief
@@ -929,8 +930,11 @@ public:
      * API_ENOENT if "My Backups" handle was invalid or its Node was missing.
      * API_EINCOMPLETE if device-id or device-name could not be obtained
      * Any error returned by readDriveId(), in case of external drive.
+     * Registration occurs later, during addsync(), not in this function.
+     * UndoFunction will be passed on completion, the caller can use it to remove the new backup cloud node if there is a later failure.
      */
-    error registerbackup(const string& bkpName, const string& extDriveRoot, CommandPutNodes::Completion completion = nullptr);
+    typedef std::function<void(std::function<void()> continuation)> UndoFunction;
+    void preparebackup(SyncConfig, std::function<void(Error, SyncConfig, UndoFunction revertOnError)>);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
@@ -969,10 +973,6 @@ public:
 private:
     void ensureSyncUserAttributesCompleted(Error e);
     std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
-
-    // remove the backup folder created for a new backup, when creation fails
-    // (no-op if folder not found, not empty, not in Vault or backup restrictions are disabled)
-    void cleanupFailedBackup(const string& remotePath);
 
 public:
 

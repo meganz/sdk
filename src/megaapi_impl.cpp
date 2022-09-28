@@ -15114,7 +15114,8 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
             {
                 e = API_EEXIST;
-                LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value";
+                LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (2): "
+                    << Base64::atob(newValuesMap->begin()->second); // will only have a single value
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }
             else if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
@@ -19855,7 +19856,8 @@ void MegaApiImpl::sendPendingRequests()
                     haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
                 {
                     e = API_EEXIST;
-                    LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value";
+                    LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (1): "
+                        << Base64::atob(newValuesMap->begin()->second); // will only have a single value
                 }
                 else if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
                 {
@@ -21272,10 +21274,21 @@ void MegaApiImpl::sendPendingRequests()
 #ifdef ENABLE_SYNC
         case MegaRequest::TYPE_ADD_SYNC:
         {
+            SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
+
             const string& localPath = request->getFile() ? request->getFile() : string();
             if (localPath.empty())
             {
                 LOG_debug << "Error: empty local path";
+                e = API_EARGS;
+                break;
+            }
+
+            Node* node = client->nodebyhandle(request->getNodeHandle());
+            if (type != SyncConfig::TYPE_BACKUP &&
+                (!node || (node->type == FILENODE)))
+            {
+                LOG_debug << "Node not found for sync add";
                 e = API_EARGS;
                 break;
             }
@@ -21285,14 +21298,32 @@ void MegaApiImpl::sendPendingRequests()
             const string& syncName = name ? name : localPathLP.leafOrParentName();
             const auto& drivePath = request->getLink() ? LocalPath::fromAbsolutePath(request->getLink()) : LocalPath();
 
-            SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
+            SyncConfig syncConfig(localPathLP,
+                syncName, NodeHandle(), "",
+                0, drivePath, true, type);
+
+
             if (type == SyncConfig::TYPE_BACKUP)
             {
-                e = addBackupByRequest(request, syncName, localPathLP, drivePath);
+                // for backups, we create the node to sync to, then call addsync()
+                client->preparebackup(syncConfig, [this, request](Error e, SyncConfig backupConfig, MegaClient::UndoFunction revertOnError){
+                    if (e)
+                    {
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    }
+                    else
+                    {
+                        request->setNodeHandle(backupConfig.mRemoteNode.as8byte());
+                        addSyncByRequest(request, backupConfig, revertOnError);
+                    }
+                });
             }
             else
             {
-                e = addSyncByRequest(request, syncName, localPathLP, drivePath, SyncConfig::TYPE_TWOWAY);
+                // for syncs, the node to sync to already exists
+                syncConfig.mRemoteNode = NodeHandle().set6byte(request->getNodeHandle());
+                syncConfig.mOriginalPathOfRemoteRootNode = node->displaypath();
+                addSyncByRequest(request, syncConfig, nullptr);
             }
 
             break;
@@ -23057,36 +23088,37 @@ void MegaApiImpl::sendPendingRequests()
 }
 
 #ifdef ENABLE_SYNC
-error MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, const string& syncName,
-                                    const LocalPath& localPath, const LocalPath& drivePath,
-                                    const SyncConfig::Type syncType)
+void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncConfig, MegaClient::UndoFunction revertOnError)
 {
-    Node* node = client->nodebyhandle(request->getNodeHandle());
-    if (!node || (node->type == FILENODE))
-    {
-        LOG_debug << "Node not found for sync add";
-        return API_EARGS;
-    }
-
-    SyncConfig syncConfig(localPath,
-        syncName, NodeHandle().set6byte(request->getNodeHandle()), node->displaypath(),
-        0, drivePath, true, syncType);
-
     client->addsync(move(syncConfig), false,
-        [this, request](error e, SyncError se, handle backupId)
+        [this, request, revertOnError](error e, SyncError se, handle backupId)
         {
+            request->setNumDetails(se);
+
             SyncConfig createdConfig;
             bool found = client->syncs.syncConfigByBackupId(backupId, createdConfig);
 
-            request->setNumDetails(se);
-
-            if (!e && !found)
+            if (!found)
             {
-                LOG_debug << "Correcting error to API_ENOENT for sync add";
-                e = API_ENOENT;
-            }
+                if (!e)
+                {
+                    LOG_debug << "Correcting error to API_ENOENT for sync add";
+                    e = API_ENOENT;
+                }
 
-            if (found)
+                if (revertOnError)
+                {
+                    // deletes backup root node, if we created one but then couldn't finish configuring
+                    revertOnError([this, request, e](){
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    });
+                }
+                else
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }
+            }
+            else
             {
                 request->setNumber(createdConfig.mFilesystemFingerprint);
                 request->setParentHandle(backupId);
@@ -23095,33 +23127,9 @@ error MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, const string& s
                     createdConfig.mRunningState >= 0, client);
 
                 fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }, "");
-
-    return API_OK;
-}
-
-error MegaApiImpl::addBackupByRequest(MegaRequestPrivate* request, const string& syncName,
-                                      const LocalPath& localPath, const LocalPath& drivePath)
-{
-    CommandPutNodes::Completion thenAddSync = [request, syncName, localPath, drivePath, this]
-    (const Error& e, targettype_t, vector<NewNode>& nn, bool /*targetOverride*/)
-    {
-        error err = e;
-        if (err == API_OK)
-        {
-            request->setNodeHandle(nn.back().mAddedHandle);
-            err = addSyncByRequest(request, syncName, localPath, drivePath, SyncConfig::TYPE_BACKUP);
-        }
-
-        if (err != API_OK)
-        {
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(err));
-        }
-    };
-
-    return client->registerbackup(syncName, drivePath.toPath(), thenAddSync);
 }
 #endif
 
@@ -26927,6 +26935,13 @@ size_t StreamingBuffer::getBitRate() const
     if (!duration)
     {
         return 0;
+    }
+    if (length < duration)
+    {
+        LOG_err << "[Streaming] Getting the bitRate of a file whose length is SMALLER THAN its duration !!!! Media file is likely to be corrupted or invalid."
+                << " [length = " << length << " bytes"
+                << " , duration = " << duration << " secs]";
+        return static_cast<size_t>(1);
     }
     return length / duration;
 }
