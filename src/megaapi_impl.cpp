@@ -15162,7 +15162,8 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
             {
                 e = API_EEXIST;
-                LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value";
+                LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (2): "
+                    << Base64::atob(newValuesMap->begin()->second); // will only have a single value
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }
             else if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
@@ -19996,7 +19997,8 @@ void MegaApiImpl::sendPendingRequests()
                     haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
                 {
                     e = API_EEXIST;
-                    LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value";
+                    LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (1): "
+                        << Base64::atob(newValuesMap->begin()->second); // will only have a single value
                 }
                 else if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
                 {
