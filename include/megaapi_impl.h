@@ -4078,6 +4078,7 @@ public:
     // getters
     bool EmailsDisabled() const override;
     bool isEmpty() const override;
+    ScheduledFlags* getSdkScheduledFlags() const;
 
 private:
     std::bitset<FLAGS_SIZE> mFlags = 0;
@@ -4113,6 +4114,7 @@ public:
     const mega::MegaIntegerMap* byMonthWeekDay() override;
     static bool isValidFreq(int freq) { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
     static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
+    ScheduledRules* getSdkScheduledRules() const;
 
 private:
     // [required]: scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
@@ -4182,6 +4184,7 @@ public:
     int cancelled() const;
     MegaScheduledFlags* flags() const;
     MegaScheduledRules* rules() const;
+    ScheduledMeeting* getSdkScheduledMeeting() const;
 
 private:
     // [required]: chat handle

@@ -23435,7 +23435,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, schedMeeting, [chatid, request, this] (Error e)
+            unique_ptr<ScheduledMeeting>aux_sched(schedMeeting->getSdkScheduledMeeting());
+            client->reqs.add(new CommandScheduledMeetingAddOrUpdate(client, aux_sched.get(), [chatid, request, this] (Error e)
             {
                 textchat_map::iterator it = client->chats.find(chatid);
                 if (!e && it != client->chats.end())
@@ -33277,6 +33278,7 @@ void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)
 unsigned long MegaScheduledFlagsPrivate::getNumericValue() const       { return mFlags.to_ulong();}
 bool MegaScheduledFlagsPrivate::EmailsDisabled() const                 { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
 bool MegaScheduledFlagsPrivate::isEmpty() const                        { return mFlags.none(); }
+ScheduledFlags* MegaScheduledFlagsPrivate::getSdkScheduledFlags() const { return new ScheduledFlags(getNumericValue()); }
 
 /* Class MegaScheduledRulesPrivate */
 MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(int freq,
@@ -33390,6 +33392,38 @@ const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byWeekDay()           
 const ::mega::MegaIntegerList* MegaScheduledRulesPrivate::byMonthDay()          { return mByMonthDay.get(); }
 const ::mega::MegaIntegerMap* MegaScheduledRulesPrivate::byMonthWeekDay()       { return mByMonthWeekDay.get(); }
 
+ScheduledRules* MegaScheduledRulesPrivate::getSdkScheduledRules() const
+{
+    MegaSmallIntVector* auxByWeekDay = nullptr;
+    MegaSmallIntVector* auxByMonthDay = nullptr;
+    MegaSmallIntMap* auxByMonthWeekDay = nullptr;
+
+    if (mByWeekDay)
+    {
+        const vector<int64_t>* inByWeekDay = static_cast<const MegaIntegerListPrivate *>(mByWeekDay.get())->getList();
+        auxByWeekDay = new MegaSmallIntVector();
+        auxByWeekDay->reserve(inByWeekDay->size());
+        std::transform(inByWeekDay->begin(), inByWeekDay->end(), std::back_inserter(*auxByWeekDay), [](int64_t x) { return static_cast<uint8_t>(x);});
+    }
+
+    if (mByMonthDay)
+    {
+        const vector<int64_t>* inByMonthDay = static_cast<const MegaIntegerListPrivate *>(mByMonthDay.get())->getList();
+        auxByMonthDay = new MegaSmallIntVector();
+        auxByMonthDay->reserve(inByMonthDay->size());
+        std::transform(inByMonthDay->begin(), inByMonthDay->end(), std::back_inserter(*auxByMonthDay), [](int64_t x) { return static_cast<uint8_t>(x);});
+    }
+
+    if (mByMonthWeekDay)
+    {
+        auxByMonthWeekDay = new MegaSmallIntMap();
+        const multimap<int64_t, int64_t>* inaux = static_cast<const MegaIntegerMapPrivate *>(mByMonthWeekDay.get())->getMap();
+        auxByMonthWeekDay->insert(inaux->begin(), inaux->end());
+    }
+
+    return new ScheduledRules(mFreq, mInterval, mUntil.c_str(), auxByWeekDay, auxByMonthDay, auxByMonthWeekDay);
+}
+
 /* Class MegaScheduledMeetingPrivate */
 MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
                                                                   const char* title, const char* description, MegaHandle callid, MegaHandle parentCallid,
@@ -33474,6 +33508,16 @@ const char* MegaScheduledMeetingPrivate::overrides() const                      
 int MegaScheduledMeetingPrivate::cancelled() const                              { return mCancelled;}
 MegaScheduledFlags* MegaScheduledMeetingPrivate::flags() const                  { return mFlags.get();}
 MegaScheduledRules* MegaScheduledMeetingPrivate::rules() const                  { return mRules.get();}
+
+ScheduledMeeting* MegaScheduledMeetingPrivate::getSdkScheduledMeeting() const
+{
+    unique_ptr<ScheduledFlags> flags(static_cast<MegaScheduledFlagsPrivate*>(mFlags.get())->getSdkScheduledFlags());
+    unique_ptr<ScheduledRules> rules(static_cast<MegaScheduledRulesPrivate*>(mRules.get())->getSdkScheduledRules());
+    return new ScheduledMeeting(mChatid, mTimezone.c_str(), mStartDateTime.c_str(), mEndDateTime.c_str(),
+                     mTitle.c_str(), mDescription.c_str(), INVALID_HANDLE /*organizerUserId*/, mCallid,
+                     mParentCallid, mCancelled, mAttributes.c_str(), mOverrides.c_str(), flags.get(), rules.get());
+}
+
 #endif
 
 MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber)
