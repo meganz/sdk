@@ -309,7 +309,7 @@ protected:
     void onEvent(MegaApi* api, MegaEvent *event) override;
 
     void resetOnNodeUpdateCompletionCBs();
-    onNodesUpdateCompletion_t createOnNodesUpdateLambda(MegaHandle&, int);
+    onNodesUpdateCompletion_t createOnNodesUpdateLambda(const MegaHandle&, int);
 public:
     //void login(unsigned int apiIndex, int timeout = maxTimeout);
     //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
