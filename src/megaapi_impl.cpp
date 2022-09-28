@@ -33055,6 +33055,11 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->chatOptions = chat->chatOptions;
     this->changed = 0;
 
+    for (auto it = chat->mScheduledMeetings.begin(); it != chat->mScheduledMeetings.end(); it++)
+    {
+        mScheduledMeetings.insert(new MegaScheduledMeetingPrivate(it->second.get()));
+    }
+
     if (chat->changed.attachments)
     {
         changed |= MegaTextChat::CHANGE_TYPE_ATTACHMENT;
@@ -33309,7 +33314,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(ScheduledRules* rules)
 {
     mFreq = isValidFreq(rules->freq()) ? rules->freq() : FREQ_INVALID;
     mInterval = isValidInterval(rules->interval()) ? rules->interval() : INTERVAL_INVALID;
-    mUntil = rules->until() ? rules->until() : nullptr;
+    mUntil = rules->until() ? rules->until() : std::string();
 
     std::vector<int64_t>* auxByWeekDay = nullptr;
     if (rules->byWeekDay())
@@ -33461,6 +33466,23 @@ MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaScheduledMeetingPri
 {
 }
 
+MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(mega::ScheduledMeeting* scheduledMeeting)
+    : mChatid(scheduledMeeting->chatid()),
+      mCallid(scheduledMeeting->callid()),
+      mParentCallid(scheduledMeeting->parentCallid()),
+      mTimezone(scheduledMeeting->timezone() ? scheduledMeeting->timezone() : std::string()),
+      mStartDateTime(scheduledMeeting->startDateTime() ? scheduledMeeting->startDateTime() : std::string()),
+      mEndDateTime(scheduledMeeting->endDateTime() ? scheduledMeeting->endDateTime() : std::string()),
+      mTitle(scheduledMeeting->title() ? scheduledMeeting->title() : std::string()),
+      mDescription(scheduledMeeting->description() ? scheduledMeeting->description() : std::string()),
+      mAttributes(scheduledMeeting->attributes() ? scheduledMeeting->attributes() : std::string()),
+      mOverrides(scheduledMeeting->overrides() ? scheduledMeeting->overrides() : std::string()),
+      mCancelled(scheduledMeeting->cancelled()),
+      mFlags(scheduledMeeting->flags() ? new MegaScheduledFlagsPrivate (scheduledMeeting->flags()->copy()) : nullptr),
+      mRules(scheduledMeeting->rules() ? new MegaScheduledRulesPrivate (scheduledMeeting->rules()->copy()) : nullptr)
+{
+}
+
 MegaScheduledMeetingPrivate::~MegaScheduledMeetingPrivate()
 {
 }
@@ -33517,6 +33539,78 @@ ScheduledMeeting* MegaScheduledMeetingPrivate::getSdkScheduledMeeting() const
                      mParentCallid, mCancelled, mAttributes.c_str(), mOverrides.c_str(), flags.get(), rules.get());
 }
 
+MegaScheduledMeetingListPrivate::MegaScheduledMeetingListPrivate()
+{
+}
+
+MegaScheduledMeetingListPrivate::MegaScheduledMeetingListPrivate(MegaScheduledMeetingListPrivate& l)
+{
+    mList.reserve(l.size());
+    for (unsigned long i = 0; i < l.size(); i++)
+    {
+        MegaScheduledMeeting* aux = l.at(i)->copy();
+        mList.emplace_back(make_unique<MegaScheduledMeeting>(std::move(*aux)));
+    }
+}
+
+MegaScheduledMeetingListPrivate::~MegaScheduledMeetingListPrivate()
+{
+    // all objects managed by unique_ptr's containted in mList will be deallocated when mList is destroyed
+}
+
+unsigned long MegaScheduledMeetingListPrivate::size() const
+{
+    return mList.size();
+}
+
+MegaScheduledMeetingListPrivate* MegaScheduledMeetingListPrivate::copy()
+{
+   return new MegaScheduledMeetingListPrivate(*this);
+}
+
+MegaScheduledMeeting* MegaScheduledMeetingListPrivate::at(unsigned long i)
+{
+    return mList.at(i).get();
+}
+
+MegaScheduledMeeting* MegaScheduledMeetingListPrivate::getBySchedMeetingId(handle h)
+{
+    auto it = std::find_if(mList.begin(),
+                   mList.end(),
+                   [h](std::unique_ptr<MegaScheduledMeeting>& sm) -> bool
+                   {
+                       return h == sm ->callid();
+                   });
+
+    return (it != mList.end())
+        ? it->get()
+        : nullptr;
+}
+
+void MegaScheduledMeetingListPrivate::insert(MegaScheduledMeeting* sm)
+{
+   mList.emplace_back(make_unique<MegaScheduledMeeting>(std::move(*sm)));
+}
+
+bool MegaScheduledMeetingListPrivate::replaceElement(MegaScheduledMeeting* sm)
+{
+    assert(sm);
+    MegaHandle id = sm->callid();
+    auto it = std::find_if(mList.begin(),
+                   mList.end(),
+                   [&id](std::unique_ptr<MegaScheduledMeeting>& aux) -> bool
+                   {
+                       return id == aux->callid();
+                   });
+
+    if (it != mList.end())
+    {
+        it->reset(sm);
+        return true;
+    }
+
+    return false;
+}
 #endif
 
 MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber)

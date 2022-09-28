@@ -6992,6 +6992,25 @@ const mega::MegaIntegerList* MegaScheduledRules::byMonthDay()           { return
 const mega::MegaIntegerMap* MegaScheduledRules::byMonthWeekDay()        { return nullptr; }
 bool MegaScheduledRules::isValidFreq(int freq)                          { return MegaScheduledRulesPrivate::isValidFreq(freq);}
 bool MegaScheduledRules::isValidInterval(int interval)                  { return MegaScheduledRulesPrivate::isValidInterval(interval);}
+
+/* Class MegaScheduledMeetingList */
+MegaScheduledMeetingList* MegaScheduledMeetingList::createInstance()
+{
+    return new MegaScheduledMeetingListPrivate();
+}
+
+MegaScheduledMeetingList::~MegaScheduledMeetingList()
+{
+
+}
+
+MegaScheduledMeetingList* MegaScheduledMeetingList::copy()                      { return NULL; }
+unsigned long MegaScheduledMeetingList::size() const                            { return 0; }
+MegaScheduledMeeting* MegaScheduledMeetingList::at(unsigned long)               { return NULL; }
+MegaScheduledMeeting* MegaScheduledMeetingList::getBySchedMeetingId(MegaHandle) { return NULL; }
+bool MegaScheduledMeetingList::replaceElement(MegaScheduledMeeting*)            { return false; }
+void MegaScheduledMeetingList::insert(MegaScheduledMeeting*)                    {}
+
 MegaFolderInfo::~MegaFolderInfo()
 {
 

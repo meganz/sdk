@@ -1756,6 +1756,9 @@ private:
     int64_t ts;
     bool meeting;
     ChatOptions_t chatOptions;
+    // List of MegaScheduledMeeting
+    MegaScheduledMeetingList mScheduledMeetings;
+
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -4154,6 +4157,8 @@ public:
                                     MegaScheduledRules* rules = nullptr);
 
     MegaScheduledMeetingPrivate(MegaScheduledMeetingPrivate* scheduledMeeting);
+    MegaScheduledMeetingPrivate(ScheduledMeeting* scheduledMeeting);
+
     virtual ~MegaScheduledMeetingPrivate();
     MegaScheduledMeetingPrivate* copy();
 
@@ -4225,6 +4230,32 @@ private:
 
     // [optional]: scheduled meetings rules
     std::unique_ptr<MegaScheduledRules> mRules;
+};
+
+class MegaScheduledMeetingListPrivate: public MegaScheduledMeetingList
+{
+public:
+    MegaScheduledMeetingListPrivate();
+    MegaScheduledMeetingListPrivate(MegaScheduledMeetingListPrivate &);
+    ~MegaScheduledMeetingListPrivate();
+    MegaScheduledMeetingListPrivate *copy();
+
+    // getters
+    unsigned long size() const;
+    MegaScheduledMeeting* at(unsigned long i);
+    MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h);
+
+    // setters
+    void insert(MegaScheduledMeeting* sm);
+    bool replaceElement(MegaScheduledMeeting* sm);
+
+    std::vector<std::unique_ptr<MegaScheduledMeeting>>& getList()
+    {
+        return mList;
+    }
+
+private:
+    std::vector<std::unique_ptr<MegaScheduledMeeting>> mList;
 };
 #endif
 #endif

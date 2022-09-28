@@ -2625,6 +2625,24 @@ public:
      */
     static bool isValidInterval(int interval);
 };
+
+class MegaScheduledMeetingList
+{
+public:
+    static MegaScheduledMeetingList* createInstance();
+    virtual ~MegaScheduledMeetingList();
+    virtual MegaScheduledMeetingList *copy();
+
+    // getters
+    virtual unsigned long size() const;
+    virtual MegaScheduledMeeting* at(unsigned long i);
+    virtual MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h);
+
+    // setters
+    virtual void insert(MegaScheduledMeeting* sm);
+    virtual bool replaceElement(MegaScheduledMeeting* sm);
+};
+
 #endif
 
 /**
