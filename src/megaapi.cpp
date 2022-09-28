@@ -6917,22 +6917,6 @@ long long MegaAchievementsDetails::currentTransferReferrals()
     return 0;
 }
 
-/* class MegaScheduledMeeting */
-MegaScheduledMeeting::~MegaScheduledMeeting() {}
-MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                            const char* description, int freq, MegaHandle organizerUserId, MegaHandle callid, MegaHandle parentCallid,
-                            int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval, const char* until,
-                            const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay, const MegaSmallIntMap* byMonthWeekDay)
-{
-    return new MegaScheduledMeetingPrivate(chatid, timezone, startDate, endDate, title, description, freq, organizerUserId, callid, parentCallid, cancelled,
-                                           emailsDisabled, attributes, overrides, interval, until, byWeekDay, byMonthDay, byMonthWeekDay);
-}
-
-MegaScheduledMeeting* MegaScheduledMeeting::copy()
-{
-    return NULL;
-}
-
 /* Class MegaScheduledMeeting */
 MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, MegaHandle callid, MegaHandle parentCallid,
                                                                    int cancelled, const char* timezone, const char* startDateTime,

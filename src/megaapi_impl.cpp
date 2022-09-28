@@ -34809,30 +34809,4 @@ const vector<handle>& FavouriteProcessor::getHandles() const
 {
     return handles;
 }
-
-MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                            const char* description, int freq, MegaHandle organizerUserId, MegaHandle callid, MegaHandle parentCallid,
-                            int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                            const char* until, const MegaSmallIntVector *byWeekDay, const MegaSmallIntVector *byMonthDay, const MegaSmallIntMap *byMonthWeekDay)
-    :ScheduledMeeting(chatid, timezone, startDate, endDate, title, description, freq, organizerUserId, callid, parentCallid,
-                      cancelled, emailsDisabled, attributes, overrides, interval, until,
-                      byWeekDay ? byWeekDay : nullptr,
-                      byMonthDay ? byMonthDay : nullptr,
-                      byMonthWeekDay ? byMonthWeekDay : nullptr)
-{
-}
-
-MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaScheduledMeetingPrivate* schedMeeting)
-    :ScheduledMeeting(schedMeeting)
-{
-}
-
-MegaScheduledMeetingPrivate::~MegaScheduledMeetingPrivate()
-{
-}
-
-MegaScheduledMeetingPrivate* MegaScheduledMeetingPrivate::copy()
-{
-    return new MegaScheduledMeetingPrivate(this);
-}
 }

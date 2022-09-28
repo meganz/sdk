@@ -4223,19 +4223,6 @@ private:
     // [optional]: scheduled meetings rules
     std::unique_ptr<MegaScheduledRules> mRules;
 };
-
-class MegaScheduledMeetingPrivate: public MegaScheduledMeeting, public ScheduledMeeting
-{
-public:
-    MegaScheduledMeetingPrivate(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                const char* description, int freq, MegaHandle organizerUserId, MegaHandle callid, MegaHandle parentCallid,
-                                int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                const char* until, const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay, const MegaSmallIntMap* byMonthWeekDay);
-
-    MegaScheduledMeetingPrivate(MegaScheduledMeetingPrivate* schedMeeting);
-    MegaScheduledMeetingPrivate* copy() override;
-    virtual ~MegaScheduledMeetingPrivate();
-};
 #endif
 #endif
 

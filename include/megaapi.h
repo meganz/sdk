@@ -88,6 +88,9 @@ class MegaCancelToken;
 class MegaApi;
 class MegaSemaphore;
 class MegaScheduledMeeting;
+class MegaScheduledFlags;
+class MegaScheduledRules;
+class MegaIntegerMap;
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -20627,21 +20630,6 @@ public:
      * @return The state of the flag
      */
     virtual bool isCancelled() const = 0;
-};
-
-/**
- * @brief The MegaScheduledMeeting class
- */
-class MegaScheduledMeeting
-{
-public:
-    virtual ~MegaScheduledMeeting();
-    static MegaScheduledMeeting* createInstance(MegaHandle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                const char* description, int freq, MegaHandle organizerUserId, MegaHandle callid, MegaHandle parentCallid,
-                                int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval, const char* until,
-                                const MegaSmallIntVector* byWeekDay, const MegaSmallIntVector* byMonthDay, const MegaSmallIntMap* byMonthWeekDay);
-
-    virtual MegaScheduledMeeting* copy();
 };
 }
 
