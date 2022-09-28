@@ -286,10 +286,9 @@ private:
     std::vector<UserAlert::Base*> provisionals;
 
     struct ff {
-        m_time_t timestamp;
+        m_time_t timestamp = 0;
         UserAlert::handle_alerttype_map_t alertTypePerFileNode;
         UserAlert::handle_alerttype_map_t alertTypePerFolderNode;
-        ff() : timestamp(0) {}
     };
     using notedShNodesMap = map<pair<handle, handle>, ff>;
     notedShNodesMap notedSharedNodes;
