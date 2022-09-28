@@ -26994,9 +26994,18 @@ void StreamingBuffer::init(size_t capacity)
                  << ", truncated to  = " << maxBufferSize << " bytes"
                  << " [file length = " << length << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / getBitRate()).append(" secs")) : "")
+                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / static_cast<size_t>(getBitRate())).append(" secs")) : "")
                  << "]";
         capacity = maxBufferSize;
+    }
+    else
+    {
+        LOG_debug << "[Streaming] Init StreamingBuffer."
+                 << " Capacity requested = " << capacity << " bytes"
+                 << " [file length = " << length << " bytes"
+                 << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
+                 << (duration ? std::string(", estimated duration in buffer: ").append(std::to_string(capacity / static_cast<size_t>(getBitRate())).append(" secs")) : "")
+                 << "]";
     }
 
     this->capacity = static_cast<unsigned>(capacity);
@@ -27117,30 +27126,30 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
     }
 }
 
-void StreamingBuffer::setLength(size_t length)
+void StreamingBuffer::setLength(m_off_t length)
 {
     this->length = length;
 }
 
-void StreamingBuffer::setDuration(size_t duration)
+void StreamingBuffer::setDuration(int duration)
 {
-    this->duration = duration;
+    this->duration = duration > 0 ? static_cast<uint32_t>(duration) : static_cast<uint32_t>(0);
 }
 
-size_t StreamingBuffer::getBitRate() const
+m_off_t StreamingBuffer::getBitRate() const
 {
     if (!duration)
     {
-        return 0;
+        return static_cast<m_off_t>(0);
     }
     if (length < duration)
     {
         LOG_err << "[Streaming] Getting the bitRate of a file whose length is SMALLER THAN its duration !!!! Media file is likely to be corrupted or invalid."
                 << " [length = " << length << " bytes"
                 << " , duration = " << duration << " secs]";
-        return static_cast<size_t>(1);
+        return static_cast<m_off_t>(1);
     }
-    return length / duration;
+    return length / static_cast<m_off_t>(duration);
 }
 
 std::string StreamingBuffer::bufferStatus() const
@@ -27149,13 +27158,13 @@ std::string StreamingBuffer::bufferStatus() const
     bufferState.reserve(256);
     bufferState.append("[|Buffer status| buffered = ")
                .append(std::to_string(size));
-    if (duration) bufferState.append(" (").append(std::to_string(size / getBitRate())).append( " secs)");
+    if (duration) bufferState.append(" (").append(std::to_string(size / static_cast<size_t>(getBitRate()))).append( " secs)");
     bufferState.append(", free = ")
                .append(std::to_string(free));
-    if (duration) bufferState.append(" (").append(std::to_string(free / getBitRate())).append( " secs)");
+    if (duration) bufferState.append(" (").append(std::to_string(free / static_cast<size_t>(getBitRate()))).append( " secs)");
     bufferState.append(", capacity = ")
                .append(std::to_string(capacity));
-    if (duration) bufferState.append(" (").append(std::to_string(capacity / getBitRate())).append( " secs)");
+    if (duration) bufferState.append(" (").append(std::to_string(capacity / static_cast<size_t>(getBitRate()))).append( " secs)");
     bufferState.append("]");
     return bufferState;
 }
