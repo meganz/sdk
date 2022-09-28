@@ -5794,8 +5794,7 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
     EXPECT_TRUE(err == MegaError::API_OK
                 || err == MegaError::API_ENOENT) << "Failed to get USER_ATTR_MY_BACKUPS_FOLDER";
 
-    unique_ptr<MegaNode> n(mApi[apiIdx].lastSyncBackupId == UNDEF ? nullptr : megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].lastSyncBackupId));
-    if (!n)
+    if (mApi[apiIdx].lastSyncBackupId == UNDEF)
     {
         const char* folderName = "My Backups";
 
@@ -5807,10 +5806,11 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
         unique_ptr<MegaUser> myUser(megaApi[apiIdx]->getMyUser());
         err = synchronousGetUserAttribute(apiIdx, myUser.get(), MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
         EXPECT_EQ(err, MegaError::API_OK) << "Failed to get user attribute USER_ATTR_MY_BACKUPS_FOLDER";
-        EXPECT_NE(mApi[apiIdx].lastSyncBackupId, UNDEF);
-        n.reset(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].lastSyncBackupId));
-        EXPECT_NE(n, nullptr);
     }
+
+    EXPECT_NE(mApi[apiIdx].lastSyncBackupId, UNDEF);
+    unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].lastSyncBackupId));
+    EXPECT_NE(n, nullptr);
 }
 
 void SdkTest::resetOnNodeUpdateCompletionCBs()

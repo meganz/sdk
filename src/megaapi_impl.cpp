@@ -15108,7 +15108,15 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         {
             handle h = 0;
             memcpy(&h, data, len);
-            request->setNodeHandle(h);
+            if (!client->nodebyhandle(h))
+            {
+                LOG_warn << "'My Backups' node was missing, or invalid handle in USER_ATTR_MY_BACKUPS_FOLDER";
+                e = API_ENOENT;
+            }
+            else
+            {
+                request->setNodeHandle(h);
+            }
         }
         break;
 
@@ -15242,6 +15250,11 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 {
                    handle nodehandle = 0;  // make sure top two bytes are 0
                    Base64::atob(value, (byte*) &nodehandle, MegaClient::NODEHANDLE);
+                   if (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER && !client->nodebyhandle(nodehandle))
+                   {
+                       LOG_warn << "'My Backups' node was missing, or invalid handle in USER_ATTR_MY_BACKUPS_FOLDER";
+                       e = API_ENOENT; // should probably apply to all folders here
+                   }
                    request->setNodeHandle(nodehandle);
                 }
                 break;
