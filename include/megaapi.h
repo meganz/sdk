@@ -2312,6 +2312,75 @@ public:
     virtual int size() const;
 };
 
+/**
+ * @brief This class represents a set of meetings flags in a bit mask format, where every flag is represented by 1 bit
+ */
+class MegaScheduledFlags
+{
+public:
+    enum
+    {
+        FLAGS_DONT_SEND_EMAILS = 0, // API won't send out calendar emails for this meeting if it's enabled
+        FLAGS_SIZE             = 1, // size in bits of flags bitmask
+    };
+
+    virtual ~MegaScheduledFlags();
+
+    /**
+     * @brief Creates a new instance of MegaScheduledFlags
+     *
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaScheduledFlags* createInstance();
+
+    /**
+     * @brief Creates a new instance of MegaScheduledFlags
+     *
+     * @param emailsDisabled If this flag is enabled, API won't send out calendar emails for this meeting
+     *
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaScheduledFlags* createInstance(bool emailsDisabled);
+
+    /**
+     * @brief Creates a copy of this virtual MegaScheduledFlags object
+     *
+     * The resulting object is fully independent of the source MegaScheduledFlags,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You take the ownership of the returned object
+     *
+     * @return Copy of the MegaScheduledFlags object
+     */
+    virtual MegaScheduledFlags* copy();
+
+    /**
+     * @brief Reset the value of all options (to disabled)
+     */
+    virtual void reset();
+
+    /**
+     * @brief Enables or disables the value of emails disabled flag.
+     * If this flag is enabled, API won't send out calendar emails for this meeting
+     */
+    virtual void setEmailsDisabled(bool /*enabled*/);
+
+    /**
+     * @brief Returns true if emails disabled flag is enabled
+     * If this flag is enabled, API won't send out calendar emails for this meeting
+     *
+     * @return True if emails disabled flag is enabled, otherwise returns false.
+     */
+    virtual bool EmailsDisabled() const;
+
+    /**
+     * @brief Returns true if all flags are disabled
+     *
+     * @return True if all flags are disabled, otherwise returns false.
+     */
+    virtual bool isEmpty() const;
+};
 #endif
 
 /**

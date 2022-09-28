@@ -6933,6 +6933,32 @@ MegaScheduledMeeting* MegaScheduledMeeting::copy()
     return NULL;
 }
 
+/* class MegaScheduledFlags */
+MegaScheduledFlags* MegaScheduledFlags::createInstance()
+{
+    return new MegaScheduledFlagsPrivate();
+}
+
+MegaScheduledFlags* MegaScheduledFlags::createInstance(bool emailsDisabled)
+{
+    MegaScheduledFlagsPrivate *flags = new MegaScheduledFlagsPrivate();
+    flags->setEmailsDisabled(emailsDisabled);
+    return flags;
+}
+
+MegaScheduledFlags* MegaScheduledFlags::copy()
+{
+    return NULL;
+}
+
+MegaScheduledFlags::~MegaScheduledFlags()
+{
+}
+
+void MegaScheduledFlags::reset()                                {}
+void MegaScheduledFlags::setEmailsDisabled(bool /*enabled*/)    {}
+bool MegaScheduledFlags::EmailsDisabled() const                 { return false; }
+bool MegaScheduledFlags::isEmpty() const                        { return false; }
 MegaFolderInfo::~MegaFolderInfo()
 {
 

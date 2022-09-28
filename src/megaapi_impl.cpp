@@ -33234,6 +33234,49 @@ MegaTextChatListPrivate::MegaTextChatListPrivate(textchat_map *list)
         this->list.push_back(megaChat);
     }
 }
+/* Class MegaScheduledFlagsPrivate */
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate()
+    : mFlags(0)
+{
+}
+
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(unsigned long numericValue)
+    : mFlags(numericValue)
+{
+}
+
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(MegaScheduledFlagsPrivate* flags)
+    : mFlags(flags ? flags->getNumericValue() : 0)
+{
+}
+
+MegaScheduledFlagsPrivate::MegaScheduledFlagsPrivate(ScheduledFlags* flags)
+    : mFlags(flags ? flags->getNumericValue() : 0)
+{
+}
+
+MegaScheduledFlagsPrivate::~MegaScheduledFlagsPrivate()
+{
+}
+
+MegaScheduledFlagsPrivate* MegaScheduledFlagsPrivate::copy()
+{
+    return new MegaScheduledFlagsPrivate(this);
+}
+
+void MegaScheduledFlagsPrivate::reset()
+{
+    mFlags.reset();
+}
+
+void MegaScheduledFlagsPrivate::setEmailsDisabled(bool enabled)
+{
+    mFlags[FLAGS_DONT_SEND_EMAILS] = enabled;
+}
+
+unsigned long MegaScheduledFlagsPrivate::getNumericValue() const       { return mFlags.to_ulong();}
+bool MegaScheduledFlagsPrivate::EmailsDisabled() const                 { return mFlags[FLAGS_DONT_SEND_EMAILS]; }
+bool MegaScheduledFlagsPrivate::isEmpty() const                        { return mFlags.none(); }
 #endif
 
 MegaTransferDataPrivate::MegaTransferDataPrivate(TransferList *transferList, long long notificationNumber)

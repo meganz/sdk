@@ -4057,6 +4057,32 @@ public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
 
+#ifdef ENABLE_CHAT
+class MegaScheduledFlagsPrivate: public MegaScheduledFlags
+{
+public:
+    MegaScheduledFlagsPrivate();
+    MegaScheduledFlagsPrivate(unsigned long numericValue);
+    MegaScheduledFlagsPrivate(MegaScheduledFlagsPrivate* flags);
+    virtual ~MegaScheduledFlagsPrivate();
+    MegaScheduledFlagsPrivate* copy() override;
+
+    // Internal methods just for internal usage (don't expose)
+    MegaScheduledFlagsPrivate(ScheduledFlags* flags);
+    unsigned long getNumericValue() const;
+
+    // setters
+    void reset() override;
+    void setEmailsDisabled(bool enabled) override;
+
+    // getters
+    bool EmailsDisabled() const override;
+    bool isEmpty() const override;
+
+private:
+    std::bitset<FLAGS_SIZE> mFlags = 0;
+};
+
 class MegaScheduledMeetingPrivate: public MegaScheduledMeeting, public ScheduledMeeting
 {
 public:
@@ -4069,6 +4095,7 @@ public:
     MegaScheduledMeetingPrivate* copy() override;
     virtual ~MegaScheduledMeetingPrivate();
 };
+#endif
 #endif
 
 }
