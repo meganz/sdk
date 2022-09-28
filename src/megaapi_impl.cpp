@@ -27129,11 +27129,17 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 void StreamingBuffer::setLength(m_off_t length)
 {
     this->length = length;
+    LOG_debug << "[Streaming] File length set to " << this->length << " bytes";
 }
 
 void StreamingBuffer::setDuration(int duration)
 {
+    if (!duration)
+    {
+        LOG_err << "[Streaming] Duration value is 0 secs for a media file. This file could be corrupted or invalid";
+    }
     this->duration = duration > 0 ? static_cast<uint32_t>(duration) : static_cast<uint32_t>(0);
+    LOG_debug << "[Streaming] File duration set to " << this->duration << " secs";
 }
 
 m_off_t StreamingBuffer::getBitRate() const
