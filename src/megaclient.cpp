@@ -16606,7 +16606,7 @@ namespace action_bucket_compare
 
     bool getExtensionDotted(const Node* n, std::string& ext, const MegaClient& mc)
     {
-        auto localname = LocalPath::fromRelativePath(n->displayname());
+        auto localname = LocalPath::fromRelativeName(n->displayname(), *mc.fsaccess.get(), FileSystemType::FS_UNKNOWN);
         if (mc.fsaccess->getextension(localname, ext))
         {
             ext.push_back('.');
