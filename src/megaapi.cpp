@@ -6959,6 +6959,28 @@ void MegaScheduledFlags::reset()                                {}
 void MegaScheduledFlags::setEmailsDisabled(bool /*enabled*/)    {}
 bool MegaScheduledFlags::EmailsDisabled() const                 { return false; }
 bool MegaScheduledFlags::isEmpty() const                        { return false; }
+
+/* Class MegaScheduledRules */
+MegaScheduledRules* MegaScheduledRules::createInstance(int freq,
+                               int interval,
+                               const char* until,
+                               const ::mega::MegaIntegerList* byWeekDay,
+                               const ::mega::MegaIntegerList* byMonthDay,
+                               const ::mega::MegaIntegerMap* byMonthWeekDay)
+{
+    return new MegaScheduledRulesPrivate(freq, interval, until, byWeekDay, byMonthDay, byMonthWeekDay);
+}
+
+MegaScheduledRules::~MegaScheduledRules()                               {}
+MegaScheduledRules* MegaScheduledRules::copy()                          { return NULL; }
+int MegaScheduledRules::freq() const                                    { return 0; }
+int MegaScheduledRules::interval() const                                { return 0; }
+const char* MegaScheduledRules::until() const                           { return nullptr; }
+const mega::MegaIntegerList* MegaScheduledRules::byWeekDay()            { return nullptr; }
+const mega::MegaIntegerList* MegaScheduledRules::byMonthDay()           { return nullptr; }
+const mega::MegaIntegerMap* MegaScheduledRules::byMonthWeekDay()        { return nullptr; }
+bool MegaScheduledRules::isValidFreq(int freq)                          { return MegaScheduledRulesPrivate::isValidFreq(freq);}
+bool MegaScheduledRules::isValidInterval(int interval)                  { return MegaScheduledRulesPrivate::isValidInterval(interval);}
 MegaFolderInfo::~MegaFolderInfo()
 {
 

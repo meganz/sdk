@@ -2381,6 +2381,110 @@ public:
      */
     virtual bool isEmpty() const;
 };
+
+/**
+ * @brief This class represents a set of set of rules that can be defined for a Scheduled meeting.
+ */
+class MegaScheduledRules
+{
+public:
+    typedef enum {
+        FREQ_INVALID    = -1,
+        FREQ_DAILY      = 0,
+        FREQ_WEEKLY     = 1,
+        FREQ_MONTHLY    = 2,
+    } freq_type;
+
+    constexpr static int INTERVAL_INVALID = 0;
+    virtual ~MegaScheduledRules();
+
+    /**
+     * @brief Creates a new instance of MegaScheduledRules
+     *
+     * @param freq           [required]: scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval
+     * @param interval       [optional]: repetition interval in relation to the frequency
+     * @param until          [optional]: specifies when the repetitions should end
+     * @param byWeekDay      [optional]: allows us to specify that an event will only occur on given week day/s
+     * @param byMonthDay     [optional]: allows us to specify that an event will only occur on a given day/s of the month
+     * @param byMonthWeekDay [optional]: allows us to specify that an event will only occurs on a specific weekday offset of the month. (i.e every 2nd Sunday of each month)
+     *
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaScheduledRules* createInstance(int freq,
+                                                  int interval = INTERVAL_INVALID,
+                                                  const char* until = nullptr,
+                                                  const ::mega::MegaIntegerList* byWeekDay = nullptr,
+                                                  const ::mega::MegaIntegerList* byMonthDay = nullptr,
+                                                  const ::mega::MegaIntegerMap* byMonthWeekDay = nullptr);
+
+    /**
+     * @brief Creates a copy of this MegaScheduledRules object
+     *
+     * The resulting object is fully independent of the source MegaScheduledRules,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You take the ownership of the returned object
+     *
+     * @return Copy of the MegaScheduledRules object
+     */
+    virtual MegaScheduledRules* copy();
+
+    /**
+     * @brief Returns the frequency of the scheduled meeting: (DAILY | WEEKLY | MONTHLY)
+     * @return The frequence of the scheduled meeting
+     */
+    virtual int freq() const;
+
+    /**
+     * @brief Returns repetition interval in relation to the frequency
+     *
+     * @return The inverval in relation to the frequency of the scheduled meeting
+     */
+    virtual int interval() const;
+
+    /**
+     * @brief Returns when the repetitions should end
+     *
+     * @return When the repetitions should end
+     */
+    virtual const char* until() const;
+
+    /**
+     * @brief Returns a MegaIntegerList with the week days when the event will occur
+     *
+     * @return A MegaIntegerList with the week days when the event will occur
+     */
+    virtual const mega::MegaIntegerList* byWeekDay();
+
+    /**
+     * @brief Returns a MegaIntegerList with the days of the month when the event will occur
+     *
+     * @return A MegaIntegerList with the days of the month when the event will occur
+     */
+    virtual const mega::MegaIntegerList* byMonthDay();
+
+    /**
+     * @brief Returns a MegaIntegerMap <offset, weekday> that allows to specify one or multiple weekday offset (ie: [5,4] event will occur every 5th Thursday of each month)
+     *
+     * @return A MegaIntegerMap <offset, weekday> that allows to specify one or multiple weekday offset
+     */
+    virtual const mega::MegaIntegerMap* byMonthWeekDay();
+
+    /**
+     * @brief Returns if a given frequency is valid or not
+     *
+     * @return True if freq is valid, otherwise false
+     */
+    static bool isValidFreq(int freq);
+
+    /**
+     * @brief Returns if a given interval is valid or not
+     *
+     * @return True if interval is valid, otherwise false
+     */
+    static bool isValidInterval(int interval);
+};
 #endif
 
 /**
