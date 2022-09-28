@@ -12757,7 +12757,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the node handle of the folder created
          *
-         * If the folder for backups already existed, the request will fail with the error API_EACCESS.
+         * If no user was logged in, the request will fail with the error API_EACCESS.
+         * If the folder for backups already existed, the request will fail with the error API_EEXIST.
          *
          * @param localizedName Localized name for "My backups" folder
          * @param listener MegaRequestListener to track this request

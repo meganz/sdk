@@ -5748,10 +5748,9 @@ void MegaClient::sc_userattr()
                                     case ATTR_MY_BACKUPS_FOLDER:
                                     // there should be no actionpackets for this attribute. It is
                                     // created and never updated afterwards
-                                    // NOTE: there can be, because we had an older version of this attribute, and it may need to be updated for accounts that already had the old one
-                                    //assert(type != ATTR_MY_BACKUPS_FOLDER);
-                                    //
+                                    LOG_err << "The node handle for My backups folder has changed";
                                     //fall-through
+
                                     case ATTR_AUTHRING:              // fall-through
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
