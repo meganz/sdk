@@ -717,6 +717,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Backup source path not below drive path.";
     case SYNC_CONFIG_WRITE_FAILURE:
         return "Unable to write sync config to disk.";
+    case ACTIVE_SYNC_SAME_PATH:
+        return "Active sync same path";
     default:
         return "Undefined error";
     }
@@ -4476,6 +4478,13 @@ void Syncs::saveSyncConfig(const SyncConfig& config)
 {
     if (auto* store = syncConfigStore())
     {
+
+        // If the app hasn't opened this drive itself, then we open it now (loads any syncs that already exist there)
+        if (!config.mExternalDrivePath.empty() && !store->driveKnown(config.mExternalDrivePath))
+        {
+            backupOpenDrive(config.mExternalDrivePath);
+        }
+
         store->markDriveDirty(config.mExternalDrivePath);
     }
 }

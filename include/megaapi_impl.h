@@ -3384,10 +3384,7 @@ private:
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 
 #ifdef ENABLE_SYNC
-        error addSyncByRequest(MegaRequestPrivate* request, const string& syncName,
-                               const LocalPath& localPath, const LocalPath& drivePath, const SyncConfig::Type syncType);
-        error addBackupByRequest(MegaRequestPrivate* request, const string& syncName,
-                                 const LocalPath& localPath, const LocalPath& drivePath);
+        void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
 };
 

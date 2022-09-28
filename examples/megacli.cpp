@@ -9765,27 +9765,6 @@ void sync_completion(error result, const SyncError& se, handle backupId)
     }
 }
 
-void sync_add(const LocalPath& sourcePath, const string& drive, const string& syncname, const Node* targetNode, SyncConfig::Type type)
-{
-    // sync add source target
-    LocalPath drivePath = localPathArg(drive);
-
-    // Create a suitable sync config.
-    auto config =
-        SyncConfig(sourcePath,
-            syncname,
-            targetNode ? NodeHandle().set6byte(targetNode->nodehandle) : NodeHandle(),
-            targetNode ? targetNode->displaypath() : string(),
-            0,
-            move(drivePath),
-            true,
-            type);
-
-    // Try and add the new sync.
-    // All validation is performed in this function.
-    client->addsync(move(config), false, sync_completion, "");
-}
-
 void exec_syncadd(autocomplete::ACState& s)
 {
     if (client->loggedin() != FULLACCOUNT)
@@ -9806,6 +9785,21 @@ void exec_syncadd(autocomplete::ACState& s)
         syncname = sourcePath.leafOrParentName();
     }
 
+    // sync add source target
+    LocalPath drivePath = localPathArg(drive);
+
+    // Create a suitable sync config.
+    auto config =
+        SyncConfig(sourcePath,
+            syncname,
+            NodeHandle(),
+            string(),
+            0,
+            move(drivePath),
+            true,
+            backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
+
+
     if (!backup) // regular sync
     {
         // Does the target node exist?
@@ -9820,7 +9814,10 @@ void exec_syncadd(autocomplete::ACState& s)
             return;
         }
 
-        sync_add(sourcePath, drive, syncname, targetNode, SyncConfig::TYPE_TWOWAY);
+        config.mRemoteNode = targetNode ? NodeHandle().set6byte(targetNode->nodehandle) : NodeHandle();
+        config.mOriginalPathOfRemoteRootNode = targetNode ? targetNode->displaypath() : string();
+
+        client->addsync(move(config), false, sync_completion, "");
     }
 
     else // backup
@@ -9841,30 +9838,29 @@ void exec_syncadd(autocomplete::ACState& s)
         }
 #endif
 
-        auto thenAddSync = [sourcePath, drive, syncname](const Error& err, targettype_t, vector<NewNode>& nn, bool)
-        {
+        client->preparebackup(config, [](Error err, SyncConfig sc, MegaClient::UndoFunction revertOnError){
+
             if (err != API_OK)
             {
                 sync_completion(error(err), SyncError::PUT_NODES_ERROR, UNDEF);
             }
             else
             {
-                assert(!nn.empty() && nn.back().added);
-                Node* targetNode = nn.empty() ? nullptr : client->nodebyhandle(nn.back().mAddedHandle);
-                sync_add(sourcePath, drive, syncname, targetNode, SyncConfig::TYPE_BACKUP);
-            }
-        };
+                client->addsync(move(sc), false, [revertOnError](error e, SyncError se, handle h){
 
-        error e = client->registerbackup(syncname, drive, thenAddSync);
-        if (e)
-        {
-            cerr << "Invalid prerequisites for adding a backup (error " << e << ": " << errorstring(e);
-            if (e == API_EINCOMPLETE)
-            {
-                cerr << "; was Device/Drive name set?";
+                    if (e != API_OK)
+                    {
+                        if (revertOnError)
+                        {
+                            cerr << "Removing the created backup node, as backup sync add failed" << endl;
+                            revertOnError(nullptr);
+                        }
+                    }
+                    sync_completion(e, se, h);
+
+                }, "");
             }
-            cerr << ')' << endl;
-        }
+        });
     }
 }
 

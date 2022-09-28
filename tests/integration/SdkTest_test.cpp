@@ -836,16 +836,14 @@ bool SdkTest::synchronousRequest(unsigned apiIndex, int type, std::function<void
 void SdkTest::onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change)
 {
     // if change == -1 this method just checks if we have received onNodesUpdate for the node specified in target
-    // For CHANGE_TYPE_NEW the target isinvalid handle because the handle is unkown
-    ASSERT_TRUE(nodes && mApi.size() > apiIndex && (target != INVALID_HANDLE || change == MegaNode::CHANGE_TYPE_NEW));
+    // For CHANGE_TYPE_NEW the target is invalid handle because the handle is yet unkown
+    ASSERT_TRUE(nodes && mApi.size() > apiIndex && (target != INVALID_HANDLE
+            || (target == INVALID_HANDLE && change == MegaNode::CHANGE_TYPE_NEW)));
     for (int i = 0; i < nodes->size(); i++)
     {
         MegaNode* n = nodes->get(i);
-        if (target == INVALID_HANDLE && n->hasChanged(MegaNode::CHANGE_TYPE_NEW))
-        {
-            mApi[apiIndex].nodeUpdated = true;
-        }
-        else if (n->getHandle() == target && (n->hasChanged(change) || change == -1))
+        if ((n->getHandle() == target && (n->hasChanged(change) || change == -1))
+                || (target == INVALID_HANDLE && change == MegaNode::CHANGE_TYPE_NEW && n->hasChanged(change)))
         {
             mApi[apiIndex].nodeUpdated = true;
         }
@@ -1304,7 +1302,7 @@ string getLinkFromMailbox(const string& exe,         // Python
         // get time interval to look for emails, add some seconds to account for the connection and other delays
         const auto& attemptTime = std::chrono::system_clock::now();
         auto timeSinceEmail = std::chrono::duration_cast<std::chrono::seconds>(attemptTime - timeOfEmail).count() + 20;
-        output = runProgram(command + ' ' + to_string(timeSinceEmail)); // Run Python script
+        output = runProgram(command + ' ' + to_string(timeSinceEmail), PROG_OUTPUT_TYPE::TEXT); // Run Python script
         if (!output.empty() || i > 180000 / deltaMs) // 3 minute maximum wait
             break;
     }
@@ -1339,6 +1337,8 @@ string getUniqueAlias()
     return alias;
 }
 
+std::string getCurrentTimestamp(bool includeDate);
+
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
 
 /**
@@ -1369,11 +1369,11 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     string pyExe = "python";
     const string pyOpt = " -V";
     const string pyExpected = "Python 3.";
-    string output = runProgram(pyExe + pyOpt);  // Python -V
+    string output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT);  // Python -V
     if (output.substr(0, pyExpected.length()) != pyExpected)
     {
         pyExe += "3";
-        output = runProgram(pyExe + pyOpt);  // Python3 -V
+        output = runProgram(pyExe + pyOpt, PROG_OUTPUT_TYPE::TEXT);  // Python3 -V
         ASSERT_EQ(pyExpected, output.substr(0, pyExpected.length())) << "Python 3 was not found.";
     }
     LOG_debug << "Using " << output;
@@ -3121,6 +3121,49 @@ TEST_F(SdkTest, SdkTestShares)
     long long nodeCountAfterInShares = megaApi[1]->getNumNodes();
     ASSERT_EQ(ownedNodeCount + inSharedNodeCount, nodeCountAfterInShares);
 
+    // --- Move share file from different subtree, same file and fingerprint ---
+    // Pre-requisite, the movement finds a file with same name and fp at target folder
+    // Since the source and target folders belong to different trees, it will attempt to copy+delete
+    // (hfile1 copied to rubbish, renamed to "copy", copied back to hfolder2, move
+    // Since there is a file with same name and fingerprint, it will skip the copy and will do delete
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+    MegaHandle copiedNodeHandle = INVALID_HANDLE;
+    ASSERT_EQ(API_OK, doCopyNode(1, &copiedNodeHandle, megaApi[1]->getNodeByHandle(hfile2), megaApi[1]->getNodeByHandle(hfolder1), "copy")) << "Copying shared file (not owned) to same place failed";
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    resetOnNodeUpdateCompletionCBs();
+    ++inSharedNodeCount;
+
+    mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(INVALID_HANDLE, MegaNode::CHANGE_TYPE_NEW);
+    MegaHandle copiedNodeHandleInRubbish = INVALID_HANDLE;
+    ASSERT_EQ(API_OK, doCopyNode(1, &copiedNodeHandleInRubbish, megaApi[1]->getNodeByHandle(copiedNodeHandle), megaApi[1]->getRubbishNode())) << "Copying shared file (not owned) to Rubbish bin failed";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    resetOnNodeUpdateCompletionCBs();
+    ++ownedNodeCount;
+
+    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
+    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(copiedNodeHandle, MegaNode::CHANGE_TYPE_REMOVED);
+    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(copiedNodeHandle, MegaNode::CHANGE_TYPE_REMOVED);
+    MegaHandle copyAndDeleteNodeHandle = INVALID_HANDLE;
+    ASSERT_EQ(API_OK, doMoveNode(1, &copyAndDeleteNodeHandle, megaApi[0]->getNodeByHandle(copiedNodeHandle), megaApi[1]->getRubbishNode())) << "Moving shared file, same name and fingerprint";
+    ASSERT_EQ(megaApi[1]->getNodeByHandle(copiedNodeHandle), nullptr) << "Move didn't delete source file";
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated) )   // at the target side (main account)
+            << "Node update not received after " << maxTimeout << " seconds";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated) )   // at the target side (auxiliar account)
+            << "Node update not received after " << maxTimeout << " seconds";
+
+    resetOnNodeUpdateCompletionCBs();
+    --inSharedNodeCount;
+
+
     // --- Move shared file (not owned) to Rubbish bin ---
     MegaHandle movedNodeHandle = UNDEF;
     mApi[0].nodeUpdated = mApi[1].nodeUpdated = false; // reset flags expected to be true in asserts below
@@ -3133,8 +3176,8 @@ TEST_F(SdkTest, SdkTestShares)
             << "Node update not received after " << maxTimeout << " seconds";
     // important to reset
     resetOnNodeUpdateCompletionCBs();
-    ++ownedNodeCount; // node sent to Rubbish is now owned
     --inSharedNodeCount;
+    ++ownedNodeCount;
 
     // --- Test that file in Rubbish bin can be restored ---
     MegaNode* nodeMovedFile = megaApi[1]->getNodeByHandle(movedNodeHandle);  // Different handle! the node must have been copied due to differing accounts
@@ -6040,9 +6083,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     LOG_info << "___TEST BackupFolder___";
 
     // get timestamp
-    struct tm tms;
-    char timestamp[32];
-    strftime(timestamp, sizeof timestamp, "%Y%m%d%H%M%S", m_localtime(m_time(), &tms));
+    string timestamp = getCurrentTimestamp(true);
 
     // look for Device Name attr
     string deviceName;
@@ -6053,7 +6094,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
     else
     {
-        deviceName = string("Jenkins ") + timestamp;
+        deviceName = "Jenkins " + timestamp;
         synchronousSetDeviceName(0, deviceName.c_str());
 
         // make sure Device Name attr was set
@@ -6382,13 +6423,8 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
 
-    // get timestamp
-    struct tm tms;
-    char timestamp[32];
-    strftime(timestamp, sizeof timestamp, "%Y%m%d%H%M%S", m_localtime(m_time(), &tms));
-
     // test setter/getter
-    string deviceName = string("SdkDeviceNamesTest") + timestamp;
+    string deviceName = string("SdkDeviceNamesTest_") + getCurrentTimestamp(true);
     auto err = synchronousSetDeviceName(0, deviceName.c_str());
     ASSERT_EQ(API_OK, err) << "setDeviceName failed (error: " << err << ")";
     err = synchronousGetDeviceName(0);
@@ -6409,16 +6445,22 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     fs::create_directory(pathToDrive);
 
     // drive name
-    string driveName = "SdkExternalDriveTest_";
-    char today[50];
-    auto rawtime = time(NULL);
-    strftime(today, sizeof today, "%Y-%m-%d_%H:%M:%S", localtime(&rawtime));
-    driveName += today;
+    string driveName = "SdkExternalDriveTest_" + getCurrentTimestamp(true);
 
     // set drive name
     const string& pathToDriveStr = pathToDrive.u8string();
     auto err = synchronousSetDriveName(0, pathToDriveStr.c_str(), driveName.c_str());
     ASSERT_EQ(API_OK, err) << "setDriveName failed (error: " << err << ")";
+
+    // attempt to set the same name to another drive
+    fs::path pathToDrive2 = basePath / "ExtDrive2";
+    fs::create_directory(pathToDrive2);
+    const string& pathToDriveStr2 = pathToDrive2.u8string();
+    bool oldTestLogVal = gTestingInvalidArgs;
+    gTestingInvalidArgs = true;
+    err = synchronousSetDriveName(0, pathToDriveStr2.c_str(), driveName.c_str());
+    ASSERT_EQ(API_EEXIST, err) << "setDriveName allowed duplicated name. Should not have.";
+    gTestingInvalidArgs = oldTestLogVal;
 
     // get drive name
     err = synchronousGetDriveName(0, pathToDriveStr.c_str());
@@ -7132,9 +7174,9 @@ TEST_F(SdkTest, SyncBasicOperations)
         TestingWithLogErrorAllowanceGuard g;
         const auto& lp3 = localPath3.u8string();
         ASSERT_EQ(API_EEXIST, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, lp3.c_str(), nullptr, remoteBaseNode1->getHandle(), nullptr)); // Remote node is currently synced.
-        ASSERT_EQ(MegaSync::ACTIVE_SYNC_BELOW_PATH, mApi[0].lastSyncError);
+        ASSERT_EQ(MegaSync::ACTIVE_SYNC_SAME_PATH, mApi[0].lastSyncError);
         ASSERT_EQ(API_EEXIST, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, lp3.c_str(), nullptr, remoteBaseNode2->getHandle(), nullptr)); // Remote node is currently synced.
-        ASSERT_EQ(MegaSync::ACTIVE_SYNC_BELOW_PATH, mApi[0].lastSyncError);
+        ASSERT_EQ(MegaSync::ACTIVE_SYNC_SAME_PATH, mApi[0].lastSyncError);
         const auto& lp4 = (localPath3 / fs::path("xxxyyyzzz")).u8string();
         ASSERT_EQ(API_ENOENT, synchronousSyncFolder(0, nullptr, MegaSync::TYPE_TWOWAY, lp4.c_str(), nullptr, remoteBaseNode3->getHandle(), nullptr)); // Local resource doesn't exists.
         ASSERT_EQ(MegaSync::LOCAL_PATH_UNAVAILABLE, mApi[0].lastSyncError);
