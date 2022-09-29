@@ -88,6 +88,7 @@ class MegaCancelToken;
 class MegaApi;
 class MegaSemaphore;
 class MegaScheduledMeeting;
+class MegaScheduledMeetingList;
 class MegaScheduledFlags;
 class MegaScheduledRules;
 class MegaIntegerMap;
@@ -2250,6 +2251,16 @@ public:
     virtual int isOwnChange() const;
 
     /**
+     * @brief Returns the scheduled meetings list.
+     *
+     * The MegaTextChat retains the ownership of the returned MetaTextChatPeerList. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * @return The list of the scheduled meetings.
+     */
+    virtual const MegaScheduledMeetingList* getScheduledMeetingList() const;
+
+    /**
      * @brief Returns the creation timestamp of the chat
      *
      * In seconds since the Epoch
@@ -2631,16 +2642,17 @@ class MegaScheduledMeetingList
 public:
     static MegaScheduledMeetingList* createInstance();
     virtual ~MegaScheduledMeetingList();
-    virtual MegaScheduledMeetingList *copy();
+    virtual MegaScheduledMeetingList *copy() const;
 
     // getters
     virtual unsigned long size() const;
-    virtual MegaScheduledMeeting* at(unsigned long i);
+    virtual MegaScheduledMeeting* at(unsigned long i) const;
     virtual MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h);
 
     // setters
     virtual void insert(MegaScheduledMeeting* sm);
-    virtual bool replaceElement(MegaScheduledMeeting* sm);
+    virtual void remove(MegaHandle h);
+    virtual void clear();
 };
 
 #endif

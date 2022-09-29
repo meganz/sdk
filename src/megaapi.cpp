@@ -6549,6 +6549,11 @@ int MegaTextChat::isOwnChange() const
     return 0;
 }
 
+const MegaScheduledMeetingList* MegaTextChat::getScheduledMeetingList() const
+{
+    return NULL;
+}
+
 int64_t MegaTextChat::getCreationTime() const
 {
     return 0;
@@ -7004,12 +7009,13 @@ MegaScheduledMeetingList::~MegaScheduledMeetingList()
 
 }
 
-MegaScheduledMeetingList* MegaScheduledMeetingList::copy()                      { return NULL; }
+MegaScheduledMeetingList* MegaScheduledMeetingList::copy() const                      { return NULL; }
 unsigned long MegaScheduledMeetingList::size() const                            { return 0; }
-MegaScheduledMeeting* MegaScheduledMeetingList::at(unsigned long)               { return NULL; }
+MegaScheduledMeeting* MegaScheduledMeetingList::at(unsigned long) const               { return NULL; }
 MegaScheduledMeeting* MegaScheduledMeetingList::getBySchedMeetingId(MegaHandle) { return NULL; }
-bool MegaScheduledMeetingList::replaceElement(MegaScheduledMeeting*)            { return false; }
 void MegaScheduledMeetingList::insert(MegaScheduledMeeting*)                    {}
+void MegaScheduledMeetingList::remove(MegaHandle)                               {}
+void MegaScheduledMeetingList::clear()                                          {}
 
 MegaFolderInfo::~MegaFolderInfo()
 {

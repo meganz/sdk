@@ -33035,6 +33035,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->unifiedKey = chat->getUnifiedKey() ? chat->getUnifiedKey() : "";
     this->meeting = chat->isMeeting();
     this->chatOptions = chat->getChatOptions();
+    mScheduledMeetings.reset(chat->getScheduledMeetingList()->copy());
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -33055,9 +33056,10 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->chatOptions = chat->chatOptions;
     this->changed = 0;
 
+    mScheduledMeetings.reset(MegaScheduledMeetingList::createInstance());
     for (auto it = chat->mScheduledMeetings.begin(); it != chat->mScheduledMeetings.end(); it++)
     {
-        mScheduledMeetings.insert(new MegaScheduledMeetingPrivate(it->second.get()));
+        mScheduledMeetings->insert(new MegaScheduledMeetingPrivate(it->second.get()));
     }
 
     if (chat->changed.attachments)
@@ -33175,6 +33177,11 @@ bool MegaTextChatPrivate::hasChanged(int changeType) const
 int MegaTextChatPrivate::getChanges() const
 {
     return changed;
+}
+
+const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingList() const
+{
+    return mScheduledMeetings.get();
 }
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()
@@ -33543,13 +33550,12 @@ MegaScheduledMeetingListPrivate::MegaScheduledMeetingListPrivate()
 {
 }
 
-MegaScheduledMeetingListPrivate::MegaScheduledMeetingListPrivate(MegaScheduledMeetingListPrivate& l)
+MegaScheduledMeetingListPrivate::MegaScheduledMeetingListPrivate(const MegaScheduledMeetingListPrivate& l)
 {
     mList.reserve(l.size());
     for (unsigned long i = 0; i < l.size(); i++)
     {
-        MegaScheduledMeeting* aux = l.at(i)->copy();
-        mList.emplace_back(make_unique<MegaScheduledMeeting>(std::move(*aux)));
+        mList.emplace_back(l.at(i)->copy());
     }
 }
 
@@ -33563,12 +33569,12 @@ unsigned long MegaScheduledMeetingListPrivate::size() const
     return mList.size();
 }
 
-MegaScheduledMeetingListPrivate* MegaScheduledMeetingListPrivate::copy()
+MegaScheduledMeetingListPrivate* MegaScheduledMeetingListPrivate::copy() const
 {
    return new MegaScheduledMeetingListPrivate(*this);
 }
 
-MegaScheduledMeeting* MegaScheduledMeetingListPrivate::at(unsigned long i)
+MegaScheduledMeeting* MegaScheduledMeetingListPrivate::at(unsigned long i) const
 {
     return mList.at(i).get();
 }
@@ -33589,27 +33595,26 @@ MegaScheduledMeeting* MegaScheduledMeetingListPrivate::getBySchedMeetingId(handl
 
 void MegaScheduledMeetingListPrivate::insert(MegaScheduledMeeting* sm)
 {
-   mList.emplace_back(make_unique<MegaScheduledMeeting>(std::move(*sm)));
+    mList.emplace_back(sm);
 }
 
-bool MegaScheduledMeetingListPrivate::replaceElement(MegaScheduledMeeting* sm)
+void MegaScheduledMeetingListPrivate::remove(MegaHandle h)
 {
-    assert(sm);
-    MegaHandle id = sm->callid();
-    auto it = std::find_if(mList.begin(),
-                   mList.end(),
-                   [&id](std::unique_ptr<MegaScheduledMeeting>& aux) -> bool
-                   {
-                       return id == aux->callid();
-                   });
+    auto it = std::find_if(mList.begin(), mList.end(),
+                           [h](std::unique_ptr<MegaScheduledMeeting>& sm) -> bool
+                           {
+                             return h == sm ->callid();
+                           });
 
     if (it != mList.end())
     {
-        it->reset(sm);
-        return true;
+        mList.erase(it);
     }
+}
 
-    return false;
+void MegaScheduledMeetingListPrivate::clear()
+{
+     mList.clear();
 }
 #endif
 

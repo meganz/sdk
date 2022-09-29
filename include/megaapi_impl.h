@@ -1738,6 +1738,7 @@ public:
     bool hasChanged(int changeType) const override;
     int getChanges() const override;
     int isOwnChange() const override;
+    const MegaScheduledMeetingList* getScheduledMeetingList() const override;
 
 private:
     handle id;
@@ -1756,8 +1757,7 @@ private:
     int64_t ts;
     bool meeting;
     ChatOptions_t chatOptions;
-    // List of MegaScheduledMeeting
-    MegaScheduledMeetingList mScheduledMeetings;
+    std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetings;
 
 };
 
@@ -4236,23 +4236,20 @@ class MegaScheduledMeetingListPrivate: public MegaScheduledMeetingList
 {
 public:
     MegaScheduledMeetingListPrivate();
-    MegaScheduledMeetingListPrivate(MegaScheduledMeetingListPrivate &);
+    MegaScheduledMeetingListPrivate(const MegaScheduledMeetingListPrivate &);
     ~MegaScheduledMeetingListPrivate();
-    MegaScheduledMeetingListPrivate *copy();
+
+    MegaScheduledMeetingListPrivate *copy() const override;
 
     // getters
-    unsigned long size() const;
-    MegaScheduledMeeting* at(unsigned long i);
-    MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h);
+    unsigned long size() const override;
+    MegaScheduledMeeting* at(unsigned long i) const override;
+    MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h) override;
 
     // setters
-    void insert(MegaScheduledMeeting* sm);
-    bool replaceElement(MegaScheduledMeeting* sm);
-
-    std::vector<std::unique_ptr<MegaScheduledMeeting>>& getList()
-    {
-        return mList;
-    }
+    void insert(MegaScheduledMeeting *sm) override;
+    void remove(MegaHandle h) override;
+    void clear() override;
 
 private:
     std::vector<std::unique_ptr<MegaScheduledMeeting>> mList;
