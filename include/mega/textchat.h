@@ -62,11 +62,15 @@ struct TextChat : public Cacheable
     // a scheduled meetings allows the user to specify an event that will occur in the future (check ScheduledMeeting class documentation)
     map<handle/*callid*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
 
+    // list of scheduled meetings changed
+    std::vector<handle> mSchedMeetingsChanged;
+
     // maps a scheduled meeting id (callid) to a scheduled meeting occurrence
     // a scheduled meetings ocurrence is an event based on a scheduled meeting
     // a scheduled meeting could have one or multiple ocurrences (unique key: <callid, startdatetime>)
     // (check ScheduledMeeting class documentation)
     multimap<handle/*callid*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetingsOcurrences;
+
 
 private:        // use setter to modify these members
     byte flags;     // currently only used for "archive" flag at first bit
@@ -91,13 +95,6 @@ public:
         bool mode : 1;
         bool options : 1;
     } changed;
-
-    // maps a scheduled meeting id (schedMeetingId) to a scheduled meeting
-    // a scheduled meetings allows the user to specify an event that will occur in the future (check ScheduledMeeting class documentation)
-    map<handle/*schedMeetingId*/, std::unique_ptr<ScheduledMeeting>> mScheduledMeetings;
-
-    // maps a scheduled meeting id (schedMeetingId) to a bitmap with the updates for that scheduled meeting
-    std::map<handle /*sched meeting id*/, ScheduledMeeting::sched_bs_t> mSchedMeetingsChanged;
 
     // return false if failed
     bool setNodeUserAccess(handle h, handle uh, bool revoke = false);

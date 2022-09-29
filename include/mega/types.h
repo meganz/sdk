@@ -850,24 +850,6 @@ class ScheduledRules
 class ScheduledMeeting
 {
 public:
-    typedef enum
-    {
-        SC_PARENT           = 0,
-        SC_TZONE            = 1,
-        SC_START            = 2,
-        SC_END              = 3,
-        SC_TITLE            = 4,
-        SC_DESC             = 5,
-        SC_ATTR             = 6,
-        SC_OVERR            = 7,
-        SC_CANC             = 8,
-        SC_FLAGS            = 9,
-        SC_RULES            = 10,
-        SC_SIZE             = 11,
-    } scheduled_changed_flags_t;
-
-    typedef std::bitset<SC_SIZE> sched_bs_t;
-
     ScheduledMeeting();
     ScheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
                      const char* title, const char* description, handle organizerUserId, handle callid = UNDEF,
@@ -917,8 +899,8 @@ public:
     ScheduledRules* rules() const;
     bool isValid() const;
 
-    // compare 2 scheduled meetings objects and returns the differences in a bitset
-    sched_bs_t compare(ScheduledMeeting* sm) const;
+    // check if 2 scheduled meetings objects are equal or not
+    bool equalTo(ScheduledMeeting* sm) const;
 
     // serialization
     bool serialize(string* out);

@@ -1278,22 +1278,20 @@ bool ScheduledMeeting::isValid() const
             && (!mRules || mRules->isValid());
 }
 
-ScheduledMeeting::sched_bs_t ScheduledMeeting::compare(ScheduledMeeting* sm) const
+bool ScheduledMeeting::equalTo(ScheduledMeeting* sm) const
 {
     // scheduled meeting Handle and chatroom can't change
-    sched_bs_t bs = 0;
-    if (parentCallid() != sm->parentCallid())            { bs[SC_PARENT] = 1; }
-    if (timezone() != sm->timezone())                    { bs[SC_TZONE] = 1; }
-    if (!strcmp(startDateTime(), sm->startDateTime()))   { bs[SC_START] = 1; }
-    if (!strcmp(endDateTime(), sm->endDateTime()))       { bs[SC_END] = 1; }
-    if (!strcmp(title(), sm->title()))                   { bs[SC_TITLE] = 1; }
-    if (!strcmp(description(), sm->description()))       { bs[SC_DESC] = 1; }
-    if (!strcmp(attributes(), sm->attributes()))         { bs[SC_ATTR] = 1; }
-    if (!strcmp(overrides(), sm->overrides()))           { bs[SC_OVERR] = 1; }
-    if (cancelled() != sm->cancelled())                  { bs[SC_CANC] = 1; }
-    if (!flags()->equalTo(sm->flags()))                  { bs[SC_FLAGS] = 1; }
-    if (!rules()->equalTo(sm->rules()))                  { bs[SC_RULES] = 1; }
-    return bs;
+    return parentCallid() == sm->parentCallid()
+            && !strcmp(timezone(), sm->timezone())
+            && !strcmp(startDateTime(), sm->startDateTime())
+            && !strcmp(endDateTime(), sm->endDateTime())
+            && !strcmp(title(), sm->title())
+            && !strcmp(description(), sm->description())
+            && !strcmp(attributes(), sm->attributes())
+            && !strcmp(overrides(), sm->overrides())
+            && cancelled() == sm->cancelled()
+            && flags()->equalTo(sm->flags())
+            && rules()->equalTo(sm->rules());
 }
 
 bool ScheduledMeeting::serialize(string* out)

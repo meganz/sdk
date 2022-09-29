@@ -518,9 +518,7 @@ bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
         return false;
     }
 
-    // Set all bits to 1
-    auto bs = ScheduledMeeting::sched_bs_t{}.set();
-    mSchedMeetingsChanged[sm->callid()] = bs;
+    mSchedMeetingsChanged.emplace_back(sm->callid());
     mScheduledMeetings.emplace(sm->callid(), std::move(sm));
     return true;
 }
@@ -535,8 +533,7 @@ bool TextChat::removeSchedMeeting(handle callid)
     }
 
     mScheduledMeetings.erase(callid);
-    ScheduledMeeting::sched_bs_t bs = 0;
-    mSchedMeetingsChanged[callid] = bs;
+    mSchedMeetingsChanged.emplace_back(callid);
     return true;
 }
 
@@ -551,10 +548,9 @@ bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
     }
 
     // compare current scheduled meeting with received from API
-    ScheduledMeeting::sched_bs_t bs = sm->compare(it->second.get());
-    if (bs.any()) // if changed add to changed map and update in ram
+    if (!sm->equalTo(it->second.get()))
     {
-        mSchedMeetingsChanged[sm->callid()] = bs;
+        mSchedMeetingsChanged.emplace_back(sm->callid());
         it->second = std::move(sm);
     }
 
