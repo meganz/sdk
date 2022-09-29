@@ -9210,12 +9210,7 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         }
 
         TextChat* chat = it->second;
-        auto auxit = chat->mScheduledMeetings.find(mSchedMeetingId);
-        if (auxit != chat->mScheduledMeetings.end())
-        {
-            chat->mScheduledMeetings.erase(auxit);
-        }
-
+        chat->removeSchedMeeting(mSchedMeetingId);
         mCompletion(API_OK);
         return true;
     }

@@ -418,7 +418,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(&i));
         if (auxMeet)
         {
-            chat->mScheduledMeetings.emplace(auxMeet->callid(), std::move(auxMeet));
+            chat->addSchedMeeting(std::move(auxMeet));
         }
     }
 
