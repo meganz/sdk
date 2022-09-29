@@ -15108,6 +15108,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             if (len != MegaClient::NODEHANDLE)
             {
                 LOG_err << "Wrong received data size for 'My Backups' node handle: " << len << "; expected " << MegaClient::NODEHANDLE;
+                assert(false);
             }
             memcpy(&h, data, MegaClient::NODEHANDLE);
             if (!client->nodebyhandle(h))
