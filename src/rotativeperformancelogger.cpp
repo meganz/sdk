@@ -691,8 +691,10 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
     char timebuf[LOG_TIME_CHARS + 1];
     auto now = std::chrono::system_clock::now();
     time_t t = std::chrono::system_clock::to_time_t(now);
+    struct tm gmt;
+    memset(&gmt, 0, sizeof(struct tm));
+    m_gmtime(t, &gmt);
 
-    struct tm gmt = *std::gmtime(&t);
     static thread_local std::string threadname = currentThreadName();
 
     auto microsec = std::chrono::duration_cast<std::chrono::microseconds>(now - std::chrono::system_clock::from_time_t(t));
