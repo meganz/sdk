@@ -122,37 +122,6 @@ struct LogLinkedList
 
 };
 
-class ThreadNameCache
-{
-    std::mutex mThreadNameMutex;
-    std::map<std::thread::id, std::string> mThreadNames;
-    std::thread::id mLastThreadId;
-    const char* mLastThreadName;
-
-public:
-    ThreadNameCache() = default;
-
-    const char* currentThreadName()
-    {
-        std::lock_guard<std::mutex> g(mThreadNameMutex);
-
-        if (mLastThreadId == std::this_thread::get_id())
-        {
-            return mLastThreadName;
-        }
-
-        auto& entry = mThreadNames[std::this_thread::get_id()];
-        if (entry.empty())
-        {
-            std::ostringstream s;
-            s << std::this_thread::get_id() << " ";
-            entry = s.str();
-        }
-        mLastThreadId = std::this_thread::get_id();
-        return mLastThreadName = entry.c_str();
-    }
-};
-
 class RotativePerformanceLoggerLoggingThread
 {
     std::unique_ptr<std::thread> mLogThread;
@@ -171,7 +140,6 @@ class RotativePerformanceLoggerLoggingThread
     unique_ptr<MegaFileSystemAccess> mFsAccess;
     ArchiveType mArchiveType = archiveTypeTimestamp;
     long int archiveMaxFileAgeSeconds = 30 * 86400; // one month
-    ThreadNameCache mThreadNameCache;
 
     friend RotativePerformanceLogger;
 
@@ -591,6 +559,13 @@ private:
         }
     }
 
+    static std::string currentThreadName()
+    {
+        std::ostringstream s;
+        s << std::this_thread::get_id() << " ";
+        return s.str();
+    };
+
     static char* filltime(char *s, struct tm *gmt, int microsec)
     {
         twodigit(s, gmt->tm_mday);
@@ -718,7 +693,7 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
     time_t t = std::chrono::system_clock::to_time_t(now);
 
     struct tm gmt = *std::gmtime(&t);
-    const char* threadname = mThreadNameCache.currentThreadName();
+    static thread_local std::string threadname = currentThreadName();
 
     auto microsec = std::chrono::duration_cast<std::chrono::microseconds>(now - std::chrono::system_clock::from_time_t(t));
     filltime(timebuf, &gmt, (int)microsec.count() % 1000000);
@@ -735,7 +710,7 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
     }
 
     auto messageLen = strlen(message);
-    auto threadnameLen = strlen(threadname);
+    auto threadnameLen = threadname.size();
     auto lineLen = LOG_TIME_CHARS + threadnameLen + LOG_LEVEL_CHARS + messageLen;
     bool notify = false;
 
@@ -767,7 +742,7 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
                     std::promise<void> promise;
                     mLogListLast->mCompletionPromise = &promise;
                     auto future = mLogListLast->mCompletionPromise->get_future();
-                    DirectLogFunction func = [&timebuf, &threadname, &loglevelstring, &directMessages, &directMessagesSizes, numberMessages](std::ostream *oss)
+                    DirectLogFunction func = [&timebuf, threadname{threadname.c_str()}, &loglevelstring, &directMessages, &directMessagesSizes, numberMessages](std::ostream *oss)
                     {
                         *oss << timebuf << threadname << loglevelstring;
 
@@ -816,7 +791,7 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
                         mLogListLast->append(repeatbuf, n);
                     }
                     mLogListLast->append(timebuf, LOG_TIME_CHARS);
-                    mLogListLast->append(threadname, unsigned(threadnameLen));
+                    mLogListLast->append(threadname.c_str(), unsigned(threadnameLen));
                     mLogListLast->append(loglevelstring, LOG_LEVEL_CHARS);
                     mLogListLast->mLastMessage = mLogListLast->mUsed;
                     mLogListLast->append(message, unsigned(messageLen));
