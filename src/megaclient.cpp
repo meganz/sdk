@@ -502,6 +502,48 @@ bool MegaClient::setlang(string *code)
     return false;
 }
 
+error MegaClient::setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion)
+{
+    if (!foldername)
+    {
+        return API_EARGS;
+    }
+
+    User* u = ownuser();
+    if (!u || u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    {
+        // cannot set a new folder if not logged in or it already exists
+        return API_EEXIST;
+    }
+
+    // 1. prepare the NewNode and create it via putnodes(), with flag `vw:1`
+    vector<NewNode> newnodes(1);
+    NewNode& newNode = newnodes.back();
+    putnodes_prepareOneFolder(&newNode, foldername, true);
+
+    // 2. upon completion of putnodes(), set the user's attribute `^!bak`
+    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/)
+    {
+        if (e != API_OK)
+        {
+            addua_completion(e);
+            return;
+        }
+
+        assert(handletype == NODE_HANDLE &&
+            nodes.size() == 1 &&
+            nodes.back().mAddedHandle != UNDEF);
+
+        putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().mAddedHandle, NODEHANDLE,
+            -1, UNDEF, 0, 0, addua_completion);
+    };
+
+    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, true, addua);
+    // Note: this request should not finish until the user's attribute is set successfully
+
+    return API_OK;
+}
+
 void MegaClient::setFolderLinkAccountAuth(const char *auth)
 {
     if (auth)
@@ -5641,12 +5683,16 @@ void MegaClient::sc_userattr()
                                         resetKeyring();
                                         break;
                                     }
+                                    case ATTR_MY_BACKUPS_FOLDER:
+                                    // there should be no actionpackets for this attribute. It is
+                                    // created and never updated afterwards
+                                    assert(type != ATTR_MY_BACKUPS_FOLDER);
+                                    //fall-through
                                     case ATTR_AUTHRING:              // fall-through
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
                                     case ATTR_DRIVE_NAMES:          // fall-through
-                                    case ATTR_MY_BACKUPS_FOLDER:     // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
@@ -13462,6 +13508,192 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
 }
 
 
+void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConfig, UndoFunction revertOnError)> completion)
+{
+    // get current user
+    User* u = ownuser();
+
+    // get handle of remote "My Backups" folder, from user attributes
+    if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    {
+        LOG_err << "Add backup: \"My Backups\" folder was not set";
+        return completion(API_EACCESS, sc, nullptr);
+    }
+    const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+    if (!handleContainerStr)
+    {
+        LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute had null value";
+        return completion(API_EACCESS, sc, nullptr);
+    }
+
+    handle h = 0;
+    memcpy(&h, handleContainerStr->data(), MegaClient::NODEHANDLE);
+    if (!h || h == UNDEF)
+    {
+        LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute contained invalid handler value";
+        return completion(API_ENOENT, sc, nullptr);
+    }
+
+    // get Node of remote "My Backups" folder
+    Node* myBackupsNode = nodebyhandle(h);
+    if (!myBackupsNode)
+    {
+        LOG_err << "Add backup: \"My Backups\" folder could not be found using the stored handle";
+        return completion(API_ENOENT, sc, nullptr);
+    }
+
+    // get 'device-id'
+    string deviceId;
+    bool isInternalDrive = sc.mExternalDrivePath.empty();
+    if (isInternalDrive)
+    {
+        deviceId = getDeviceidHash();
+    }
+    else // external drive
+    {
+        // drive-id must have been already written to external drive, since a name was given to it
+        handle driveId;
+        error e = readDriveId(*fsaccess, sc.mExternalDrivePath.toPath(false).c_str(), driveId);
+        if (e != API_OK)
+        {
+            LOG_err << "Add backup (external): failed to read drive id";
+            return completion(e, sc, nullptr);
+        }
+
+        // create the device id from the drive id
+        deviceId = Base64Str<MegaClient::DRIVEHANDLE>(driveId);
+    }
+
+    if (deviceId.empty())
+    {
+        LOG_err << "Add backup: invalid device id";
+        return completion(API_EINCOMPLETE, sc, nullptr);
+    }
+
+    // prepare for new nodes
+    vector<NewNode> newnodes;
+    nameid attrId = isInternalDrive ?
+        AttrMap::string2nameid("dev-id") : // "device-id" would be too long
+        AttrMap::string2nameid("drv-id");
+    std::function<void(AttrMap& attrs)> addAttrsFunc = [=](AttrMap& attrs)
+    {
+        attrs.map[attrId] = deviceId;
+    };
+
+    // search for remote folder "My Backups"/`DEVICE_NAME`/
+    Node* deviceNameNode = childnodebyattribute(myBackupsNode, attrId, deviceId.c_str());
+    if (deviceNameNode) // validate this node
+    {
+        if (deviceNameNode->type != FOLDERNODE)
+        {
+            LOG_err << "Add backup: device-name node did not have FOLDERNODE type";
+            return completion(API_EACCESS, sc, nullptr);
+        }
+
+        // make sure there is no folder with the same name as the backup
+        Node* backupNameNode = childnodebyname(deviceNameNode, sc.mName.c_str());
+        if (backupNameNode)
+        {
+            LOG_err << "Add backup: a backup with the same name (" << sc.mName << ") already existed";
+            return completion(API_EACCESS, sc, nullptr);
+        }
+    }
+    else // create `DEVICE_NAME` remote dir
+    {
+        // get `DEVICE_NAME`, from user attributes
+        attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
+        if (!u->isattrvalid(attrType))
+        {
+            LOG_err << "Add backup: device/drive name not set";
+            return completion(API_EINCOMPLETE, sc, nullptr);
+        }
+        const string* deviceNameContainerStr = u->getattr(attrType);
+        if (!deviceNameContainerStr)
+        {
+            LOG_err << "Add backup: null attribute value for device/drive name";
+            return completion(API_EINCOMPLETE, sc, nullptr);
+        }
+
+        string deviceName;
+        std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
+        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty())
+        {
+            LOG_err << "Add backup: device/drive name not found";
+            return completion(API_EINCOMPLETE, sc, nullptr);
+        }
+
+        // is there a folder with the same device-name already?
+        deviceNameNode = childnodebyname(myBackupsNode, deviceName.c_str());
+        if (deviceNameNode)
+        {
+            LOG_err << "Add backup: new device, but a folder with the same device-name (" << deviceName << ") already existed";
+            return completion(API_EEXIST, sc, nullptr);
+        }
+
+        // add a new node for it
+        newnodes.emplace_back();
+        NewNode& newNode = newnodes.back();
+
+        putnodes_prepareOneFolder(&newNode, deviceName, true, addAttrsFunc);
+        newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
+    }
+
+    // create backupName remote dir
+    newnodes.emplace_back();
+    NewNode& backupNameNode = newnodes.back();
+
+    putnodes_prepareOneFolder(&backupNameNode, sc.mName, true);    // backup node should not include dev-id/drv-id
+    if (!deviceNameNode)
+    {
+        // Set parent handle if part of the new nodes array (it cannot be from an existing node)
+        backupNameNode.parenthandle = newnodes[0].nodehandle;
+    }
+
+    // create the new node(s)
+    putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
+             NoVersioning, move(newnodes), nullptr, reqtag, true,
+             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool targetOverride){
+
+                if (e)
+                {
+                    completion(e, sc, nullptr);
+                }
+                else
+                {
+                    handle newBackupNodeHandle = nn.back().mAddedHandle;
+
+                    SyncConfig updatedConfig = sc;
+                    updatedConfig.mRemoteNode.set6byte(newBackupNodeHandle);
+
+                    if (Node* backupRoot = nodeByHandle(updatedConfig.mRemoteNode))
+                    {
+                        updatedConfig.mOriginalPathOfRemoteRootNode = backupRoot->displaypath();
+                    }
+                    else
+                    {
+                        LOG_err << "Node created for backup is missing already";
+                        completion(API_EEXIST, updatedConfig, nullptr);
+                    }
+
+                    // Offer the option to the caller, to remove the new Backup node if a later step fails
+                    UndoFunction undoOnFail = [newBackupNodeHandle, this](std::function<void()> continuation){
+                        if (Node* n = nodebyhandle(newBackupNodeHandle))
+                        {
+                            unlink(n, false, 0, true, [continuation](NodeHandle, Error){
+                                if (continuation) continuation();
+                            });
+                        }
+                        else
+                        {
+                            if (continuation) continuation();
+                        }
+                    };
+
+                    completion(API_OK, updatedConfig, undoOnFail);
+                }
+
+             });
+}
 
 //// syncids are usable to indicate putnodes()-local parent linkage
 //handle MegaClient::nextsyncid()

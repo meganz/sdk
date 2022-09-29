@@ -402,6 +402,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             {
                 attributeValue = request->getName() ? request->getName() : "";
             }
+            else if (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER)
+            {
+                mApi[apiIndex].lastSyncBackupId = request->getNodeHandle();
+            }
             else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
             {
                 attributeValue = request->getText() ? request->getText() : "";
@@ -5314,30 +5318,34 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupFolder___";
 
+    // get timestamp
+    struct tm tms;
+    char timestamp[32];
+    strftime(timestamp, sizeof timestamp, "%Y%m%d%H%M%S", m_localtime(m_time(), &tms));
+
     // look for Device Name attr
     string deviceName;
+    bool deviceNameWasSetByCurrentTest = false;
     if (synchronousGetDeviceName(0) == API_OK && !attributeValue.empty())
     {
         deviceName = attributeValue;
     }
     else
     {
-        struct tm tms;
-        char timebuf[32];
-        strftime(timebuf, sizeof timebuf, "%c", m_localtime(m_time(), &tms));
-
-        deviceName = string("Jenkins ") + timebuf;
+        deviceName = string("Jenkins ") + timestamp;
         synchronousSetDeviceName(0, deviceName.c_str());
 
         // make sure Device Name attr was set
         int err = synchronousGetDeviceName(0);
         ASSERT_TRUE(err == API_OK) << "Getting device name attr failed (error: " << err << ")";
         ASSERT_EQ(deviceName, attributeValue) << "Getting device name attr failed (wrong value)";
+        deviceNameWasSetByCurrentTest = true;
     }
 
 #ifdef ENABLE_SYNC
     // create My Backups folder
-    MegaHandle mh = syncTestMyBackupsRemoteFolder(0);
+    syncTestMyBackupsRemoteFolder(0);
+    MegaHandle mh = mApi[0].lastSyncBackupId;
 
     // Create a test root directory
     fs::path localBasePath = makeNewTestRoot();
@@ -5345,7 +5353,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     // request to backup a folder
     fs::path localFolderPath = localBasePath / "LocalBackedUpFolder";
     fs::create_directories(localFolderPath);
-    const char* backupName = "RemoteBackupFolder";
+    const string backupNameStr = string("RemoteBackupFolder_") + timestamp;
+    const char* backupName = backupNameStr.c_str();
     MegaHandle newSyncRootNodeHandle = UNDEF;
     int err = synchronousSyncFolder(0, &newSyncRootNodeHandle, MegaSync::TYPE_BACKUP, localFolderPath.u8string().c_str(), backupName, INVALID_HANDLE, nullptr);
     ASSERT_TRUE(err == API_OK) << "Backup folder failed (error: " << err << ")";
@@ -5353,14 +5362,21 @@ TEST_F(SdkTest, SdkBackupFolder)
     // verify node attribute
     std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(newSyncRootNodeHandle));
     const char* deviceIdFromNode = backupNode->getDeviceId();
-    std::unique_ptr<const char[]> deviceIdFromApi{ megaApi[0]->getDeviceId() };
-    ASSERT_STREQ(deviceIdFromNode, deviceIdFromApi.get());
+    ASSERT_TRUE(!deviceIdFromNode || !*deviceIdFromNode);
 
-    // Verify that the remote path was created as expected
-    unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
-    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + backupName;
     unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(newSyncRootNodeHandle) };
-    ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
+    // TODO: always verify the remote path was created as expected,
+    // even if it needs to create a new public interface that allows
+    // to retrieve the handle of the device-folder
+    if (deviceNameWasSetByCurrentTest)
+    {
+        // Verify that the remote path was created as expected.
+        // Only check this if current test has actually set the device name, otherwise the device name may have changed
+        // since the backup folder has been created.
+        unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
+        string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + backupName;
+        ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
+    }
 
     // Verify that the sync was added
     unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
@@ -5650,8 +5666,13 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
 
+    // get timestamp
+    struct tm tms;
+    char timestamp[32];
+    strftime(timestamp, sizeof timestamp, "%Y%m%d%H%M%S", m_localtime(m_time(), &tms));
+
     // test setter/getter
-    string deviceName = "SdkDeviceNamesTest";
+    string deviceName = string("SdkDeviceNamesTest") + timestamp;
     auto err = synchronousSetDeviceName(0, deviceName.c_str());
     ASSERT_EQ(API_OK, err) << "setDeviceName failed (error: " << err << ")";
     err = synchronousGetDeviceName(0);
@@ -5683,13 +5704,24 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     auto err = synchronousSetDriveName(0, pathToDriveStr.c_str(), driveName.c_str());
     ASSERT_EQ(API_OK, err) << "setDriveName failed (error: " << err << ")";
 
+    // attempt to set the same name to another drive
+    fs::path pathToDrive2 = basePath / "ExtDrive2";
+    fs::create_directory(pathToDrive2);
+    const string& pathToDriveStr2 = pathToDrive2.u8string();
+    bool oldTestLogVal = gTestingInvalidArgs;
+    gTestingInvalidArgs = true;
+    err = synchronousSetDriveName(0, pathToDriveStr2.c_str(), driveName.c_str());
+    ASSERT_EQ(API_EEXIST, err) << "setDriveName allowed duplicated name. Should not have.";
+    gTestingInvalidArgs = oldTestLogVal;
+
     // get drive name
     err = synchronousGetDriveName(0, pathToDriveStr.c_str());
     ASSERT_EQ(API_OK, err) << "getDriveName failed (error: " << err << ")";
     ASSERT_EQ(attributeValue, driveName) << "getDriveName returned incorrect value";
 
     // create My Backups folder
-    MegaHandle mh = syncTestMyBackupsRemoteFolder(0);
+    syncTestMyBackupsRemoteFolder(0);
+    MegaHandle mh = mApi[0].lastSyncBackupId;
 
     // add backup
     string bkpName = "Bkp";
@@ -5726,32 +5758,34 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
 }
 #endif
 
-MegaHandle SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
+void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 {
-    // Attempt to get My Backups folder;
-    // make this work even before the remote API has support for My Backups folder
-    MegaHandle mh = UNDEF;
-    EXPECT_EQ(API_OK, synchronousGetMyBackupsFolder(apiIdx, mh));
+    mApi[apiIdx].lastSyncBackupId = UNDEF;
+//    mApi[apiIdx].h = UNDEF;
+    int err = synchronousGetUserAttribute(apiIdx, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+    EXPECT_TRUE(err == MegaError::API_OK
+                || err == MegaError::API_ENOENT) << "Failed to get USER_ATTR_MY_BACKUPS_FOLDER";
 
-    // create My Backups folder
-    unique_ptr<MegaNode> myBkpsNode{ mh && mh != INVALID_HANDLE ? megaApi[apiIdx]->getNodeByHandle(mh) : nullptr };
-    if (!myBkpsNode)
+    if (mApi[apiIdx].lastSyncBackupId == UNDEF)
+//    if (mApi[apiIdx].h == UNDEF)
     {
-        // create My Backups folder (default name, just for testing)
-        unique_ptr<MegaNode> rootnode{ megaApi[apiIdx]->getRootNode() };
         const char* folderName = "My Backups";
-        mh = createFolder(apiIdx, folderName, rootnode.get());
-        EXPECT_NE(mh, UNDEF);
 
-        // set My Backups handle attr
-        int err = synchronousSetMyBackupsFolder(apiIdx, mh);
-        EXPECT_TRUE(err == API_OK) << "Setting handle for My Backup folder failed (error: " << err << ")";
+        mApi[apiIdx].userUpdated = false;
+        int err = synchronousSetMyBackupsFolder(apiIdx, folderName);
+        EXPECT_EQ(err, MegaError::API_OK) << "Failed to set backups folder to " << folderName;
+        EXPECT_TRUE(waitForResponse(&mApi[apiIdx].userUpdated)) << "User attribute update not received after " << maxTimeout << " seconds";
 
-        // read the attribute to make sure it was set
-        err = synchronousGetMyBackupsFolder(apiIdx, mh);
-        EXPECT_TRUE(err == API_OK);
+        unique_ptr<MegaUser> myUser(megaApi[apiIdx]->getMyUser());
+        err = synchronousGetUserAttribute(apiIdx, myUser.get(), MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+        EXPECT_EQ(err, MegaError::API_OK) << "Failed to get user attribute USER_ATTR_MY_BACKUPS_FOLDER";
     }
-    return mh;
+
+    EXPECT_NE(mApi[apiIdx].lastSyncBackupId, UNDEF);
+    unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].lastSyncBackupId));
+//    EXPECT_NE(mApi[apiIdx].h, UNDEF);
+//    unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].h));
+    EXPECT_NE(n, nullptr);
 }
 
 void SdkTest::resetOnNodeUpdateCompletionCBs()

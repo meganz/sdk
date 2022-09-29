@@ -19,7 +19,6 @@
  * program.
  */
 
-#include <sstream>
 #define _LARGE_FILES
 
 #define _GNU_SOURCE 1
@@ -10522,22 +10521,12 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     waiter->notify();
 }
 
-void MegaApiImpl::getMyBackupsFolder(MegaRequestListener *listener)
+void MegaApiImpl::setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_MY_BACKUPS, listener);
+    request->setText(localizedName);
     requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
-{
-    Base64Str<MegaClient::NODEHANDLE> b64Handle(nodehandle);
-
-    MegaStringMapPrivate stringMap;
-    stringMap.set("h", b64Handle);
-
-    setUserAttribute(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER, &stringMap, listener);
 }
 
 void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
@@ -21537,6 +21526,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             bool found = false;
+            // synchronous call so ok to use &
             client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync){
 
                 bool matched = (backupId != UNDEF && c.mBackupId == backupId) ||
