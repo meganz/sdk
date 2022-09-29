@@ -6554,6 +6554,11 @@ const MegaScheduledMeetingList* MegaTextChat::getScheduledMeetingList() const
     return NULL;
 }
 
+const MegaHandleList* MegaTextChat::getSchedMeetingsChanged() const
+{
+    return NULL;
+}
+
 int64_t MegaTextChat::getCreationTime() const
 {
     return 0;

@@ -33035,7 +33035,16 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->unifiedKey = chat->getUnifiedKey() ? chat->getUnifiedKey() : "";
     this->meeting = chat->isMeeting();
     this->chatOptions = chat->getChatOptions();
-    mScheduledMeetings.reset(chat->getScheduledMeetingList()->copy());
+
+    if (chat->getScheduledMeetingList())
+    {
+        mScheduledMeetings.reset(chat->getScheduledMeetingList()->copy());
+    }
+
+    if (chat->getSchedMeetingsChanged()->size())
+    {
+        mSchedMeetingsChanged.reset(chat->getSchedMeetingsChanged()->copy());
+    }
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -33056,10 +33065,22 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->chatOptions = chat->chatOptions;
     this->changed = 0;
 
-    mScheduledMeetings.reset(MegaScheduledMeetingList::createInstance());
-    for (auto it = chat->mScheduledMeetings.begin(); it != chat->mScheduledMeetings.end(); it++)
+    if (!chat->mScheduledMeetings.empty())
     {
-        mScheduledMeetings->insert(new MegaScheduledMeetingPrivate(it->second.get()));
+        mScheduledMeetings.reset(MegaScheduledMeetingList::createInstance());
+        for (auto it = chat->mScheduledMeetings.begin(); it != chat->mScheduledMeetings.end(); it++)
+        {
+            mScheduledMeetings->insert(new MegaScheduledMeetingPrivate(it->second.get()));
+        }
+    }
+
+    if (!chat->mSchedMeetingsChanged.empty())
+    {
+        mSchedMeetingsChanged.reset(MegaHandleList::createInstance());
+        for (auto it = chat->mSchedMeetingsChanged.begin(); it != chat->mSchedMeetingsChanged.end(); it++)
+        {
+            mSchedMeetingsChanged->addMegaHandle(*it);
+        }
     }
 
     if (chat->changed.attachments)
@@ -33182,6 +33203,11 @@ int MegaTextChatPrivate::getChanges() const
 const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingList() const
 {
     return mScheduledMeetings.get();
+}
+
+const MegaHandleList* MegaTextChatPrivate::getSchedMeetingsChanged() const
+{
+    return mSchedMeetingsChanged.get();
 }
 
 MegaTextChatListPrivate::~MegaTextChatListPrivate()

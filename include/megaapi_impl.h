@@ -1739,6 +1739,7 @@ public:
     int getChanges() const override;
     int isOwnChange() const override;
     const MegaScheduledMeetingList* getScheduledMeetingList() const override;
+    const MegaHandleList* getSchedMeetingsChanged() const override;
 
 private:
     handle id;
@@ -1758,6 +1759,7 @@ private:
     bool meeting;
     ChatOptions_t chatOptions;
     std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetings;
+    std::unique_ptr<MegaHandleList> mSchedMeetingsChanged;
 
 };
 

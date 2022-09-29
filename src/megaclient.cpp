@@ -11757,11 +11757,12 @@ void MegaClient::procmcsm(JSON *j)
         }
 
         // add scheduled meeting
+        handle h = sm->chatid();
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(std::move(sm));
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
-        reqs.add(new CommandScheduledMeetingFetchEvents(this, sm->chatid(), nullptr, nullptr, -1,
+        reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, -1,
                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
     }
 }
