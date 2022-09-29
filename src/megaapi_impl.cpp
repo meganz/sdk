@@ -15105,7 +15105,11 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
         {
             handle h = 0;
-            memcpy(&h, data, len);
+            if (len != MegaClient::NODEHANDLE)
+            {
+                LOG_err << "Wrong received data size for 'My Backups' node handle: " << len << "; expected " << MegaClient::NODEHANDLE;
+            }
+            memcpy(&h, data, MegaClient::NODEHANDLE);
             if (!client->nodebyhandle(h))
             {
                 LOG_warn << "'My Backups' node was missing, or invalid handle in USER_ATTR_MY_BACKUPS_FOLDER";
