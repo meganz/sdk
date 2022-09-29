@@ -26974,7 +26974,7 @@ StreamingBuffer::StreamingBuffer()
     this->free = 0;
     this->maxBufferSize = MAX_BUFFER_SIZE;
     this->maxOutputSize = MAX_OUTPUT_SIZE;
-    this->length = 0;
+    this->fileSize = 0;
     this->duration = 0;
 }
 
@@ -26985,16 +26985,16 @@ StreamingBuffer::~StreamingBuffer()
 
 void StreamingBuffer::init(size_t capacity)
 {
-    assert(this->length > 0);
+    assert(this->fileSize > 0);
     assert(capacity > 0);
     if (capacity > maxBufferSize)
     {
         LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize. "
                  << " Capacity requested = " << capacity << " bytes"
                  << ", truncated to  = " << maxBufferSize << " bytes"
-                 << " [file length = " << length << " bytes"
+                 << " [file size = " << fileSize << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / static_cast<size_t>(getBitRate())).append(" secs")) : "")
+                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(partialBytesPerSecond(maxBufferSize)).append(" secs")) : "")
                  << "]";
         capacity = maxBufferSize;
     }
@@ -27002,9 +27002,9 @@ void StreamingBuffer::init(size_t capacity)
     {
         LOG_debug << "[Streaming] Init StreamingBuffer."
                  << " Capacity requested = " << capacity << " bytes"
-                 << " [file length = " << length << " bytes"
+                 << " [file size = " << fileSize << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in buffer: ").append(std::to_string(capacity / static_cast<size_t>(getBitRate())).append(" secs")) : "")
+                 << (duration ? std::string(", estimated duration in buffer: ").append(std::to_string(partialBytesPerSecond(capacity)).append(" secs")) : "")
                  << "]";
     }
 
@@ -27126,36 +27126,38 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
     }
 }
 
-void StreamingBuffer::setLength(m_off_t length)
+void StreamingBuffer::setFileSize(m_off_t fileSize)
 {
-    this->length = length;
-    LOG_debug << "[Streaming] File length set to " << this->length << " bytes";
+    this->fileSize = fileSize;
+    LOG_debug << "[Streaming] File size set to " << this->fileSize << " bytes";
 }
 
 void StreamingBuffer::setDuration(int duration)
 {
     if (!duration)
     {
-        LOG_err << "[Streaming] Duration value is 0 secs for a media file. This file could be corrupted or invalid";
+        LOG_warn << "[Streaming] Duration value is 0 seconds for this media file!";
     }
-    this->duration = duration > 0 ? static_cast<uint32_t>(duration) : static_cast<uint32_t>(0);
+    this->duration = duration > 0 ? duration : 0;
     LOG_debug << "[Streaming] File duration set to " << this->duration << " secs";
 }
 
-m_off_t StreamingBuffer::getBitRate() const
+m_off_t StreamingBuffer::getBytesPerSecond() const
 {
-    if (!duration)
+    if (fileSize < static_cast<m_off_t>(duration))
     {
-        return static_cast<m_off_t>(0);
-    }
-    if (length < duration)
-    {
-        LOG_err << "[Streaming] Getting the bitRate of a file whose length is SMALLER THAN its duration !!!! Media file is likely to be corrupted or invalid."
-                << " [length = " << length << " bytes"
+        LOG_err << "[Streaming] File size is smaller than its duration in seconds!"
+                << " [file size = " << fileSize << " bytes"
                 << " , duration = " << duration << " secs]";
-        return static_cast<m_off_t>(1);
     }
-    return length / static_cast<m_off_t>(duration);
+    return duration ? (fileSize / duration) : 0;
+}
+
+m_off_t StreamingBuffer::partialBytesPerSecond(m_off_t partialSize) const
+{
+    assert(partialSize <= fileSize);
+    m_off_t bytesPerSecond = getBytesPerSecond();
+    return bytesPerSecond ? (partialSize / bytesPerSecond) : 0;
 }
 
 std::string StreamingBuffer::bufferStatus() const
@@ -27164,13 +27166,13 @@ std::string StreamingBuffer::bufferStatus() const
     bufferState.reserve(256);
     bufferState.append("[|Buffer status| buffered = ")
                .append(std::to_string(size));
-    if (duration) bufferState.append(" (").append(std::to_string(size / static_cast<size_t>(getBitRate()))).append( " secs)");
+    if (duration) bufferState.append(" (").append(std::to_string(partialBytesPerSecond(size)).append( " secs)"));
     bufferState.append(", free = ")
                .append(std::to_string(free));
-    if (duration) bufferState.append(" (").append(std::to_string(free / static_cast<size_t>(getBitRate()))).append( " secs)");
+    if (duration) bufferState.append(" (").append(std::to_string(partialBytesPerSecond(free)).append( " secs)"));
     bufferState.append(", capacity = ")
                .append(std::to_string(capacity));
-    if (duration) bufferState.append(" (").append(std::to_string(capacity / static_cast<size_t>(getBitRate()))).append( " secs)");
+    if (duration) bufferState.append(" (").append(std::to_string(partialBytesPerSecond(capacity)).append( " secs)"));
     bufferState.append("]");
     return bufferState;
 }
@@ -29861,7 +29863,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         httpctx->transfer->setEndPos(end);
     }
 
-    httpctx->streamingBuffer.setLength(totalSize);
+    httpctx->streamingBuffer.setFileSize(totalSize);
     httpctx->streamingBuffer.setDuration(httpctx->node->getDuration());
 
     string resstr = response.str();
@@ -32433,7 +32435,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             ftpdatactx->transfer->setEndPos(end); //This will actually be override later
             ftpdatactx->node = nodeToDownload->copy();
 
-            ftpdatactx->streamingBuffer.setLength(nodeToDownload->getSize());
+            ftpdatactx->streamingBuffer.setFileSize(nodeToDownload->getSize());
             ftpdatactx->streamingBuffer.setDuration(nodeToDownload->getDuration());
 
             ftpdatactx->streamingBuffer.init(len);

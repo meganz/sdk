@@ -3520,12 +3520,14 @@ public:
     void setMaxBufferSize(unsigned int bufferSize);
     // Set upper bound limit for chunk size to write to the consumer
     void setMaxOutputSize(unsigned int outputSize);
-    // Set file length in bytes
-    void setLength(m_off_t length);
-    // Set file length in seconds (for media files)
+    // Set file size
+    void setFileSize(m_off_t fileSize);
+    // Set media length in seconds
     void setDuration(int duration);
-    // Bit Rate in seconds (length in bytes / length in seconds) -> only for media files
-    m_off_t getBitRate() const;
+    // Rate between file size and its duration (only for media files)
+    m_off_t getBytesPerSecond() const;
+    // Rate between partial file size and its duration (only for media files)
+    m_off_t partialBytesPerSecond(m_off_t partialSize) const;
     // Get the actual buffer state for debugging purposes
     std::string bufferStatus() const;
 
@@ -3550,10 +3552,10 @@ protected:
     // Upper bound limit for chunk size to write to the consumer
     size_t maxOutputSize;
 
-    // Length in bytes
-    m_off_t length;
-    // Length in seconds (for media files)
-    uint32_t duration;
+    // File size
+    m_off_t fileSize;
+    // Media length in seconds (for media files)
+    size_t duration;
 };
 
 class MegaTCPServer;
