@@ -122,6 +122,37 @@ struct LogLinkedList
 
 };
 
+class ThreadNameCache
+{
+    std::mutex mThreadNameMutex;
+    std::map<std::thread::id, std::string> mThreadNames;
+    std::thread::id mLastThreadId;
+    const char* mLastThreadName;
+
+public:
+    ThreadNameCache() = default;
+
+    const char* currentThreadName()
+    {
+        std::lock_guard<std::mutex> g(mThreadNameMutex);
+
+        if (mLastThreadId == std::this_thread::get_id())
+        {
+            return mLastThreadName;
+        }
+
+        auto& entry = mThreadNames[std::this_thread::get_id()];
+        if (entry.empty())
+        {
+            std::ostringstream s;
+            s << std::this_thread::get_id() << " ";
+            entry = s.str();
+        }
+        mLastThreadId = std::this_thread::get_id();
+        return mLastThreadName = entry.c_str();
+    }
+};
+
 class RotativePerformanceLoggerLoggingThread
 {
     std::unique_ptr<std::thread> mLogThread;
@@ -140,6 +171,7 @@ class RotativePerformanceLoggerLoggingThread
     unique_ptr<MegaFileSystemAccess> mFsAccess;
     ArchiveType mArchiveType = archiveTypeTimestamp;
     long int archiveMaxFileAgeSeconds = 30 * 86400; // one month
+    ThreadNameCache mThreadNameCache;
 
     friend RotativePerformanceLogger;
 
@@ -559,6 +591,37 @@ private:
         }
     }
 
+    static char* filltime(char *s, struct tm *gmt, int microsec)
+    {
+        twodigit(s, gmt->tm_mday);
+        *s++ = '/';
+        twodigit(s, gmt->tm_mon + 1);
+        *s++ = '/';
+        twodigit(s, gmt->tm_year % 100);
+        *s++ = '-';
+        twodigit(s, gmt->tm_hour);
+        *s++ = ':';
+        twodigit(s, gmt->tm_min);
+        *s++ = ':';
+        twodigit(s, gmt->tm_sec);
+        *s++ = '.';
+        s[5] = static_cast<char>(microsec % 10 + '0');
+        s[4] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[3] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[2] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[1] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[0] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s += 6;
+        *s++ = ' ';
+        *s = 0;
+        return s;
+    }
+
+    static inline void twodigit(char *&s, int n)
+    {
+        *s++ = static_cast<char>(n / 10 + '0');
+        *s++ = static_cast<char>(n % 10 + '0');
+    }
 };
 
 RotativePerformanceLogger::RotativePerformanceLogger()
@@ -632,89 +695,6 @@ void RotativePerformanceLogger::setArchiveTimestamps(long int maxFileAgeSeconds)
     mLoggingThread->archiveMaxFileAgeSeconds = maxFileAgeSeconds;
 }
 
-
-class RotativePerformanceLoggerHelper
-{
-private:
-    std::mutex mThreadNameMutex;
-    std::map<std::thread::id, std::string> mThreadNames;
-    struct tm mLastTm;
-    time_t mLastT = 0;
-    std::thread::id mLastThreadId;
-    const char* mLastThreadName;
-
-    RotativePerformanceLoggerHelper()
-    {
-    }
-
-public:
-    static RotativePerformanceLoggerHelper& Instance()
-    {
-        static RotativePerformanceLoggerHelper myInstance;
-        return myInstance;
-    }
-
-    void cacheThreadNameAndTimeT(time_t t, struct tm& gmt, const char*& threadname)
-    {
-        std::lock_guard<std::mutex> g(mThreadNameMutex);
-
-        if (t != mLastT)
-        {
-            mLastTm = *std::gmtime(&t);
-            mLastT = t;
-        }
-        gmt = mLastTm;
-
-        if (mLastThreadId == std::this_thread::get_id())
-        {
-            threadname = mLastThreadName;
-            return;
-        }
-
-        auto& entry = mThreadNames[std::this_thread::get_id()];
-        if (entry.empty())
-        {
-            std::ostringstream s;
-            s << std::this_thread::get_id() << " ";
-            entry = s.str();
-        }
-        threadname = mLastThreadName = entry.c_str();
-        mLastThreadId = std::this_thread::get_id();
-    }
-
-    static inline void twodigit(char*& s, int n)
-    {
-        *s++ = static_cast<char>(n / 10 + '0');
-        *s++ = static_cast<char>(n % 10 + '0');
-    }
-
-    static char* filltime(char* s, struct tm*  gmt, int microsec)
-    {
-        twodigit(s, gmt->tm_mday);
-        *s++ = '/';
-        twodigit(s, gmt->tm_mon + 1);
-        *s++ = '/';
-        twodigit(s, gmt->tm_year % 100);
-        *s++ = '-';
-        twodigit(s, gmt->tm_hour);
-        *s++ = ':';
-        twodigit(s, gmt->tm_min);
-        *s++ = ':';
-        twodigit(s, gmt->tm_sec);
-        *s++ = '.';
-        s[5] = static_cast<char>(microsec % 10 + '0');
-        s[4] = static_cast<char>((microsec /= 10) % 10 + '0');
-        s[3] = static_cast<char>((microsec /= 10) % 10 + '0');
-        s[2] = static_cast<char>((microsec /= 10) % 10 + '0');
-        s[1] = static_cast<char>((microsec /= 10) % 10 + '0');
-        s[0] = static_cast<char>((microsec /= 10) % 10 + '0');
-        s += 6;
-        *s++ = ' ';
-        *s = 0;
-        return s;
-    }
-};
-
 void RotativePerformanceLogger::log(const char*, int loglevel, const char*, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
                          , const char **directMessages, size_t *directMessagesSizes, int numberMessages
@@ -737,12 +717,11 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
     auto now = std::chrono::system_clock::now();
     time_t t = std::chrono::system_clock::to_time_t(now);
 
-    struct tm gmt;
-    const char* threadname;
-    RotativePerformanceLoggerHelper::Instance().cacheThreadNameAndTimeT(t, gmt, threadname);
+    struct tm gmt = *std::gmtime(&t);
+    const char* threadname = mThreadNameCache.currentThreadName();
 
     auto microsec = std::chrono::duration_cast<std::chrono::microseconds>(now - std::chrono::system_clock::from_time_t(t));
-    RotativePerformanceLoggerHelper::filltime(timebuf, &gmt, (int)microsec.count() % 1000000);
+    filltime(timebuf, &gmt, (int)microsec.count() % 1000000);
 
     const char* loglevelstring = "     ";
     switch (loglevel) // keeping these at 4 chars makes nice columns, easy to read
