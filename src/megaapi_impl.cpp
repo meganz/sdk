@@ -27136,6 +27136,8 @@ void StreamingBuffer::setDuration(int duration)
 {
     if (!duration)
     {
+        // Param 'duration' is documented in MegaNode::getDuration() to be -1 if it's not defined.
+        // Hence, if it's 0, the file should be a media file... which has a duration of 0 seconds.
         LOG_warn << "[Streaming] Duration value is 0 seconds for this media file!";
     }
     this->duration = duration > 0 ? duration : 0;
@@ -27144,7 +27146,7 @@ void StreamingBuffer::setDuration(int duration)
 
 m_off_t StreamingBuffer::getBytesPerSecond() const
 {
-    if (fileSize < static_cast<m_off_t>(duration))
+    if (fileSize < duration)
     {
         LOG_err << "[Streaming] File size is smaller than its duration in seconds!"
                 << " [file size = " << fileSize << " bytes"

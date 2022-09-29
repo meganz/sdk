@@ -3555,7 +3555,7 @@ protected:
     // File size
     m_off_t fileSize;
     // Media length in seconds (for media files)
-    size_t duration;
+    int duration;
 };
 
 class MegaTCPServer;
