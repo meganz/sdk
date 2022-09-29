@@ -26994,7 +26994,7 @@ void StreamingBuffer::init(size_t capacity)
                  << ", truncated to  = " << maxBufferSize << " bytes"
                  << " [file size = " << fileSize << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(partialBytesPerSecond(maxBufferSize)).append(" secs")) : "")
+                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(partialDuration(maxBufferSize)).append(" secs")) : "")
                  << "]";
         capacity = maxBufferSize;
     }
@@ -27004,7 +27004,7 @@ void StreamingBuffer::init(size_t capacity)
                  << " Capacity requested = " << capacity << " bytes"
                  << " [file size = " << fileSize << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in buffer: ").append(std::to_string(partialBytesPerSecond(capacity)).append(" secs")) : "")
+                 << (duration ? std::string(", estimated duration in buffer: ").append(std::to_string(partialDuration(capacity)).append(" secs")) : "")
                  << "]";
     }
 
@@ -27155,7 +27155,7 @@ m_off_t StreamingBuffer::getBytesPerSecond() const
     return duration ? (fileSize / duration) : 0;
 }
 
-m_off_t StreamingBuffer::partialBytesPerSecond(m_off_t partialSize) const
+m_off_t StreamingBuffer::partialDuration(m_off_t partialSize) const
 {
     assert(partialSize <= fileSize);
     m_off_t bytesPerSecond = getBytesPerSecond();
@@ -27168,13 +27168,13 @@ std::string StreamingBuffer::bufferStatus() const
     bufferState.reserve(256);
     bufferState.append("[|Buffer status| buffered = ")
                .append(std::to_string(size));
-    if (duration) bufferState.append(" (").append(std::to_string(partialBytesPerSecond(size)).append( " secs)"));
+    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(size)).append( " secs)"));
     bufferState.append(", free = ")
                .append(std::to_string(free));
-    if (duration) bufferState.append(" (").append(std::to_string(partialBytesPerSecond(free)).append( " secs)"));
+    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(free)).append( " secs)"));
     bufferState.append(", capacity = ")
                .append(std::to_string(capacity));
-    if (duration) bufferState.append(" (").append(std::to_string(partialBytesPerSecond(capacity)).append( " secs)"));
+    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(capacity)).append( " secs)"));
     bufferState.append("]");
     return bufferState;
 }

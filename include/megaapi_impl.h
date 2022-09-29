@@ -3526,13 +3526,15 @@ public:
     void setDuration(int duration);
     // Rate between file size and its duration (only for media files)
     m_off_t getBytesPerSecond() const;
-    // Rate between partial file size and its duration (only for media files)
-    m_off_t partialBytesPerSecond(m_off_t partialSize) const;
     // Get the actual buffer state for debugging purposes
     std::string bufferStatus() const;
 
     static const unsigned int MAX_BUFFER_SIZE = 2097152;
     static const unsigned int MAX_OUTPUT_SIZE = MAX_BUFFER_SIZE / 10;
+
+private:
+    // Rate between partial file size and its duration (only for media files)
+    m_off_t partialDuration(m_off_t partialSize) const;
 
 protected:
     // Circular buffer to store data to feed the consumer
