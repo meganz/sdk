@@ -1318,6 +1318,13 @@ const char* MegaTransfer::stageToString(unsigned stage)
 MegaError::MegaError(int e)
 {
     errorCode = e;
+    syncError = NO_SYNC_ERROR;
+}
+
+MegaError::MegaError(int e, int se)
+{
+    errorCode = e;
+    syncError = se;
 }
 
 MegaError::~MegaError()
@@ -1333,6 +1340,11 @@ MegaError* MegaError::copy() const
 int MegaError::getErrorCode() const
 {
     return errorCode;
+}
+
+int MegaError::getSyncError() const
+{
+    return syncError;
 }
 
 long long MegaError::getValue() const
@@ -3499,6 +3511,10 @@ bool MegaApi::isSyncable(const char *path, long long size)
 int MegaApi::isNodeSyncable(MegaNode *node)
 {
     return pImpl->isNodeSyncable(node);
+}
+
+MegaError *MegaApi::isNodeSyncableWithError(MegaNode* node) {
+    return pImpl->isNodeSyncableWithError(node);
 }
 
 void MegaApi::setExcludedNames(vector<string> *excludedNames)
