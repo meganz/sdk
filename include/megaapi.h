@@ -5652,6 +5652,7 @@ public:
         BACKUP_MODIFIED = 29, // Backup has been externally modified.
         BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
         SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
+        ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
     };
 
     enum Warning
@@ -5779,6 +5780,12 @@ public:
      *  - UNKNOWN_TEMPORARY_ERROR = 24: Unknown temporary error
      *  - TOO_MANY_ACTION_PACKETS = 25: Too many changes in account, local state discarded
      *  - LOGGED_OUT = 26: Logged out
+     *  - WHOLE_ACCOUNT_REFETCHED = 27: The whole account was reloaded, missed actionpacket changes could not have been applied
+     *  - MISSING_PARENT_NODE = 28: Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+     *  - BACKUP_MODIFIED = 29: Backup has been externally modified.
+     *  - BACKUP_SOURCE_NOT_BELOW_DRIVE = 30: Backup source path not below drive path.
+     *  - SYNC_CONFIG_WRITE_FAILURE = 31: Unable to write sync config to disk.
+     *  - ACTIVE_SYNC_SAME_PATH = 32: There's a synced node at the path to be synced
      *
      * @return Error of a synchronization
      */
@@ -5853,7 +5860,7 @@ public:
      * @param errorCode Error code for which the description will be returned
      * @return Description associated with the error code
      */
-    static const char *getMegaSyncErrorCode(int errorCode);
+    static const char* getMegaSyncErrorCode(int errorCode);
 
     /**
      * @brief Returns a readable description of the sync warning
@@ -6257,7 +6264,6 @@ public:
     virtual MegaTransferList *getFailedTransfers();
 };
 
-
 /**
  * @brief Provides information about an error
  */
@@ -6309,7 +6315,6 @@ public:
         LOCAL_ENOSPC = -1000, ///< Insufficient space.
     };
 
-
     /**
      * @brief Api error code context.
      */
@@ -6357,13 +6362,19 @@ public:
          */
         virtual MegaError* copy() const;
 
-
 		/**
 		 * @brief Returns the error code associated with this MegaError
          *
-		 * @return Error code associated with this MegaError
+		 * @return Error code, an Errors enum, associated with this MegaError
 		 */
         virtual int getErrorCode() const;
+
+        /**
+         * @brief Returns the sync error associated with this MegaError
+         *
+         * @return MegaSync::Error associated with this MegaError
+         */
+        virtual int getSyncError() const;
 
         /**
          * @brief Returns a value associated with the error
@@ -6496,9 +6507,14 @@ public:
 
 protected:
         MegaError(int e);
+        MegaError(int e, int se);
 
         //< 0 = API error code, > 0 = http error, 0 = No error
+        // MegaError::Errors enum/ErrorCodes
         int errorCode;
+
+        // SyncError/MegaSync::Error 
+        int syncError;
 
         friend class MegaTransfer;
         friend class MegaApiImpl;
@@ -12611,7 +12627,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the node handle of the folder created
          *
-         * If the folder for backups already existed, the request will fail with the error API_EACCESS.
+         * If no user was logged in, the request will fail with the error API_EACCESS.
+         * If the folder for backups already existed, the request will fail with the error API_EEXIST.
          *
          * @param localizedName Localized name for "My backups" folder
          * @param listener MegaRequestListener to track this request
@@ -14495,6 +14512,29 @@ class MegaApi
          * @return MegaError::API_OK if the node is syncable, otherwise it returns an error.
          */
         int isNodeSyncable(MegaNode *node);
+
+        /**
+         * @brief Check if it's possible to start synchronizing a folder node. Return SyncError errors.
+         * 
+         * Possible return values for this function are:
+         * - MegaError::API_OK if the folder is syncable
+         * - MegaError::API_ENOENT if the node doesn't exist in the account
+         * - MegaError::API_EARGS if the node is NULL or is not a folder
+         * 
+         * - MegaError::API_EACCESS:
+         *              SyncError: SHARE_NON_FULL_ACCESS An ancestor node does not have full access
+         *              SyncError: REMOTE_NODE_INSIDE_RUBBISH
+         * - MegaError::API_EEXIST if there is a conflicting synchronization (nodes can't be synced twice)
+         *              SyncError: ACTIVE_SYNC_BELOW_PATH - There's a synced node below the path to be synced
+         *              SyncError: ACTIVE_SYNC_ABOVE_PATH - There's a synced node above the path to be synced
+         *              SyncError: ACTIVE_SYNC_SAME_PATH - There's a synced node at the path to be synced
+         * - MegaError::API_EINCOMPLETE if the SDK hasn't been built with support for synchronization
+         *
+         *  @return API_OK if syncable. Error otherwise sets syncError in the returned MegaError
+         *          caller must free
+
+         */
+        MegaError* isNodeSyncableWithError(MegaNode* node);
 
         /**
          * @brief Get the corresponding local path of a synced node

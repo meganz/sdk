@@ -644,6 +644,7 @@ vcpkg {
 
     win32:LIBS += -llibsodium -lcryptopp-static -lzlib$$DEBUG_SUFFIX
     else:LIBS += -lsodium -lcryptopp -lz
+    win32:DEFINES += SODIUM_STATIC
     LIBS += -lsqlite3
 }
 
