@@ -132,11 +132,31 @@ bool TextChat::serialize(string *d)
 
     if (hasSheduledMeetings)
     {
+        if (mScheduledMeetingsOcurrences.size() && mScheduledMeetings.empty())
+        {
+            LOG_err << "The chat to serialize [" << Base64Str<MegaClient::CHATHANDLE>(id) << "] has scheduled meetings occurrences, but not scheduled meetings";
+            assert(false);
+        }
+
         // serialize the number of scheduledMeetings
         ll = (unsigned short) mScheduledMeetings.size();
         d->append((char *)&ll, sizeof ll);
 
         for (auto i = mScheduledMeetings.begin(); i != mScheduledMeetings.end(); i++)
+        {
+            std::string schedMeetingStr;
+            if (i->second->serialize(&schedMeetingStr))
+            {
+                ll = (unsigned short) schedMeetingStr.size();
+                d->append((char *)&ll, sizeof ll);
+                d->append((char *)schedMeetingStr.data(), schedMeetingStr.size());
+            }
+        }
+
+        // serialize the number of scheduledMeetings occurrences
+        ll = (unsigned short) mScheduledMeetingsOcurrences.size();
+        d->append((char *)&ll, sizeof ll);
+        for (auto i = mScheduledMeetingsOcurrences.begin(); i != mScheduledMeetingsOcurrences.end(); i++)
         {
             std::string schedMeetingStr;
             if (i->second->serialize(&schedMeetingStr))
@@ -166,6 +186,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     bool publicchat;
     string unifiedKey;
     std::vector<string> scheduledMeetingsStr;
+    std::vector<string> scheduledMeetingsOccurrStr;
 
     unsigned short ll;
     const char* ptr = d->data();
@@ -380,6 +401,48 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
             scheduledMeetingsStr.emplace_back(aux);
             ptr += len;
         }
+
+        // unserialize the number of scheduled meetings occurrences
+        unsigned short schedMeetingsOccurrSize = 0;
+        if (ptr + sizeof schedMeetingsOccurrSize > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        schedMeetingsOccurrSize = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof schedMeetingsOccurrSize;
+
+        for (auto i = 0; i < schedMeetingsOccurrSize; i++)
+        {
+            unsigned short len = 0;
+            if (ptr + sizeof len > end)
+            {
+                delete userpriv;
+                return NULL;
+            }
+
+            len = MemAccess::get<unsigned short>(ptr);
+            ptr += sizeof len;
+
+            if (ptr + len > end)
+            {
+                delete userpriv;
+                return NULL;
+            }
+
+            std::string aux(ptr, len);
+            scheduledMeetingsOccurrStr.emplace_back(aux);
+            ptr += len;
+        }
+    }
+
+    if (scheduledMeetingsOccurrStr.size() && scheduledMeetingsStr.empty())
+    {
+        LOG_err << "The unserialized chat [" << Base64Str<MegaClient::CHATHANDLE>(id) << "] has scheduled meetings occurrences, but not scheduled meetings";
+        assert(false);
+        delete userpriv;
+        return NULL;
     }
 
     if (ptr < end)
@@ -419,6 +482,15 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         if (auxMeet)
         {
             chat->addSchedMeeting(std::move(auxMeet));
+        }
+    }
+
+    for (auto i: scheduledMeetingsOccurrStr)
+    {
+        std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(&i));
+        if (auxMeet)
+        {
+            chat->addSchedMeetingOccurrence(std::move(auxMeet));
         }
     }
 
