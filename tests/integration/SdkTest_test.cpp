@@ -200,6 +200,8 @@ void usleep(int n)
 }
 #endif
 
+void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath);
+
 // helper functions and struct/classes
 namespace
 {
@@ -5350,6 +5352,8 @@ TEST_F(SdkTest, SdkBackupFolder)
     // Create a test root directory
     fs::path localBasePath = makeNewTestRoot();
 
+    ASSERT_NO_FATAL_FAILURE(cleanUp(megaApi[0].get(), localBasePath));
+
     // request to backup a folder
     fs::path localFolderPath = localBasePath / "LocalBackedUpFolder";
     fs::create_directories(localFolderPath);
@@ -5435,27 +5439,10 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
     ASSERT_TRUE(lastEventsContains(MegaEvent::EVENT_NODES_CURRENT)) << "Timeout expired to receive actionpackets";
 
-    // Test that DeviceId was set for the newly registered backup
-    MegaSync* snc = allSyncs->get(0);
-    ASSERT_NE(snc, nullptr) << "No sync was found";
-    std::unique_ptr<MegaNode> nn(megaApi[0]->getNodeByHandle(snc->getMegaHandle()));
-    ASSERT_TRUE(nn) << "MegaNode for the new sync was not found";
-    const char* devid = nn->getDeviceId();
-    ASSERT_TRUE(devid && devid[0]) << "DeviceId was not set for the new sync";
-
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
     megaApi[0]->removeSync(allSyncs->get(0)->getBackupId(), &removeTracker);
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
-
-    // Make sure there's time for dev-id etc attributes to be removed
-    WaitMillisec(5000);
-
-    // Test that DeviceId is no longer set for the node of the former backup
-    nn.reset(megaApi[0]->getNodeByHandle(snc->getMegaHandle()));
-    ASSERT_TRUE(nn) << "MegaNode for the former sync was not found";
-    const char* devid2 = nn->getDeviceId();
-    ASSERT_TRUE(!devid2 || !devid2[0]) << "DeviceId was not removed for the former sync";
 
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
@@ -5464,9 +5451,12 @@ TEST_F(SdkTest, SdkBackupFolder)
     // this time, the remote folder structure is already there
     fs::path localFolderPath2 = localBasePath / "LocalBackedUpFolder2";
     fs::create_directories(localFolderPath2);
-    const char* backupName2 = "RemoteBackupFolder2";
+    const string backupName2Str = string("RemoteBackupFolder2_") + timestamp;
+    const char* backupName2 = backupName2Str.c_str();
     err = synchronousSyncFolder(0, nullptr, MegaSync::TYPE_BACKUP, localFolderPath2.u8string().c_str(), backupName2, INVALID_HANDLE, nullptr);
     ASSERT_TRUE(err == API_OK) << "Backup folder 2 failed (error: " << err << ")";
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(allSyncs && allSyncs->size() == 1) << "Sync not found for second backup";
 
 #endif
 }

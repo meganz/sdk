@@ -1667,6 +1667,38 @@ int Utils::pcasecmp(const std::wstring& lhs,
 #endif // ! _WIN32
 }
 
+std::string Utils::replace(const std::string& str, char search, char replacement) {
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i-o));
+        r += replacement;
+        o = i + 1;
+    }
+    return r;
+}
+
+std::string Utils::replace(const std::string& str, const std::string& search, const std::string& replacement) {
+    if (search.empty())
+        return str;
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i - o));
+        r += replacement;
+        o = i + search.length();
+    }
+    return r;
+}
+
 long long abs(long long n)
 {
     // for pre-c++11 where this version is not defined yet
@@ -2732,6 +2764,18 @@ void debugLogHeapUsage()
         << " _CLIENT_BLOCK/" << state.lCounts[_CLIENT_BLOCK] << "/" << state.lSizes[_CLIENT_BLOCK];
 #endif
 #endif
+}
+
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals)
+{
+    return
+        any_of(readableVals.begin(), readableVals.end(), [&b64Vals](const string_map::value_type& p1)
+            {
+                return any_of(b64Vals.begin(), b64Vals.end(), [&p1](const string_map::value_type& p2)
+                    {
+                        return p1.first != p2.first && p1.second == Base64::atob(p2.second);
+                    });
+            });
 }
 
 void SyncTransferCount::operator-=(const SyncTransferCount& rhs)

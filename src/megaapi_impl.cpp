@@ -1382,125 +1382,7 @@ MegaSyncStallListPrivate::MegaSyncStallListPrivate(const SyncProblems& sp)
     }
 }
 
-error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::syncFolder()
-{
-    // validate local path and backup name
-    if (!request->getFile())
-    {
-        return API_EARGS;
-    }
-
-    string localPath(request->getFile());
-    string backupName;
-    if (request->getName())
-    {
-        backupName.assign(request->getName());
-    }
-    else    // get the last leaf of local path
-    {
-        LocalPath p = LocalPath::fromAbsolutePath(localPath);
-        LocalPath l = p.leafName();
-        backupName = l.toPath(true);
-        request->setName(backupName.c_str()); // use this in putnodes_result()
-    }
-
-    // get current user
-    User* u = client->ownuser();
-
-    // get handle of remote "My Backups" folder, from user attributes
-    if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER)) { return API_EACCESS; }
-    const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
-    if (!handleContainerStr) { return API_EACCESS; }
-
-    string buffer;
-    std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &client->key));
-    if (!tlvRecords || !tlvRecords->get("h", buffer) || buffer.size() != MegaClient::NODEHANDLE) { return API_EINTERNAL; }
-
-    handle h = 0; // make sure top two bytes are 0
-    memcpy(&h, buffer.c_str(), MegaClient::NODEHANDLE);
-
-    if (!h || h == UNDEF) { return API_ENOENT; }
-
-    // get Node of remote "My Backups" folder
-    Node* myBackupsNode = client->nodebyhandle(h);
-    if (!myBackupsNode) { return API_ENOENT; }
-
-    // get 'device-id'
-    string deviceId;
-    bool isInternalDrive = !request->getLink();
-    if (isInternalDrive)
-    {
-        deviceId = client->getDeviceidHash();
-    }
-    else // external drive
-    {
-        // drive-id must have been already written to external drive, since a name was given to it
-        handle driveId;
-        error e = readDriveId(*client->fsaccess, request->getLink(), driveId);
-        if (e != API_OK)
-            return e;
-
-        // create the device id from the drive id
-        deviceId = Base64Str<MegaClient::DRIVEHANDLE>(driveId);
-    }
-
-    if (deviceId.empty()) { return API_EINCOMPLETE; }
-
-    // prepare for new nodes
-    vector<NewNode> newnodes;
-    nameid attrId = isInternalDrive ?
-                    AttrMap::string2nameid("dev-id") : // "device-id" would be too long
-                    AttrMap::string2nameid("drv-id");
-    std::function<void(AttrMap& attrs)> addAttrsFunc = [=](AttrMap& attrs)
-    {
-        attrs.map[attrId] = deviceId;
-    };
-
-    // serch for remote folder "My Backups"/`DEVICE_NAME`/
-    Node* deviceNameNode = client->childnodebyattribute(myBackupsNode, attrId, deviceId.c_str());
-    if (deviceNameNode) // validate this node
-    {
-        if (deviceNameNode->type != FOLDERNODE) { return API_EACCESS; }
-    }
-    else // create `DEVICE_NAME` remote dir
-    {
-        // get `DEVICE_NAME`, from user attributes
-        attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
-        if (!u->isattrvalid(attrType)) { return API_EINCOMPLETE; }
-        const string* deviceNameContainerStr = u->getattr(attrType);
-        if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
-
-        string deviceName;
-        tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
-        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty()) { return API_EINCOMPLETE; }
-
-        // add a new node for it
-        newnodes.emplace_back();
-        NewNode& newNode = newnodes.back();
-
-        client->putnodes_prepareOneFolder(&newNode, deviceName, true, addAttrsFunc);
-        newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
-    }
-
-    // create backupName remote dir
-    newnodes.emplace_back();
-    NewNode& backupNameNode = newnodes.back();
-
-    client->putnodes_prepareOneFolder(&backupNameNode, backupName, true, addAttrsFunc);
-    if (!deviceNameNode)
-    {
-        // Set parent handle if part of the new nodes array (it cannot be from an existing node)
-        backupNameNode.parenthandle = newnodes[0].nodehandle;
-    }
-
-    // create the new node(s)
-    client->putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
-        NoVersioning, move(newnodes), nullptr, client->reqtag, true);  // followup in putnodes_result()
-
-    return API_OK;
-}
-
-#endif
+#endif // ENABLE_SYNC
 
 MegaScheduledCopy *MegaApiImpl::getScheduledCopyByTag(int tag)
 {
@@ -4080,6 +3962,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SET_CHAT_OPTIONS: return "SET_CHAT_OPTIONS";
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_CHECK_RECOVERY_KEY: return "TYPE_CHECK_RECOVERY_KEY";
+        case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
         case TYPE_GET_SYNC_STALL_LIST: return "GET_SYNC_STALL_LIST";
     }
     return "UNKNOWN";
@@ -6017,7 +5900,6 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
-        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
         case MegaApi::USER_ATTR_DRIVE_NAMES:
             scope = '*';
             break;
@@ -6031,6 +5913,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_STORAGE_STATE:
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         case MegaApi::USER_ATTR_COOKIE_SETTINGS:
+        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
             scope = '^';
             break;
 
@@ -13662,45 +13545,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     {
         request->setNodeHandle(h);
         request->setFlag(targetOverride);
-#ifdef ENABLE_SYNC
-        if (request->getType() == MegaRequest::TYPE_ADD_SYNC && e == API_OK)
-        {
-            // folders for the new backup have been created -> now proceed with the sync
-            handle backupHandle = nn.back().mAddedHandle;
-            request->setNodeHandle(backupHandle);
-            std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(backupHandle) };
-
-            // create the SyncConfig
-            const char* backupName = request->getName();
-            auto localPath = LocalPath::fromAbsolutePath(request->getFile());
-            const auto& drivePath = request->getLink() ? LocalPath::fromAbsolutePath(request->getLink()) : LocalPath();
-            SyncConfig syncConfig( localPath, backupName, NodeHandle().set6byte(backupHandle), remotePath.get(),
-                                    0, drivePath, true, SyncConfig::TYPE_BACKUP );
-
-            client->addsync(move(syncConfig), false,
-                                [this, request](error e, SyncError se, handle backupId)
-            {
-                SyncConfig createdConfig;
-                bool found = client->syncs.syncConfigByBackupId(backupId, createdConfig);
-
-                request->setNumDetails(se);
-
-                if (!e && !found)
-                {
-                    e = API_ENOENT;
-                }
-
-                if (found)
-                {
-                    request->setNumber(createdConfig.mFilesystemFingerprint);
-                    request->setParentHandle(backupId);
-                }
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-            }, "");
-            return;
-        }
-#endif // ENABLE_SYNC
-
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     }
     else
@@ -14733,6 +14577,7 @@ void MegaApiImpl::putua_result(error e)
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
         || (request->getType() != MegaRequest::TYPE_SET_ATTR_USER &&
+            request->getType() != MegaRequest::TYPE_SET_MY_BACKUPS &&
             request->getType() != MegaRequest::TYPE_VERIFY_CREDENTIALS))
     {
         return;
@@ -14993,6 +14838,14 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         }
         break;
 
+        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
+        {
+            handle h = 0;
+            memcpy(&h, data, std::min(6u, len));
+            request->setNodeHandle(h);
+        }
+        break;
+
         // byte arrays with possible nulls in the middle --> to Base64
         case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY: // fall-through
         {
@@ -15037,7 +14890,16 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
         if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
-            if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
+
+            // allow only unique names for Devices and Drives
+            if ((type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES) &&
+                haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
+            {
+                e = API_EEXIST;
+                LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value";
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }
+            else if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
             {
                 // serialize and encrypt the TLV container
                 std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
@@ -19847,33 +19709,21 @@ void MegaApiImpl::sendPendingRequests()
                         tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(type), &client->key));
                     }
                 }
-                else if (type == ATTR_MY_BACKUPS_FOLDER)
-                {
-                    // get back the handle value
-                    handle nodeHandle = 0;
-                    Base64::atob(stringMap->get("h"), (byte*)&nodeHandle, MegaClient::NODEHANDLE);
-
-                    MegaNode* node = getNodeByHandle(nodeHandle);
-
-                    // a valid folder cannot be outside current account or in Rubbish
-                    if (!client->isPrivateNode(NodeHandle().set6byte(nodeHandle)) || isInRootnode(node, 2))
-                    {
-                        e = API_EACCESS;
-                        break;
-                    }
-
-                    const string* attr = ownUser->getattr(type);
-                    if (attr)  tlv.reset(TLVstore::containerToTLVrecords(attr, &client->key));
-
-                    if (!tlv) { tlv.reset(new TLVstore); }
-                }
                 else
                 {
                     tlv.reset(new TLVstore);
                 }
 
-                const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(request->getMegaStringMap())->getMap();
-                if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
+                const string_map *newValuesMap = static_cast<MegaStringMapPrivate*>(stringMap)->getMap();
+
+                // allow only unique names for Devices and Drives
+                if ((type == ATTR_DEVICE_NAMES || type == ATTR_DRIVE_NAMES) &&
+                    haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
+                {
+                    e = API_EEXIST;
+                    LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value";
+                }
+                else if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
                 {
                     // serialize and encrypt the TLV container
                     std::unique_ptr<string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
@@ -21267,68 +21117,57 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ADD_SYNC:
         {
             SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
-            if (type == SyncConfig::TYPE_BACKUP)
+
+            const string& localPath = request->getFile() ? request->getFile() : string();
+            if (localPath.empty())
             {
-                e = backupFolder_sendPendingRequest(request);
+                LOG_debug << "Error: empty local path";
+                e = API_EARGS;
                 break;
             }
 
-            const char *localPath = request->getFile();
-            Node *node = client->nodebyhandle(request->getNodeHandle());
-            if(!node || (node->type==FILENODE) || !localPath)
+            Node* node = client->nodebyhandle(request->getNodeHandle());
+            if (type != SyncConfig::TYPE_BACKUP &&
+                (!node || (node->type == FILENODE)))
             {
                 LOG_debug << "Node not found for sync add";
                 e = API_EARGS;
                 break;
             }
 
-            const char *name = request->getName();
-
-            std::unique_ptr<char[]> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
-            if (!remotePath)
-            {
-                LOG_debug << "Node path not found for sync add";
-                e = API_ENOENT;
-                request->setNumDetails(REMOTE_NODE_NOT_FOUND);
-                break;
-            }
-
+            LocalPath localPathLP(LocalPath::fromAbsolutePath(localPath));
+            const char* name = request->getName();
+            const string& syncName = name ? name : localPathLP.leafOrParentName();
             const auto& drivePath = request->getLink() ? LocalPath::fromAbsolutePath(request->getLink()) : LocalPath();
 
-            string excludePath;
+            SyncConfig syncConfig(localPathLP,
+                syncName, NodeHandle(), "",
+                0, drivePath, true, type);
 
-            // Did the client specify a path for us to exclude?
-            if (auto* excludePath_ = request->getText())
+
+            if (type == SyncConfig::TYPE_BACKUP)
             {
-                // Yup so forward it to the engine.
-                excludePath = excludePath_;
+                // for backups, we create the node to sync to, then call addsync()
+                client->preparebackup(syncConfig, [this, request](Error e, SyncConfig backupConfig, MegaClient::UndoFunction revertOnError){
+                    if (e)
+                    {
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    }
+                    else
+                    {
+                        request->setNodeHandle(backupConfig.mRemoteNode.as8byte());
+                        addSyncByRequest(request, backupConfig, revertOnError);
+                    }
+                });
+            }
+            else
+            {
+                // for syncs, the node to sync to already exists
+                syncConfig.mRemoteNode = NodeHandle().set6byte(request->getNodeHandle());
+                syncConfig.mOriginalPathOfRemoteRootNode = node->displaypath();
+                addSyncByRequest(request, syncConfig, nullptr);
             }
 
-            SyncConfig syncConfig(LocalPath::fromAbsolutePath(localPath),
-                                  name, NodeHandle().set6byte(request->getNodeHandle()), remotePath.get(),
-                                  0, drivePath);
-
-            client->addsync(move(syncConfig), false,
-                                [this, request](error e, SyncError se, handle backupId)
-            {
-                SyncConfig createdConfig;
-                bool found = client->syncs.syncConfigByBackupId(backupId, createdConfig);
-
-                request->setNumDetails(se);
-
-                if (!e && !found)
-                {
-                    LOG_debug << "Correcting error to API_ENOENT for sync add";
-                    e = API_ENOENT;
-                }
-
-                if (found)
-                {
-                    request->setNumber(createdConfig.mFilesystemFingerprint);
-                    request->setParentHandle(backupId);
-                }
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-            }, "", std::move(excludePath));
             break;
         }
         case MegaRequest::TYPE_LOAD_EXTERNAL_DRIVE_BACKUPS:
@@ -22892,9 +22731,8 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_REMOVE:
         {
-            client->reqs.add(new CommandBackupRemove(client, request->getParentHandle(), [this, request](const Error& e){
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-            }));
+            client->reqs.add(new CommandBackupRemove(client, request->getParentHandle(),
+                [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e)); }));
             break;
         }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:
@@ -22996,6 +22834,24 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
+        case MegaRequest::TYPE_SET_MY_BACKUPS:
+        {
+            auto addua_completion = [request, this](Error e)
+            {
+                if (e == API_OK)
+                {
+                    const string *buf = client->ownuser()->getattr(ATTR_MY_BACKUPS_FOLDER);
+                    handle h = 0;
+                    memcpy(&h, buf->data(), MegaClient::NODEHANDLE);
+
+                    request->setNodeHandle(h);
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            };
+
+            e = client->setbackupfolder(request->getText(), nextTag, addua_completion);
+            break;
+        }
         case MegaRequest::TYPE_GET_RECENT_ACTIONS:
         {
            int maxnodes = request->getParamType();
@@ -23032,6 +22888,50 @@ void MegaApiImpl::sendPendingRequests()
         }
     }
 }
+
+#ifdef ENABLE_SYNC
+void MegaApiImpl::addSyncByRequest(MegaRequestPrivate* request, SyncConfig syncConfig, MegaClient::UndoFunction revertOnError)
+{
+    client->addsync(move(syncConfig), false,
+        [this, request, revertOnError](error e, SyncError se, handle backupId)
+        {
+            request->setNumDetails(se);
+
+            SyncConfig createdConfig;
+            bool found = client->syncs.syncConfigByBackupId(backupId, createdConfig);
+
+            if (!found)
+            {
+                if (!e)
+                {
+                    LOG_debug << "Correcting error to API_ENOENT for sync add";
+                    e = API_ENOENT;
+                }
+
+                if (revertOnError)
+                {
+                    // deletes backup root node, if we created one but then couldn't finish configuring
+                    revertOnError([this, request, e](){
+                        fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    });
+                }
+                else
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }
+            }
+            else
+            {
+                request->setNumber(createdConfig.mFilesystemFingerprint);
+                request->setParentHandle(backupId);
+
+                auto sync = ::mega::make_unique<MegaSyncPrivate>(createdConfig, client);
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }
+        }, "");
+}
+#endif
 
 void MegaApiImpl::updateStats()
 {
