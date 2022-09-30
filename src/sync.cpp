@@ -5140,6 +5140,7 @@ void Syncs::removeSyncByIndex(size_t index, bool notifyApp, bool unregisterHeart
 void Syncs::unloadSyncByIndex(size_t index, bool newEnabledFlag)
 {
     assert(onSyncThread());
+    assert(index < mSyncVec.size());
 
     if (index < mSyncVec.size())
     {

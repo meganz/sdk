@@ -124,8 +124,27 @@ public:
 class MegaErrorPrivate : public MegaError
 {
 public:
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode = MegaError::API_OK);
+
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
+    MegaErrorPrivate(int errorCode, SyncError syncError);
+
+#ifdef ENABLE_SYNC
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
+    MegaErrorPrivate(int errorCode, MegaSync::Error syncError);
+#endif
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode, long long value);
+
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);
     ~MegaErrorPrivate() override;
@@ -2821,6 +2840,7 @@ class MegaApiImpl : public MegaApp
         void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
         long long getNumLocalNodes();
         int isNodeSyncable(MegaNode *megaNode);
+        MegaError *isNodeSyncableWithError(MegaNode* node);
         bool isScanning();
         bool isSyncing();
         bool syncsHaveStalls();
@@ -3154,8 +3174,7 @@ class MegaApiImpl : public MegaApp
         void setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener = NULL);
         void setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener);
         void getCameraUploadsFolder(bool secondary, MegaRequestListener *listener = NULL);
-        void setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener = nullptr);
-        void getMyBackupsFolder(MegaRequestListener *listener = nullptr);
+        void setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener = nullptr);
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 
@@ -3673,7 +3692,7 @@ private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 #ifdef ENABLE_SYNC
-        error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
+        void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
 };
 

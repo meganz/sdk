@@ -1052,7 +1052,7 @@ bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, std::strin
     return false;
 }
 
-bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolutepathArg)
+bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& absolutepathArg)
 {
     int len = GetFullPathNameW(pathArg.localpath.c_str(), 0, NULL, NULL);
     // just get size including NUL terminator

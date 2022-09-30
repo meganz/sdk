@@ -1168,8 +1168,8 @@ class MegaNode
         virtual MegaHandle getOwner() const;
 
         /**
-         * @brief Returns the device id stored as a Node attribute of a Backup folder.
-         * It will be an empty string for other nodes.
+         * @brief Returns the device id stored as a Node attribute.
+         * It will be an empty string for other nodes than device folders related to backups.
          *
          * The MegaNode object retains the ownership of the returned string, it will be valid until
          * the MegaNode object is deleted.
@@ -3269,9 +3269,10 @@ class MegaRequest
             TYPE_SET_CHAT_OPTIONS                                           = 147,
             TYPE_GET_RECENT_ACTIONS                                         = 148,
             TYPE_CHECK_RECOVERY_KEY                                         = 149,
-            TYPE_GET_SYNC_STALL_LIST                                        = 150,
-            TYPE_SET_SYNC_RUNSTATE                                          = 151,
-            TOTAL_OF_REQUEST_TYPES                                          = 152,
+            TYPE_SET_MY_BACKUPS                                             = 150,
+            TYPE_GET_SYNC_STALL_LIST                                        = 151,
+            TYPE_SET_SYNC_RUNSTATE                                          = 152,
+            TOTAL_OF_REQUEST_TYPES                                          = 153,
         };
 
         virtual ~MegaRequest();
@@ -5407,16 +5408,17 @@ public:
         BACKUP_MODIFIED = 29, // Backup has been externally modified.
         BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
         SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
-        COULD_NOT_MOVE_CLOUD_NODES = 32,        // rename() failed.
-        COULD_NOT_CREATE_IGNORE_FILE = 33,      // Couldn't create a sync's initial ignore file.
-        SYNC_CONFIG_READ_FAILURE = 34,          // Couldn't read sync configs from disk.
-        UNKNOWN_DRIVE_PATH = 35,                // Sync's drive path isn't known.
-        INVALID_SCAN_INTERVAL = 36,             // The user's specified an invalid scan interval.
-        NOTIFICATION_SYSTEM_UNAVAILABLE = 37,   // Filesystem notification subsystem has encountered an unrecoverable error.
-        UNABLE_TO_ADD_WATCH = 38,               // Unable to add a filesystem watch.
-        UNABLE_TO_RETRIEVE_ROOT_FSID = 39,      // Unable to retrieve a sync root's FSID.
-        UNABLE_TO_OPEN_DATABASE = 40,           // Unable to open state cache database.
-        INSUFFICIENT_DISK_SPACE = 41,           // Insufficient disk space for download.
+        ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
+        COULD_NOT_MOVE_CLOUD_NODES = 33,        // rename() failed.
+        COULD_NOT_CREATE_IGNORE_FILE = 34,      // Couldn't create a sync's initial ignore file.
+        SYNC_CONFIG_READ_FAILURE = 35,          // Couldn't read sync configs from disk.
+        UNKNOWN_DRIVE_PATH = 36,                // Sync's drive path isn't known.
+        INVALID_SCAN_INTERVAL = 37,             // The user's specified an invalid scan interval.
+        NOTIFICATION_SYSTEM_UNAVAILABLE = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
+        UNABLE_TO_ADD_WATCH = 39,               // Unable to add a filesystem watch.
+        UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
+        UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
+        INSUFFICIENT_DISK_SPACE = 42,           // Insufficient disk space for download.
     };
 
     enum Warning
@@ -5544,6 +5546,12 @@ public:
      *  - UNKNOWN_TEMPORARY_ERROR = 24: Unknown temporary error
      *  - TOO_MANY_ACTION_PACKETS = 25: Too many changes in account, local state discarded
      *  - LOGGED_OUT = 26: Logged out
+     *  - WHOLE_ACCOUNT_REFETCHED = 27: The whole account was reloaded, missed actionpacket changes could not have been applied
+     *  - MISSING_PARENT_NODE = 28: Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+     *  - BACKUP_MODIFIED = 29: Backup has been externally modified.
+     *  - BACKUP_SOURCE_NOT_BELOW_DRIVE = 30: Backup source path not below drive path.
+     *  - SYNC_CONFIG_WRITE_FAILURE = 31: Unable to write sync config to disk.
+     *  - ACTIVE_SYNC_SAME_PATH = 32: There's a synced node at the path to be synced
      *
      * @return Error of a synchronization
      */
@@ -5603,7 +5611,7 @@ public:
      * @param errorCode Error code for which the description will be returned
      * @return Description associated with the error code
      */
-    static const char *getMegaSyncErrorCode(int errorCode);
+    static const char* getMegaSyncErrorCode(int errorCode);
 
     /**
      * @brief Returns a readable description of the sync warning
@@ -5829,7 +5837,7 @@ class MegaSyncStallList
         virtual size_t size() const;
 };
 
-#endif // MEGA_SYNC
+#endif // ENABLE_SYNC
 
 
 /**
@@ -6152,7 +6160,6 @@ public:
     virtual MegaTransferList *getFailedTransfers();
 };
 
-
 /**
  * @brief Provides information about an error
  */
@@ -6204,7 +6211,6 @@ public:
         LOCAL_ENOSPC = -1000, ///< Insufficient space.
     };
 
-
     /**
      * @brief Api error code context.
      */
@@ -6252,13 +6258,19 @@ public:
          */
         virtual MegaError* copy() const;
 
-
 		/**
 		 * @brief Returns the error code associated with this MegaError
          *
-		 * @return Error code associated with this MegaError
+		 * @return Error code, an Errors enum, associated with this MegaError
 		 */
         virtual int getErrorCode() const;
+
+        /**
+         * @brief Returns the sync error associated with this MegaError
+         *
+         * @return MegaSync::Error associated with this MegaError
+         */
+        virtual int getSyncError() const;
 
         /**
          * @brief Returns a value associated with the error
@@ -6391,9 +6403,14 @@ public:
 
 protected:
         MegaError(int e);
+        MegaError(int e, int se);
 
         //< 0 = API error code, > 0 = http error, 0 = No error
+        // MegaError::Errors enum/ErrorCodes
         int errorCode;
+
+        // SyncError/MegaSync::Error 
+        int syncError;
 
         friend class MegaTransfer;
         friend class MegaApiImpl;
@@ -7963,7 +7980,7 @@ class MegaApi
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
-            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
+            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // protected - char array in B64
             // USER_ATTR_BACKUP_NAMES = 32,      // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34,// private - byte array
@@ -12391,41 +12408,28 @@ class MegaApi
         void getCameraUploadsFolderSecondary(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set My Backups folder.
+         * @brief Creates the special folder for backups ("My backups")
          *
-         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * It creates a new folder inside the Vault rootnode and later stores the node's
+         * handle in a user's attribute, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER.
+         *
+         * Apps should first check if this folder exists already, by calling
+         * MegaApi::getUserAttribute for the corresponding attribute.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_MY_BACKUPS
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-         * - MegaRequest::getFlag - Returns false
-         * - MegaRequest::getNodehandle - Returns the provided node handle
-         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
-         * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
-         *
-         * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
-         * the request will fail with the error code MegaError::API_EACCESS.
-         *
-         * @param nodehandle MegaHandle of the node to be used as target folder
-         * @param listener MegaRequestListener to track this request
-         */
-        void setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener = nullptr);
-
-        /**
-         * @brief Gets My Backups target folder.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
-         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getText - Returns the name provided as parameter
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
+         * - MegaRequest::getNodehandle - Returns the node handle of the folder created
          *
-         * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+         * If the folder for backups already existed, the request will fail with the error API_EACCESS.
          *
+         * @param localizedName Localized name for "My backups" folder
          * @param listener MegaRequestListener to track this request
          */
-        void getMyBackupsFolder(MegaRequestListener *listener = nullptr);
+        void setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Gets the alias for an user
@@ -13888,18 +13892,19 @@ class MegaApi
          * if the sync was added with no errors
          * - MegaRequest::getParentHandle - Returns the sync backupId
          *
-          * On the onRequestFinish error, the error code associated to the MegaError can be:
-          * - MegaError::API_EARGS - If the local folder was not set.
-          * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
-          * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
-          * wrong 'dev-id'/'drv-id' tag.
-          * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
-          * the handle.
-          * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
-          * - or the node could not be found.
-          * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
-          * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
-          * or device name was empty.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the local folder was not set or is not a folder.
+         * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
+         * or the attribute was invalid, or "My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
+         * wrong 'dev-id'/'drv-id' tag.
+         * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
+         * the handle.
+         * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+         * - or the node could not be found.
+         * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
+         * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
+         * or device name was empty.
+         * - MegaError::API_EEXIST - If this is a new device, but a folder with the same device-name already exists.
          *
          * @param syncType Type of sync. Currently supported: TYPE_TWOWAY and TYPE_BACKUP.
          * @param localSyncRootFolder Path of the Local folder to sync/backup.
@@ -13908,7 +13913,9 @@ class MegaApi
          * @param driveRootIfExternal Only relevant for backups, and only if the backup is on an external disk. Otherwise use NULL.
          * @param listener MegaRequestListener to track this request
          */
-        void syncFolder(MegaSync::SyncType syncType, const char *localSyncRootFolder, const char *name, MegaHandle remoteSyncRootFolder, const char* driveRootIfExternal, MegaRequestListener *listener, const char* excludePath = nullptr);
+        void syncFolder(MegaSync::SyncType syncType, const char *localSyncRootFolder, const char *name, MegaHandle remoteSyncRootFolder,
+            const char* driveRootIfExternal,
+            MegaRequestListener *listener, const char* excludePath = nullptr);
 
         /**
          * @brief Copy sync data to SDK cache.
@@ -14056,9 +14063,10 @@ class MegaApi
         void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Disable a synced folder
+         * @brief Run/Pause/Suspend/Disable a synced folder
          *
          * Attempt to Start, Pause, Suspend, or Disable a sync.
+
          *
          * Specify the new state to try to move the sync to.  In case there is
          * a problem, the cause will be returned in the listener callabck.
@@ -14329,7 +14337,10 @@ class MegaApi
          * - MegaApi::RETRY_RATE_LIMIT = 4,
          * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
          *
-         * - any other value:
+         * - MegaApi::RETRY_LOCAL_LOCK = 5
+         * SDK is waiting for a local locked file
+         *
+         * - MegaApi::RETRY_UNKNOWN = 6
          * SDK is waiting for the server to complete a request with unknown reason
          *
          */
@@ -14499,7 +14510,7 @@ class MegaApi
         enum { SEARCH_TARGET_INSHARE = 0,
                SEARCH_TARGET_OUTSHARE,
                SEARCH_TARGET_PUBLICLINK,
-               SEARCH_TARGET_ROOTNODE,
+               SEARCH_TARGET_ROOTNODE,      // search in Cloud and Vault rootnodes
                SEARCH_TARGET_ALL, };
 
         /**
@@ -16285,7 +16296,7 @@ class MegaApi
          * - SEARCH_TARGET_INSHARE = 0
          * - SEARCH_TARGET_OUTSHARE = 1
          * - SEARCH_TARGET_PUBLICLINK = 2
-         * - SEARCH_TARGET_ROOTNODE = 3
+         * - SEARCH_TARGET_ROOTNODE = 3 --> search in Cloud and Vault rootnodes
          * - SEARCH_TARGET_ALL = 4
          *
          * @return List of nodes that match with the search parameters

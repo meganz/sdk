@@ -90,7 +90,7 @@ public:
     bool setmtimelocal(const LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     bool getextension(const LocalPath&, std::string&) const override;
-    bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
+    bool expanselocalpath(const LocalPath& path, LocalPath& absolutepath) override;
 
     void osversion(string*, bool includeArchitecture) const override;
     void statsid(string*) const override;

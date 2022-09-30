@@ -1317,6 +1317,13 @@ const char* MegaTransfer::stageToString(unsigned stage)
 MegaError::MegaError(int e)
 {
     errorCode = e;
+    syncError = NO_SYNC_ERROR;
+}
+
+MegaError::MegaError(int e, int se)
+{
+    errorCode = e;
+    syncError = se;
 }
 
 MegaError::~MegaError()
@@ -1332,6 +1339,11 @@ MegaError* MegaError::copy() const
 int MegaError::getErrorCode() const
 {
     return errorCode;
+}
+
+int MegaError::getSyncError() const
+{
+    return syncError;
 }
 
 long long MegaError::getValue() const
@@ -2904,14 +2916,9 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
     pImpl->getMyChatFilesFolder(listener);
 }
 
-void MegaApi::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+void MegaApi::setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener)
 {
-    pImpl->setMyBackupsFolder(nodehandle, listener);
-}
-
-void MegaApi::getMyBackupsFolder(MegaRequestListener *listener)
-{
-    pImpl->getMyBackupsFolder(listener);
+    pImpl->setMyBackupsFolder(localizedName, listener);
 }
 
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)

@@ -444,6 +444,14 @@ public:
     static int pcasecmp(const std::wstring& lhs,
                         const std::wstring& rhs,
                         const size_t length);
+
+    static std::string replace(const std::string& str,
+                               char search,
+                               char replace);
+    static std::string replace(const std::string& str,
+                               const std::string& search,
+                               const std::string& replacement);
+        
 };
 
 // for pre-c++11 where this version is not defined yet.
@@ -941,6 +949,8 @@ bool platformSetRLimitNumFile(int newNumFileLimit = -1);
 
 void debugLogHeapUsage();
 
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals);
+
 struct SyncTransferCount
 {
     bool operator==(const SyncTransferCount& rhs) const;
@@ -958,6 +968,8 @@ struct SyncTransferCounts
     bool operator==(const SyncTransferCounts& rhs) const;
     bool operator!=(const SyncTransferCounts& rhs) const;
     void operator-=(const SyncTransferCounts& rhs);
+
+    // returns progress 0.0 to 1.0
     double progress(m_off_t inflightProgress) const;
 
     SyncTransferCount mDownloads;

@@ -43,7 +43,6 @@
 
 namespace mega {
 
-// Defined in sync.h.
 class ScanService;
 class Logger;
 
@@ -669,11 +668,38 @@ public:
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
      * It will persist the sync configuration if its call to checkSyncConfig succeeds
-     * @param syncConfig the Config to attempt to add
+     * @param syncConfig the Config to attempt to add (takes ownership)
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
-     * @param completion Completion function.  Completion function is the way to know success/failure.
+     * @param completion Completion function
+     * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
+     * Completion is used to signal success/failure.  That may occur during this call, or in future (after server request/reply etc)
      */
     void addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+    /**
+     * @brief
+     * Create the remote backup dir under //in/"My Backups"/`DEVICE_NAME`/. If `DEVICE-NAME` folder is missing, create that first.
+     *
+     * @param bkpName
+     * The name of the remote backup dir (desired final outcome is //in/"My Backups"/`DEVICE_NAME`/bkpName)
+     *
+     * @param extDriveRoot
+     * Drive root in case backup is from external drive; empty otherwise
+     *
+     * @param completion
+     * Completion function
+     *
+     * @return
+     * API_OK if remote backup dir has been successfully created.
+     * API_EACCESS if "My Backups" handle could not be obtained from user attribute, or if `DEVICE_NAME` was not a dir,
+     * or if remote backup dir already existed.
+     * API_ENOENT if "My Backups" handle was invalid or its Node was missing.
+     * API_EINCOMPLETE if device-id or device-name could not be obtained
+     * Any error returned by readDriveId(), in case of external drive.
+     * Registration occurs later, during addsync(), not in this function.
+     * UndoFunction will be passed on completion, the caller can use it to remove the new backup cloud node if there is a later failure.
+     */
+    typedef std::function<void(std::function<void()> continuation)> UndoFunction;
+    void preparebackup(SyncConfig, std::function<void(Error, SyncConfig, UndoFunction revertOnError)>);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
@@ -712,6 +738,7 @@ public:
 private:
     void ensureSyncUserAttributesCompleted(Error e);
     std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
+
 public:
 
 #endif  // ENABLE_SYNC
@@ -1745,6 +1772,9 @@ public:
     string getAuthURI(bool supressSID = false, bool supressAuthKey = false);
 
     bool setlang(string *code);
+
+    // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
+    error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
 
     // sets the auth token to be used when logged into a folder link
     void setFolderLinkAccountAuth(const char *auth);
