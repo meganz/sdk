@@ -70,7 +70,7 @@ struct LogLinkedList
     unsigned mAllocated = 0;
     unsigned mUsed = 0;
     int mLastMessage = -1;
-    int mLastMessageRepeats = 0;
+    unsigned int mLastMessageRepeats = 0;
     bool mOomGap = false;
     DirectLogFunction *mDirectLoggingFunction = nullptr; // we cannot use a non pointer due to the malloc allocation of new entries
     std::promise<void>* mCompletionPromise = nullptr; // we cannot use a unique_ptr due to the malloc allocation of new entries
@@ -744,13 +744,14 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
                     std::promise<void> promise;
                     mLogListLast->mCompletionPromise = &promise;
                     auto future = mLogListLast->mCompletionPromise->get_future();
-                    DirectLogFunction func = [&timebuf, threadname{threadname.c_str()}, &loglevelstring, &directMessages, &directMessagesSizes, numberMessages](std::ostream *oss)
+                    auto threadnameCStr = threadname.c_str();
+                    DirectLogFunction func = [&timebuf, threadnameCStr, &loglevelstring, &directMessages, &directMessagesSizes, numberMessages](std::ostream *oss)
                     {
-                        *oss << timebuf << threadname << loglevelstring;
+                        *oss << timebuf << threadnameCStr << loglevelstring;
 
                         for(int i = 0; i < numberMessages; i++)
                         {
-                            oss->write(directMessages[i], directMessagesSizes[i]);
+                            oss->write(directMessages[i], static_cast<std::streamsize>(directMessagesSizes[i]));
                         }
                         *oss << std::endl;
                     };
@@ -790,12 +791,16 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
                     {
                         char repeatbuf[31]; // this one can occur very frequently with many in a row: cURL DEBUG: schannel: failed to decrypt data, need more data
                         int n = snprintf(repeatbuf, 30, "[repeated x%u]\n", reportRepeats);
-                        mLogListLast->append(repeatbuf, n);
+                        assert(n && "Unexpected snprintf failure");
+                        if (n > 0)
+                        {
+                            mLogListLast->append(repeatbuf, static_cast<unsigned int>(n));
+                        }
                     }
                     mLogListLast->append(timebuf, LOG_TIME_CHARS);
                     mLogListLast->append(threadname.c_str(), unsigned(threadnameLen));
                     mLogListLast->append(loglevelstring, LOG_LEVEL_CHARS);
-                    mLogListLast->mLastMessage = mLogListLast->mUsed;
+                    mLogListLast->mLastMessage = static_cast<int>(mLogListLast->mUsed);
                     mLogListLast->append(message, unsigned(messageLen));
                     mLogListLast->append("\n", 1);
                     notify = mLogListLast->mUsed + 1024 > mLogListLast->mAllocated;
