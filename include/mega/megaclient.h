@@ -1159,6 +1159,7 @@ private:
     void sc_chatnode();
     void sc_chatflags();
     void sc_scheduledmeetings();
+    void sc_delscheduledmeetings();
 #endif
     void sc_uac();
     void sc_la();

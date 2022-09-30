@@ -2087,6 +2087,8 @@ public:
         CHANGE_TYPE_FLAGS           = 0x02,
         CHANGE_TYPE_MODE            = 0x04,
         CHANGE_TYPE_CHAT_OPTIONS    = 0x08,
+        CHANGE_TYPE_SCHED_MEETING   = 0x10,
+        CHANGE_TYPE_SCHED_OCURR     = 0x20,
     };
 
     virtual ~MegaTextChat();
@@ -2212,6 +2214,12 @@ public:
      * - MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS     = 0x08
      * Check if chat options have changed
      *
+     * - MegaTextChat::CHANGE_TYPE_SCHED_MEETING     = 0x10
+     * Check if scheduled meetings have changed
+     *
+     * - MegaTextChat::CHANGE_TYPE_SCHED_OCURR     = 0x20
+     * Check if scheduled meetings occurrences have changed
+     *
      * @return true if this chat has an specific change
      */
     virtual bool hasChanged(int changeType) const;
@@ -2235,6 +2243,12 @@ public:
      *
      * - MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS     = 0x08
      * Check if chat options have changed
+     *
+     * - MegaTextChat::CHANGE_TYPE_SCHED_MEETING     = 0x10
+     * Check if scheduled meetings have changed
+     *
+     * - MegaTextChat::CHANGE_TYPE_SCHED_OCURR     = 0x20
+     * Check if scheduled meetings occurrences have changed
      */
     virtual int getChanges() const;
 

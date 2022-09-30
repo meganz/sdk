@@ -23440,10 +23440,6 @@ void MegaApiImpl::sendPendingRequests()
                 textchat_map::iterator it = client->chats.find(chatid);
                 if (!e && it != client->chats.end())
                 {
-                    // if we have created or overwritten an existing scheduled meeting, clear all scheduled meeting occurrences for the chatroom, and re-fetch
-                    // although it's related scheduled meeting has not changed and re-request again [mcsmfo], this approach is an API requirement
-                    TextChat* chat = it->second;
-                    chat->clearSchedMeetingOccurrences();
                     client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chatid, nullptr, nullptr, -1, [] (Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*)
                     {
                     }));
@@ -33036,12 +33032,12 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->meeting = chat->isMeeting();
     this->chatOptions = chat->getChatOptions();
 
-    if (chat->getScheduledMeetingList())
+    if (chat->getScheduledMeetingList() && chat->getScheduledMeetingList()->size())
     {
         mScheduledMeetings.reset(chat->getScheduledMeetingList()->copy());
     }
 
-    if (chat->getSchedMeetingsChanged()->size())
+    if (chat->getSchedMeetingsChanged() && chat->getSchedMeetingsChanged()->size())
     {
         mSchedMeetingsChanged.reset(chat->getSchedMeetingsChanged()->copy());
     }
@@ -33098,6 +33094,16 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     if (chat->changed.options)
     {
         changed |= MegaTextChat::CHANGE_TYPE_CHAT_OPTIONS;
+    }
+
+    if (!chat->mSchedMeetingsChanged.empty())
+    {
+        changed |= MegaTextChat::CHANGE_TYPE_SCHED_MEETING;
+    }
+
+    if (chat->changed.schedOcurr)
+    {
+        changed |= MegaTextChat::CHANGE_TYPE_SCHED_OCURR;
     }
 }
 

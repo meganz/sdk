@@ -5036,6 +5036,11 @@ bool MegaClient::procsc()
                                 // scheduled meetings updates
                                 sc_scheduledmeetings();
                                 break;
+
+                            case MAKENAMEID5('m', 'c', 's', 'm', 'r'):
+                                // scheduled meetings removal
+                                sc_delscheduledmeetings();
+                                break;
 #endif
                             case MAKENAMEID3('u', 'a', 'c'):
                                 sc_uac();
@@ -7151,6 +7156,63 @@ void MegaClient::sc_chatflags()
     }
 }
 
+// process mcsmr action packet
+void MegaClient::sc_delscheduledmeetings()
+{
+    bool done = false;
+    handle schedMeetingId = UNDEF;
+    handle i = UNDEF;
+    handle ou = UNDEF;
+
+    while(!done)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case MAKENAMEID2('i','d'):
+                schedMeetingId = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case 'i':
+                i = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case MAKENAMEID2('o','u'):
+                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                break;
+
+            case EOO:
+            {
+                done = true;
+                for (auto auxit = chats.begin(); auxit != chats.end(); auxit++)
+                {
+                    TextChat* chat = auxit->second;
+                    if (chat->removeSchedMeeting(schedMeetingId))
+                    {
+                        chat->removeChildSchedMeetings(schedMeetingId);
+                        notifychat(chat);
+                        reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, -1,
+                                                                        [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
+                    }
+                    else
+                    {
+                        assert(false);
+                        LOG_debug << "sc_delscheduledmeetings: scheduled meeting [" <<  Base64Str<MegaClient::CHATHANDLE>(schedMeetingId) << "] didn't exists";
+                    }
+                    break;
+                }
+                break;
+            }
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return;
+                }
+                break;
+        }
+    }
+}
+
 // process mcsmp action packet
 void MegaClient::sc_scheduledmeetings()
 {
@@ -7169,11 +7231,7 @@ void MegaClient::sc_scheduledmeetings()
         // update scheduled meeting with updated record received at mcsmp AP
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(std::move(sm));
-
-        // if just one scheduled meeting has changed for a chatroom, invalidate all meetings occurrences related for that chatid,
-        // although it's related scheduled meeting has not changed and re-request again [mcsmfo], this approach is an API requirement
-        LOG_debug << "Invalidating scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
-        chat->clearSchedMeetingOccurrences();
+        notifychat(chat);
         reqs.add(new CommandScheduledMeetingFetchEvents(this, chat->id, nullptr, nullptr, -1,
                                                         [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
     }
@@ -11760,6 +11818,7 @@ void MegaClient::procmcsm(JSON *j)
         handle h = sm->chatid();
         TextChat* chat = it->second;
         chat->addOrUpdateSchedMeeting(std::move(sm));
+        notifychat(chat);
 
         // fetch scheduled meetings occurences (no previous events occurrences cached)
         reqs.add(new CommandScheduledMeetingFetchEvents(this, h, nullptr, nullptr, -1,

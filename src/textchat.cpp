@@ -537,6 +537,22 @@ bool TextChat::removeSchedMeeting(handle callid)
     return true;
 }
 
+unsigned int TextChat::removeChildSchedMeetings(handle parentCallid)
+{
+    // remove all scheduled meeting whose parent is parentCallid
+    unsigned int count = 0;
+    for (auto it = mScheduledMeetings.begin(); it != mScheduledMeetings.end(); it++)
+    {
+        if (it->second->parentCallid() == parentCallid)
+        {
+            removeSchedMeeting(it->second->callid());
+            count++;
+        }
+    }
+
+    return count;
+}
+
 bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
 {
     assert(sm);

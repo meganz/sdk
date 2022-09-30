@@ -94,6 +94,7 @@ public:
         bool flags : 1;
         bool mode : 1;
         bool options : 1;
+        bool schedOcurr : 1;
     } changed;
 
     // return false if failed
@@ -112,6 +113,7 @@ public:
     bool addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
     bool addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
     bool removeSchedMeeting(handle callid);
+    unsigned int removeChildSchedMeetings(handle parentCallid);
     bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
     ScheduledMeeting* getSchedMeetingById(handle id);
 };

@@ -9210,7 +9210,13 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
         }
 
         TextChat* chat = it->second;
-        chat->removeSchedMeeting(mSchedMeetingId);
+        if (chat->removeSchedMeeting(mSchedMeetingId))
+        {
+            chat->removeChildSchedMeetings(mSchedMeetingId);
+            client->notifychat(chat);
+            client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, -1,
+                                                            [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
+        }
         mCompletion(API_OK);
         return true;
     }
@@ -9295,12 +9301,21 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
 
     // add received scheduled meetings occurrences
     TextChat* chat = it->second;
+
+    // if just one scheduled meeting has changed for a chatroom, invalidate all meetings occurrences related for that chatid,
+    // although it's related scheduled meeting has not changed and re-request again [mcsmfo], this approach is an API requirement
+    LOG_debug << "Invalidating scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
+    chat->clearSchedMeetingOccurrences();
+
+    //add new changed
     for (auto& schedMeeting: schedMeetings)
     {
         chat->addSchedMeetingOccurrence(std::move(schedMeeting));
     }
 
+    chat->changed.schedOcurr = true;
     mCompletion(API_OK, &schedMeetings);
+    client->notifychat(chat);
     return true;
 }
 
