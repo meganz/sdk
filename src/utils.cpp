@@ -94,7 +94,7 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
 
 SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp)
 {
-    return s << lp.toPath();
+    return s << lp.toPath(false);
 }
 
 

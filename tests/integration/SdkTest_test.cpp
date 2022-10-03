@@ -3159,7 +3159,7 @@ TEST_F(SdkTest, SdkTestShareKeys)
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName().toPath();
+    return itemlocalname.leafName().toPath(false);
 }
 
 LocalPath fspathToLocal(const fs::path& p)
@@ -8062,11 +8062,11 @@ TEST_F(SdkTest, SdkTestAudioFileThumbnail)
         mp3LP.appendWithSeparator(LocalPath::fromRelativePath("integration"), false);
         mp3LP.appendWithSeparator(LocalPath::fromRelativePath(AUDIO_FILENAME), false);
 
-        if (!fileexists(mp3LP.toPath()))
+        if (!fileexists(mp3LP.toPath(false)))
             mp3LP = LocalPath::fromRelativePath(AUDIO_FILENAME);
     }
 
-    const std::string& mp3 = mp3LP.toPath();
+    const std::string& mp3 = mp3LP.toPath(false);
 
     ASSERT_TRUE(fileexists(mp3)) << mp3 << " file does not exist";
 

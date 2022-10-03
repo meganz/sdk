@@ -4160,20 +4160,19 @@ void MegaClient::dispatchTransfers()
                 }
                 else if (openfinished)
                 {
-                    string utf8path = nexttransfer->localfilename.toPath();
                     if (nexttransfer->type == GET)
                     {
-                        LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
+                        LOG_err << "Error dispatching transfer. Temporary file not writable: " << nexttransfer->localfilename;
                         nexttransfer->failed(API_EWRITE, committer);
                     }
                     else if (!ts->fa->retry)
                     {
-                        LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << utf8path;
+                        LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << nexttransfer->localfilename;
                         nexttransfer->failed(API_EREAD, committer);
                     }
                     else
                     {
-                        LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << utf8path;
+                        LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << nexttransfer->localfilename;
                         nexttransfer->failed(API_EREAD, committer);
                     }
                 }
@@ -4756,6 +4755,12 @@ bool MegaClient::procsc()
                     break;
 
                 case EOO:
+                    if (!useralerts.isDeletedSharedNodesStashEmpty())
+                    {
+                        useralerts.convertStashedDeletedSharedNodes();
+                    }
+
+
                     LOG_debug << "Processing of action packets finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
@@ -8046,7 +8051,7 @@ Node* MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
 
-                    useralerts.convertNotedSharedNodes(false, originatingUser);
+                    useralerts.stashDeletedNotedSharedNodes(originatingUser);
                 }
                 return n;
 
@@ -8761,6 +8766,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
     node_vector dp;
     Node* n;
+    handle previousHandleForAlert = UNDEF;
 
     while (j->enterobject())
     {
@@ -9021,7 +9027,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
                 {
-                    useralerts.noteSharedNode(u, t, ts, n);
+                    useralerts.noteSharedNode(u, t, ts, n, UserAlert::type_put);
                 }
 
                 if (nn && nni >= 0 && nni < int(nn->size()))
@@ -9093,6 +9099,26 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             if (applykeys)
             {
                 n->applykey();
+            }
+
+            // update-alerts for shared-nodes management
+            if (!ISUNDEF(ph))
+            {
+                if (useralerts.isHandleInAlertsAsRemoved(h) && ISUNDEF(previousHandleForAlert))
+                {
+                    useralerts.setNewNodeAlertToUpdateNodeAlert(nodebyhandle(ph));
+                    useralerts.removeNodeAlerts(nodebyhandle(h));
+                    previousHandleForAlert = h;
+                }
+                else if ((t == FILENODE) || (t == FOLDERNODE))
+                {
+                    if (previousHandleForAlert == ph)
+                    {
+                        useralerts.removeNodeAlerts(nodebyhandle(h));
+                        previousHandleForAlert = h;
+                    }
+                    // otherwise, the added TYPE_NEWSHAREDNODE is kept
+                }
             }
         }
     }
@@ -14454,7 +14480,7 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
     handle driveId = UNDEF;
     if (config.isExternal())
     {
-        const string& p = config.mExternalDrivePath.toPath();
+        const string& p = config.mExternalDrivePath.toPath(false);
         e = readDriveId(*fsaccess, p.c_str(), driveId);
         if (e != API_OK)
         {
@@ -14541,7 +14567,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     {
         // drive-id must have been already written to external drive, since a name was given to it
         handle driveId;
-        error e = readDriveId(*fsaccess, sc.mExternalDrivePath.toPath().c_str(), driveId);
+        error e = readDriveId(*fsaccess, sc.mExternalDrivePath.toPath(false).c_str(), driveId);
         if (e != API_OK)
         {
             LOG_err << "Add backup (external): failed to read drive id";
@@ -16561,16 +16587,15 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 }
 
                 auto fa = fsaccess->newfileaccess();
-                auto localpath = t->localfilename.toPath();
 
                 if (t->localfilename.empty() || !fa->fopen(t->localfilename))
                 {
                     if (d == PUT)
                     {
-                        if (!localpath.empty())
+                        if (!t->localfilename.empty())
                         {
                             // if empty, we had not started the upload. The real path is in the first File
-                            LOG_warn << "Local file not found: " << localpath;
+                            LOG_warn << "Local file not found: " << t->localfilename;
                         }
                         // the transfer will be retried to ensure that the file
                         // is not just just temporarily blocked
@@ -16579,7 +16604,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                     {
                         if (hadAnyData)
                         {
-                            LOG_warn << "Temporary file not found:" << localpath;
+                            LOG_warn << "Temporary file not found:" << t->localfilename;
                         }
                         t->localfilename.clear();
                         t->chunkmacs.clear();
@@ -16593,7 +16618,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                     {
                         if (f->genfingerprint(fa.get()))
                         {
-                            LOG_warn << "The local file has been modified: " << localpath;
+                            LOG_warn << "The local file has been modified: " << t->localfilename;
                             t->tempurls.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
@@ -16605,7 +16630,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                     {
                         if (t->progresscompleted > fa->size)
                         {
-                            LOG_warn << "Truncated temporary file: " << localpath;
+                            LOG_warn << "Truncated temporary file: " << t->localfilename;
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
                             t->pos = 0;

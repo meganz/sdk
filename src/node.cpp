@@ -1469,7 +1469,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
-        name = localname.toPath();
+        name = localname.toPath(true);
     }
 
     scanseqno = sync->scanseqno;
@@ -1645,11 +1645,11 @@ LocalNode::~LocalNode()
 
         if (type == FOLDERNODE)
         {
-            LOG_debug << "Sync - local folder deletion detected: " << getLocalPath().toPath();
+            LOG_debug << "Sync - local folder deletion detected: " << getLocalPath();
         }
         else
         {
-            LOG_debug << "Sync - local file deletion detected: " << getLocalPath().toPath();
+            LOG_debug << "Sync - local file deletion detected: " << getLocalPath();
         }
     }
 

@@ -2211,7 +2211,7 @@ m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         auto result = errno;
 
         LOG_warn << "Unable to determine available disk space on volume: "
-                 << drivePath.toPath()
+                 << drivePath
                  << ". Error code was: "
                  << result;
 

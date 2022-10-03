@@ -8672,7 +8672,7 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
 
     if (!fields.localFolder.empty())
     {
-        string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", fields.localFolder.toPath()));
+        string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", fields.localFolder.toPath(false)));
         arg("l", localFolderEncrypted.c_str());
     }
 
