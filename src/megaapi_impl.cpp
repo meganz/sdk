@@ -4170,7 +4170,7 @@ int MegaStringListPrivate::size() const
     return int(mList.size());
 }
 
-void MegaStringListPrivate::add(const char* value)
+void MegaStringListPrivate::add(const char *value)
 {
     if (value)
     {
@@ -10744,6 +10744,7 @@ MegaShareList *MegaApiImpl::getOutShares(int order)
 
     OutShareProcessor shareProcessor(*client);
     processTree(client->nodeByHandle(client->rootnodes.files), &shareProcessor, true, CancelToken());
+    processTree(client->nodeByHandle(client->rootnodes.vault), &shareProcessor, true, CancelToken());
     shareProcessor.sortShares(order);
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
 
@@ -10805,6 +10806,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 
     PendingOutShareProcessor shareProcessor;
     processTree(client->nodeByHandle(client->rootnodes.files), &shareProcessor, true, CancelToken());
+    processTree(client->nodeByHandle(client->rootnodes.vault), &shareProcessor, true, CancelToken());
     MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
 
     sdkMutex.unlock();
@@ -10913,7 +10915,7 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
     if(!megaNode) return MegaShare::ACCESS_UNKNOWN;
 
     sdkMutex.lock();
-    Node *node = client->nodebyhandle(megaNode->getHandle(), true);
+    Node *node = client->nodebyhandle(megaNode->getHandle());
     if(!node)
     {
         sdkMutex.unlock();
@@ -17722,7 +17724,7 @@ MegaNode* MegaApiImpl::getNodeByHandle(handle handle)
 {
     if(handle == UNDEF) return NULL;
     sdkMutex.lock();
-    MegaNode *result = MegaNodePrivate::fromNode(client->nodebyhandle(handle, true));
+    MegaNode *result = MegaNodePrivate::fromNode(client->nodebyhandle(handle));
     sdkMutex.unlock();
     return result;
 }

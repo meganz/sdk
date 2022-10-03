@@ -94,8 +94,6 @@ HttpReqCommandPutFA::HttpReqCommandPutFA(NodeOrUploadHandle cth, fatype ctype, b
 
 bool HttpReqCommandPutFA::procresult(Result r)
 {
-    //todo: replace: client->looprequested = true;
-
     if (r.wasErrorOrOK())
     {
         if (r.wasError(API_EAGAIN) || r.wasError(API_ERATELIMIT))
@@ -211,8 +209,6 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
 bool CommandGetFA::procresult(Result r)
 {
     fafc_map::iterator it = client->fafcs.find(part);
-
-    // todo: replace: client->looprequested = true;
 
     if (r.wasErrorOrOK())
     {
@@ -367,7 +363,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
     {
         if (!file->h.isUndef())
         {
-            Node *node = client->nodeByHandle(file->h, true);
+            Node *node = client->nodeByHandle(file->h);
             if (node)
             {
                 assert(node->type != FILENODE);
@@ -1171,7 +1167,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, NodeHandle th,
     if (type == NODE_HANDLE)
     {
         Node* tn;
-        if ((tn = client->nodeByHandle(th, true)))
+        if ((tn = client->nodeByHandle(th)))
         {
             assert(tn->type != FILENODE);
 
@@ -3725,7 +3721,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 
         Node* n;
 
-        if ((n = client->nodebyhandle(h, true)))
+        if ((n = client->nodebyhandle(h)))
         {
             client->key.ecb_encrypt((byte*)n->nodekey().data(), nodekey, n->nodekey().size());
 

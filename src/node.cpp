@@ -75,7 +75,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
 
     // set parent linkage or queue for delayed parent linkage in case of
     // out-of-order delivery
-    if ((p = client->nodeByHandle(ph, true)))
+    if ((p = client->nodeByHandle(ph)))
     {
         setparent(p);
     }

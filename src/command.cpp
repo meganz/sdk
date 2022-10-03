@@ -59,7 +59,7 @@ void Command::addToNodePendingCommands(Node* node)
 
 void Command::removeFromNodePendingCommands(NodeHandle h, MegaClient* client)
 {
-    if (auto node = client->nodeByHandle(h, true))
+    if (auto node = client->nodeByHandle(h))
     {
         removeFromNodePendingCommands(node);
     }

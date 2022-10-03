@@ -2015,7 +2015,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, SyncP
                             if (signalMoveBegin)
                                 signalMoveBegin(mc);
 
-                            auto fromNode = mc.nodeByHandle(sourceCloudNode.handle, true);  // yes, it must be the exact version (should there be a version chain)
+                            auto fromNode = mc.nodeByHandle(sourceCloudNode.handle);  // yes, it must be the exact version (should there be a version chain)
                             auto toNode = mc.nodeByHandle(targetCloudNode.handle);   // folders don't have version chains
 
                             if (fromNode && toNode)
@@ -8812,7 +8812,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, SyncPath& fullPa
 
                     syncs.queueClient([debrisNodeHandle, fromInshare, deletePtr, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
                         {
-                            if (auto n = mc.nodeByHandle(debrisNodeHandle, true))
+                            if (auto n = mc.nodeByHandle(debrisNodeHandle))
                             {
                                 if (n->parent && n->parent->type == FILENODE)
                                 {
@@ -10599,14 +10599,14 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     {
         for (auto & rh : activeSyncHandles)
         {
-            if (Node* rn = mClient.nodeByHandle(rh.first, true))
+            if (Node* rn = mClient.nodeByHandle(rh.first))
             {
                 activeSyncRoots.emplace_back(rn, rh.second);
             }
         }
     }
 
-    if (const Node* n = mClient.nodeByHandle(h, true))
+    if (const Node* n = mClient.nodeByHandle(h))
     {
         switch (whichVersion)
         {
@@ -10676,7 +10676,7 @@ bool Syncs::lookupCloudChildren(NodeHandle h, vector<CloudNode>& cloudChildren)
     assert(onSyncThread());
 
     lock_guard<mutex> g(mClient.nodeTreeMutex);
-    if (Node* n = mClient.nodeByHandle(h, true))
+    if (Node* n = mClient.nodeByHandle(h))
     {
         assert(n->type > FILENODE);
         assert(!n->parent || n->parent->type > FILENODE);
