@@ -494,6 +494,7 @@ class PutCommand extends Command
 		
 		$path = $input->getArgument('path');
 		$megaapi->startUpload($path
+                ,$cwd           /*parent node*/
 		, null  	/*filename*/
 		, 0     	/*mtime*/
 		, null  	/*appData*/
