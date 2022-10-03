@@ -476,20 +476,11 @@ UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
 }
 
 UserAlert::NewSharedNodes::NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
-                                          handle_alerttype_map_t alertTypePerFileNode,
-                                          handle_alerttype_map_t alertTypePerFolderNode)
+                                          vector<handle>&& fileHandles, vector<handle>&& folderHandles)
     : Base(UserAlert::type_put, uh, string(), timestamp, id)
-    , parentHandle(ph)
+    , parentHandle(ph), fileNodeHandles(move(fileHandles)), folderNodeHandles(move(folderHandles))
 {
     assert(!ISUNDEF(uh));
-    for (auto& item: alertTypePerFileNode)
-    {
-        fileNodeHandles.push_back(item.first);
-    }
-    for (auto& item: alertTypePerFolderNode)
-    {
-        folderNodeHandles.push_back(item.first);
-    }
 }
 
 void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* mc)
@@ -556,18 +547,9 @@ UserAlert::RemovedSharedNode::RemovedSharedNode(UserAlertRaw& un, unsigned int i
 }
 
 UserAlert::RemovedSharedNode::RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
-                                                handle_alerttype_map_t alertTypePerFileNode,
-                                                handle_alerttype_map_t alertTypePerFolderNode)
-    : Base(UserAlert::type_d, uh, string(), timestamp, id)
+                                                vector<handle>&& handles)
+    : Base(UserAlert::type_d, uh, string(), timestamp, id), nodeHandles(move(handles))
 {
-    for (auto& item: alertTypePerFileNode)
-    {
-        nodeHandles.push_back(item.first);
-    }
-    for (auto& item: alertTypePerFolderNode)
-    {
-        nodeHandles.push_back(item.first);
-    }
 }
 
 void UserAlert::RemovedSharedNode::text(string& header, string& title, MegaClient* mc)
@@ -600,18 +582,9 @@ UserAlert::UpdatedSharedNode::UpdatedSharedNode(UserAlertRaw& un, unsigned int i
 }
 
 UserAlert::UpdatedSharedNode::UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
-                                                handle_alerttype_map_t alertTypePerFileNode,
-                                                handle_alerttype_map_t alertTypePerFolderNode)
-    : Base(UserAlert::type_u, uh, string(), timestamp, id)
+                                                vector<handle>&& handles)
+    : Base(UserAlert::type_u, uh, string(), timestamp, id), nodeHandles(move(handles))
 {
-    for (auto& item: alertTypePerFileNode)
-    {
-        nodeHandles.push_back(item.first);
-    }
-    for (auto& item: alertTypePerFolderNode)
-    {
-        nodeHandles.push_back(item.first);
-    }
 }
 
 void UserAlert::UpdatedSharedNode::text(string& header, string& title, MegaClient* mc)
@@ -1084,13 +1057,18 @@ void UserAlerts::convertNotedSharedNodes(bool added)
     using namespace UserAlert;
     for (notedShNodesMap::iterator i = notedSharedNodes.begin(); i != notedSharedNodes.end(); ++i)
     {
-        add(added ? (Base *) new NewSharedNodes(i->first.first, i->first.second,
-                                                i->second.timestamp, nextId(),
-                                                i->second.alertTypePerFileNode,
-                                                i->second.alertTypePerFolderNode)
-            : (Base *) new RemovedSharedNode(i->first.first, m_time(), nextId(),
-                                             i->second.alertTypePerFileNode,
-                                             i->second.alertTypePerFolderNode));
+        auto&& fileHandles = i->second.fileHandles();
+        auto&& folderHandles = i->second.folderHandles();
+        if (added)
+        {
+            add(new NewSharedNodes(i->first.first, i->first.second, i->second.timestamp, nextId(),
+                                   move(fileHandles), move(folderHandles)));
+        }
+        else
+        {
+            std::move(folderHandles.begin(), folderHandles.end(), std::back_inserter(fileHandles));
+            add(new RemovedSharedNode(i->first.first, m_time(), nextId(), move(fileHandles)));
+        }
     }
 }
 
@@ -1254,7 +1232,6 @@ bool UserAlerts::removeNotedSharedNodeFrom(Node* n, notedShNodesMap& notedShared
 
 bool UserAlerts::setNotedSharedNodeToUpdate(Node* nodeToChange)
 {
-    using handletoalert_t = UserAlert::handle_alerttype_map_t;
     // noted nodes stash contains only deleted noted nodes, thus, we only check noted nodes map
     if (catchupdone && notingSharedNodes && !notedSharedNodes.empty())
     {
@@ -1267,9 +1244,7 @@ bool UserAlerts::setNotedSharedNodeToUpdate(Node* nodeToChange)
         add(new UserAlert::UpdatedSharedNode(itToNotedSharedNodes->first.first,
                                              itToNotedSharedNodes->second.timestamp,
                                              nextId(),
-                                             handletoalert_t{{nodeToChange->nodehandle,
-                                                              UserAlert::type_u}},
-                                             handletoalert_t{}));
+                                             {nodeToChange->nodehandle}));
         if (removeNotedSharedNodeFrom(itToNotedSharedNodes, nodeToChange, notedSharedNodes))
         {
             LOG_debug << "Node with node handle |" << nodeToChange->nodehandle << "| removed from annotated node add-alerts and update-alert created in its place";
@@ -1401,7 +1376,7 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
         // for an update alert, only files are relevant because folders are not versioned
         add(new UserAlert::UpdatedSharedNode(
                 n->userHandle, n->timestamp, nextId(),
-                {{nodeHandleToUpdate, UserAlert::type_u}}, {}));
+                {nodeHandleToUpdate}));
     }
     newSNToConvertToUpdatedSN.clear();
 

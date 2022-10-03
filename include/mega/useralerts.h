@@ -183,8 +183,7 @@ namespace UserAlert
 
         NewSharedNodes(UserAlertRaw& un, unsigned int id);
         NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
-                       handle_alerttype_map_t alertTypePerFileNode,
-                       handle_alerttype_map_t alertTypePerFolderNode);
+                       vector<handle>&& fileHandles, vector<handle>&& folderHandles);
 
         virtual void text(string& header, string& title, MegaClient* mc);
     };
@@ -195,8 +194,7 @@ namespace UserAlert
 
         RemovedSharedNode(UserAlertRaw& un, unsigned int id);
         RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
-                          handle_alerttype_map_t alertTypePerFileNode,
-                          handle_alerttype_map_t alertTypePerFolderNode);
+                          vector<handle>&& handles);
 
         virtual void text(string& header, string& title, MegaClient* mc);
     };
@@ -207,8 +205,7 @@ namespace UserAlert
 
         UpdatedSharedNode(UserAlertRaw& un, unsigned int id);
         UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
-                          handle_alerttype_map_t alertTypePerFileNode,
-                          handle_alerttype_map_t alertTypePerFolderNode);
+                          vector<handle>&& handles);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -289,6 +286,20 @@ private:
         m_time_t timestamp = 0;
         UserAlert::handle_alerttype_map_t alertTypePerFileNode;
         UserAlert::handle_alerttype_map_t alertTypePerFolderNode;
+
+        vector<handle> fileHandles() const
+        {
+            vector<handle> v;
+            std::transform(alertTypePerFileNode.begin(), alertTypePerFileNode.end(), std::back_inserter(v), [](auto& p) { return p.first; });
+            return v;
+        }
+
+        vector<handle> folderHandles() const
+        {
+            vector<handle> v;
+            std::transform(alertTypePerFolderNode.begin(), alertTypePerFolderNode.end(), std::back_inserter(v), [](auto& p) { return p.first; });
+            return v;
+        }
     };
     using notedShNodesMap = map<pair<handle, handle>, ff>;
     notedShNodesMap notedSharedNodes;
