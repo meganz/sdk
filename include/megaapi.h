@@ -2390,7 +2390,7 @@ public:
      *
      * @return Copy of the MegaScheduledMeeting object
      */
-    virtual MegaScheduledMeeting* copy();
+    virtual MegaScheduledMeeting* copy() const;
 
     /**
      * @brief Returns if scheduled meeting is cancelled or not
@@ -2671,7 +2671,7 @@ public:
     // getters
     virtual unsigned long size() const;
     virtual MegaScheduledMeeting* at(unsigned long i) const;
-    virtual MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h);
+    virtual MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h) const;
 
     // setters
     virtual void insert(MegaScheduledMeeting* sm);

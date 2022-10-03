@@ -6943,7 +6943,7 @@ int MegaScheduledMeeting::cancelled() const                             { return
 MegaHandle MegaScheduledMeeting::chatid() const                         { return INVALID_HANDLE; }
 MegaHandle MegaScheduledMeeting::callid() const                         { return INVALID_HANDLE; }
 MegaHandle MegaScheduledMeeting::parentCallid() const                   { return INVALID_HANDLE; }
-MegaScheduledMeeting* MegaScheduledMeeting::copy()                      { return NULL; }
+MegaScheduledMeeting* MegaScheduledMeeting::copy() const                { return NULL; }
 const char* MegaScheduledMeeting::timezone() const                      { return NULL; }
 const char* MegaScheduledMeeting::startDateTime() const                 { return NULL; }
 const char* MegaScheduledMeeting::endDateTime() const                   { return NULL; }
@@ -7014,13 +7014,13 @@ MegaScheduledMeetingList::~MegaScheduledMeetingList()
 
 }
 
-MegaScheduledMeetingList* MegaScheduledMeetingList::copy() const                      { return NULL; }
-unsigned long MegaScheduledMeetingList::size() const                            { return 0; }
-MegaScheduledMeeting* MegaScheduledMeetingList::at(unsigned long) const               { return NULL; }
-MegaScheduledMeeting* MegaScheduledMeetingList::getBySchedMeetingId(MegaHandle) { return NULL; }
-void MegaScheduledMeetingList::insert(MegaScheduledMeeting*)                    {}
-void MegaScheduledMeetingList::remove(MegaHandle)                               {}
-void MegaScheduledMeetingList::clear()                                          {}
+MegaScheduledMeetingList* MegaScheduledMeetingList::copy() const                        { return NULL; }
+unsigned long MegaScheduledMeetingList::size() const                                    { return 0; }
+MegaScheduledMeeting* MegaScheduledMeetingList::at(unsigned long) const                 { return NULL; }
+MegaScheduledMeeting* MegaScheduledMeetingList::getBySchedMeetingId(MegaHandle) const   { return NULL; }
+void MegaScheduledMeetingList::insert(MegaScheduledMeeting*)                            {}
+void MegaScheduledMeetingList::remove(MegaHandle)                                       {}
+void MegaScheduledMeetingList::clear()                                                  {}
 
 MegaFolderInfo::~MegaFolderInfo()
 {

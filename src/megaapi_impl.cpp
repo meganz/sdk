@@ -33488,7 +33488,7 @@ MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaHandle chatid, cons
 {
 }
 
-MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(MegaScheduledMeetingPrivate* scheduledMeeting)
+MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(const MegaScheduledMeetingPrivate* scheduledMeeting)
     : mChatid(scheduledMeeting->chatid()),
       mCallid(scheduledMeeting->callid()),
       mParentCallid(scheduledMeeting->parentCallid()),
@@ -33526,7 +33526,7 @@ MegaScheduledMeetingPrivate::~MegaScheduledMeetingPrivate()
 {
 }
 
-MegaScheduledMeetingPrivate* MegaScheduledMeetingPrivate::copy()
+MegaScheduledMeetingPrivate* MegaScheduledMeetingPrivate::copy() const
 {
    return new MegaScheduledMeetingPrivate(this);
 }
@@ -33611,11 +33611,11 @@ MegaScheduledMeeting* MegaScheduledMeetingListPrivate::at(unsigned long i) const
     return mList.at(i).get();
 }
 
-MegaScheduledMeeting* MegaScheduledMeetingListPrivate::getBySchedMeetingId(handle h)
+MegaScheduledMeeting* MegaScheduledMeetingListPrivate::getBySchedMeetingId(handle h) const
 {
     auto it = std::find_if(mList.begin(),
                    mList.end(),
-                   [h](std::unique_ptr<MegaScheduledMeeting>& sm) -> bool
+                   [h](const std::unique_ptr<MegaScheduledMeeting>& sm) -> bool
                    {
                        return h == sm ->callid();
                    });

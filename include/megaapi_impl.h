@@ -4158,11 +4158,11 @@ public:
                                     MegaScheduledFlags* flags = nullptr,
                                     MegaScheduledRules* rules = nullptr);
 
-    MegaScheduledMeetingPrivate(MegaScheduledMeetingPrivate* scheduledMeeting);
+    MegaScheduledMeetingPrivate(const MegaScheduledMeetingPrivate *scheduledMeeting);
     MegaScheduledMeetingPrivate(ScheduledMeeting* scheduledMeeting);
 
     virtual ~MegaScheduledMeetingPrivate();
-    MegaScheduledMeetingPrivate* copy();
+    MegaScheduledMeetingPrivate* copy() const;
 
     void setRules(MegaScheduledRules* rules);
     void setFlags(MegaScheduledFlags* flags);
@@ -4246,7 +4246,7 @@ public:
     // getters
     unsigned long size() const override;
     MegaScheduledMeeting* at(unsigned long i) const override;
-    MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h) override;
+    MegaScheduledMeeting* getBySchedMeetingId(MegaHandle h) const override;
 
     // setters
     void insert(MegaScheduledMeeting *sm) override;
