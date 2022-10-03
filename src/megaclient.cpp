@@ -970,8 +970,6 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
             }
         }
     }
-
-    //todo: replace: looprequested = true;
 }
 
 std::string MegaClient::getDeviceidHash()
@@ -3152,7 +3150,7 @@ void MegaClient::dispatchTransfers()
                         if ((*it)->hprivate && !(*it)->hforeign)
                         {
                             // Make sure we have the size field
-                            Node* n = nodeByHandle((*it)->h, true);
+                            Node* n = nodeByHandle((*it)->h);
                             if (!n)
                             {
                                 missingPrivateNode = true;
@@ -3539,9 +3537,6 @@ void MegaClient::checkfacompletion(UploadHandle th, Transfer* t, bool uploadComp
     LOG_debug << "Transfer finished, sending callbacks - " << th;
     t->state = TRANSFERSTATE_COMPLETED;
     t->completefiles();
-
-    // todo: instead of this, set a flag to queue more at end of loop.  Or just do that at end of loop anywy
-    //todo: replace: looprequested = true;
 
     app->transfer_complete(t);
     delete t;
@@ -5027,7 +5022,7 @@ void MegaClient::sc_updatenode()
                     Node* n;
                     bool notify = false;
 
-                    if ((n = nodebyhandle(h, true)))
+                    if ((n = nodebyhandle(h)))
                     {
                         if (u && n->owner != u)
                         {
@@ -6982,23 +6977,19 @@ void MegaClient::notifypurge(void)
 }
 
 // return node pointer derived from node handle
-Node* MegaClient::nodebyhandle(handle h, bool fileVersionOk) const
+Node* MegaClient::nodebyhandle(handle h) const
 {
     auto it = nodes.find(NodeHandle().set6byte(h));
 
     if (it != nodes.end())
     {
-        // if this assert fails, please check the code calling it deals with file versions, and if not then fix,
-        // if it already deals with file versions then just pass  fileVersionOk == true
-        assert(fileVersionOk || !it->second->parent || it->second->parent->type != FILENODE);
-
         return it->second;
     }
 
     return nullptr;
 }
 
-Node* MegaClient::nodeByHandle(NodeHandle h, bool fileVersionOk) const
+Node* MegaClient::nodeByHandle(NodeHandle h) const
 {
     if (h.isUndef()) return nullptr;
 
@@ -7006,10 +6997,6 @@ Node* MegaClient::nodeByHandle(NodeHandle h, bool fileVersionOk) const
 
     if (it != nodes.end())
     {
-        // if this assert fails, please check the code calling it deals with file versions, and if not then fix,
-        // if it already deals with file versions then just pass  fileVersionOk == true
-        assert(fileVersionOk || !it->second->parent || it->second->parent->type != FILENODE);
-
         return it->second;
     }
 
@@ -7160,7 +7147,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
                 }
                 else if (c[2] == "bin")
                 {
-                    n = nodeByHandle(rootnodes.rubbish, true);
+                    n = nodeByHandle(rootnodes.rubbish);
                     assert(!n || n->type == RUBBISHNODE);
                 }
                 else
@@ -7233,7 +7220,7 @@ Node* MegaClient::sc_deltree()
 
                 if (!ISUNDEF((h = jsonsc.gethandle())))
                 {
-                    n = nodebyhandle(h, true);  // ok even if it's a file version
+                    n = nodebyhandle(h);  // ok even if it's a file version
                 }
                 break;
 
@@ -8056,12 +8043,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
         if (!warnlevel())
         {
-            if ((n = nodebyhandle(h, true)))
+            if ((n = nodebyhandle(h)))
             {
                 Node* p = NULL;
                 if (!ISUNDEF(ph))
                 {
-                    p = nodebyhandle(ph, true);
+                    p = nodebyhandle(ph);
                 }
 
                 if (n->changed.removed)
@@ -8689,7 +8676,7 @@ void MegaClient::procph(JSON *j)
                             break;
                         }
 
-                        n = nodebyhandle(h, true); // even if it is a version, it's still the node with the link
+                        n = nodebyhandle(h); // even if it is a version, it's still the node with the link
                         if (n)
                         {
                             n->setpubliclink(ph, cts, ets, takendown, authKey);
@@ -11614,7 +11601,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     // any child nodes arrived before their parents?
     for (size_t i = dp.size(); i--; )
     {
-        if ((n = nodebyhandle(dp[i]->parenthandle, true)))
+        if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
         }
@@ -14826,7 +14813,7 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
 
 Node* MegaClient::getOrCreateSyncdebrisFolder()
 {
-    Node* binNode = nodeByHandle(rootnodes.rubbish, true);
+    Node* binNode = nodeByHandle(rootnodes.rubbish);
     if (!binNode)
     {
         return nullptr;
@@ -15166,8 +15153,6 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             transferlist.addtransfer(t, committer, startfirst);
             app->transfer_added(t);
             app->file_added(f);
-            // todo: replace this: looprequested = true;
-
 
             if (overquotauntil && overquotauntil > Waiter::ds && d != PUT)
             {
@@ -15185,7 +15170,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
         }
 
         assert( (f->h.isUndef() && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
-                || (!f->h.isUndef() && (nodeByHandle(f->h, true) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
+                || (!f->h.isUndef() && (nodeByHandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
     *cause = API_OK;

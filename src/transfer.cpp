@@ -506,7 +506,6 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         bt.backoff();
         state = TRANSFERSTATE_RETRYING;
         client->app->transfer_failed(this, e, timeleft);
-        // todo: do we need something equivalent: client->looprequested = true;
         ++client->performanceStats.transferTempErrors;
     }
 
@@ -705,7 +704,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                 syncxfer = true;
             }
 
-            if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h, true))
+            if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
                  && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
@@ -773,7 +772,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                 set<handle> nodes;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h, true))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h))
                             && nodes.find(n->nodehandle) == nodes.end())
                     {
                         nodes.insert(n->nodehandle);
@@ -841,7 +840,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                 if (success)
                 {
                     // set missing node attributes
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h, true)))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h)))
                     {
                         auto localname = (*it)->getLocalname();
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
@@ -872,7 +871,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                 if (success)
                 {
 
-                    if (auto node = client->nodeByHandle((*it)->h, true))
+                    if (auto node = client->nodeByHandle((*it)->h))
                     {
                         auto path = (*it)->getLocalname();
                         auto type = isFilenameAnomaly(path, node);
@@ -966,8 +965,6 @@ void Transfer::complete(TransferDbCommitter& committer)
             assert(localfilename.isAbsolute());
             finished = true;
 
-            // todo: do we need an equivalent? client->looprequested = true;
-
             client->app->transfer_complete(this);
             localfilename.clear();
             delete this;
@@ -1001,7 +998,7 @@ void Transfer::complete(TransferDbCommitter& committer)
 
             if (!f->syncxfer)
             {
-                if (auto node = client->nodeByHandle(f->h, true))
+                if (auto node = client->nodeByHandle(f->h))
                 {
                     auto type = isFilenameAnomaly(localpath, f->name);
 

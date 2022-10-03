@@ -993,7 +993,7 @@ CloudItem::CloudItem(handle nodeHandle)
 Node* CloudItem::resolve(StandardClient& client) const
 {
     if (!mNodeHandle.isUndef())
-        return client.client.nodeByHandle(mNodeHandle, true);
+        return client.client.nodeByHandle(mNodeHandle);
 
     auto* root = client.gettestbasenode();
 

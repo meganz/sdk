@@ -1481,10 +1481,10 @@ public:
     // application
     void notifypurge();
 
-    Node* nodeByHandle(NodeHandle, bool fileVersionOk = false) const;
+    Node* nodeByHandle(NodeHandle) const;
     Node* nodeByPath(const char* path, Node* node = nullptr);
 
-    Node* nodebyhandle(handle, bool fileVersionOk = false) const;
+    Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
     Node* nodebyfingerprint(LocalNode*);
