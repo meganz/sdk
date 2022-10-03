@@ -218,6 +218,36 @@ void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
     header = email();
 }
 
+bool UserAlert::Base::serialize(string* d)
+{
+    CacheableWriter w(*d);
+    w.serializecompressedu64(type); // this will be unserialized in UserAlerts::unserializeAlert()
+    w.serializecompressedi64(ts());
+    w.serializehandle(user());
+    w.serializestring(email());
+    w.serializebool(relevant());
+    w.serializebool(seen());
+
+    return true;
+}
+
+unique_ptr<UserAlert::Base::Common> UserAlert::Base::unserialize(std::string* d)
+{
+    auto p = make_unique<Common>();
+    CacheableReader r(*d);
+
+    if (r.unserializecompressedi64(p->timestamp)
+        && r.unserializehandle(p->userHandle)
+        && r.unserializestring(p->userEmail)
+        && r.unserializebool(p->relevant)
+        && r.unserializebool(p->seen))
+    {
+        return p;
+    }
+
+    return nullptr;
+}
+
 UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
@@ -265,6 +295,45 @@ void UserAlert::IncomingPendingContact::text(string& header, string& title, Mega
     header = email();
 }
 
+bool UserAlert::IncomingPendingContact::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializehandle(mPcrHandle);
+    w.serializebool(requestWasDeleted);
+    w.serializebool(requestWasReminded);
+
+    return true;
+}
+
+UserAlert::IncomingPendingContact* UserAlert::IncomingPendingContact::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    handle pcrHandle = 0;
+    bool deleted = false;
+    bool reminded = false;
+
+    CacheableReader r(*d);
+    if (r.unserializehandle(pcrHandle) &&
+        r.unserializebool(deleted) &&
+        r.unserializebool(reminded))
+    {
+        auto* ipc = new IncomingPendingContact(0, 0, p->userHandle, p->userEmail, p->timestamp, id);
+        ipc->requestWasDeleted = deleted;
+        ipc->requestWasReminded = reminded;
+        ipc->setRelevant(p->relevant);
+        ipc->setSeen(p->seen);
+        return ipc;
+    }
+
+    return nullptr;
+}
+
 UserAlert::ContactChange::ContactChange(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
@@ -309,6 +378,37 @@ void UserAlert::ContactChange::text(string& header, string& title, MegaClient* m
     header = email();
 }
 
+bool UserAlert::ContactChange::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializeu32(action);
+
+    return true;
+}
+
+UserAlert::ContactChange* UserAlert::ContactChange::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    int act = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializeu32(reinterpret_cast<unsigned&>(act)))
+    {
+        auto* cc = new ContactChange(act, p->userHandle, p->userEmail, p->timestamp, id);
+        cc->setRelevant(p->relevant);
+        cc->setSeen(p->seen);
+        return cc;
+    }
+
+    return nullptr;
+}
+
 UserAlert::UpdatedPendingContactIncoming::UpdatedPendingContactIncoming(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
@@ -340,6 +440,37 @@ void UserAlert::UpdatedPendingContactIncoming::text(string& header, string& titl
     header = email();
 }
 
+bool UserAlert::UpdatedPendingContactIncoming::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializeu32(action);
+
+    return true;
+}
+
+UserAlert::UpdatedPendingContactIncoming* UserAlert::UpdatedPendingContactIncoming::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    int act = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializeu32(reinterpret_cast<unsigned&>(act)))
+    {
+        auto* upci = new UpdatedPendingContactIncoming(act, p->userHandle, p->userEmail, p->timestamp, id);
+        upci->setRelevant(p->relevant);
+        upci->setSeen(p->seen);
+        return upci;
+    }
+
+    return nullptr;
+}
+
 UserAlert::UpdatedPendingContactOutgoing::UpdatedPendingContactOutgoing(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
@@ -367,6 +498,37 @@ void UserAlert::UpdatedPendingContactOutgoing::text(string& header, string& titl
     header = email();
 }
 
+bool UserAlert::UpdatedPendingContactOutgoing::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializeu32(action);
+
+    return true;
+}
+
+UserAlert::UpdatedPendingContactOutgoing* UserAlert::UpdatedPendingContactOutgoing::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    int act = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializeu32(reinterpret_cast<unsigned&>(act)))
+    {
+        auto* upco = new UpdatedPendingContactOutgoing(act, p->userHandle, p->userEmail, p->timestamp, id);
+        upco->setRelevant(p->relevant);
+        upco->setSeen(p->seen);
+        return upco;
+    }
+
+    return nullptr;
+}
+
 UserAlert::NewShare::NewShare(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
@@ -391,6 +553,37 @@ void UserAlert::NewShare::text(string& header, string& title, MegaClient* mc)
         title = "New shared folder"; // 825
     }
     header = email();
+}
+
+bool UserAlert::NewShare::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializehandle(folderhandle);
+
+    return true;
+}
+
+UserAlert::NewShare* UserAlert::NewShare::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    handle h = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializehandle(h))
+    {
+        auto* ns = new NewShare(h, p->userHandle, p->userEmail, p->timestamp, id);
+        ns->setRelevant(p->relevant);
+        ns->setSeen(p->seen);
+        return ns;
+    }
+
+    return nullptr;
 }
 
 UserAlert::DeletedShare::DeletedShare(UserAlertRaw& un, unsigned int id)
@@ -447,6 +640,47 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
     }
     title = s.str();
     header = email();
+}
+
+bool UserAlert::DeletedShare::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializehandle(folderHandle);
+    w.serializestring(folderPath);
+    w.serializestring(folderName);
+    w.serializehandle(ownerHandle);
+
+    return true;
+}
+
+UserAlert::DeletedShare* UserAlert::DeletedShare::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    handle h = 0;
+    string fp, fn;
+    handle o = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializehandle(h) &&
+        r.unserializestring(fp) &&
+        r.unserializestring(fn) &&
+        r.unserializehandle(o))
+    {
+        auto* ds = new DeletedShare(p->userHandle, p->userEmail, o, h, p->timestamp, id);
+        ds->folderPath = fp;
+        ds->folderName = fn;
+        ds->setRelevant(p->relevant);
+        ds->setSeen(p->seen);
+        return ds;
+    }
+
+    return nullptr;
 }
 
 UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
@@ -530,6 +764,81 @@ void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* 
     header = email();
 }
 
+bool UserAlert::NewSharedNodes::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializehandle(parentHandle);
+
+    w.serializecompressedu64(fileNodeHandles.size());
+    for (auto& h : fileNodeHandles)
+    {
+        w.serializehandle(h);
+    }
+
+    w.serializecompressedu64(folderNodeHandles.size());
+    for (auto& h : folderNodeHandles)
+    {
+        w.serializehandle(h);
+    }
+
+    return true;
+}
+
+UserAlert::NewSharedNodes* UserAlert::NewSharedNodes::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    handle ph = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializehandle(ph))
+    {
+        uint64_t n = 0;
+        vector<handle> vh1(n, 0);
+        if (r.unserializecompressedu64(n))
+        {
+            if (n)
+            {
+                for (auto& h1 : vh1)
+                {
+                    if (!r.unserializehandle(h1))
+                    {
+                        return nullptr;
+                    }
+                }
+            }
+
+            n = 0;
+            if (r.unserializecompressedu64(n))
+            {
+                vector<handle> vh2(n, 0);
+                if (n)
+                {
+                    for (auto& h2 : vh1)
+                    {
+                        if (!r.unserializehandle(h2))
+                        {
+                            return nullptr;
+                        }
+                    }
+                }
+
+                auto* nsn = new NewSharedNodes(p->userHandle, ph, p->timestamp, id, move(vh1), move(vh2));
+                nsn->setRelevant(p->relevant);
+                nsn->setSeen(p->seen);
+                return nsn;
+            }
+        }
+    }
+
+    return nullptr;
+}
+
 UserAlert::RemovedSharedNode::RemovedSharedNode(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
@@ -565,6 +874,54 @@ void UserAlert::RemovedSharedNode::text(string& header, string& title, MegaClien
     header = email();
 }
 
+bool UserAlert::RemovedSharedNode::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+
+    w.serializecompressedu64(nodeHandles.size());
+    for (auto& h : nodeHandles)
+    {
+        w.serializehandle(h);
+    }
+
+    return true;
+}
+
+UserAlert::RemovedSharedNode* UserAlert::RemovedSharedNode::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    uint64_t n = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializecompressedu64(n))
+    {
+        vector<handle> vh(n, 0);
+        if (n)
+        {
+            for (auto& h : vh)
+            {
+                if (!r.unserializehandle(h))
+                {
+                    break;
+                }
+            }
+        }
+
+        auto* rsn = new RemovedSharedNode(p->userHandle, p->timestamp, id, move(vh));
+        rsn->setRelevant(p->relevant);
+        rsn->setSeen(p->seen);
+        return rsn;
+    }
+
+    return nullptr;
+}
+
 UserAlert::UpdatedSharedNode::UpdatedSharedNode(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
@@ -590,6 +947,54 @@ void UserAlert::UpdatedSharedNode::text(string& header, string& title, MegaClien
     const auto itemsNumber = nodeHandles.size();
     const string& itemText = (itemsNumber == 1) ? "" : "s";
     title = "Updated " + to_string(itemsNumber) + " item" + itemText + " in shared folder";
+}
+
+bool UserAlert::UpdatedSharedNode::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+
+    w.serializecompressedu64(nodeHandles.size());
+    for (auto& h : nodeHandles)
+    {
+        w.serializehandle(h);
+    }
+
+    return true;
+}
+
+UserAlert::UpdatedSharedNode* UserAlert::UpdatedSharedNode::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    uint64_t n = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializecompressedu64(n))
+    {
+        vector<handle> vh(n, 0);
+        if (n)
+        {
+            for (auto& h : vh)
+            {
+                if (!r.unserializehandle(h))
+                {
+                    break;
+                }
+            }
+        }
+
+        auto* usn = new UpdatedSharedNode(p->userHandle, p->timestamp, id, move(vh));
+        usn->setRelevant(p->relevant);
+        usn->setSeen(p->seen);
+        return usn;
+    }
+
+    return nullptr;
 }
 
 string UserAlert::Payment::getProPlanName()
@@ -638,6 +1043,40 @@ void UserAlert::Payment::text(string& header, string& title, MegaClient* mc)
     header = "Payment info"; // 1230
 }
 
+bool UserAlert::Payment::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializebool(success);
+    w.serializeu32(planNumber);
+
+    return true;
+}
+
+UserAlert::Payment* UserAlert::Payment::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    bool s = false;
+    int plan = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializebool(s) &&
+        r.unserializeu32(reinterpret_cast<unsigned&>(plan)))
+    {
+        auto* pmt = new Payment(s, plan, p->timestamp, id);
+        pmt->setRelevant(p->relevant);
+        pmt->setSeen(p->seen);
+        return pmt;
+    }
+
+    return nullptr;
+}
+
 UserAlert::PaymentReminder::PaymentReminder(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
@@ -667,6 +1106,37 @@ void UserAlert::PaymentReminder::text(string& header, string& title, MegaClient*
     }
     title = s.str();
     header = "PRO membership plan expiring soon"; // 8598
+}
+
+bool UserAlert::PaymentReminder::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializecompressedi64(expiryTime);
+
+    return true;
+}
+
+UserAlert::PaymentReminder* UserAlert::PaymentReminder::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    m_time_t exp = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializecompressedi64(exp))
+    {
+        auto* pmr = new PaymentReminder(exp, id);
+        pmr->setRelevant(p->relevant);
+        pmr->setSeen(p->seen);
+        return pmr;
+    }
+
+    return nullptr;
 }
 
 UserAlert::Takedown::Takedown(UserAlertRaw& un, unsigned int id)
@@ -729,6 +1199,43 @@ void UserAlert::Takedown::text(string& header, string& title, MegaClient* mc)
         s << "Your taken down " << typestring << " (" << name << ") has been reinstated."; // 8523
     }
     title = s.str();
+}
+
+bool UserAlert::Takedown::serialize(string* d)
+{
+    Base::serialize(d);
+    CacheableWriter w(*d);
+    w.serializebool(isTakedown);
+    w.serializebool(isReinstate);
+    w.serializehandle(nodeHandle);
+
+    return true;
+}
+
+UserAlert::Takedown* UserAlert::Takedown::unserialize(string* d, unsigned id)
+{
+    auto p = Base::unserialize(d);
+    if (!p)
+    {
+        return nullptr;
+    }
+
+    bool takedown = false;
+    bool reinstate = false;
+    handle h = 0;
+
+    CacheableReader r(*d);
+    if (r.unserializebool(takedown) &&
+        r.unserializebool(reinstate) &&
+        r.unserializehandle(h))
+    {
+        auto* td = new Takedown(takedown, reinstate, 0, h, p->timestamp, id);
+        td->setRelevant(p->relevant);
+        td->setSeen(p->seen);
+        return td;
+    }
+
+    return nullptr;
 }
 
 UserAlerts::UserAlerts(MegaClient& cmc)
@@ -1626,5 +2133,74 @@ UserAlerts::~UserAlerts()
     clear();
 }
 
+
+
+bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
+{
+    nameid type = 0;
+    CacheableReader r(*d);
+    if (!r.unserializecompressedu64(type))
+    {
+        return false;
+    }
+
+    UserAlert::Base* a = nullptr;
+
+    switch (type)
+    {
+    case UserAlert::type_ipc:
+        a = UserAlert::IncomingPendingContact::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_c:
+        a = UserAlert::ContactChange::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_upci:
+        a = UserAlert::UpdatedPendingContactIncoming::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_upco:
+        a = UserAlert::UpdatedPendingContactOutgoing::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_share:
+        a = UserAlert::NewShare::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_dshare:
+        a = UserAlert::DeletedShare::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_put:
+        a = UserAlert::NewSharedNodes::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_d:
+        a = UserAlert::RemovedSharedNode::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_psts:
+        a = UserAlert::Payment::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_pses:
+        a = UserAlert::PaymentReminder::unserialize(d, nextId());
+        break;
+
+    case UserAlert::type_ph:
+        a = UserAlert::Takedown::unserialize(d, nextId());
+        break;
+    }
+
+    if (a)
+    {
+        a->dbid = dbid;
+        add(a);
+        return true;
+    }
+
+    return false;
+}
 
 } // namespace

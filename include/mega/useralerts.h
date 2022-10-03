@@ -78,7 +78,7 @@ namespace UserAlert
 
     using handle_alerttype_map_t = map<handle, nameid>;
 
-    struct Base
+    struct Base : public Cacheable
     {
         // shared fields from the notification or action
         nameid type;
@@ -122,6 +122,9 @@ namespace UserAlert
             bool relevant = true;
             bool seen = false;
         } cmn;
+
+        bool serialize(string*) override;
+        static unique_ptr<Common> unserialize(string*);
     };
 
     struct IncomingPendingContact : public Base
@@ -137,17 +140,23 @@ namespace UserAlert
         void initTs(m_time_t dts, m_time_t rts);
 
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static IncomingPendingContact* unserialize(string*, unsigned id);
     };
 
     struct ContactChange : public Base
     {
         int action;
-        handle otherUserHandle;
+        handle otherUserHandle; // looks like this is not used anywhere !
 
         ContactChange(UserAlertRaw& un, unsigned int id);
         ContactChange(int c, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
         virtual bool checkprovisional(handle ou, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static ContactChange* unserialize(string*, unsigned id);
     };
 
     struct UpdatedPendingContactIncoming : public Base
@@ -157,6 +166,9 @@ namespace UserAlert
         UpdatedPendingContactIncoming(UserAlertRaw& un, unsigned int id);
         UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static UpdatedPendingContactIncoming* unserialize(string*, unsigned id);
     };
 
     struct UpdatedPendingContactOutgoing : public Base
@@ -166,6 +178,9 @@ namespace UserAlert
         UpdatedPendingContactOutgoing(UserAlertRaw& un, unsigned int id);
         UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static UpdatedPendingContactOutgoing* unserialize(string*, unsigned id);
     };
 
     struct NewShare : public Base
@@ -175,6 +190,9 @@ namespace UserAlert
         NewShare(UserAlertRaw& un, unsigned int id);
         NewShare(handle h, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static NewShare* unserialize(string*, unsigned id);
     };
 
     struct DeletedShare : public Base
@@ -188,6 +206,9 @@ namespace UserAlert
         DeletedShare(handle uh, const string& email, handle removerhandle, handle folderhandle, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
         virtual void updateEmail(MegaClient* mc);
+
+        bool serialize(string*) override;
+        static DeletedShare* unserialize(string*, unsigned id);
     };
 
     struct NewSharedNodes : public Base
@@ -201,6 +222,9 @@ namespace UserAlert
                        vector<handle>&& fileHandles, vector<handle>&& folderHandles);
 
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static NewSharedNodes* unserialize(string*, unsigned id);
     };
 
     struct RemovedSharedNode : public Base
@@ -212,6 +236,9 @@ namespace UserAlert
                           vector<handle>&& handles);
 
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static RemovedSharedNode* unserialize(string*, unsigned id);
     };
 
     struct UpdatedSharedNode : public Base
@@ -222,6 +249,9 @@ namespace UserAlert
         UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
                           vector<handle>&& handles);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static UpdatedSharedNode* unserialize(string*, unsigned id);
     };
 
     struct Payment : public Base
@@ -233,6 +263,9 @@ namespace UserAlert
         Payment(bool s, int plan, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
         string getProPlanName();
+
+        bool serialize(string*) override;
+        static Payment* unserialize(string*, unsigned id);
     };
 
     struct PaymentReminder : public Base
@@ -241,18 +274,24 @@ namespace UserAlert
         PaymentReminder(UserAlertRaw& un, unsigned int id);
         PaymentReminder(m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static PaymentReminder* unserialize(string*, unsigned id);
     };
 
     struct Takedown : public Base
     {
         bool isTakedown;
         bool isReinstate;
-        int type;
+        int type; // looks like this is not used anywhere !
         handle nodeHandle;
 
         Takedown(UserAlertRaw& un, unsigned int id);
         Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+
+        bool serialize(string*) override;
+        static Takedown* unserialize(string*, unsigned id);
     };
 };
 
@@ -395,6 +434,8 @@ public:
 
     // re-init eg. on logout
     void clear();
+
+    bool unserializeAlert(string* d, uint32_t dbid);
 };
 
 
