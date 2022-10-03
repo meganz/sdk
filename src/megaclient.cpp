@@ -502,6 +502,48 @@ bool MegaClient::setlang(string *code)
     return false;
 }
 
+error MegaClient::setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion)
+{
+    if (!foldername)
+    {
+        return API_EARGS;
+    }
+
+    User* u = ownuser();
+    if (!u || u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    {
+        // cannot set a new folder if not logged in or it already exists
+        return API_EEXIST;
+    }
+
+    // 1. prepare the NewNode and create it via putnodes(), with flag `vw:1`
+    vector<NewNode> newnodes(1);
+    NewNode& newNode = newnodes.back();
+    putnodes_prepareOneFolder(&newNode, foldername, true);
+
+    // 2. upon completion of putnodes(), set the user's attribute `^!bak`
+    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/)
+    {
+        if (e != API_OK)
+        {
+            addua_completion(e);
+            return;
+        }
+
+        assert(handletype == NODE_HANDLE &&
+            nodes.size() == 1 &&
+            nodes.back().mAddedHandle != UNDEF);
+
+        putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().mAddedHandle, NODEHANDLE,
+            -1, UNDEF, 0, 0, addua_completion);
+    };
+
+    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, true, addua);
+    // Note: this request should not finish until the user's attribute is set successfully
+
+    return API_OK;
+}
+
 void MegaClient::setFolderLinkAccountAuth(const char *auth)
 {
     if (auth)
@@ -2350,6 +2392,7 @@ void MegaClient::exec()
             if (r)
             {
                 // completed - initiate next SC request
+                jsonsc.pos = nullptr;
                 pendingsc.reset();
                 btsc.reset();
             }
@@ -2528,7 +2571,7 @@ void MegaClient::exec()
                 {
                     LOG_err << "Local filesystem mismatch. Previous fsfp: " << sync->fsfp
                             << "  Current: " << current;
-                    sync->changestate(SYNC_FAILED, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true);
+                    syncs.disableSyncByBackupId(sync->getConfig().mBackupId, true, current ? LOCAL_FILESYSTEM_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, nullptr);
                 }
             }
         });
@@ -2746,7 +2789,7 @@ void MegaClient::exec()
                                     }
                                     else
                                     {
-                                        LOG_debug << "Pending MEGA nodes: " << synccreate.size();
+                                        LOG_debug << "Pending MEGA nodes: " << synccreateForVault.size() + synccreateGeneral.size();
                                         if (!syncadding)
                                         {
                                             LOG_debug << "Running syncup to create missing folders: "
@@ -2822,11 +2865,7 @@ void MegaClient::exec()
 
                 // delete files that were overwritten by folders in checkpath()
                 execsyncdeletions();
-
-                if (synccreate.size())
-                {
-                    syncupdate();
-                }
+                syncupdate();
 
                 // notify the app of the length of the pending scan queue
                 if (scanningpending < 4)
@@ -2890,7 +2929,7 @@ void MegaClient::exec()
                         // kept pending until all creations (that might reference them for the purpose of
                         // copying) have completed and all notification queues have run empty (to ensure
                         // that moves are not executed as deletions+additions.
-                        if (localsyncnotseen.size() && !synccreate.size())
+                        if (localsyncnotseen.size() && (synccreateForVault.empty() && synccreateGeneral.empty()))
                         {
                             // ... execute all pending deletions
                             auto fa = fsaccess->newfileaccess();
@@ -2907,7 +2946,7 @@ void MegaClient::exec()
                         if (!syncfsopsfailed)
                         {
                             LOG_verbose << "syncops: " << syncactivity << syncnagleretry
-                                        << syncfslockretry << synccreate.size();
+                                        << syncfslockretry << synccreateForVault.size() << " " << synccreateGeneral.size();
                             syncops = false;
 
                             // FIXME: only syncup for subtrees that were actually
@@ -2942,11 +2981,7 @@ void MegaClient::exec()
 
                             // delete files that were overwritten by folders in syncup()
                             execsyncdeletions();
-
-                            if (synccreate.size())
-                            {
-                                syncupdate();
-                            }
+                            syncupdate();
 
                             unsigned totalnodes = 0;
 
@@ -4290,7 +4325,7 @@ void MegaClient::disconnect()
 // by closing pending sc, reset backoff and clear waitd URL
 void MegaClient::catchup()
 {
-    if (pendingsc)
+    if (pendingsc && !jsonsc.pos)
     {
         pendingsc->disconnect();
 
@@ -4328,15 +4363,19 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
     loggingout++;
 
+    auto request = new CommandLogout(this, std::move(completion), keepSyncConfigsFile);
+
 #ifdef ENABLE_SYNC
     // if logging out and syncs won't be kept...
     if (!keepSyncConfigsFile)
     {
-        syncs.purgeSyncs();    // unregister from API and clean up backup-names
+        // Unregister from API
+        syncs.purgeSyncs([=](Error) { reqs.add(request); });
+        return;
     }
 #endif
 
-    reqs.add(new CommandLogout(this, std::move(completion), keepSyncConfigsFile));
+    reqs.add(request);
 }
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
@@ -4539,7 +4578,11 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     }
     else
     {
-        syncs.purgeSyncs();
+        // this call cannot wait for network ops, it must complete immediately, since
+        // it's called from locallogout(). In consequence, heartbeat records won't be
+        // unregistered from API, backup folders will stay in Vault... but it should
+        // still remove syncs config file(s)
+        syncs.purgeSyncsLocal();
     }
 #endif
 
@@ -6207,12 +6250,16 @@ void MegaClient::sc_userattr()
                                         resetKeyring();
                                         break;
                                     }
+                                    case ATTR_MY_BACKUPS_FOLDER:
+                                    // there should be no actionpackets for this attribute. It is
+                                    // created and never updated afterwards
+                                    assert(type != ATTR_MY_BACKUPS_FOLDER);
+                                    //fall-through
                                     case ATTR_AUTHRING:              // fall-through
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
                                     case ATTR_DRIVE_NAMES:          // fall-through
-                                    case ATTR_MY_BACKUPS_FOLDER:     // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
@@ -7353,14 +7400,135 @@ void MegaClient::notifypurge(void)
 
 #ifdef ENABLE_SYNC
 
-        //update sync root node location and trigger failing cases
-        NodeHandle rubbishHandle = rootnodes.rubbish;
         // check for renamed/moved sync root folders
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
-
+            // Try and locate the sync's cloud root.
             Node* n = nodeByHandle(us.mConfig.mRemoteNode);
+
+            // Sync's root is no longer present in memory.
             if (!n)
                 return;
+
+            // Has this node received any commands from the backup center?
+            auto commands = n->getSdsBackups();
+
+            // Are any of the commands applicable to this sync?
+            for (auto& command : commands)
+            {
+                // Command entry isn't applicable to us.
+                if (command.first != us.mConfig.mBackupId)
+                    continue;
+
+                // Command entry isn't telling us to remove this sync.
+                if (command.second != CommandBackupPut::DELETED)
+                    continue;
+
+                // For purposes of capture.
+                auto id = us.mConfig.mBackupId;
+                auto remoteNode = us.mConfig.mRemoteNode;
+
+                auto completion = [id, remoteNode, this](Error result) {
+                    // Had the sync already been removed?
+                    if (result == API_ENOENT)
+                    {
+                        LOG_debug << "SDS: Sync "
+                                  << toHandle(id)
+                                  << " no longer present for the node "
+                                  << remoteNode;
+                        return;
+                    }
+
+                    // Was there any error removing the sync?
+                    if (result != API_OK)
+                    {
+                        LOG_err << "SDS: Unable to remove sync "
+                                << toHandle(id)
+                                << " associated with the node "
+                                << remoteNode
+                                << " due to error "
+                                << result;
+                        return;
+                    }
+
+                    // Locate this sync's root node.
+                    auto* node = nodeByHandle(remoteNode);
+
+                    // Is the node still present in memory?
+                    if (!node)
+                    {
+                        LOG_warn << "SDS: Unable to update attribute as "
+                                 << remoteNode
+                                 << " is no longer present in memory.";
+                        return;
+                    }
+
+                    // Is it worth updating the node's SDS attribute?
+                    if (node->changed.removed)
+                    {
+                        LOG_debug << "SDS: Skipping attribute update as "
+                                  << remoteNode
+                                  << " has been removed.";
+                        return;
+                    }
+
+                    auto commands = node->getSdsBackups();
+                    auto updated = false;
+
+                    // Update the attribute's value.
+                    for (auto i = commands.size(); i--; )
+                    {
+                        auto& command = commands[i];
+
+                        if (command.first != id
+                            || command.second != CommandBackupPut::DELETED)
+                            continue;
+
+                        commands.erase(commands.begin() + i);
+                        updated = true;
+                    }
+
+                    // Do we really need to update the attribute?
+                    if (!updated)
+                    {
+                        LOG_warn << "SDS: Skipping no-op attribute update: "
+                                 << remoteNode;
+                        return;
+                    }
+
+                    auto completion = [](NodeHandle handle, Error result) {
+                        // Were we unable to update the SDS attribute?
+                        if (result != API_OK)
+                        {
+                            LOG_warn << "SDS: Unable to update attribute on "
+                                     << handle
+                                     << " due to error "
+                                     << result;
+                            return;
+                        }
+
+                        // Update was successful.
+                        LOG_debug << "SDS: Attribute updated on "
+                                  << handle;
+                    };
+
+                    // Update the attribute.
+                    setattr(node,
+                            attr_map(Node::sdsId(), Node::toSdsString(commands)),
+                            0,
+                            nullptr,
+                            std::move(completion),
+                            true);
+                };
+
+                // Try and remove the sync.
+                syncs.removeSyncByConfig(us.mConfig,
+                                         std::move(completion),
+                                         false,
+                                         NodeHandle());
+            }
+
+            //update sync root node location and trigger failing cases
+            NodeHandle rubbishHandle = rootnodes.rubbish;
 
             // check if moved
             bool movedToRubbish = n->firstancestor()->nodehandle == rubbishHandle.as8byte();
@@ -7801,6 +7969,7 @@ Node* MegaClient::sc_deltree()
 
                     int creqtag = reqtag;
                     reqtag = 0;
+                    td.setOriginatingUser(originatingUser);
                     proctree(n, &td);
                     reqtag = creqtag;
 
@@ -7854,7 +8023,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr, CommandSetAttr::Completion&& c)
+error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prevattr, CommandSetAttr::Completion&& c, bool canChangeVault)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -7895,7 +8064,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, int tag, const char *prev
     n->tag = tag;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, prevattr, move(c)));
+    reqs.add(new CommandSetAttr(this, n, cipher, prevattr, move(c), canChangeVault));
 
     return API_OK;
 }
@@ -7965,12 +8134,12 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     return e;
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, bool canChangeVault, std::function<void(AttrMap&)> addAttrs)
 {
-    MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, addAttrs);
+    MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, canChangeVault, addAttrs);
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, std::function<void(AttrMap&)> addAttrs)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, bool canChangeVault, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
@@ -7980,6 +8149,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     newnode->type = FOLDERNODE;
     newnode->nodehandle = 0;
     newnode->parenthandle = UNDEF;
+    newnode->canChangeVault = canChangeVault;
 
     // generate fresh random key for this folder node
     rng.genblock(buf, FOLDERNODEKEYLENGTH);
@@ -8002,9 +8172,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, bool canChangeVault, CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
+    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction), canChangeVault));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
@@ -8138,7 +8308,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c)
 {
     if (mBizStatus == BIZ_STATUS_EXPIRED)
     {
@@ -8182,13 +8352,25 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
             if (prevRoot->nodeHandle() != rubbishHandle &&
                 newRoot->nodeHandle() == rubbishHandle)
             {
-                // deleted node
-                char base64Handle[12];
-                Base64::btoa((byte*)&prevParent->nodehandle, MegaClient::NODEHANDLE, base64Handle);
-                if (strcmp(base64Handle, n->attrs.map[rrname].c_str()))
+                bool shouldSetRestoreHandle = true;
+
+                // avoid to set "rr" for nodes moved from Vault to SyncDebris, since they cannot be restored
+                if (prevRoot->nodeHandle() == rootnodes.vault)
                 {
-                    LOG_debug << "Adding rr attribute";
-                    attrUpdates[rrname] = base64Handle;
+                    shouldSetRestoreHandle = false;
+                    LOG_debug << "Skip adding rr attribute for node from Vault";
+                }
+
+                if (shouldSetRestoreHandle)
+                {
+                    // deleted node
+                    char base64Handle[12];
+                    Base64::btoa((byte*)&prevParent->nodehandle, MegaClient::NODEHANDLE, base64Handle);
+                    if (strcmp(base64Handle, n->attrs.map[rrname].c_str()))
+                    {
+                        LOG_debug << "Adding rr attribute";
+                        attrUpdates[rrname] = base64Handle;
+                    }
                 }
             }
             else if (prevRoot->nodeHandle() == rubbishHandle
@@ -8218,11 +8400,11 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c)));
+        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c), canChangeVault));
         if (!attrUpdates.empty())
         {
             // send attribute changes first so that any rename is already applied when the move node completes
-            setattr(n, std::move(attrUpdates), reqtag, nullptr, nullptr);
+            setattr(n, std::move(attrUpdates), reqtag, nullptr, nullptr, canChangeVault);
         }
     }
 
@@ -8264,7 +8446,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
     if (mBizStatus == BIZ_STATUS_EXPIRED)
     {
@@ -8290,7 +8472,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction)));
+    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction), canChangeVault));
 
     mergenewshares(1);
 
@@ -13450,8 +13632,8 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     mOptimizePurgeNodes = false;
 
 #ifdef ENABLE_SYNC
-    todebris.clear();
-    tounlink.clear();
+    toDebris.clear();
+    toUnlink.clear();
     mFingerprints.clear();
 #endif
 
@@ -13891,6 +14073,13 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
+    if (syncs.backupRestrictionsEnabled() && syncConfig.isBackup() && remotenode->firstancestor()->nodeHandle() != rootnodes.vault)
+    {
+        syncConfig.mError = INVALID_REMOTE_TYPE;
+        syncConfig.mEnabled = false;
+        return API_EARGS;
+    }
+
     if (syncConfig.isExternal())
     {
         // Currently only possible for backup syncs.
@@ -14138,7 +14327,52 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void MegaClient::cleanupFailedBackup(const string& remotePath)
+{
+    if (!syncs.backupRestrictionsEnabled())
+    {
+        LOG_warn << "Skipping cleanup of remote dir of backup: restrictions disabled";
+        return;
+    }
+
+    Node* n = nodeByPath(remotePath.c_str());
+    if (!n)
+    {
+        return;
+    }
+    if (getrootnode(n)->nodeHandle() != rootnodes.vault)
+    {
+        LOG_err << "Failed to cleanup remote dir of backup "
+                << remotePath
+                << " (path outside Vault).";
+        assert(getrootnode(n)->nodeHandle() == rootnodes.vault);
+        return;
+    }
+    if (!n->children.empty())
+    {
+        LOG_err << "Failed to cleanup remote dir of backup "
+                << remotePath
+                << " (dir not empty).";
+        assert(n->children.empty());
+        return;
+    }
+
+    error errUnlink = unlink(n, false, 0, true, [remotePath](NodeHandle, Error err)
+        {
+            LOG_err << "Failed to cleanup remote dir of external backup "
+                    << remotePath
+                    << " (error " << error(err) << ").";
+        });
+
+    if (errUnlink)
+    {
+        LOG_err << "Failed to cleanup remote dir of backup "
+                << remotePath
+                << " (error " << errUnlink << ").";
+    }
+}
+
+error MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
@@ -14154,6 +14388,13 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
     {
         // the cause is already logged in checkSyncConfig
         completion(e, config.mError, UNDEF);
+
+        // A new backup will have its dir created in Vault by now. Let's clean that up.
+        if (config.isBackup())
+        {
+            cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
+        }
+
         return e;
     }
 
@@ -14161,8 +14402,8 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
     handle driveId = UNDEF;
     if (config.isExternal())
     {
-        auto drivePath = config.mExternalDrivePath;
-        auto sourcePath = config.mLocalPath;
+        const auto& drivePath = config.mExternalDrivePath;
+        const auto& sourcePath = config.mLocalPath;
         auto* store = syncs.syncConfigStore();
 
         // Can we get our hands on the config store?
@@ -14175,6 +14416,10 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
                     << " as there is no config store.";
 
             completion(API_EINTERNAL, NO_SYNC_ERROR, UNDEF);
+            if (config.isBackup())
+            {
+                cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
+            }
 
             return API_EINTERNAL;
         }
@@ -14195,6 +14440,10 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
                         << " as we could not read its config database.";
 
                 completion(API_EFAILED, NO_SYNC_ERROR, UNDEF);
+                if (config.isBackup())
+                {
+                    cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
+                }
 
                 return API_EFAILED;
             }
@@ -14211,35 +14460,186 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void
     string deviceIdHash = getDeviceidHash();
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
-    reqs.add( new CommandBackupPut(this, info,
-                                   [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
-        if (ISUNDEF(backupId) && !e)
+    reqs.add(new CommandBackupPut(this, info,
+                                  [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
+            if (ISUNDEF(backupId) && !e)
+            {
+                e = API_EFAILED;
+            }
+
+            if (e)
+            {
+                completion(e, config.mError, backupId);
+                if (config.isBackup())
+                {
+                    cleanupFailedBackup(config.mOriginalPathOfRemoteRootNode);
+                }
+            }
+            else
+            {
+                // if we got this far, the syncConfig is kept (in db and in memory)
+                config.mBackupId = backupId;
+
+                UnifiedSync* unifiedSync = syncs.appendNewSync(config, *this);
+
+                e = unifiedSync->enableSync(false, notifyApp, logname);
+
+                syncactivity = true;
+
+                completion(e, unifiedSync->mConfig.mError, backupId);
+            }
+        }));
+
+    return API_OK;
+}
+
+
+error MegaClient::registerbackup(const string& backupName, const string& extDriveRoot, CommandPutNodes::Completion completion)
+{
+    // get current user
+    User* u = ownuser();
+
+    // get handle of remote "My Backups" folder, from user attributes
+    if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    {
+        LOG_err << "Add backup: \"My Backups\" folder was not set";
+        return API_EACCESS;
+    }
+    const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+    if (!handleContainerStr)
+    {
+        LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute had null value";
+        return API_EACCESS;
+    }
+
+    handle h = 0;
+    memcpy(&h, handleContainerStr->data(), MegaClient::NODEHANDLE);
+    if (!h || h == UNDEF)
+    {
+        LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute contained invalid handler value";
+        return API_ENOENT;
+    }
+
+    // get Node of remote "My Backups" folder
+    Node* myBackupsNode = nodebyhandle(h);
+    if (!myBackupsNode)
+    {
+        LOG_err << "Add backup: \"My Backups\" folder could not be found using the stored handle";
+        return API_ENOENT;
+    }
+
+    // get 'device-id'
+    string deviceId;
+    bool isInternalDrive = extDriveRoot.empty();
+    if (isInternalDrive)
+    {
+        deviceId = getDeviceidHash();
+    }
+    else // external drive
+    {
+        // drive-id must have been already written to external drive, since a name was given to it
+        handle driveId;
+        error e = readDriveId(*fsaccess, extDriveRoot.c_str(), driveId);
+        if (e != API_OK)
         {
-            e = API_EFAILED;
+            LOG_err << "Add backup (external): failed to read drive id";
+            return e;
         }
 
-        if (e)
+        // create the device id from the drive id
+        deviceId = Base64Str<MegaClient::DRIVEHANDLE>(driveId);
+    }
+
+    if (deviceId.empty())
+    {
+        LOG_err << "Add backup: invalid device id";
+        return API_EINCOMPLETE;
+    }
+
+    // prepare for new nodes
+    vector<NewNode> newnodes;
+    nameid attrId = isInternalDrive ?
+        AttrMap::string2nameid("dev-id") : // "device-id" would be too long
+        AttrMap::string2nameid("drv-id");
+    std::function<void(AttrMap& attrs)> addAttrsFunc = [=](AttrMap& attrs)
+    {
+        attrs.map[attrId] = deviceId;
+    };
+
+    // serch for remote folder "My Backups"/`DEVICE_NAME`/
+    Node* deviceNameNode = childnodebyattribute(myBackupsNode, attrId, deviceId.c_str());
+    if (deviceNameNode) // validate this node
+    {
+        if (deviceNameNode->type != FOLDERNODE)
         {
-            LOG_warn << "Failed to register heartbeat record for new sync. Error: " << int(e);
-            completion(e, config.mError, backupId);
+            LOG_err << "Add backup: device-name node did not have FOLDERNODE type";
+            return API_EACCESS;
         }
-        else
+
+        // make sure there is no folder with the same name as the backup
+        Node* backupNameNode = childnodebyname(deviceNameNode, backupName.c_str());
+        if (backupNameNode)
         {
-
-            // if we got this far, the syncConfig is kept (in db and in memory)
-            config.mBackupId = backupId;
-
-            UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
-
-            e = unifiedSync->enableSync(false, notifyApp, logname);
-
-            syncactivity = true;
-
-            completion(e, unifiedSync->mConfig.mError, backupId);
+            LOG_err << "Add backup: a backup with the same name (" << backupName << ") already existed";
+            return API_EACCESS;
         }
-    }));
+    }
+    else // create `DEVICE_NAME` remote dir
+    {
+        // get `DEVICE_NAME`, from user attributes
+        attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
+        if (!u->isattrvalid(attrType))
+        {
+            LOG_err << "Add backup: device/drive name not set";
+            return API_EINCOMPLETE;
+        }
+        const string* deviceNameContainerStr = u->getattr(attrType);
+        if (!deviceNameContainerStr)
+        {
+            LOG_err << "Add backup: null attribute value for device/drive name";
+            return API_EINCOMPLETE;
+        }
 
-    return e;
+        string deviceName;
+        std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
+        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty())
+        {
+            LOG_err << "Add backup: device/drive name not found";
+            return API_EINCOMPLETE;
+        }
+
+        // is there a folder with the same device-name already?
+        deviceNameNode = childnodebyname(myBackupsNode, deviceName.c_str());
+        if (deviceNameNode)
+        {
+            LOG_err << "Add backup: new device, but a folder with the same device-name (" << deviceName << ") already existed";
+            return API_EEXIST;
+        }
+
+        // add a new node for it
+        newnodes.emplace_back();
+        NewNode& newNode = newnodes.back();
+
+        putnodes_prepareOneFolder(&newNode, deviceName, true, addAttrsFunc);
+        newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
+    }
+
+    // create backupName remote dir
+    newnodes.emplace_back();
+    NewNode& backupNameNode = newnodes.back();
+
+    putnodes_prepareOneFolder(&backupNameNode, backupName, true);    // backup node should not include dev-id/drv-id
+    if (!deviceNameNode)
+    {
+        // Set parent handle if part of the new nodes array (it cannot be from an existing node)
+        backupNameNode.parenthandle = newnodes[0].nodehandle;
+    }
+
+    // create the new node(s)
+    putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
+             NoVersioning, move(newnodes), nullptr, reqtag, true, move(completion));  // followup in completion
+
+    return API_OK;
 }
 
 
@@ -14455,7 +14855,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     ll->detach(true);
 
                     // Move the remote into the debris.
-                    movetosyncdebris(rit->second, l->sync->inshare);
+                    movetosyncdebris(rit->second, l->sync->inshare, l->sync->isBackup());
                 }
                 else if (l->sync->isBackupMonitoring())
                 {
@@ -14655,7 +15055,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 rit->second->detach(true);
 
                 // Move remote into the debris.
-                movetosyncdebris(rit->second, l->sync->inshare);
+                movetosyncdebris(rit->second, l->sync->inshare, l->sync->isBackup());
             }
             else if (l->sync->isBackupMonitoring())
             {
@@ -14752,7 +15152,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             cxt.mBackupActionsPerformed = true;
 
                             // Debris the remote.
-                            movetosyncdebris(rit->second, l->sync->inshare);
+                            movetosyncdebris(rit->second, l->sync->inshare, l->sync->isBackup());
                         }
                         else if (l->sync->isBackupMonitoring())
                         {
@@ -14793,7 +15193,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     cxt.mBackupActionsPerformed = true;
 
                     // Remove the remote.
-                    movetosyncdebris(rit->second, l->sync->inshare);
+                    movetosyncdebris(rit->second, l->sync->inshare, l->sync->isBackup());
                 }
                 else if (l->sync->isBackupMonitoring())
                 {
@@ -14997,7 +15397,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             {
                 insync = false;
                 LOG_warn << "Type changed: " << localname << " LNtype: " << ll->type << " Ntype: " << rit->second->type << " isSymLink = " << isSymLink;
-                movetosyncdebris(rit->second, l->sync->inshare);
+                movetosyncdebris(rit->second, l->sync->inshare, l->sync->isBackup());
             }
             else
             {
@@ -15325,7 +15725,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                     (int)nchildren.size(),
                     (int)l->children.size(),
                     l->node ? (int)l->node->children.size() : -1,
-                    (int)synccreate.size(),
+                    (int)(synccreateForVault.size() + synccreateGeneral.size()),
                     syncadding,
                     ll->type,
                     (int)ll->name.size(),
@@ -15388,13 +15788,21 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
             // create remote folder or send file
             LOG_debug << "Adding local file to synccreate: "
-                      << ll->getLocalPath()
-                      << " "
-                      << synccreate.size();
-            synccreate.push_back(ll);
+                      << ll->getLocalPath() << " "
+                      << synccreateForVault.size() << " "
+                      << synccreateGeneral.size();
+
+            if (ll->sync->isBackup())
+            {
+                synccreateForVault.push_back(ll);
+            }
+            else
+            {
+                synccreateGeneral.push_back(ll);
+            }
             syncactivity = true;
 
-            if (synccreate.size() >= MAX_NEWNODES)
+            if ((synccreateForVault.size() + synccreateGeneral.size()) >= MAX_NEWNODES)
             {
                 LOG_warn << "Stopping syncup due to MAX_NEWNODES";
                 parentPending += numPending;
@@ -15439,6 +15847,12 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 // execute updates stored in synccreate[]
 // must not be invoked while the previous creation operation is still in progress
 void MegaClient::syncupdate()
+{
+    syncupdate(synccreateForVault, true);
+    syncupdate(synccreateGeneral, false);
+}
+
+void MegaClient::syncupdate(localnode_vector& synccreate, bool canChangeVault)
 {
     // split synccreate[] in separate subtrees and send off to putnodes() for
     // creation on the server
@@ -15493,6 +15907,7 @@ void MegaClient::syncupdate()
                 nnp->localnode.crossref(l, nnp);  // also sets l->newnode to nnp
                 nnp->nodehandle = n ? n->nodehandle : l->syncid;
                 nnp->parenthandle = i > start ? l->parent->syncid : UNDEF;
+                nnp->canChangeVault = canChangeVault;
 
                 if (n)
                 {
@@ -15501,7 +15916,7 @@ void MegaClient::syncupdate()
                     {
                         if (versions_disabled)
                         {
-                            movetosyncdebris(l->node, l->sync->inshare);
+                            movetosyncdebris(l->node, l->sync->inshare, l->sync->isBackup());
                         }
                         else
                         {
@@ -15579,7 +15994,8 @@ void MegaClient::syncupdate()
                                                 nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC,
                                                 nullptr,
-                                                nullptr));
+                                                nullptr,
+                                                canChangeVault));
 
                 syncactivity = true;
             }
@@ -15628,7 +16044,7 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
 // dupes)
-void MegaClient::movetosyncdebris(Node* dn, bool unlink)
+void MegaClient::movetosyncdebris(Node* dn, bool unlink, bool canChangeVault)
 {
     dn->syncdeleted = SYNCDEL_DELETED;
 
@@ -15647,25 +16063,26 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
     // no: enqueue this one
     if (!n)
     {
+        unlink_or_debris_set::value_type v(dn, UnlinkOrDebris{unlink, !unlink, canChangeVault});
         if (unlink)
         {
-            dn->tounlink_it = tounlink.insert(dn).first;
+            dn->tounlink_it = toUnlink.insert(v).first;
         }
         else
         {
-            dn->todebris_it = todebris.insert(dn).first;
+            dn->todebris_it = toDebris.insert(v).first;
         }
     }
 }
 
 void MegaClient::execsyncdeletions()
 {
-    if (todebris.size())
+    if (toDebris.size())
     {
         execmovetosyncdebris();
     }
 
-    if (tounlink.size())
+    if (toUnlink.size())
     {
         execsyncunlink();
     }
@@ -15727,23 +16144,24 @@ void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa)
 
 void MegaClient::execsyncunlink()
 {
-    Node* n;
-    Node* tn;
-
     // delete tounlink nodes
     do {
-        n = tn = *tounlink.begin();
+        auto iter = toUnlink.begin();
 
+        Node *tn = iter->first;
+        Node *n = tn;
         while ((n = n->parent) && n->syncdeleted == SYNCDEL_NONE);
 
         if (!n)
         {
-            unlink(tn, false, tn->tag);
+            unlink(tn, false, tn->tag, iter->second.canChangeVault, nullptr);
+            // 'canChangeVault' is false because here unlink() is only
+            // for inshares syncs, which is not possible for backups
         }
 
-        tn->tounlink_it = tounlink.end();
-        tounlink.erase(tounlink.begin());
-    } while (tounlink.size());
+        tn->tounlink_it = toUnlink.end();
+        toUnlink.erase(iter);
+    } while (toUnlink.size());
 }
 
 // immediately moves pending todebris items to //bin
@@ -15752,7 +16170,6 @@ void MegaClient::execmovetosyncdebris()
 {
     Node* n;
     Node* tn;
-    node_set::iterator it;
 
     m_time_t ts;
     struct tm tms;
@@ -15796,9 +16213,9 @@ void MegaClient::execmovetosyncdebris()
     // - SYNCDEL_DELETED nodes to any available target
     // - SYNCDEL_BIN/SYNCDEL_DEBRIS nodes to SYNCDEL_DEBRISDAY
     // (move top-level nodes only)
-    for (it = todebris.begin(); it != todebris.end(); )
+    for (auto it = toDebris.begin(); it != toDebris.end(); )
     {
-        n = *it;
+        n = it->first;
 
         if (n->syncdeleted == SYNCDEL_DELETED
          || n->syncdeleted == SYNCDEL_BIN
@@ -15808,7 +16225,7 @@ void MegaClient::execmovetosyncdebris()
 
             if (!n)
             {
-                n = *it;
+                n = it->first;
 
                 if (n->syncdeleted == SYNCDEL_DELETED
                  || ((n->syncdeleted == SYNCDEL_BIN
@@ -15819,7 +16236,7 @@ void MegaClient::execmovetosyncdebris()
                     int creqtag = reqtag;
                     reqtag = n->tag;
                     LOG_debug << "Moving to Syncdebris: " << n->displayname() << " in " << tn->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                    rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, nullptr);
+                    rename(n, tn, target, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, it->second.canChangeVault, nullptr);
                     reqtag = creqtag;
                     it++;
                 }
@@ -15827,8 +16244,8 @@ void MegaClient::execmovetosyncdebris()
                 {
                     LOG_debug << "SyncDebris daily folder not created. Final target: " << n->syncdeleted;
                     n->syncdeleted = SYNCDEL_NONE;
-                    n->todebris_it = todebris.end();
-                    todebris.erase(it++);
+                    n->todebris_it = toDebris.end();
+                    toDebris.erase(it++);
                 }
             }
             else
@@ -15841,8 +16258,8 @@ void MegaClient::execmovetosyncdebris()
         {
             LOG_debug << "Move to SyncDebris finished. Final target: " << n->syncdeleted;
             n->syncdeleted = SYNCDEL_NONE;
-            n->todebris_it = todebris.end();
-            todebris.erase(it++);
+            n->todebris_it = toDebris.end();
+            toDebris.erase(it++);
         }
         else
         {
@@ -15850,7 +16267,7 @@ void MegaClient::execmovetosyncdebris()
         }
     }
 
-    if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding
+    if (target != SYNCDEL_DEBRISDAY && toDebris.size() && !syncdebrisadding
             && (target == SYNCDEL_BIN || syncdebrisminute != currentminute))
     {
         syncdebrisadding = true;
@@ -15891,7 +16308,8 @@ void MegaClient::execmovetosyncdebris()
                                         -reqtag,
                                         PUTNODES_SYNCDEBRIS,
                                         nullptr,
-                                        nullptr));
+                                        nullptr,
+                                        false));    // SyncDebris folder is in //bin, not in the Vault
     }
 }
 

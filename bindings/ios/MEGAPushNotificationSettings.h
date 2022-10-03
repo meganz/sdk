@@ -75,7 +75,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param chatId handle of the node that identifies the chat room
  * @return YES if enabled, NO otherwise
  */
-- (BOOL)isChatDndEnabledForChatId:(int64_t)chatId;
+- (BOOL)isChatDndEnabledForChatId:(uint64_t)chatId;
 
 /**
  * @brief Enable or disable notifications for a chat
@@ -88,7 +88,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param enabled YES to enable, NO to disable
  * @param chatId handle of the node that identifies the chat room
  */
-- (void)setChatEnabled:(BOOL)enabled forChatId:(int64_t)chatId;
+- (void)setChatEnabled:(BOOL)enabled forChatId:(uint64_t)chatId;
 
 /**
  * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
@@ -102,7 +102,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param chatId handle of the Node that identifies the chat room
  * @return timestamp until DND mode is enabled (in seconds since the Epoch)
  */
-- (int64_t)timestampForChatId:(int64_t)chatId;
+- (int64_t)timestampForChatId:(uint64_t)chatId;
 
 /**
  * @brief Set the DND mode for a chat for a period of time
@@ -119,7 +119,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param chatId handle of the node that identifies the chat room
  * @param timestamp timestamp until DND mode is enabled (in seconds since the Epoch)
  */
-- (void)setChatDndForChatId:(int64_t)chatId untilTimestamp:(int64_t)timestamp;
+- (void)setChatDndForChatId:(uint64_t)chatId untilTimestamp:(int64_t)timestamp;
 
 @end
 

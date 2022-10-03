@@ -44,44 +44,62 @@ void WaitMillisec(unsigned n)
 #endif
 }
 
-#ifdef __linux__
-std::string exec(const char* cmd) {
-    // Open pipe for reading.
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+string runProgram(const string& command, PROG_OUTPUT_TYPE ot)
+{
+    FILE* pPipe =
+#ifdef _WIN32
+        _popen(command.c_str(), "rt");
+#else
+        popen(command.c_str(), "r");
+#endif
 
-    // Make sure the pipe was actually created.
-    if (!pipe) throw std::runtime_error("popen() failed!");
-
-    std::string result;
-
-    // Read from the pipe until we hit EOF or encounter an error.
-    for (std::array<char, 128> buffer; ; )
+    if (!pPipe)
     {
-        // Read from the pipe.
-        auto nRead = fread(buffer.data(), 1, buffer.size(), pipe.get());
+        LOG_err << "Failed to run command\n" << command;
+        return string();
+    }
 
-        // Were we able to extract any data?
-        if (nRead > 0)
+    // Read pipe until file ends or error occurs.
+    string output;
+    char   psBuffer[128];
+
+    while (!feof(pPipe) && !ferror(pPipe))
+    {
+        switch (ot)
         {
-            // If so, add it to our result buffer.
-            result.append(buffer.data(), nRead);
+        case PROG_OUTPUT_TYPE::TEXT:
+        {
+            if (fgets(psBuffer, 128, pPipe))
+            {
+                output += psBuffer;
+            }
+            break;
         }
 
-        // Have we extracted as much as we can?
-        if (nRead < buffer.size()) break;
+        case PROG_OUTPUT_TYPE::BINARY:
+        {
+            size_t lastRead = fread(psBuffer, 1, sizeof(psBuffer), pPipe);
+            if (lastRead)
+            {
+                output.append(psBuffer, lastRead);
+            }
+        }
+        } // end switch()
     }
 
-    // Were we able to extract all of the data?
-    if (feof(pipe.get()))
+    if (ferror(pPipe))
     {
-        // Then return the result.
-        return result;
+        LOG_err << "Failed to read full command output.";
     }
 
-    // Otherwise, let the caller know we couldn't read the pipe.
-    throw std::runtime_error("couldn't read all data from the pipe!");
-}
+#ifdef _WIN32
+    _pclose(pPipe);
+#else
+    pclose(pPipe); // docs don't _guarantee_ handling null stream
 #endif
+
+    return output;
+}
 
 string loadfile(const string& filename)
 {
@@ -205,7 +223,7 @@ void synchronousHttpPOSTFile(const string& url, const string& filepath, string& 
 #else
     string command = "curl -s --data-binary @";
     command.append(filepath).append(" ").append(url.c_str());
-    responsedata = exec(command.c_str());
+    responsedata = runProgram(command, PROG_OUTPUT_TYPE::BINARY);
 #endif
 #endif
 }

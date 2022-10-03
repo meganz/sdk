@@ -176,7 +176,7 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
-void CacheableWriter::serializecompressed64(int64_t field)
+void CacheableWriter::serializecompressedu64(uint64_t field)
 {
     byte buf[sizeof field+1];
     dest.append((const char*)buf, Serialize64::serialize(buf, field));
@@ -422,7 +422,7 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
 
     for (auto it = mMacMap.find(npos);
         npos < fileSize &&
-        (npos - pos) <= maxReqSize &&
+        (npos - pos) < maxReqSize &&
         (it == mMacMap.end() || it->second.notStarted());
         it = mMacMap.find(npos))
     {
@@ -667,7 +667,7 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
     return false;
 }
 
-bool CacheableReader::unserializecompressed64(uint64_t& field)
+bool CacheableReader::unserializecompressedu64(uint64_t& field)
 {
     int fieldSize;
     if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
@@ -1664,6 +1664,38 @@ int Utils::pcasecmp(const std::wstring& lhs,
 #else // _WIN32
     return lhs.compare(0, length, rhs, 0, length);
 #endif // ! _WIN32
+}
+
+std::string Utils::replace(const std::string& str, char search, char replacement) {
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i-o));
+        r += replacement;
+        o = i + 1;
+    }
+    return r;
+}
+
+std::string Utils::replace(const std::string& str, const std::string& search, const std::string& replacement) {
+    if (search.empty())
+        return str;
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i - o));
+        r += replacement;
+        o = i + search.length();
+    }
+    return r;
 }
 
 long long abs(long long n)
@@ -2665,7 +2697,7 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
     auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
 
     if (!pending)
-        return 1.0;
+        return 1.0; // 100%
 
     auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes + inflightProgress;
     auto progress = static_cast<double>(completed) / static_cast<double>(pending);

@@ -504,7 +504,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c);
+    error setattr(Node*, attr_map&& updates, int reqtag, const char* prevattr, CommandSetAttr::Completion&& c, bool canChangeVault);
 
     // prefix and encrypt attribute json
     static void makeattr(SymmCipher*, string*, const char*, int = -1);
@@ -519,13 +519,13 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
+    error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& c);
+    error rename(Node*, Node*, syncdel_t, NodeHandle prevparent, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
     void removeOutSharesFromSubtree(Node* n, int tag);
@@ -568,14 +568,14 @@ public:
                                   std::function<error(std::string *)> addFileAttrsFunc = nullptr);
 
     // helper function for preparing a putnodes call for new folders
-    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, bool canChangeVault, std::function<void (AttrMap&)> addAttrs = nullptr);
 
     // static version to be used from worker threads, which cannot rely on the MegaClient::tmpnodecipher as SymCipher (not thread-safe))
-    static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher &tmpnodecipher, std::function<void(AttrMap&)> addAttrs = nullptr);
+    static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher &tmpnodecipher, bool canChangeVault, std::function<void(AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, CommandPutNodes::Completion&& completion = nullptr);
+    void putnodes(NodeHandle, VersioningOption vo, vector<NewNode>&&, const char *, int tag, bool canChangeVault, CommandPutNodes::Completion&& completion = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&, int tag, CommandPutNodes::Completion&& completion = nullptr);
@@ -665,12 +665,35 @@ public:
     /**
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
      * It will persist the sync configuration if its call to checkSyncConfig succeeds
-     * @param syncConfig the Config to attempt to add
+     * @param syncConfig the Config to attempt to add (takes ownership)
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @param completion Completion function
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+    error addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname);
+
+    /**
+     * @brief
+     * Create the remote backup dir under //in/"My Backups"/`DEVICE_NAME`/. If `DEVICE-NAME` folder is missing, create that first.
+     *
+     * @param bkpName
+     * The name of the remote backup dir (desired final outcome is //in/"My Backups"/`DEVICE_NAME`/bkpName)
+     *
+     * @param extDriveRoot
+     * Drive root in case backup is from external drive; empty otherwise
+     *
+     * @param completion
+     * Completion function
+     *
+     * @return
+     * API_OK if remote backup dir has been successfully created.
+     * API_EACCESS if "My Backups" handle could not be obtained from user attribute, or if `DEVICE_NAME` was not a dir,
+     * or if remote backup dir already existed.
+     * API_ENOENT if "My Backups" handle was invalid or its Node was missing.
+     * API_EINCOMPLETE if device-id or device-name could not be obtained
+     * Any error returned by readDriveId(), in case of external drive.
+     */
+    error registerbackup(const string& bkpName, const string& extDriveRoot, CommandPutNodes::Completion completion = nullptr);
 
     void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
@@ -709,6 +732,10 @@ public:
 private:
     void ensureSyncUserAttributesCompleted(Error e);
     std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
+
+    // remove the backup folder created for a new backup, when creation fails
+    // (no-op if folder not found, not empty, not in Vault or backup restrictions are disabled)
+    void cleanupFailedBackup(const string& remotePath);
 
 public:
 
@@ -1562,7 +1589,10 @@ public:
     handlelocalnode_map fsidnode;
 
     // local nodes that need to be added remotely
-    localnode_vector synccreate;
+    // we need to distinguish those that are allowed to alter vault
+    // since the node create command applies the vw flag for all contained nodes
+    localnode_vector synccreateForVault;
+    localnode_vector synccreateGeneral;
 
     // number of sync-initiated putnodes() in progress
     int syncadding;
@@ -1580,6 +1610,7 @@ public:
     // if no sync putnodes operation is in progress, apply the updates stored
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
     void syncupdate();
+    void syncupdate(localnode_vector&, bool canChangeVault);
 
     // create missing folders, copy/start uploading missing files
     bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
@@ -1593,15 +1624,15 @@ public:
     bool syncdown(LocalNode*, LocalPath&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
-    void movetosyncdebris(Node*, bool);
+    void movetosyncdebris(Node*, bool unlink, bool canChangeVault);
 
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris();
-    node_set todebris;
+    unlink_or_debris_set toDebris;
 
     // unlink queued nodes directly (for inbound share syncing)
     void execsyncunlink();
-    node_set tounlink;
+    unlink_or_debris_set toUnlink;
 
     // commit all queueud deletions
     void execsyncdeletions();
@@ -1788,6 +1819,9 @@ public:
     string getAuthURI(bool supressSID = false, bool supressAuthKey = false);
 
     bool setlang(string *code);
+
+    // create a new folder with given name and stores its node's handle into the user's attribute ^!bak
+    error setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion);
 
     // sets the auth token to be used when logged into a folder link
     void setFolderLinkAccountAuth(const char *auth);
