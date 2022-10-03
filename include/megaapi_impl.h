@@ -185,7 +185,7 @@ public:
         assert(type < FILENAME_ANOMALY_NONE);
 
         mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
-                                  localPath.toPath().c_str(),
+                                  localPath.toPath(false).c_str(),
                                   remotePath.c_str());
     }
 
