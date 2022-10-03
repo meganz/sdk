@@ -5203,6 +5203,8 @@ void MegaClient::initsc()
             complete = initscsetelements();
         }
 
+        // Nothing to do for persisting Alerts. cmd("f") will not provide any data abot Alerts
+
 #ifdef ENABLE_CHAT
         if (complete)
         {
@@ -5360,6 +5362,12 @@ void MegaClient::updatesc()
         {
             // 6. write new or modified SetElements, purge deleted ones
             complete = updatescsetelements();
+        }
+
+        if (complete)
+        {
+            // write UserAlerts to db
+            purgescalerts();
         }
 
 #ifdef ENABLE_CHAT
@@ -6684,8 +6692,8 @@ void MegaClient::sc_upc(bool incoming)
                     string email;
                     JSON::copystring(&email, m);
                     using namespace UserAlert;
-                    useralerts.add(incoming ? (Base*) new UpdatedPendingContactIncoming(s, p, email, uts, useralerts.nextId())
-                                            : (Base*) new UpdatedPendingContactOutgoing(s, p, email, uts, useralerts.nextId()));
+                    useralerts.add(incoming ? (UserAlert::Base*) new UpdatedPendingContactIncoming(s, p, email, uts, useralerts.nextId())
+                                            : (UserAlert::Base*) new UpdatedPendingContactOutgoing(s, p, email, uts, useralerts.nextId()));
                 }
 
                 notifypcr(pcr);
@@ -7412,7 +7420,8 @@ void MegaClient::notifypurge(void)
     if (scsn.ready()) tscsn = scsn.getHandle();
 
     if (nodenotify.size() || usernotify.size() || pcrnotify.size()
-            || setnotify.size() || setelementnotify.size()
+        || setnotify.size() || setelementnotify.size()
+        || !useralerts.alertstobepersisted.empty()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -7748,6 +7757,12 @@ void MegaClient::notifypurge(void)
         notifypurgesets();
     }
 
+    if (!useralerts.alertstobepersisted.empty())
+    {
+        // write UserAlerts to db
+        purgescalerts();
+    }
+
 #ifdef ENABLE_CHAT
     if ((t = int(chatnotify.size())))
     {
@@ -7770,6 +7785,61 @@ void MegaClient::notifypurge(void)
 #endif
 
     totalNodes = nodes.size();
+}
+
+void MegaClient::purgescalerts()
+{
+    auto& ualerts = useralerts.alerts;
+
+    // check alerts for overflow, then apply persistent changes
+    static constexpr size_t maxAlertCount = 200; // make this configurable?
+    if (ualerts.size() > maxAlertCount)
+    {
+        set<UserAlert::Base*> alertsToRelease;
+        // trim alerts to max count, from the beginning
+        for (auto it = ualerts.rbegin() + maxAlertCount; it != ualerts.rend(); ++it)
+        {
+            alertsToRelease.insert(*it);
+        }
+
+        if (!alertsToRelease.empty())
+        {
+            useralerts.eraseAlerts(alertsToRelease);
+        }
+    }
+
+    // Alerts are not critical. There is no need to break execution if db ops failed for some (rare) reason
+    for (const auto& a : useralerts.alertstobepersisted)
+    {
+        if (a.second == UserAlerts::CH_ALERT::PERSIST_REMOVE)
+        {
+            if (sctable->del(a.first->dbid))
+            {
+                LOG_verbose << "UserAlert of type " << a.first->type << " removed from db.";
+            }
+            else
+            {
+                LOG_err << "Failed to remove UserAlert of type " << a.first->type << " from db.";
+            }
+
+            // an alert to be removed got owned by alertstobepersisted
+            assert(std::find(ualerts.begin(), ualerts.end(), a.first) == ualerts.end());
+            delete a.first;
+        }
+        else if (a.second == UserAlerts::CH_ALERT::PERSIST_PUT) // insert or replace
+        {
+            if (sctable->put(CACHEDALERT, a.first, &key))
+            {
+                LOG_verbose << "UserAlert of type " << a.first->type << " inserted or replaced in db.";
+            }
+            else
+            {
+                LOG_err << "Failed to insert or update UserAlert of type " << a.first->type << " in db.";
+            }
+        }
+    }
+
+    useralerts.alertstobepersisted.clear();
 }
 
 // return node pointer derived from node handle
@@ -12583,6 +12653,16 @@ bool MegaClient::fetchsc(DbTable* sctable)
                     return false;
                 }
                 break;
+
+            case CACHEDALERT:
+            {
+                if (!useralerts.unserializeAlert(&data, id))
+                {
+                    LOG_err << "Failed - user notification read error";
+                    // don't break execution, just ignore it
+                }
+                break;
+            }
 
             case CACHEDCHAT:
 #ifdef ENABLE_CHAT

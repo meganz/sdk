@@ -83,18 +83,18 @@ namespace UserAlert
         // shared fields from the notification or action
         nameid type;
 
-        const m_time_t& ts() const { return cmn.timestamp; }
-        const handle& user() const { return cmn.userHandle; }
-        const string& email() const { return cmn.userEmail; }
-        void setEmail(const string& eml) { cmn.userEmail = eml; }
+        const m_time_t& ts() const { return pst.timestamp; }
+        const handle& user() const { return pst.userHandle; }
+        const string& email() const { return pst.userEmail; }
+        void setEmail(const string& eml) { pst.userEmail = eml; }
 
         // if false, not worth showing, eg obsolete payment reminder
-        bool relevant() const { return cmn.relevant; }
-        void setRelevant(bool r) { cmn.relevant = r; }
+        bool relevant() const { return pst.relevant; }
+        void setRelevant(bool r) { pst.relevant = r; }
 
         // user already saw it (based on 'last notified' time)
-        bool seen() const { return cmn.seen; }
-        void setSeen(bool s) { cmn.seen = s; }
+        bool seen() const { return pst.seen; }
+        void setSeen(bool s) { pst.seen = s; }
 
         int tag;
 
@@ -114,17 +114,17 @@ namespace UserAlert
         virtual bool checkprovisional(handle ou, MegaClient* mc);
 
     protected:
-        struct Common // variables required by all Alerts to initialize Base
+        struct Persistent // variables to be persisted
         {
             m_time_t timestamp = 0;
             handle userHandle = 0;
             string userEmail;
             bool relevant = true;
             bool seen = false;
-        } cmn;
+        } pst;
 
         bool serialize(string*) override;
-        static unique_ptr<Common> unserialize(string*);
+        static unique_ptr<Persistent> unserialize(string*);
     };
 
     struct IncomingPendingContact : public Base
@@ -318,10 +318,19 @@ private:
 
 public:
     typedef deque<UserAlert::Base*> Alerts;
-    Alerts alerts;
+    Alerts alerts; // alerts created from sc (action packets) or received "raw" from sc50
+
+    enum class CH_ALERT
+    {
+        PERSIST_PUT,       // mark Alert as new or updated
+        PERSIST_REMOVE,    // mark Alert to be removed
+    };
+    map<UserAlert::Base*, CH_ALERT> alertstobepersisted; // alerts, a subset of the above, that need to be added, updated or removed from db
+    void persistAlert(UserAlert::Base* a, CH_ALERT ch);
+    bool unserializeAlert(string* d, uint32_t dbid);
 
     // collect new/updated alerts to notify the app with; non-owning container of pointers owned by `alerts`
-    useralert_vector useralertnotify;
+    useralert_vector useralertnotify; // notifications to be presented to the user
 
     // set true after our initial query to MEGA to get the last 50 alerts on startup
     bool begincatchup;
@@ -378,7 +387,6 @@ private:
     bool removeNotedSharedNodeFrom(notedShNodesMap::iterator itToNodeToRemove, Node* node, notedShNodesMap& notedSharedNodesMap);
     bool removeNotedSharedNodeFrom(Node* n, notedShNodesMap& notedSharedNodesMap);
     bool setNotedSharedNodeToUpdate(Node* n);
-
 public:
 
     // This is a separate class to encapsulate some MegaClient functionality
@@ -434,8 +442,6 @@ public:
 
     // re-init eg. on logout
     void clear();
-
-    bool unserializeAlert(string* d, uint32_t dbid);
 };
 
 

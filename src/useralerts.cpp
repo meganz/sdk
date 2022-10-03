@@ -174,9 +174,9 @@ UserAlert::Base::Base(UserAlertRaw& un, unsigned int cid)
     id = cid;
     type = un.t;
     m_time_t timeDelta = un.getint64(MAKENAMEID2('t', 'd'), 0);
-    cmn.timestamp = m_time() - timeDelta;
-    cmn.userHandle = un.gethandle('u', MegaClient::USERHANDLE, UNDEF);
-    cmn.userEmail = un.getstring('m', "");
+    pst.timestamp = m_time() - timeDelta;
+    pst.userHandle = un.gethandle('u', MegaClient::USERHANDLE, UNDEF);
+    pst.userEmail = un.getstring('m', "");
 
     tag = -1;
 }
@@ -185,9 +185,9 @@ UserAlert::Base::Base(nameid t, handle uh, const string& email, m_time_t ts, uns
 {
     id = cid;
     type = t;
-    cmn.userHandle = uh;
-    cmn.userEmail = email;
-    cmn.timestamp = ts;
+    pst.userHandle = uh;
+    pst.userEmail = email;
+    pst.timestamp = ts;
     tag = -1;
 }
 
@@ -199,7 +199,7 @@ void UserAlert::Base::updateEmail(MegaClient* mc)
 {
     if (User* u = mc->finduser(user()))
     {
-        cmn.userEmail = u->email;
+        pst.userEmail = u->email;
     }
 }
 
@@ -231,9 +231,9 @@ bool UserAlert::Base::serialize(string* d)
     return true;
 }
 
-unique_ptr<UserAlert::Base::Common> UserAlert::Base::unserialize(std::string* d)
+unique_ptr<UserAlert::Base::Persistent> UserAlert::Base::unserialize(std::string* d)
 {
-    auto p = make_unique<Common>();
+    auto p = make_unique<Persistent>();
     CacheableReader r(*d);
 
     if (r.unserializecompressedi64(p->timestamp)
@@ -242,6 +242,7 @@ unique_ptr<UserAlert::Base::Common> UserAlert::Base::unserialize(std::string* d)
         && r.unserializebool(p->relevant)
         && r.unserializebool(p->seen))
     {
+        r.eraseused(*d);
         return p;
     }
 
@@ -252,7 +253,7 @@ UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un, unsi
     : Base(un, id)
 {
     mPcrHandle = un.gethandle('p', MegaClient::PCRHANDLE, UNDEF);
-    cmn.userHandle = mPcrHandle;    // for backwards compatibility, due to legacy bug
+    pst.userHandle = mPcrHandle;    // for backwards compatibility, due to legacy bug
 
     m_time_t dts = un.getint64(MAKENAMEID3('d', 't', 's'), 0);
     m_time_t rts = un.getint64(MAKENAMEID3('r', 't', 's'), 0);
@@ -273,8 +274,8 @@ void UserAlert::IncomingPendingContact::initTs(m_time_t dts, m_time_t rts)
     requestWasDeleted = dts != 0;
     requestWasReminded = rts != 0;
 
-    if (requestWasDeleted)       cmn.timestamp = dts;
-    else if (requestWasReminded) cmn.timestamp = rts;
+    if (requestWasDeleted)       pst.timestamp = dts;
+    else if (requestWasReminded) pst.timestamp = rts;
 }
 
 void UserAlert::IncomingPendingContact::text(string& header, string& title, MegaClient* mc)
@@ -338,7 +339,7 @@ UserAlert::ContactChange::ContactChange(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
     action = un.getint('c', -1);
-    cmn.relevant = action >= 0 && action < 4;
+    pst.relevant = action >= 0 && action < 4;
     assert(action >= 0 && action < 4);
     otherUserHandle = un.gethandle(MAKENAMEID2('o', 'u'), MegaClient::USERHANDLE, UNDEF);
 }
@@ -413,7 +414,7 @@ UserAlert::UpdatedPendingContactIncoming::UpdatedPendingContactIncoming(UserAler
     : Base(un, id)
 {
     action = un.getint('s', -1);
-    cmn.relevant = action >= 1 && action < 4;
+    pst.relevant = action >= 1 && action < 4;
 }
 
 UserAlert::UpdatedPendingContactIncoming::UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id)
@@ -475,7 +476,7 @@ UserAlert::UpdatedPendingContactOutgoing::UpdatedPendingContactOutgoing(UserAler
     : Base(un, id)
 {
     action = un.getint('s', -1);
-    cmn.relevant = action == 2 || action == 3;
+    pst.relevant = action == 2 || action == 3;
 }
 
 UserAlert::UpdatedPendingContactOutgoing::UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id)
@@ -1146,7 +1147,7 @@ UserAlert::Takedown::Takedown(UserAlertRaw& un, unsigned int id)
     isTakedown = n == 1;
     isReinstate = n == 0;
     nodeHandle = un.gethandle('h', MegaClient::NODEHANDLE, UNDEF);
-    cmn.relevant = isTakedown || isReinstate;
+    pst.relevant = isTakedown || isReinstate;
 }
 
 UserAlert::Takedown::Takedown(bool down, bool reinstate, int /*t*/, handle nh, m_time_t timestamp, unsigned int id)
@@ -1155,7 +1156,7 @@ UserAlert::Takedown::Takedown(bool down, bool reinstate, int /*t*/, handle nh, m
     isTakedown = down;
     isReinstate = reinstate;
     nodeHandle = nh;
-    cmn.relevant = isTakedown || isReinstate;
+    pst.relevant = isTakedown || isReinstate;
 }
 
 void UserAlert::Takedown::text(string& header, string& title, MegaClient* mc)
@@ -1358,6 +1359,12 @@ void UserAlerts::add(UserAlertRaw& un)
 
 void UserAlerts::add(UserAlert::Base* unb)
 {
+    // TODO: Differentiate between sc50 and loading from persistent db.
+    //
+    // Alerts received by this function should be persisted when coming from sc50,
+    // but not when being just loaded from persistent db.
+    // Both flows get here, and `catchupdone` is false in both cases.
+
     // unb is either directly from notification json, or constructed from actionpacket.
     // We take ownership.
 
@@ -1379,6 +1386,7 @@ void UserAlerts::add(UserAlert::Base* unb)
         return;
     }
 
+    // attempt to combine with previous NewSharedNodes
     if (!alerts.empty() && unb->type == UserAlert::type_put && alerts.back()->type == UserAlert::type_put)
     {
         // If it's file/folders added, and the prior one is for the same user and within 5 mins then we can combine instead
@@ -1394,12 +1402,17 @@ void UserAlerts::add(UserAlert::Base* unb)
                                              begin(np->folderNodeHandles), end(np->folderNodeHandles));
                 LOG_debug << "Merged user alert, type " << np->type << " ts " << np->ts();
 
-                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
+                if (catchupdone)
                 {
-                    alerts.back()->setSeen(false);
-                    alerts.back()->tag = 0;
-                    useralertnotify.push_back(alerts.back());
-                    LOG_debug << "Updated user alert added to notify queue";
+                    persistAlert(op, CH_ALERT::PERSIST_PUT);
+
+                    if (useralertnotify.empty() || useralertnotify.back() != op)
+                    {
+                        op->setSeen(false);
+                        op->tag = 0;
+                        useralertnotify.push_back(op);
+                        LOG_debug << "Updated user alert added to notify queue";
+                    }
                 }
                 delete unb;
                 return;
@@ -1407,6 +1420,7 @@ void UserAlerts::add(UserAlert::Base* unb)
         }
     }
 
+    // attempt to combine with previous RemovedSharedNode
     if (!alerts.empty() && unb->type == UserAlert::type_d && alerts.back()->type == UserAlert::type_d)
     {
         // If it's file/folders removed, and the prior one is for the same user and within 5 mins then we can combine instead
@@ -1419,12 +1433,17 @@ void UserAlerts::add(UserAlert::Base* unb)
                 od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
                 LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->ts();
 
-                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
+                if (catchupdone)
                 {
-                    alerts.back()->setSeen(false);
-                    alerts.back()->tag = 0;
-                    useralertnotify.push_back(alerts.back());
-                    LOG_debug << "Updated user alert added to notify queue";
+                    persistAlert(od, CH_ALERT::PERSIST_PUT);
+
+                    if (useralertnotify.empty() || useralertnotify.back() != od)
+                    {
+                        od->setSeen(false);
+                        od->tag = 0;
+                        useralertnotify.push_back(od);
+                        LOG_debug << "Updated user alert added to notify queue";
+                    }
                 }
                 delete unb;
                 return;
@@ -1432,6 +1451,7 @@ void UserAlerts::add(UserAlert::Base* unb)
         }
     }
 
+    // attempt to combine with previous UpdatedSharedNode
     if (!alerts.empty() && unb->type == UserAlert::type_u && alerts.back()->type == UserAlert::type_u)
     {
         // If it's file/folders updated, and the prior one is for the same user and within 5 mins then we can combine instead
@@ -1444,12 +1464,17 @@ void UserAlerts::add(UserAlert::Base* unb)
                 od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
                 LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->ts();
 
-                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
+                if (catchupdone)
                 {
-                    alerts.back()->setSeen(false);
-                    alerts.back()->tag = 0;
-                    useralertnotify.push_back(alerts.back());
-                    LOG_debug << "Updated user alert added to notify queue";
+                    persistAlert(od, CH_ALERT::PERSIST_PUT);
+
+                    if (useralertnotify.empty() || useralertnotify.back() != od)
+                    {
+                        od->setSeen(false);
+                        od->tag = 0;
+                        useralertnotify.push_back(od);
+                        LOG_debug << "Updated user alert added to notify queue";
+                    }
                 }
                 delete unb;
                 return;
@@ -1457,6 +1482,7 @@ void UserAlerts::add(UserAlert::Base* unb)
         }
     }
 
+    // attempt to combine with previous Payment
     if (!alerts.empty() && unb->type == UserAlert::type_psts && static_cast<UserAlert::Payment*>(unb)->success)
     {
         // if a successful payment is made then hide/remove any reminders received
@@ -1467,6 +1493,7 @@ void UserAlerts::add(UserAlert::Base* unb)
                 (*i)->setRelevant(false);
                 if (catchupdone)
                 {
+                    persistAlert(*i, CH_ALERT::PERSIST_PUT);
                     useralertnotify.push_back(*i);
                 }
             }
@@ -1479,6 +1506,7 @@ void UserAlerts::add(UserAlert::Base* unb)
 
     if (catchupdone)
     {
+        persistAlert(unb, CH_ALERT::PERSIST_PUT);
         unb->tag = 0;
         useralertnotify.push_back(unb);
         LOG_debug << "New user alert added to notify queue";
@@ -1794,7 +1822,10 @@ void UserAlerts::eraseAlerts(const set<UserAlert::Base*>& alertsToRelease)
     eraseAlertsFromContainer(useralertnotify, alertsToRelease);
     eraseAlertsFromContainer(alerts, alertsToRelease);
 
-    for_each(begin(alertsToRelease), end(alertsToRelease), [](UserAlert::Base* a) { delete a; });
+    for_each(begin(alertsToRelease), end(alertsToRelease), [this](UserAlert::Base* a)
+        {
+            persistAlert(a, CH_ALERT::PERSIST_REMOVE); // change ownership of alerts to remove
+        });
 }
 
 void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
@@ -1819,6 +1850,10 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             {
                 alertsToRelease.emplace(pNewSN);
             }
+            else
+            {
+                persistAlert(pNewSN, CH_ALERT::PERSIST_PUT);
+            }
         }
         else if (auto pRemovedSN = eraseNodeHandleFromRemovedSharedNode(nodeHandleToRemove, alertToCheck))
         {
@@ -1826,6 +1861,10 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
             if (pRemovedSN->nodeHandles.empty())
             {
                 alertsToRelease.emplace(pRemovedSN);
+            }
+            else
+            {
+                persistAlert(pRemovedSN, CH_ALERT::PERSIST_PUT);
             }
         }
     }
@@ -2088,6 +2127,8 @@ void UserAlerts::acknowledgeAll()
                 (*i)->tag = mc.reqtag;
             }
             useralertnotify.push_back(*i);
+
+            persistAlert(*i, CH_ALERT::PERSIST_PUT);
         }
     }
 
@@ -2106,6 +2147,8 @@ void UserAlerts::onAcknowledgeReceived()
                 (*i)->setSeen(true);
                 (*i)->tag = 0;
                 useralertnotify.push_back(*i);
+
+                persistAlert(*i, CH_ALERT::PERSIST_PUT);
             }
         }
     }
@@ -2113,11 +2156,22 @@ void UserAlerts::onAcknowledgeReceived()
 
 void UserAlerts::clear()
 {
+    for (auto& p : alertstobepersisted)
+    {
+        if (p.second == CH_ALERT::PERSIST_REMOVE)
+        {
+            assert(std::find(alerts.begin(), alerts.end(), p.first) == alerts.end());
+            delete p.first;
+        }
+    }
+    alertstobepersisted.clear(); // don't touch persisted alerts from here
+
     for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
     {
         delete *i;
     }
     alerts.clear();
+
     useralertnotify.clear();
     begincatchup = false;
     catchupdone = false;
@@ -2134,6 +2188,10 @@ UserAlerts::~UserAlerts()
 }
 
 
+void UserAlerts::persistAlert(UserAlert::Base* a, CH_ALERT ch)
+{
+    alertstobepersisted[a] = ch;
+}
 
 bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
 {
@@ -2143,6 +2201,7 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
     {
         return false;
     }
+    r.eraseused(*d);
 
     UserAlert::Base* a = nullptr;
 
@@ -2180,6 +2239,10 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
         a = UserAlert::RemovedSharedNode::unserialize(d, nextId());
         break;
 
+    case UserAlert::type_u:
+        a = UserAlert::UpdatedSharedNode::unserialize(d, nextId());
+        break;
+
     case UserAlert::type_psts:
         a = UserAlert::Payment::unserialize(d, nextId());
         break;
@@ -2196,7 +2259,7 @@ bool UserAlerts::unserializeAlert(string* d, uint32_t dbid)
     if (a)
     {
         a->dbid = dbid;
-        add(a);
+        add(a); // takes ownership of a
         return true;
     }
 
