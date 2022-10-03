@@ -1923,9 +1923,10 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         userHandle = p->userHandle;
         email = p->userEmail;
         nodeHandle = p->parentHandle;
-        numbers.push_back(p->folderCount);
-        numbers.push_back(p->fileCount);
-        handles.assign(p->items.begin(), p->items.end());
+        numbers.push_back(p->folderNodeHandles.size());
+        numbers.push_back(p->fileNodeHandles.size());
+        handles.assign(begin(p->folderNodeHandles), end(p->folderNodeHandles));
+        handles.insert(end(handles), begin(p->fileNodeHandles), end(p->fileNodeHandles));
     }
     break;
     case UserAlert::type_d:
@@ -1934,7 +1935,16 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_REMOVEDSHAREDNODES;
         userHandle = p->userHandle;
         email = p->userEmail;
-        numbers.push_back(p->itemsNumber);
+        numbers.push_back(p->nodeHandles.size());
+    }
+    break;
+    case UserAlert::type_u:
+    {
+        UserAlert::UpdatedSharedNode* p = static_cast<UserAlert::UpdatedSharedNode*>(b);
+        type = TYPE_UPDATEDSHAREDNODES;
+        userHandle = p->userHandle;
+        email = p->userEmail;
+        numbers.push_back(p->nodeHandles.size());
     }
     break;
     case UserAlert::type_psts:
@@ -2019,6 +2029,7 @@ const char *MegaUserAlertPrivate::getTypeString() const
     case TYPE_DELETEDSHARE:                             return "SHARE_UNSHARED";
     case TYPE_NEWSHAREDNODES:                           return "NEW_NODES_IN_SHARE";
     case TYPE_REMOVEDSHAREDNODES:                       return "NODES_IN_SHARE_REMOVED";
+    case TYPE_UPDATEDSHAREDNODES:                       return "NODES_IN_SHARE_UPDATED";
     case TYPE_PAYMENT_SUCCEEDED:                        return "PAYMENT_SUCCEEDED";
     case TYPE_PAYMENT_FAILED:                           return "PAYMENT_FAILED";
     case TYPE_PAYMENTREMINDER:                          return "PAYMENT_REMINDER";

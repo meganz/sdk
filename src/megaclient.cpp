@@ -4753,6 +4753,12 @@ bool MegaClient::procsc()
                     break;
 
                 case EOO:
+                    if (!useralerts.isDeletedSharedNodesStashEmpty())
+                    {
+                        useralerts.convertStashedDeletedSharedNodes();
+                    }
+
+
                     LOG_debug << "Processing of action packets finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
@@ -7986,7 +7992,7 @@ Node* MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
 
-                    useralerts.convertNotedSharedNodes(false, originatingUser);
+                    useralerts.stashDeletedNotedSharedNodes(originatingUser);
                 }
                 return n;
 
@@ -8701,6 +8707,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
     node_vector dp;
     Node* n;
+    handle previousHandleForAlert = UNDEF;
 
     while (j->enterobject())
     {
@@ -8961,7 +8968,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
                 {
-                    useralerts.noteSharedNode(u, t, ts, n);
+                    useralerts.noteSharedNode(u, t, ts, n, UserAlert::type_put);
                 }
 
                 if (nn && nni >= 0 && nni < int(nn->size()))
@@ -9033,6 +9040,26 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             if (applykeys)
             {
                 n->applykey();
+            }
+
+            // update-alerts for shared-nodes management
+            if (!ISUNDEF(ph))
+            {
+                if (useralerts.isHandleInAlertsAsRemoved(h) && ISUNDEF(previousHandleForAlert))
+                {
+                    useralerts.setNewNodeAlertToUpdateNodeAlert(nodebyhandle(ph));
+                    useralerts.removeNodeAlerts(nodebyhandle(h));
+                    previousHandleForAlert = h;
+                }
+                else if ((t == FILENODE) || (t == FOLDERNODE))
+                {
+                    if (previousHandleForAlert == ph)
+                    {
+                        useralerts.removeNodeAlerts(nodebyhandle(h));
+                        previousHandleForAlert = h;
+                    }
+                    // otherwise, the added TYPE_NEWSHAREDNODE is kept
+                }
             }
         }
     }
