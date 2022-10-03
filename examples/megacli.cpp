@@ -311,7 +311,7 @@ static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> fi
         conlock(cout) << "Unable to download file: "
                       << path
                       << " -> "
-                      << file->localname.toPath()
+                      << file->localname.toPath(false)
                       << ": "
                       << errorstring(result)
                       << endl;
@@ -426,7 +426,7 @@ static void displaytransferdetails(Transfer* t, const string& action)
         cout << name;
     }
 
-    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action << ": " << t->localfilename.toPath();
+    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action << ": " << t->localfilename.toPath(false);
 }
 
 // a new transfer was added
@@ -511,13 +511,13 @@ void DemoApp::sync_auto_resume_result(const SyncConfig& config, bool attempted, 
     handle backupId = config.mBackupId;
     if (attempted)
     {
-        conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath()  << " enabled: "
+        conlock(cout) << "Sync - autoresumed " << toHandle(backupId) << " " << config.getLocalPath().toPath(false)  << " enabled: "
              << config.getEnabled()  << " syncError: " << config.mError
              << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
     else
     {
-        conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
+        conlock(cout) << "Sync - autoloaded " << toHandle(backupId) << " " << config.getLocalPath().toPath(false) << " enabled: "
             << config.getEnabled() << " syncError: " << config.mError
             << " hadAnErrorBefore: " << hadAnError << " Running: " << (config.mRunningState >= 0) << endl;
     }
@@ -580,7 +580,7 @@ void DemoApp::syncupdate_treestate(const SyncConfig &, const LocalPath& lp, tree
     {
         if (type != FILENODE)
         {
-            conlock(cout) << "Sync - state change of folder " << lp.toPath() << " to " << treestatename(ts) << endl;
+            conlock(cout) << "Sync - state change of folder " << lp.toPath(false) << " to " << treestatename(ts) << endl;
         }
     }
 }
@@ -2828,7 +2828,7 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count)
         TransferDbCommitter committer(client->tctable);
         int total = 0;
         auto lp = LocalPath::fromAbsolutePath(local_path);
-        uploadLocalPath(FILENODE, lp.leafName().toPath(), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false);
+        uploadLocalPath(FILENODE, lp.leafName().toPath(false), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false);
 
         if (count > 0)
         {
@@ -2944,7 +2944,7 @@ void cycleUpload(LocalPath lp, int count)
 
     LocalPath upload_lp = lp;
     upload_lp.append(LocalPath::fromRelativePath("_" + std::to_string(count)));
-    string leaf = upload_lp.leafName().toPath();
+    string leaf = upload_lp.leafName().toPath(false);
 
     int total = 0;
     uploadLocalPath(FILENODE, leaf, upload_lp, cycleUploadDownload_cloudWorkingFolder, "", committer, total, false, NoVersioning,
@@ -2959,7 +2959,7 @@ void cycleUpload(LocalPath lp, int count)
     // also delete the old remote file
     if (count > 0)
     {
-        string leaf2 = lp.leafName().toPath() + "_" + std::to_string(count-1);
+        string leaf2 = lp.leafName().toPath(false) + "_" + std::to_string(count-1);
         if (Node* lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf2.c_str(), true))
         {
             client->unlink(lastuploaded, false, client->nextreqtag(), false, nullptr);
@@ -2972,7 +2972,7 @@ void cycleDownload(LocalPath lp, int count)
 {
     checkReportCycleFails();
 
-    string leaf = lp.leafName().toPath() + "_" + std::to_string(count);
+    string leaf = lp.leafName().toPath(false) + "_" + std::to_string(count);
 
     Node* uploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf.c_str(), true);
 
@@ -2986,10 +2986,10 @@ void cycleDownload(LocalPath lp, int count)
     downloadName.append(LocalPath::fromRelativePath("_" + std::to_string(count+1)));
 
 
-    string newleaf = lp.leafName().toPath();
+    string newleaf = lp.leafName().toPath(false);
     newleaf += "_" + std::to_string(count + 1);
 
-    auto f = new AppFileGet(uploaded, NodeHandle(), NULL, -1, 0, &newleaf, NULL, lp.parentPath().toPath());
+    auto f = new AppFileGet(uploaded, NodeHandle(), NULL, -1, 0, &newleaf, NULL, lp.parentPath().toPath(false));
     f->noRetries = true;
 
     f->onCompleted = [lp, count]()
@@ -3039,7 +3039,7 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
                 Transfer::unserialize(client, &serialized, client->cachedtransfers);
 
                 // prep to try to resume this upload after we get back to our main loop
-                auto fpstr = t->files.front()->localname.toPath();
+                auto fpstr = t->files.front()->localname.toPath(false);
                 auto countpos = fpstr.find_last_of('_');
                 auto count = atoi(fpstr.c_str() + countpos + 1);
                 fpstr.resize(countpos);
@@ -3447,12 +3447,12 @@ void exec_timelocal(autocomplete::ACState& s)
         }
         else
         {
-            cout << "fingerprint generation failed: " << localfilepath.toPath() << endl;
+            cout << "fingerprint generation failed: " << localfilepath.toPath(false) << endl;
         }
     }
     else
     {
-        cout << "fopen failed: " << localfilepath.toPath() << endl;
+        cout << "fopen failed: " << localfilepath.toPath(false) << endl;
     }
 
 }
@@ -3888,7 +3888,7 @@ public:
         cout << "Filename anomaly detected: type: "
                 << typeName
                 << ": local path: "
-                << localPath.toPath()
+                << localPath.toPath(false)
                 << ": remote path: "
                 << remotePath
                 << endl;
@@ -5265,7 +5265,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName().toPath();
+    return itemlocalname.leafName().toPath(false);
 }
 
 void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
@@ -5276,7 +5276,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
     fa->fopen(localname);
     if (fa->type != FOLDERNODE)
     {
-        cout << "Path is not a folder: " << localname.toPath();
+        cout << "Path is not a folder: " << localname.toPath(false);
         return;
     }
 
@@ -5289,7 +5289,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
     }
     if (r->completionResult() != SCAN_SUCCESS)
     {
-        cout << "Scan failed: " << r->completionResult() << " for path: " << localname.toPath();
+        cout << "Scan failed: " << r->completionResult() << " for path: " << localname.toPath(false);
         return;
     }
 
@@ -5302,12 +5302,12 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
     {
         auto newpath = localname;
         newpath.appendWithSeparator(rr.localname, true);
-        uploadLocalPath(rr.type, rr.localname.toPath(), newpath, cloudFolder, "", committer, total, true, vo, nullptr, false);
+        uploadLocalPath(rr.type, rr.localname.toPath(false), newpath, cloudFolder, "", committer, total, true, vo, nullptr, false);
     }
 
     if (gVerboseMode)
     {
-        cout << "Queued " << total << " more uploads from folder " << localname.toPath() << endl;
+        cout << "Queued " << total << " more uploads from folder " << localname.toPath(false) << endl;
     }
 
 #else
@@ -10117,7 +10117,7 @@ void exec_synclist(autocomplete::ACState& s)
 
         // Display source/target mapping.
         cout << "  Mapping: "
-            << config.mLocalPath.toPath()
+            << config.mLocalPath.toPath(false)
             << " -> "
             << cloudpath
             << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")
@@ -10201,7 +10201,7 @@ void exec_syncremove(autocomplete::ACState& s)
     if (byLocal)
     {
         predicate = [&](SyncConfig& config, Sync*) {
-            auto matched = config.mLocalPath.toPath() == localPath;
+            auto matched = config.mLocalPath.toPath(false) == localPath;
 
             found = found || matched;
             isBackup |= config.isBackup();

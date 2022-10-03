@@ -1436,7 +1436,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
         parent = l;
         l = NULL;
 
-        path = input_localpath->toPath();
+        path = input_localpath->toPath(true);
         assert(path.size());
     }
     else
@@ -1459,8 +1459,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             }
         }
 
-        string name = tmppath.leafName().toPath();
-        path = tmppath.toPath();
+        string name = tmppath.leafName().toPath(true);
+        path = tmppath.toPath(true);
 
         if (!client->app->sync_syncable(this, name.c_str(), tmppath))
         {
@@ -1479,7 +1479,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
         if (newname.findNextSeparator(index))
         {
-            LOG_warn << "Parent not detected yet. Remainder: " << newname.toPath();
+            LOG_warn << "Parent not detected yet. Remainder: " << newname;
             // when (if) the parent is created, we'll rescan the folder
             return NULL;
         }
@@ -1643,7 +1643,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                         {
                                             // we can't handle such a move yet, the target cloud node doesn't exist.
                                             // when it does, we'll rescan that node's local node (ie, this folder)
-                                            LOG_debug << "File move/overwrite detected BUT can't be processed yet - waiting on parent's cloud node creation:" << parent->getLocalPath().toPath();
+                                            LOG_debug << "File move/overwrite detected BUT can't be processed yet - waiting on parent's cloud node creation:" << parent->getLocalPath();
                                             return NULL;
                                         }
                                         else
@@ -1655,7 +1655,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                             client->execsyncdeletions();
 
                                             // ...and atomically replace with moved one
-                                            LOG_debug << "Sync - local rename/move " << it->second->getLocalPath().toPath() << " -> " << path;
+                                            LOG_debug << "Sync - local rename/move " << it->second->getLocalPath() << " -> " << path;
 
                                             // (in case of a move, this synchronously updates l->parent and l->node->parent)
                                             it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
@@ -1870,13 +1870,13 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                         }
                     }
 
-                    LOG_debug << "Sync - local rename/move " << it->second->getLocalPath().toPath() << " -> " << path.c_str();
+                    LOG_debug << "Sync - local rename/move " << it->second->getLocalPath() << " -> " << path.c_str();
 
                     if (parent && !parent->node)
                     {
                         // we can't handle such a move yet, the target cloud node doesn't exist.
                         // when it does, we'll rescan that node's local node (ie, this folder)
-                        LOG_debug << "Move or rename of existing node detected BUT can't be processed yet - waiting on parent's cloud node creation: " << parent->getLocalPath().toPath();
+                        LOG_debug << "Move or rename of existing node detected BUT can't be processed yet - waiting on parent's cloud node creation: " << parent->getLocalPath();
                         return NULL;
                     }
                     else
@@ -2225,8 +2225,7 @@ dstime Sync::procscanq(int q)
         }
         else
         {
-            string utf8path = notification.path.toPath();
-            LOG_debug << "Notification skipped: " << utf8path;
+            LOG_debug << "Notification skipped: " << notification.path;
         }
 
         // we return control to the application in case a filenode was added
@@ -2766,7 +2765,7 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
         {
             // Yep, replace it.
             LOG_debug << "Replacing existing sync config for: "
-                      << i->mLocalPath.toPath();
+                      << i->mLocalPath;
 
             *i = config;
         }
@@ -3141,11 +3140,11 @@ void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
     if (!config.mExternalDrivePath.empty())
     {
         LOG_warn << "Skipping export of external backup: "
-                 << config.mLocalPath.toPath();
+                 << config.mLocalPath;
         return;
     }
 
-    string localPath = config.mLocalPath.toPath();
+    string localPath = config.mLocalPath.toPath(false);
     string remotePath;
     const string& name = config.mName;
     const char* type = SyncConfig::synctypename(config.mSyncType);
@@ -4666,7 +4665,7 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
         if (driveInfo.driveID == UNDEF)
         {
             LOG_err << "Failed to retrieve drive ID for: "
-                    << drivePath.toPath();
+                    << drivePath;
 
             return API_EREAD;
         }
@@ -4723,7 +4722,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         if (e)
         {
             LOG_warn << "Unable to remove sync configs at: "
-                     << drivePath.toPath() << " error " << e;
+                     << drivePath << " error " << e;
         }
         return e;
     }
@@ -4739,7 +4738,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         if (e)
         {
             LOG_warn << "Unable to write sync configs at: "
-                     << drivePath.toPath() << " error " << e;
+                     << drivePath << " error " << e;
 
             return API_EWRITE;
         }
@@ -4783,7 +4782,7 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
         {
             // As it came from an external drive, the path is relative
             // but we didn't know that until now, for non-external it's absolute of course
-            config.mLocalPath = LocalPath::fromRelativePath(config.mLocalPath.toPath());
+            config.mLocalPath = LocalPath::fromRelativePath(config.mLocalPath.toPath(false));
 
             config.mLocalPath.prependWithSeparator(drivePath);
         }
@@ -4816,7 +4815,7 @@ auto SyncConfigStore::writeDirtyDrives(const SyncConfigVector& configs) -> Drive
         if (e)
         {
             LOG_err << "Could not write sync configs at "
-                    << drivePath.toPath()
+                    << drivePath
                     << " error "
                     << e;
 
@@ -4866,7 +4865,7 @@ bool SyncConfigIOContext::deserialize(const LocalPath& dbPath,
                                       unsigned int slot,
                                       bool isExternal) const
 {
-    auto path = dbFilePath(dbPath, slot).toPath();
+    auto path = dbFilePath(dbPath, slot);
 
     LOG_debug << "Attempting to deserialize config DB: "
               << path;
@@ -4996,7 +4995,7 @@ error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         }
 
         // Determine slot suffix.
-        const char suffix = filePath.toPath().back();
+        const char suffix = filePath.toPath(false).back();
 
         // Skip invalid suffixes.
         if (!isdigit(suffix))
@@ -5393,12 +5392,12 @@ string SyncConfigIOContext::encrypt(const string& data)
 void SyncConfigIOContext::serialize(const SyncConfig& config,
                                     JSONWriter& writer) const
 {
-    auto sourcePath = config.mLocalPath.toPath();
+    auto sourcePath = config.mLocalPath.toPath(false);
 
     // Strip drive path from source.
     if (config.isExternal())
     {
-        auto drivePath = config.mExternalDrivePath.toPath();
+        auto drivePath = config.mExternalDrivePath.toPath(false);
         sourcePath.erase(0, drivePath.size());
     }
 
