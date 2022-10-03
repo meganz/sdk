@@ -27227,7 +27227,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
         {
             lp.appendWithSeparator(LocalPath(), true);
         }
-        string sBasePath = lp.toPath();
+        string sBasePath = lp.toPath(false);
         this->basePath = sBasePath;
     }
     semaphoresdestroyed = false;
@@ -28519,7 +28519,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
         {
             httpctx->tmpFileName=httpctx->server->basePath;
             httpctx->tmpFileName.append("httputfile");
-            httpctx->tmpFileName.append(LocalPath::tmpNameLocal().toPath());
+            httpctx->tmpFileName.append(LocalPath::tmpNameLocal(false).toPath());
 
             string ext;
             LocalPath localpath = LocalPath::fromAbsolutePath(httpctx->path);
@@ -29580,7 +29580,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             {
                 httpctx->tmpFileName=httpctx->server->basePath;
                 httpctx->tmpFileName.append("httputfile");
-                httpctx->tmpFileName.append(LocalPath::tmpNameLocal().toPath());
+                httpctx->tmpFileName.append(LocalPath::tmpNameLocal(false).toPath());
                 string ext;
                 if (httpctx->server->fsAccess->getextension(LocalPath::fromAbsolutePath(httpctx->path), ext))
                 {
@@ -32285,7 +32285,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         {
             ftpdatactx->tmpFileName = fds->basePath;
             ftpdatactx->tmpFileName.append("ftpstorfile");
-            ftpdatactx->tmpFileName.append(LocalPath::tmpNameLocal().toPath());
+            ftpdatactx->tmpFileName.append(LocalPath::tmpNameLocal().toPath(false));
 
             string ext;
             if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromAbsolutePath(fds->controlftpctx->arg1), ext))
