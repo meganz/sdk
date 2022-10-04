@@ -1110,6 +1110,10 @@ public:
     // total number of LocalNode objects (only updated by syncs thread)
     long long totalLocalNodes = 0;
 
+    // backup rework implies certain restrictions that can be skipped
+    // by setting this flag
+    bool mBackupRestrictionsEnabled = true;
+
 private:
 
     // functions for internal use on-thread only
