@@ -4526,10 +4526,10 @@ SyncWaitPredicate SyncRemoteNodePresent(const CloudItem& item)
     };
 }
 
-SyncWaitPredicate SyncScanState(bool expected, bool includePaused = false)
+SyncWaitPredicate SyncScanState(bool expected)
 {
     return [=](StandardClient& client) {
-        return client.client.syncs.isAnySyncScanning(includePaused) == expected;
+        return client.client.syncs.syncscanstate == expected;
     };
 }
 
@@ -16998,7 +16998,7 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnknown)
     local.generate(c->fsBasePath / "s");
 
     // Wait for a scan to be queued on the paused sync->
-    ASSERT_TRUE(c->waitFor(SyncScanState(true, true), TIMEOUT));
+    ASSERT_TRUE(c->waitFor(SyncScanState(true), TIMEOUT));
 
     // Unpause the sync so that the engine processes our changes.
     ASSERT_TRUE(c->setSyncPausedByBackupId(id, false));
@@ -17085,7 +17085,7 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
                c->fsBasePath / "s" / "fy");
 
     // Wait for a scan to be queued on the paused sync->
-    ASSERT_TRUE(c->waitFor(SyncScanState(true, true), TIMEOUT));
+    ASSERT_TRUE(c->waitFor(SyncScanState(true), TIMEOUT));
 
     // Unpause the sync so the engine processes our changes.
     ASSERT_TRUE(c->setSyncPausedByBackupId(id, false));

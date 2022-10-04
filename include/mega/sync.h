@@ -992,13 +992,13 @@ struct Syncs
      * @brief
      * Removes previously opened backup databases from that drive from memory.
      */
-    void backupCloseDrive(LocalPath drivePath, std::function<void(Error)> clientCallback);
+    void backupCloseDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback);
 
     /**
      * @brief
      * Restores backups from an external drive.
      */
-    void backupOpenDrive(LocalPath drivePath, std::function<void(Error)> clientCallback);
+    void backupOpenDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback);
 
 
     // Add a config directly to the internal sync config DB.
@@ -1006,9 +1006,6 @@ struct Syncs
     // Note that configs added in this way bypass the usual sync mechanism.
     // That is, they are added directly to the JSON DB on disk.
     error syncConfigStoreAdd(const SyncConfig& config);
-
-    // Query whether any syncs are scanning.
-    bool isAnySyncScanning(bool includePaused);
 
 private:  // anything to do with loading/saving/storing configs etc is done on the sync thread
 
@@ -1159,7 +1156,7 @@ private:
     void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool notifyApp, bool unregisterHeartbeat);
     void purgeRunningSyncs_inThread();
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
-    error backupOpenDrive_inThread(LocalPath drivePath);
+    error backupOpenDrive_inThread(const LocalPath& drivePath);
     error backupCloseDrive_inThread(LocalPath drivePath);
 
     void syncLoop();
@@ -1325,7 +1322,7 @@ private:
 
     // Sometimes the Client needs a list of the sync configs, we provide it by copy (mutex for thread safety of course)
     mutable mutex mSyncVecMutex;
-    vector<shared_ptr<UnifiedSync>> mSyncVec;
+    vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // used to asynchronously perform scans.
     unique_ptr<ScanService> mScanService;
