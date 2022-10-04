@@ -1815,6 +1815,18 @@ int MegaUserPrivate::isOwnChange()
     return tag;
 }
 
+bool MegaSetPrivate::hasChanged(int changeType) const
+{
+    assert((unsigned)changeType < (unsigned)CHANGE_TYPE_SIZE);
+    return (unsigned)changeType < (unsigned)CHANGE_TYPE_SIZE ? mChanges[changeType] : false;
+}
+
+bool MegaSetElementPrivate::hasChanged(int changeType) const
+{
+    assert((unsigned)changeType < (unsigned)CHANGE_TYPE_ELEM_SIZE);
+    return (unsigned)changeType < (unsigned)CHANGE_TYPE_ELEM_SIZE ? mChanges[changeType] : false;
+}
+
 MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     : id(b->id)
     , seen(b->seen)
@@ -3281,6 +3293,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
     this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
     this->mRecentActions.reset(request->mRecentActions ? request->mRecentActions->copy() : nullptr);
+    this->mMegaSet.reset(request->mMegaSet ? request->mMegaSet->copy() : nullptr);
+    this->mMegaSetElementList.reset(request->mMegaSetElementList ? request->mMegaSetElementList->copy() : nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -3835,6 +3849,26 @@ MegaRecentActionBucketList* MegaRequestPrivate::getRecentActions() const
 void MegaRequestPrivate::setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList)
 {
     mRecentActions.reset(recentActionBucketList.release());
+}
+
+MegaSet* MegaRequestPrivate::getMegaSet() const
+{
+    return mMegaSet.get();
+}
+
+void MegaRequestPrivate::setMegaSet(std::unique_ptr<MegaSet> s)
+{
+    return mMegaSet.swap(s);
+}
+
+MegaSetElementList* MegaRequestPrivate::getMegaSetElementList() const
+{
+    return mMegaSetElementList.get();
+}
+
+void MegaRequestPrivate::setMegaSetElementList(std::unique_ptr<MegaSetElementList> els)
+{
+    return mMegaSetElementList.swap(els);
 }
 
 const char *MegaRequestPrivate::getRequestString() const
@@ -13481,6 +13515,44 @@ void MegaApiImpl::account_updated()
     fireOnAccountUpdate();
 }
 
+void MegaApiImpl::sets_updated(Set** sets, int count)
+{
+    LOG_debug << "Sets updated: " << count;
+    if (!count)
+    {
+        return;
+    }
+
+    if (sets)
+    {
+        unique_ptr<MegaSetListPrivate> sList(new MegaSetListPrivate(sets, count));
+        fireOnSetsUpdate(sList.get());
+    }
+    else
+    {
+        fireOnSetsUpdate(nullptr);
+    }
+}
+
+void MegaApiImpl::setelements_updated(SetElement** elements, int count)
+{
+    LOG_debug << "Elements updated: " << count;
+    if (!count)
+    {
+        return;
+    }
+
+    if (elements)
+    {
+        unique_ptr<MegaSetElementListPrivate> eList(new MegaSetElementListPrivate(elements, count));
+        fireOnSetElementsUpdate(eList.get());
+    }
+    else
+    {
+        fireOnSetElementsUpdate(nullptr);
+    }
+}
+
 void MegaApiImpl::pcrs_updated(PendingContactRequest **r, int count)
 {
     if(!count)
@@ -16435,6 +16507,34 @@ void MegaApiImpl::fireOnAccountUpdate()
     }
 }
 
+void MegaApiImpl::fireOnSetsUpdate(MegaSetList* sets)
+{
+    assert(threadId == std::this_thread::get_id());
+
+    for (set<MegaGlobalListener*>::iterator it = globalListeners.begin(); it != globalListeners.end();)
+    {
+        (*it++)->onSetsUpdate(api, sets);
+    }
+    for (set<MegaListener*>::iterator it = listeners.begin(); it != listeners.end();)
+    {
+        (*it++)->onSetsUpdate(api, sets);
+    }
+}
+
+void MegaApiImpl::fireOnSetElementsUpdate(MegaSetElementList* elements)
+{
+    assert(threadId == std::this_thread::get_id());
+
+    for (set<MegaGlobalListener*>::iterator it = globalListeners.begin(); it != globalListeners.end();)
+    {
+        (*it++)->onSetElementsUpdate(api, elements);
+    }
+    for (set<MegaListener*>::iterator it = listeners.begin(); it != listeners.end();)
+    {
+        (*it++)->onSetElementsUpdate(api, elements);
+    }
+}
+
 void MegaApiImpl::fireOnReloadNeeded()
 {
     assert(threadId == std::this_thread::get_id());
@@ -18829,6 +18929,94 @@ void MegaApiImpl::sendPendingRequests()
         error e = API_OK;
         switch (request->getType())
         {
+        case MegaRequest::TYPE_PUT_SET:
+        {
+            Set s;
+            s.setId(request->getParentHandle());
+            if (request->getParamType() & MegaApi::OPTION_SET_NAME)
+            {
+                s.setName(request->getText() ? request->getText() : string());
+            }
+            if (request->getParamType() & MegaApi::OPTION_SET_COVER)
+            {
+                s.setCover(request->getNodeHandle());
+            }
+            client->putSet(move(s),
+                [this, request](Error e, const Set* s)
+                {
+                    if (request->getParentHandle() == UNDEF && s)
+                    {
+                        request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*s));
+                    }
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+        }
+
+        case MegaRequest::TYPE_REMOVE_SET:
+            client->removeSet(request->getParentHandle(),
+                [this, request](Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+
+        case MegaRequest::TYPE_FETCH_SET:
+            client->fetchSet(request->getParentHandle(),
+                [this, request](Error e, Set* s, map<handle, SetElement>* els)
+                {
+                    if (e == API_OK)
+                    {
+                        assert(s && els);
+                        if (s && els)
+                        {
+                            request->setMegaSet(::mega::make_unique<MegaSetPrivate>(*s));
+                            request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(els));
+                        }
+                    }
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+
+        case MegaRequest::TYPE_PUT_SET_ELEMENT:
+        {
+            SetElement el;
+            el.setSet(request->getTotalBytes());
+            el.setId(request->getParentHandle());
+            el.setNode(request->getNodeHandle());
+            if (request->getParamType() & MegaApi::OPTION_ELEMENT_ORDER)
+            {
+                el.setOrder(request->getNumber());
+            }
+            if (request->getParamType() & MegaApi::OPTION_ELEMENT_NAME)
+            {
+                el.setName(request->getText() ? request->getText() : string());
+            }    
+            client->putSetElement(move(el),
+                [this, request](Error e, const SetElement* el)
+                {
+                    if (e == API_OK) // only return SetElement upon create, not update
+                    {
+                        bool isNew = request->getParentHandle() == UNDEF;
+                        assert(!isNew || el);
+                        if (isNew && el)    // return the Element only when is created, not when updated
+                        {
+                            request->setMegaSetElementList(::mega::make_unique<MegaSetElementListPrivate>(&el, 1));
+                        }
+                    }
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+        }
+
+        case MegaRequest::TYPE_REMOVE_SET_ELEMENT:
+            client->removeSetElement(request->getTotalBytes(), request->getParentHandle(),
+                [this, request](Error e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
+            break;
+
         case MegaRequest::TYPE_EXECUTE_ON_THREAD:
             request->functionToExecute->exec();
             //requestMap.erase(request->getTag());  // per the test for TYPE_EXECUTE_ON_THREAD above, we didn't add it to the map or assign it a tag
@@ -23578,6 +23766,166 @@ void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRo
     }
 }
 #endif
+
+//
+// Sets and Elements
+//
+
+void MegaApiImpl::putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET, listener);
+    request->setParentHandle(sid);
+    request->setParamType(optionFlags);
+    request->setText(name);
+    request->setNodeHandle(cover);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET, listener);
+    request->setParentHandle(sid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_SET, listener);
+    request->setParentHandle(sid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_PUT_SET_ELEMENT, listener);
+    request->setTotalBytes(sid);
+    request->setParentHandle(eid);
+    request->setNodeHandle(node);
+    request->setParamType(optionFlags);
+    request->setNumber(order);
+    request->setText(name);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SET_ELEMENT, listener);
+    request->setTotalBytes(sid);
+    request->setParentHandle(eid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+MegaSetList* MegaApiImpl::getSets()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    MegaSetListPrivate* sList = new MegaSetListPrivate(client->getSets());
+
+    return sList;
+}
+
+MegaSet* MegaApiImpl::getSet(MegaHandle sid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    const Set* s = client->getSet(sid);
+    return s ? (new MegaSetPrivate(*s)) : nullptr;
+}
+
+MegaHandle MegaApiImpl::getSetCover(MegaHandle sid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    const Set* s = client->getSet(sid);
+    return s ? s->cover() : INVALID_HANDLE;
+}
+
+MegaSetElementList* MegaApiImpl::getSetElements(MegaHandle sid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    auto* elements = client->getSetElements(sid);
+    MegaSetElementListPrivate* eList = new MegaSetElementListPrivate(elements);
+
+    return eList;
+}
+
+MegaSetElement* MegaApiImpl::getSetElement(MegaHandle sid, MegaHandle eid)
+{
+    SdkMutexGuard g(sdkMutex);
+
+    const SetElement* el = client->getSetElement(sid, eid);
+
+    return el ? (new MegaSetElementPrivate(*el)) : nullptr;
+}
+
+
+
+MegaSetListPrivate::MegaSetListPrivate(const Set *const* sets, int count)
+{
+    if (sets && count)
+    {
+        mSets.reserve(count);
+        for (int i = 0; i < count; ++i)
+        {
+            const Set& s = *sets[i];
+            add(MegaSetPrivate(s));
+        }
+    }
+}
+
+MegaSetListPrivate::MegaSetListPrivate(const map<handle, Set>& sets)
+{
+    mSets.reserve(sets.size());
+    for (const auto& sp : sets)
+    {
+        const Set& s = sp.second;
+        add(MegaSetPrivate(s));
+    }
+}
+
+void MegaSetListPrivate::add(MegaSetPrivate&& s)
+{
+    mSets.emplace_back(move(s));
+}
+
+
+MegaSetElementListPrivate::MegaSetElementListPrivate(const SetElement* const* elements, int count)
+{
+    if (elements && count)
+    {
+        mElements.reserve(count);
+        for (int i = 0; i < count; ++i)
+        {
+            const SetElement& el = *elements[i];
+            add(MegaSetElementPrivate(el));
+        }
+    }
+}
+
+MegaSetElementListPrivate::MegaSetElementListPrivate(const map<handle, SetElement>* elements)
+{
+    if (elements)
+    {
+        mElements.reserve(elements->size());
+        for (const auto& e : *elements)
+        {
+            const SetElement& el = e.second;
+            add(MegaSetElementPrivate(el));
+        }
+    }
+}
+
+void MegaSetElementListPrivate::add(MegaSetElementPrivate&& el)
+{
+    mElements.emplace_back(move(el));
+}
+
 
 void TreeProcCopy::allocnodes()
 {

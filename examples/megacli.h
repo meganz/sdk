@@ -146,6 +146,8 @@ struct DemoApp : public MegaApp
     void nodes_current() override;
     void account_updated() override;
     void notify_confirmation(const char *email) override;
+    void sets_updated(Set**, int) override;
+    void setelements_updated(SetElement**, int) override;
 
 #ifdef ENABLE_CHAT
     void chatcreate_result(TextChat *, error) override;
@@ -403,3 +405,5 @@ void exec_syncremove(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
+
+void exec_setsandelements(autocomplete::ACState& s);
