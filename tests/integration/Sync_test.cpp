@@ -1189,6 +1189,10 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
     {
         fsBasePath = ensureDir(workingFolder / fs::u8path(name));
     }
+
+    // SyncTests want to skip backup restrictions, so they are not
+    // restricted to the path "Vault/My backups/<device>/<backup>"
+    client.syncs.mBackupRestrictionsEnabled = false;
 }
 
 StandardClient::~StandardClient()
@@ -16997,8 +17001,8 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnknown)
     local.addfile("fy");
     local.generate(c->fsBasePath / "s");
 
-    // Wait for a scan to be queued on the paused sync->
-    ASSERT_TRUE(c->waitFor(SyncScanState(true), TIMEOUT));
+    // The paused sync should have that LocalNode marked as needing scanning
+    WaitMillisec(1000);
 
     // Unpause the sync so that the engine processes our changes.
     ASSERT_TRUE(c->setSyncPausedByBackupId(id, false));
@@ -17084,8 +17088,8 @@ TEST_F(SyncTest, StallsWhenExistingCloudMoveTargetUnsynced)
     fs::rename(c->fsBasePath / "fy",
                c->fsBasePath / "s" / "fy");
 
-    // Wait for a scan to be queued on the paused sync->
-    ASSERT_TRUE(c->waitFor(SyncScanState(true), TIMEOUT));
+    // The paused sync should have that LocalNode marked as needing scanning
+    WaitMillisec(1000);
 
     // Unpause the sync so the engine processes our changes.
     ASSERT_TRUE(c->setSyncPausedByBackupId(id, false));
