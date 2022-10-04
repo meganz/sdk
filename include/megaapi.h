@@ -2550,6 +2550,13 @@ public:
     virtual bool EmailsDisabled() const;
 
     /**
+     * @brief Returns the bistmask in a numeric value format
+     *
+     * @return The bistmask in a numeric value format
+     */
+    virtual unsigned long getNumericValue() const;
+
+    /**
      * @brief Returns true if all flags are disabled
      *
      * @return True if all flags are disabled, otherwise returns false.

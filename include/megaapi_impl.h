@@ -1837,12 +1837,11 @@ public:
     MegaIntegerMapPrivate();
     MegaIntegerMapPrivate(const std::multimap<int64_t, int64_t> &integers);
     virtual ~MegaIntegerMapPrivate();
-    virtual MegaIntegerMap* copy() const;
-    virtual bool get(const long long& key, long long& value) const;
-    virtual MegaIntegerList* getKeys() const;
-    virtual unsigned long long size() const;
-    virtual void set(const long long& key, const long long& value);
-
+    MegaIntegerMap* copy() const override;
+    bool at(size_t index, long long& key, long long& value) const override;
+    MegaIntegerList* getKeys() const override;
+    unsigned long long size() const override;
+    void set(const long long& key, const long long& value) override;
     const integer_map* getMap() const;
 private:
     MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIntegerMap);
@@ -4070,17 +4069,15 @@ public:
     MegaScheduledFlagsPrivate(unsigned long numericValue);
     MegaScheduledFlagsPrivate(MegaScheduledFlagsPrivate* flags);
     virtual ~MegaScheduledFlagsPrivate();
-    MegaScheduledFlagsPrivate* copy() override;
-
-    // Internal methods just for internal usage (don't expose)
     MegaScheduledFlagsPrivate(ScheduledFlags* flags);
-    unsigned long getNumericValue() const;
+    MegaScheduledFlagsPrivate* copy() override;
 
     // setters
     void reset() override;
     void setEmailsDisabled(bool enabled) override;
 
     // getters
+    unsigned long getNumericValue() const override;
     bool EmailsDisabled() const override;
     bool isEmpty() const override;
     ScheduledFlags* getSdkScheduledFlags() const;
