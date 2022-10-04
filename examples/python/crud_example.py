@@ -260,7 +260,7 @@ def worker(api, listener, executor, credentials):
 
     # Upload a file (create).
     logging.info('*** start: upload ***')
-    executor.do(api.startUpload, ('README.md', cwd, None, 0 , None, False, False, None, None))
+    executor.do(api.startUpload, ('README.md', cwd, None, 0 , None, False, False, None))
     logging.info('*** done: upload ***')
 
     # Download a file (read).
