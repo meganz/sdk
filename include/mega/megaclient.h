@@ -1929,6 +1929,8 @@ public:
     // the SDK is trying to log out
     int loggingout = 0;
 
+    bool executingLocalLogout = false;
+
     // the logout request succeeded, time to clean up localy once returned from CS response processing
     std::function<void(MegaClient*)> mOnCSCompletion;
 

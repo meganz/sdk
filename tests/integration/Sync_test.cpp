@@ -3755,7 +3755,9 @@ bool StandardClient::backupOpenDrive(const fs::path& drivePath)
 void StandardClient::backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
 {
     auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
-    result->set_value(client.syncs.backupOpenDrive(localDrivePath) == API_OK);
+    client.syncs.backupOpenDrive(localDrivePath, [result](Error e){
+        result->set_value(e == API_OK);
+    });
 }
 
 void StandardClient::triggerPeriodicScanEarly(handle backupID)

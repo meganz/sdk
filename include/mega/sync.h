@@ -647,10 +647,8 @@ struct Syncs
     // updates in state & error
     void saveSyncConfig(const SyncConfig& config);
 
-    Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa);
-
-    // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
-    bool isEmpty = true;
+    Syncs(MegaClient& mc);
+    ~Syncs();
 
     unique_ptr<BackupMonitor> mHeartBeatMonitor;
 
@@ -688,7 +686,7 @@ struct Syncs
      * API_OK
      * The database was removed from memory.
      */
-    error backupCloseDrive(LocalPath drivePath);
+    void backupCloseDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback);
 
     /**
      * @brief
@@ -700,7 +698,7 @@ struct Syncs
      * @return
      * The result of restoring the external backups.
      */
-    error backupOpenDrive(const LocalPath& drivePath);
+    void backupOpenDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback);
 
     // Returns a reference to this user's internal configuration database.
     SyncConfigStore* syncConfigStore();
@@ -725,8 +723,28 @@ struct Syncs
 
     void importSyncConfigs(const char* data, std::function<void(error)> completion);
 
+
+    typedef std::function<void(MegaClient&, TransferDbCommitter&)> QueuedClientFunc;
+
+    void syncRun(std::function<void()>);
+    void queueSync(std::function<void()>&&);
+    void queueClient(QueuedClientFunc&&);
+
+    bool onSyncThread() const {
+        // when sync rework is merged, there really will be a sync thread
+        // we supply this function for now to make the diffs with SRW branch easier
+        return true;
+    }
+
     void enableBackupRestrictions(bool enable);
     bool backupRestrictionsEnabled() const;
+
+
+    // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
+    bool mSyncVecIsEmpty = true;
+
+    // directly accessed flag that makes sync-related logging a lot more detailed
+    bool mDetailedSyncLogging = false;
 
 private:
     friend class Sync;
@@ -741,12 +759,16 @@ private:
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();
 
+    void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
+    error backupOpenDrive_inThread(const LocalPath& drivePath);
+    error backupCloseDrive_inThread(LocalPath drivePath);
+
     // ------ private data members
 
     MegaClient& mClient;
 
     // Syncs should have a separate fsaccess for thread safety
-    unique_ptr<FileSystemAccess>& fsaccess;
+    unique_ptr<FileSystemAccess> fsaccess;
 
     // pseudo-random number generator
     PrnGen rng;

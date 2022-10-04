@@ -19,9 +19,10 @@
  * program.
  */
 #include <cctype>
-#include <sstream>
+#include <memory>
 #include <type_traits>
 #include <unordered_set>
+#include <future>
 
 #include "mega.h"
 
@@ -2525,17 +2526,53 @@ void UnifiedSync::changedConfigState(bool notifyApp)
     }
 }
 
-Syncs::Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa)
+Syncs::Syncs(MegaClient& mc)
   : mClient(mc)
-  , fsaccess(fsa)  // reference to MegaClient's for now.  In sync rework, this will be a separate instance
+  , fsaccess(::mega::make_unique<FSACCESS_CLASS>())
 {
     fsaccess->initFilesystemNotificationSystem();
 
     mHeartBeatMonitor.reset(new BackupMonitor(*this));
 }
 
+Syncs::~Syncs()
+{
+}
+
+void Syncs::syncRun(std::function<void()> f)
+{
+    // todo: enable this assert when we merge sync rework
+    // assert(!onSyncThread());
+
+    // when sync rework gets merged, this function will be run off a queue on the sync thread
+    f();
+
+    // and we will wait for it to finish, and return synchronously
+}
+
+void Syncs::queueSync(std::function<void()>&& f)
+{
+    //assert(!onSyncThread());
+
+    // when sync rework gets merged, this function will be run (asynchronously) off a queue on the sync thread
+    f();
+}
+
+void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
+{
+    assert(onSyncThread());
+
+    // when sync rework gets merged, this function will be run (asynchronously) off a queue in MegaClient::exec()
+    TransferDbCommitter committer(mClient.tctable);
+    f(mClient, committer);
+}
+
 SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 {
+    assert(onSyncThread() || !onSyncThread());
+
+    lock_guard<mutex> g(mSyncVecMutex);
+
     SyncConfigVector v;
     for (auto& s : mSyncVec)
     {
@@ -2549,6 +2586,10 @@ SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 
 SyncConfigVector Syncs::getConfigs(bool onlyActive) const
 {
+    assert(onSyncThread() || !onSyncThread());
+
+    lock_guard<mutex> g(mSyncVecMutex);
+
     SyncConfigVector v;
     for (auto& s : mSyncVec)
     {
@@ -2560,8 +2601,43 @@ SyncConfigVector Syncs::getConfigs(bool onlyActive) const
     return v;
 }
 
-error Syncs::backupCloseDrive(LocalPath drivePath)
+bool Syncs::configById(handle backupId, SyncConfig& configResult) const
 {
+    //assert(!onSyncThread());
+
+    lock_guard<mutex> g(mSyncVecMutex);
+
+    for (auto& s : mSyncVec)
+    {
+        if (s->mConfig.mBackupId == backupId)
+        {
+            configResult = s->mConfig;
+            return true;
+        }
+    }
+    return false;
+}
+
+void Syncs::backupCloseDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback)
+{
+    //assert(!onSyncThread());
+    assert(clientCallback);
+
+    queueSync([this, drivePath, clientCallback]()
+        {
+            Error e = backupCloseDrive_inThread(drivePath);
+            queueClient([clientCallback, e](MegaClient& mc, TransferDbCommitter& committer)
+                {
+                    clientCallback(e);
+                });
+        });
+}
+
+error Syncs::backupCloseDrive_inThread(LocalPath drivePath)
+{
+    assert(onSyncThread());
+    assert(drivePath.isAbsolute() || drivePath.empty());
+
     // Is the path valid?
     if (drivePath.empty())
     {
@@ -2595,8 +2671,25 @@ error Syncs::backupCloseDrive(LocalPath drivePath)
     return result;
 }
 
-error Syncs::backupOpenDrive(const LocalPath& drivePath)
+void Syncs::backupOpenDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback)
 {
+    assert(clientCallback);
+
+    queueSync([this, drivePath, clientCallback]()
+        {
+            Error e = backupOpenDrive_inThread(drivePath);
+            queueClient([clientCallback, e](MegaClient& mc, TransferDbCommitter& committer)
+                {
+                    clientCallback(e);
+                });
+        });
+}
+
+error Syncs::backupOpenDrive_inThread(const LocalPath& drivePath)
+{
+    assert(onSyncThread());
+    assert(drivePath.isAbsolute());
+
     // Is the drive path valid?
     if (drivePath.empty())
     {
@@ -2641,7 +2734,7 @@ error Syncs::backupOpenDrive(const LocalPath& drivePath)
         size_t numRestored = 0;
 
         // Create a unified sync for each backup config.
-        for (auto& config : configs)
+        for (const auto& config : configs)
         {
             lock_guard<mutex> g(mSyncVecMutex);
 
@@ -2692,6 +2785,8 @@ error Syncs::backupOpenDrive(const LocalPath& drivePath)
 
 SyncConfigStore* Syncs::syncConfigStore()
 {
+    assert(onSyncThread());
+
     // Have we already created the database?
     if (mSyncConfigStore)
     {
@@ -2725,6 +2820,17 @@ SyncConfigStore* Syncs::syncConfigStore()
 
 error Syncs::syncConfigStoreAdd(const SyncConfig& config)
 {
+    //assert(!onSyncThread());
+
+    error result = API_OK;
+    syncRun([&](){ syncConfigStoreAdd_inThread(config, [&](error e){ result = e; }); });
+    return result;
+}
+
+void Syncs::syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion)
+{
+    assert(onSyncThread());
+
     // Convenience.
     static auto equal =
       [](const LocalPath& lhs, const LocalPath& rhs)
@@ -2738,7 +2844,8 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
     if (!store)
     {
         // Nope and we can't proceed without it.
-        return API_EINTERNAL;
+        completion(API_EINTERNAL);
+        return;
     }
 
     SyncConfigVector configs;
@@ -2785,16 +2892,20 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
         store->removeDrive(LocalPath());
     }
 
-    return result;
+    completion(result);
+    return;
 }
 
 bool Syncs::syncConfigStoreDirty()
 {
+    assert(onSyncThread());
     return mSyncConfigStore && mSyncConfigStore->dirty();
 }
 
 bool Syncs::syncConfigStoreFlush()
 {
+    assert(onSyncThread());
+
     // No need to flush if the store's not dirty.
     if (!syncConfigStoreDirty()) return true;
 
@@ -3403,6 +3514,8 @@ bool Syncs::importSyncConfigs(const string& data, SyncConfigVector& configs)
 
 SyncConfigIOContext* Syncs::syncConfigIOContext()
 {
+    assert(onSyncThread());
+
     // Has a suitable IO context already been created?
     if (mSyncConfigIOContext)
     {
@@ -3457,11 +3570,11 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
 
     // Create the IO context.
     mSyncConfigIOContext.reset(
-      new SyncConfigIOContext(*mClient.fsaccess,
+      new SyncConfigIOContext(*fsaccess,
                                   std::move(authKey),
                                   std::move(cipherKey),
                                   Base64::btoa(name),
-                                  mClient.rng));
+                                  rng));
 
     // Return a reference to the new IO context.
     return mSyncConfigIOContext.get();
@@ -3474,7 +3587,7 @@ void Syncs::clear()
     mSyncConfigStore.reset();
     mSyncConfigIOContext.reset();
     mSyncVec.clear();
-    isEmpty = true;
+    mSyncVecIsEmpty = true;
 }
 
 void Syncs::resetSyncConfigStore()
@@ -3485,7 +3598,7 @@ void Syncs::resetSyncConfigStore()
 
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
 {
-    isEmpty = false;
+    mSyncVecIsEmpty = false;
     mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
 
     saveSyncConfig(c);
@@ -4433,6 +4546,7 @@ bool Syncs::unloadSyncByBackupID(handle id)
 
 void Syncs::unloadSyncByIndex(size_t index)
 {
+    assert(onSyncThread());
     assert(index < mSyncVec.size());
 
     if (index < mSyncVec.size())
@@ -4451,8 +4565,9 @@ void Syncs::unloadSyncByIndex(size_t index)
         // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
 
         mClient.syncactivity = true;
+        lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.erase(mSyncVec.begin() + index);
-        isEmpty = mSyncVec.empty();
+        mSyncVecIsEmpty = mSyncVec.empty();
     }
 }
 
@@ -4475,13 +4590,15 @@ error Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, Unifie
 
 void Syncs::saveSyncConfig(const SyncConfig& config)
 {
+    assert(onSyncThread());
+
     if (auto* store = syncConfigStore())
     {
 
         // If the app hasn't opened this drive itself, then we open it now (loads any syncs that already exist there)
         if (!config.mExternalDrivePath.empty() && !store->driveKnown(config.mExternalDrivePath))
         {
-            backupOpenDrive(config.mExternalDrivePath);
+            backupOpenDrive_inThread(config.mExternalDrivePath);
         }
 
         store->markDriveDirty(config.mExternalDrivePath);
@@ -4505,7 +4622,7 @@ void Syncs::resumeResumableSyncsOnStartup()
     for (auto& config : configs)
     {
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
-        isEmpty = false;
+        mSyncVecIsEmpty = false;
     }
 
     for (auto& unifiedSync : mSyncVec)
