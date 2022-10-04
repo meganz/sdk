@@ -881,13 +881,13 @@ Sync::Sync(UnifiedSync& us, const string& cdebris,
         localdebris = clocaldebris;
     }
 
-    mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
+    mFilesystemType = syncs.fsaccess->getlocalfstype(mLocalPath);
 
     localroot->init(FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setnode(remotenode);
 
     // notifications may be queueing from this moment
-    dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris.leafName(), client->waiter, localroot.get()));
+    dirnotify.reset(syncs.fsaccess->newdirnotify(mLocalPath, localdebris.leafName(), client->waiter, localroot.get()));
     assert(dirnotify->sync == this);
 
     // order issue - localroot->init() couldn't do this until dirnotify is created but that needs
@@ -1051,10 +1051,10 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         l->init(l->type, p, localpath, std::move(shortname));
 
 #ifdef DEBUG
-        auto fa = client->fsaccess->newfileaccess(false);
+        auto fa = syncs.fsaccess->newfileaccess(false);
         if (fa->fopen(localpath))  // exists, is file
         {
-            auto sn = client->fsaccess->fsShortname(localpath);
+            auto sn = syncs.fsaccess->fsShortname(localpath);
             assert(!l->localname.empty() &&
                 ((!l->slocalname && (!sn || l->localname == *sn)) ||
                 (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
@@ -1346,7 +1346,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
 
 bool Sync::assignfsids()
 {
-    return assignFilesystemIds(*this, *client->app, *client->fsaccess, client->fsidnode,
+    return assignFilesystemIds(*this, *client->app, *syncs.fsaccess, client->fsidnode,
                                localdebris);
 }
 
@@ -1369,14 +1369,14 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
             LOG_debug << "Scanning folder: " << localpath;
         }
 
-       auto da = client->fsaccess->newdiraccess();
+       auto da = syncs.fsaccess->newdiraccess();
 
         // scan the dir, mark all items with a unique identifier
         if ((success = da->dopen(localpath, fa, false)))
         {
             while (da->dnext(*localpath, localname, false))
             {
-                name = localname.toName(*client->fsaccess);
+                name = localname.toName(*syncs.fsaccess);
 
                 ScopedLengthRestore restoreLen(*localpath);
                 localpath->appendWithSeparator(localname, false);
@@ -1510,7 +1510,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     }
 
     // attempt to open/type this file
-    auto fa = client->fsaccess->newfileaccess(false);
+    auto fa = syncs.fsaccess->newfileaccess(false);
 
     if (initializing || fullscan)
     {
@@ -1581,7 +1581,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             return NULL;
         }
 
-        fa = client->fsaccess->newfileaccess(false);
+        fa = syncs.fsaccess->newfileaccess(false);
     }
 
     if (fa->fopen(*localpathNew, true, false))
@@ -1614,8 +1614,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                 // was the file overwritten by moving an existing file over it?
                                 if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
                                         && (l->sync == it->second->sync
-                                            || ((fp1 = client->fsaccess->fsFingerprint(l->sync->getConfig().mLocalPath))
-                                                && (fp2 = client->fsaccess->fsFingerprint(it->second->sync->getConfig().mLocalPath))
+                                            || ((fp1 = syncs.fsaccess->fsFingerprint(l->sync->getConfig().mLocalPath))
+                                                && (fp2 = syncs.fsaccess->fsFingerprint(it->second->sync->getConfig().mLocalPath))
                                                 && (fp1 == fp2)
                                             #ifdef _WIN32
                                                 // only consider fsid matches between different syncs for local drives with the
@@ -1659,7 +1659,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                             LOG_debug << "Sync - local rename/move " << it->second->getLocalPath() << " -> " << path;
 
                                             // (in case of a move, this synchronously updates l->parent and l->node->parent)
-                                            it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                                            it->second->setnameparent(parent, localpathNew, syncs.fsaccess->fsShortname(*localpathNew));
 
                                             // mark as seen / undo possible deletion
                                             it->second->setnotseen(0);
@@ -1746,8 +1746,8 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     && it->second->type == fa->type
                     && (!parent
                         || (it->second->sync == parent->sync)
-                        || ((fp1 = client->fsaccess->fsFingerprint(it->second->sync->getConfig().mLocalPath))
-                            && (fp2 = client->fsaccess->fsFingerprint(parent->sync->getConfig().mLocalPath))
+                        || ((fp1 = syncs.fsaccess->fsFingerprint(it->second->sync->getConfig().mLocalPath))
+                            && (fp2 = syncs.fsaccess->fsFingerprint(parent->sync->getConfig().mLocalPath))
                             && (fp1 == fp2)
                         #ifdef _WIN32
                             // allow moves between different syncs only for local drives with the
@@ -1781,7 +1781,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                             {
                                 bool waitforupdate = false;
                                 auto local = it->second->getLocalPath();
-                                auto prevfa = client->fsaccess->newfileaccess(false);
+                                auto prevfa = syncs.fsaccess->newfileaccess(false);
 
                                 bool exists = prevfa->fopen(local);
                                 if (exists)
@@ -1884,7 +1884,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     {
                         // (in case of a move, this synchronously updates l->parent
                         // and l->node->parent)
-                        it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                        it->second->setnameparent(parent, localpathNew, syncs.fsaccess->fsShortname(*localpathNew));
                     }
 
                     // Has the move (rename) resulted in a filename anomaly?
@@ -1939,7 +1939,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     // this is a new node: add
                     LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO") << " fsid " << (fa->fsidvalid ? toHandle(fa->fsid) : "NO");
                     l = new LocalNode(this);
-                    l->init(fa->type, parent, *localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                    l->init(fa->type, parent, *localpathNew, syncs.fsaccess->fsShortname(*localpathNew));
 
                     if (fa->fsidvalid)
                     {
@@ -2118,7 +2118,7 @@ bool Sync::checkValidNotification(int q, Notification& notification)
         }
 
         attr_map::iterator ait;
-        auto fa = client->fsaccess->newfileaccess(false);
+        auto fa = syncs.fsaccess->newfileaccess(false);
         bool success = fa->fopen(tmppath, false, false);
         LocalNode *ll = localnodebypath(notification.localnode, notification.path);
         auto deleted = !ll && !success && !fa->retry;
@@ -2264,7 +2264,7 @@ void Sync::deletemissing(LocalNode* l)
         {
             if (!fa)
             {
-                fa = client->fsaccess->newfileaccess();
+                fa = syncs.fsaccess->newfileaccess();
             }
             client->unlinkifexists(it->second, fa.get());
             delete it++->second;
@@ -2297,7 +2297,7 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
         if (i == -2 || i > 95)
         {
             LOG_verbose << "Creating local debris folder";
-            client->fsaccess->mkdirlocal(localdebris, true, false);
+            syncs.fsaccess->mkdirlocal(localdebris, true, false);
         }
 
         sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
@@ -2313,25 +2313,25 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
         if (i > -3)
         {
             LOG_verbose << "Creating daily local debris folder";
-            havedir = client->fsaccess->mkdirlocal(localdebris, false, false) || client->fsaccess->target_exists;
+            havedir = syncs.fsaccess->mkdirlocal(localdebris, false, false) || syncs.fsaccess->target_exists;
         }
 
         localdebris.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex()), true);
 
-        client->fsaccess->skip_targetexists_errorreport = i == -3;  // we expect a problem on the first one when the debris folders or debris day folders don't exist yet
-        if (client->fsaccess->renamelocal(localpath, localdebris, false))
+        syncs.fsaccess->skip_targetexists_errorreport = i == -3;  // we expect a problem on the first one when the debris folders or debris day folders don't exist yet
+        if (syncs.fsaccess->renamelocal(localpath, localdebris, false))
         {
-            client->fsaccess->skip_targetexists_errorreport = false;
+            syncs.fsaccess->skip_targetexists_errorreport = false;
             return true;
         }
-        client->fsaccess->skip_targetexists_errorreport = false;
+        syncs.fsaccess->skip_targetexists_errorreport = false;
 
-        if (client->fsaccess->transient_error)
+        if (syncs.fsaccess->transient_error)
         {
             return false;
         }
 
-        if (havedir && !client->fsaccess->target_exists)
+        if (havedir && !syncs.fsaccess->target_exists)
         {
             return false;
         }

@@ -792,6 +792,10 @@ private:
     bool mDownloadsPaused = false;
     bool mUploadsPaused = false;
 
+    // structs and classes that are private to the thread, and need access to some internals that should not be generally public
+    friend struct LocalNode;
+    friend class Sync;
+    friend struct UnifiedSync;
 };
 
 } // namespace
