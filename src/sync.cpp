@@ -3235,16 +3235,6 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
     Context::put(std::move(context));
 }
 
-void Syncs::enableBackupRestrictions(bool enable)
-{
-    mBackupRestrictionsEnabled = enable;
-}
-
-bool Syncs::backupRestrictionsEnabled() const
-{
-    return mBackupRestrictionsEnabled;
-}
-
 void Syncs::exportSyncConfig(JSONWriter& writer, const SyncConfig& config) const
 {
     // Internal configs only for the time being.

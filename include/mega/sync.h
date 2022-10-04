@@ -736,15 +736,15 @@ struct Syncs
         return true;
     }
 
-    void enableBackupRestrictions(bool enable);
-    bool backupRestrictionsEnabled() const;
-
-
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool mSyncVecIsEmpty = true;
 
     // directly accessed flag that makes sync-related logging a lot more detailed
     bool mDetailedSyncLogging = false;
+
+    // backup rework implies certain restrictions that can be skipped
+    // by setting this flag
+    bool mBackupRestrictionsEnabled = true;
 
 private:
     friend class Sync;
@@ -792,9 +792,6 @@ private:
     bool mDownloadsPaused = false;
     bool mUploadsPaused = false;
 
-    // backup rework implies certain restrictions that can be skipped
-    // by setting this flag (see enableBackupRestrictions())
-    bool mBackupRestrictionsEnabled = true;
 };
 
 } // namespace

@@ -881,7 +881,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
 
     // SyncTests want to skip backup restrictions, so they are not
     // restricted to the path "Vault/My backups/<device>/<backup>"
-    client.syncs.enableBackupRestrictions(false);
+    client.syncs.mBackupRestrictionsEnabled = false;
 }
 
 StandardClient::~StandardClient()

@@ -141,7 +141,8 @@ string b64driveid;
 
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
-    std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries);
+    std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions);
+
 
 #ifdef ENABLE_SYNC
 
@@ -2814,10 +2815,10 @@ void exec_codeTimings(autocomplete::ACState& s)
 
 std::function<void()> onCompletedUploads;
 
-void setAppendAndUploadOnCompletedUploads(string local_path, int count)
+void setAppendAndUploadOnCompletedUploads(string local_path, int count, bool allowDuplicateVersions)
 {
 
-    onCompletedUploads = [local_path, count](){
+    onCompletedUploads = [local_path, count, allowDuplicateVersions](){
 
         {
             ofstream f(local_path, std::ios::app);
@@ -2828,11 +2829,11 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count)
         TransferDbCommitter committer(client->tctable);
         int total = 0;
         auto lp = LocalPath::fromAbsolutePath(local_path);
-        uploadLocalPath(FILENODE, lp.leafName().toPath(false), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false);
+        uploadLocalPath(FILENODE, lp.leafName().toPath(false), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false, allowDuplicateVersions);
 
         if (count > 0)
         {
-            setAppendAndUploadOnCompletedUploads(local_path, count-1);
+            setAppendAndUploadOnCompletedUploads(local_path, count-1, allowDuplicateVersions);
         }
         else
         {
@@ -2954,7 +2955,7 @@ void cycleUpload(LocalPath lp, int count)
                 {
                     cycleDownload(lp, count);
                 };
-        }, true);
+        }, true, true);
 
     // also delete the old remote file
     if (count > 0)
@@ -3092,7 +3093,7 @@ void exec_generate_put_fileversions(autocomplete::ACState& s)
     string param;
     if (s.extractflagparam("-count", param)) count = atoi(param.c_str());
 
-    setAppendAndUploadOnCompletedUploads(s.words[1].s, count);
+    setAppendAndUploadOnCompletedUploads(s.words[1].s, count, true);
     onCompletedUploads();
 }
 
@@ -3933,12 +3934,17 @@ void exec_syncoutput(autocomplete::ACState& s)
     {
         syncout_transfer_activity = onOff;
     }
+    else if (s.words[2].s == "detail_log")
+    {
+        client->syncs.mDetailedSyncLogging = onOff;
+    }
     else if (s.words[2].s == "all")
     {
         syncout_local_change_detection = onOff;
         syncout_remote_change_detection = onOff;
         syncout_transfer_activity = onOff;
         syncout_transfer_activity = onOff;
+        client->syncs.mDetailedSyncLogging = onOff;
     }
 }
 #endif
@@ -3984,7 +3990,7 @@ autocomplete::ACN autocompleteSyntax()
                     exportedLink(false, true),
                     opt(param("authToken"))));
 
-    p->Add(exec_put, sequence(text("put"), opt(flag("-r")), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
+    p->Add(exec_put, sequence(text("put"), opt(flag("-r")), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), opt(flag("-allowduplicateversions")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(exec_putq, sequence(text("putq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
     p->Add(exec_get, sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
@@ -4169,6 +4175,7 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
+    p->Add(exec_setmaxloglinesize, sequence(text("setmaxloglinesize"), wholenumber(10000)));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
     p->Add(exec_showattrs, sequence(text("showattrs"), opt(either(text("on"), text("off")))));
@@ -5182,11 +5189,11 @@ void exec_more(autocomplete::ACState& s)
     }
 }
 
-void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo);
+void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions);
 
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
     TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
-    std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries)
+    std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions)
 {
 
     Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
@@ -5203,7 +5210,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             {
                 if (previousNode->type == FILENODE)
                 {
-                    if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
+                    if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
                     {
                         cout << "Identical file already exist. Skipping transfer of " << name << endl;
                         return;
@@ -5244,7 +5251,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             else
             {
                 // upload into existing folder with the same name
-                uploadLocalFolderContent(localname, previousNode, vo);
+                uploadLocalFolderContent(localname, previousNode, vo, true);
             }
         }
         else
@@ -5254,7 +5261,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
 
             gOnPutNodeTag[gNextClientTag] = [localname, vo](Node* parent) {
                 auto tmp = localname;
-                uploadLocalFolderContent(tmp, parent, vo);
+                uploadLocalFolderContent(tmp, parent, vo, true);
             };
 
             client->putnodes(parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
@@ -5268,7 +5275,7 @@ string localpathToUtf8Leaf(const LocalPath& itemlocalname)
     return itemlocalname.leafName().toPath(false);
 }
 
-void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
+void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions)
 {
 #ifndef DONT_USE_SCAN_SERVICE
 
@@ -5302,7 +5309,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
     {
         auto newpath = localname;
         newpath.appendWithSeparator(rr.localname, true);
-        uploadLocalPath(rr.type, rr.localname.toPath(false), newpath, cloudFolder, "", committer, total, true, vo, nullptr, false);
+        uploadLocalPath(rr.type, rr.localname.toPath(false), newpath, cloudFolder, "", committer, total, true, vo, nullptr, false, allowDuplicateVersions);
     }
 
     if (gVerboseMode)
@@ -5354,6 +5361,7 @@ void exec_put(autocomplete::ACState& s)
     if (s.extractflag("-noversion")) vo = NoVersioning;
     if (s.extractflag("-version")) vo = ClaimOldVersion;
     if (s.extractflag("-versionreplace")) vo = ReplaceOldVersion;
+    bool allowDuplicateVersions = s.extractflag("-allowduplicateversions");
 
     bool recursive = s.extractflag("-r");
 
@@ -5400,7 +5408,7 @@ void exec_put(autocomplete::ACState& s)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo, nullptr, false);
+            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo, nullptr, false, allowDuplicateVersions);
         }
     }
 
@@ -7871,6 +7879,14 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
     cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
 }
 
+void exec_setmaxloglinesize(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1)
+    {
+        SimpleLogger::maxPayloadLogSize = atoi(s.words[1].s.c_str());
+    }
+}
+
 void exec_drivemonitor(autocomplete::ACState& s)
 {
 #ifdef USE_DRIVE_NOTIFICATIONS
@@ -9958,14 +9974,11 @@ void exec_syncclosedrive(autocomplete::ACState& s)
     const auto drivePath =
         localPathArg(s.words[2].s);
 
-    const auto result = client->syncs.backupCloseDrive(drivePath);
-
-    if (result)
-    {
-        cerr << "Unable to remove backup database: "
-             << errorstring(result)
-             << endl;
-    }
+    client->syncs.backupCloseDrive(drivePath, [](Error e){
+        conlock(cout) << "syncclosedrive result: "
+            << errorstring(e)
+            << endl;
+    });
 }
 
 void exec_syncimport(autocomplete::ACState& s)
@@ -10072,16 +10085,11 @@ void exec_syncopendrive(autocomplete::ACState& s)
     const auto drivePath =
         localPathArg(s.words[2].s);
 
-    auto result = client->syncs.backupOpenDrive(drivePath);
-
-    if (result)
-    {
-        cerr << "Unable to restore backups from '"
-             << s.words[2].s
-             << "': "
-             << errorstring(result)
-             << endl;
-    }
+    client->syncs.backupOpenDrive(drivePath, [](Error e){
+        conlock(cout) << "syncopendrive result: "
+            << errorstring(e)
+            << endl;
+        });
 }
 
 void exec_synclist(autocomplete::ACState& s)
