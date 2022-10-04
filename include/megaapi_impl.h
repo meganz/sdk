@@ -779,6 +779,7 @@ public:
     void add(long long i) override;
     int64_t get(int i) const override;
     int size() const override;
+    bool equalTo(const std::vector<int64_t>* aux) const override;
     const vector<int64_t>* getList() const;
 
 private:
@@ -1842,6 +1843,7 @@ public:
     MegaIntegerList* getKeys() const override;
     unsigned long long size() const override;
     void set(const long long& key, const long long& value) override;
+    bool equalTo(const std::multimap<int64_t, int64_t>* aux) const override;
     const integer_map* getMap() const;
 private:
     MegaIntegerMapPrivate(const MegaIntegerMapPrivate* megaIntegerMap);

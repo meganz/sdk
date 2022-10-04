@@ -1895,6 +1895,13 @@ public:
      * @return Number of integer values in the list
      */
     virtual int size() const;
+
+    /**
+     * @brief Returns true if all the elements in provided vector (as param) are equal to all elements in the list
+     *
+     * @return True if all the elements in provided vector (as param) are equal to all elements in the list
+     */
+    virtual bool equalTo(const std::vector<int64_t>*) const;
 };
 
 /**
@@ -2783,7 +2790,7 @@ public:
      * @param value The value associated to the key will be copied in this param
      * @return True, if the key is found in the MegaIntegerMap, otherwise returns false.
      */
-    virtual bool get(const long long& /*key*/, long long& /*value*/) const;
+    virtual bool at(size_t /*index*/, long long& /*key*/, long long& /*value*/) const;
 
     /**
      * @brief Returns the list of keys in the MegaIntegerMap
@@ -2804,6 +2811,13 @@ public:
      * @param value The new value for the key in the map.
      */
     virtual void set(const long long& /*key*/, const long long& /*value*/);
+
+    /**
+     * @brief Returns true if all the elements in provided map (as param) are equal to all elements in the list
+     *
+     * @return True if all the elements in provided map (as param) are equal to all elements in this map
+     */
+    virtual bool equalTo(const std::multimap<int64_t, int64_t>* aux) const;
 
     /**
      * @brief Returns the number of (long long, long long) pairs in the map

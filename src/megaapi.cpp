@@ -6661,7 +6661,7 @@ MegaIntegerMap* MegaIntegerMap::copy() const
     return NULL;
 }
 
-bool MegaIntegerMap::get(const long long& /*key*/, long long& /*value*/) const
+bool MegaIntegerMap::at(size_t /*index*/, long long& /*key*/, long long& /*value*/) const
 {
     return false;
 }
@@ -6674,6 +6674,11 @@ MegaIntegerList* MegaIntegerMap::getKeys() const
 void MegaIntegerMap::set(const long long& /*key*/, const long long& /*value*/)
 {
 
+}
+
+bool MegaIntegerMap::equalTo(const std::multimap<int64_t, int64_t>*) const
+{
+    return false;
 }
 
 unsigned long long MegaIntegerMap::size() const
@@ -7298,6 +7303,10 @@ int MegaIntegerList::size() const
     return 0;
 }
 
+bool MegaIntegerList::equalTo(const std::vector<int64_t>*) const
+{
+    return false;
+}
 
 MegaBanner::MegaBanner()
 {

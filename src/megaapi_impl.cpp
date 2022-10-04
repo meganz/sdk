@@ -4303,16 +4303,18 @@ MegaIntegerMap* MegaIntegerMapPrivate::copy() const
     return new MegaIntegerMapPrivate(this);
 }
 
-bool MegaIntegerMapPrivate::get(const long long& key, long long& value) const
+bool MegaIntegerMapPrivate::at(size_t index, long long& key, long long& value) const
 {
-    integer_map::const_iterator it = mIntegerMap.find(key);
-
-    if (it != mIntegerMap.end())
+    if (index >= mIntegerMap.size())
     {
-        value = it->second;
-        return true;
+        return false;
     }
-    return false;
+
+    auto it = mIntegerMap.begin();
+    std::advance(it, index);
+    key = it->first;
+    value = it->second;
+    return true;
 }
 
 MegaIntegerList* MegaIntegerMapPrivate::getKeys() const
@@ -4339,6 +4341,12 @@ void MegaIntegerMapPrivate::set(const long long& key, const long long& value)
 const integer_map* MegaIntegerMapPrivate::getMap() const
 {
     return &mIntegerMap;
+}
+
+bool MegaIntegerMapPrivate::equalTo(const std::multimap<int64_t, int64_t>* aux) const
+{
+    if (!aux) return false;
+    return mIntegerMap == *aux;
 }
 
 MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
@@ -33963,6 +33971,12 @@ int MegaIntegerListPrivate::size() const
 const vector<int64_t>* MegaIntegerListPrivate::getList() const
 {
     return &mIntegers;
+}
+
+bool MegaIntegerListPrivate::equalTo(const std::vector<int64_t>* aux) const
+{
+    if (!aux) return false;
+    return *aux == mIntegers;
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
