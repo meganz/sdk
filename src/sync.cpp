@@ -3222,6 +3222,37 @@ Syncs::~Syncs()
     if (syncThread.joinable()) syncThread.join();
 }
 
+void Syncs::syncRun(std::function<void()> f)
+{
+    assert(!onSyncThread());
+    std::promise<bool> synchronous;
+    syncThreadActions.pushBack([&]()
+        {
+            f();
+            synchronous.set_value(true);
+        });
+
+    mSyncFlags->earlyRecurseExitRequested = true;
+    waiter.notify();
+    synchronous.get_future().get();
+}
+
+void Syncs::queueSync(std::function<void()>&& f)
+{
+    assert(!onSyncThread());
+    syncThreadActions.pushBack(move(f));
+    mSyncFlags->earlyRecurseExitRequested = true;
+    waiter.notify();
+}
+
+void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
+{
+    assert(onSyncThread());
+    clientThreadActions.pushBack(move(f));
+    mClient.waiter->notify();
+}
+
+
 void Syncs::getSyncProblems(std::function<void(SyncProblems&)> completion,
                             bool completionInClient)
 {
@@ -3514,7 +3545,7 @@ bool Syncs::configById(handle backupId, SyncConfig& configResult) const
     return false;
 }
 
-void Syncs::backupCloseDrive(LocalPath drivePath, std::function<void(Error)> clientCallback)
+void Syncs::backupCloseDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback)
 {
     assert(!onSyncThread());
     assert(clientCallback);
@@ -3567,7 +3598,7 @@ error Syncs::backupCloseDrive_inThread(LocalPath drivePath)
     return result;
 }
 
-void Syncs::backupOpenDrive(LocalPath drivePath, std::function<void(Error)> clientCallback)
+void Syncs::backupOpenDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback)
 {
     assert(!onSyncThread());
     assert(clientCallback);
@@ -3582,7 +3613,7 @@ void Syncs::backupOpenDrive(LocalPath drivePath, std::function<void(Error)> clie
         });
 }
 
-error Syncs::backupOpenDrive_inThread(LocalPath drivePath)
+error Syncs::backupOpenDrive_inThread(const LocalPath& drivePath)
 {
     assert(onSyncThread());
     assert(drivePath.isAbsolute());
@@ -3633,7 +3664,6 @@ error Syncs::backupOpenDrive_inThread(LocalPath drivePath)
         // Create a unified sync for each backup config.
         for (const auto& config : configs)
         {
-            // Create the unified sync.
             lock_guard<mutex> g(mSyncVecMutex);
 
             bool skip = false;
@@ -3654,6 +3684,7 @@ error Syncs::backupOpenDrive_inThread(LocalPath drivePath)
 
             if (!skip)
             {
+                // Create the unified sync.
                 mSyncVec.emplace_back(new UnifiedSync(*this, config));
 
                 // Track how many configs we've restored.
@@ -3772,19 +3803,6 @@ error Syncs::syncConfigStoreAdd(const SyncConfig& config)
     error result = API_OK;
     syncRun([&](){ syncConfigStoreAdd_inThread(config, [&](error e){ result = e; }); });
     return result;
-}
-
-bool Syncs::isAnySyncScanning(bool includePaused)
-{
-    assert(!onSyncThread());
-
-    std::promise<bool> result;
-
-    queueSync([&result, includePaused, this]() {
-        result.set_value(isAnySyncScanning_inThread(includePaused));
-    });
-
-    return result.get_future().get();
 }
 
 void Syncs::syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion)
@@ -4065,6 +4083,8 @@ void Syncs::importSyncConfigs(const char* data, std::function<void(error)> compl
                 {
                     auto* request = new CommandBackupRemove(&client, i->mBackupId, nullptr);
                     client.reqs.add(request);
+                    // don't wait for the cleanup to notify the client about failure of import
+                    // (error/success of cleanup is irrelevant for the app)
                 }
 
                 // Let the client know the import has failed.
@@ -4978,20 +4998,6 @@ void Syncs::disableSyncByBackupId_inThread(handle backupId, SyncError syncError,
     if (completion) completion();
 }
 
-void Syncs::syncRun(std::function<void()> f)
-{
-    assert(!onSyncThread());
-    std::promise<bool> synchronous;
-    syncThreadActions.pushBack([&]()
-        {
-            f();
-            synchronous.set_value(true);
-        });
-
-    mSyncFlags->earlyRecurseExitRequested = true;
-    waiter.notify();
-    synchronous.get_future().get();
-}
 
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool notifyApp, bool unregisterHeartbeat)
 {
@@ -5169,6 +5175,13 @@ void Syncs::saveSyncConfig(const SyncConfig& config)
 
     if (auto* store = syncConfigStore())
     {
+
+        // If the app hasn't opened this drive itself, then we open it now (loads any syncs that already exist there)
+        if (!config.mExternalDrivePath.empty() && !store->driveKnown(config.mExternalDrivePath))
+        {
+            backupOpenDrive_inThread(config.mExternalDrivePath);
+        }
+
         store->markDriveDirty(config.mExternalDrivePath);
     }
 }
@@ -5267,7 +5280,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << unifiedSync->mConfig.mError;
 
-                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [unifiedSync](error e, SyncError se, handle backupId)
+                enableSyncByBackupId_inThread(unifiedSync->mConfig.mBackupId, false, false, false, false, [&unifiedSync](error e, SyncError se, handle backupId)
                     {
                         LOG_debug << "Sync autoresumed: " << toHandle(backupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint << " error = " << se;
                     }, "");
@@ -10785,21 +10798,6 @@ void Syncs::ignoreFileLoadFailure(const Sync& sync, const LocalPath& path)
 
     // Let the application know an ignore file has failed to load.
     mClient.app->syncupdate_filter_error(sync.getConfig());
-}
-
-void Syncs::queueSync(std::function<void()>&& f)
-{
-    assert(!onSyncThread());
-    syncThreadActions.pushBack(move(f));
-    mSyncFlags->earlyRecurseExitRequested = true;
-    waiter.notify();
-}
-
-void Syncs::queueClient(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
-{
-    assert(onSyncThread());
-    clientThreadActions.pushBack(move(f));
-    mClient.waiter->notify();
 }
 
 bool Syncs::hasIgnoreFile(const SyncConfig& config)
