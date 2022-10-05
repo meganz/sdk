@@ -5848,6 +5848,11 @@ bool CommandFetchNodes::procresult(Result r)
                 client->procph(&client->json);
                 break;
 
+            case MAKENAMEID4('a', 'e', 's', 'p'):
+                // Sets and Elements
+                client->procaesp(); // continue even if it failed, it's not critical
+                break;
+
 #ifdef ENABLE_CHAT
             case MAKENAMEID3('m', 'c', 'f'):
                 // List of chatrooms
@@ -5878,6 +5883,7 @@ bool CommandFetchNodes::procresult(Result r)
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
                 client->fnstats.nodesCached = client->nodes.size();
+
                 return true;
             }
             default:
@@ -8986,6 +8992,332 @@ bool CommandDismissBanner::procresult(Result r)
     client->app->dismissbanner_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
+
+
+//
+// Sets and Elements
+//
+
+bool CommandSE::procresultid(const Result& r, handle& id, m_time_t& ts, handle* u, handle* s, int64_t* o) const
+{
+    if (r.hasJsonObject())
+    {
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+            case MAKENAMEID2('i', 'd'):
+                id = client->json.gethandle(MegaClient::SETHANDLE);
+                break;
+
+            case MAKENAMEID1('u'):
+                if (u)
+                {
+                    *u = client->json.gethandle(MegaClient::USERHANDLE);
+                }
+                else if(!client->json.storeobject())
+                {
+                    return false;
+                }
+                break;
+
+            case MAKENAMEID1('s'):
+                if (s)
+                {
+                    *s = client->json.gethandle(MegaClient::SETHANDLE);
+                }
+                else if(!client->json.storeobject())
+                {
+                    return false;
+                }
+                break;
+
+            case MAKENAMEID2('t', 's'):
+                ts = client->json.getint();
+                break;
+
+            case MAKENAMEID1('o'):
+                if (o)
+                {
+                    *o = client->json.getint();
+                }
+                else if (!client->json.storeobject())
+                {
+                    return false;
+                }
+                break;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return false;
+                }
+                break;
+
+            case EOO:
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool CommandSE::procerrorcode(const Result& r, Error& e) const
+{
+    if (r.wasErrorOrOK())
+    {
+        e = r.errorOrOK();
+        return true;
+    }
+
+    return false;
+}
+
+CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAttrs, string&& encrKey,
+                             std::function<void(Error, const Set*)> completion)
+    : mSet(new Set(move(s))), mCompletion(completion)
+{
+    cmd("asp");
+
+    if (mSet->id() == UNDEF) // create new
+    {
+        arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
+    }
+    else // update
+    {
+        arg("id", (byte*)&mSet->id(), MegaClient::SETHANDLE);
+    }
+
+    if (encrAttrs)
+    {
+        arg("at", (byte*)encrAttrs->c_str(), (int)encrAttrs->size());
+    }
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandPutSet::procresult(Result r)
+{
+    handle sId = 0;
+    handle user = 0;
+    m_time_t ts = 0;
+    const Set* s = nullptr;
+    Error e = API_OK;
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, sId, ts, &user);
+
+    if (!parsedOk || (mSet->id() == UNDEF && !user))
+    {
+        e = API_EINTERNAL;
+    }
+    else if (e == API_OK)
+    {
+        mSet->setTs(ts);
+        if (mSet->id() == UNDEF) // add new
+        {
+            mSet->setId(sId);
+            mSet->setUser(user);
+            mSet->setChanged(Set::CH_NEW);
+            s = client->addSet(move(*mSet));
+        }
+        else // update existing
+        {            
+            assert(mSet->id() == sId);
+
+            if (!client->updateSet(move(*mSet)))
+            {
+                LOG_warn << "Sets: command 'asp' succeed, but Set was not found";
+                e = API_ENOENT;
+            }
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e, s);
+    }
+
+    return parsedOk;
+}
+
+CommandRemoveSet::CommandRemoveSet(MegaClient* cl, handle id, std::function<void(Error)> completion)
+    : mSetId(id), mCompletion(completion)
+{
+    cmd("asr");
+    arg("id", (byte*)&id, MegaClient::SETHANDLE);
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandRemoveSet::procresult(Result r)
+{
+    Error e = API_OK;
+    bool parsedOk = procerrorcode(r, e);
+
+    if (parsedOk && e == API_OK)
+    {
+        if (!client->deleteSet(mSetId))
+        {
+            LOG_err << "Sets: Failed to remove Set in `asr` command response";
+            e = API_ENOENT;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e);
+    }
+
+    return parsedOk;
+}
+
+CommandFetchSet::CommandFetchSet(MegaClient*, handle id,
+    std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
+    : mCompletion(completion)
+{
+    cmd("aft");
+    arg("id", (byte*)&id, MegaClient::SETHANDLE);
+}
+
+bool CommandFetchSet::procresult(Result r)
+{
+    Error e = API_OK;
+    if (procerrorcode(r, e))
+    {
+        if (mCompletion)
+        {
+            mCompletion(e, nullptr, nullptr);
+        }
+        return true;
+    }
+
+    map<handle, Set> sets;
+    map<handle, map<handle, SetElement>> elements;
+    e = client->readSetsAndElements(client->json, sets, elements);
+    if (e != API_OK)
+    {
+        LOG_err << "Sets: Failed to parse \"aft\" response";
+        if (mCompletion)
+        {
+            mCompletion(e, nullptr, nullptr);
+        }
+        return false;
+    }
+
+    assert(sets.size() <= 1);
+
+    if (mCompletion)
+    {
+        Set* s = sets.empty() ? new Set() : (new Set(move(sets.begin()->second)));
+        map<handle, SetElement>* els = elements.empty()
+                ? new map<handle, SetElement>()
+            : new map<handle, SetElement>(move(elements.begin()->second));
+        mCompletion(API_OK, s, els);
+    }
+
+    return true;
+}
+
+CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, unique_ptr<string> encrAttrs, string&& encrKey,
+                                               std::function<void(Error, const SetElement*)> completion)
+    : mElement(new SetElement(move(el))), mCompletion(completion)
+{
+    cmd("aep");
+
+    bool createNew = mElement->id() == UNDEF;
+
+    if (createNew)
+    {
+        arg("s", (byte*)&mElement->set(), MegaClient::SETHANDLE);
+        arg("h", (byte*)&mElement->node(), MegaClient::NODEHANDLE);
+        arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
+    }
+
+    else // update
+    {
+        arg("id", (byte*)&mElement->id(), MegaClient::SETELEMENTHANDLE);
+    }
+
+    // optionals
+    if (mElement->hasOrder())
+    {
+        arg("o", mElement->order());
+    }
+
+    if (encrAttrs)
+    {
+        arg("at", (byte*)encrAttrs->c_str(), (int)encrAttrs->size());
+    }
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandPutSetElement::procresult(Result r)
+{
+    handle elementId = 0;
+    m_time_t ts = 0;
+    int64_t order = 0;
+    Error e = API_OK;
+    bool isNew = mElement->id() == UNDEF;
+    const SetElement* el = nullptr;
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr, nullptr, &order); // 'aep' does not return 's'
+
+    if (!parsedOk)
+    {
+        e = API_EINTERNAL;
+    }
+    else if (e == API_OK)
+    {
+        mElement->setTs(ts);
+        mElement->setOrder(order); // this is now present in all 'aep' responses
+        assert(isNew || mElement->id() == elementId);
+        mElement->setId(elementId);
+        el = client->addOrUpdateSetElement(move(*mElement));
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e, el);
+    }
+
+    return parsedOk;
+}
+
+CommandRemoveSetElement::CommandRemoveSetElement(MegaClient* cl, handle sid, handle eid, std::function<void(Error)> completion)
+    : mSetId(sid), mElementId(eid), mCompletion(completion)
+{
+    cmd("aer");
+    arg("id", (byte*)&eid, MegaClient::SETELEMENTHANDLE);
+
+    notself(cl); // don't process its Action Packet after sending this
+}
+
+bool CommandRemoveSetElement::procresult(Result r)
+{
+    handle elementId = 0;
+    m_time_t ts = 0;
+    Error e = API_OK;
+    bool parsedOk = procerrorcode(r, e) || procresultid(r, elementId, ts, nullptr);
+
+    if (parsedOk && e == API_OK)
+    {
+        if (!client->deleteSetElement(mSetId, mElementId))
+        {
+            LOG_err << "Sets: Failed to remove Element in `aer` command response";
+            e = API_ENOENT;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(e);
+    }
+
+    return parsedOk;
+}
+
+// -------- end of Sets and Elements
+
 
 #ifdef ENABLE_CHAT
 

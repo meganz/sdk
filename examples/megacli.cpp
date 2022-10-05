@@ -1833,7 +1833,7 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
 
                 if (showattrs && n->attrs.map.size())
                 {
-                    stream << ", has attrs";
+                    stream << ", has name";
                     for (auto& a : n->attrs.map)
                     {
                         char namebuf[100]{};
@@ -1933,7 +1933,7 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
 
                 if (showattrs && n->attrs.map.size())
                 {
-                    stream << ", has attrs";
+                    stream << ", has name";
                     for (auto& a : n->attrs.map)
                     {
                         char namebuf[100]{};
@@ -4255,6 +4255,20 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("randomfile"),
                     localFSPath("outputPath"),
                     opt(param("lengthKB"))));
+
+    p->Add(exec_setsandelements,
+        sequence(text("setsandelements"),
+                 either(text("list"),
+                        sequence(text("newset"), opt(param("name"))),
+                        sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-c"), opt(param("cover"))))),
+                        sequence(text("removeset"), param("id")),
+                        sequence(text("fetchset"), param("id")),
+                        sequence(text("newelement"), param("setid"), param("nodehandle"),
+                                 opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
+                        sequence(text("updateelement"), param("sid"), param("eid"),
+                                 opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-o"), param("order")))),
+                        sequence(text("removeelement"), param("sid"), param("eid"))
+                        )));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -8889,6 +8903,74 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
+// set addition/update/removal
+void DemoApp::sets_updated(Set** s, int count)
+{
+    cout << (count == 1 ? string("1 Set") : (std::to_string(count) + " Sets")) << " received" << endl;
+
+    if (!s) return;
+
+    for (int i = 0; i < count; i++)
+    {
+        Set* set = s[i];
+        cout << "Set " << toHandle(set->id());
+        if (set->hasChanged(Set::CH_NEW))
+        {
+            cout << " has been added";
+        }
+        else if (set->hasChanged(Set::CH_REMOVED))
+        {
+            cout << " has been removed";
+        }
+        else
+        {
+            if (set->hasChanged(Set::CH_NAME))
+            {
+                cout << endl << "\tchanged name";
+            }
+            if (set->hasChanged(Set::CH_COVER))
+            {
+                cout << endl << "\tchanged cover";
+            }
+        }
+        cout << endl;
+    }
+}
+
+// element addition/update/removal
+void DemoApp::setelements_updated(SetElement** el, int count)
+{
+    cout << (count == 1 ? string("1 Element") : (std::to_string(count) + " Elements")) << " received" << endl;
+
+    if (!el) return;
+
+    for (int i = 0; i < count; i++)
+    {
+        SetElement* elem = el[i];
+        cout << "Element " << toHandle(elem->id());
+        if (elem->hasChanged(SetElement::CH_EL_NEW))
+        {
+            cout << " has been added";
+        }
+        else if (elem->hasChanged(Set::CH_REMOVED))
+        {
+            cout << " has been removed";
+        }
+        else
+        {
+            if (elem->hasChanged(SetElement::CH_EL_NAME))
+            {
+                cout << endl << "\tchanged name";
+            }
+            if (elem->hasChanged(SetElement::CH_EL_ORDER))
+            {
+                cout << endl << "\tchanged order";
+            }
+        }
+        cout << endl;
+    }
+}
+
 void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, std::unique_ptr<BusinessPlan>)
 {
     // FIXME: implement
@@ -10346,6 +10428,246 @@ void exec_syncxable(autocomplete::ACState& s)
           false, nullptr);
 
         cout << "disablement complete." << endl;
+    }
+}
+
+void printSet(const Set* s)
+{
+    if (!s)
+    {
+        cout << "Set not found" << endl;
+        return;
+    }
+
+    cout << "Set " << toHandle(s->id()) << endl;
+    cout << "\tkey: " << Base64::btoa(s->key()) << endl;
+    cout << "\tuser: " << toHandle(s->user()) << endl;
+    cout << "\tts: " << s->ts() << endl;
+    cout << "\tname: " << s->name() << endl;
+    handle cover = s->cover();
+    cout << "\tcover: " << (cover == UNDEF ? "(no cover)" : toHandle(cover)) << endl;
+    cout << endl;
+}
+void printElements(const map<handle, SetElement>* elems)
+{
+    if (!elems)
+    {
+        cout << "No elements" << endl;
+        return;
+    }
+
+    for (const auto& p : *elems)
+    {
+        const SetElement& el = p.second;
+        cout << "\t\telement " << toHandle(el.id()) << endl;
+        cout << "\t\t\tset " << toHandle(el.set()) << endl;
+        cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
+        cout << "\t\t\tname: " << el.name() << endl;
+        cout << "\t\t\torder: " << el.order() << endl;
+        cout << "\t\t\tkey: " << (el.key().empty() ? "(no key)" : Base64::btoa(el.key())) << endl;
+        cout << "\t\t\tts: " << el.ts() << endl;
+    }
+    cout << endl;
+}
+
+void exec_setsandelements(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate Sets."
+             << endl;
+        return;
+    }
+
+    const auto command = s.words[1].s;
+
+    if (command == "list")
+    {
+        const auto& sets = client->getSets();
+        for (auto& set : sets)
+        {
+            printSet(&set.second);
+            printElements(client->getSetElements(set.first));
+        }
+    }
+
+    else if (command == "newset")
+    {
+        const char* name = (s.words.size() == 3) ? s.words[2].s.c_str() : nullptr;
+        Set newset;
+        if (name)
+        {
+            newset.setName(name);
+        }
+
+        client->putSet(move(newset), [](Error e, const Set* s)
+            {
+                if (e == API_OK && s)
+                {
+                    cout << "Created Set with id " << toHandle(s->id()) << endl;
+                    printSet(s);
+                }
+                else
+                {
+                    cout << "Error creating new Set " << e << endl;
+                }
+            });
+    }
+
+    else if (command == "updateset")
+    {
+        handle id = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
+
+        Set updset;
+        updset.setId(id);
+        string buf;
+        if (s.extractflagparam("-n", buf) || s.extractflag("-n"))
+        {
+            updset.setName(move(buf));
+        }
+        buf.clear();
+        if (s.extractflagparam("-c", buf) || s.extractflag("-c"))
+        {
+            if (buf.empty())
+            {
+                updset.setCover(UNDEF);
+            }
+            else
+            {
+                handle hc = 0;
+                Base64::atob(buf.c_str(), (byte*)&hc, MegaClient::SETELEMENTHANDLE);
+                updset.setCover(hc);
+            }
+        }
+
+        client->putSet(move(updset), [id](Error e, const Set*)
+            {
+                if (e == API_OK)
+                {
+                    cout << "Updated Set " << toHandle(id) << endl;
+                    printSet(client->getSet(id));
+                    printElements(client->getSetElements(id));
+                }
+                else
+                {
+                    cout << "Error updating Set " << toHandle(id) << ' ' << e << endl;
+                }
+            });
+    }
+
+    else if (command == "removeset")
+    {
+        handle id = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
+
+        client->removeSet(id, [id](Error e)
+            {
+                if (e == API_OK)
+                    cout << "Removed Set " << toHandle(id) << endl;
+                else
+                    cout << "Error removing Set " << toHandle(id) << ' ' << e << endl;
+            });
+    }
+
+    else if (command == "fetchset")
+    {
+        handle id = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
+
+        client->fetchSet(id, [id](Error e, Set* s, map<handle, SetElement>* els)
+            {
+                if (e == API_OK)
+                {
+                    cout << "Fetched Set " << toHandle(id) << endl;
+                    printSet(s);
+                    printElements(els);
+                }
+                else
+                {
+                    cout << "Error fetching Set " << toHandle(id) << ' ' << e << endl;
+                }
+            });
+    }
+
+    else if (command == "removeelement")
+    {
+        handle sid = 0, eid = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
+        Base64::atob(s.words[3].s.c_str(), (byte*)&eid, MegaClient::SETELEMENTHANDLE);
+
+        client->removeSetElement(sid, eid, [sid, eid](Error e)
+            {
+                if (e == API_OK)
+                    cout << "Removed Element " << toHandle(eid) << " from Set " << toHandle(sid) << endl;
+                else
+                    cout << "Error removing Element " << toHandle(eid) << ' ' << e << endl;
+            });
+    }
+
+    else // create or update element
+    {
+        handle setId = 0;   // must have remaining bits set to 0
+        handle node = 0;    // must have remaining bits set to 0
+        handle elemId = 0;  // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&setId, MegaClient::SETHANDLE);
+
+        bool createNew = command == "newelement";
+        if (createNew)
+        {
+            Base64::atob(s.words[3].s.c_str(), (byte*)&node, MegaClient::NODEHANDLE);
+            elemId = UNDEF;
+        }
+
+        else // "updateelement"
+        {
+            node = UNDEF;
+            Base64::atob(s.words[3].s.c_str(), (byte*)&elemId, MegaClient::SETELEMENTHANDLE);
+        }
+
+        SetElement el;
+        el.setSet(setId);
+        el.setId(elemId);
+        el.setNode(node);
+
+        string param;
+        if (s.extractflagparam("-n", param) || s.extractflag("-n"))
+        {
+            el.setName(move(param));
+        }
+        param.clear();
+        if (s.extractflagparam("-o", param))
+        {
+            el.setOrder(atoll(param.c_str()));
+            if (el.order() == 0 && param != "0")
+            {
+                cout << "Invalid order: " << param << endl;
+                return;
+            }
+        }
+
+        client->putSetElement(move(el), [createNew, setId, elemId](Error e, const SetElement* el)
+            {
+                if (createNew)
+                {
+                    if (e == API_OK && el)
+                        cout << "Created Element " << toHandle(el->id()) << " in Set " << toHandle(setId) << endl;
+                    else
+                        cout << "Error creating new Element " << e << endl;
+                }
+                else
+                {
+                    if (e == API_OK)
+                    {
+                        cout << "Updated Element " << toHandle(elemId) << " in Set " << toHandle(setId) << endl;
+                    }
+                    else
+                    {
+                        cout << "Error updating Element " << toHandle(elemId) << ' ' << e << endl;
+                    }
+                }
+            });
     }
 }
 

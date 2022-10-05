@@ -26,6 +26,8 @@ namespace mega {
 
 struct Notification;
 struct UnifiedSync;
+class Set;
+class SetElement;
 
 // callback interface
 struct MEGA_API MegaApp
@@ -80,6 +82,12 @@ struct MEGA_API MegaApp
 
     // remove versions result
     virtual void unlinkversions_result(error) { }
+
+    // sets have been updated
+    virtual void sets_updated(Set**, int) { }
+
+    // set-elements have been updated
+    virtual void setelements_updated(SetElement**, int) { }
 
     // nodes have been updated
     virtual void nodes_updated(Node**, int) { }
