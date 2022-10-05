@@ -881,7 +881,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
 
     // SyncTests want to skip backup restrictions, so they are not
     // restricted to the path "Vault/My backups/<device>/<backup>"
-    client.syncs.enableBackupRestrictions(false);
+    client.syncs.mBackupRestrictionsEnabled = false;
 }
 
 StandardClient::~StandardClient()
@@ -3755,7 +3755,9 @@ bool StandardClient::backupOpenDrive(const fs::path& drivePath)
 void StandardClient::backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
 {
     auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
-    result->set_value(client.syncs.backupOpenDrive(localDrivePath) == API_OK);
+    client.syncs.backupOpenDrive(localDrivePath, [result](Error e){
+        result->set_value(e == API_OK);
+    });
 }
 
 void StandardClient::triggerPeriodicScanEarly(handle backupID)
