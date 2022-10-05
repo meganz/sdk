@@ -2526,9 +2526,9 @@ void UnifiedSync::changedConfigState(bool notifyApp)
     }
 }
 
-Syncs::Syncs(MegaClient& mc)
+Syncs::Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa)
   : mClient(mc)
-  , fsaccess(::mega::make_unique<FSACCESS_CLASS>())
+  , fsaccess(fsa)  // reference to MegaClient's for now.  In sync rework, this will be a separate instance
 {
     fsaccess->initFilesystemNotificationSystem();
 

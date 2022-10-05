@@ -647,7 +647,7 @@ struct Syncs
     // updates in state & error
     void saveSyncConfig(const SyncConfig& config);
 
-    Syncs(MegaClient& mc);
+    Syncs(MegaClient& mc, unique_ptr<FileSystemAccess>& fsa);
     ~Syncs();
 
     unique_ptr<BackupMonitor> mHeartBeatMonitor;
@@ -768,7 +768,7 @@ private:
     MegaClient& mClient;
 
     // Syncs should have a separate fsaccess for thread safety
-    unique_ptr<FileSystemAccess> fsaccess;
+    unique_ptr<FileSystemAccess>& fsaccess;
 
     // pseudo-random number generator
     PrnGen rng;
