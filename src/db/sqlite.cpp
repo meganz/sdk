@@ -68,15 +68,7 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
         {
             LOG_debug << "Found legacy database at: " << legacyPath;
 
-            if (LEGACY_DB_VERSION == LAST_DB_VERSION_WITHOUT_NOD)
-            {
-                LOG_debug << "Rename database file to update version to NOD";
-                if (!fsAccess.renamelocal(legacyPath, dbPath))
-                {
-                    fsAccess.unlinklocal(legacyPath);
-                }
-            }
-            else if (currentDbVersion == LEGACY_DB_VERSION)
+            if (currentDbVersion == LEGACY_DB_VERSION && LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_NOD)
             {
                 LOG_debug << "Using a legacy database.";
                 dbPath = std::move(legacyPath);
@@ -85,33 +77,28 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
             else if ((flags & DB_OPEN_FLAG_RECYCLE))
             {
                 LOG_debug << "Trying to recycle a legacy database.";
+                // if DB_VERSION already exist, let's get rid of it first
+                // (it could happen if downgrade is executed and come back to newer version)
+                fsAccess.unlinklocal(dbPath);
+                removeDBTemporaryFiles(fsAccess, dbPath);
 
                 if (fsAccess.renamelocal(legacyPath, dbPath, false))
                 {
-                    auto suffix = LocalPath::fromRelativePath("-shm");
-                    auto from = legacyPath + suffix;
-                    auto to = dbPath + suffix;
-
-                    fsAccess.renamelocal(from, to);
-
-                    suffix = LocalPath::fromRelativePath("-wal");
-                    from = legacyPath + suffix;
-                    to = dbPath + suffix;
-
-                    fsAccess.renamelocal(from, to);
-
+                    renameDBTemporaryFiles(fsAccess, legacyPath, dbPath);
                     LOG_debug << "Legacy database recycled.";
                 }
                 else
                 {
                     LOG_debug << "Unable to recycle database, deleting...";
                     fsAccess.unlinklocal(legacyPath);
+                    removeDBTemporaryFiles(fsAccess, legacyPath);
                 }
             }
             else
             {
                 LOG_debug << "Deleting outdated legacy database.";
                 fsAccess.unlinklocal(legacyPath);
+                removeDBTemporaryFiles(fsAccess, legacyPath);
             }
         }
     }
@@ -242,6 +229,50 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
     }
 
     return true;
+}
+
+void SqliteDbAccess::renameDBTemporaryFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath)
+{
+#if !(TARGET_OS_IPHONE)
+    auto suffix = LocalPath::fromRelativePath("-shm");
+    auto from = legacyPath + suffix;
+    auto to = dbPath + suffix;
+
+    fsAccess.renamelocal(from, to);
+
+    suffix = LocalPath::fromRelativePath("-wal");
+    from = legacyPath + suffix;
+    to = dbPath + suffix;
+
+    fsAccess.renamelocal(from, to);
+#else
+    auto suffix = LocalPath::fromRelativePath("-journal");
+    auto from = legacyPath + suffix;
+    auto to = dbPath + suffix;
+
+    fsAccess.renamelocal(from, to);
+
+#endif
+}
+
+void SqliteDbAccess::removeDBTemporaryFiles(FileSystemAccess& fsAccess, mega::LocalPath& legacyPath)
+{
+#if !(TARGET_OS_IPHONE)
+    auto suffix = LocalPath::fromRelativePath("-shm");
+    auto fileToRemove = legacyPath + suffix;
+    fsAccess.unlinklocal(fileToRemove);
+
+    suffix = LocalPath::fromRelativePath("-wal");
+    fileToRemove = legacyPath + suffix;
+    fsAccess.unlinklocal(fileToRemove);
+
+#else
+    auto suffix = LocalPath::fromRelativePath("-journal");
+    auto fileToRemove = legacyPath + suffix;
+    fsAccess.unlinklocal(fileToRemove);
+
+#endif
+
 }
 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const LocalPath &path, const bool checkAlwaysTransacted)

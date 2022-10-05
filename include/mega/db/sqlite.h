@@ -147,6 +147,8 @@ public:
 
 private:
     bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
+    void renameDBTemporaryFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& to);
+    void removeDBTemporaryFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath);
 };
 
 } // namespace

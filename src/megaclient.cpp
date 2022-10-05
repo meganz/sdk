@@ -9829,7 +9829,7 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname));
+            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE));
             pendingsccommit = false;
 
             if (sctable)
@@ -9872,7 +9872,7 @@ void MegaClient::doOpenStatusTable()
         {
             dbname.insert(0, "status_");
 
-            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname));
+            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE));
         }
     }
 }
