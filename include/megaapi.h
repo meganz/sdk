@@ -2005,6 +2005,7 @@ public:
     *                        value 0 if someone left the folder)
     *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
     *   TYPE_REMOVEDSHAREDNODES (0: item count)
+    *   TYPE_UPDATEDSHAREDNODES (0: item count)
     *
     * @return Number related to this request, or -1 if the index is invalid
     */
