@@ -7217,7 +7217,7 @@ void MegaClient::sc_delscheduledmeetings()
 void MegaClient::sc_scheduledmeetings()
 {
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
-    if (parseScheduledMeetings(&schedMeetings, false, &jsonsc) != API_OK) { return; }
+    if (parseScheduledMeetings(&schedMeetings, false, &jsonsc, true) != API_OK) { return; }
 
     for (auto &sm: schedMeetings)
     {
@@ -9686,8 +9686,11 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
     return API_EARGS;
 }
 
-error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>* schedMeetings, bool parsingOccurrences, JSON *j)
+error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMeeting>>* schedMeetings,
+                                         bool parsingOccurrences, JSON *j, bool parseOnce)
 {
+    handle i = UNDEF;
+    handle originatingUser = UNDEF;
     if (!schedMeetings)
     {
         assert(false);
@@ -9698,7 +9701,11 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
             ? j         // custom Json provided
             : &json;    // MegaClient-Server response JSON
 
-    while (auxJson->enterobject())
+    bool parse = parseOnce
+            ? true
+            : auxJson->enterobject();
+
+    while (parse)
     {
         bool exit = false;
         std::unique_ptr<ScheduledMeeting> auxMeet(new ScheduledMeeting());
@@ -9761,6 +9768,11 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     auxMeet->setDescription(description.c_str());
                     break;
                 }
+                case MAKENAMEID1('i'):
+                {
+                    i = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                    break;
+                }
                 case MAKENAMEID2('a', 't'): // attributes
                 {
                     string attributes;
@@ -9786,6 +9798,9 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     auxMeet->setFlags(&auxFlags);
                     break;
                 }
+                case MAKENAMEID2('o', 'u'):
+                    originatingUser = jsonsc.gethandle(USERHANDLE);
+                    break;
 
                 // there are no scheduled meeting rules
                 case MAKENAMEID1('r'):
@@ -9833,6 +9848,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         vWeek.emplace_back(static_cast<int>(auxJson->getint()));
                                     }
+                                    auxJson->leavearray();
                                 }
                             }
                             else if (matchid("BYMONTHDAY", id))
@@ -9843,6 +9859,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                     {
                                         vMonth.emplace_back(static_cast<int>(auxJson->getint()));
                                     }
+                                    auxJson->leavearray();
                                 }
                             }
                             else if (matchid("BYMONTHWEEKDAY", id))
@@ -9867,7 +9884,9 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                                             return API_EINTERNAL;
                                         }
                                         mMonth.emplace(key, value);
+                                        auxJson->leavearray();
                                     }
+                                    auxJson->leavearray();
                                 }
                             }
                             else if (id == EOO)
@@ -9891,7 +9910,11 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 case EOO:
                 {
                     exit = true;
-                    auxJson->leaveobject();
+                    if (!parseOnce)
+                    {
+                        auxJson->leaveobject();
+                    }
+
                     if (!auxMeet->isValid())
                     {
                         assert(false);
@@ -9910,6 +9933,10 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 }
             }
         }
+
+        parse = parseOnce
+                    ? false
+                    : auxJson->enterobject();
     }
     return API_OK;
 }
