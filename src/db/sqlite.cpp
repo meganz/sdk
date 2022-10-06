@@ -79,8 +79,7 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
                 LOG_debug << "Trying to recycle a legacy database.";
                 // if DB_VERSION already exist, let's get rid of it first
                 // (it could happen if downgrade is executed and come back to newer version)
-                fsAccess.unlinklocal(dbPath);
-                removeDBTemporaryFiles(fsAccess, dbPath);
+                removeDBFiles(fsAccess, dbPath);
 
                 if (fsAccess.renamelocal(legacyPath, dbPath, false))
                 {
@@ -90,15 +89,13 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
                 else
                 {
                     LOG_debug << "Unable to recycle database, deleting...";
-                    fsAccess.unlinklocal(legacyPath);
-                    removeDBTemporaryFiles(fsAccess, legacyPath);
+                    removeDBFiles(fsAccess, legacyPath);
                 }
             }
             else
             {
                 LOG_debug << "Deleting outdated legacy database.";
-                fsAccess.unlinklocal(legacyPath);
-                removeDBTemporaryFiles(fsAccess, legacyPath);
+                removeDBFiles(fsAccess, legacyPath);
             }
         }
     }
@@ -255,15 +252,17 @@ void SqliteDbAccess::renameDBTemporaryFiles(mega::FileSystemAccess& fsAccess, me
 #endif
 }
 
-void SqliteDbAccess::removeDBTemporaryFiles(FileSystemAccess& fsAccess, mega::LocalPath& legacyPath)
+void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& dbPath)
 {
+    fsAccess.unlinklocal(dbPath);
+
 #if !(TARGET_OS_IPHONE)
     auto suffix = LocalPath::fromRelativePath("-shm");
-    auto fileToRemove = legacyPath + suffix;
+    auto fileToRemove = dbPath + suffix;
     fsAccess.unlinklocal(fileToRemove);
 
     suffix = LocalPath::fromRelativePath("-wal");
-    fileToRemove = legacyPath + suffix;
+    fileToRemove = dbPath + suffix;
     fsAccess.unlinklocal(fileToRemove);
 
 #else

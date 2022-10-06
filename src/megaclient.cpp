@@ -9829,7 +9829,10 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE));
+            // Migrating to NOD data base, it's done locally (without request permission to API)
+            // Daba base is opened with flag DB_OPEN_FLAG_RECYCLE activated for that purpose
+            bool recycleDBVersion = (DbAccess::LEGACY_DB_VERSION != DbAccess::LAST_DB_VERSION_WITHOUT_NOD);
+            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion));
             pendingsccommit = false;
 
             if (sctable)
