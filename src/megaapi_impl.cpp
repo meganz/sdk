@@ -33370,6 +33370,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(ScheduledRules* rules)
       auxByWeekDay = new std::vector<int64_t>();
       auxByWeekDay->reserve(inByWeekDay->size());
       std::transform(inByWeekDay->begin(), inByWeekDay->end(), std::back_inserter(*auxByWeekDay), [](int64_t x) { return static_cast<uint8_t>(x);});
+      mByWeekDay.reset(MegaIntegerList::createInstance(*auxByWeekDay));
     }
 
     std::vector<int64_t>* auxByMonthDay = nullptr;
@@ -33379,6 +33380,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(ScheduledRules* rules)
       auxByMonthDay = new std::vector<int64_t>();
       auxByMonthDay->reserve(inByMonthDay->size());
       std::transform(inByMonthDay->begin(), inByMonthDay->end(), std::back_inserter(*auxByMonthDay), [](int64_t x) { return static_cast<uint8_t>(x);});
+      mByMonthDay.reset(MegaIntegerList::createInstance(*auxByMonthDay));
     }
 
     std::multimap<int64_t, int64_t>* auxByMonthWeekDay = nullptr;
@@ -33387,6 +33389,7 @@ MegaScheduledRulesPrivate::MegaScheduledRulesPrivate(ScheduledRules* rules)
       auxByMonthWeekDay = new std::multimap<int64_t, int64_t>();
       const mega::MegaSmallIntMap* inaux = rules->byMonthWeekDay();
       auxByMonthWeekDay->insert(inaux->begin(), inaux->end());
+      mByMonthWeekDay.reset(MegaIntegerMap::createInstance(*auxByMonthWeekDay));
     }
 }
 
