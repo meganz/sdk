@@ -33045,6 +33045,11 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
         mScheduledMeetings.reset(chat->getScheduledMeetingList()->copy());
     }
 
+    if (chat->getScheduledMeetingOccurrencesList() && chat->getScheduledMeetingOccurrencesList()->size())
+    {
+        mScheduledMeetingsOcurrences.reset(chat->getScheduledMeetingOccurrencesList()->copy());
+    }
+
     if (chat->getSchedMeetingsChanged() && chat->getSchedMeetingsChanged()->size())
     {
         mSchedMeetingsChanged.reset(chat->getSchedMeetingsChanged()->copy());
@@ -33075,6 +33080,15 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
         for (auto it = chat->mScheduledMeetings.begin(); it != chat->mScheduledMeetings.end(); it++)
         {
             mScheduledMeetings->insert(new MegaScheduledMeetingPrivate(it->second.get()));
+        }
+    }
+
+    if (!chat->mScheduledMeetingsOcurrences.empty())
+    {
+        mScheduledMeetingsOcurrences.reset(MegaScheduledMeetingList::createInstance());
+        for (auto it = chat->mScheduledMeetingsOcurrences.begin(); it != chat->mScheduledMeetingsOcurrences.end(); it++)
+        {
+            mScheduledMeetingsOcurrences->insert(new MegaScheduledMeetingPrivate(it->second.get()));
         }
     }
 
@@ -33217,6 +33231,11 @@ int MegaTextChatPrivate::getChanges() const
 const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingList() const
 {
     return mScheduledMeetings.get();
+}
+
+const MegaScheduledMeetingList* MegaTextChatPrivate::getScheduledMeetingOccurrencesList() const
+{
+    return mScheduledMeetingsOcurrences.get();
 }
 
 const MegaHandleList* MegaTextChatPrivate::getSchedMeetingsChanged() const

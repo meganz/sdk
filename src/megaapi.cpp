@@ -6554,6 +6554,11 @@ const MegaScheduledMeetingList* MegaTextChat::getScheduledMeetingList() const
     return NULL;
 }
 
+const MegaScheduledMeetingList* MegaTextChat::getScheduledMeetingOccurrencesList() const
+{
+    return NULL;
+}
+
 const MegaHandleList* MegaTextChat::getSchedMeetingsChanged() const
 {
     return NULL;

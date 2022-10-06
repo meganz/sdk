@@ -1740,6 +1740,7 @@ public:
     int getChanges() const override;
     int isOwnChange() const override;
     const MegaScheduledMeetingList* getScheduledMeetingList() const override;
+    const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const override;
     const MegaHandleList* getSchedMeetingsChanged() const override;
 
 private:
@@ -1759,9 +1760,15 @@ private:
     int64_t ts;
     bool meeting;
     ChatOptions_t chatOptions;
+
+    // list of scheduled meetings
     std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetings;
+
+    // list of scheduled meetings Id's that have changed
     std::unique_ptr<MegaHandleList> mSchedMeetingsChanged;
 
+    // list of scheduled meetings occurrences
+    std::unique_ptr<MegaScheduledMeetingList> mScheduledMeetingsOcurrences;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList

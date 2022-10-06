@@ -2283,6 +2283,16 @@ public:
     virtual const MegaScheduledMeetingList* getScheduledMeetingList() const;
 
     /**
+     * @brief Returns the scheduled meetings occurrences list.
+     *
+     * The MegaTextChat retains the ownership of the returned MegaScheduledMeetingList. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * @return The list of the scheduled meetings occurrences.
+     */
+    virtual const MegaScheduledMeetingList* getScheduledMeetingOccurrencesList() const;
+
+    /**
      * @brief Returns a MegaHandleList with the handles of the scheduled meetings that have changed
      *
      * The MegaTextChat retains the ownership of the returned MegaHandleList. It will
