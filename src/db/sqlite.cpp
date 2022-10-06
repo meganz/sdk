@@ -269,7 +269,7 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
 #else
     // iOS doesn't use WAL mode, but Journal
     auto suffix = LocalPath::fromRelativePath("-journal");
-    auto fileToRemove = legacyPath + suffix;
+    auto fileToRemove = dbPath + suffix;
     fsAccess.unlinklocal(fileToRemove);
 
 #endif
