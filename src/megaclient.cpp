@@ -7000,22 +7000,6 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         }
                     }
 
-                    // chat didn't exists before, so we still don't have scheduled meetings/occurrences cached
-                    reqs.add(new CommandScheduledMeetingFetch(this, chatid, UNDEF,
-                                                              [this, chatid] (Error e, const std::vector<std::unique_ptr<ScheduledMeeting>>*)
-                    {
-                        if (!e)
-                        {
-                            // fetch scheduled meetings occurrences
-                            reqs.add(new CommandScheduledMeetingFetchEvents(this, chatid, nullptr, nullptr, -1,
-                                                                                     [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
-                        }
-                        else
-                        {
-                            LOG_warn << "Skipping fetch scheduled meetings occurrences for chat: " << Base64Str<MegaClient::CHATHANDLE>(chatid) << ", due to scheduled meetings fetching error";
-                        }
-                    }));
-
                     chat->setTag(0);    // external change
                     notifychat(chat);
                 }
@@ -7195,8 +7179,7 @@ void MegaClient::sc_delscheduledmeetings()
                     }
                     else
                     {
-                        assert(false);
-                        LOG_debug << "sc_delscheduledmeetings: scheduled meeting [" <<  Base64Str<MegaClient::CHATHANDLE>(schedMeetingId) << "] didn't exists";
+                        LOG_warn << "sc_delscheduledmeetings: scheduled meeting [" <<  Base64Str<MegaClient::CHATHANDLE>(schedMeetingId) << "] didn't exists";
                     }
                     break;
                 }
