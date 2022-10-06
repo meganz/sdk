@@ -10000,6 +10000,7 @@ void exec_syncstatus(autocomplete::ACState& s)
 
     // Retrieve status information from the engine.
     client->syncs.getSyncStatusInfo(id, [&](SV info) {
+        waiter.set_value(std::move(info));
     }, false);
 
     // Wait for the engine to gather our information.
