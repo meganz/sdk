@@ -6708,7 +6708,10 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, SyncPath& fullPath)
     {
         // reset the count pre-emptively in case we don't choose SRT_XSX
         confirmDeleteCount = row.syncNode->confirmDeleteCount;
-        row.syncNode->confirmDeleteCount = 0;
+        if (confirmDeleteCount > 0)
+        {
+            row.syncNode->confirmDeleteCount = 0;
+        }
 
         if (row.syncNode->certainlyOrphaned)
         {
@@ -7432,6 +7435,9 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
     // then its ok, we've confirmed it really isn't part of a move.
 
 
+    // setting on the first pass, or restoring on subsequent (part of the auto-reset if it's no longer routed to _delSyncNode)
+    row.syncNode->confirmDeleteCount = 1;
+
     if (deleteCounter == 0)
     {
         // make sure we've done a full pass including the rest of this iteration over the node trees,
@@ -7440,7 +7446,6 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, SyncPath& fullP
 
         // whenever this node is visited and we don't call resolve_delSyncNode(), this is reset to 0
         // this prevents flop-flopping into and out of stall state if this is the only problem node
-        row.syncNode->confirmDeleteCount = 1;
         return false;
     }
 
