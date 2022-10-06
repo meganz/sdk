@@ -26,6 +26,7 @@
 #include <vector>
 #include <map>
 #include <inttypes.h>
+#include <bitset>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>

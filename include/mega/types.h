@@ -835,7 +835,7 @@ class ScheduledRules
         int mInterval = 0;
 
         // [optional]: specifies when the repetitions should end
-        std::string mUntil = nullptr;
+        std::string mUntil;
 
         // [optional]: allows us to specify that an event will only occur on given week day/s
         std::unique_ptr<rules_vector> mByWeekDay;
