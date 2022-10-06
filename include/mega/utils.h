@@ -444,6 +444,14 @@ public:
     static int pcasecmp(const std::wstring& lhs,
                         const std::wstring& rhs,
                         const size_t length);
+
+    static std::string replace(const std::string& str,
+                               char search,
+                               char replace);
+    static std::string replace(const std::string& str,
+                               const std::string& search,
+                               const std::string& replacement);
+        
 };
 
 // for pre-c++11 where this version is not defined yet.
@@ -936,6 +944,8 @@ int platformGetRLimitNumFile();
 bool platformSetRLimitNumFile(int newNumFileLimit = -1);
 
 void debugLogHeapUsage();
+
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals);
 
 struct SyncTransferCount
 {

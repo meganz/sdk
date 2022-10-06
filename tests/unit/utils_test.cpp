@@ -518,12 +518,10 @@ TEST(Filesystem, isContainingPathOf)
 }
 
 
-
 TEST(Filesystem, isReservedName)
 {
     using namespace mega;
 
-    FSACCESS_CLASS fsAccess;
     bool expected = false;
 
 #ifdef _WIN32
@@ -686,7 +684,6 @@ TEST_F(SqliteDBTest, RootPath)
 
 TEST(LocalPath, AppendWithSeparator)
 {
-    FSACCESS_CLASS fsAccess;
     LocalPath source;
     LocalPath target;
 
@@ -694,21 +691,21 @@ TEST(LocalPath, AppendWithSeparator)
     source = LocalPath::fromRelativePath("a");
     target.appendWithSeparator(source, false);
 
-    EXPECT_EQ(target.toPath(), "a");
+    EXPECT_EQ(target.toPath(false), "a");
 
     // Doesn't add a separator if the source begins with one.
     source = LocalPath::fromRelativePath(SEP "b");
     target = LocalPath::fromRelativePath("a");
 
     target.appendWithSeparator(source, true);
-    EXPECT_EQ(target.toPath(), "a" SEP "b");
+    EXPECT_EQ(target.toPath(false), "a" SEP "b");
 
     // Doesn't add a separator if the target ends with one.
     source = LocalPath::fromRelativePath("b");
     target = LocalPath::fromRelativePath("a" SEP);
 
     target.appendWithSeparator(source, true);
-    EXPECT_EQ(target.toPath(), "a" SEP "b");
+    EXPECT_EQ(target.toPath(false), "a" SEP "b");
 
     // Adds a separator when:
     // - source doesn't begin with one.
@@ -716,13 +713,11 @@ TEST(LocalPath, AppendWithSeparator)
     target = LocalPath::fromRelativePath("a");
 
     target.appendWithSeparator(source, true);
-    EXPECT_EQ(target.toPath(), "a" SEP "b");
+    EXPECT_EQ(target.toPath(false), "a" SEP "b");
 }
 
 TEST(LocalPath, PrependWithSeparator)
 {
-    FSACCESS_CLASS fsAccess;
-
     LocalPath source;
     LocalPath target;
 
@@ -730,20 +725,20 @@ TEST(LocalPath, PrependWithSeparator)
     source = LocalPath::fromRelativePath("b");
 
     target.prependWithSeparator(source);
-    EXPECT_EQ(target.toPath(), "b");
+    EXPECT_EQ(target.toPath(false), "b");
 
     // No separator if target begins with separator.
     target = LocalPath::fromRelativePath(SEP "a");
 
     target.prependWithSeparator(source);
-    EXPECT_EQ(target.toPath(), "b" SEP "a");
+    EXPECT_EQ(target.toPath(false), "b" SEP "a");
 
     // No separator if source ends with separator.
     source = LocalPath::fromRelativePath("b" SEP);
     target = LocalPath::fromRelativePath("a");
 
     target.prependWithSeparator(source);
-    EXPECT_EQ(target.toPath(), "b" SEP "a");
+    EXPECT_EQ(target.toPath(false), "b" SEP "a");
 }
 
 #undef SEP
@@ -794,3 +789,28 @@ TEST(JSON, stripWhitespace)
     ASSERT_EQ(computed, expected);
 }
 
+TEST(Utils, replace_char)
+{
+    ASSERT_EQ(Utils::replace(string(""), '*', '@'), "");
+    ASSERT_EQ(Utils::replace(string("*"), '*', '@'), "@");
+    ASSERT_EQ(Utils::replace(string("**"), '*', '@'), "@@");
+    ASSERT_EQ(Utils::replace(string("*aa"), '*', '@'), "@aa");
+    ASSERT_EQ(Utils::replace(string("*aa*bb*"), '*', '@'), "@aa@bb@");
+    ASSERT_EQ(Utils::replace(string("sd*"), '*', '@'), "sd@");
+    ASSERT_EQ(Utils::replace(string("*aa**bb*"), '*', '@'), "@aa@@bb@");
+}
+
+TEST(Utils, replace_string)
+{
+    ASSERT_EQ(Utils::replace(string(""), "*", "@"), "");
+    ASSERT_EQ(Utils::replace(string("*"), "*", "@"), "@");
+    ASSERT_EQ(Utils::replace(string("**"), "*", "@"), "@@");
+    ASSERT_EQ(Utils::replace(string("*aa"), "*", "@"), "@aa");
+    ASSERT_EQ(Utils::replace(string("*aa*bb*"), "*", "@"), "@aa@bb@");
+    ASSERT_EQ(Utils::replace(string("sd*"), "*", "@"), "sd@");
+    ASSERT_EQ(Utils::replace(string("*aa**bb*"), "*", "@"), "@aa@@bb@");
+    ASSERT_EQ(Utils::replace(string("*aa**bb*"), "*", "@"), "@aa@@bb@");
+
+    ASSERT_EQ(Utils::replace(string(""), "", "@"), "");
+    ASSERT_EQ(Utils::replace(string("abc"), "", "@"), "abc");
+}
