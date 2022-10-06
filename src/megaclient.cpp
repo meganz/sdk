@@ -9829,8 +9829,12 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            // Migrating to NOD data base, it's done locally (without request permission to API)
-            // Daba base is opened with flag DB_OPEN_FLAG_RECYCLE activated for that purpose
+            // Historically, DB upgrades by asking the API for permission at login
+            // If permission is granted, then the existing DB is discarding and a new
+            // is created from the response of fetchnodes (from server)
+            // NOD is a special case where existing DB can be upgraded by renaming the existing
+            // file and migrating data to the new DB scheme. In consequence, we just want to 
+            // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
             bool recycleDBVersion = (DbAccess::LEGACY_DB_VERSION != DbAccess::LAST_DB_VERSION_WITHOUT_NOD);
             sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion));
             pendingsccommit = false;

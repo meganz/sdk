@@ -68,6 +68,7 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
         {
             LOG_debug << "Found legacy database at: " << legacyPath;
 
+            // if current version, use that one... unless migration to NoD is required
             if (currentDbVersion == LEGACY_DB_VERSION && LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_NOD)
             {
                 LOG_debug << "Using a legacy database.";
@@ -243,6 +244,7 @@ void SqliteDbAccess::renameDBTemporaryFiles(mega::FileSystemAccess& fsAccess, me
 
     fsAccess.renamelocal(from, to);
 #else
+    // iOS doesn't use WAL mode, but Journal
     auto suffix = LocalPath::fromRelativePath("-journal");
     auto from = legacyPath + suffix;
     auto to = dbPath + suffix;
@@ -264,8 +266,8 @@ void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& 
     suffix = LocalPath::fromRelativePath("-wal");
     fileToRemove = dbPath + suffix;
     fsAccess.unlinklocal(fileToRemove);
-
 #else
+    // iOS doesn't use WAL mode, but Journal
     auto suffix = LocalPath::fromRelativePath("-journal");
     auto fileToRemove = legacyPath + suffix;
     fsAccess.unlinklocal(fileToRemove);
