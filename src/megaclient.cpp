@@ -9835,7 +9835,7 @@ void MegaClient::opensctable()
             // NOD is a special case where existing DB can be upgraded by renaming the existing
             // file and migrating data to the new DB scheme. In consequence, we just want to 
             // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
-            bool recycleDBVersion = (DbAccess::LEGACY_DB_VERSION != DbAccess::LAST_DB_VERSION_WITHOUT_NOD);
+            int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD) ? DB_OPEN_FLAG_RECYCLE : 0;
             sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion));
             pendingsccommit = false;
 
