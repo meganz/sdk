@@ -308,8 +308,8 @@ public:
     /**
     *   @brief Relation of X Y multiplying factor to consider connection A to be faster than connection B
     *
-    *   @param first  X factor for connection A -> X * ConnectionA_throughPut
-    *   @param second Y factor for connection B -> Y * ConnectionY_throughPut
+    *   @param first  X factor for connection A -> X * ConnectionA_throughput
+    *   @param second Y factor for connection B -> Y * ConnectionY_throughput
     *
     *   @see DirectReadSlot::mThroughput
     *   @see DirectReadSlot::searchAndDisconnectSlowestConnection()
@@ -338,7 +338,7 @@ public:
     *   @see DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT
     *   @see DirectReadSlot::mWaitForParts
     */
-    bool waitForPartsInFlight();
+    bool waitForPartsInFlight() const;
 
     /**
     *   @brief Number of used connections (all conections but the unused one, if any).
@@ -346,7 +346,7 @@ public:
     *   @return Count of used connections
     *   @see mUnusedRaidConnection
     */
-    unsigned usedConnections();
+    unsigned usedConnections() const;
 
     /**
     *   @brief Disconnect and reset a connection, meant for connections with a request in REQ_INFLIGHT status.
@@ -371,7 +371,7 @@ public:
     *   @see DirectReadSlot::calcThroughput()
     *   @see DirectReadSlot::mThroughPut
     */
-    m_off_t getThroughput(size_t connectionNum);
+    m_off_t getThroughput(size_t connectionNum) const;
 
     /**
     *   @brief Detect and disconnect the slowest initial connection. Only valid for RAID.
@@ -416,7 +416,7 @@ public:
     *
     *   Valid only for 2+ connections
     *
-    *   @return True if counter was decreased, false otherwise (i.e.: if we only have one connection)
+    *   @return True if counter was increased, false otherwise (i.e.: if we only have one connection)
     *   @see DirectReadSlot::WAIT_FOR_PARTS_IN_FLIGHT
     *   @see DirectReadSlot::mNumReqsInflight
     */
@@ -481,12 +481,12 @@ private:
     *
     *   @see HttpReq
     */
-    std::vector<std::shared_ptr<HttpReq>> mReqs;
+    std::vector<std::unique_ptr<HttpReq>> mReqs;
 
     /**
     *   @brief Pair of <Bytes downloaded> and <Total milliseconds> for throughput calculations.
     *
-    *   Values are reset by defautlt between different chunk requests.
+    *   Values are reset by default between different chunk requests.
     *
     *   @see DirectReadSlot::MIN_COMPARABLE_THROUGHPUT
     */
@@ -613,16 +613,16 @@ private:
     bool processAnyOutputPieces();
 
     /**
-    *   @brief Aux method to calculate the throughput: numBytes for 1 unit of timeCount
+    *   @brief Aux method to calculate the throughput: numBytes for 1 unit of timeCount.
     *
     *
-    *   @param numBytes Total numBytes received for timeCount period
-    *   @param timeCount Time period spent for receiving numBytes
-    *   @return Throughput: average number of bytes fetched for timeCount=1
+    *   @param numBytes Total numBytes received for timeCount period.
+    *   @param timeCount Time period spent for receiving numBytes.
+    *   @return Throughput: average number of bytes fetched for timeCount=1.
     *
     *   @see DirectReadSlot::mThroughPut
     */
-    m_off_t calcThroughput(m_off_t numBytes, m_off_t timeCount);
+    m_off_t calcThroughput(m_off_t numBytes, m_off_t timeCount) const;
 };
 
 struct MEGA_API DirectRead
@@ -645,6 +645,7 @@ struct MEGA_API DirectRead
     int reqtag;
 
     void abort();
+    m_off_t drMaxReqSize() const;
 
     DirectRead(DirectReadNode*, m_off_t, m_off_t, int, void*);
     ~DirectRead();

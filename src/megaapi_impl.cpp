@@ -18436,7 +18436,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
                             transfer->setTotalBytes(fa->size);
-                            LOG_debug << "DEVEL| sendPendingTransfers -> !streamingTransfer -> duplicate -> setTransferredBytes to 0";
                             transfer->setTransferredBytes(0);
                             transfer->setPath(wLocalPath.toPath().c_str());
                             transfer->setStartTime(Waiter::ds);
@@ -26407,7 +26406,6 @@ void MegaScheduledCopyController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
     LOG_verbose << " at MegaScheduledCopyController::onTransferUpdate";
 
-    LOG_debug << "DEVEL| MegaRecursiveOperation::onTransferFinish -> transferredBytes = (getTransferredBytes() + t->getDeltaSize()) = " << getTransferredBytes() << " + " << t->getDeltaSize() << " = " << (getTransferredBytes() + t->getDeltaSize());
     this->setTransferredBytes(this->getTransferredBytes() + t->getDeltaSize());
     this->setUpdateTime(Waiter::ds);
     this->setSpeed(t->getSpeed());
@@ -27115,7 +27113,7 @@ void StreamingBuffer::freeData(size_t len)
 
 void StreamingBuffer::setMaxBufferSize(unsigned int bufferSize)
 {
-    LOG_debug << "Set new max buffer size for StreamingBuffer: " << bufferSize;
+    LOG_debug << "[Streaming] Set new max buffer size for StreamingBuffer: " << bufferSize;
     if (bufferSize)
     {
         this->maxBufferSize = bufferSize;
@@ -27128,7 +27126,7 @@ void StreamingBuffer::setMaxBufferSize(unsigned int bufferSize)
 
 void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 {
-    LOG_debug << "Set new max output size for StreamingBuffer: " << outputSize;
+    LOG_debug << "[Streaming] Set new max output size for StreamingBuffer: " << outputSize;
     if (outputSize)
     {
         this->maxOutputSize = outputSize;

@@ -200,7 +200,7 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
         }
 
         // How much buffer space can we use.  Assuming two chunk sets incoming, one outgoing
-        raidLinesPerChunk = static_cast<unsigned>(maxRequestSize / ((RAIDPARTS) * 3 * RAIDSECTOR));
+        raidLinesPerChunk = static_cast<unsigned>(maxRequestSize / (RAIDPARTS * 3 * RAIDSECTOR));
         raidLinesPerChunk -= raidLinesPerChunk % 1024;
         raidLinesPerChunk = std::min<unsigned>(raidLinesPerChunk, 256 * 1024); // max 256K * RAIDSECTOR * 5
         raidLinesPerChunk = std::max<unsigned>(raidLinesPerChunk, 64 * 1024); // min 64K * RAIDSECTOR * 5
@@ -239,7 +239,7 @@ void RaidBufferManager::setAvoidSmallLastRequest(bool value)
     avoidSmallLastRequest = value;
 }
 
-bool RaidBufferManager::getAvoidSmallLastRequest()
+bool RaidBufferManager::getAvoidSmallLastRequest() const
 {
     return avoidSmallLastRequest;
 }
@@ -387,7 +387,7 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
         m_off_t npos = curpos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead;
         size_t nextChunkSize = (npos < maxpos) ?
                                 static_cast<size_t>(maxpos - npos) :
-                                static_cast<size_t>(0);
+                                0;
         LOG_debug << "Raid lines per chunk = " << raidLinesPerChunk << ", curpos = " << curpos << ", npos = " << npos << ", maxpos = " << maxpos << ", acquirelimitpos = " << acquirelimitpos << ", nextChunkSize = " << nextChunkSize;
         if (avoidSmallLastRequest && (nextChunkSize > 0) && (nextChunkSize < MIN_LAST_CHUNK)) // Dont leave a chunk smaller than MIN_LAST_CHUNK (10 MB) for the last request
         {
@@ -829,7 +829,7 @@ bool RaidBufferManager::setUnusedRaidConnection(unsigned newUnusedRaidConnection
     return false;
 }
 
-unsigned RaidBufferManager::getUnusedRaidConnection()
+unsigned RaidBufferManager::getUnusedRaidConnection() const
 {
     return unusedRaidConnection;
 }

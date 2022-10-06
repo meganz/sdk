@@ -122,13 +122,13 @@ namespace mega {
         void setAvoidSmallLastRequest(bool value = AVOID_SMALL_SIZE_LAST_REQUEST);
 
         // Indicate if a small last request is being avoided
-        bool getAvoidSmallLastRequest();
+        bool getAvoidSmallLastRequest() const;
 
         // Set the unused raid connection [0 - RAIDPARTS)
         bool setUnusedRaidConnection(unsigned newUnusedRaidConnection);
 
         // Which raid connection is not being used for downloading
-        unsigned getUnusedRaidConnection();
+        unsigned getUnusedRaidConnection() const;
 
         // returns how far we are through the file on average, including uncombined data
         m_off_t progress() const;
