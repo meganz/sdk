@@ -135,6 +135,9 @@ public:
                            const string& name,
                            const int version) const;
 
+    // Note: for proper adjustment of legacy versions, 'sctable' should be the first DB to be opened
+    // In this way, when it's called with other DB (statusTable, tctable, ...), DbAccess::currentDbVersion has been
+    // updated to new value
     bool checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, const string& name, const int flags, LocalPath& dbPath) override;
 
     SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
@@ -147,6 +150,8 @@ public:
 
 private:
     bool openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess& fsAccess, const string& name, mega::LocalPath &dbPath, const int flags);
+    bool renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath);
+    void removeDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& dbPath);
 };
 
 } // namespace

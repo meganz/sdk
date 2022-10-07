@@ -9829,7 +9829,14 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname));
+            // Historically, DB upgrades by asking the API for permission at login
+            // If permission is granted, then the existing DB is discarding and a new
+            // is created from the response of fetchnodes (from server)
+            // NOD is a special case where existing DB can be upgraded by renaming the existing
+            // file and migrating data to the new DB scheme. In consequence, we just want to 
+            // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
+            int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD) ? DB_OPEN_FLAG_RECYCLE : 0;
+            sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion));
             pendingsccommit = false;
 
             if (sctable)
@@ -9872,7 +9879,7 @@ void MegaClient::doOpenStatusTable()
         {
             dbname.insert(0, "status_");
 
-            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname));
+            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE));
         }
     }
 }
