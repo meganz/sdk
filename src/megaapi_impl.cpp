@@ -10717,7 +10717,11 @@ void MegaApiImpl::createScheduledMeeting(MegaHandle chatid, const char* timezone
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_UPDATE_SCHEDULED_MEETING, listener);
 
     std::unique_ptr<MegaScheduledFlags> flags(MegaScheduledFlags::createInstance(emailsDisabled));
-    std::unique_ptr<MegaScheduledRules> rules(MegaScheduledRules::createInstance(freq, interval, until, byWeekDay, byMonthDay, byMonthWeekDay));
+    std::unique_ptr<MegaScheduledRules> rules;
+    if (MegaScheduledRules::isValidFreq(freq))
+    {
+        rules.reset(MegaScheduledRules::createInstance(freq, interval, until, byWeekDay, byMonthDay, byMonthWeekDay));
+    }
     std::unique_ptr<MegaScheduledMeeting> schedMeeting(MegaScheduledMeeting::createInstance(chatid, callid, parentCallid, cancelled, timezone, startDate,
                                                                                        endDate, title, description, attributes, overrides, flags.get(), rules.get()));
     request->setScheduledMeetings(schedMeeting.get());
@@ -33602,7 +33606,11 @@ MegaScheduledRules* MegaScheduledMeetingPrivate::rules() const                  
 ScheduledMeeting* MegaScheduledMeetingPrivate::getSdkScheduledMeeting() const
 {
     unique_ptr<ScheduledFlags> flags(static_cast<MegaScheduledFlagsPrivate*>(mFlags.get())->getSdkScheduledFlags());
-    unique_ptr<ScheduledRules> rules(static_cast<MegaScheduledRulesPrivate*>(mRules.get())->getSdkScheduledRules());
+    unique_ptr<ScheduledRules> rules;
+    if (mRules)
+    {
+        rules.reset(static_cast<MegaScheduledRulesPrivate*>(mRules.get())->getSdkScheduledRules());
+    }
     return new ScheduledMeeting(mChatid, mTimezone.c_str(), mStartDateTime.c_str(), mEndDateTime.c_str(),
                      mTitle.c_str(), mDescription.c_str(), INVALID_HANDLE /*organizerUserId*/, mCallid,
                      mParentCallid, mCancelled, mAttributes.c_str(), mOverrides.c_str(), flags.get(), rules.get());
