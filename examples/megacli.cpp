@@ -10381,18 +10381,17 @@ void exec_syncxable(autocomplete::ACState& s)
 
     if (command == "enable")
     {
-        // sync enable id
-        UnifiedSync* unifiedSync;
-        error result =
-          client->syncs.enableSyncByBackupId(backupId, false, unifiedSync, "");
 
-        if (result)
-        {
-            cerr << "Unable to enable sync: "
-                 << errorstring(result)
-                 << endl;
-        }
+        client->syncs.enableSyncByBackupId(backupId, false, false, true, true, [](Error e, SyncError, handle){
 
+            if (e)
+            {
+                cerr << "Unable to enable sync: "
+                     << errorstring(e)
+                     << endl;
+            }
+
+        }, true, "");
         return;
     }
 
