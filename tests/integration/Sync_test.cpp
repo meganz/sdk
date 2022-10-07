@@ -881,7 +881,7 @@ StandardClient::StandardClient(const fs::path& basepath, const string& name, con
 
     // SyncTests want to skip backup restrictions, so they are not
     // restricted to the path "Vault/My backups/<device>/<backup>"
-    client.syncs.enableBackupRestrictions(false);
+    client.syncs.mBackupRestrictionsEnabled = false;
 }
 
 StandardClient::~StandardClient()
@@ -2015,7 +2015,7 @@ bool StandardClient::syncSet(handle backupId, SyncInfo& info) const
     if (found)
     {
         info.h = c.mRemoteNode;
-        info.localpath = c.getLocalPath().toPath();
+        info.localpath = c.getLocalPath().toPath(false);
         info.remotepath = c.mOriginalPathOfRemoteRootNode; // bit of a hack
 
         return true;
@@ -2426,14 +2426,14 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, LocalNode* n, int& d
     {
         if (0 != compareUtf(mn->fsName(), true, n->localname, true, false))
         {
-            out() << "LocalNode name mismatch: " << mn->fsPath() << " " << n->localname.toPath();
+            out() << "LocalNode name mismatch: " << mn->fsPath() << " " << n->localname.toPath(false);
             return false;
         }
     }
 
     if (!mn->typematchesnodetype(n->type))
     {
-        out() << "LocalNode type mismatch: " << mn->fsPath() << ":" << mn->type << " " << n->localname.toPath() << ":" << n->type;
+        out() << "LocalNode type mismatch: " << mn->fsPath() << ":" << mn->type << " " << n->localname.toPath(false) << ":" << n->type;
         return false;
     }
 
@@ -3755,7 +3755,9 @@ bool StandardClient::backupOpenDrive(const fs::path& drivePath)
 void StandardClient::backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
 {
     auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
-    result->set_value(client.syncs.backupOpenDrive(localDrivePath) == API_OK);
+    client.syncs.backupOpenDrive(localDrivePath, [result](Error e){
+        result->set_value(e == API_OK);
+    });
 }
 
 void StandardClient::triggerPeriodicScanEarly(handle backupID)
@@ -6773,13 +6775,13 @@ public:
                          const LocalPath& localPath,
                          const string& remotePath) override
     {
-        assert(startsWith(localPath.toPath(), mLocalRoot.toPath()));
+        assert(startsWith(localPath.toPath(false), mLocalRoot.toPath(false)));
         assert(startsWith(remotePath, mRemoteRoot));
 
         mAnomalies.emplace_back();
 
         auto& anomaly = mAnomalies.back();
-        anomaly.localPath = localPath.toPath().substr(mLocalRoot.toPath().size());
+        anomaly.localPath = localPath.toPath(false).substr(mLocalRoot.toPath(false).size());
         anomaly.remotePath = remotePath.substr(mRemoteRoot.size());
         anomaly.type = type;
     }
@@ -9144,7 +9146,7 @@ struct TwoWaySyncSymmetryCase
 
     void PrintLocalTree(const LocalNode& node)
     {
-        out() << node.getLocalPath().toPath();
+        out() << node.getLocalPath().toPath(false);
 
         if (node.type == FILENODE) return;
 

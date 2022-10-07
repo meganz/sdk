@@ -490,7 +490,7 @@ static const char* treestatename(treestate_t ts)
 
 void SyncApp::syncupdate_treestate(const SyncConfig &config, const LocalPath& lp, treestate_t ts, nodetype_t)
 {
-    LOG_info << "Sync - state change of node " << lp.toPath() << " to " << treestatename(ts);
+    LOG_info << "Sync - state change of node " << lp << " to " << treestatename(ts);
 }
 
 #endif
