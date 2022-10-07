@@ -675,6 +675,7 @@ public:
      * Completion is used to signal success/failure.  That may occur during this call, or in future (after server request/reply etc)
      */
     void addsync(SyncConfig&& syncConfig, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+
     /**
      * @brief
      * Create the remote backup dir under //in/"My Backups"/`DEVICE_NAME`/. If `DEVICE-NAME` folder is missing, create that first.

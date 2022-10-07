@@ -449,6 +449,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Backup source path not below drive path.";
     case SYNC_CONFIG_WRITE_FAILURE:
         return "Unable to write sync config to disk.";
+    case ACTIVE_SYNC_SAME_PATH:
+        return "Active sync same path";
     case COULD_NOT_MOVE_CLOUD_NODES:
         return "Unable to move cloud nodes.";
     case COULD_NOT_CREATE_IGNORE_FILE:
@@ -2885,7 +2887,6 @@ UnifiedSync::UnifiedSync(Syncs& s, const SyncConfig& c)
     mNextHeartbeat.reset(new HeartBeatSyncInfo());
 }
 
-
 void Syncs::enableSyncByBackupId(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname)
 {
     assert(!onSyncThread());
@@ -3059,7 +3060,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool paused, bool res
         if (firstTime || isExternal || wasDisabled)
         {
             // Then we must come up in mirroring mode.
-            config.mBackupState = SYNC_BACKUP_MIRROR;
+            us.mConfig.mBackupState = SYNC_BACKUP_MIRROR;
         }
     }
 
@@ -3104,10 +3105,16 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
     std::function<void(error, SyncError, handle)> completion, const string& logname)
 {
     assert(onSyncThread());
+    assert(!us.mSync);
 
     auto prevFingerprint = us.mConfig.mFilesystemFingerprint;
 
-    assert(!us.mSync);
+    auto fail = [&us, &completion](Error e, SyncError se) -> void {
+        us.changeState(se, false, true, true);
+        us.mSync.reset();
+        LOG_debug << "Final error for sync start: " << e;
+        if (completion) completion(e, us.mConfig.mError, us.mConfig.mBackupId);
+    };
 
     us.mConfig.mRunState = SyncRunState::Loading;
     us.changedConfigState(false, true);
@@ -3123,20 +3130,11 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
 
     us.changedConfigState(false, true);
 
-    // Assume we'll encounter an error.
-    error e = API_EFAILED;
-
-    // Reduce duplication.
-    auto signalError = [&](SyncError error) {
-        us.changeState(error, false, true, true);
-        us.mSync.reset();
-    };
-
     // Make sure we could open the state cache database.
     if (us.mSync->shouldHaveDatabase() && !us.mSync->statecachetable)
     {
         LOG_err << "Unable to open state cache database.";
-        signalError(UNABLE_TO_OPEN_DATABASE);
+        return fail(API_EFAILED, UNABLE_TO_OPEN_DATABASE);
     }
     // Make sure we were able to assign the root's FSID.
     else if (us.mSync->localroot->fsid_lastSynced == UNDEF)
@@ -3144,14 +3142,14 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
         LOG_err << "Unable to retrieve the sync root's FSID: "
                 << us.mConfig.getLocalPath();
 
-        signalError(UNABLE_TO_RETRIEVE_ROOT_FSID);
+        return fail(API_EFAILED, UNABLE_TO_RETRIEVE_ROOT_FSID);
     }
     else if (us.mSync->localroot->watch(us.mConfig.getLocalPath(), UNDEF) != WR_SUCCESS)
     {
         LOG_err << "Unable to add a watch for the sync root: "
                 << us.mConfig.getLocalPath();
 
-        signalError(UNABLE_TO_ADD_WATCH);
+        return fail(API_EFAILED, UNABLE_TO_ADD_WATCH);
     }
     else if (prevFingerprint && prevFingerprint != us.mConfig.mFilesystemFingerprint)
     {
@@ -3160,20 +3158,15 @@ void Syncs::startSync_inThread(UnifiedSync& us, const string& debris, const Loca
                 << "  Current: "
                 << us.mConfig.mFilesystemFingerprint;
 
-        signalError(LOCAL_FILESYSTEM_MISMATCH);
-    }
-    else
-    {
-        us.mSync->isnetwork = isNetwork;
-
-        saveSyncConfig(us.mConfig);
-        mSyncFlags->isInitialPass = true;
-        e = API_OK;
+        return fail(API_EFAILED, LOCAL_FILESYSTEM_MISMATCH);
     }
 
-    LOG_debug << "Final error for sync start: " << e;
+    us.mSync->isnetwork = isNetwork;
 
-    if (completion) completion(e, us.mConfig.mError, us.mConfig.mBackupId);
+    saveSyncConfig(us.mConfig);
+    mSyncFlags->isInitialPass = true;
+
+    if (completion) completion(API_OK, us.mConfig.mError, us.mConfig.mBackupId);
 }
 
 void UnifiedSync::changedConfigState(bool save, bool notifyApp)
