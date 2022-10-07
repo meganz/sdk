@@ -82,14 +82,14 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
                 // (it could happen if downgrade is executed and come back to newer version)
                 removeDBFiles(fsAccess, dbPath);
 
-                if (fsAccess.renamelocal(legacyPath, dbPath, false))
+                if (renameDBFiles(fsAccess, legacyPath, dbPath))
                 {
-                    renameDBTemporaryFiles(fsAccess, legacyPath, dbPath);
                     LOG_debug << "Legacy database recycled.";
                 }
                 else
                 {
-                    LOG_debug << "Unable to recycle database, deleting...";
+                    LOG_err << "Unable to recycle database, deleting...";
+                    assert(false);
                     removeDBFiles(fsAccess, legacyPath);
                 }
             }
@@ -229,29 +229,57 @@ bool SqliteDbAccess::openDBAndCreateStatecache(sqlite3 **db, FileSystemAccess &f
     return true;
 }
 
-void SqliteDbAccess::renameDBTemporaryFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath)
+bool SqliteDbAccess::renameDBFiles(mega::FileSystemAccess& fsAccess, mega::LocalPath& legacyPath, mega::LocalPath& dbPath)
 {
+    // Main DB file should exits
+    if (!fsAccess.renamelocal(legacyPath, dbPath))
+    {
+        return false;
+    }
+
+    auto fileAccess = fsAccess.newfileaccess();
+
 #if !(TARGET_OS_IPHONE)
     auto suffix = LocalPath::fromRelativePath("-shm");
     auto from = legacyPath + suffix;
     auto to = dbPath + suffix;
 
-    fsAccess.renamelocal(from, to);
+    // -shm could or couldn't be present
+    if (fileAccess->fopen(from) && !fsAccess.renamelocal(from, to))
+    {
+         // Exists origin and failure to rename
+        LOG_debug << "Failure to rename -shm file";
+        return false;
+    }
 
     suffix = LocalPath::fromRelativePath("-wal");
     from = legacyPath + suffix;
     to = dbPath + suffix;
 
-    fsAccess.renamelocal(from, to);
+    // -wal could or couldn't be present
+    if (fileAccess->fopen(from) && !fsAccess.renamelocal(from, to))
+    {
+         // Exists origin and failure to rename
+        LOG_debug << "Failure to rename -wall file";
+        return false;
+    }
 #else
     // iOS doesn't use WAL mode, but Journal
     auto suffix = LocalPath::fromRelativePath("-journal");
     auto from = legacyPath + suffix;
     auto to = dbPath + suffix;
 
-    fsAccess.renamelocal(from, to);
+    // -journal could or couldn't be present
+    if (fileAccess->fopen(from) && !fsAccess.renamelocal(from, to))
+    {
+         // Exists origin and failure to rename
+        LOG_debug << "Failure to rename -journal file";
+        return false;
+    }
 
 #endif
+
+    return true;
 }
 
 void SqliteDbAccess::removeDBFiles(FileSystemAccess& fsAccess, mega::LocalPath& dbPath)
