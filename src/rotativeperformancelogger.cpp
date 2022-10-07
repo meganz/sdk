@@ -324,7 +324,7 @@ private:
                     logsPath, fileName,
                     [this, currentTimestamp, archiveMaxFileAgeSeconds, &archivedTimestampsPathPairs](const LocalPath& logsPath,const LocalPath& leafNamePath)
         {
-            std::string leafName = leafNamePath.toPath();
+            std::string leafName = leafNamePath.toPath(true);
             std::regex rgx(".*\\.([0-9]+)\\.gz");
             std::smatch match;
             if (std::regex_match(leafName, match, rgx)
@@ -439,7 +439,7 @@ private:
 
                 if (!mFsAccess->unlinklocal(fileNameFullPath))
                 {
-                    threadErrors += "Error removing log file " + fileNameFullPath.toPath() + "\n";
+                    threadErrors += "Error removing log file " + fileNameFullPath.toPath(true) + "\n";
                 }
 
                 outputFile.open(fileNameFullPath.localpath.c_str(), std::ofstream::out);
@@ -461,11 +461,11 @@ private:
                 outputFile.close();
                 if (!mFsAccess->unlinklocal(newNameZipping))
                 {
-                    threadErrors += "Failed to unlink log file: " + newNameZipping.toPath() + "\n";
+                    threadErrors += "Failed to unlink log file: " + newNameZipping.toPath(true) + "\n";
                 }
                 if (!mFsAccess->renamelocal(fileNameFullPath, newNameZipping, true))
                 {
-                    threadErrors += "Failed to rename log file: " + fileNameFullPath.toPath() + " to " + newNameZipping.toPath() + "\n";
+                    threadErrors += "Failed to rename log file: " + fileNameFullPath.toPath(true) + " to " + newNameZipping.toPath(true) + "\n";
                 }
 
                 std::thread t([=]() {

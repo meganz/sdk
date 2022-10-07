@@ -1124,7 +1124,7 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpat
         {
             // set new name
             localname = newlocalpath->subpathFrom(p);
-            name = localname.toName(*sync->client->fsaccess);
+            name = localname.toName(*sync->syncs.fsaccess);
 
             if (node)
             {
@@ -1293,7 +1293,7 @@ void LocalNode::init(nodetype_t ctype, LocalNode* cparent, const LocalPath& cful
     {
         localname = cfullpath;
         slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
-        name = localname.toPath();
+        name = localname.toPath(true);
     }
 
     scanseqno = sync->scanseqno;
@@ -1469,11 +1469,11 @@ LocalNode::~LocalNode()
 
         if (type == FOLDERNODE)
         {
-            LOG_debug << "Sync - local folder deletion detected: " << getLocalPath().toPath();
+            LOG_debug << "Sync - local folder deletion detected: " << getLocalPath();
         }
         else
         {
-            LOG_debug << "Sync - local file deletion detected: " << getLocalPath().toPath();
+            LOG_debug << "Sync - local file deletion detected: " << getLocalPath();
         }
     }
 
@@ -1747,7 +1747,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->localname = LocalPath::fromPlatformEncodedRelative(localname);
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncodedRelative(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
-    l->name = l->localname.toName(*sync->client->fsaccess);
+    l->name = l->localname.toName(*sync->syncs.fsaccess);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;

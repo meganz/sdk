@@ -134,9 +134,9 @@ class MEGA_API LocalPath
     // there is still at least one use from outside this class
 public:
     static void path2local(const string*, string*);
-    static void local2path(const string*, string*);
+    static void local2path(const string*, string*, bool normalize);
 #if defined(_WIN32)
-    static void local2path(const std::wstring*, string*);
+    static void local2path(const std::wstring*, string*, bool normalize);
     static void path2local(const string*, std::wstring*);
 #endif
 
@@ -220,7 +220,7 @@ public:
 
     // Return a utf8 representation of the LocalPath
     // No escaping or unescaping is done.
-    string toPath() const;
+    string toPath(bool normalize) const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
@@ -804,6 +804,21 @@ struct MEGA_API FSNode
 
     // Same as the above but useful in situations where we don't have an FA handy.
     static unique_ptr<FSNode> fromPath(FileSystemAccess& fsAccess, const LocalPath& path);
+
+    const string& toName_of_localname(const FileSystemAccess& fsaccess)
+    {
+        // Although FSNode wouldn't naturally have a utf8 and normalized version of localname,
+        // we need to compare such a string during sorting operations.
+        // Using a caching mechanism like this avoids execessive conversions, normalization, and computing that if it's not used.
+        if (toName_of_localname_cached.empty())
+        {
+            toName_of_localname_cached = localname.toName(fsaccess);
+        }
+        return toName_of_localname_cached;
+    }
+
+private:
+    string toName_of_localname_cached;
 };
 
 class MEGA_API ScanService

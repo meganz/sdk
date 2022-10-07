@@ -1076,6 +1076,16 @@ MegaRecentActionBucketList *MegaRequest::getRecentActions() const
     return nullptr;
 }
 
+MegaSet* MegaRequest::getMegaSet() const
+{
+    return nullptr;
+}
+
+MegaSetElementList* MegaRequest::getMegaSetElementList() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1697,6 +1707,10 @@ void MegaGlobalListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
 void MegaGlobalListener::onAccountUpdate(MegaApi *)
 { }
+void MegaGlobalListener::onSetsUpdate(MegaApi *, MegaSetList *)
+{ }
+void MegaGlobalListener::onSetElementsUpdate(MegaApi *, MegaSetElementList *)
+{ }
 void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
@@ -1732,6 +1746,10 @@ void MegaListener::onUserAlertsUpdate(MegaApi *, MegaUserAlertList *)
 void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
 void MegaListener::onAccountUpdate(MegaApi *)
+{ }
+void MegaListener::onSetsUpdate(MegaApi *, MegaSetList *)
+{ }
+void MegaListener::onSetElementsUpdate(MegaApi *, MegaSetElementList *)
 { }
 void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
@@ -5547,6 +5565,78 @@ void MegaApi::stopDriveMonitor()
 bool MegaApi::driveMonitorEnabled()
 {
     return pImpl->driveMonitorEnabled();
+}
+
+void MegaApi::createSet(const char* name, MegaRequestListener* listener)
+{
+    int options = CREATE_SET | (name ? OPTION_SET_NAME : 0);
+    pImpl->putSet(INVALID_HANDLE, options, name, INVALID_HANDLE, listener);
+}
+
+void MegaApi::updateSetName(MegaHandle sid, const char* name, MegaRequestListener* listener)
+{
+    pImpl->putSet(sid, OPTION_SET_NAME, name, INVALID_HANDLE, listener);
+}
+
+void MegaApi::putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
+{
+    pImpl->putSet(sid, OPTION_SET_COVER, nullptr, eid, listener);
+}
+
+void MegaApi::removeSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    pImpl->removeSet(sid, listener);
+}
+
+void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    pImpl->fetchSet(sid, listener);
+}
+
+void MegaApi::createSetElement(MegaHandle sid, MegaHandle node, const char* name, MegaRequestListener* listener)
+{
+    int options = CREATE_ELEMENT | (name ? OPTION_ELEMENT_NAME : 0);
+    pImpl->putSetElement(sid, INVALID_HANDLE, node, options, 0, name, listener);
+}
+
+void MegaApi::updateSetElementOrder(MegaHandle sid, MegaHandle eid, int64_t order, MegaRequestListener* listener)
+{
+    pImpl->putSetElement(sid, eid, INVALID_HANDLE, OPTION_ELEMENT_ORDER, order, nullptr, listener);
+}
+
+void MegaApi::updateSetElementName(MegaHandle sid, MegaHandle eid, const char* name, MegaRequestListener* listener)
+{
+    pImpl->putSetElement(sid, eid, INVALID_HANDLE, OPTION_ELEMENT_NAME, 0, name, listener);
+}
+
+void MegaApi::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
+{
+    pImpl->removeSetElement(sid, eid, listener);
+}
+
+MegaSetList* MegaApi::getSets()
+{
+    return pImpl->getSets();
+}
+
+MegaSet* MegaApi::getSet(MegaHandle sid)
+{
+    return pImpl->getSet(sid);
+}
+
+MegaHandle MegaApi::getSetCover(MegaHandle sid)
+{
+    return pImpl->getSetCover(sid);
+}
+
+MegaSetElementList* MegaApi::getSetElements(MegaHandle sid)
+{
+    return pImpl->getSetElements(sid);
+}
+
+MegaSetElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
+{
+    return pImpl->getSetElement(sid, eid);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
