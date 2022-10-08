@@ -401,6 +401,8 @@ struct MEGA_API MegaApp
 
     virtual void dismissbanner_result(error) { }
 
+    virtual void reqstat_progress(int) { }
+
     virtual ~MegaApp() { }
 
     // External drive notifications

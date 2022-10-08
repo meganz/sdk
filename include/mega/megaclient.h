@@ -964,6 +964,9 @@ public:
     // flag to request an extra loop of the SDK to finish something pending
     bool looprequested;
 
+    // flag to start / stop the request status monitor
+    bool reqstatenabled;
+
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
@@ -1069,6 +1072,7 @@ private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
+    BackoffTimer btreqstat;
 
     vector<TimerWithBackoff *> bttimers;
 
@@ -1088,6 +1092,9 @@ private:
 
     // Working lock
     unique_ptr<HttpReq> workinglockcs;
+
+    // Request status monitor
+    unique_ptr<HttpReq> reqstatcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -1700,6 +1707,7 @@ public:
     void handleauth(handle, byte*);
 
     bool procsc();
+    size_t procreqstat();
 
     // API warnings
     void warn(const char*);

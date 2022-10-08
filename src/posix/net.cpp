@@ -1559,6 +1559,14 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 30L);
         }
 
+        if (req->followredirects)
+        {
+            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+
+            // Follow a reasonable number of redirects, to prevent redirection loops
+            curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 3L);
+        }
+
         if (!httpio->disablepkp && req->protect)
         {
         #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0

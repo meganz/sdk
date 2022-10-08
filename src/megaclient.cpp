@@ -1232,6 +1232,7 @@ void MegaClient::init()
     btsc.reset();
     btpfa.reset();
     btbadhost.reset();
+    btreqstat.reset();
 
     abortlockrequest();
     transferHttpCounter = 0;
@@ -1264,6 +1265,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
    , btcs(rng)
    , btbadhost(rng)
    , btworkinglock(rng)
+   , btreqstat(rng)
    , btsc(rng)
    , btpfa(rng)
    , fsaccess(move(f))
@@ -1286,6 +1288,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
+    reqstatenabled = false;
     scpaused = false;
     asyncfopens = 0;
     achievements_enabled = false;
@@ -2519,6 +2522,34 @@ void MegaClient::exec()
             }
         }
 
+        if (reqstatcs)
+        {
+            if (reqstatcs->status == REQ_SUCCESS)
+            {
+                LOG_debug << "Successful reqstat request";
+                btreqstat.reset();
+                reqstatcs.reset();
+            }
+            else if (reqstatcs->status == REQ_FAILURE)
+            {
+                LOG_err << "Failed reqstat request. Retrying";
+                btreqstat.backoff();
+                reqstatcs.reset();
+            }
+            else if (reqstatcs->status == REQ_INFLIGHT)
+            {
+                if (reqstatcs->in.size())
+                {
+                    size_t bytesConsumed = procreqstat();
+                    if (bytesConsumed)
+                    {
+                        btreqstat.reset();
+                        reqstatcs->in.erase(0, bytesConsumed);
+                    }
+                }
+            }
+        }
+
         // fill transfer slots from the queue
         if (nextDispatchTransfersDs <= Waiter::ds)
         {
@@ -3205,6 +3236,19 @@ void MegaClient::exec()
             }
         }
 
+        if (!reqstatcs && reqstatenabled && sid.size() && btreqstat.armed())
+        {
+            LOG_debug << clientname << "Sending reqstat request";
+            reqstatcs.reset(new HttpReq());
+            reqstatcs->logname = clientname + "reqstat ";
+            reqstatcs->followredirects = true;
+            reqstatcs->posturl = httpio->APIURL;
+            reqstatcs->posturl.append("cs/rs?sid=");
+            reqstatcs->posturl.append(Base64::btoa(sid));
+            reqstatcs->type = REQ_BINARY;
+            reqstatcs->post(this);
+        }
+
 #ifdef ENABLE_SYNC
         syncs.mHeartBeatMonitor->beat();
 #endif
@@ -3359,6 +3403,11 @@ int MegaClient::preparewait()
         if (!workinglockcs && requestLock)
         {
             btworkinglock.update(&nds);
+        }
+
+        if (!reqstatcs && reqstatenabled && sid.size())
+        {
+            btreqstat.update(&nds);
         }
 
         for (vector<TimerWithBackoff *>::iterator cit = bttimers.begin(); cit != bttimers.end(); cit++)
@@ -4329,6 +4378,11 @@ void MegaClient::disconnect()
         badhostcs->disconnect();
     }
 
+    if (reqstatcs)
+    {
+        reqstatcs->disconnect();
+    }
+
     httpio->lastdata = NEVER;
     httpio->disconnect();
 
@@ -5160,6 +5214,88 @@ bool MegaClient::procsc()
             }
         }
     }
+}
+
+size_t MegaClient::procreqstat()
+{
+    if (!reqstatcs || reqstatcs->in.size() < 2)
+    {
+        return 0;
+    }
+
+    uint16_t numUsers = MemAccess::get<uint16_t>(reqstatcs->in.data());
+    if (!numUsers)
+    {
+        LOG_debug << "reqstat: No operation in progress";
+        return 2;
+    }
+
+    size_t pos = 2 + 8 * numUsers;
+
+    // Incomplete?
+    if (reqstatcs->in.size() < pos + 2)
+    {
+        return 0;
+    }
+
+    uint16_t numOps = MemAccess::get<uint16_t>(reqstatcs->in.data() + pos);
+
+    // Incomplete?
+    if (reqstatcs->in.size() < pos + 2 + numOps + 3 * 4)
+    {
+        return 0;
+    }
+
+    std::ostringstream oss;
+    oss << "reqstat: User " << Base64::btoa(reqstatcs->in.substr(2, 8));
+    if (numUsers > 1)
+    {
+        oss << ", affecting ";
+        for (unsigned i = 1; i < numUsers; i++)
+        {
+            if (i > 1)
+            {
+                oss << ",";
+            }
+            oss << Base64::btoa(reqstatcs->in.substr(2 + 8 * i, 8));
+        }
+        oss << ",";
+    }
+
+    if (numOps > 0)
+    {
+        oss << " is executing a ";
+        for (unsigned i = 0; i < numOps; i++)
+        {
+            if (i)
+            {
+                oss << "/";
+            }
+
+            if (reqstatcs->in[pos + 2 + i] == 'p')
+            {
+                oss << "file or folder creation";
+            }
+            else
+            {
+                oss << "UNKNOWN operation";
+            }
+        }
+    }
+    pos += 2 + numOps;
+
+    uint32_t start = MemAccess::get<uint32_t>(reqstatcs->in.data() + pos);
+    uint32_t curr = MemAccess::get<uint32_t>(reqstatcs->in.data() + pos + 4);
+    uint32_t end = MemAccess::get<uint32_t>(reqstatcs->in.data() + pos + 8);
+    float progress = 100.0f * static_cast<float>(curr) / static_cast<float>(end);
+
+    oss << " since " << start << ", " << progress << "%";
+    oss << " [" << curr << "/" << end << "]";
+    LOG_debug << oss.str();
+
+    app->reqstat_progress(1000 * curr / end);
+
+    return pos + 3 * 4;
 }
 
 // update the user's local state cache, on completion of the fetchnodes command
