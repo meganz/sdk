@@ -322,10 +322,11 @@ struct MEGA_API HttpReq
 
     bool protect; // check pinned public key
     bool minspeed;
-    bool followredirects;
+    bool expectredirect;
 
     bool sslcheckfailed;
     string sslfakeissuer;
+    string redirecturl;
 
     string* out;
     string in;
@@ -423,6 +424,9 @@ struct MEGA_API HttpReq
     HttpReq(bool = false);
     virtual ~HttpReq();
     void init();
+
+    // get HTTP method as a static string
+    const char *getMethodString();
 };
 
 struct MEGA_API GenericHttpReq : public HttpReq

@@ -1447,7 +1447,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     auto len = httpctx->len;
     const char* data = httpctx->data;
 
-    LOG_debug << httpctx->req->logname << "POST target URL: " << getSafeUrl(req->posturl);
+    LOG_debug << httpctx->req->logname << req->getMethodString() << " target URL: " << getSafeUrl(req->posturl);
 
     if (req->binary)
     {
@@ -1559,19 +1559,12 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 30L);
         }
 
-        if (req->followredirects)
-        {
-            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-
-            // Follow a reasonable number of redirects, to prevent redirection loops
-            curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 3L);
-        }
-
         if (!httpio->disablepkp && req->protect)
         {
         #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
             if (curl_easy_setopt(curl, CURLOPT_PINNEDPUBLICKEY,
                   !memcmp(req->posturl.data(), httpio->APIURL.data(), httpio->APIURL.size())
+                  || !memcmp(req->posturl.data(), MegaClient::REQSTATURL.data(), MegaClient::REQSTATURL.size())
                     ? "sha256//0W38e765pAfPqS3DqSVOrPsC4MEOvRBaXQ7nY1AJ47E=;" //API 1
                       "sha256//gSRHRu1asldal0HP95oXM/5RzBfP1OIrPjYsta8og80="  //API 2
                     : (!memcmp(req->posturl.data(), MegaClient::SFUSTATSURL.data(), MegaClient::SFUSTATSURL.size()))
@@ -2218,25 +2211,25 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     if (errorCode == CURLE_SSL_PINNEDPUBKEYNOTMATCH)
                     {
                         pkpErrors++;
-                        LOG_warn << "Invalid public key?";
+                        LOG_warn << req->logname << "Invalid public key?";
 
                         if (pkpErrors == 3)
                         {
                             pkpErrors = 0;
 
-                            LOG_err << "Invalid public key. Possible MITM attack!!";
+                            LOG_err << req->logname << "Invalid public key. Possible MITM attack!!";
                             req->sslcheckfailed = true;
 
                             struct curl_certinfo *ci;
                             if (curl_easy_getinfo(msg->easy_handle, CURLINFO_CERTINFO, &ci) == CURLE_OK)
                             {
-                                LOG_warn << "Fake SSL certificate data:";
+                                LOG_warn << req->logname << "Fake SSL certificate data:";
                                 for (int i = 0; i < ci->num_of_certs; i++)
                                 {
                                     struct curl_slist *slist = ci->certinfo[i];
                                     while (slist)
                                     {
-                                        LOG_warn << i << ": " << slist->data;
+                                        LOG_warn << req->logname << i << ": " << slist->data;
                                         if (i == 0 && !memcmp("Issuer:", slist->data, 7))
                                         {
                                             const char *issuer = NULL;
@@ -2260,7 +2253,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                                 if (req->sslfakeissuer.size())
                                 {
-                                    LOG_debug << "Fake certificate issuer: " << req->sslfakeissuer;
+                                    LOG_debug << req->logname << "Fake certificate issuer: " << req->sslfakeissuer;
                                 }
                             }
                         }
@@ -2276,10 +2269,21 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &httpstatus);
                 req->httpstatus = int(httpstatus);
 
-                LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
+                LOG_debug << req->logname << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
                           << (req->httpiohandle ? (((CurlHttpContext*)req->httpiohandle)->hostname + " - " + ((CurlHttpContext*)req->httpiohandle)->hostip) : "(unknown) ");
                 if (req->httpstatus)
                 {
+                    if (req->expectredirect && (req->httpstatus / 100) == 3) // HTTP 3xx response
+                    {
+                        char *url = NULL;
+                        curl_easy_getinfo(msg->easy_handle, CURLINFO_REDIRECT_URL, &url);
+                        if (url)
+                        {
+                            req->redirecturl = url;
+                            LOG_debug << req->logname << "Redirected to " << req->redirecturl;
+                        }
+                    }
+
                     if (req->method == METHOD_NONE)
                     {
                         char *ip = NULL;
@@ -2287,7 +2291,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         if (curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIMARY_IP, &ip) == CURLE_OK
                               && ip && !strstr(httpctx->hostip.c_str(), ip))
                         {
-                            LOG_err << "cURL has changed the original IP! " << httpctx ->hostip << " -> " << ip;
+                            LOG_err << req->logname << "cURL has changed the original IP! " << httpctx ->hostip << " -> " << ip;
                             req->in = strstr(ip, ":") ? (string("[") + ip + "]") : string(ip);
                         }
                         else
@@ -2317,8 +2321,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                 }
 
-                // check httpstatus and response length
-                req->status = (req->httpstatus == 200
+                // check httpstatus, redirecturl and response length
+                req->status = ((req->httpstatus == 200 || (req->expectredirect && (req->httpstatus / 100) == 3 && req->redirecturl.size()))
                                && errorCode != CURLE_PARTIAL_FILE
                                && (req->contentlength < 0
                                    || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
@@ -2406,7 +2410,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                             if (dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired())
                             {
-                                LOG_debug << "Retrying using IPv4 from cache";
+                                LOG_debug << req->logname << "Retrying using IPv4 from cache";
                                 httpctx->isIPv6 = false;
                                 httpctx->hostip = dnsEntry.ipv4;
                                 send_request(httpctx);
@@ -2414,7 +2418,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                             else
                             {
                                 httpctx->hostip.clear();
-                                LOG_debug << "Retrying with the pending DNS response";
+                                LOG_debug << req->logname << "Retrying with the pending DNS response";
                             }
                             return true;
                         }

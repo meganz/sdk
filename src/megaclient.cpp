@@ -55,6 +55,10 @@ const string MegaClient::SUPPORT_USER_HANDLE = "pGTOqu7_Fek";
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
 
+// root URL for chat stats
+// MegaClient statics must be const or we get threading problems
+const string MegaClient::REQSTATURL = "https://reqstat.api.mega.co.nz";
+
 // root URL for Website
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::MEGAURL = "https://mega.nz";
@@ -2526,9 +2530,24 @@ void MegaClient::exec()
         {
             if (reqstatcs->status == REQ_SUCCESS)
             {
-                LOG_debug << "Successful reqstat request";
-                btreqstat.reset();
-                reqstatcs.reset();
+                if ((reqstatcs->httpstatus / 100) == 3 && reqstatcs->redirecturl.size())
+                {
+                    std::string reqstaturl = reqstatcs->redirecturl;
+                    LOG_debug << "Accessing reqstat URL: " << reqstaturl;
+                    reqstatcs.reset(new HttpReq());
+                    reqstatcs->logname = clientname + "reqstat ";
+                    reqstatcs->posturl = reqstaturl;
+                    reqstatcs->type = REQ_BINARY;
+                    reqstatcs->binary = true;
+                    reqstatcs->protect = true;
+                    reqstatcs->get(this);
+                }
+                else
+                {
+                    LOG_debug << "Successful reqstat request";
+                    btreqstat.reset();
+                    reqstatcs.reset();
+                }
             }
             else if (reqstatcs->status == REQ_FAILURE)
             {
@@ -3241,11 +3260,13 @@ void MegaClient::exec()
             LOG_debug << clientname << "Sending reqstat request";
             reqstatcs.reset(new HttpReq());
             reqstatcs->logname = clientname + "reqstat ";
-            reqstatcs->followredirects = true;
+            reqstatcs->expectredirect = true;
             reqstatcs->posturl = httpio->APIURL;
             reqstatcs->posturl.append("cs/rs?sid=");
             reqstatcs->posturl.append(Base64::btoa(sid));
             reqstatcs->type = REQ_BINARY;
+            reqstatcs->protect = true;
+            reqstatcs->binary = true;
             reqstatcs->post(this);
         }
 

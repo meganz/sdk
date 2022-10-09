@@ -1014,6 +1014,9 @@ public:
     // root URL for chat stats
     static const string SFUSTATSURL;
 
+    // root URL for reqstat requests
+    static const string REQSTATURL;
+
     // root URL for Website
     static const string MEGAURL;
 

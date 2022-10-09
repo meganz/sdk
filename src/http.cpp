@@ -477,7 +477,7 @@ HttpReq::HttpReq(bool b)
     buflen = 0;
     protect = false;
     minspeed = false;
-    followredirects = false;
+    expectredirect = false;
 
     init();
 }
@@ -505,6 +505,22 @@ void HttpReq::init()
     outpos = 0;
     in.clear();
     contenttype.clear();
+    redirecturl.clear();
+}
+
+const char *HttpReq::getMethodString()
+{
+    switch(method)
+    {
+    case METHOD_POST:
+        return "POST";
+    case METHOD_GET:
+        return "GET";
+    case METHOD_NONE:
+        return "NONE";
+    default:
+        return "UNKNOWN_METHOD";
+    }
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)
