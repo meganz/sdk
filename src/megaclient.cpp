@@ -5248,6 +5248,7 @@ size_t MegaClient::procreqstat()
     if (!numUsers)
     {
         LOG_debug << "reqstat: No operation in progress";
+        app->reqstat_progress(-1);
         return 2;
     }
 
