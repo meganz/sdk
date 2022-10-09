@@ -18995,7 +18995,7 @@ void MegaApiImpl::sendPendingRequests()
             if (request->getParamType() & MegaApi::OPTION_ELEMENT_NAME)
             {
                 el.setName(request->getText() ? request->getText() : string());
-            }    
+            }
             client->putSetElement(move(el),
                 [this, request](Error e, const SetElement* el)
                 {
@@ -21661,17 +21661,14 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
             auto backupId = request->getParentHandle();
-            UnifiedSync* us = nullptr;
 
-            e = client->syncs.enableSyncByBackupId(backupId, true, us, "");
+            client->syncs.enableSyncByBackupId(backupId, false, true, true, true, [request, this](error e, SyncError se, handle h){
 
-            request->setNumDetails(us ? us->mConfig.mError : UNKNOWN_ERROR);
+                request->setNumDetails(se);
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 
-            if (!e) //sync added (enabled) fine
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-                break;
-            }
+            }, true, "");
+
 
             break;
         }
