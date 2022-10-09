@@ -5409,7 +5409,7 @@ public:
         BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
         SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
         ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
-        COULD_NOT_MOVE_CLOUD_NODES = 33,        // rename() failed.
+        COULD_NOT_MOVE_CLOUD_NODES = 33,        // rename() failed
         COULD_NOT_CREATE_IGNORE_FILE = 34,      // Couldn't create a sync's initial ignore file.
         SYNC_CONFIG_READ_FAILURE = 35,          // Couldn't read sync configs from disk.
         UNKNOWN_DRIVE_PATH = 36,                // Sync's drive path isn't known.
@@ -5418,7 +5418,7 @@ public:
         UNABLE_TO_ADD_WATCH = 39,               // Unable to add a filesystem watch.
         UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
         UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
-        INSUFFICIENT_DISK_SPACE = 42,           // Insufficient disk space for download.
+        INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
     };
 
     enum Warning
@@ -6409,7 +6409,7 @@ protected:
         // MegaError::Errors enum/ErrorCodes
         int errorCode;
 
-        // SyncError/MegaSync::Error 
+        // SyncError/MegaSync::Error
         int syncError;
 
         friend class MegaTransfer;
