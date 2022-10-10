@@ -71,9 +71,12 @@ namespace UserAlert
     static const nameid type_dshare = MAKENAMEID6('d', 's', 'h', 'a', 'r', 'e');    // deleted shared node
     static const nameid type_put = MAKENAMEID3('p', 'u', 't');                      // new shared nodes
     static const nameid type_d = 'd';                                               // removed shared node
+    static const nameid type_u = 'u';                                               // updated shared node
     static const nameid type_psts = MAKENAMEID4('p', 's', 't', 's');                // payment
     static const nameid type_pses = MAKENAMEID4('p', 's', 'e', 's');                // payment reminder
     static const nameid type_ph = MAKENAMEID2('p', 'h');                            // takedown
+
+    using handle_alerttype_map_t = map<handle, nameid>;
 
     struct Base
     {
@@ -174,23 +177,38 @@ namespace UserAlert
 
     struct NewSharedNodes : public Base
     {
-        unsigned fileCount, folderCount;
-
-        std::vector<handle> items;
-
         handle parentHandle;
+        vector<handle> fileNodeHandles;
+        vector<handle> folderNodeHandles;
 
         NewSharedNodes(UserAlertRaw& un, unsigned int id);
-        NewSharedNodes(int nfolders, int nfiles, const std::vector<handle>& iitems, handle uh, handle ph, m_time_t timestamp, unsigned int id);
+        NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
+                       handle_alerttype_map_t alertTypePerFileNode,
+                       handle_alerttype_map_t alertTypePerFolderNode);
+
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
     struct RemovedSharedNode : public Base
     {
-        size_t itemsNumber;
+        vector<handle> nodeHandles;
 
         RemovedSharedNode(UserAlertRaw& un, unsigned int id);
-        RemovedSharedNode(size_t nitems, handle uh, m_time_t timestamp, unsigned int id);
+        RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
+                          handle_alerttype_map_t alertTypePerFileNode,
+                          handle_alerttype_map_t alertTypePerFolderNode);
+
+        virtual void text(string& header, string& title, MegaClient* mc);
+    };
+
+    struct UpdatedSharedNode : public Base
+    {
+        vector<handle> nodeHandles;
+
+        UpdatedSharedNode(UserAlertRaw& un, unsigned int id);
+        UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
+                          handle_alerttype_map_t alertTypePerFileNode,
+                          handle_alerttype_map_t alertTypePerFolderNode);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -268,20 +286,31 @@ private:
     std::vector<UserAlert::Base*> provisionals;
 
     struct ff {
-        
-        int files = 0;
-        int folders = 0;
-        
-        vector<handle> items;
-        // files + folders items
-
         m_time_t timestamp = 0;
+        UserAlert::handle_alerttype_map_t alertTypePerFileNode;
+        UserAlert::handle_alerttype_map_t alertTypePerFolderNode;
     };
-    map<pair<handle, handle>, ff> notedSharedNodes;
+    using notedShNodesMap = map<pair<handle, handle>, ff>;
+    notedShNodesMap notedSharedNodes;
+    notedShNodesMap deletedSharedNodesStash;
     bool notingSharedNodes;
     handle ignoreNodesUnderShare;
 
     bool isUnwantedAlert(nameid type, int action);
+    bool isConvertReadyToAdd(handle originatinguser) const;
+    void convertNotedSharedNodes(bool added);
+    void clearNotedSharedMembers();
+
+    bool containsRemovedNodeAlert(handle nh, const UserAlert::Base* a) const;
+    UserAlert::NewSharedNodes* eraseNewNodeAlert(handle nodeHandleToRemove, UserAlert::Base* alertToCheck);
+    UserAlert::RemovedSharedNode* eraseRemovedNodeAlert(handle nh, UserAlert::Base* a);
+    pair<bool, UserAlert::handle_alerttype_map_t::difference_type>
+        findNotedSharedNodeIn(handle nodeHandle, const notedShNodesMap& notedSharedNodesMap) const;
+    bool isSharedNodeNotedAsRemoved(handle nodeHandleToFind) const;
+    bool isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind, const notedShNodesMap& notedSharedNodesMap) const;
+    bool removeNotedSharedNodeFrom(notedShNodesMap::iterator itToNodeToRemove, Node* node, notedShNodesMap& notedSharedNodesMap);
+    bool removeNotedSharedNodeFrom(Node* n, notedShNodesMap& notedSharedNodesMap);
+    bool setNotedSharedNodeToUpdate(Node* n);
 
 public:
 
@@ -301,13 +330,24 @@ public:
 
     // keep track of incoming nodes in shares, and convert to a notification
     void beginNotingSharedNodes();
-    void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n);
+    void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n, nameid alertType = UserAlert::type_d);
     void convertNotedSharedNodes(bool added, handle originatingUser);
     void ignoreNextSharedNodesUnder(handle h);
+
 
     // enter provisional mode, added items will be checked for suitability before actually adding
     void startprovisional();
     void evalprovisional(handle originatinguser);
+
+    // update node alerts management
+    bool isHandleInAlertsAsRemoved(handle nodeHandleToFind) const;
+    void removeNodeAlerts(Node* n);
+    void setNewNodeAlertToUpdateNodeAlert(Node* n);
+
+    // stash removal-alert noted nodes
+    void convertStashedDeletedSharedNodes();
+    bool isDeletedSharedNodesStashEmpty() const;
+    void stashDeletedNotedSharedNodes(handle originatingUser);
 
     // marks all as seen, and notifies the API also
     void acknowledgeAll();

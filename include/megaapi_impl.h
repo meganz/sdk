@@ -185,7 +185,7 @@ public:
         assert(type < FILENAME_ANOMALY_NONE);
 
         mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
-                                  localPath.toPath().c_str(),
+                                  localPath.toPath(false).c_str(),
                                   remotePath.c_str());
     }
 
@@ -3468,10 +3468,7 @@ private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 #ifdef ENABLE_SYNC
-        error addSyncByRequest(MegaRequestPrivate* request, const string& syncName,
-                               const LocalPath& localPath, const LocalPath& drivePath, const SyncConfig::Type syncType);
-        error addBackupByRequest(MegaRequestPrivate* request, const string& syncName,
-                                 const LocalPath& localPath, const LocalPath& drivePath);
+        void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
 };
 
@@ -3523,17 +3520,21 @@ public:
     void setMaxBufferSize(unsigned int bufferSize);
     // Set upper bound limit for chunk size to write to the consumer
     void setMaxOutputSize(unsigned int outputSize);
-    // Set file length in bytes
-    void setLength(size_t length);
-    // Set file length in seconds (for media files)
-    void setDuration(size_t duration);
-    // Bit Rate in seconds (length in bytes / length in seconds) -> only for media files
-    size_t getBitRate() const;
+    // Set file size
+    void setFileSize(m_off_t fileSize);
+    // Set media length in seconds
+    void setDuration(int duration);
+    // Rate between file size and its duration (only for media files)
+    m_off_t getBytesPerSecond() const;
     // Get the actual buffer state for debugging purposes
     std::string bufferStatus() const;
 
     static const unsigned int MAX_BUFFER_SIZE = 2097152;
     static const unsigned int MAX_OUTPUT_SIZE = MAX_BUFFER_SIZE / 10;
+
+private:
+    // Rate between partial file size and its duration (only for media files)
+    m_off_t partialDuration(m_off_t partialSize) const;
 
 protected:
     // Circular buffer to store data to feed the consumer
@@ -3553,10 +3554,10 @@ protected:
     // Upper bound limit for chunk size to write to the consumer
     size_t maxOutputSize;
 
-    // Length in bytes
-    size_t length;
-    // Length in seconds (for media files)
-    size_t duration;
+    // File size
+    m_off_t fileSize;
+    // Media length in seconds (for media files)
+    int duration;
 };
 
 class MegaTCPServer;

@@ -1572,6 +1572,7 @@ public:
         TYPE_DELETEDSHARE,
         TYPE_NEWSHAREDNODES,
         TYPE_REMOVEDSHAREDNODES,
+        TYPE_UPDATEDSHAREDNODES,
         TYPE_PAYMENT_SUCCEEDED,
         TYPE_PAYMENT_FAILED,
         TYPE_PAYMENTREMINDER,
@@ -5385,6 +5386,7 @@ public:
         BACKUP_MODIFIED = 29, // Backup has been externally modified.
         BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
         SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
+        ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
     };
 
     enum Warning
@@ -5512,6 +5514,12 @@ public:
      *  - UNKNOWN_TEMPORARY_ERROR = 24: Unknown temporary error
      *  - TOO_MANY_ACTION_PACKETS = 25: Too many changes in account, local state discarded
      *  - LOGGED_OUT = 26: Logged out
+     *  - WHOLE_ACCOUNT_REFETCHED = 27: The whole account was reloaded, missed actionpacket changes could not have been applied
+     *  - MISSING_PARENT_NODE = 28: Setting a new parent to a parent whose LocalNode is missing its corresponding Node crossref
+     *  - BACKUP_MODIFIED = 29: Backup has been externally modified.
+     *  - BACKUP_SOURCE_NOT_BELOW_DRIVE = 30: Backup source path not below drive path.
+     *  - SYNC_CONFIG_WRITE_FAILURE = 31: Unable to write sync config to disk.
+     *  - ACTIVE_SYNC_SAME_PATH = 32: There's a synced node at the path to be synced
      *
      * @return Error of a synchronization
      */
@@ -12288,7 +12296,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the node handle of the folder created
          *
-         * If the folder for backups already existed, the request will fail with the error API_EACCESS.
+         * If no user was logged in, the request will fail with the error API_EACCESS.
+         * If the folder for backups already existed, the request will fail with the error API_EEXIST.
          *
          * @param localizedName Localized name for "My backups" folder
          * @param listener MegaRequestListener to track this request
@@ -14187,6 +14196,7 @@ class MegaApi
          * - MegaError::API_EEXIST if there is a conflicting synchronization (nodes can't be synced twice)
          *              SyncError: ACTIVE_SYNC_BELOW_PATH - There's a synced node below the path to be synced
          *              SyncError: ACTIVE_SYNC_ABOVE_PATH - There's a synced node above the path to be synced
+         *              SyncError: ACTIVE_SYNC_SAME_PATH - There's a synced node at the path to be synced
          * - MegaError::API_EINCOMPLETE if the SDK hasn't been built with support for synchronization
          *
          *  @return API_OK if syncable. Error otherwise sets syncError in the returned MegaError
