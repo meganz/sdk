@@ -14333,7 +14333,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork)
+error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, bool& inshare, bool& isnetwork)
 {
     // Checking for conditions where we would not even add the sync config
     // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
@@ -14355,8 +14355,6 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         syncConfig.mEnabled = false;
         return API_ENOENT;
     }
-
-    rootNodeName = remotenode->displayname();
 
     if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
@@ -14619,7 +14617,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
@@ -14627,9 +14625,8 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
 
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
-    string remotenodename;
     bool inshare, isnetwork;
-    error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
+    error e = checkSyncConfig(config, rootpath, openedLocalFolder, inshare, isnetwork);
 
     if (e)
     {
@@ -14657,30 +14654,31 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add(new CommandBackupPut(this, info,
-                                  [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
-            if (ISUNDEF(backupId) && !e)
-            {
-                e = API_EFAILED;
-            }
+        [this, config, completion, notifyApp, logname, excludedPath](Error e, handle backupId) mutable {
+        if (ISUNDEF(backupId) && !e)
+        {
+            LOG_debug << "Request for backupId failed for sync add";
+            e = API_EFAILED;
+        }
 
-            if (e)
-            {
-                completion(e, config.mError, backupId);
-            }
-            else
-            {
-                // if we got this far, the syncConfig is kept (in db and in memory)
-                config.mBackupId = backupId;
+        if (e)
+        {
+            LOG_warn << "Failed to register heartbeat record for new sync. Error: " << int(e);
+            completion(e, config.mError, backupId);
+        }
+        else
+        {
+            // if we got this far, the syncConfig is kept (in db and in memory)
+            config.mBackupId = backupId;
 
-                UnifiedSync* unifiedSync = syncs.appendNewSync(config, *this);
-
-                e = unifiedSync->enableSync(false, notifyApp, logname);
-
+            auto modifedCompletion = [this, completion](error e, SyncError se, handle h){
+                completion(e, se, h);
                 syncactivity = true;
+            };
 
-                completion(e, unifiedSync->mConfig.mError, backupId);
-            }
-        }));
+            syncs.appendNewSync(config, true, notifyApp, modifedCompletion, true, logname, excludedPath);
+        }
+    }));
 }
 
 

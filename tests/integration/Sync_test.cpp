@@ -2694,8 +2694,9 @@ Sync* StandardClient::syncByBackupId(handle backupId)
 
 void StandardClient::enableSyncByBackupId(handle id, PromiseBoolSP result, const string& logname)
 {
-    UnifiedSync* sync;
-    result->set_value(!client.syncs.enableSyncByBackupId(id, false, sync, logname));
+    client.syncs.enableSyncByBackupId(id, false, false, true, true, [result](Error e, SyncError, handle){
+            result->set_value(!e);
+        }, true, logname);
 }
 
 bool StandardClient::enableSyncByBackupId(handle id, const string& logname)
