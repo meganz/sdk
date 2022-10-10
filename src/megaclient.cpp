@@ -15578,14 +15578,38 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
-    bool getExtensionDotted(const Node* n, std::string& ext, const MegaClient& mc)
+    bool getExtensionDotted(const Node* n, std::string& ext)
     {
-        auto localname = LocalPath::fromRelativePath(n->displayname());
-        if (mc.fsaccess->getextension(localname, ext))
+        const char* name = n->displayname();
+        const size_t size = strlen(name);
+
+        const char* ptr = name + size;
+        char c;
+
+        for (unsigned i = 0; i < size; ++i)
         {
-            ext.push_back('.');
-            return true;
+            if (*--ptr == '.')
+            {
+                ext.reserve(i+1);
+
+                unsigned j = 0;
+                for (; j <= i; j++)
+                {
+                    if (*ptr < '.' || *ptr > 'z') return false;
+
+                    c = *(ptr++);
+
+                    // tolower()
+                    if (c >= 'A' && c <= 'Z') c |= ' ';
+
+                    ext.push_back(c);
+                }
+
+                ext.push_back('.');
+                return true;
+            }
         }
+
         return false;
     }
 
@@ -15595,7 +15619,7 @@ namespace action_bucket_compare
 bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         bool a = action_bucket_compare::nodeIsPhoto(n, ext, true);
         if (isphoto)
@@ -15619,7 +15643,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 bool MegaClient::nodeIsVideo(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsVideo(n, ext, *this);
     }
@@ -15629,7 +15653,7 @@ bool MegaClient::nodeIsVideo(const Node *n) const
 bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsPhoto(n, ext, checkPreview);
     }
@@ -15639,7 +15663,7 @@ bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 bool MegaClient::nodeIsAudio(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsAudio(n, ext);
     }
@@ -15649,7 +15673,7 @@ bool MegaClient::nodeIsAudio(const Node *n) const
 bool MegaClient::nodeIsDocument(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsDocument(n, ext);
     }

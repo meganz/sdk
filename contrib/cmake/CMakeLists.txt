@@ -46,7 +46,7 @@ set (HAVE_FFMPEG 1 CACHE STRING "Used to create previews/thumbnails for video fi
 set (USE_WEBRTC 0 CACHE STRING "Declare that your app will link with WebRTC")
 set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web and ftp server functionality")
 set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
-set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
+set (USE_PDFIUM 1 CACHE STRING "Used to create previews/thumbnails for PDF files")
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
 set (USE_PCRE 0 CACHE STRING "Can be used by client apps. The SDK does not use it itself anymore")
 set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
