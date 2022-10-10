@@ -40,6 +40,7 @@
 #include "user.h"
 #include "sync.h"
 #include "drivenotify.h"
+#include "setandelement.h"
 
 namespace mega {
 
@@ -222,7 +223,6 @@ struct SyncdownContext
     bool mBackupActionsPerformed = false;
     bool mBackupForeignChangeDetected = false;
 }; // SyncdownContext
-
 
 // Class to help with upload of file attributes
 struct UploadWaitingForFileAttributes
@@ -1299,7 +1299,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT} sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSET, CACHEDSETELEMENT } sctablerectype;
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };
@@ -1680,6 +1680,8 @@ public:
     static const int DRIVEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
+    static const int SETHANDLE = Set::HANDLESIZE;
+    static const int SETELEMENTHANDLE = SetElement::HANDLESIZE;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -1993,6 +1995,97 @@ private:
 
     // creates a new id filling `id` with random bytes, up to `length`
     void resetId(char *id, size_t length);
+
+
+//
+// Sets and Elements
+//
+
+public:
+    // generate "asp" command
+    void putSet(Set&& s, std::function<void(Error, const Set*)> completion);
+
+    // generate "asr" command
+    void removeSet(handle sid, std::function<void(Error)> completion);
+
+    // generate "aft" command
+    void fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion);
+
+    // generate "aep" command
+    void putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion);
+
+    // generate "aer" command
+    void removeSetElement(handle sid, handle eid, std::function<void(Error)> completion);
+
+    // handle "aesp" parameter, part of 'f'/ "fetch nodes" response
+    bool procaesp();
+
+    // load Sets and Elements from json
+    error readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements);
+
+    // return Set with given sid or nullptr if it was not found
+    const Set* getSet(handle sid) const;
+
+    // return all available Sets, indexed by id
+    const map<handle, Set>& getSets() const { return mSets; }
+
+    // add new Set or replace exisiting one
+    const Set* addSet(Set&& a);
+
+    // search for Set with the same id, and update its members
+    bool updateSet(Set&& s);
+
+    // delete Set with elemId from local memory; return true if found and deleted
+    bool deleteSet(handle sid);
+
+    // return Element with given eid from Set sid, or nullptr if not found
+    const SetElement* getSetElement(handle sid, handle eid) const;
+
+    // return all available Elements in a Set, indexed by eid
+    const map<handle, SetElement>* getSetElements(handle sid) const;
+
+    // add new SetElement or replace exisiting one
+    const SetElement* addOrUpdateSetElement(SetElement&& el);
+
+    // delete Element with eid from Set with sid in local memory; return true if found and deleted
+    bool deleteSetElement(handle sid, handle eid);
+
+private:
+
+    error readSets(JSON& j, map<handle, Set>& sets);
+    error readSet(JSON& j, Set& s);
+    error readElements(JSON& j, map<handle, map<handle, SetElement>>& elements);
+    error readElement(JSON& j, SetElement& el);
+    error decryptSetData(Set& s);
+    error decryptElementData(SetElement& el, const string& setKey);
+    string decryptKey(const string& k, SymmCipher& cipher) const;
+    bool decryptAttrs(const string& attrs, const string& decrKey, string_map& output);
+    string encryptAttrs(const string_map& attrs, const string& encryptionKey);
+
+    void sc_asp(); // AP after new or updated Set
+    void sc_asr(); // AP after removed Set
+    void sc_aep(); // AP after new or updated Set Element
+    void sc_aer(); // AP after removed Set Element
+
+    bool initscsets();
+    bool fetchscset(string* data, uint32_t id);
+    bool updatescsets();
+    void notifypurgesets();
+    void notifyset(Set*);
+    vector<Set*> setnotify;
+    map<handle, Set> mSets; // indexed by Set id
+
+    bool initscsetelements();
+    bool fetchscsetelement(string* data, uint32_t id);
+    bool updatescsetelements();
+    void notifypurgesetelements();
+    void notifysetelement(SetElement*);
+    void clearsetelementnotify(handle sid);
+    vector<SetElement*> setelementnotify;
+    map<handle, map<handle, SetElement>> mSetElements; // indexed by Set id, then Element id
+
+// -------- end of Sets and Elements
+
 };
 } // namespace
 

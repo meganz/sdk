@@ -1208,6 +1208,242 @@ class MegaNode
         static MegaNode* unserialize(const char *d);
 };
 
+
+/**
+ * @brief Represents a Set in MEGA
+ *
+ * It allows to get all data related to a Set in MEGA.
+ *
+ * Objects of this class aren't live, they are snapshots of the state of a Set
+ * in MEGA when the object is created, they are immutable.
+ *
+ */
+class MegaSet
+{
+public:
+    /**
+     * @brief Returns id of current Set.
+     *
+     * @return Set id.
+     */
+    virtual MegaHandle id() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns id of user that owns current Set.
+     *
+     * @return user id.
+     */
+    virtual MegaHandle user() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns timestamp of latest changes to current Set (but not to its Elements).
+     *
+     * @return timestamp value.
+     */
+    virtual int64_t ts() const { return 0; }
+
+    /**
+     * @brief Returns name of current Set.
+     *
+     * The MegaSet object retains the ownership of the returned string, it will be valid until
+     * the MegaSet object is deleted.
+     *
+     * @return name of current Set.
+     */
+    virtual const char* name() const { return nullptr; }
+
+    /**
+     * @brief Returns id of Element set as 'cover' for current Set.
+     *
+     * It will return INVALID_HANDLE if no cover was set or if the Element became invalid
+     * (was removed) in the meantime.
+     *
+     * @return Element id.
+     */
+    virtual MegaHandle cover() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns true if this Set has a specific change
+     *
+     * This value is only useful for Sets notified by MegaListener::onSetsUpdate or
+     * MegaGlobalListener::onSetsUpdate that can notify about Set modifications.
+     *
+     * In other cases, the return value of this function will be always false.
+     *
+     * @param changeType The type of change to check. It can be one of the following values:
+     *
+     * - MegaSet::CHANGE_TYPE_NEW                   = 0x00
+     * Check if the Set was new
+     *
+     * - MegaSet::CHANGE_TYPE_NAME                  = 0x01
+     * Check if Set name has changed
+     *
+     * - MegaSet::CHANGE_TYPE_COVER                 = 0x02
+     * Check if Set cover has changed
+     *
+     * - MegaSet::CHANGE_TYPE_REMOVED               = 0x03
+     * Check if the Set was removed
+     *
+     * @return true if this Set has a specific change
+     */
+    virtual bool hasChanged(int changeType) const { return false; }
+
+    virtual MegaSet* copy() const { return nullptr; }
+    virtual ~MegaSet() = default;
+
+    enum // match Set::CH_XXX values
+    {
+        CHANGE_TYPE_NEW,
+        CHANGE_TYPE_NAME,
+        CHANGE_TYPE_COVER,
+        CHANGE_TYPE_REMOVED,
+
+        CHANGE_TYPE_SIZE
+    };
+};
+
+/**
+ * @brief List of MegaSet objects
+ *
+ * A MegaSetList has the ownership of the MegaSet objects that it contains, so they will be
+ * only valid until the MegaSetList is deleted. If you want to retain a MegaSet returned by
+ * a MegaSetList, use MegaSet::copy().
+ *
+ * Objects of this class are immutable.
+ */
+class MegaSetList
+{
+public:
+    /**
+     * @brief Returns the MegaSet at the position i in the MegaSetList
+     *
+     * The MegaSetList retains the ownership of the returned MegaSet. It will be only valid until
+     * the MegaSetList is deleted. If you want to retain a MegaSet returned by this function,
+     * use MegaSet::copy().
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the MegaSet that we want to get for the list
+     * @return MegaSet at the position i in the list
+     */
+    virtual const MegaSet* get(unsigned int i) const { return nullptr; }
+
+    /**
+     * @brief Returns the number of MegaSets in the list
+     * @return Number of MegaSets in the list
+     */
+    virtual unsigned int size() const { return 0; }
+
+    virtual MegaSetList* copy() const { return nullptr; }
+    virtual ~MegaSetList() = default;
+};
+
+
+/**
+ * @brief Represents an Element of a Set in MEGA
+ *
+ * It allows to get all data related to an Element of a Set in MEGA.
+ *
+ * Objects of this class aren't live, they are snapshots of the state of an Element of a Set
+ * in MEGA when the object is created, they are immutable.
+ *
+ */
+class MegaSetElement
+{
+public:
+    /**
+     * @brief Returns id of current Element.
+     *
+     * @return Element id.
+     */
+    virtual MegaHandle id() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns handle of file-node represented by current Element.
+     *
+     * @return file-node handle.
+     */
+    virtual MegaHandle node() const { return INVALID_HANDLE; }
+
+    /**
+     * @brief Returns order of current Element.
+     *
+     * If not set explicitly, the API will typically set it to multiples of 1000.
+     *
+     * @return order of current Element.
+     */
+    virtual int64_t order() const { return 0; }
+
+    /**
+     * @brief Returns timestamp of latest changes to current Element.
+     *
+     * @return timestamp value.
+     */
+    virtual int64_t ts() const { return 0; }
+
+    /**
+     * @brief Returns name of current Element.
+     *
+     * The MegaSetElement object retains the ownership of the returned string, it will be valid until
+     * the MegaSetElement object is deleted.
+     *
+     * @return name of current Element.
+     */
+    virtual const char* name() const { return nullptr; }
+
+    virtual bool hasChanged(int changeType) const { return false; }
+
+    virtual MegaSetElement* copy() const { return nullptr; }
+    virtual ~MegaSetElement() = default;
+
+    enum // match SetElement::CH_EL_XXX values
+    {
+        CHANGE_TYPE_ELEM_NEW,
+        CHANGE_TYPE_ELEM_NAME,
+        CHANGE_TYPE_ELEM_ORDER,
+        CHANGE_TYPE_ELEM_REMOVED,
+
+        CHANGE_TYPE_ELEM_SIZE
+    };
+};
+
+/**
+ * @brief List of MegaSetElement objects
+ *
+ * A MegaSetElementList has the ownership of the MegaSetElement objects that it contains, so they will be
+ * only valid until the MegaSetElementList is deleted. If you want to retain a MegaSetElement returned by
+ * a MegaSetElementList, use MegaSetElement::copy().
+ *
+ * Objects of this class are immutable.
+ */
+class MegaSetElementList
+{
+public:
+    /**
+     * @brief Returns the MegaSetElement at the position i in the MegaSetElementList
+     *
+     * The MegaSetElementList retains the ownership of the returned MegaSetElement. It will be only valid until
+     * the MegaSetElementList is deleted. If you want to retain a MegaSetElement returned by this function,
+     * use MegaSetElement::copy().
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the MegaSetElement that we want to get for the list
+     * @return MegaSetElement at the position i in the list
+     */
+    virtual const MegaSetElement* get(unsigned int i) const { return nullptr; }
+
+    /**
+     * @brief Returns the number of MegaSetElements in the list
+     * @return Number of MegaSetElements in the list
+     */
+    virtual unsigned int size() const { return 0; }
+
+    virtual MegaSetElementList* copy() const { return nullptr; }
+    virtual ~MegaSetElementList() = default;
+};
+
+
 /**
  * @brief Represents an user in MEGA
  *
@@ -1574,6 +1810,7 @@ public:
         TYPE_DELETEDSHARE,
         TYPE_NEWSHAREDNODES,
         TYPE_REMOVEDSHAREDNODES,
+        TYPE_UPDATEDSHAREDNODES,
         TYPE_PAYMENT_SUCCEEDED,
         TYPE_PAYMENT_FAILED,
         TYPE_PAYMENTREMINDER,
@@ -3270,9 +3507,14 @@ class MegaRequest
             TYPE_GET_RECENT_ACTIONS                                         = 148,
             TYPE_CHECK_RECOVERY_KEY                                         = 149,
             TYPE_SET_MY_BACKUPS                                             = 150,
-            TYPE_GET_SYNC_STALL_LIST                                        = 151,
-            TYPE_SET_SYNC_RUNSTATE                                          = 152,
-            TOTAL_OF_REQUEST_TYPES                                          = 153,
+            TYPE_PUT_SET                                                    = 151,
+            TYPE_REMOVE_SET                                                 = 152,
+            TYPE_FETCH_SET                                                  = 153,
+            TYPE_PUT_SET_ELEMENT                                            = 154,
+            TYPE_REMOVE_SET_ELEMENT                                         = 155,
+            TYPE_GET_SYNC_STALL_LIST                                        = 156,
+            TYPE_SET_SYNC_RUNSTATE                                          = 157,
+            TOTAL_OF_REQUEST_TYPES                                          = 158,
         };
 
         virtual ~MegaRequest();
@@ -4070,6 +4312,32 @@ class MegaRequest
          * @return MegaRecentActionBucketList list
          */
         virtual MegaRecentActionBucketList *getRecentActions() const;
+
+        /**
+         * @brief Returns a MegaSet explicitly fetched from online API (typically using 'aft' command)
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::fetchSet
+         *
+         * @return requested MegaSet or null if not found
+         */
+        virtual MegaSet* getMegaSet() const;
+
+        /**
+         * @brief Returns the list of elements, part of the MegaSet explicitly fetched from online API (typically using 'aft' command)
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::fetchSet
+         *
+         * @return lis of elements in the requested MegaSet, or null if Set not found
+         */
+        virtual MegaSetElementList* getMegaSetElementList() const;
 
 #ifdef ENABLE_SYNC
 
@@ -6924,6 +7192,32 @@ class MegaGlobalListener
         virtual void onAccountUpdate(MegaApi *api);
 
         /**
+         * @brief This function is called when a Set has been updated (created / updated / removed)
+         *
+         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
+         * MegaSet objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaSetList::copy. If you want to save only some of the MegaSet objects, use MegaSet::copy
+         * for them.
+         *
+         * @param api MegaApi object connected to the account
+         * @param sets List that contains the new or updated Sets
+         */
+        virtual void onSetsUpdate(MegaApi* api, MegaSetList* sets);
+
+        /**
+         * @brief This function is called when a Set-Element has been updated (created / updated / removed)
+         *
+         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list and all the
+         * MegaSetElement objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaSetElementList::copy. If you want to save only some of the MegaSetElement objects, use
+         * MegaSetElement::copy for them.
+         *
+         * @param api MegaApi object connected to the account
+         * @param elements List that contains the new or updated Set-Elements
+         */
+        virtual void onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements);
+
+        /**
          * @brief This function is called when there are new or updated contact requests in the account
          *
          * When the full account is reloaded or a large number of server notifications arrives at once, the
@@ -7334,6 +7628,32 @@ class MegaListener
          * @param api MegaApi object connected to the account
          */
         virtual void onAccountUpdate(MegaApi *api);
+
+        /**
+         * @brief This function is called when a Set has been updated (created / updated / removed)
+         *
+         * The SDK retains the ownership of the MegaSetList in the second parameter. The list and all the
+         * MegaSet objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaSetList::copy. If you want to save only some of the MegaSet objects, use MegaSet::copy
+         * for them.
+         *
+         * @param api MegaApi object connected to the account
+         * @param sets List that contains the new or updated Sets
+         */
+        virtual void onSetsUpdate(MegaApi* api, MegaSetList* sets);
+
+        /**
+         * @brief This function is called when a Set-Element has been updated (created / updated / removed)
+         *
+         * The SDK retains the ownership of the MegaSetElementList in the second parameter. The list and all the
+         * MegaSetElement objects that it contains will be valid until this function returns. If you want to save the
+         * list, use MegaSetElementList::copy. If you want to save only some of the MegaSetElement objects, use
+         * MegaSetElement::copy for them.
+         *
+         * @param api MegaApi object connected to the account
+         * @param elements List that contains the new or updated Set-Elements
+         */
+        virtual void onSetElementsUpdate(MegaApi* api, MegaSetElementList* elements);
 
         /**
          * @brief This function is called when there are new or updated contact requests in the account
@@ -8118,6 +8438,19 @@ class MegaApi
             CANCEL_ACCOUNT              = 2,
             CREATE_EPLUSPLUS_ACCOUNT    = 3,
             RESUME_EPLUSPLUS_ACCOUNT    = 4,
+        };
+
+        enum
+        {
+            CREATE_SET                  = (1 << 0),
+            OPTION_SET_NAME             = (1 << 1),
+            OPTION_SET_COVER            = (1 << 2),
+        };
+        enum
+        {
+            CREATE_ELEMENT              = (1 << 0),
+            OPTION_ELEMENT_NAME         = (1 << 1),
+            OPTION_ELEMENT_ORDER        = (1 << 2),
         };
 
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
@@ -19082,6 +19415,265 @@ class MegaApi
          * @return True if it is running, false otherwise.
          */
         bool driveMonitorEnabled();
+
+        /**
+         * @brief Request creation of a new Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PUT_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns INVALID_HANDLE
+         * - MegaRequest::getText - Returns name of the Set
+         * - MegaRequest::getParamType - Returns CREATE_SET, possibly combined with OPTION_SET_NAME
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSet - Returns either the new Set, or null if it was not created.
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param name the name that should be given to the new Set
+         * @param listener MegaRequestListener to track this request
+         */
+        void createSet(const char* name = nullptr, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request to update the name of a Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PUT_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns id of the Set to be updated
+         * - MegaRequest::getText - Returns new name of the Set
+         * - MegaRequest::getParamType - Returns OPTION_SET_NAME
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Set with the given id could not be found (before or after the request).
+         * - MegaError::API_EINTERNAL - Received answer could not be read.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set to be updated
+         * @param name the new name that should be given to the Set
+         * @param listener MegaRequestListener to track this request
+         */
+        void updateSetName(MegaHandle sid, const char* name, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request to update the cover of a Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PUT_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns id of the Set to be updated
+         * - MegaRequest::getNodeHandle - Returns Element id to be set as the new cover
+         * - MegaRequest::getParamType - Returns OPTION_SET_COVER
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - Given Element id was not part of the current Set; Malformed (from API).
+         * - MegaError::API_ENOENT - Set with the given id could not be found (before or after the request).
+         * - MegaError::API_EINTERNAL - Received answer could not be read.
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set to be updated
+         * @param eid the id of the Element to be set as cover
+         * @param listener MegaRequestListener to track this request
+         */
+        void putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request to remove a Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns id of the Set to be removed
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Set could not be found.
+         * - MegaError::API_EINTERNAL - Received answer could not be read.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set to be removed
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request to fetch a Set and its Elements
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns id of the Set to be fetched
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSet - Returns the Set
+         * - MegaRequest::getMegaSetElementList - Returns the list of Elements
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Set could not be found.
+         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set to be fetched
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request creation of a new Element for a Set
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns INVALID_HANDLE
+         * - MegaRequest::getTotalBytes - Returns the id of the Set
+         * - MegaRequest::getParamType - Returns CREATE_ELEMENT, possibly combined with OPTION_ELEMENT_NAME
+         * - MegaRequest::getText - Returns name of the Element
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaSetElementList - Returns a list containing only the new Element
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Set could not be found, or node could not be found.
+         * - MegaError::API_EKEY - File-node had no key.
+         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set that will own the new Element
+         * @param node the handle of the file-node that will be represented by the new Element
+         * @param name the name that should be given to the new Element
+         * @param listener MegaRequestListener to track this request
+         */
+        void createSetElement(MegaHandle sid, MegaHandle node, const char* name = nullptr, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request to update the name of an Element
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns id of the Element to be updated
+         * - MegaRequest::getTotalBytes - Returns the id of the Set
+         * - MegaRequest::getParamType - Returns OPTION_ELEMENT_NAME
+         * - MegaRequest::getText - Returns name of the Element
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Element could not be found.
+         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set that owns the Element
+         * @param eid the id of the Element that will be updated
+         * @param name the new name that should be given to the Element
+         * @param listener MegaRequestListener to track this request
+         */
+        void updateSetElementName(MegaHandle sid, MegaHandle eid, const char* name, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request to update the order of an Element
+         *
+         * The associated request type with this request is MegaRequest::TYPE_PUT_SET_ELEMENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns id of the Element to be updated
+         * - MegaRequest::getTotalBytes - Returns the id of the Set
+         * - MegaRequest::getParamType - Returns OPTION_ELEMENT_ORDER
+         * - MegaRequest::getNumber - Returns order of the Element
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - Element could not be found.
+         * - MegaError::API_EINTERNAL - Received answer could not be read or decrypted.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set that owns the Element
+         * @param eid the id of the Element that will be updated
+         * @param order the new order of the Element
+         * @param listener MegaRequestListener to track this request
+         */
+        void updateSetElementOrder(MegaHandle sid, MegaHandle eid, int64_t order, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Request to remove an Element
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_SET_ELEMENT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns id of the Element to be removed
+         * - MegaRequest::getTotalBytes - Returns the id of the Set
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - No Set or no Element with given ids could be found (before or after the request).
+         * - MegaError::API_EINTERNAL - Received answer could not be read.
+         * - MegaError::API_EARGS - Malformed (from API).
+         * - MegaError::API_EACCESS - Permissions Error (from API).
+         *
+         * @param sid the id of the Set that owns the Element
+         * @param eid the id of the Element to be removed
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Get a list of all Sets available for current user.
+         *
+         * The response value is stored as a MegaSetList.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return list of Sets
+         */
+        MegaSetList* getSets();
+
+        /**
+         * @brief Get the Set with the given id, for current user.
+         *
+         * The response value is stored as a MegaSet.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param sid the id of the Set to be retrieved
+         *
+         * @return the requested Set, or null if not found
+         */
+        MegaSet* getSet(MegaHandle sid);
+
+        /**
+         * @brief Get the cover (Element id) of the Set with the given id, for current user.
+         *
+         * @param sid the id of the Set to retrieve the cover for
+         *
+         * @return Element id of the cover, or INVALIDHANDLE if not set or invalid id
+         */
+        MegaHandle getSetCover(MegaHandle sid);
+
+        /**
+         * @brief Get all Elements in the Set with given id, for current user.
+         *
+         * The response value is stored as a MegaSetElementList.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param sid the id of the Set owning the Elements
+         *
+         * @return all Elements in that Set, or null if not found or none added
+         */
+        MegaSetElementList* getSetElements(MegaHandle sid);
+
+        /**
+         * @brief Get a particular Element in a particular Set, for current user.
+         *
+         * The response value is stored as a MegaSetElement.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param sid the id of the Set owning the Element
+         * @param eid the id of the Element to be retrieved
+         *
+         * @return requested Element, or null if not found
+         */
+        MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
 
  private:
         MegaApiImpl *pImpl = nullptr;
