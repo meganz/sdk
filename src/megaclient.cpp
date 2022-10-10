@@ -17198,7 +17198,7 @@ void MegaClient::setchunkfailed(string* url)
 void MegaClient::reportevent(const char* event, const char* details)
 {
     LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
-    reqs.add(new CommandReportEvent(this, event, details));
+    reqs.add(new CommandUserFeedbackStore(this, event, details, Base64Str<MegaClient::USERHANDLE>(me)));
 }
 
 void MegaClient::reportevent(const char* event, const char* details, int tag)
