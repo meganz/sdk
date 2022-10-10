@@ -6938,13 +6938,13 @@ long long MegaAchievementsDetails::currentTransferReferrals()
 }
 
 /* Class MegaScheduledMeeting */
-MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, MegaHandle callid, MegaHandle parentCallid,
+MegaScheduledMeeting* MegaScheduledMeeting::createInstance(MegaHandle chatid, MegaHandle callid, MegaHandle parentCallid, MegaHandle organizerUserId,
                                                                    int cancelled, const char* timezone, const char* startDateTime,
                                                                    const char* endDateTime, const char* title, const char* description, const char* attributes,
                                                                    const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules)
 {
     return new MegaScheduledMeetingPrivate(chatid, timezone, startDateTime, endDateTime, title,
-                                               description, callid, parentCallid, cancelled,
+                                               description, callid, parentCallid, organizerUserId, cancelled,
                                                attributes, overrides, flags, rules);
 }
 
@@ -6952,6 +6952,7 @@ MegaScheduledMeeting::~MegaScheduledMeeting()                           {}
 int MegaScheduledMeeting::cancelled() const                             { return 0; }
 MegaHandle MegaScheduledMeeting::chatid() const                         { return INVALID_HANDLE; }
 MegaHandle MegaScheduledMeeting::callid() const                         { return INVALID_HANDLE; }
+MegaHandle MegaScheduledMeeting::organizerUserid() const                { return INVALID_HANDLE; }
 MegaHandle MegaScheduledMeeting::parentCallid() const                   { return INVALID_HANDLE; }
 MegaScheduledMeeting* MegaScheduledMeeting::copy() const                { return NULL; }
 const char* MegaScheduledMeeting::timezone() const                      { return NULL; }

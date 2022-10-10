@@ -4158,6 +4158,7 @@ public:
                                     const char* description,
                                     MegaHandle callid = INVALID_HANDLE,
                                     MegaHandle parentCallid = INVALID_HANDLE,
+                                    MegaHandle organizerUserId = INVALID_HANDLE,
                                     int cancelled = -1,
                                     const char* attributes = nullptr,
                                     const char* overrides = nullptr,
@@ -4183,10 +4184,12 @@ public:
     void setParentCallid(MegaHandle parentCallid);
     void setCallid(MegaHandle callid);
     void setChatid(MegaHandle chatid);
+    void setOrganizerUserid(MegaHandle userid);
 
     MegaHandle chatid() const;
     MegaHandle callid() const;
     MegaHandle parentCallid() const;
+    MegaHandle organizerUserid() const;
     const char* timezone() const;
     const char* startDateTime() const;
     const char* endDateTime() const;
@@ -4208,6 +4211,9 @@ private:
 
     // [optional]: parent scheduled meeting handle
     MegaHandle mParentCallid;
+
+    // [required]: organizer user handle
+    handle mOrganizerUserId;
 
     // [required]: timeZone (B64 encoded)
     std::string mTimezone;

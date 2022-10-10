@@ -2392,7 +2392,7 @@ public:
      *
      * @return A pointer to the superclass of the private object
      */
-    static MegaScheduledMeeting* createInstance (MegaHandle chatid, MegaHandle callid, MegaHandle parentCallid,
+    static MegaScheduledMeeting* createInstance (MegaHandle chatid, MegaHandle callid, MegaHandle parentCallid, MegaHandle organizerUserId,
                                                      int cancelled, const char* timezone, const char* startDateTime,
                                                      const char* endDateTime, const char* title, const char* description, const char* attributes,
                                                      const char* overrides, MegaScheduledFlags* flags, MegaScheduledRules* rules);
@@ -2430,6 +2430,13 @@ public:
      * @return MegaHandle that identifies the scheduled meeting
      */
     virtual MegaHandle callid() const;
+
+    /**
+     * @brief Returns the MegaHandle of the organizer user of the scheduled meeting
+     *
+     * @return MegaHandle of the organizer user of the scheduled meeting
+     */
+    virtual MegaHandle organizerUserid() const;
 
     /**
      * @brief Returns the MegaHandle that identifies the parent scheduled meeting
