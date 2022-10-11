@@ -5768,13 +5768,11 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
 void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 {
     mApi[apiIdx].lastSyncBackupId = UNDEF;
-//    mApi[apiIdx].h = UNDEF;
     int err = synchronousGetUserAttribute(apiIdx, MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
     EXPECT_TRUE(err == MegaError::API_OK
                 || err == MegaError::API_ENOENT) << "Failed to get USER_ATTR_MY_BACKUPS_FOLDER";
 
     if (mApi[apiIdx].lastSyncBackupId == UNDEF)
-//    if (mApi[apiIdx].h == UNDEF)
     {
         const char* folderName = "My Backups";
 
@@ -5790,8 +5788,6 @@ void SdkTest::syncTestMyBackupsRemoteFolder(unsigned apiIdx)
 
     EXPECT_NE(mApi[apiIdx].lastSyncBackupId, UNDEF);
     unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].lastSyncBackupId));
-//    EXPECT_NE(mApi[apiIdx].h, UNDEF);
-//    unique_ptr<MegaNode> n(megaApi[apiIdx]->getNodeByHandle(mApi[apiIdx].h));
     EXPECT_NE(n, nullptr);
 }
 

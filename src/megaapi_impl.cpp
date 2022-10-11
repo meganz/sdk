@@ -14761,11 +14761,11 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
     error e = API_OK;
 
     // update cached notification settings for filtering
-    MegaPushNotificationSettingsPrivate *pushSettings = NULL;
+    std::unique_ptr<MegaPushNotificationSettingsPrivate> pushSettings;
     if (type == ATTR_PUSH_SETTINGS)
     {
         string settingsJson((const char*)data, len);
-        pushSettings = new MegaPushNotificationSettingsPrivate(settingsJson);
+        pushSettings.reset(new MegaPushNotificationSettingsPrivate(settingsJson));
         if (pushSettings->isValid())
         {
             delete mPushSettings;
@@ -14784,7 +14784,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER &&
             request->getType() != MegaRequest::TYPE_SET_ATTR_USER))
     {
-        delete pushSettings;
         return;
     }
 
@@ -14811,7 +14810,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
         }
-        delete pushSettings;
         return;
     }
 
@@ -14919,15 +14917,28 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         {
-            request->setMegaPushNotificationSettings(pushSettings);
+            request->setMegaPushNotificationSettings(pushSettings.get());
         }
         break;
 
         case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
         {
             handle h = 0;
-            memcpy(&h, data, std::min(6u, len));
-            request->setNodeHandle(h);
+            if (len != MegaClient::NODEHANDLE)
+            {
+                LOG_err << "Wrong received data size for 'My Backups' node handle: " << len << "; expected " << MegaClient::NODEHANDLE;
+                assert(false);
+            }
+            memcpy(&h, data, MegaClient::NODEHANDLE);
+            if (!client->nodebyhandle(h))
+            {
+                LOG_warn << "'My Backups' node was missing, or invalid handle in USER_ATTR_MY_BACKUPS_FOLDER";
+                e = API_ENOENT;
+            }
+            else
+            {
+                request->setNodeHandle(h);
+            }
         }
         break;
 
@@ -14955,7 +14966,6 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         break;
     }
 
-    delete pushSettings;
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
@@ -15042,10 +15052,9 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
             case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
-            case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
             {
                 // If attr is CAMERA_UPLOADS_FOLDER determine if we want to retrieve primary or secondary folder
-                // If attr is MY_CHAT_FILES_FOLDER or MY_BACKUPS_FOLDER there's no secondary folder
+                // If attr is MY_CHAT_FILES_FOLDER, there's no secondary folder
                 const char *key = request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                         && request->getFlag()
                             ? "sh"
@@ -27004,7 +27013,7 @@ StreamingBuffer::StreamingBuffer()
     this->free = 0;
     this->maxBufferSize = MAX_BUFFER_SIZE;
     this->maxOutputSize = MAX_OUTPUT_SIZE;
-    this->length = 0;
+    this->fileSize = 0;
     this->duration = 0;
 }
 
@@ -27015,18 +27024,27 @@ StreamingBuffer::~StreamingBuffer()
 
 void StreamingBuffer::init(size_t capacity)
 {
-    assert(this->length > 0);
+    assert(this->fileSize > 0);
     assert(capacity > 0);
     if (capacity > maxBufferSize)
     {
         LOG_warn << "[Streaming] Truncating requested capacity due to being greater than maxBufferSize. "
                  << " Capacity requested = " << capacity << " bytes"
                  << ", truncated to  = " << maxBufferSize << " bytes"
-                 << " [file length = " << length << " bytes"
+                 << " [file size = " << fileSize << " bytes"
                  << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
-                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(maxBufferSize / getBitRate()).append(" secs")) : "")
+                 << (duration ? std::string(", estimated duration in truncated buffer: ").append(std::to_string(partialDuration(maxBufferSize)).append(" secs")) : "")
                  << "]";
         capacity = maxBufferSize;
+    }
+    else
+    {
+        LOG_debug << "[Streaming] Init StreamingBuffer."
+                 << " Capacity requested = " << capacity << " bytes"
+                 << " [file size = " << fileSize << " bytes"
+                 << ", total duration = " << (duration ? (std::to_string(duration).append(" secs")) : "not a media file")
+                 << (duration ? std::string(", estimated duration in buffer: ").append(std::to_string(partialDuration(capacity)).append(" secs")) : "")
+                 << "]";
     }
 
     this->capacity = static_cast<unsigned>(capacity);
@@ -27147,23 +27165,40 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
     }
 }
 
-void StreamingBuffer::setLength(size_t length)
+void StreamingBuffer::setFileSize(m_off_t fileSize)
 {
-    this->length = length;
+    this->fileSize = fileSize;
+    LOG_debug << "[Streaming] File size set to " << this->fileSize << " bytes";
 }
 
-void StreamingBuffer::setDuration(size_t duration)
-{
-    this->duration = duration;
-}
-
-size_t StreamingBuffer::getBitRate() const
+void StreamingBuffer::setDuration(int duration)
 {
     if (!duration)
     {
-        return 0;
+        // Param 'duration' is documented in MegaNode::getDuration() to be -1 if it's not defined.
+        // Hence, if it's 0, the file should be a media file... which has a duration of 0 seconds.
+        LOG_warn << "[Streaming] Duration value is 0 seconds for this media file!";
     }
-    return length / duration;
+    this->duration = duration > 0 ? duration : 0;
+    LOG_debug << "[Streaming] File duration set to " << this->duration << " secs";
+}
+
+m_off_t StreamingBuffer::getBytesPerSecond() const
+{
+    if (fileSize < duration)
+    {
+        LOG_err << "[Streaming] File size is smaller than its duration in seconds!"
+                << " [file size = " << fileSize << " bytes"
+                << " , duration = " << duration << " secs]";
+    }
+    return duration ? (fileSize / duration) : 0;
+}
+
+m_off_t StreamingBuffer::partialDuration(m_off_t partialSize) const
+{
+    assert(partialSize <= fileSize);
+    m_off_t bytesPerSecond = getBytesPerSecond();
+    return bytesPerSecond ? (partialSize / bytesPerSecond) : 0;
 }
 
 std::string StreamingBuffer::bufferStatus() const
@@ -27172,13 +27207,13 @@ std::string StreamingBuffer::bufferStatus() const
     bufferState.reserve(256);
     bufferState.append("[|Buffer status| buffered = ")
                .append(std::to_string(size));
-    if (duration) bufferState.append(" (").append(std::to_string(size / getBitRate())).append( " secs)");
+    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(size)).append( " secs)"));
     bufferState.append(", free = ")
                .append(std::to_string(free));
-    if (duration) bufferState.append(" (").append(std::to_string(free / getBitRate())).append( " secs)");
+    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(free)).append( " secs)"));
     bufferState.append(", capacity = ")
                .append(std::to_string(capacity));
-    if (duration) bufferState.append(" (").append(std::to_string(capacity / getBitRate())).append( " secs)");
+    if (duration) bufferState.append(" (").append(std::to_string(partialDuration(capacity)).append( " secs)"));
     bufferState.append("]");
     return bufferState;
 }
@@ -29869,7 +29904,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         httpctx->transfer->setEndPos(end);
     }
 
-    httpctx->streamingBuffer.setLength(totalSize);
+    httpctx->streamingBuffer.setFileSize(totalSize);
     httpctx->streamingBuffer.setDuration(httpctx->node->getDuration());
 
     string resstr = response.str();
@@ -32441,7 +32476,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             ftpdatactx->transfer->setEndPos(end); //This will actually be override later
             ftpdatactx->node = nodeToDownload->copy();
 
-            ftpdatactx->streamingBuffer.setLength(nodeToDownload->getSize());
+            ftpdatactx->streamingBuffer.setFileSize(nodeToDownload->getSize());
             ftpdatactx->streamingBuffer.setDuration(nodeToDownload->getDuration());
 
             ftpdatactx->streamingBuffer.init(len);
