@@ -5236,11 +5236,6 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* pro
     init(api, appKey, processor, basePath, userAgent, workerThreadCount);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
-{
-    init(api, appKey, NULL, basePath, userAgent, workerThreadCount);
-}
-
 void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount)
 {
     this->api = api;
@@ -8669,10 +8664,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
     request->setNodeHandle(megaHandle);
-    if(localFolder)
-    {
-        request->setFile(localFolder);
-    }
+    request->setFile(localFolder);
 
     if (name || type == SyncConfig::TYPE_BACKUP)
     {
@@ -8683,11 +8675,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
         request->setName(request->getFile());
     }
     request->setParamType(type);
-
-    if (driveRootIfExternal)
-    {
-        request->setLink(driveRootIfExternal);  // for TYPE_BACKUP; continue in backupFolder_sendPendingRequest()
-    }
+    request->setLink(driveRootIfExternal);
 
     if (excludePath)
     {
@@ -11709,13 +11697,16 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, CancelT
 
         if (target == MegaApi::SEARCH_TARGET_ROOTNODE || target == MegaApi::SEARCH_TARGET_ALL)
         {
-            // Search on rootnode (cloud, excludes Vault and Rubbish)
+            // Search on rootnode (Cloud and Vault, excludes Rubbish)
             node = client->nodeByHandle(client->rootnodes.files);
-
             SearchTreeProcessor searchProcessor(client, searchString, type);
             processTree(node, &searchProcessor, recursive, cancelToken);
-            node_vector& vNodes = searchProcessor.getResults();
 
+            // also consider Vault, since backups are in there
+            node = client->nodeByHandle(client->rootnodes.vault);
+            processTree(node, &searchProcessor, recursive, cancelToken);
+
+            node_vector& vNodes = searchProcessor.getResults();
             result.insert(result.end(), vNodes.begin(), vNodes.end());
         }
 
@@ -14991,7 +14982,8 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
             {
                 e = API_EEXIST;
-                LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value";
+                LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (2): "
+                    << Base64::atob(newValuesMap->begin()->second); // will only have a single value
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }
             else if (User::mergeUserAttribute(type, *newValuesMap, *tlv))
@@ -15992,8 +15984,6 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
 
-    //LOG_verbose << "onTransferStart for " << transfer->getFileName() << " at " << transfer->getPath();
-
     for(set<MegaTransferListener *>::iterator it = transferListeners.begin(); it != transferListeners.end() ;)
     {
         (*it++)->onTransferStart(api, transfer);
@@ -16021,8 +16011,6 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
     transfer->setLastError(e.get());
-
-    //LOG_verbose << "onTransferFinish for " << transfer->getFileName() << " at " << transfer->getPath();
 
     if(e->getErrorCode())
     {
@@ -18721,7 +18709,7 @@ void MegaApiImpl::sendPendingRequests()
             if (request->getParamType() & MegaApi::OPTION_ELEMENT_NAME)
             {
                 el.setName(request->getText() ? request->getText() : string());
-            }    
+            }
             client->putSetElement(move(el),
                 [this, request](Error e, const SetElement* el)
                 {
@@ -19931,7 +19919,8 @@ void MegaApiImpl::sendPendingRequests()
                     haveDuplicatedValues(*tlv->getMap(), *newValuesMap))
                 {
                     e = API_EEXIST;
-                    LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value";
+                    LOG_err << "Attribute " << User::attr2string(type) << " attempted to add duplicated value (1): "
+                        << Base64::atob(newValuesMap->begin()->second); // will only have a single value
                 }
                 else if (User::mergeUserAttribute(type, *newValuesMap, *tlv.get()))
                 {
@@ -24142,6 +24131,17 @@ MegaErrorPrivate::MegaErrorPrivate(int errorCode)
 {
 }
 
+MegaErrorPrivate::MegaErrorPrivate(int errorCode, SyncError syncError)
+: MegaError(errorCode, syncError)
+{
+}
+#ifdef ENABLE_SYNC
+MegaErrorPrivate::MegaErrorPrivate(int errorCode, MegaSync::Error syncError)
+: MegaError(errorCode, syncError)
+{
+}
+#endif
+
 MegaErrorPrivate::MegaErrorPrivate(int errorCode, long long value)
     : MegaError(errorCode)
     , mValue(value)
@@ -25197,7 +25197,7 @@ void MegaFolderUploadController::start(MegaNode*)
     LocalPath path = LocalPath::fromAbsolutePath(transfer->getPath());
     auto leaf = transfer->getFileName()
             ? transfer->getFileName()
-            : path.leafName().toPath(false);
+            : path.leafName().toPath(true);
 
     // if folder node already exists in remote, set it as new subtree's megaNode, otherwise call putnodes_prepareOneFolder
     newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));

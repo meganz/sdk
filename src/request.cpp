@@ -191,6 +191,7 @@ void Request::process(MegaClient* client)
     {
         clear();
     }
+    client->mTctableRequestCommitter = nullptr;
 }
 
 Command* Request::getCurrentCommand()
@@ -247,7 +248,7 @@ bool Request::empty() const
 
 void Request::swap(Request& r)
 {
-    // we use swap to move between queues, but process only after it gets completed
+    // we use swap to move between queues, but process only after it gets into the completedreqs
     cmds.swap(r.cmds);
     std::swap(mV3, r.mV3);
 

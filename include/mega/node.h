@@ -301,6 +301,11 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // node attributes
     AttrMap attrs;
 
+    // {backup-id, state} pairs received in "sds" node attribute
+    vector<pair<handle, int>> getSdsBackups() const;
+    static nameid sdsId();
+    static string toSdsString(const vector<pair<handle, int>>&);
+
     // track upcoming attribute changes for this node, so we can reason about current vs future state
     CommandChain mPendingChanges;
 
@@ -407,9 +412,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // Returns true if this node has a child with the given name.
     bool hasChildWithName(const string& name) const;
-
-    // For purposes of testing.
-    void setNodeKeyData(const string& data);
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted

@@ -1941,7 +1941,6 @@ bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, 
     {
         return true;
     }
-    //LOG_debug << "Transfer not found";
     return false;
 }
 
