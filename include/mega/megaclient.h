@@ -1192,7 +1192,7 @@ private:
     void init();
 
     // remove caches
-    void removeCaches(bool keepSyncsConfigFile);
+    void removeCaches();
 
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;

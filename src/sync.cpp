@@ -3660,13 +3660,18 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
     return mSyncConfigIOContext.get();
 }
 
-void Syncs::clear()
+void Syncs::clear_inThread()
 {
-    syncConfigStoreFlush();
+    assert(onSyncThread());
+
+    assert(!mSyncConfigStore);
 
     mSyncConfigStore.reset();
     mSyncConfigIOContext.reset();
-    mSyncVec.clear();
+    {
+        lock_guard<mutex> g(mSyncVecMutex);
+        mSyncVec.clear();
+    }
     mSyncVecIsEmpty = true;
 }
 
@@ -3886,21 +3891,6 @@ bool Syncs::hasRunningSyncs()
     return false;
 }
 
-unsigned Syncs::numRunningSyncs()
-{
-    unsigned n = 0;
-    for (auto& s : mSyncVec)
-    {
-        if (s->mSync) ++n;
-    }
-    return n;
-}
-
-unsigned Syncs::numSyncs()
-{
-    return unsigned(mSyncVec.size());
-}
-
 Sync* Syncs::firstRunningSync()
 {
     for (auto& s : mSyncVec)
@@ -3997,6 +3987,17 @@ void Syncs::disableSyncs(bool disableIsFail, SyncError syncError, bool newEnable
 
 void Syncs::disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion)
 {
+    //assert(!onSyncThread());
+    queueSync([this, backupId, syncError, newEnabledFlag, disableIsFail, completion]()
+    {
+            disableSyncByBackupId_inThread(backupId, disableIsFail, syncError, newEnabledFlag, completion);
+    });
+}
+
+void Syncs::disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion)
+{
+    assert(onSyncThread());
+
     for (auto i = mSyncVec.size(); i--; )
     {
         auto& us = *mSyncVec[i];
@@ -4228,6 +4229,8 @@ vector<SyncConfig> Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sy
 
 void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
 {
+    assert(onSyncThread());
+
     for (auto i = mSyncVec.size(); i--; )
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
@@ -4731,6 +4734,69 @@ void Syncs::unloadSyncByIndex(size_t index)
         mSyncVec.erase(mSyncVec.begin() + index);
         mSyncVecIsEmpty = mSyncVec.empty();
     }
+}
+
+void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile)
+{
+    //assert(!onSyncThread());
+    syncRun([&](){ locallogout_inThread(removecaches, keepSyncsConfigFile); });
+}
+
+void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
+{
+    assert(onSyncThread());
+    mExecutingLocallogout = true;
+
+    // NULL the statecachetable databases for Syncs first, then Sync destruction won't remove LocalNodes from them
+    // If we are deleting syncs then just remove() the database direct
+
+    for (auto i = mSyncVec.size(); i--; )
+    {
+        if (Sync* sync = mSyncVec[i]->mSync.get())
+        {
+            if (sync->statecachetable)
+            {
+                if (removecaches) sync->statecachetable->remove();
+                sync->statecachetable.reset();
+            }
+        }
+    }
+
+    if (removecaches && keepSyncsConfigFile)
+    {
+        // Special case backward compatibility for MEGAsync
+        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
+
+        for (auto& us : mSyncVec)
+        {
+            if (us->mConfig.getEnabled())
+            {
+                disableSyncByBackupId_inThread(us->mConfig.mBackupId, true, LOGGED_OUT, false, nullptr);
+            }
+        }
+    }
+
+    if (mSyncConfigStore)
+    {
+        if (!keepSyncsConfigFile)
+        {
+            mSyncConfigStore->write(LocalPath(), SyncConfigVector());
+        }
+        else
+        {
+            syncConfigStoreFlush();
+        }
+    }
+    mSyncConfigStore.reset();
+
+    // Remove all syncs from RAM.
+    unloadSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+
+    // make sure we didn't resurrect the store, singleton style
+    assert(!mSyncConfigStore);
+
+    clear_inThread();
+    mExecutingLocallogout = false;
 }
 
 void Syncs::saveSyncConfig(const SyncConfig& config)

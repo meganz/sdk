@@ -1214,8 +1214,6 @@ void MegaClient::init()
         app->syncupdate_scanning(false);
         syncscanstate = false;
     }
-
-    syncs.clear();
 #endif
 
     rootnodes.files = NodeHandle();
@@ -4398,9 +4396,13 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     mAsyncQueue.clearDiscardable();
 
+#ifdef ENABLE_SYNC
+    syncs.locallogout(removecaches, keepSyncsConfigFile);
+#endif
+
     if (removecaches)
     {
-        removeCaches(keepSyncsConfigFile);
+        removeCaches();
     }
 
     sctable.reset();
@@ -4561,7 +4563,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mMyAccount = MyAccountData{};
 }
 
-void MegaClient::removeCaches(bool keepSyncsConfigFile)
+void MegaClient::removeCaches()
 {
     if (sctable)
     {
@@ -4575,34 +4577,6 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
         statusTable->remove();
         statusTable.reset();
     }
-
-#ifdef ENABLE_SYNC
-
-    // remove the LocalNode cache databases first, otherwise disable would cause this to be skipped
-    syncs.forEachRunningSync([&](Sync* sync){
-
-        if (sync->statecachetable)
-        {
-            sync->statecachetable->remove();
-            sync->statecachetable.reset();
-        }
-    });
-
-    if (keepSyncsConfigFile)
-    {
-        // Special case backward compatibility for MEGAsync
-        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-        syncs.disableSyncs(false, LOGGED_OUT, false, nullptr);
-    }
-    else
-    {
-        // this call cannot wait for network ops, it must complete immediately, since
-        // it's called from locallogout(). In consequence, heartbeat records won't be
-        // unregistered from API, backup folders will stay in Vault... but it should
-        // still remove syncs config file(s)
-        syncs.purgeSyncsLocal();
-    }
-#endif
 
     disabletransferresumption();
 }
