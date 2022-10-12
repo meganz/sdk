@@ -5024,6 +5024,32 @@ void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
+void Syncs::unloadSyncByIndex(size_t index, bool newEnabledFlag)
+{
+    assert(onSyncThread());
+    assert(index < mSyncVec.size());
+
+    if (index < mSyncVec.size())
+    {
+        if (auto& syncPtr = mSyncVec[index]->mSync)
+        {
+            // if it was running, the app gets a callback saying it's no longer active
+            // SYNC_CANCELED is a special value that means we are shutting it down without changing config
+            mSyncVec[index]->changeState(UNLOADING_SYNC, newEnabledFlag, false, true);
+            assert(!syncPtr->statecachetable);
+            syncPtr.reset(); // deletes sync
+        }
+
+        // the sync config is not affected by this operation; it should already be up to date on disk (or be pending)
+        // we don't call sync_removed back since the sync is not deleted
+        // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
+
+        lock_guard<mutex> g(mSyncVecMutex);
+        mSyncVec.erase(mSyncVec.begin() + index);
+        mSyncVecIsEmpty = mSyncVec.empty();
+    }
+}
+
 void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
     assert(!onSyncThread());
@@ -5129,32 +5155,6 @@ void Syncs::removeSyncByIndex(size_t index, bool notifyApp, bool unregisterHeart
                     }
                 });
         }
-
-        lock_guard<mutex> g(mSyncVecMutex);
-        mSyncVec.erase(mSyncVec.begin() + index);
-        mSyncVecIsEmpty = mSyncVec.empty();
-    }
-}
-
-void Syncs::unloadSyncByIndex(size_t index, bool newEnabledFlag)
-{
-    assert(onSyncThread());
-    assert(index < mSyncVec.size());
-
-    if (index < mSyncVec.size())
-    {
-        if (auto& syncPtr = mSyncVec[index]->mSync)
-        {
-            // if it was running, the app gets a callback saying it's no longer active
-            // SYNC_CANCELED is a special value that means we are shutting it down without changing config
-            mSyncVec[index]->changeState(UNLOADING_SYNC, newEnabledFlag, false, true);
-            assert(!syncPtr->statecachetable);
-            syncPtr.reset(); // deletes sync
-        }
-
-        // the sync config is not affected by this operation; it should already be up to date on disk (or be pending)
-        // we don't call sync_removed back since the sync is not deleted
-        // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
 
         lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.erase(mSyncVec.begin() + index);
