@@ -5252,11 +5252,6 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* pro
     init(api, appKey, processor, basePath, userAgent, workerThreadCount);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
-{
-    init(api, appKey, NULL, basePath, userAgent, workerThreadCount);
-}
-
 void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount)
 {
     this->api = api;
@@ -5630,6 +5625,14 @@ char *MegaApiImpl::getMyRSAPrivateKey()
     }
 
     return MegaApi::strdup(client->mPrivKey.c_str());
+}
+
+void MegaApiImpl::setLogExtraForModules(bool networking, bool syncs)
+{
+    g_netLoggingOn = networking;
+#ifdef ENABLE_SYNC
+    client->syncs.mDetailedSyncLogging = syncs;
+#endif
 }
 
 void MegaApiImpl::setLogLevel(int logLevel)
@@ -16572,6 +16575,7 @@ void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 {
     assert(sync->getBackupId() != INVALID_HANDLE);
+    assert(client->syncs.onSyncThread());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncStateChanged(api, sync);
@@ -23251,7 +23255,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_BACKUP_REMOVE:
         {
             client->reqs.add(new CommandBackupRemove(client, request->getParentHandle(),
-                [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); }));
+                [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e)); }));
             break;
         }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:

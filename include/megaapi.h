@@ -10354,6 +10354,19 @@ class MegaApi
         static void setLogLevel(int logLevel);
 
         /**
+        * @brief Turn on extra detailed logging for some modules
+        *
+        * Sometimes we need super detailed logging to investigate complicated issues
+        * However for log size under normal conditions it's not practical to turn that on
+        * This function allows that super detailed logging to be enabled just for
+        * the module in question.
+        *
+        * @param networking Enable detailed extra logging for networking
+        * @param syncs Enable detailed extra logging for syncs
+        */
+        void setLogExtraForModules(bool networking, bool syncs);
+
+        /**
          * @brief Set the limit of size to requests payload
          *
          * This functions sets the max size that will be allowed for requests payload
