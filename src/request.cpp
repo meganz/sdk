@@ -370,7 +370,6 @@ void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *cli
     processing = true;
     inflightreq.serverresponse(std::move(movestring), client);
     inflightreq.process(client);
-    assert(inflightreq.empty());
     processing = false;
     if (clearWhenSafe)
     {
