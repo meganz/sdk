@@ -186,11 +186,6 @@ bool Node::hasChildWithName(const string& name) const
     return false;
 }
 
-void Node::setNodeKeyData(const string& data)
-{
-    nodekeydata = data;
-}
-
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
@@ -482,9 +477,13 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     }
 
     if (ptr == end)
+    {
         return n.release();
-
-    return nullptr;
+    }
+    else
+    {
+        return nullptr;
+    }
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
@@ -3288,45 +3287,6 @@ node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
         nodes->push_back(static_cast<Node*>(*it));
     }
     return nodes;
-}
-
-unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath, FileSystemAccess& fsa)
-{
-    unique_ptr<FSNode> result(new FSNode);
-    result->type = fa.type;
-    result->fsid = fa.fsidvalid ? fa.fsid : UNDEF;
-    result->isSymlink = fa.mIsSymLink;
-    result->fingerprint.mtime = fa.mtime;
-    result->fingerprint.size = fa.size;
-
-    result->localname = fullPath.leafName();
-
-    if (auto sn = fsa.fsShortname(fullPath))
-    {
-        if (*sn != result->localname)
-        {
-            result->shortname = std::move(sn);
-        }
-    }
-    return result;
-}
-
-unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath& path)
-{
-    auto fileAccess = fsAccess.newfileaccess(false);
-
-    if (!fileAccess->fopen(path, true, false))
-        return nullptr;
-
-    auto fsNode = fromFOpened(*fileAccess, path, fsAccess);
-
-    if (fsNode->type != FILENODE)
-        return fsNode;
-
-    if (!fsNode->fingerprint.genfingerprint(fileAccess.get()))
-        return nullptr;
-
-    return fsNode;
 }
 
 CloudNode::CloudNode(const Node& n)
