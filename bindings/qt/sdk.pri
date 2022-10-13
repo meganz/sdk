@@ -49,6 +49,7 @@ SOURCES += src/attrmap.cpp \
     src/pubkeyaction.cpp \
     src/request.cpp \
     src/serialize64.cpp \
+    src/setandelement.cpp \
     src/share.cpp \
     src/sharenodekeys.cpp \
     src/sync.cpp \
@@ -63,6 +64,7 @@ SOURCES += src/attrmap.cpp \
     src/waiterbase.cpp  \
     src/proxy.cpp \
     src/pendingcontactrequest.cpp \
+    src/textchat.cpp \
     src/crypto/cryptopp.cpp  \
     src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
@@ -482,6 +484,7 @@ HEADERS  += include/mega.h \
             include/mega/pubkeyaction.h \
             include/mega/request.h \
             include/mega/serialize64.h \
+            include/mega/setandelement.h \
             include/mega/share.h \
             include/mega/sharenodekeys.h \
             include/mega/sync.h \
@@ -498,6 +501,7 @@ HEADERS  += include/mega.h \
             include/mega/waiter.h \
             include/mega/proxy.h \
             include/mega/pendingcontactrequest.h \
+            include/mega/textchat.h \
             include/mega/crypto/cryptopp.h  \
             include/mega/crypto/sodium.h  \
             include/mega/db/sqlite.h  \

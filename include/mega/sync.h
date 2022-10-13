@@ -156,7 +156,7 @@ public:
     SyncBackupState mBackupState;
 
     // Prevent applying old settings dialog based exclusion when creating .megaignore, for newer syncs.  We set this true for new syncs or after upgrade.
-    bool mLegacyExclusionsIneligigble = false;
+    bool mLegacyExclusionsIneligigble = true;
 
     // Whether recursiveSync() is called.  This one is not serialized, it just makes it convenient to deliver thread-safe sync state data back to client apps.
     bool mTemporarilyPaused = false;
@@ -328,9 +328,6 @@ struct SyncPath
     // this one purely from the sync root (using cloud name, to avoid escaped names)
     string syncPath;
 
-    // convenience, performs the conversion
-    string localPath_utf8() const;
-
     bool appendRowNames(const syncRow& row, FileSystemType filesystemType);
 
     SyncPath(Syncs& s, const LocalPath& fs, const string& cloud) : localPath(fs), cloudPath(cloud), syncs(s) {}
@@ -372,6 +369,9 @@ class SyncThreadsafeState
     handle mBackupId = 0;
 
 public:
+
+    const bool mCanChangeVault;
+
     // Remember which Nodes we created from upload,
     // until the corresponding LocalNodes are updated.
     void addExpectedUpload(NodeHandle parentHandle, const string& name, weak_ptr<SyncUpload_inClient>);
@@ -390,7 +390,7 @@ public:
     LocalPath syncTmpFolder() const;
     void setSyncTmpFolder(const LocalPath&);
 
-    SyncThreadsafeState(handle backupId, MegaClient* client) : mClient(client), mBackupId(backupId)  {}
+    SyncThreadsafeState(handle backupId, MegaClient* client, bool canChangeVault) : mClient(client), mBackupId(backupId), mCanChangeVault(canChangeVault)  {}
     handle backupId() const { return mBackupId; }
     MegaClient* client() const { return mClient; }
 };
@@ -827,7 +827,7 @@ struct SyncStallEntry
 
         string debugReport()
         {
-            string r = localPath.toPath();
+            string r = localPath.toPath(false);
             if (problem != PathProblem::NoProblem)
                 r += " (" + string(syncPathProblemDebugString(problem)) + ")";
             return r;
@@ -992,13 +992,13 @@ struct Syncs
      * @brief
      * Removes previously opened backup databases from that drive from memory.
      */
-    void backupCloseDrive(LocalPath drivePath, std::function<void(Error)> clientCallback);
+    void backupCloseDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback);
 
     /**
      * @brief
      * Restores backups from an external drive.
      */
-    void backupOpenDrive(LocalPath drivePath, std::function<void(Error)> clientCallback);
+    void backupOpenDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback);
 
 
     // Add a config directly to the internal sync config DB.
@@ -1006,9 +1006,6 @@ struct Syncs
     // Note that configs added in this way bypass the usual sync mechanism.
     // That is, they are added directly to the JSON DB on disk.
     error syncConfigStoreAdd(const SyncConfig& config);
-
-    // Query whether any syncs are scanning.
-    bool isAnySyncScanning(bool includePaused);
 
 private:  // anything to do with loading/saving/storing configs etc is done on the sync thread
 
@@ -1038,16 +1035,16 @@ public:
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeBySyncedFsid;
     fsid_localnode_map localnodeByScannedFsid;
-    LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
-    LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
-    LocalNode* findLocalNodeByFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck);
+    LocalNode* findLocalNodeBySyncedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
+    LocalNode* findLocalNodeByScannedFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint* fp, Sync* filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
+    LocalNode* findLocalNodeByFsid(mega::handle fsid, const LocalPath& originalpath, nodetype_t type, const FileFingerprint& fingerprint, Sync* filesystemSync, std::function<bool(LocalNode*)> extraCheck);
 
     void setSyncedFsidReused(mega::handle fsid);
     void setScannedFsidReused(mega::handle fsid);
 
     // maps nodehandle to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
-    LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
+    bool findLocalNodeByNodeHandle(NodeHandle h, LocalNode*& sourceSyncNodeOriginal, LocalNode*& sourceSyncNodeCurrent, Sync* sameSync, bool& unsureDueToIncompleteScanning);
 
     // manage syncdown flags inside the syncs
     void setSyncsNeedFullSync(bool andFullScan, handle backupId = UNDEF);
@@ -1063,7 +1060,7 @@ public:
     list<weak_ptr<LocalNode::RareFields::ScanBlocked>> scanBlockedPaths;
     list<weak_ptr<LocalNode::RareFields::BadlyFormedIgnore>> badlyFormedIgnoreFilePaths;
 
-    typedef std::function<void(MegaClient&, DBTableTransactionCommitter&)> QueuedClientFunc;
+    typedef std::function<void(MegaClient&, TransferDbCommitter&)> QueuedClientFunc;
     ThreadSafeDeque<QueuedClientFunc> clientThreadActions;
     ThreadSafeDeque<std::function<void()>> syncThreadActions;
 
@@ -1113,6 +1110,10 @@ public:
     // total number of LocalNode objects (only updated by syncs thread)
     long long totalLocalNodes = 0;
 
+    // backup rework implies certain restrictions that can be skipped
+    // by setting this flag
+    bool mBackupRestrictionsEnabled = true;
+
 private:
 
     // functions for internal use on-thread only
@@ -1159,7 +1160,7 @@ private:
     void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool notifyApp, bool unregisterHeartbeat);
     void purgeRunningSyncs_inThread();
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
-    error backupOpenDrive_inThread(LocalPath drivePath);
+    error backupOpenDrive_inThread(const LocalPath& drivePath);
     error backupCloseDrive_inThread(LocalPath drivePath);
 
     void syncLoop();
@@ -1325,7 +1326,7 @@ private:
 
     // Sometimes the Client needs a list of the sync configs, we provide it by copy (mutex for thread safety of course)
     mutable mutex mSyncVecMutex;
-    vector<shared_ptr<UnifiedSync>> mSyncVec;
+    vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // used to asynchronously perform scans.
     unique_ptr<ScanService> mScanService;

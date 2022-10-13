@@ -113,9 +113,9 @@ MegaClient* client;
 // Path naming conventions:
 // path is relative to cwd
 // /path is relative to ROOT
-// //in is in INBOX
+// //in is in VAULT (formerly INBOX)
 // //bin is in RUBBISH
-// X: is user X's INBOX
+// X: is user X's VAULT (formerly INBOX)
 // X:SHARE is share SHARE from user X
 // : and / filename components, as well as the \, must be escaped by \.
 // (correct UTF-8 encoding is assumed)
@@ -260,7 +260,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodeByHandle(client->rootnodes.inbox);
+                    n = client->nodeByHandle(client->rootnodes.vault);
                 }
                 else if (c[2] == "bin")
                 {
@@ -431,7 +431,7 @@ void SyncApp::fetchnodes_result(const Error &e)
             {
 #ifdef ENABLE_SYNC
                 SyncConfig syncConfig(LocalPath::fromAbsolutePath(local_folder), local_folder, NodeHandle().set6byte(n->nodehandle), remote_folder, 0, LocalPath());
-                client->addsync(syncConfig, false,
+                client->addsync(move(syncConfig), false,
                                 [](error err, const SyncError& serr, handle backupId) {
                     if (err)
                     {
@@ -490,7 +490,7 @@ static const char* treestatename(treestate_t ts)
 
 void SyncApp::syncupdate_treestate(const SyncConfig &config, const LocalPath& lp, treestate_t ts, nodetype_t)
 {
-    LOG_info << "Sync - state change of node " << lp.toPath() << " to " << treestatename(ts);
+    LOG_info << "Sync - state change of node " << lp.toPath(false) << " to " << treestatename(ts);
 }
 
 #endif

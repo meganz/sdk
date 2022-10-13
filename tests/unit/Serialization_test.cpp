@@ -261,44 +261,6 @@ void checkDeserializedNode(const mega::Node& dl, const mega::Node& ref, bool ign
 
 }
 
-TEST(Serialization, Node_whenFolderIsEncrypted)
-{
-    MockClient client;
-    auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, ::mega::NodeHandle().set6byte(42));
-
-    n.attrstring.reset(new std::string("attrstring"));
-    n.setNodeKeyData("nodekeydata");
-
-    std::string data;
-    ASSERT_TRUE(n.serialize(&data));
-
-    mega::node_vector dp;
-
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    ASSERT_TRUE(dn);
-
-    checkDeserializedNode(*dn, n);
-}
-
-TEST(Serialization, Node_whenFileIsEncrypted)
-{
-    MockClient client;
-    auto& n = mt::makeNode(*client.cli, mega::FILENODE, ::mega::NodeHandle().set6byte(42));
-
-    n.attrstring.reset(new std::string("attrstring"));
-    n.setNodeKeyData("nodekeydata");
-    n.size = 16;
-
-    std::string data;
-    ASSERT_TRUE(n.serialize(&data));
-
-    mega::node_vector dp;
-
-    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
-    ASSERT_TRUE(dn);
-
-    checkDeserializedNode(*dn, n);
-}
 
 TEST(Serialization, Node_whenTypeIsUnsupported)
 {

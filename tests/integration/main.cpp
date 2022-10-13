@@ -6,6 +6,7 @@
 
 // If running in Jenkins, we use its working folder.  But for local manual testing, use a convenient location
 #ifdef WIN32
+    #include <winhttp.h>
     #define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
 #else
     #define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
@@ -41,6 +42,171 @@ void WaitMillisec(unsigned n)
     }
 #else
     usleep(n * 1000);
+#endif
+}
+#ifdef __linux__
+std::string exec(const char* cmd) {
+    // Open pipe for reading.
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+
+    // Make sure the pipe was actually created.
+    if (!pipe) throw std::runtime_error("popen() failed!");
+
+    std::string result;
+
+    // Read from the pipe until we hit EOF or encounter an error.
+    for (std::array<char, 128> buffer; ; )
+    {
+        // Read from the pipe.
+        auto nRead = fread(buffer.data(), 1, buffer.size(), pipe.get());
+
+        // Were we able to extract any data?
+        if (nRead > 0)
+        {
+            // If so, add it to our result buffer.
+            result.append(buffer.data(), nRead);
+        }
+
+        // Have we extracted as much as we can?
+        if (nRead < buffer.size()) break;
+    }
+
+    // Were we able to extract all of the data?
+    if (feof(pipe.get()))
+    {
+        // Then return the result.
+        return result;
+    }
+
+    // Otherwise, let the caller know we couldn't read the pipe.
+    throw std::runtime_error("couldn't read all data from the pipe!");
+}
+#endif
+
+string loadfile(const string& filename)
+{
+    string filedata;
+    ifstream f(filename, ios::binary);
+    f.seekg(0, std::ios::end);
+    filedata.resize(unsigned(f.tellg()));
+    f.seekg(0, std::ios::beg);
+    f.read(const_cast<char*>(filedata.data()), static_cast<std::streamsize>(filedata.size()));
+    return filedata;
+}
+
+#ifdef WIN32
+void synchronousHttpPOSTData(const string& url, const string& senddata, string& responsedata)
+{
+    LOG_info << "Sending file to " << url << ", size: " << senddata.size();
+
+    BOOL  bResults = TRUE;
+    HINTERNET hSession = NULL, hConnect = NULL, hRequest = NULL;
+
+    // Use WinHttpOpen to obtain a session handle.
+    hSession = WinHttpOpen(L"testmega/1.0",
+        WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+        WINHTTP_NO_PROXY_NAME,
+        WINHTTP_NO_PROXY_BYPASS, 0);
+
+    WCHAR szURL[8192];
+    WCHAR szHost[256];
+    URL_COMPONENTS urlComp = { sizeof urlComp };
+
+    urlComp.lpszHostName = szHost;
+    urlComp.dwHostNameLength = sizeof szHost / sizeof *szHost;
+    urlComp.dwUrlPathLength = (DWORD)-1;
+    urlComp.dwSchemeLength = (DWORD)-1;
+
+    if (MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, szURL,
+        sizeof szURL / sizeof *szURL)
+        && WinHttpCrackUrl(szURL, 0, 0, &urlComp))
+    {
+        if ((hConnect = WinHttpConnect(hSession, szHost, urlComp.nPort, 0)))
+        {
+            hRequest = WinHttpOpenRequest(hConnect, L"POST",
+                urlComp.lpszUrlPath, NULL,
+                WINHTTP_NO_REFERER,
+                WINHTTP_DEFAULT_ACCEPT_TYPES,
+                (urlComp.nScheme == INTERNET_SCHEME_HTTPS)
+                ? WINHTTP_FLAG_SECURE
+                : 0);
+        }
+    }
+
+    // Send a Request.
+    if (hRequest)
+    {
+        WinHttpSetTimeouts(hRequest, 58000, 58000, 0, 0);
+
+        LPCWSTR pwszHeaders = L"Content-Type: application/octet-stream";
+
+        // HTTPS connection: ignore certificate errors, send no data yet
+        DWORD flags = SECURITY_FLAG_IGNORE_CERT_CN_INVALID
+            | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID
+            | SECURITY_FLAG_IGNORE_UNKNOWN_CA;
+
+        WinHttpSetOption(hRequest, WINHTTP_OPTION_SECURITY_FLAGS, &flags, sizeof flags);
+
+        if (WinHttpSendRequest(hRequest, pwszHeaders,
+            DWORD(wcslen(pwszHeaders)),
+            (LPVOID)senddata.data(),
+            (DWORD)senddata.size(),
+            (DWORD)senddata.size(),
+            NULL))
+        {
+        }
+    }
+
+    DWORD dwSize = 0;
+
+    // End the request.
+    if (bResults)
+        bResults = WinHttpReceiveResponse(hRequest, NULL);
+
+    // Continue to verify data until there is nothing left.
+    if (bResults)
+        do
+        {
+            // Verify available data.
+            dwSize = 0;
+            if (!WinHttpQueryDataAvailable(hRequest, &dwSize))
+                printf("Error %u in WinHttpQueryDataAvailable.\n",
+                    GetLastError());
+
+            size_t offset = responsedata.size();
+            responsedata.resize(offset + dwSize);
+
+            ZeroMemory(responsedata.data() + offset, dwSize);
+
+            DWORD dwDownloaded = 0;
+            if (!WinHttpReadData(hRequest, responsedata.data() + offset, dwSize, &dwDownloaded))
+                printf("Error %u in WinHttpReadData.\n", GetLastError());
+
+        } while (dwSize > 0);
+
+    // Report errors.
+    if (!bResults)
+        printf("Error %d has occurred.\n", GetLastError());
+
+    // Close open handles.
+    if (hRequest) WinHttpCloseHandle(hRequest);
+    if (hConnect) WinHttpCloseHandle(hConnect);
+    if (hSession) WinHttpCloseHandle(hSession);
+}
+#endif
+
+void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata)
+{
+#ifdef WIN32
+    synchronousHttpPOSTData(url, loadfile(filepath), responsedata);
+#else
+#ifdef __APPLE__
+    // tbd
+#else
+    string command = "curl -s --data-binary @";
+    command.append(filepath).append(" ").append(url.c_str());
+    responsedata = exec(command.c_str());
+#endif
 #endif
 }
 

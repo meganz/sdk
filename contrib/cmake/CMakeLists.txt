@@ -46,7 +46,7 @@ set (HAVE_FFMPEG 1 CACHE STRING "Used to create previews/thumbnails for video fi
 set (USE_WEBRTC 0 CACHE STRING "Declare that your app will link with WebRTC")
 set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web and ftp server functionality")
 set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
-set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
+set (USE_PDFIUM 1 CACHE STRING "Used to create previews/thumbnails for PDF files")
 set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
 set (USE_PCRE 0 CACHE STRING "Can be used by client apps. The SDK does not use it itself anymore")
 set (USE_DRIVE_NOTIFICATIONS 0 CACHE STRING "Allows to monitor (external) drives being [dis]connected to the computer")
@@ -733,6 +733,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/http.h
             ${MegaDir}/include/mega/useralerts.h
             ${MegaDir}/include/mega/pendingcontactrequest.h
+            ${MegaDir}/include/mega/textchat.h
             ${MegaDir}/include/mega/megaapp.h
             ${MegaDir}/include/mega/wincurl/megafs.h
             ${MegaDir}/include/mega/wincurl/meganet.h
@@ -747,6 +748,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/megaclient.h
             ${MegaDir}/include/mega/autocomplete.h
             ${MegaDir}/include/mega/serialize64.h
+            ${MegaDir}/include/mega/setandelement.h
             ${MegaDir}/include/mega/posix/megafs.h
             ${MegaDir}/include/mega/posix/meganet.h
             ${MegaDir}/include/mega/posix/megaconsolewaiter.h
@@ -823,11 +825,13 @@ add_library(Mega STATIC
             ${MegaDir}/src/megaclient.cpp
             ${MegaDir}/src/node.cpp
             ${MegaDir}/src/pendingcontactrequest.cpp
+            ${MegaDir}/src/textchat.cpp
             ${MegaDir}/src/proxy.cpp
             ${MegaDir}/src/pubkeyaction.cpp
             ${MegaDir}/src/raid.cpp
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp
+            ${MegaDir}/src/setandelement.cpp
             ${MegaDir}/src/share.cpp
             ${MegaDir}/src/sharenodekeys.cpp
             ${MegaDir}/src/sync.cpp

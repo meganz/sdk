@@ -48,6 +48,9 @@ bool g_disablepkp_default = false;
 std::mutex g_APIURL_default_mutex;
 string g_APIURL_default = "https://g.api.mega.co.nz/";
 
+// user handle for customer support user
+const string MegaClient::SUPPORT_USER_HANDLE = "pGTOqu7_Fek";
+
 // root URL for chat stats
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
@@ -499,6 +502,61 @@ bool MegaClient::setlang(string *code)
     return false;
 }
 
+error MegaClient::setbackupfolder(const char* foldername, int tag, std::function<void(Error)> addua_completion)
+{
+    if (!foldername)
+    {
+        return API_EARGS;
+    }
+
+    User* u = ownuser();
+    if (!u)
+    {
+        return API_EACCESS; // not logged in?
+    }
+
+    if (u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    {
+        // if the attribute was previously set, only allow setting it again if the folder node was missing
+        // (should never happen, but it already did)
+        const string* buf = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+        handle h = 0;
+        memcpy(&h, buf->data(), NODEHANDLE);
+        if (nodebyhandle(h))
+        {
+            // cannot set a new folder if it already exists
+            return API_EEXIST;
+        }
+    }
+
+    // 1. prepare the NewNode and create it via putnodes(), with flag `vw:1`
+    vector<NewNode> newnodes(1);
+    NewNode& newNode = newnodes.back();
+    putnodes_prepareOneFolder(&newNode, foldername, true);
+
+    // 2. upon completion of putnodes(), set the user's attribute `^!bak`
+    auto addua = [addua_completion, this](const Error& e, targettype_t handletype, vector<NewNode>& nodes, bool /*targetOverride*/)
+    {
+        if (e != API_OK)
+        {
+            addua_completion(e);
+            return;
+        }
+
+        assert(handletype == NODE_HANDLE &&
+            nodes.size() == 1 &&
+            nodes.back().mAddedHandle != UNDEF);
+
+        putua(ATTR_MY_BACKUPS_FOLDER, (const byte*)&nodes.back().mAddedHandle, NODEHANDLE,
+            -1, UNDEF, 0, 0, addua_completion);
+    };
+
+    putnodes(rootnodes.vault, NoVersioning, move(newnodes), nullptr, tag, true, addua);
+    // Note: this request should not finish until the user's attribute is set successfully
+
+    return API_OK;
+}
+
 void MegaClient::setFolderLinkAccountAuth(const char *auth)
 {
     if (auth)
@@ -563,7 +621,7 @@ bool MegaClient::isPrivateNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode == rootnodes.files || rootnode == rootnodes.inbox || rootnode == rootnodes.rubbish);
+    return rootnodes.isRootNode(rootnode);
 }
 
 bool MegaClient::isForeignNode(NodeHandle h)
@@ -575,7 +633,7 @@ bool MegaClient::isForeignNode(NodeHandle h)
     }
 
     NodeHandle rootnode = getrootnode(node)->nodeHandle();
-    return (rootnode != rootnodes.files && rootnode != rootnodes.inbox && rootnode != rootnodes.rubbish);
+    return !rootnodes.isRootNode(rootnode);
 }
 
 SCSN::SCSN()
@@ -925,8 +983,6 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
             }
         }
     }
-
-    //todo: replace: looprequested = true;
 }
 
 std::string MegaClient::getDeviceidHash()
@@ -1143,7 +1199,7 @@ void MegaClient::init()
 #endif
 
     rootnodes.files = NodeHandle();
-    rootnodes.inbox = NodeHandle();
+    rootnodes.vault = NodeHandle();
     rootnodes.rubbish = NodeHandle();
 
     pendingsc.reset();
@@ -1557,10 +1613,15 @@ void MegaClient::exec()
         // file attribute puts (handled sequentially as a FIFO)
         if (activefa.size())
         {
+            TransferDbCommitter committer(tctable);
             putfa_list::iterator curfa = activefa.begin();
             while (curfa != activefa.end())
             {
                 HttpReqCommandPutFA* fa = *curfa;
+
+                auto erasePos = curfa;
+                ++curfa;
+
                 m_off_t p = fa->transferred(this);
                 if (fa->progressreported < p)
                 {
@@ -1586,57 +1647,45 @@ void MegaClient::exec()
                             }
                             else
                             {
-                                NodeHandle h;
-
                                 // do we have a valid upload handle?
                                 if (fa->th.isNodeHandle())
                                 {
-                                    // we were originally generating file attributes for an existing node
-                                    h = fa->th.nodeHandle();
-                                }
-                                else
-                                {
-                                    // we were generating file attributes for an upload
-                                    // but we already completed the upload and now we need the resulting node handle
-                                    // TODO: we may have a gap here when the putnodes is already in-flight
-                                    auto it = uhnh.lower_bound(pair<UploadHandle, NodeHandle>
-                                        (fa->th.uploadHandle(), NodeHandle().setImpossibleValue(0)));
-
-                                    if (it != uhnh.end() && it->first == fa->th.uploadHandle())
+                                    if (Node* n = nodeByHandle(fa->th.nodeHandle()))
                                     {
-                                        h = it->second;
-                                    }
-                                }
-
-                                // are we updating a live node? issue command directly.
-                                // otherwise, queue for processing upon upload
-                                // completion.
-                                if (Node* n = nodeByHandle(h))
-                                {
-                                    LOG_debug << "Attaching file attribute";
-                                    reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
-                                }
-                                else
-                                {
-                                    // TODO: possibly another gap here where we were generating for an existing Node, but now it's not found
-
-                                    if (fa->th.isNodeHandle())
-                                    {
-                                        LOG_warn << "Can't attach file attribute to no longer existing node";
+                                        LOG_debug << "Attaching file attribute to Node";
+                                        reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
                                     }
                                     else
                                     {
-                                        pendingfa[pair<UploadHandle, fatype>(fa->th.uploadHandle(), fa->type)] = pair<handle, int>(fah, fa->tag);
-                                        LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
-                                        checkfacompletion(fa->th.uploadHandle());
+                                        LOG_debug << "Node to attach file attribute to no longer exists";
+                                    }
+                                }
+                                else
+                                {
+                                    if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(fa->th.uploadHandle()))
+                                    {
+                                        if (auto waitingFAPtr = uploadFAPtr->pendingfa.lookupExisting(fa->type))
+                                        {
+                                            waitingFAPtr->fileAttributeHandle = fah;
+                                            waitingFAPtr->valueIsSet = true;
+
+                                            LOG_debug << "File attribute, type " << fa->type << " for upload handle " << fa->th << " received: " << toHandle(fah);
+                                            checkfacompletion(fa->th.uploadHandle());
+                                        }
+                                        else
+                                        {
+                                            LOG_debug << "File attribute, type " << fa->type << " for upload handle " << fa->th << " received, but that type was no longer needed";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        LOG_debug << "File attribute, type " << fa->type << " for upload handle " << fa->th << " received, but the upload was previously resolved";
                                     }
                                 }
                             }
                         }
                         else
                         {
-                            LOG_warn << "Error attaching attribute";
-
                             if (fa->th.isNodeHandle())
                             {
                                 // TODO: possibly another gap here where we were generating for an existing Node, code only dealt with the upload-in-progress case
@@ -1644,42 +1693,23 @@ void MegaClient::exec()
                             }
                             else
                             {
-                                Transfer *transfer = NULL;
-                                uploadhandletransfer_map::iterator htit = faputcompletion.find(fa->th.uploadHandle());
-                                if (htit != faputcompletion.end())
+                                if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(fa->th.uploadHandle()))
                                 {
-                                    // the failed attribute belongs to a pending upload
-                                    transfer = htit->second;
+                                    LOG_debug << "File attribute, type " << fa->type << " for upload handle " << fa->th << " failed. Discarding the need for it";
+                                    uploadFAPtr->pendingfa.erase(fa->type);
                                 }
                                 else
                                 {
-                                    // check if the failed attribute belongs to an active upload
-                                    for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
-                                    {
-                                        if (it->second->uploadhandle == fa->th.uploadHandle())
-                                        {
-                                            transfer = it->second;
-                                            break;
-                                        }
-                                    }
+                                    LOG_debug << "File attribute, type " << fa->type << " for upload handle " << fa->th << " failed, but the upload was previously resolved";
                                 }
 
-                                if (transfer)
-                                {
-                                    // reduce the number of required attributes to let the upload continue
-                                    transfer->minfa--;
-                                    checkfacompletion(fa->th.uploadHandle());
-                                    sendevent(99407,"Attribute attach failed during active upload", 0);
-                                }
-                                else
-                                {
-                                    LOG_debug << "Transfer related to failed attribute not found: " << fa->th;
-                                }
+                                checkfacompletion(fa->th.uploadHandle());
+                                sendevent(99407,"Attribute attach failed during active upload", 0);
                             }
                         }
 
                         delete fa;
-                        curfa = activefa.erase(curfa);
+                        activefa.erase(erasePos);
                         LOG_debug << "Remaining file attributes: " << activefa.size() << " active, " << queuedfa.size() << " queued";
                         btpfa.reset();
                         faretrying = false;
@@ -1688,15 +1718,38 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         // repeat request with exponential backoff
                         LOG_warn << "Error setting file attribute";
-                        curfa = activefa.erase(curfa);
+                        activefa.erase(erasePos);
                         fa->status = REQ_READY;
                         queuedfa.push_back(fa);
                         btpfa.backoff();
                         faretrying = true;
                         break;
 
+                    case REQ_INFLIGHT:
+                        // check if the transfer/file was cancelled while we were waiting for fa response (only for file uploads, not Node updates or app-requested fa put)
+                        if (!fa->th.isNodeHandle())
+                        {
+                            if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(fa->th.uploadHandle()))
+                            {
+                                uploadFAPtr->transfer->removeCancelledTransferFiles(&committer);
+                                if (uploadFAPtr->transfer->files.empty())
+                                {
+                                    // this also removes it from slots and fileAttributesUploading
+                                    activefa.erase(erasePos);
+                                    uploadFAPtr->transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
+                                }
+                            }
+                            else
+                            {
+                                LOG_debug << "activefa for " << fa->th.uploadHandle() << " has been orphaned, discarding";
+                                activefa.erase(erasePos);
+                            }
+                        }
+                        break;
+
                     default:
-                        curfa++;
+                        // other cases are not relevant for this one
+                        break;
                 }
             }
         }
@@ -1713,7 +1766,7 @@ void MegaClient::exec()
                 activefa.push_back(fa);
 
                 LOG_debug << "Adding file attribute to the request queue";
-                fa->status = REQ_INFLIGHT;
+                fa->status = REQ_GET_URL;   // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
                 reqs.add(fa);
             }
         }
@@ -1896,6 +1949,7 @@ void MegaClient::exec()
                                 {
                                     LOG_debug << "Executing postponed DB commit 2";
                                     sctable->commit();
+                                    assert(!sctable->inTransaction());
                                     sctable->begin();
                                     app->notify_dbcommit();
                                     pendingsccommit = false;
@@ -2273,6 +2327,7 @@ void MegaClient::exec()
             if (procsc())
             {
                 // completed - initiate next SC request
+                jsonsc.pos = nullptr;
                 pendingsc.reset();
                 btsc.reset();
             }
@@ -2406,7 +2461,7 @@ void MegaClient::exec()
 
         if (!mBlocked) // handle active unpaused transfers
         {
-            DBTableTransactionCommitter committer(tctable);
+            TransferDbCommitter committer(tctable);
 
             while (slotit != tslots.end())
             {
@@ -2414,7 +2469,14 @@ void MegaClient::exec()
 
                 slotit++;
 
-                if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
+                // remove transfer files whose MegaTransfer associated has been cancelled (via cancel token)
+                (*it)->transfer->removeCancelledTransferFiles(&committer);
+                if ((*it)->transfer->files.empty())
+                {
+                    // this also removes it from slots
+                    (*it)->transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
+                }
+                else if (!xferpaused[(*it)->transfer->type] && (!(*it)->retrying || (*it)->retrybt.armed()))
                 {
                     (*it)->doio(this, committer);
                 }
@@ -2438,8 +2500,8 @@ void MegaClient::exec()
 
             dstime ctr_start = waiter->ds;
             size_t ctr_N = 0;
-            DBTableTransactionCommitter committer(tctable);
-            std::function<void(MegaClient&, DBTableTransactionCommitter&)> f;
+            TransferDbCommitter committer(tctable);
+            std::function<void(MegaClient&, TransferDbCommitter&)> f;
 
             waiter->bumpds();
             while (ctr_start + 5 >= waiter->ds && syncs.clientThreadActions.popFront(f))
@@ -2525,7 +2587,7 @@ void MegaClient::exec()
     NodeCounter storagesum;
     for (auto& nc : mNodeCounters)
     {
-        if (nc.first == rootnodes.files || nc.first == rootnodes.inbox || nc.first == rootnodes.rubbish)
+        if (rootnodes.isRootNode(nc.first))
         {
             storagesum += nc.second;
         }
@@ -2940,6 +3002,31 @@ bool MegaClient::abortbackoff(bool includexfers)
 // activate enough queued transfers as necessary to keep the system busy - but not too busy
 void MegaClient::dispatchTransfers()
 {
+    if (CancelToken::haveAnyCancelsOccurredSince(lastKnownCancelCount))
+    {
+        // first deal with the possibility of cancelled transfers
+        // only do this if any cancel tokens were activated
+        // as walking the whole list on every exec() would be too expensive for large sets of transfers
+        static direction_t putget[] = { PUT, GET };
+        for (direction_t direction : putget)
+        {
+            TransferDbCommitter committer(tctable);
+            auto& directionList = transfers[direction];
+            for (auto i = directionList.begin(); i != directionList.end(); )
+            {
+                auto it = i++;  // in case this entry is removed
+                Transfer* transfer = it->second;
+
+                transfer->removeCancelledTransferFiles(&committer);
+                if (transfer->files.empty())
+                {
+                    // this also removes it from slots
+                    transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
+                }
+            }
+        }
+    }
+
     // do we have any transfer slots available?
     if (!slotavail())
     {
@@ -3027,7 +3114,7 @@ void MegaClient::dispatchTransfers()
             return true;
         };
 
-    DBTableTransactionCommitter committer(tctable);
+    TransferDbCommitter committer(tctable);
 
     std::array<vector<Transfer*>, 6> nextInCategory = transferlist.nexttransfers(testAddTransferFunction, continueDirection, committer);
 
@@ -3079,7 +3166,7 @@ void MegaClient::dispatchTransfers()
                         if ((*it)->hprivate && !(*it)->hforeign)
                         {
                             // Make sure we have the size field
-                            Node* n = nodeByHandle((*it)->h, true);
+                            Node* n = nodeByHandle((*it)->h);
                             if (!n)
                             {
                                 missingPrivateNode = true;
@@ -3267,7 +3354,17 @@ void MegaClient::dispatchTransfers()
                             if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename))
                             {
                                 // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename, NodeOrUploadHandle(nexttransfer->uploadhandle), nexttransfer->transfercipher(), -1);
+                                int bitmask = gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename, NodeOrUploadHandle(nexttransfer->uploadhandle), nexttransfer->transfercipher(), -1);
+
+                                if (bitmask & (1 << GfxProc::THUMBNAIL))
+                                {
+                                    fileAttributesUploading.setFileAttributePending(nexttransfer->uploadhandle, GfxProc::THUMBNAIL, nexttransfer);
+                                }
+
+                                if (bitmask & (1 << GfxProc::PREVIEW))
+                                {
+                                    fileAttributesUploading.setFileAttributePending(nexttransfer->uploadhandle, GfxProc::PREVIEW, nexttransfer);
+                                }
                             }
                         }
                     }
@@ -3379,20 +3476,19 @@ void MegaClient::dispatchTransfers()
                 }
                 else if (openfinished)
                 {
-                    string utf8path = nexttransfer->localfilename.toPath();
                     if (nexttransfer->type == GET)
                     {
-                        LOG_err << "Error dispatching transfer. Temporary file not writable: " << utf8path;
+                        LOG_err << "Error dispatching transfer. Temporary file not writable: " << nexttransfer->localfilename;
                         nexttransfer->failed(API_EWRITE, committer);
                     }
                     else if (!ts->fa->retry)
                     {
-                        LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << utf8path;
+                        LOG_err << "Error dispatching transfer. Local file permanently unavailable: " << nexttransfer->localfilename;
                         nexttransfer->failed(API_EREAD, committer);
                     }
                     else
                     {
-                        LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << utf8path;
+                        LOG_warn << "Error dispatching transfer. Local file temporarily unavailable: " << nexttransfer->localfilename;
                         nexttransfer->failed(API_EREAD, committer);
                     }
                 }
@@ -3407,65 +3503,56 @@ void MegaClient::dispatchTransfers()
 }
 
 // do we have an upload that is still waiting for file attributes before being completed?
-void MegaClient::checkfacompletion(UploadHandle th, Transfer* t)
+void MegaClient::checkfacompletion(UploadHandle th, Transfer* t, bool uploadCompleted)
 {
-    if (!th.isUndef())
+    // For any particular transfer, this is called first with t supplied, when the file's data upload completes.
+    // Calls after that are with !t, to check if we have all the file attributes yet, so we can make the putnodes call
+    assert(!th.isUndef());
+
+    if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(th))
     {
-        bool delayedcompletion;
-        uploadhandletransfer_map::iterator htit;
+        assert(!t || uploadFAPtr->transfer == t);
+        t = uploadFAPtr->transfer;
 
-        if ((delayedcompletion = !t))
+        if (uploadCompleted)
         {
-            // abort if upload still running
-            if ((htit = faputcompletion.find(th)) == faputcompletion.end())
-            {
-                LOG_debug << "Upload still running checking a file attribute - " << th;
-                return;
-            }
+            uploadFAPtr->uploadCompleted = true;
 
-            t = htit->second;
+            transfers[t->type].erase(t->transfers_it);
+            t->transfers_it = transfers[t->type].end();
+
+            delete t->slot;
+            t->slot = NULL;
         }
 
-        int facount = 0;
-
-        // do we have the pre-set threshold number of file attributes available? complete upload.
-        for (fa_map::iterator it = pendingfa.lower_bound(pair<UploadHandle, fatype>(th, fatype(0)));
-             it != pendingfa.end() && it->first.first == th; it++)
+        // abort if upload still running
+        if (!uploadFAPtr->uploadCompleted)
         {
-            facount++;
+            LOG_debug << "Upload still running checking a file attribute - " << th;
+            return;
         }
 
-        if (facount < t->minfa)
+        assert(uploadFAPtr->transfer && uploadFAPtr->transfer->type == PUT);
+
+        // do we have all the required the file attributes available? complete upload.
+        int numUnresolvedFA = 0;
+        for (auto& i : uploadFAPtr->pendingfa)
         {
-            LOG_debug << "Pending file attributes for upload - " << th <<  " : " << (t->minfa < facount);
-            if (!delayedcompletion)
-            {
-                // we have insufficient file attributes available: remove transfer and put on hold
-                t->faputcompletion_it = faputcompletion.insert(pair<UploadHandle, Transfer*>(th, t)).first;
+            if (!i.second.valueIsSet) ++numUnresolvedFA;  // todo: fa_media
+        }
 
-                transfers[t->type].erase(t->transfers_it);
-                t->transfers_it = transfers[t->type].end();
-
-                delete t->slot;
-                t->slot = NULL;
-
-                LOG_debug << "Transfer put on hold. Total: " << faputcompletion.size();
-            }
-
+        if (numUnresolvedFA)
+        {
+            LOG_debug << "Pending file attributes for upload - " << th <<  " : " << numUnresolvedFA;
             return;
         }
     }
-    else
-    {
-        LOG_warn << "NULL file attribute handle";
-    }
+
+    if (!t) return;
 
     LOG_debug << "Transfer finished, sending callbacks - " << th;
     t->state = TRANSFERSTATE_COMPLETED;
     t->completefiles();
-
-    // todo: instead of this, set a flag to queue more at end of loop.  Or just do that at end of loop anywy
-    //todo: replace: looprequested = true;
 
     app->transfer_complete(t);
     delete t;
@@ -3474,7 +3561,7 @@ void MegaClient::checkfacompletion(UploadHandle th, Transfer* t)
 // clear transfer queue
 void MegaClient::freeq(direction_t d)
 {
-    DBTableTransactionCommitter committer(tctable);
+    TransferDbCommitter committer(tctable);
     for (auto transferPtr : transfers[d])
     {
         transferPtr.second->mOptimizedDelete = true;  // so it doesn't remove itself from this list while deleting
@@ -3566,7 +3653,7 @@ void MegaClient::disconnect()
 // by closing pending sc, reset backoff and clear waitd URL
 void MegaClient::catchup()
 {
-    if (pendingsc)
+    if (pendingsc && !jsonsc.pos)
     {
         pendingsc->disconnect();
 
@@ -3627,7 +3714,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     // Process any lingering client actions.
     if (!syncs.clientThreadActions.empty())
     {
-        DBTableTransactionCommitter committer(tctable);
+        TransferDbCommitter committer(tctable);
         Syncs::QueuedClientFunc func;
 
         while (syncs.clientThreadActions.popFront(func))
@@ -3674,6 +3761,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
+    mSets.clear();
+    mSetElements.clear();
 
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
     purgeOrphanTransfers();
@@ -3757,7 +3846,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     fafcs.clear();
 
-    pendingfa.clear();
+    fileAttributesUploading.clear();
 
     // erase keys & session ID
     resetKeyring();
@@ -3948,6 +4037,7 @@ bool MegaClient::procsc()
                         if (!reqs.cmdsInflight())
                         {
                             sctable->commit();
+                            assert(!sctable->inTransaction());
                             sctable->begin();
                             app->notify_dbcommit();
                             pendingsccommit = false;
@@ -3961,6 +4051,12 @@ bool MegaClient::procsc()
                     break;
 
                 case EOO:
+                    if (!useralerts.isDeletedSharedNodesStashEmpty())
+                    {
+                        useralerts.convertStashedDeletedSharedNodes();
+                    }
+
+
                     LOG_debug << "Processing of action packets finished.  More to follow: " << insca_notlast;
                     mergenewshares(1);
                     applykeys();
@@ -3973,6 +4069,7 @@ bool MegaClient::procsc()
                             if (sctable)
                             {
                                 sctable->commit();
+                                assert(!sctable->inTransaction());
                                 sctable->begin();
                                 pendingsccommit = false;
                             }
@@ -4024,7 +4121,7 @@ bool MegaClient::procsc()
 
                         if (tctable && cachedfiles.size())
                         {
-                            DBTableTransactionCommitter committer(tctable);
+                            TransferDbCommitter committer(tctable);
                             for (unsigned int i = 0; i < cachedfiles.size(); i++)
                             {
                                 direction_t type = NONE;
@@ -4058,6 +4155,8 @@ bool MegaClient::procsc()
                         app->nodes_updated(NULL, int(nodes.size()));
                         app->users_updated(NULL, int(users.size()));
                         app->pcrs_updated(NULL, int(pcrindex.size()));
+                        app->sets_updated(nullptr, int(mSets.size()));
+                        app->setelements_updated(nullptr, int(mSetElements.size()));
 #ifdef ENABLE_CHAT
                         app->chats_updated(NULL, int(chats.size()));
 #endif
@@ -4087,6 +4186,7 @@ bool MegaClient::procsc()
                     {
                         LOG_debug << "Executing postponed DB commit 1";
                         sctable->commit();
+                        assert(!sctable->inTransaction());
                         sctable->begin();
                         app->notify_dbcommit();
                         pendingsccommit = false;
@@ -4297,6 +4397,26 @@ bool MegaClient::procsc()
                                 // storage quota allowance changed
                                 sc_sqac();
                                 break;
+
+                            case MAKENAMEID3('a', 's', 'p'):
+                                // new/update of a Set
+                                sc_asp();
+                                break;
+
+                            case MAKENAMEID3('a', 's', 'r'):
+                                // removal of a Set
+                                sc_asr();
+                                break;
+
+                            case MAKENAMEID3('a', 'e', 'p'):
+                                // new/update of a Set Element
+                                sc_aep();
+                                break;
+
+                            case MAKENAMEID3('a', 'e', 'r'):
+                                // removal of a Set Element
+                                sc_aer();
+                                break;
                         }
                     }
                     else
@@ -4378,10 +4498,22 @@ void MegaClient::initsc()
             }
         }
 
+        if (complete)
+        {
+            // 5. write Sets
+            complete = initscsets();
+        }
+
+        if (complete)
+        {
+            // 6. write SetElements
+            complete = initscsetelements();
+        }
+
 #ifdef ENABLE_CHAT
         if (complete)
         {
-            // 5. write new or modified chats
+            // 7. write new or modified chats
             for (textchat_map::iterator it = chats.begin(); it != chats.end(); it++)
             {
                 if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
@@ -4402,6 +4534,7 @@ void MegaClient::initsc()
             // We have the data, and we have the corresponding scsn, all from fetchnodes finishing just now.
             // Commit now, otherwise we'll have to do fetchnodes again (on restart) if no actionpackets arrive.
             sctable->commit();
+            assert(!sctable->inTransaction());
             sctable->begin();
             pendingsccommit = false;
         }
@@ -4486,15 +4619,17 @@ void MegaClient::updatesc()
 
         if (complete)
         {
+            unsigned removed = 0;
+            unsigned added = 0;
+
             // 3. write new or modified nodes, purge deleted nodes
             for (node_vector::iterator it = nodenotify.begin(); it != nodenotify.end(); it++)
             {
-                char base64[12];
                 if ((*it)->changed.removed)
                 {
                     if ((*it)->dbid)
                     {
-                        LOG_verbose << clientname << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                        removed += 1;
                         if (!(complete = sctable->del((*it)->dbid)))
                         {
                             break;
@@ -4503,12 +4638,20 @@ void MegaClient::updatesc()
                 }
                 else
                 {
-                    LOG_verbose << clientname << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    added += 1;
                     if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
                     {
                         break;
                     }
                 }
+            }
+            if (removed)
+            {
+                LOG_verbose << clientname << "Removed " << removed << " nodes from database";
+            }
+            if (added)
+            {
+                LOG_verbose << clientname << "Added " << added << " nodes to database";
             }
         }
 
@@ -4540,10 +4683,22 @@ void MegaClient::updatesc()
             }
         }
 
+        if (complete)
+        {
+            // 5. write new or modified Sets, purge deleted ones
+            complete = updatescsets();
+        }
+
+        if (complete)
+        {
+            // 6. write new or modified SetElements, purge deleted ones
+            complete = updatescsetelements();
+        }
+
 #ifdef ENABLE_CHAT
         if (complete)
         {
-            // 5. write new or modified chats
+            // 6. write new or modified chats
             for (textchat_map::iterator it = chatnotify.begin(); it != chatnotify.end(); it++)
             {
                 char base64[12];
@@ -4583,6 +4738,9 @@ void MegaClient::finalizesc(bool complete)
 // queue node file attribute for retrieval or cancel retrieval
 error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey, fatype t, int cancel)
 {
+    assert((cancel && nodekey.empty()) ||
+          (!cancel && !nodekey.empty()));
+
     // locate this file attribute type in the nodes's attribute string
     handle fah;
     int p, pp;
@@ -4684,21 +4842,23 @@ void MegaClient::pendingattrstring(UploadHandle h, string* fa)
 {
     char buf[128];
 
-    for (fa_map::iterator it = pendingfa.lower_bound(pair<UploadHandle, fatype>(h, fatype(0)));
-         it != pendingfa.end() && it->first.first == h; )
+    if (auto uploadFAPtr = fileAttributesUploading.lookupExisting(h))
     {
-        if (it->first.second != fa_media)
+        for (auto& it : uploadFAPtr->pendingfa)
         {
-            sprintf(buf, "/%u*", (unsigned)it->first.second);
-            Base64::btoa((byte*)&it->second.first, sizeof(it->second.first), strchr(buf + 3, 0));
-            fa->append(buf + !fa->size());
-            LOG_debug << "Added file attribute to putnodes. Remaining: " << pendingfa.size()-1;
+            if (it.first != fa_media)
+            {
+                sprintf(buf, "/%u*", (unsigned)it.first);
+                Base64::btoa((byte*)&it.second.fileAttributeHandle, sizeof(it.second.fileAttributeHandle), strchr(buf + 3, 0));
+                fa->append(buf + !fa->size());
+                LOG_debug << "Added file attribute " << it.first << " to putnodes";
+            }
         }
-        pendingfa.erase(it++);
     }
 }
 
-// attach file attribute to a file (th can be upload or node handle)
+// Upload file attribute data to fa servers. node handle can be UNDEF if we are giving fa handle back to the app
+// Used for attaching file attribute to a Node, or prepping for Node creation after upload, or getting fa handle for app.
 // FIXME: to avoid unnecessary roundtrips to the attribute servers, also cache locally
 void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag, std::unique_ptr<string> data)
 {
@@ -4716,7 +4876,7 @@ void MegaClient::putfa(NodeOrUploadHandle th, fatype t, SymmCipher* key, int tag
         HttpReqCommandPutFA *fa = *curfa;
         queuedfa.erase(curfa);
         activefa.push_back(fa);
-        fa->status = REQ_INFLIGHT;
+        fa->status = REQ_GET_URL;  // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
         reqs.add(fa);
     }
 }
@@ -4957,7 +5117,7 @@ void MegaClient::sc_updatenode()
                     Node* n;
                     bool notify = false;
 
-                    if ((n = nodebyhandle(h, true)))
+                    if ((n = nodebyhandle(h)))
                     {
                         if (u && n->owner != u)
                         {
@@ -5613,12 +5773,17 @@ void MegaClient::sc_userattr()
                                         resetKeyring();
                                         break;
                                     }
+                                    case ATTR_MY_BACKUPS_FOLDER:
+                                    // there should be no actionpackets for this attribute. It is
+                                    // created and never updated afterwards
+                                    LOG_err << "The node handle for My backups folder has changed";
+                                    //fall-through
+
                                     case ATTR_AUTHRING:              // fall-through
                                     case ATTR_AUTHCU255:             // fall-through
                                     case ATTR_AUTHRSA:               // fall-through
                                     case ATTR_DEVICE_NAMES:          // fall-through
                                     case ATTR_DRIVE_NAMES:          // fall-through
-                                    case ATTR_MY_BACKUPS_FOLDER:     // fall-through
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
@@ -6218,6 +6383,11 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
     string unifiedkey;
     bool meeting = false;
 
+    // chat options: [0 (remove) | 1 (add)], if chat option is not included on action packet, that option is disabled
+    int waitingRoom = 0;
+    int openInvite = 0;
+    int speakRequest = 0;
+
     bool done = false;
     while (!done)
     {
@@ -6270,6 +6440,18 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 meeting = jsonsc.getbool();
                 break;
 
+            case 'w': // waiting room
+                waitingRoom = jsonsc.getbool();
+                break;
+
+            case MAKENAMEID2('s','r'): // speak request
+                speakRequest = jsonsc.getbool();
+                break;
+
+            case MAKENAMEID2('o','i'): // open invite
+                openInvite = jsonsc.getbool();
+                break;
+
             case EOO:
                 done = true;
 
@@ -6312,6 +6494,11 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
                     }
                     chat->meeting = meeting;
+
+                    if (group)
+                    {
+                        chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+                    }
 
                     bool found = false;
                     userpriv_vector::iterator upvit;
@@ -6723,6 +6910,7 @@ void MegaClient::notifypurge(void)
     if (scsn.ready()) tscsn = scsn.getHandle();
 
     if (nodenotify.size() || usernotify.size() || pcrnotify.size()
+            || setnotify.size() || setelementnotify.size()
 #ifdef ENABLE_CHAT
             || chatnotify.size()
 #endif
@@ -6747,7 +6935,7 @@ void MegaClient::notifypurge(void)
         }
 
 
-        DBTableTransactionCommitter committer(tctable);
+        TransferDbCommitter committer(tctable);
 
         // check all notified nodes for removed status and purge
         for (i = 0; i < t; i++)
@@ -6859,6 +7047,16 @@ void MegaClient::notifypurge(void)
         useralerts.useralertnotify.clear();
     }
 
+    if (!setelementnotify.empty())
+    {
+        notifypurgesetelements();
+    }
+
+    if (!setnotify.empty())
+    {
+        notifypurgesets();
+    }
+
 #ifdef ENABLE_CHAT
     if ((t = int(chatnotify.size())))
     {
@@ -6884,23 +7082,19 @@ void MegaClient::notifypurge(void)
 }
 
 // return node pointer derived from node handle
-Node* MegaClient::nodebyhandle(handle h, bool fileVersionOk) const
+Node* MegaClient::nodebyhandle(handle h) const
 {
     auto it = nodes.find(NodeHandle().set6byte(h));
 
     if (it != nodes.end())
     {
-        // if this assert fails, please check the code calling it deals with file versions, and if not then fix,
-        // if it already deals with file versions then just pass  fileVersionOk == true
-        assert(fileVersionOk || !it->second->parent || it->second->parent->type != FILENODE);
-
         return it->second;
     }
 
     return nullptr;
 }
 
-Node* MegaClient::nodeByHandle(NodeHandle h, bool fileVersionOk) const
+Node* MegaClient::nodeByHandle(NodeHandle h) const
 {
     if (h.isUndef()) return nullptr;
 
@@ -6908,10 +7102,6 @@ Node* MegaClient::nodeByHandle(NodeHandle h, bool fileVersionOk) const
 
     if (it != nodes.end())
     {
-        // if this assert fails, please check the code calling it deals with file versions, and if not then fix,
-        // if it already deals with file versions then just pass  fileVersionOk == true
-        assert(fileVersionOk || !it->second->parent || it->second->parent->type != FILENODE);
-
         return it->second;
     }
 
@@ -7057,12 +7247,12 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             {
                 if (c[2] == "in")
                 {
-                    n = nodeByHandle(rootnodes.inbox);
-                    assert(!n || n->type == INCOMINGNODE);
+                    n = nodeByHandle(rootnodes.vault);
+                    assert(!n || n->type == VAULTNODE);
                 }
                 else if (c[2] == "bin")
                 {
-                    n = nodeByHandle(rootnodes.rubbish, true);
+                    n = nodeByHandle(rootnodes.rubbish);
                     assert(!n || n->type == RUBBISHNODE);
                 }
                 else
@@ -7075,7 +7265,7 @@ Node* MegaClient::nodeByPath(const char* path, Node* node)
             else
             {
                 n = nodeByHandle(rootnodes.files);
-                assert(!n || n->type == ROOTNODE);
+                assert(!n || loggedIntoFolder() || n->type == ROOTNODE); //folder links root node type is not ROOTNODE
                 l = 1;
             }
         }
@@ -7135,7 +7325,7 @@ Node* MegaClient::sc_deltree()
 
                 if (!ISUNDEF((h = jsonsc.gethandle())))
                 {
-                    n = nodebyhandle(h, true);  // ok even if it's a file version
+                    n = nodebyhandle(h);  // ok even if it's a file version
                 }
                 break;
 
@@ -7151,9 +7341,11 @@ Node* MegaClient::sc_deltree()
 
                     int creqtag = reqtag;
                     reqtag = 0;
+                    td.setOriginatingUser(originatingUser);
                     proctree(n, &td);
                     reqtag = creqtag;
 
+                    useralerts.stashDeletedNotedSharedNodes(originatingUser);
 #ifdef ENABLE_SYNC
                     if (n->parent)
                     {
@@ -7209,7 +7401,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 }
 
 // update node attributes
-error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completion&& c)
+error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completion&& c, bool canChangeVault)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -7234,7 +7426,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates, CommandSetAttr::Completio
         }
     }
     // we only update the values stored in the node once the command completes successfully
-    reqs.add(new CommandSetAttr(this, n, std::move(updates), move(c)));
+    reqs.add(new CommandSetAttr(this, n, std::move(updates), move(c), canChangeVault));
 
     return API_OK;
 }
@@ -7304,12 +7496,12 @@ error MegaClient::putnodes_prepareOneFile(NewNode* newnode, Node* parentNode, co
     return e;
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, bool canChangeVault, std::function<void(AttrMap&)> addAttrs)
 {
-    MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, addAttrs);
+    MegaClient::putnodes_prepareOneFolder(newnode, foldername, rng, tmpnodecipher, canChangeVault, addAttrs);
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, std::function<void(AttrMap&)> addAttrs)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher& tmpnodecipher, bool canChangeVault, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
@@ -7319,6 +7511,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     newnode->type = FOLDERNODE;
     newnode->nodehandle = 0;
     newnode->parenthandle = UNDEF;
+    newnode->canChangeVault = canChangeVault;
 
     // generate fresh random key for this folder node
     rng.genblock(buf, FOLDERNODEKEYLENGTH);
@@ -7341,12 +7534,12 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, CommandPutNodes::Completion&& resultFunction)
+void MegaClient::putnodes(NodeHandle h, VersioningOption vo, vector<NewNode>&& newnodes, const char *cauth, int tag, bool canChangeVault, CommandPutNodes::Completion&& resultFunction)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction)));
+    reqs.add(new CommandPutNodes(this, h, NULL, vo, move(newnodes), tag, PUTNODES_APP, cauth, move(resultFunction), canChangeVault));
 }
 
-// drop nodes into a user's inbox (must have RSA keypair)
+// drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs to helpdesk
 void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag, CommandPutNodes::Completion&& completion)
 {
     User* u;
@@ -7477,8 +7670,13 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, CommandMoveNode::Completion&& completion)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevparent, const char *newName, bool canChangeVault, CommandMoveNode::Completion&& c)
 {
+    if (mBizStatus == BIZ_STATUS_EXPIRED)
+    {
+        return API_EBUSINESSPASTDUE;
+    }
+
     error e;
 
     if ((e = checkmove(n, p)))
@@ -7544,10 +7742,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, NodeHandle prevpar
     if (!attrUpdates.empty())
     {
         // send attribute changes first so that any rename is already applied when the move node completes
-        setattr(n, std::move(attrUpdates), nullptr);  // no completion function, result is after the move completes
+        setattr(n, std::move(attrUpdates), nullptr, canChangeVault);  // no completion function, result is after the move completes
     }
 
-    reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(completion)));
+    reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent, move(c), canChangeVault));
 
     return API_OK;
 }
@@ -7587,8 +7785,13 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 }
 
 // delete node tree
-error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(NodeHandle, Error)>&& resultFunction)
+error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
+    if (mBizStatus == BIZ_STATUS_EXPIRED)
+    {
+        return API_EBUSINESSPASTDUE;
+    }
+
     if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
@@ -7608,7 +7811,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction)));
+    reqs.add(new CommandDelNode(this, n->nodeHandle(), kv, tag, move(resultFunction), canChangeVault));
 
     return API_OK;
 }
@@ -7806,6 +8009,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
     node_vector dp;
     Node* n;
+    handle previousHandleForAlert = UNDEF;
 
 #ifdef ENABLE_SYNC
     set<NodeHandle> allParents;
@@ -7946,12 +8150,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
         if (!warnlevel())
         {
-            if ((n = nodebyhandle(h, true)))
+            if ((n = nodebyhandle(h)))
             {
                 Node* p = NULL;
                 if (!ISUNDEF(ph))
                 {
-                    p = nodebyhandle(ph, true);
+                    p = nodebyhandle(ph);
                 }
 
                 if (n->changed.removed)
@@ -8082,7 +8286,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
                 {
-                    useralerts.noteSharedNode(u, t, ts, n);
+                    useralerts.noteSharedNode(u, t, ts, n, UserAlert::type_put);
                 }
 
                 if (nn && nni >= 0 && nni < int(nn->size()))
@@ -8090,22 +8294,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     auto& nn_nni = (*nn)[nni];
                     nn_nni.added = true;
                     nn_nni.mAddedHandle = h;
-
-                    if (nn_nni.source == NEW_UPLOAD)
-                    {
-                        UploadHandle uh = nn_nni.uploadhandle;
-
-                        // do we have pending file attributes for this upload? set them.
-                        for (fa_map::iterator it = pendingfa.lower_bound(pair<UploadHandle, fatype>(uh, fatype(0)));
-                             it != pendingfa.end() && it->first.first == uh; )
-                        {
-                            reqs.add(new CommandAttachFA(this, h, it->first.second, it->second.first, it->second.second));
-                            pendingfa.erase(it++);
-                        }
-
-                        // FIXME: only do this for in-flight FA writes
-                        uhnh.insert(pair<UploadHandle, NodeHandle>(uh, NodeHandle().set6byte(h)));
-                    }
                 }
             }
 
@@ -8118,16 +8306,68 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             {
                 n->applykey();
             }
+
+            // update-alerts for shared-nodes management
+            if (!ISUNDEF(ph))
+            {
+                if (useralerts.isHandleInAlertsAsRemoved(h) && ISUNDEF(previousHandleForAlert))
+                {
+                    useralerts.setNewNodeAlertToUpdateNodeAlert(nodebyhandle(ph));
+                    useralerts.removeNodeAlerts(nodebyhandle(h));
+                    previousHandleForAlert = h;
+                }
+                else if ((t == FILENODE) || (t == FOLDERNODE))
+                {
+                    if (previousHandleForAlert == ph)
+                    {
+                        useralerts.removeNodeAlerts(nodebyhandle(h));
+                        previousHandleForAlert = h;
+                    }
+                    // otherwise, the added TYPE_NEWSHAREDNODE is kept
+                }
+            }
         }
     }
 
-    // any child nodes that arrived before their parents?
-    for (size_t i = dp.size(); i--; )
+    // any child nodes arrived before their parents?
+    size_t count = 0;
+    node_vector orphans;
+    for (auto& dn : dp)
     {
-        if ((n = nodebyhandle(dp[i]->parenthandle, true)))
+        // if found, set its parent
+        if ((n = nodebyhandle(dn->parenthandle)))
         {
-            dp[i]->setparent(n);
+            dn->setparent(n);
+            ++count;
         }
+        else if (rootnodes.isRootNode(dn->nodeHandle())) // rootnodes have no parent
+        {
+            ++count;
+        }
+        else
+        {
+            orphans.push_back(dn);
+        }
+    }
+
+    mergenewshares(notify);
+
+    // detect if there's any orphan node and report to API
+    for (auto orphan : orphans)
+    {
+        // top-level inshares have no parent (nested ones have)
+        if (orphan->inshare)
+        {
+            ++count;
+        }
+        else
+        {
+            LOG_warn << "Orphan node detected. Node: " << toNodeHandle(orphan->nodehandle) << " Parent: " << toNodeHandle(orphan->parenthandle);
+        }
+    }
+    if (dp.size() != count)
+    {
+       sendevent(99455, "Orphan node(s) detected");
     }
 
 #ifdef ENABLE_SYNC
@@ -8563,7 +8803,7 @@ void MegaClient::procph(JSON *j)
                             break;
                         }
 
-                        n = nodebyhandle(h, true); // even if it is a version, it's still the node with the link
+                        n = nodebyhandle(h); // even if it is a version, it's still the node with the link
                         if (n)
                         {
                             n->setpubliclink(ph, cts, ets, takendown, authKey);
@@ -8592,7 +8832,7 @@ void MegaClient::applykeys()
     CodeCounter::ScopeTimer ccst(performanceStats.applyKeys);
 
     int noKeyExpected = (rootnodes.files.isUndef() ? 0 : 1)
-                      + (rootnodes.inbox.isUndef() ? 0 : 1)
+                      + (rootnodes.vault.isUndef() ? 0 : 1)
                       + (rootnodes.rubbish.isUndef() ? 0 : 1);
 
     if (nodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
@@ -10087,44 +10327,41 @@ void MegaClient::notifynode(Node* n)
     }
 }
 
-void MegaClient::transfercacheadd(Transfer *transfer, DBTableTransactionCommitter* committer)
+void MegaClient::transfercacheadd(Transfer *transfer, TransferDbCommitter* committer)
 {
     if (tctable && !transfer->skipserialization)
     {
-        LOG_debug << "Caching transfer";
+        if (committer) committer->addTransferCount += 1;
         tctable->checkCommitter(committer);
         tctable->put(MegaClient::CACHEDTRANSFER, transfer, &tckey);
     }
 }
 
-void MegaClient::transfercachedel(Transfer *transfer, DBTableTransactionCommitter* committer)
+void MegaClient::transfercachedel(Transfer *transfer, TransferDbCommitter* committer)
 {
     if (tctable && transfer->dbid)
     {
-        if (!transfer->client->executingLocalLogout)
-        {
-            LOG_debug << "Removing cached transfer";
-        }
+        if (committer) committer->removeTransferCount += 1;
         tctable->checkCommitter(committer);
         tctable->del(transfer->dbid);
     }
 }
 
-void MegaClient::filecacheadd(File *file, DBTableTransactionCommitter& committer)
+void MegaClient::filecacheadd(File *file, TransferDbCommitter& committer)
 {
     if (tctable && !file->syncxfer)
     {
-        LOG_debug << "Caching file";
+        committer.addFileCount += 1;
         tctable->checkCommitter(&committer);
         tctable->put(MegaClient::CACHEDFILE, file, &tckey);
     }
 }
 
-void MegaClient::filecachedel(File *file, DBTableTransactionCommitter* committer)
+void MegaClient::filecachedel(File *file, TransferDbCommitter* committer)
 {
     if (tctable && !file->syncxfer)
     {
-        LOG_debug << "Removing cached file";
+        if (committer) committer->removeFileCount += 1;
         tctable->checkCommitter(committer);
         tctable->del(file->dbid);
     }
@@ -10350,6 +10587,11 @@ void MegaClient::procmcf(JSON *j)
                         bool publicchat = false;
                         bool meeting = false;
 
+                        // chat options: [0 (remove) | 1 (add)], if chat option is not included, that option is disabled
+                        int waitingRoom = 0;
+                        int openInvite = 0;
+                        int speakRequest = 0;
+
                         bool readingChat = true;
                         while(readingChat) // read the chat information
                         {
@@ -10398,6 +10640,18 @@ void MegaClient::procmcf(JSON *j)
                                 assert(readingPublicChats || !meeting); // public chats can be meetings or not. Private chats cannot be meetings
                                 break;
 
+                            case 'w':   // waiting room
+                                waitingRoom = static_cast<int>(j->getint());
+                                break;
+
+                            case MAKENAMEID2('s','r'): // speak request
+                                speakRequest = static_cast<int>(j->getint());
+                                break;
+
+                            case MAKENAMEID2('o','i'): // open invite
+                                openInvite = static_cast<int>(j->getint());
+                                break;
+
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
@@ -10414,6 +10668,11 @@ void MegaClient::procmcf(JSON *j)
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
                                     chat->meeting = meeting;
+
+                                    if (group)
+                                    {
+                                        chat->addOrUpdateChatOptions(speakRequest, waitingRoom, openInvite);
+                                    }
 
                                     if (readingPublicChats)
                                     {
@@ -11467,7 +11726,23 @@ bool MegaClient::fetchsc(DbTable* sctable)
                     LOG_debug << "reloaded seqtag from db: " << mScDbStateRecord.seqTag;
                 }
                 break;
+            case CACHEDSET:
+            {
+                if (!fetchscset(&data, id))
+                {
+                    return false;
+                }
+                break;
+            }
 
+            case CACHEDSETELEMENT:
+            {
+                if (!fetchscsetelement(&data, id))
+                {
+                    return false;
+                }
+                break;
+            }
         }
         hasNext = sctable->next(&id, &data, &key);
     }
@@ -11478,7 +11753,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     // any child nodes arrived before their parents?
     for (size_t i = dp.size(); i--; )
     {
-        if ((n = nodebyhandle(dp[i]->parenthandle, true)))
+        if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
             dp[i]->setparent(n);
         }
@@ -11539,7 +11814,7 @@ void MegaClient::purgeOrphanTransfers(bool remove)
 
     for (int d = GET; d == GET || d == PUT; d += PUT - GET)
     {
-        DBTableTransactionCommitter committer(tctable);
+        TransferDbCommitter committer(tctable);
         while (cachedtransfers[d].size())
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
@@ -11634,7 +11909,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
     {
-        DBTableTransactionCommitter committer(tctable); // needed in case of tctable->del()
+        TransferDbCommitter committer(tctable); // needed in case of tctable->del()
         while (tctable->next(&id, &data, &tckey))
         {
             switch (id & 15)
@@ -11673,7 +11948,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     // postpone the resumption until the filesystem is updated
     if ((!sid.size() && !loggedinfolderlink()) || statecurrent)
     {
-        DBTableTransactionCommitter committer(tctable);
+        TransferDbCommitter committer(tctable);
         for (unsigned int i = 0; i < cachedfiles.size(); i++)
         {
             direction_t type = NONE;
@@ -12876,7 +13151,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
 {
-    // cannot sync files, rubbish bins or inboxes
+    // cannot sync files, rubbish bins or vault
     if (remotenode->type != FOLDERNODE && remotenode->type != ROOTNODE)
     {
         if(syncError)
@@ -13319,14 +13594,11 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-void MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
+void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
     assert(config.mLocalPath.isAbsolute());
-
-    // new syncs do not need to worry about upgrading old rules to .megaignore
-    config.mLegacyExclusionsIneligigble = true;
 
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
@@ -13344,7 +13616,7 @@ void MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(
     handle driveId = UNDEF;
     if (config.isExternal())
     {
-        const string& p = config.mExternalDrivePath.toPath();
+        const string& p = config.mExternalDrivePath.toPath(false);
         e = readDriveId(*fsaccess, p.c_str(), driveId);
         if (e != API_OK)
         {
@@ -13382,6 +13654,192 @@ void MegaClient::addsync(SyncConfig& config, bool notifyApp, std::function<void(
 }
 
 
+void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConfig, UndoFunction revertOnError)> completion)
+{
+    // get current user
+    User* u = ownuser();
+
+    // get handle of remote "My Backups" folder, from user attributes
+    if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER))
+    {
+        LOG_err << "Add backup: \"My Backups\" folder was not set";
+        return completion(API_EACCESS, sc, nullptr);
+    }
+    const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+    if (!handleContainerStr)
+    {
+        LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute had null value";
+        return completion(API_EACCESS, sc, nullptr);
+    }
+
+    handle h = 0;
+    memcpy(&h, handleContainerStr->data(), MegaClient::NODEHANDLE);
+    if (!h || h == UNDEF)
+    {
+        LOG_err << "Add backup: ATTR_MY_BACKUPS_FOLDER attribute contained invalid handler value";
+        return completion(API_ENOENT, sc, nullptr);
+    }
+
+    // get Node of remote "My Backups" folder
+    Node* myBackupsNode = nodebyhandle(h);
+    if (!myBackupsNode)
+    {
+        LOG_err << "Add backup: \"My Backups\" folder could not be found using the stored handle";
+        return completion(API_ENOENT, sc, nullptr);
+    }
+
+    // get 'device-id'
+    string deviceId;
+    bool isInternalDrive = sc.mExternalDrivePath.empty();
+    if (isInternalDrive)
+    {
+        deviceId = getDeviceidHash();
+    }
+    else // external drive
+    {
+        // drive-id must have been already written to external drive, since a name was given to it
+        handle driveId;
+        error e = readDriveId(*fsaccess, sc.mExternalDrivePath.toPath(false).c_str(), driveId);
+        if (e != API_OK)
+        {
+            LOG_err << "Add backup (external): failed to read drive id";
+            return completion(e, sc, nullptr);
+        }
+
+        // create the device id from the drive id
+        deviceId = Base64Str<MegaClient::DRIVEHANDLE>(driveId);
+    }
+
+    if (deviceId.empty())
+    {
+        LOG_err << "Add backup: invalid device id";
+        return completion(API_EINCOMPLETE, sc, nullptr);
+    }
+
+    // prepare for new nodes
+    vector<NewNode> newnodes;
+    nameid attrId = isInternalDrive ?
+        AttrMap::string2nameid("dev-id") : // "device-id" would be too long
+        AttrMap::string2nameid("drv-id");
+    std::function<void(AttrMap& attrs)> addAttrsFunc = [=](AttrMap& attrs)
+    {
+        attrs.map[attrId] = deviceId;
+    };
+
+    // search for remote folder "My Backups"/`DEVICE_NAME`/
+    Node* deviceNameNode = childnodebyattribute(myBackupsNode, attrId, deviceId.c_str());
+    if (deviceNameNode) // validate this node
+    {
+        if (deviceNameNode->type != FOLDERNODE)
+        {
+            LOG_err << "Add backup: device-name node did not have FOLDERNODE type";
+            return completion(API_EACCESS, sc, nullptr);
+        }
+
+        // make sure there is no folder with the same name as the backup
+        Node* backupNameNode = childnodebyname(deviceNameNode, sc.mName.c_str());
+        if (backupNameNode)
+        {
+            LOG_err << "Add backup: a backup with the same name (" << sc.mName << ") already existed";
+            return completion(API_EACCESS, sc, nullptr);
+        }
+    }
+    else // create `DEVICE_NAME` remote dir
+    {
+        // get `DEVICE_NAME`, from user attributes
+        attr_t attrType = isInternalDrive ? ATTR_DEVICE_NAMES : ATTR_DRIVE_NAMES;
+        if (!u->isattrvalid(attrType))
+        {
+            LOG_err << "Add backup: device/drive name not set";
+            return completion(API_EINCOMPLETE, sc, nullptr);
+        }
+        const string* deviceNameContainerStr = u->getattr(attrType);
+        if (!deviceNameContainerStr)
+        {
+            LOG_err << "Add backup: null attribute value for device/drive name";
+            return completion(API_EINCOMPLETE, sc, nullptr);
+        }
+
+        string deviceName;
+        std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(deviceNameContainerStr, &key));
+        if (!tlvRecords || !tlvRecords->get(deviceId, deviceName) || deviceName.empty())
+        {
+            LOG_err << "Add backup: device/drive name not found";
+            return completion(API_EINCOMPLETE, sc, nullptr);
+        }
+
+        // is there a folder with the same device-name already?
+        deviceNameNode = childnodebyname(myBackupsNode, deviceName.c_str());
+        if (deviceNameNode)
+        {
+            LOG_err << "Add backup: new device, but a folder with the same device-name (" << deviceName << ") already existed";
+            return completion(API_EEXIST, sc, nullptr);
+        }
+
+        // add a new node for it
+        newnodes.emplace_back();
+        NewNode& newNode = newnodes.back();
+
+        putnodes_prepareOneFolder(&newNode, deviceName, true, addAttrsFunc);
+        newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
+    }
+
+    // create backupName remote dir
+    newnodes.emplace_back();
+    NewNode& backupNameNode = newnodes.back();
+
+    putnodes_prepareOneFolder(&backupNameNode, sc.mName, true);    // backup node should not include dev-id/drv-id
+    if (!deviceNameNode)
+    {
+        // Set parent handle if part of the new nodes array (it cannot be from an existing node)
+        backupNameNode.parenthandle = newnodes[0].nodehandle;
+    }
+
+    // create the new node(s)
+    putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
+             NoVersioning, move(newnodes), nullptr, reqtag, true,
+             [completion, sc, this](const Error& e, targettype_t, vector<NewNode>& nn, bool targetOverride){
+
+                if (e)
+                {
+                    completion(e, sc, nullptr);
+                }
+                else
+                {
+                    handle newBackupNodeHandle = nn.back().mAddedHandle;
+
+                    SyncConfig updatedConfig = sc;
+                    updatedConfig.mRemoteNode.set6byte(newBackupNodeHandle);
+
+                    if (Node* backupRoot = nodeByHandle(updatedConfig.mRemoteNode))
+                    {
+                        updatedConfig.mOriginalPathOfRemoteRootNode = backupRoot->displaypath();
+                    }
+                    else
+                    {
+                        LOG_err << "Node created for backup is missing already";
+                        completion(API_EEXIST, updatedConfig, nullptr);
+                    }
+
+                    // Offer the option to the caller, to remove the new Backup node if a later step fails
+                    UndoFunction undoOnFail = [newBackupNodeHandle, this](std::function<void()> continuation){
+                        if (Node* n = nodebyhandle(newBackupNodeHandle))
+                        {
+                            unlink(n, false, 0, true, [continuation](NodeHandle, Error){
+                                if (continuation) continuation();
+                            });
+                        }
+                        else
+                        {
+                            if (continuation) continuation();
+                        }
+                    };
+
+                    completion(API_OK, updatedConfig, undoOnFail);
+                }
+
+             });
+}
 
 //// syncids are usable to indicate putnodes()-local parent linkage
 //handle MegaClient::nextsyncid()
@@ -14462,21 +14920,21 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 
 // move node to //bin, then on to the SyncDebris folder of the day (to prevent
 // dupes)
-void MegaClient::movetosyncdebris(Node* dn, bool unlink, std::function<void(NodeHandle, Error)>&& completion)
+void MegaClient::movetosyncdebris(Node* dn, bool unlink, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
 {
     if (unlink)
     {
-        execsyncunlink(dn, move(completion));
+        execsyncunlink(dn, move(completion), canChangeVault);
     }
     else
     {
-        execmovetosyncdebris(dn, move(completion));
+        execmovetosyncdebris(dn, move(completion), canChangeVault);
     }
 }
 
-void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion)
+void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
 {
-    error err = unlink(n, false, 0, move(completion));
+    error err = unlink(n, false, 0, canChangeVault, move(completion));
     if (err)
     {
         // if an err was returned from unlink(), then it has not actually move()d from the completion function rvalue ref
@@ -14484,7 +14942,7 @@ void MegaClient::execsyncunlink(Node* n, std::function<void(NodeHandle, Error)>&
     }
 }
 
-void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion)
+void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault)
 {
     if (requestedNode)
     {
@@ -14498,7 +14956,7 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
             if (Node* n = nodeByHandle(rec.nodeHandle))
             {
                 LOG_debug << "Moving to Syncdebris: " << n->displaypath() << " in " << debrisTarget->displaypath() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
-                rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, move(rec.completion));
+                rename(n, debrisTarget, SYNCDEL_DEBRISDAY, n->parent ? n->parent->nodeHandle() : NodeHandle(), nullptr, canChangeVault, move(rec.completion));
             }
             else
             {
@@ -14512,7 +14970,7 @@ void MegaClient::execmovetosyncdebris(Node* requestedNode, std::function<void(No
 
 Node* MegaClient::getOrCreateSyncdebrisFolder()
 {
-    Node* binNode = nodeByHandle(rootnodes.rubbish, true);
+    Node* binNode = nodeByHandle(rootnodes.rubbish);
     if (!binNode)
     {
         return nullptr;
@@ -14588,8 +15046,8 @@ Node* MegaClient::getOrCreateSyncdebrisFolder()
             syncdebrisadding = false;
             // on completion, send the queued nodes
             LOG_debug << "Daily SyncDebris folder created. Trigger remaining debris moves: " << pendingDebris.size();
-            execmovetosyncdebris(nullptr, nullptr);
-        }));
+            execmovetosyncdebris(nullptr, nullptr, false);
+        }, false));
     return nullptr;
 }
 
@@ -14619,7 +15077,7 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause)
+bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause)
 {
     assert(f->getLocalname().isAbsolute());
     f->mVersioningOption = vo;
@@ -14658,7 +15116,15 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
     {
         if (d == PUT)
         {
-            if (!f->isvalid)    // (sync LocalNodes always have this set - for them (except root) localname is only a leaf name)
+            if (!nodeByHandle(f->h) && (f->targetuser != SUPPORT_USER_HANDLE))
+            {
+                // the folder to upload is unknown - perhaps this is a resumed transfer
+                // and the folder was deleted in the meantime
+                *cause = API_EARGS;
+                return false;
+            }
+
+            if (!f->isvalid)    // (sync LocalNodes always have this set)
             {
                 // missing FileFingerprint for local file - generate
                 auto fa = fsaccess->newfileaccess();
@@ -14750,7 +15216,6 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             it = cachedtransfers[d].find(f);
             if (it != cachedtransfers[d].end() && !it->second->localfilename.empty())
             {
-                LOG_debug << "Resumable transfer detected";
                 t = it->second;
                 bool hadAnyData = t->pos > 0;
                 if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
@@ -14773,7 +15238,11 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 {
                     if (d == PUT)
                     {
-                        LOG_warn << "Local file not found: " << t->localfilename;
+                        if (!t->localfilename.empty())
+                        {
+                            // if empty, we had not started the upload. The real path is in the first File
+                            LOG_warn << "Local file not found: " << t->localfilename;
+                        }
                         // the transfer will be retried to ensure that the file
                         // is not just just temporarily blocked
                     }
@@ -14841,8 +15310,6 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             transferlist.addtransfer(t, committer, startfirst);
             app->transfer_added(t);
             app->file_added(f);
-            // todo: replace this: looprequested = true;
-
 
             if (overquotauntil && overquotauntil > Waiter::ds && d != PUT)
             {
@@ -14860,7 +15327,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         }
 
         assert( (f->h.isUndef() && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
-                || (!f->h.isUndef() && (nodeByHandle(f->h, true) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
+                || (!f->h.isUndef() && (nodeByHandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
     *cause = API_OK;
@@ -14869,7 +15336,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
 }
 
 // remove file from transfer subsystem
-void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
+void MegaClient::stopxfer(File* f, TransferDbCommitter* committer)
 {
     if (f->transfer)
     {
@@ -14895,7 +15362,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 }
 
 // pause/unpause transfers
-void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransactionCommitter& committer)
+void MegaClient::pausexfers(direction_t d, bool pause, bool hard, TransferDbCommitter& committer)
 {
     xferpaused[d] = pause;
 
@@ -15150,14 +15617,38 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
-    bool getExtensionDotted(const Node* n, std::string& ext, const MegaClient& mc)
+    bool getExtensionDotted(const Node* n, std::string& ext)
     {
-        auto localname = LocalPath::fromRelativePath(n->displayname());
-        if (mc.fsaccess->getextension(localname, ext))
+        const char* name = n->displayname();
+        const size_t size = strlen(name);
+
+        const char* ptr = name + size;
+        char c;
+
+        for (unsigned i = 0; i < size; ++i)
         {
-            ext.push_back('.');
-            return true;
+            if (*--ptr == '.')
+            {
+                ext.reserve(i+1);
+
+                unsigned j = 0;
+                for (; j <= i; j++)
+                {
+                    if (*ptr < '.' || *ptr > 'z') return false;
+
+                    c = *(ptr++);
+
+                    // tolower()
+                    if (c >= 'A' && c <= 'Z') c |= ' ';
+
+                    ext.push_back(c);
+                }
+
+                ext.push_back('.');
+                return true;
+            }
         }
+
         return false;
     }
 
@@ -15167,7 +15658,7 @@ namespace action_bucket_compare
 bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         bool a = action_bucket_compare::nodeIsPhoto(n, ext, true);
         if (isphoto)
@@ -15191,7 +15682,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 bool MegaClient::nodeIsVideo(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsVideo(n, ext, *this);
     }
@@ -15201,7 +15692,7 @@ bool MegaClient::nodeIsVideo(const Node *n) const
 bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsPhoto(n, ext, checkPreview);
     }
@@ -15211,7 +15702,7 @@ bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 bool MegaClient::nodeIsAudio(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsAudio(n, ext);
     }
@@ -15221,7 +15712,7 @@ bool MegaClient::nodeIsAudio(const Node *n) const
 bool MegaClient::nodeIsDocument(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsDocument(n, ext);
     }
@@ -15461,9 +15952,9 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title, bool meetingRoom)
+void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector* userpriv, const string_map* userkeymap, const char* title, bool meetingRoom, int chatOptions)
 {
-    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom));
+    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom, chatOptions));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)
@@ -15789,6 +16280,1061 @@ dstime MegaClient::overTransferQuotaBackoff(HttpReq* req)
 
     return backoff;
 }
+
+
+//
+// Sets and Elements
+//
+
+void MegaClient::putSet(Set&& s, std::function<void(Error, const Set*)> completion)
+{
+    string encrSetKey;
+    std::unique_ptr<string> encrAttrs;
+
+    // create Set
+    if (s.id() == UNDEF)
+    {
+        // generate AES-128 Set key
+        encrSetKey = rng.genstring(SymmCipher::KEYLENGTH);
+        s.setKey(encrSetKey);
+
+        // encrypt Set key with master key
+        key.cbc_encrypt((byte*)&encrSetKey[0], encrSetKey.size()); // in c++17 and beyond it should use encrSetKey.data()
+
+        if (s.hasAttrs())
+        {
+            if (s.cover() != UNDEF)
+            {
+                LOG_err << "Sets: Cover cannot be set for a newly created Set.";
+                if (completion)
+                    completion(API_EARGS, nullptr);
+                return;
+            }
+            string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+            encrAttrs.reset(new string(move(enc)));
+        }
+    }
+    // update Set
+    else
+    {
+        if (!s.hasAttrs()) // should either remove all attrs or update [some of] them
+        {
+            LOG_err << "Sets: Nothing to update.";
+            if (completion)
+                completion(API_EARGS, nullptr);
+            return;
+        }
+
+        auto it = mSets.find(s.id());
+        if (it == mSets.end())
+        {
+            LOG_err << "Sets: Failed to update Set (not found).";
+            if (completion)
+                completion(API_ENOENT, nullptr);
+            return;
+        }
+
+        if (s.cover() != UNDEF && !getSetElement(s.id(), s.cover()))
+        {
+            LOG_err << "Sets: Requested cover was not an Element of Set " << toHandle(s.id());
+            if (completion)
+                completion(API_EARGS, nullptr);
+            return;
+        }
+
+        // copy the details that won't change
+        const Set& setToBeUpdated = it->second;
+        s.setKey(setToBeUpdated.key());
+        s.setUser(setToBeUpdated.user());
+        s.rebaseAttrsOn(setToBeUpdated);
+
+        string enc = s.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+        encrAttrs.reset(new string(move(enc)));
+    }
+
+    reqs.add(new CommandPutSet(this, move(s), move(encrAttrs), move(encrSetKey), completion));
+}
+
+void MegaClient::removeSet(handle sid, std::function<void(Error)> completion)
+{
+    if (getSet(sid))
+    {
+        reqs.add(new CommandRemoveSet(this, sid, completion));
+    }
+    else if (completion)
+    {
+        completion(API_ENOENT);
+    }
+}
+
+void MegaClient::fetchSet(handle sid, std::function<void(Error, Set*, map<handle, SetElement>*)> completion)
+{
+    reqs.add(new CommandFetchSet(this, sid, completion));
+}
+
+void MegaClient::putSetElement(SetElement&& el, std::function<void(Error, const SetElement*)> completion)
+{
+    // setId is required
+    assert(el.set() != UNDEF);
+
+    // make sure Set id is valid
+    const Set* existingSet = el.set() == UNDEF ? nullptr : getSet(el.set());
+    if (!existingSet)
+    {
+        LOG_err << "Sets: Set not found when adding or updating Element";
+        if (completion)
+            completion(API_ENOENT, nullptr);
+        return;
+    }
+
+    const SetElement* existingElement = nullptr;
+
+    // copy element.key from nodekey (only for new Element)
+    string encrKey;
+    if (el.id() == UNDEF)
+    {
+        Node* n = nodebyhandle(el.node());
+        error e = !n ? API_ENOENT
+                     : (!n->keyApplied() || !n->nodecipher() || n->attrstring ? API_EKEY
+                        : (n->type != FILENODE ? API_EARGS : API_OK));
+        if (e != API_OK)
+        {
+            LOG_err << "Sets: Invalid node for Element";
+            if (completion)
+                completion(e, nullptr);
+            return;
+        }
+
+        el.setKey(n->nodekey());
+        assert(el.key().size() == FILENODEKEYLENGTH);
+
+        // encrypt element.key with set.key
+        byte encryptBuffer[FILENODEKEYLENGTH];
+        std::copy_n(el.key().begin(), sizeof(encryptBuffer), encryptBuffer);
+        tmpnodecipher.setkey(&existingSet->key());
+        tmpnodecipher.cbc_encrypt(encryptBuffer, sizeof(encryptBuffer));
+        encrKey.assign((char*)encryptBuffer, sizeof(encryptBuffer));
+    }
+    // get element.key from existing element (only when updating attributes)
+    else if (el.hasAttrs())
+    {
+        existingElement = getSetElement(el.set(), el.id());
+        if (!existingElement)
+        {
+            LOG_err << "Sets: Element not found when updating Element: " << toHandle(el.id());
+            if (completion)
+                completion(API_ENOENT, nullptr);
+            return;
+        }
+
+        el.setKey(existingElement->key());
+    }
+
+    // store element.attrs to TLV, and encrypt with element.key (copied from nodekey)
+    std::unique_ptr<string> encrAttrs;
+    if (el.hasAttrs())
+    {
+        if (existingElement && existingElement->hasAttrs())
+        {
+            el.rebaseAttrsOn(*existingElement);
+            // the request to clear the last attribute of an existing Element must be remembered, so that
+            // after a successful update, attrs of the existing Element will be cleared
+            el.setAttrsClearedByLastUpdate(!el.hasAttrs());
+        }
+
+        string enc = el.encryptAttributes([this](const string_map& a, const string& k) { return encryptAttrs(a, k); });
+        encrAttrs.reset(new string(move(enc)));
+    }
+
+    reqs.add(new CommandPutSetElement(this, move(el), move(encrAttrs), move(encrKey), completion));
+}
+
+void MegaClient::removeSetElement(handle sid, handle eid, std::function<void(Error)> completion)
+{
+    if (!getSetElement(sid, eid))
+    {
+        if (completion)
+        {
+            completion(API_ENOENT);
+        }
+        return;
+    }
+
+    reqs.add(new CommandRemoveSetElement(this, sid, eid, completion));
+}
+
+bool MegaClient::procaesp()
+{
+    bool ok = json.enterobject();
+    if (ok)
+    {
+        map<handle, Set> newSets;
+        map<handle, map<handle, SetElement>> newElements;
+        ok &= (readSetsAndElements(json, newSets, newElements) == API_OK);
+
+        if (ok)
+        {
+            // save new data
+            mSets.swap(newSets);
+            mSetElements.swap(newElements);
+        }
+
+        ok &= json.leaveobject();
+    }
+
+    return ok;
+}
+
+error MegaClient::readSetsAndElements(JSON& j, map<handle, Set>& newSets, map<handle, map<handle, SetElement>>& newElements)
+{
+    bool loopAgain = true;
+
+    while (loopAgain)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID1('s'):
+        {
+            // reuse this in "aft" (fetch-Set command) and "aesp" (in gettree/fetchnodes/"f" command):
+            // "aft" will return a single Set for "s", while "aesp" will return an array of Sets
+            bool enteredSetArray = j.enterarray();
+
+            error e = readSets(j, newSets);
+            if (e != API_OK)
+            {
+                return e;
+            }
+
+            if (enteredSetArray)
+            {
+                j.leavearray();
+            }
+
+            break;
+        }
+
+        case MAKENAMEID1('e'):
+        {
+            error e = readElements(j, newElements);
+            if (e != API_OK)
+                return e;
+            break;
+        }
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            loopAgain = false;
+            break;
+        }
+    }
+
+    // decrypt data
+    size_t elCount = 0; // Elements related to known Sets and successfully decrypted
+    for (auto& s : newSets)
+    {
+        error e = decryptSetData(s.second);
+        if (e != API_OK)
+        {
+            return e;
+        }
+
+        auto itEls = newElements.find(s.first);
+        if (itEls != newElements.end())
+        {
+            for (auto itE = itEls->second.begin(); itE != itEls->second.end(); ++itE)
+            {
+                // decrypt element key and attrs
+                e = decryptElementData(itE->second, s.second.key());
+                if (e != API_OK)
+                {
+                    return e;
+                }
+                ++elCount;
+            }
+        }
+    }
+    assert(elCount == newElements.size()); // some orphan/undecryptable Elements? it should not happen
+
+    return API_OK;
+}
+
+error MegaClient::decryptSetData(Set& s)
+{
+    if (!s.id() || s.id() == UNDEF || s.key().empty())
+    {
+        LOG_err << "Sets: Missing mandatory Set data";
+        return API_EINTERNAL;
+    }
+
+    // decrypt Set key using the master key
+    s.setKey(decryptKey(s.key(), key));
+
+    // decrypt attrs
+    if (s.hasEncrAttrs())
+    {
+        auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
+        if (!s.decryptAttributes(decryptFunc))
+        {
+            LOG_err << "Sets: Unable to decrypt Set attrs";
+            return API_EINTERNAL;
+        }
+    }
+
+    return API_OK;
+}
+
+error MegaClient::decryptElementData(SetElement& el, const string& setKey)
+{
+    if (!el.id() || el.id() == UNDEF || !el.node() || el.node() == UNDEF || el.key().empty())
+    {
+        LOG_err << "Sets: Missing mandatory Element data";
+        return API_EINTERNAL;
+    }
+
+    tmpnodecipher.setkey(&setKey);
+    el.setKey(decryptKey(el.key(), tmpnodecipher));
+
+    // decrypt attrs
+    if (el.hasEncrAttrs())
+    {
+        auto decryptFunc = [this](const string& in, const string& k, string_map& out) { return decryptAttrs(in, k, out); };
+        if (!el.decryptAttributes(decryptFunc))
+        {
+            return API_EINTERNAL;
+        }
+    }
+
+    return API_OK;
+}
+
+string MegaClient::decryptKey(const string& k, SymmCipher& cipher) const
+{
+    unique_ptr<byte> decrKey(new byte[k.size()]{ 0 });
+    std::copy_n(k.begin(), k.size(), decrKey.get());
+    cipher.cbc_decrypt(decrKey.get(), k.size());
+    return string((char*)decrKey.get(), k.size());
+}
+
+string MegaClient::encryptAttrs(const string_map& attrs, const string& encryptionKey)
+{
+    if (attrs.empty())
+    {
+        return string();
+    }
+
+    if (!tmpnodecipher.setkey(&encryptionKey))
+    {
+        LOG_err << "Sets: Failed to use cipher key when encrypting attrs";
+        return string();
+    }
+
+    TLVstore tlvRecords;
+    for (const auto& a : attrs)
+    {
+        tlvRecords.set(a.first, a.second);
+    }
+
+    unique_ptr<string> encrAttrs(tlvRecords.tlvRecordsToContainer(rng, &tmpnodecipher));
+
+    if (!encrAttrs || encrAttrs->empty())
+    {
+        LOG_err << "Sets: Failed to write name to TLV container";
+        return string();
+    }
+
+    return *encrAttrs;
+}
+
+bool MegaClient::decryptAttrs(const string& attrs, const string& decrKey, string_map& output)
+{
+    if (attrs.empty())
+    {
+        output.clear();
+        return true;
+    }
+
+    assert(decrKey.size() == SymmCipher::KEYLENGTH || decrKey.size() == FILENODEKEYLENGTH);
+
+    if (!tmpnodecipher.setkey(&decrKey))
+    {
+        LOG_err << "Sets: Failed to assign key to cipher when decrypting attrs";
+        return false;
+    }
+
+    unique_ptr<TLVstore> sTlv(TLVstore::containerToTLVrecords(&attrs, &tmpnodecipher));
+    if (!sTlv)
+    {
+        LOG_err << "Sets: Failed to build TLV container of attrs";
+        return false;
+    }
+
+    output = *sTlv->getMap();
+
+    return true;
+}
+
+error MegaClient::readSets(JSON& j, map<handle, Set>& sets)
+{
+    while (j.enterobject())
+    {
+        Set s;
+        error e = readSet(j, s);
+        if (e)
+        {
+            return e;
+        }
+        sets[s.id()] = move(s);
+
+        j.leaveobject();
+    }
+
+    return API_OK;
+}
+
+error MegaClient::readSet(JSON& j, Set& s)
+{
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+            s.setId(j.gethandle(MegaClient::SETHANDLE));
+            break;
+
+        case MAKENAMEID2('a', 't'):
+        {
+            string attrs;
+            j.copystring(&attrs, j.getvalue()); // B64 encoded
+            if (!attrs.empty())
+            {
+                attrs = Base64::atob(attrs);
+            }
+            s.setEncryptedAttrs(move(attrs)); // decrypt them after reading everything
+            break;
+        }
+
+        case MAKENAMEID1('u'):
+            s.setUser(j.gethandle(MegaClient::USERHANDLE));
+            break;
+
+        case MAKENAMEID1('k'): // used to encrypt attrs; encrypted itself with owner's key
+        {
+            string setKey;
+            j.copystring(&setKey, j.getvalue()); // B64 encoded
+            s.setKey(Base64::atob(setKey));
+            break;
+        }
+
+        case MAKENAMEID2('t', 's'):
+            s.setTs(j.getint());
+            break;
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                LOG_err << "Sets: Failed to parse Set";
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            return API_OK;
+        }
+    }
+}
+
+error MegaClient::readElements(JSON& j, map<handle, map<handle, SetElement>>& elements)
+{
+    if (!j.enterarray())
+    {
+        return API_EINTERNAL;
+    }
+
+    while (j.enterobject())
+    {
+        SetElement el;
+        error e = readElement(j, el);
+        if (e)
+        {
+            return e;
+        }
+        handle sid = el.set();
+        handle eid = el.id();
+        elements[sid].emplace(eid, move(el));
+
+        j.leaveobject();
+    }
+
+    j.leavearray();
+    return API_OK;
+}
+
+error MegaClient::readElement(JSON& j, SetElement& el)
+{
+    for (;;)
+    {
+        switch (j.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+            el.setId(j.gethandle(MegaClient::SETELEMENTHANDLE));
+            break;
+
+        case MAKENAMEID1('s'):
+            el.setSet(j.gethandle(MegaClient::SETHANDLE));
+            break;
+
+        case MAKENAMEID1('h'):
+            el.setNode(j.gethandle(MegaClient::NODEHANDLE));
+            break;
+
+        case MAKENAMEID2('a', 't'):
+        {
+            string elementAttrs;
+            j.copystring(&elementAttrs, j.getvalue());
+            if (!elementAttrs.empty())
+            {
+                elementAttrs = Base64::atob(elementAttrs);
+            }
+            el.setEncryptedAttrs(move(elementAttrs)); // decrypt them after reading everything
+            break;
+        }
+
+        case MAKENAMEID1('o'):
+            el.setOrder(j.getint());
+            break;
+
+        case MAKENAMEID2('t', 's'):
+            el.setTs(j.getint());
+            break;
+
+        case MAKENAMEID1('k'):
+        {
+            string elementKey;
+            j.copystring(&elementKey, j.getvalue());
+            if (!elementKey.empty())
+            {
+                elementKey = Base64::atob(elementKey);
+            }
+            el.setKey(move(elementKey));
+            break;
+        }
+
+        default: // skip unknown member
+            if (!j.storeobject())
+            {
+                LOG_err << "Sets: Failed to parse Element";
+                return API_EINTERNAL;
+            }
+            break;
+
+        case EOO:
+            return API_OK;
+        }
+    }
+}
+
+const Set* MegaClient::getSet(handle sid) const
+{
+    auto it = mSets.find(sid);
+    return it == mSets.end() ? nullptr : &it->second;
+}
+
+const Set* MegaClient::addSet(Set&& a)
+{
+    handle sid = a.id();
+    auto add = mSets.emplace(sid, move(a));
+    assert(add.second);
+
+    if (add.second) // newly inserted
+    {
+        Set& added = add.first->second;
+        added.setChanged(Set::CH_NEW);
+        notifyset(&added);
+    }
+
+    return &add.first->second;
+}
+
+bool MegaClient::updateSet(Set&& s)
+{
+    auto it = mSets.find(s.id());
+    if (it != mSets.end())
+    {
+        if (it->second.updateWith(move(s)))
+        {
+            notifyset(&it->second);
+        }
+
+        return true; // return true if found, even if nothing was updated
+    }
+
+    return false;
+}
+
+bool MegaClient::deleteSet(handle sid)
+{
+    auto it = mSets.find(sid);
+    if (it != mSets.end())
+    {
+        it->second.setChanged(Set::CH_REMOVED);
+        notifyset(&it->second);
+
+        return true;
+    }
+
+    return false;
+}
+
+const SetElement* MegaClient::getSetElement(handle sid, handle eid) const
+{
+    auto* elements = getSetElements(sid);
+    if (elements)
+    {
+        auto ite = elements->find(eid);
+        if (ite != elements->end())
+        {
+            return &(ite->second);
+        }
+    }
+
+    return nullptr;
+}
+
+const map<handle, SetElement>* MegaClient::getSetElements(handle sid) const
+{
+    auto itS = mSetElements.find(sid);
+    return itS == mSetElements.end() ? nullptr : &itS->second;
+}
+
+bool MegaClient::deleteSetElement(handle sid, handle eid)
+{
+    auto its = mSetElements.find(sid);
+    if (its != mSetElements.end())
+    {
+        auto ite = its->second.find(eid);
+        if (ite != its->second.end())
+        {
+            ite->second.setChanged(SetElement::CH_EL_REMOVED);
+            notifysetelement(&ite->second);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+const SetElement* MegaClient::addOrUpdateSetElement(SetElement&& el)
+{
+    handle sid = el.set();
+    handle eid = el.id();
+
+    auto itS = mSetElements.find(sid);
+    if (itS != mSetElements.end())
+    {
+        auto& elements = itS->second;
+        auto ite = elements.find(eid);
+        if (ite != elements.end())
+        {
+            if (ite->second.updateWith(move(el)))
+            {
+                notifysetelement(&ite->second);
+            }
+            return &ite->second;
+        }
+    }
+
+    // not found, add it
+    auto add = mSetElements[sid].emplace(eid, move(el));
+    assert(add.second);
+
+    SetElement& added = add.first->second;
+    added.setChanged(SetElement::CH_EL_NEW);
+    notifysetelement(&added);
+
+    return &added;
+}
+
+void MegaClient::sc_asp()
+{
+    Set s;
+    error e = readSet(jsonsc, s);
+    if (e != API_OK)
+    {
+        LOG_err << "Sets: Failed to parse `asp` action packet";
+        return;
+    }
+
+    // Set key is always received, let's use that
+    if (decryptSetData(s) != API_OK)
+    {
+        LOG_err << "Sets: failed to decrypt attributes from `asp`. Skipping Set: " << toHandle(s.id());
+        return;
+    }
+
+    auto it = mSets.find(s.id());
+    if (it == mSets.end()) // add new
+    {
+        addSet(move(s));
+    }
+    else // update existing Set
+    {
+        Set& existing = it->second;
+        if (s.key() != existing.key())
+        {
+            LOG_err << "Sets: key differed from existing one. Skipping Set:" << toHandle(s.id());
+            sendevent(99458, "Set key has changed");
+            assert(false);
+            return;
+        }
+
+        if (existing.updateWith(move(s)))
+        {
+            notifyset(&existing);
+        }
+    }
+}
+
+void MegaClient::sc_asr()
+{
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+        {
+            handle setId = jsonsc.gethandle(MegaClient::SETHANDLE);
+            if (!deleteSet(setId))
+            {
+                LOG_err << "Sets: Failed to remove Set in `asr` action packet";
+                return;
+            }
+            break;
+        }
+
+        case EOO:
+            return;
+
+        default:
+            if (!jsonsc.storeobject())
+            {
+                LOG_warn << "Sets: Failed to parse `asr` action packet";
+                return;
+            }
+        }
+    }
+}
+
+void MegaClient::sc_aep()
+{
+    SetElement el;
+    if (readElement(jsonsc, el) != API_OK)
+    {
+        LOG_err << "Sets: `aep` action packet: failed to parse data";
+        return;
+    }
+
+    // find the Set for this Element
+    Set* s = nullptr;
+    auto it = mSets.find(el.set());
+    if (it != mSets.end())
+    {
+        s = &it->second;
+    }
+    else
+    {
+        LOG_err << "Sets: `aep` action packet: failed to find Set for Element";
+        return;
+    }
+
+    if (decryptElementData(el, s->key()) != API_OK)
+    {
+        LOG_err << "Sets: `aep` action packet: failed to decrypt Element data";
+        return;
+    }
+
+    addOrUpdateSetElement(move(el));
+}
+
+void MegaClient::sc_aer()
+{
+    handle elemId = 0;
+    handle setId = 0;
+
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+        case MAKENAMEID2('i', 'd'):
+            elemId = jsonsc.gethandle(MegaClient::SETELEMENTHANDLE);
+            break;
+
+        case MAKENAMEID1('s'):
+            setId = jsonsc.gethandle(MegaClient::SETHANDLE);
+            break;
+
+        case EOO:
+            if (!deleteSetElement(setId, elemId))
+            {
+                LOG_err << "Sets: Failed to remove Element in `aer` action packet";
+                return;
+            }
+            return;
+
+        default:
+            if (!jsonsc.storeobject())
+            {
+                LOG_warn << "Sets: Failed to parse `aer` action packet";
+                return;
+            }
+        }
+    }
+}
+
+bool MegaClient::initscsets()
+{
+    for (auto& i : mSets)
+    {
+        if (!sctable->put(CACHEDSET, &i.second, &key))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool MegaClient::initscsetelements()
+{
+    for (auto& s : mSetElements)
+    {
+        assert(mSets.find(s.first) != mSets.end());
+        if (mSets.find(s.first) == mSets.end())
+        {
+            LOG_err << "Sets: elements for unknown set: " << toHandle(s.first);
+            continue;
+        }
+
+        for (auto& e : s.second)
+        {
+            if (!sctable->put(CACHEDSETELEMENT, &e.second, &key))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool MegaClient::fetchscset(string* data, uint32_t id)
+{
+    auto s = Set::unserialize(data);
+    if (!s)
+    {
+        LOG_err << "Failed - Set record read error";
+        return false;
+    }
+
+    handle sid = s->id();
+    auto its = mSets.emplace(sid, move(*s));
+    assert(its.second); // insertion must have occurred
+    Set& addedSet = its.first->second;
+    addedSet.resetChanges();
+    addedSet.dbid = id;
+
+    return true;
+}
+
+bool MegaClient::fetchscsetelement(string* data, uint32_t id)
+{
+    auto el = SetElement::unserialize(data);
+    if (!el)
+    {
+        LOG_err << "Failed - SetElement record read error";
+        return false;
+    }
+
+    handle sid = el->set();
+    handle eid = el->id();
+    auto ite = mSetElements[sid].emplace(eid, move(*el));
+    assert(ite.second); // insertion must have occurred
+    SetElement& addedEl = ite.first->second;
+    addedEl.resetChanges();
+    addedEl.dbid = id;
+
+    return true;
+}
+
+bool MegaClient::updatescsets()
+{
+    for (Set* s : setnotify)
+    {
+        assert(s->changes());
+        if (!s->changes())
+        {
+            LOG_err << "Sets: Notifying about unchanged Set: " << toHandle(s->id());
+            continue;
+        }
+
+        char base64[12];
+        if (!s->hasChanged(Set::CH_REMOVED)) // add / replace
+        {
+            LOG_verbose << "Adding Set to database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
+            if (!sctable->put(CACHEDSET, s, &key))
+            {
+                return false;
+            }
+        }
+        else if (s->dbid) // remove
+        {
+            LOG_verbose << "Removing Set from database: " << (Base64::btoa((byte*)&(s->id()), MegaClient::SETHANDLE, base64) ? base64 : "");
+
+            // remove all elements of this set
+            auto* elements = getSetElements(s->id());
+            if (elements)
+            {
+                for (auto& e : *elements)
+                {
+                    if (!sctable->del(e.second.dbid))
+                    {
+                        return false;
+                    }
+                }
+                clearsetelementnotify(s->id());
+                mSetElements.erase(s->id());
+            }
+
+            if (!sctable->del(s->dbid))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool MegaClient::updatescsetelements()
+{
+    for (SetElement* e : setelementnotify)
+    {
+        assert(e->changes());
+        if (!e->changes())
+        {
+            LOG_err << "Sets: Notifying about unchanged SetElement: " << toHandle(e->id());
+            continue;
+        }
+
+        char base64[12];
+        if (!e->hasChanged(SetElement::CH_EL_REMOVED)) // add / replace
+        {
+            if (mSets.find(e->set()) == mSets.end())
+            {
+                continue;
+            }
+
+            LOG_verbose << "Adding SetElement to database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
+            if (!sctable->put(CACHEDSETELEMENT, e, &key))
+            {
+                return false;
+            }
+        }
+        else if (e->dbid) // remove
+        {
+            LOG_verbose << "Removing SetElement from database: " << (Base64::btoa((byte*)&(e->id()), MegaClient::SETELEMENTHANDLE, base64) ? base64 : "");
+            if (!sctable->del(e->dbid))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+void MegaClient::notifyset(Set* s)
+{
+    if (!s->notified)
+    {
+        s->notified = true;
+        setnotify.push_back(s);
+    }
+}
+
+void MegaClient::notifysetelement(SetElement* e)
+{
+    if (!e->notified)
+    {
+        e->notified = true;
+        setelementnotify.push_back(e);
+    }
+}
+
+void MegaClient::notifypurgesets()
+{
+    if (!fetchingnodes)
+    {
+        app->sets_updated(setnotify.data(), (int)setnotify.size());
+    }
+
+    for (auto& s : setnotify)
+    {
+        if (s->hasChanged(Set::CH_REMOVED))
+        {
+            clearsetelementnotify(s->id());
+            mSetElements.erase(s->id());
+            mSets.erase(s->id());
+        }
+        else
+        {
+            s->notified = false;
+            s->resetChanges();
+        }
+    }
+
+    setnotify.clear();
+}
+
+void MegaClient::notifypurgesetelements()
+{
+    if (!fetchingnodes)
+    {
+        app->setelements_updated(setelementnotify.data(), (int)setelementnotify.size());
+    }
+
+    for (auto& e : setelementnotify)
+    {
+        if (e->hasChanged(SetElement::CH_EL_REMOVED))
+        {
+            mSetElements[e->set()].erase(e->id());
+        }
+        else
+        {
+            e->notified = false;
+            e->resetChanges();
+        }
+    }
+
+    setelementnotify.clear();
+}
+
+void MegaClient::clearsetelementnotify(handle sid)
+{
+    for (size_t i = setelementnotify.size(); i; --i)
+    {
+        if (setelementnotify[i - 1]->set() == sid)
+        {
+            setelementnotify.erase(setelementnotify.begin() + i - 1);
+        }
+    }
+}
+
 
 FetchNodesStats::FetchNodesStats()
 {

@@ -146,6 +146,8 @@ struct DemoApp : public MegaApp
     void nodes_current() override;
     void account_updated() override;
     void notify_confirmation(const char *email) override;
+    void sets_updated(Set**, int) override;
+    void setelements_updated(SetElement**, int) override;
 
     void sequencetag_update(const string&) override;
 
@@ -264,7 +266,6 @@ struct DemoApp : public MegaApp
     void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
 
     void dismissbanner_result(error) override;
-    void backupremove_result(const Error&, handle /*backup id*/) override;
 
     void reload(const char*) override;
     void clearing() override;
@@ -377,6 +378,7 @@ void exec_chatlu(autocomplete::ACState& s);
 void exec_chatlj(autocomplete::ACState& s);
 void exec_setmaxdownloadspeed(autocomplete::ACState& s);
 void exec_setmaxuploadspeed(autocomplete::ACState& s);
+void exec_setmaxloglinesize(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);
 void exec_httpsonly(autocomplete::ACState& s);
 void exec_mfac(autocomplete::ACState& s);
@@ -412,3 +414,5 @@ void exec_syncstatus(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
+
+void exec_setsandelements(autocomplete::ACState& s);

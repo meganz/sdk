@@ -817,7 +817,7 @@ int LinuxFileSystemAccess::checkevents(Waiter* waiter)
 
             LOG_debug << "Filesystem notification:"
                 << " Root: "
-                << node.localname.toPath()
+                << node.localname
                 << " Path: "
                 << name;
 
@@ -1216,7 +1216,7 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string 
     return false;
 }
 
-bool PosixFileSystemAccess::expanselocalpath(LocalPath& source, LocalPath& destination)
+bool PosixFileSystemAccess::expanselocalpath(const LocalPath& source, LocalPath& destination)
 {
     // Sanity.
     assert(!source.empty());
@@ -1679,6 +1679,7 @@ void LinuxDirNotify::removeWatch(WatchMapIterator entry)
 #define O_NOATIME 0x0
 #endif // !O_NOATIME
 
+#endif //ENABLE_SYNC
 // Used by directoryScan(...) below to avoid extra stat(...) calls.
 class UnixStreamAccess
     : public InputStreamAccess
@@ -1941,6 +1942,7 @@ ScanResult PosixFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
     return SCAN_SUCCESS;
 }
+#ifdef ENABLE_SYNC
 
 fsfp_t PosixFileSystemAccess::fsFingerprint(const LocalPath& path) const
 {
@@ -2292,7 +2294,7 @@ m_off_t PosixFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         auto result = errno;
 
         LOG_warn << "Unable to determine available disk space on volume: "
-                 << drivePath.toPath()
+                 << drivePath
                  << ". Error code was: "
                  << result;
 

@@ -41,6 +41,9 @@ class MEGA_API TreeProcDel : public TreeProc
 {
 public:
     void proc(MegaClient*, Node*);
+    void setOriginatingUser(const handle& handle);
+private:
+    handle mOriginatingUser = mega::UNDEF;
 };
 
 class MEGA_API TreeProcApplyKey : public TreeProc

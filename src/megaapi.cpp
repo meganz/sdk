@@ -750,6 +750,11 @@ MegaHandle MegaUserAlert::getNodeHandle() const
     return INVALID_HANDLE;
 }
 
+MegaHandle MegaUserAlert::getPcrHandle() const
+{
+    return INVALID_HANDLE;
+}
+
 const char* MegaUserAlert::getEmail() const
 {
     return NULL;
@@ -1071,6 +1076,16 @@ MegaRecentActionBucketList *MegaRequest::getRecentActions() const
     return nullptr;
 }
 
+MegaSet* MegaRequest::getMegaSet() const
+{
+    return nullptr;
+}
+
+MegaSetElementList* MegaRequest::getMegaSetElementList() const
+{
+    return nullptr;
+}
+
 #ifdef ENABLE_SYNC
 
 MegaSyncStallList* MegaRequest::getMegaSyncStallList() const
@@ -1304,8 +1319,6 @@ const char* MegaTransfer::stageToString(unsigned stage)
         case MegaTransfer::STAGE_NONE:                      return "Not initialized stage";
         case MegaTransfer::STAGE_SCAN:                      return "Scan stage";
         case MegaTransfer::STAGE_CREATE_TREE:               return "Create tree stage";
-        case MegaTransfer::STAGE_GEN_TRANSFERS:             return "Generating file transfers stage";
-        case MegaTransfer::STAGE_PROCESS_TRANSFER_QUEUE:    return "Processing transfers queue stage";
         case MegaTransfer::STAGE_TRANSFERRING_FILES:        return "Transferring files stage";
         default:                                            return "Invalid stage";
     }
@@ -1314,6 +1327,13 @@ const char* MegaTransfer::stageToString(unsigned stage)
 MegaError::MegaError(int e)
 {
     errorCode = e;
+    syncError = NO_SYNC_ERROR;
+}
+
+MegaError::MegaError(int e, int se)
+{
+    errorCode = e;
+    syncError = se;
 }
 
 MegaError::~MegaError()
@@ -1329,6 +1349,11 @@ MegaError* MegaError::copy() const
 int MegaError::getErrorCode() const
 {
     return errorCode;
+}
+
+int MegaError::getSyncError() const
+{
+    return syncError;
 }
 
 long long MegaError::getValue() const
@@ -1615,6 +1640,8 @@ void MegaTransferListener::onTransferFinish(MegaApi*, MegaTransfer *, MegaError*
 { }
 void MegaTransferListener::onTransferUpdate(MegaApi *, MegaTransfer *)
 { }
+void MegaTransferListener::onFolderTransferUpdate(MegaApi *, MegaTransfer *, int stage, uint32_t foldercount, uint32_t filecount, uint32_t createdfoldercount, const char* currentFolder, const char* currentFileLeafname)
+{ }
 bool MegaTransferListener::onTransferData(MegaApi *, MegaTransfer *, char *, size_t)
 { return true; }
 void MegaTransferListener::onTransferTemporaryError(MegaApi *, MegaTransfer *, MegaError*)
@@ -1689,6 +1716,10 @@ void MegaGlobalListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
 void MegaGlobalListener::onAccountUpdate(MegaApi *)
 { }
+void MegaGlobalListener::onSetsUpdate(MegaApi *, MegaSetList *)
+{ }
+void MegaGlobalListener::onSetElementsUpdate(MegaApi *, MegaSetElementList *)
+{ }
 void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
@@ -1726,6 +1757,10 @@ void MegaListener::onUserAlertsUpdate(MegaApi *, MegaUserAlertList *)
 void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
 void MegaListener::onAccountUpdate(MegaApi *)
+{ }
+void MegaListener::onSetsUpdate(MegaApi *, MegaSetList *)
+{ }
+void MegaListener::onSetElementsUpdate(MegaApi *, MegaSetElementList *)
 { }
 void MegaListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestList *)
 { }
@@ -1781,7 +1816,7 @@ MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *ba
 
 MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, workerThreadCount);
+    pImpl = new MegaApiImpl(this, appKey, nullptr, basePath, userAgent, workerThreadCount);
 }
 
 #ifdef HAVE_MEGAAPI_RPC
@@ -2297,6 +2332,11 @@ void MegaApi::queryResetPasswordLink(const char *link, MegaRequestListener *list
 void MegaApi::confirmResetPassword(const char *link, const char *newPwd, const char *masterKey, MegaRequestListener *listener)
 {
     pImpl->confirmResetPasswordLink(link, newPwd, masterKey, listener);
+}
+
+void MegaApi::checkRecoveryKey(const char* link, const char* recoveryKey, MegaRequestListener* listener)
+{
+    pImpl->checkRecoveryKey(link, recoveryKey, listener);
 }
 
 void MegaApi::cancelAccount(MegaRequestListener *listener)
@@ -2896,14 +2936,9 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
     pImpl->getMyChatFilesFolder(listener);
 }
 
-void MegaApi::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+void MegaApi::setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener)
 {
-    pImpl->setMyBackupsFolder(nodehandle, listener);
-}
-
-void MegaApi::getMyBackupsFolder(MegaRequestListener *listener)
-{
-    pImpl->getMyBackupsFolder(listener);
+    pImpl->setMyBackupsFolder(localizedName, listener);
 }
 
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
@@ -3212,7 +3247,7 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *f
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
+    pImpl->startUpload(true /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
                        0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
                        true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
 }
@@ -3525,9 +3560,14 @@ MegaNode *MegaApi::getRootNode()
     return pImpl->getRootNode();
 }
 
-MegaNode* MegaApi::getInboxNode()
+MegaNode *MegaApi::getVaultNode()
 {
-    return pImpl->getInboxNode();
+    return pImpl->getVaultNode();
+}
+
+MegaNode *MegaApi::getInboxNode()
+{
+    return pImpl->getVaultNode();
 }
 
 MegaNode* MegaApi::getRubbishNode()
@@ -3550,7 +3590,7 @@ bool MegaApi::isInRubbish(MegaNode *node)
     return pImpl->isInRootnode(node, 2);
 }
 
-bool MegaApi::isInInbox(MegaNode *node)
+bool MegaApi::isInVault(MegaNode *node)
 {
     return pImpl->isInRootnode(node, 1);
 }
@@ -5114,14 +5154,19 @@ char *MegaApi::getMimeType(const char *extension)
 }
 
 #ifdef ENABLE_CHAT
-void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
+void MegaApi::createChat(bool group, MegaTextChatPeerList* peers, const char* title, int chatOptions, MegaRequestListener* listener)
 {
-    pImpl->createChat(group, false, peers, NULL, title, false, listener);
+    pImpl->createChat(group, false, peers, NULL, title, false, chatOptions, listener);
 }
 
-void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, MegaRequestListener *listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap, const char* title, bool meetingRoom, int chatOptions, MegaRequestListener* listener)
 {
-    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, listener);
+    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, chatOptions, listener);
+}
+
+void MegaApi::setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener)
+{
+     pImpl->setChatOption(chatid, option, enabled, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
@@ -5491,6 +5536,78 @@ void MegaApi::stopDriveMonitor()
 bool MegaApi::driveMonitorEnabled()
 {
     return pImpl->driveMonitorEnabled();
+}
+
+void MegaApi::createSet(const char* name, MegaRequestListener* listener)
+{
+    int options = CREATE_SET | (name ? OPTION_SET_NAME : 0);
+    pImpl->putSet(INVALID_HANDLE, options, name, INVALID_HANDLE, listener);
+}
+
+void MegaApi::updateSetName(MegaHandle sid, const char* name, MegaRequestListener* listener)
+{
+    pImpl->putSet(sid, OPTION_SET_NAME, name, INVALID_HANDLE, listener);
+}
+
+void MegaApi::putSetCover(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
+{
+    pImpl->putSet(sid, OPTION_SET_COVER, nullptr, eid, listener);
+}
+
+void MegaApi::removeSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    pImpl->removeSet(sid, listener);
+}
+
+void MegaApi::fetchSet(MegaHandle sid, MegaRequestListener* listener)
+{
+    pImpl->fetchSet(sid, listener);
+}
+
+void MegaApi::createSetElement(MegaHandle sid, MegaHandle node, const char* name, MegaRequestListener* listener)
+{
+    int options = CREATE_ELEMENT | (name ? OPTION_ELEMENT_NAME : 0);
+    pImpl->putSetElement(sid, INVALID_HANDLE, node, options, 0, name, listener);
+}
+
+void MegaApi::updateSetElementOrder(MegaHandle sid, MegaHandle eid, int64_t order, MegaRequestListener* listener)
+{
+    pImpl->putSetElement(sid, eid, INVALID_HANDLE, OPTION_ELEMENT_ORDER, order, nullptr, listener);
+}
+
+void MegaApi::updateSetElementName(MegaHandle sid, MegaHandle eid, const char* name, MegaRequestListener* listener)
+{
+    pImpl->putSetElement(sid, eid, INVALID_HANDLE, OPTION_ELEMENT_NAME, 0, name, listener);
+}
+
+void MegaApi::removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener)
+{
+    pImpl->removeSetElement(sid, eid, listener);
+}
+
+MegaSetList* MegaApi::getSets()
+{
+    return pImpl->getSets();
+}
+
+MegaSet* MegaApi::getSet(MegaHandle sid)
+{
+    return pImpl->getSet(sid);
+}
+
+MegaHandle MegaApi::getSetCover(MegaHandle sid)
+{
+    return pImpl->getSetCover(sid);
+}
+
+MegaSetElementList* MegaApi::getSetElements(MegaHandle sid)
+{
+    return pImpl->getSetElements(sid);
+}
+
+MegaSetElement* MegaApi::getSetElement(MegaHandle sid, MegaHandle eid)
+{
+    return pImpl->getSetElement(sid, eid);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -6459,6 +6576,11 @@ const char * MegaTextChat::getTitle() const
 const char * MegaTextChat::getUnifiedKey() const
 {
     return NULL;
+}
+
+unsigned char MegaTextChat::getChatOptions() const
+{
+    return 0;
 }
 
 bool MegaTextChat::hasChanged(int) const

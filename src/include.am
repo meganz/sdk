@@ -45,6 +45,7 @@ src_libmega_la_SOURCES += src/raid.cpp
 src_libmega_la_SOURCES += src/testhooks.cpp
 src_libmega_la_SOURCES += src/request.cpp
 src_libmega_la_SOURCES += src/serialize64.cpp
+src_libmega_la_SOURCES += src/setandelement.cpp
 src_libmega_la_SOURCES += src/share.cpp
 src_libmega_la_SOURCES += src/sharenodekeys.cpp
 src_libmega_la_SOURCES += src/sync.cpp
@@ -65,6 +66,7 @@ src_libmega_la_SOURCES += src/mega_ccronexpr.cpp
 src_libmega_la_SOURCES += src/mega_evt_tls.cpp
 src_libmega_la_SOURCES += src/gfx/external.cpp
 src_libmega_la_SOURCES += src/pendingcontactrequest.cpp
+src_libmega_la_SOURCES += src/textchat.cpp
 src_libmega_la_SOURCES += src/mega_zxcvbn.cpp
 
 EXTRA_DIST = src/mega_utf8proc_data.c

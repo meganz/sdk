@@ -1297,6 +1297,33 @@ LocalPath LocalPath::leafName() const
     return result;
 }
 
+string LocalPath::leafOrParentName() const
+{
+    assert(invariant());
+
+    LocalPath name;
+    // win32: normalizeAbsolute() does not work with paths like "D:\\foo\\..\\bar.txt". TODO ?
+    FSACCESS_CLASS().expanselocalpath(*this, name);
+    name.removeTrailingSeparators();
+
+    if (name.empty())
+    {
+        return string();
+    }
+
+#ifdef WIN32
+    if (name.localpath.back() == L':')
+    {
+        // drop trailing ':'
+        string n = name.toPath(true);
+        n.pop_back();
+        return n;
+    }
+#endif
+
+    return name.leafName().toPath(true);
+}
+
 void LocalPath::append(const LocalPath& additionalPath)
 {
     assert(invariant());
@@ -1506,11 +1533,11 @@ LocalPath LocalPath::insertFilenameCounter(unsigned counter) const
 }
 
 
-string LocalPath::toPath() const
+string LocalPath::toPath(bool normalize) const
 {
     assert(invariant());
     string path;
-    local2path(&localpath, &path);
+    local2path(&localpath, &path, normalize);
 
 #ifdef WIN32
     if (path.size() >= 4 && 0 == path.compare(0, 4, "\\\\?\\", 4))
@@ -1525,7 +1552,7 @@ string LocalPath::toPath() const
 
 string LocalPath::toName(const FileSystemAccess& fsaccess) const
 {
-    string name = toPath();
+    string name = toPath(true);
     fsaccess.unescapefsincompatible(&name);
     return name;
 }
@@ -1653,7 +1680,7 @@ void LocalPath::path2local(const string* path, std::wstring* local)
 }
 
 // convert Windows Unicode to UTF-8
-void LocalPath::local2path(const string* local, string* path)
+void LocalPath::local2path(const string* local, string* path, bool normalize)
 {
     path->resize((local->size() + 1) * 4 / sizeof(wchar_t) + 1);
 
@@ -1662,10 +1689,11 @@ void LocalPath::local2path(const string* local, string* path)
         (char*)path->data(),
         int(path->size()),
         NULL, NULL));
-    utf8_normalize(path);
-    }
 
-void LocalPath::local2path(const std::wstring* local, string* path)
+    if (normalize) utf8_normalize(path);
+}
+
+void LocalPath::local2path(const std::wstring* local, string* path, bool normalize)
 {
     path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
 
@@ -1675,7 +1703,7 @@ void LocalPath::local2path(const std::wstring* local, string* path)
         int(path->size()),
         NULL, NULL));
 
-    utf8_normalize(path);
+    if (normalize) utf8_normalize(path);
 }
 
 #else
@@ -1689,10 +1717,10 @@ void LocalPath::path2local(const string* path, string* local)
 #endif
 }
 
-void LocalPath::local2path(const string* local, string* path)
+void LocalPath::local2path(const string* local, string* path, bool normalize)
 {
     *path = *local;
-    LocalPath::utf8_normalize(path);
+    if (normalize) LocalPath::utf8_normalize(path);
 }
 
 #endif
@@ -1790,7 +1818,7 @@ ScopedLengthRestore::~ScopedLengthRestore()
 FilenameAnomalyType isFilenameAnomaly(const LocalPath& localPath, const string& remoteName, nodetype_t type)
 {
     // toPath() to make sure the name is in NFC.
-    auto localName = localPath.leafName().toPath();
+    auto localName = localPath.leafName().toPath(true);
 
     if (compareUtf(localName, false, remoteName, false, true))
     {
@@ -2193,10 +2221,7 @@ void ScanService::Worker::loop()
             mPending.pop_front();
         }
 
-        const auto targetPath =
-            request->mTargetPath.toPath();
-
-        LOG_verbose << "Directory scan begins: " << targetPath;
+        LOG_verbose << "Directory scan begins: " << request->mTargetPath;
         using namespace std::chrono;
         auto scanStart = high_resolution_clock::now();
 
@@ -2207,14 +2232,14 @@ void ScanService::Worker::loop()
 
         if (result == SCAN_SUCCESS)
         {
-            LOG_verbose << "Directory scan complete for: " << targetPath
+            LOG_verbose << "Directory scan complete for: " << request->mTargetPath
                 << " entries: " << request->mResults.size()
                 << " taking " << duration_cast<milliseconds>(scanEnd - scanStart).count() << "ms"
                 << " fingerprinted: " << nFingerprinted;
         }
         else
         {
-            LOG_verbose << "Directory scan FAILED (" << result << "): " << targetPath;
+            LOG_verbose << "Directory scan FAILED (" << result << "): " << request->mTargetPath;
         }
 
         request->mScanResult = result;
@@ -2241,6 +2266,45 @@ auto ScanService::Worker::scan(ScanRequestPtr request, unsigned& nFingerprinted)
     request->mKnown.clear();
 
     return result;
+}
+
+unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath, FileSystemAccess& fsa)
+{
+    unique_ptr<FSNode> result(new FSNode);
+    result->type = fa.type;
+    result->fsid = fa.fsidvalid ? fa.fsid : UNDEF;
+    result->isSymlink = fa.mIsSymLink;
+    result->fingerprint.mtime = fa.mtime;
+    result->fingerprint.size = fa.size;
+
+    result->localname = fullPath.leafName();
+
+    if (auto sn = fsa.fsShortname(fullPath))
+    {
+        if (*sn != result->localname)
+        {
+            result->shortname = std::move(sn);
+        }
+    }
+    return result;
+}
+
+unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath& path)
+{
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    if (!fileAccess->fopen(path, true, false))
+        return nullptr;
+
+    auto fsNode = fromFOpened(*fileAccess, path, fsAccess);
+
+    if (fsNode->type != FILENODE)
+        return fsNode;
+
+    if (!fsNode->fingerprint.genfingerprint(fileAccess.get()))
+        return nullptr;
+
+    return fsNode;
 }
 
 

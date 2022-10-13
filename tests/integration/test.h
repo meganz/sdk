@@ -27,6 +27,14 @@ extern string_vector envVarPass;
 std::string logTime();
 void WaitMillisec(unsigned n);
 
+#ifdef __linux__
+std::string exec(const char* cmd);
+#endif
+
+// platform specific Http POST
+void synchronousHttpPOSTFile(const string& url, const string& filepath, string& responsedata);
+void synchronousHttpPOSTData(const string& url, const string& senddata, string& responsedata);
+
 class LogStream
 {
 public:
@@ -218,6 +226,7 @@ struct SyncOptions
 {
     string drivePath = string(1, '\0');
     string excludePath;
+    bool legacyExclusionsEligible = false;
     bool isBackup = false;
     bool uploadIgnoreFile = false;
 }; // SyncOptions
@@ -238,6 +247,8 @@ struct StandardClient : public MegaApp
     string clientname;
     std::function<void()> nextfunctionMC;
     std::function<void()> nextfunctionSC;
+    string nextfunctionMC_sourcefile, nextfunctionSC_sourcefile;
+    int nextfunctionMC_sourceline = -1, nextfunctionSC_sourceline = -1;
     std::condition_variable functionDone;
     std::mutex functionDoneMutex;
     std::string salt;
@@ -267,6 +278,7 @@ struct StandardClient : public MegaApp
         recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
         map<resultprocenum, map<int, id_callback>> m;
 
+        // f is to return true if no more callbacks are expected, and the expected-entry will be removed
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF);
         void processresult(resultprocenum rpe, error e, handle h = UNDEF);
     } resultproc;
@@ -373,11 +385,13 @@ struct StandardClient : public MegaApp
     static bool debugging;  // turn this on to prevent the main thread timing out when stepping in the MegaClient
 
     template <class PROMISE_VALUE>
-    future<PROMISE_VALUE> thread_do(std::function<void(MegaClient&, shared_promise<PROMISE_VALUE>)> f)
+    future<PROMISE_VALUE> thread_do(std::function<void(MegaClient&, shared_promise<PROMISE_VALUE>)> f, string sf, int sl)
     {
         unique_lock<mutex> guard(functionDoneMutex);
         std::shared_ptr<promise<PROMISE_VALUE>> promiseSP(new promise<PROMISE_VALUE>());
         nextfunctionMC = [this, promiseSP, f](){ f(this->client, promiseSP); };
+        nextfunctionMC_sourcefile = sf;
+        nextfunctionMC_sourceline = sl;
         waiter.notify();
         while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionMC; }))
         {
@@ -391,11 +405,13 @@ struct StandardClient : public MegaApp
     }
 
     template <class PROMISE_VALUE>
-    future<PROMISE_VALUE> thread_do(std::function<void(StandardClient&, shared_promise<PROMISE_VALUE>)> f)
+    future<PROMISE_VALUE> thread_do(std::function<void(StandardClient&, shared_promise<PROMISE_VALUE>)> f, string sf, int sl)
     {
         unique_lock<mutex> guard(functionDoneMutex);
         std::shared_ptr<promise<PROMISE_VALUE>> promiseSP(new promise<PROMISE_VALUE>());
-        nextfunctionMC = [this, promiseSP, f]() { f(*this, promiseSP); };
+        nextfunctionSC_sourcefile = sf;
+        nextfunctionSC_sourceline = sl;
+        nextfunctionSC = [this, promiseSP, f]() { f(*this, promiseSP); };
         waiter.notify();
         while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionSC; }))
         {
@@ -492,14 +508,14 @@ struct StandardClient : public MegaApp
 
     bool uploadFolderTree(fs::path p, Node* n2);
 
-    void uploadFile(const fs::path& path, const string& name, const Node* parent, DBTableTransactionCommitter& committer, VersioningOption vo = NoVersioning);
+    void uploadFile(const fs::path& path, const string& name, const Node* parent, TransferDbCommitter& committer, VersioningOption vo = NoVersioning);
     void uploadFile(const fs::path& path, const string& name, const Node* parent, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 
     bool uploadFile(const fs::path& path, const string& name, const CloudItem& parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
 
     bool uploadFile(const fs::path& path, const CloudItem& parent, int timeoutSeconds = 30, VersioningOption vo = NoVersioning);
 
-    void uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer, VersioningOption vo);
+    void uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, TransferDbCommitter& committer, VersioningOption vo);
     bool uploadFilesInTree(fs::path p, const CloudItem& n2, VersioningOption vo = NoVersioning);
     void uploadFilesInTree(fs::path p, const CloudItem& n2, std::atomic<int>& inprogress, PromiseBoolSP pb, VersioningOption vo = NoVersioning);
 
@@ -693,7 +709,7 @@ struct StandardClient : public MegaApp
     bool login_reset(bool noCache = false);
     bool login_reset(const string& user, const string& pw, bool noCache = false, bool resetBaseCloudFolder = true);
     bool resetBaseFolderMulticlient(StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr);
-    void cleanupForTestReuse();
+    void cleanupForTestReuse(int loginIndex);
     bool login_reset_makeremotenodes(const string& prefix, int depth = 0, int fanout = 0, bool noCache = false);
     bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false);
     void ensureSyncUserAttributes(PromiseBoolSP result);
@@ -711,6 +727,7 @@ struct StandardClient : public MegaApp
     void match(NodeHandle handle, const Model::ModelNode* source, PromiseBoolSP result);
     bool waitFor(std::function<bool(StandardClient&)> predicate, const std::chrono::seconds &timeout);
     bool match(const Node& destination, const Model::ModelNode& source) const;
+    bool makeremotenodes(const string& prefix, int depth, int fanout);
     bool backupOpenDrive(const fs::path& drivePath);
     void triggerPeriodicScanEarly(handle backupID);
 
@@ -788,11 +805,13 @@ struct StandardClientInUseEntry
     bool inUse = false;
     shared_ptr<StandardClient> ptr;
     string name;
+    int loginIndex;
 
-    StandardClientInUseEntry(bool iu, shared_ptr<StandardClient> sp, string n)
+    StandardClientInUseEntry(bool iu, shared_ptr<StandardClient> sp, string n, int index)
     : inUse(iu)
     , ptr(sp)
     , name(n)
+    , loginIndex(index)
     {}
 };
 
@@ -812,7 +831,7 @@ public:
 
     ~StandardClientInUse()
     {
-        entry->ptr->cleanupForTestReuse();
+        entry->ptr->cleanupForTestReuse(entry->loginIndex);
         entry->inUse = false;
     }
 

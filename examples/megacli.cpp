@@ -24,7 +24,6 @@
 #include <fstream>
 #include <bitset>
 #include "mega/testhooks.h"
-#include <iterator>
 
 #if defined(_WIN32) && defined(_DEBUG)
 // so we can delete a secret internal CrytpoPP singleton
@@ -134,8 +133,8 @@ std::string ephemeralFirstname;
 std::string ephemeralLastName;
 
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
-    DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo,
-    std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries);
+    TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
+    std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions);
 
 
 #ifdef ENABLE_SYNC
@@ -292,7 +291,7 @@ ConsoleLock conlock(std::ostream& o)
     return ConsoleLock(o);
 }
 
-static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
+static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const string& path)
 {
     error result = API_OK;
 
@@ -306,7 +305,7 @@ static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFil
         conlock(cout) << "Unable to download file: "
                       << path
                       << " -> "
-                      << file->getLocalname().toPath()
+                      << file->getLocalname().toPath(false)
                       << ": "
                       << errorstring(result)
                       << endl;
@@ -315,7 +314,7 @@ static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFil
     return result;
 }
 
-static error startxfer(DBTableTransactionCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
+static error startxfer(TransferDbCommitter& committer, unique_ptr<AppFileGet> file, const Node& node)
 {
     return startxfer(committer, std::move(file), node.displaypath());
 }
@@ -374,7 +373,7 @@ void AppFilePut::completed(Transfer* t, putsource_t source)
             else if (onCompleted_foward) onCompleted_foward();
 
         },
-        nullptr);
+        nullptr, false);
 
     delete this;
 }
@@ -421,7 +420,7 @@ static void displaytransferdetails(Transfer* t, const string& action)
         cout << name;
     }
 
-    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action << ": " << t->localfilename.toPath();
+    cout << ": " << (t->type == GET ? "Incoming" : "Outgoing") << " file transfer " << action << ": " << t->localfilename.toPath(false);
 }
 
 // a new transfer was added
@@ -501,7 +500,7 @@ void DemoApp::syncupdate_stateconfig(const SyncConfig& config)
 void DemoApp::sync_added(const SyncConfig& config)
 {
     handle backupId = config.mBackupId;
-    conlock(cout) << "Sync - added " << toHandle(backupId) << " " << config.getLocalPath().toPath() << " enabled: "
+    conlock(cout) << "Sync - added " << toHandle(backupId) << " " << config.getLocalPath().toPath(false) << " enabled: "
         << config.getEnabled() << " syncError: " << config.mError << " " << int(config.mRunState) << endl;
 }
 
@@ -609,7 +608,7 @@ void DemoApp::syncupdate_treestate(const SyncConfig &, const LocalPath& lp, tree
     {
         if (type != FILENODE)
         {
-            conlock(cout) << "Sync - state change of folder " << lp.toPath() << " to " << treestatename(ts) << endl;
+            conlock(cout) << "Sync - state change of folder " << lp.toPath(false) << " to " << treestatename(ts) << endl;
         }
     }
 }
@@ -1465,9 +1464,9 @@ static void listtrees()
     {
         cout << "ROOT on /" << endl;
     }
-    if (!client->rootnodes.inbox.isUndef())
+    if (!client->rootnodes.vault.isUndef())
     {
-        cout << "INBOX on //in" << endl;
+        cout << "VAULT on //in" << endl;
     }
     if (!client->rootnodes.rubbish.isUndef())
     {
@@ -1509,9 +1508,9 @@ bool showattrs = false;
 // path naming conventions:
 // * path is relative to cwd
 // * /path is relative to ROOT
-// * //in is in INBOX
+// * //in is in VAULT (formerly INBOX)
 // * //bin is in RUBBISH
-// * X: is user X's INBOX
+// * X: is user X's VAULT (formerly INBOX)
 // * X:SHARE is share SHARE from user X
 // * Y:name is folder in FOLDERLINK, Y is the public handle
 // * : and / filename components, as well as the \, must be escaped by \.
@@ -1685,7 +1684,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
             {
                 if (c[2] == "in")
                 {
-                    n = client->nodeByHandle(client->rootnodes.inbox);
+                    n = client->nodeByHandle(client->rootnodes.vault);
                 }
                 else if (c[2] == "bin")
                 {
@@ -1832,7 +1831,7 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
 
                 if (showattrs && n->attrs.map.size())
                 {
-                    stream << ", has attrs";
+                    stream << ", has name";
                     for (auto& a : n->attrs.map)
                     {
                         char namebuf[100]{};
@@ -1932,7 +1931,7 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
 
                 if (showattrs && n->attrs.map.size())
                 {
-                    stream << ", has attrs";
+                    stream << ", has name";
                     for (auto& a : n->attrs.map)
                     {
                         char namebuf[100]{};
@@ -2139,7 +2138,7 @@ void xferq(direction_t d, int cancel, bool showActive, bool showAll, bool showCo
     string name;
     int count = 0, activeCount = 0;
 
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     for (appfile_list::iterator it = appxferq[d].begin(); it != appxferq[d].end(); )
     {
         if (cancel < 0 || cancel == (*it)->seqno)
@@ -2295,6 +2294,124 @@ static byte pwkeybuf[SymmCipher::KEYLENGTH];
 static byte newpwkey[SymmCipher::KEYLENGTH];
 static string newpassword;
 
+#ifndef NO_READLINE
+
+// Where our command history will be recorded.
+string historyFile;
+
+void exec_history(autocomplete::ACState& s)
+{
+    // history clear
+    // history list
+    // history read file
+    // history record file
+    // history write file
+
+    // What does the user want to do?
+    const auto& command = s.words[1].s;
+
+    // Does the user want to clear their recorded history?
+    if (command == "clear")
+    {
+        if (!historyFile.empty()
+            && history_truncate_file(historyFile.c_str(), 0))
+        {
+            cerr << "Unable to clear recorded history."
+                 << endl;
+            return;
+        }
+
+        // Clear recorded history.
+        clear_history();
+
+        // We're done.
+        return;
+    }
+
+    // Is the user interested in viewing their recorded history?
+    if (command == "list")
+    {
+        auto** history = history_list();
+
+        if (!history)
+        {
+            cout << "No history has been recorded."
+                 << endl;
+            return;
+        }
+
+        for (auto i = 0; history[i]; ++i)
+        {
+            cout << i + history_base
+                 << ": "
+                 << history[i]->line
+                 << endl;
+        }
+
+        return;
+    }
+
+    // Does the user want to load their history from a file?
+    if (command == "read")
+    {
+        if (read_history(s.words[2].s.c_str()))
+        {
+            cerr << "Unable to read history from: "
+                 << s.words[2].s
+                 << endl;
+
+            return;
+        }
+
+        cout << "Successfully loaded history from: "
+             << s.words[2].s
+             << endl;
+
+        return;
+    }
+
+    // User wants to record history to a file?
+    if (command == "record")
+    {
+        // Clear recorded history.
+        clear_history();
+
+        // Truncate history file.
+        if (write_history(s.words[2].s.c_str()))
+        {
+            cerr << "Unable to truncate history file: "
+                 << s.words[2].s.c_str();
+            return;
+        }
+
+        // Remember where we should write the history to.
+        historyFile = s.words[2].s;
+
+        cout << "Now recording history to: "
+             << historyFile
+             << endl;
+
+        return;
+    }
+
+    // Only branch left.
+    assert(command == "write");
+
+    if (write_history(s.words[2].s.c_str()))
+    {
+        cerr << "Unable to write history to: "
+             << s.words[2].s.c_str();
+
+        return;
+    }
+
+    cout << "History written to: "
+         << s.words[2].s
+         << endl;
+}
+
+#endif // ! NO_READLINE
+
 // readline callback - exit if EOF, add to history unless password
 #if !defined(WIN32) || !defined(NO_READLINE)
 static void store_line(char* l)
@@ -2312,7 +2429,39 @@ static void store_line(char* l)
 #ifndef NO_READLINE
     if (*l && prompt == COMMAND)
     {
-        add_history(l);
+        char* expansion = nullptr;
+
+        // Try and expand any "event designators."
+        auto result = history_expand(l, &expansion);
+
+        // Was the designator bogus?
+        if (result < 0)
+        {
+            add_history(l);
+
+            // Then assume it's a normal command.
+            return line = l, void();
+        }
+
+        // Otherwise, we have a valid expansion.
+        add_history(expansion);
+
+        // Flush the history to disk.
+        if (!historyFile.empty())
+            write_history(historyFile.c_str());
+
+        // Display but don't execute the expansion.
+        if (result == 2)
+        {
+            cout << expansion << endl;
+            return free(expansion);
+        }
+
+        // Execute the expansion.
+        line = expansion;
+
+        // Release the input string.
+        return free(l);
     }
 #endif
 
@@ -2505,7 +2654,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
             if (moveToTrash)
             {
                 cout << "moving to trash: " << c->displaypath() << endl;
-                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
+                client->rename(c, trash, SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
             }
             else
             {
@@ -2664,10 +2813,10 @@ void exec_codeTimings(autocomplete::ACState& s)
 
 std::function<void()> onCompletedUploads;
 
-void setAppendAndUploadOnCompletedUploads(string local_path, int count)
+void setAppendAndUploadOnCompletedUploads(string local_path, int count, bool allowDuplicateVersions)
 {
 
-    onCompletedUploads = [local_path, count](){
+    onCompletedUploads = [local_path, count, allowDuplicateVersions](){
 
         {
             ofstream f(local_path, std::ios::app);
@@ -2675,14 +2824,14 @@ void setAppendAndUploadOnCompletedUploads(string local_path, int count)
         }
         cout << count << endl;
 
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
         int total = 0;
         auto lp = LocalPath::fromAbsolutePath(local_path);
-        uploadLocalPath(FILENODE, lp.leafName().toPath(), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false);
+        uploadLocalPath(FILENODE, lp.leafName().toPath(false), lp, client->nodeByHandle(cwd), "", committer, total, false, ClaimOldVersion, nullptr, false, allowDuplicateVersions);
 
         if (count > 0)
         {
-            setAppendAndUploadOnCompletedUploads(local_path, count-1);
+            setAppendAndUploadOnCompletedUploads(local_path, count-1, allowDuplicateVersions);
         }
         else
         {
@@ -2790,11 +2939,11 @@ void cycleDownload(LocalPath lp, int count);
 void cycleUpload(LocalPath lp, int count)
 {
     checkReportCycleFails();
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
 
     LocalPath upload_lp = lp;
     upload_lp.append(LocalPath::fromRelativePath("_" + std::to_string(count)));
-    string leaf = upload_lp.leafName().toPath();
+    string leaf = upload_lp.leafName().toPath(true);
 
     int total = 0;
     uploadLocalPath(FILENODE, leaf, upload_lp, cycleUploadDownload_cloudWorkingFolder, "", committer, total, false, NoVersioning,
@@ -2804,15 +2953,15 @@ void cycleUpload(LocalPath lp, int count)
                 {
                     cycleDownload(lp, count);
                 };
-        }, true);
+        }, true, true);
 
     // also delete the old remote file
     if (count > 0)
     {
-        string leaf2 = lp.leafName().toPath() + "_" + std::to_string(count-1);
+        string leaf2 = lp.leafName().toPath(true) + "_" + std::to_string(count-1);
         if (Node* lastuploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf2.c_str(), true))
         {
-            client->unlink(lastuploaded, false, client->nextreqtag(), nullptr);
+            client->unlink(lastuploaded, false, client->nextreqtag(), false, nullptr);
         }
     }
 
@@ -2822,7 +2971,7 @@ void cycleDownload(LocalPath lp, int count)
 {
     checkReportCycleFails();
 
-    string leaf = lp.leafName().toPath() + "_" + std::to_string(count);
+    string leaf = lp.leafName().toPath(true) + "_" + std::to_string(count);
 
     Node* uploaded = client->childnodebyname(cycleUploadDownload_cloudWorkingFolder, leaf.c_str(), true);
 
@@ -2836,10 +2985,10 @@ void cycleDownload(LocalPath lp, int count)
     downloadName.append(LocalPath::fromRelativePath("_" + std::to_string(count+1)));
 
 
-    string newleaf = lp.leafName().toPath();
+    string newleaf = lp.leafName().toPath(true);
     newleaf += "_" + std::to_string(count + 1);
 
-    auto f = new AppFileGet(uploaded, NodeHandle(), NULL, -1, 0, &newleaf, NULL, lp.parentPath().toPath());
+    auto f = new AppFileGet(uploaded, NodeHandle(), NULL, -1, 0, &newleaf, NULL, lp.parentPath().toPath(false));
     f->noRetries = true;
 
     f->onCompleted = [lp, count]()
@@ -2848,7 +2997,7 @@ void cycleDownload(LocalPath lp, int count)
     };
 
     f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     client->startxfer(GET, f, committer, false, false, false, NoVersioning);
 
     // also delete the old local file
@@ -2874,7 +3023,7 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
             }
         };
 
-    globalMegaTestHooks.onUploadChunkSucceeded = [](Transfer* t, DBTableTransactionCommitter& committer)
+    globalMegaTestHooks.onUploadChunkSucceeded = [](Transfer* t, TransferDbCommitter& committer)
         {
             if (t->chunkmacs.hasUnfinishedGap(1024ll*1024*1024*1024*1024))
             //if (t->pos > 5000000 && rand() % 2 == 0)
@@ -2889,7 +3038,7 @@ void exec_cycleUploadDownload(autocomplete::ACState& s)
                 Transfer::unserialize(client, &serialized, client->cachedtransfers);
 
                 // prep to try to resume this upload after we get back to our main loop
-                auto fpstr = t->files.front()->getLocalname().toPath();
+                auto fpstr = t->files.front()->getLocalname().toPath(false);
                 auto countpos = fpstr.find_last_of('_');
                 auto count = atoi(fpstr.c_str() + countpos + 1);
                 fpstr.resize(countpos);
@@ -2942,7 +3091,7 @@ void exec_generate_put_fileversions(autocomplete::ACState& s)
     string param;
     if (s.extractflagparam("-count", param)) count = atoi(param.c_str());
 
-    setAppendAndUploadOnCompletedUploads(s.words[1].s, count);
+    setAppendAndUploadOnCompletedUploads(s.words[1].s, count, true);
     onCompletedUploads();
 }
 
@@ -3297,12 +3446,12 @@ void exec_timelocal(autocomplete::ACState& s)
         }
         else
         {
-            cout << "fingerprint generation failed: " << localfilepath.toPath() << endl;
+            cout << "fingerprint generation failed: " << localfilepath.toPath(false) << endl;
         }
     }
     else
     {
-        cout << "fopen failed: " << localfilepath.toPath() << endl;
+        cout << "fopen failed: " << localfilepath.toPath(false) << endl;
     }
 
 }
@@ -3348,7 +3497,7 @@ void exec_backupcentre(autocomplete::ACState& s)
     {
         handle backupId;
         Base64::atob(s.words[1].s.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
-        client->reqs.add(new CommandBackupRemove(client, backupId));
+        client->reqs.add(new CommandBackupRemove(client, backupId, nullptr));
     }
 }
 
@@ -3379,7 +3528,7 @@ public:
         cout << "Filename anomaly detected: type: "
                 << typeName
                 << ": local path: "
-                << localPath.toPath()
+                << localPath.toPath(false)
                 << ": remote path: "
                 << remotePath
                 << endl;
@@ -3480,7 +3629,7 @@ autocomplete::ACN autocompleteSyntax()
                     exportedLink(false, true),
                     opt(param("authToken"))));
 
-    p->Add(exec_put, sequence(text("put"), opt(flag("-r")), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
+    p->Add(exec_put, sequence(text("put"), opt(flag("-r")), opt(flag("-noversion")), opt(flag("-version")), opt(flag("-versionreplace")), opt(flag("-allowduplicateversions")), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(exec_putq, sequence(text("putq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
     p->Add(exec_get, sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
@@ -3519,7 +3668,11 @@ autocomplete::ACN autocompleteSyntax()
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
 
-    p->Add(exec_syncrename, sequence(text("sync"), text("rename"), param("id"), param("newname")));
+    p->Add(exec_syncrename,
+           sequence(text("sync"),
+                    text("rename"),
+                    backupID(*client),
+                    param("newname")));
 
     p->Add(exec_syncclosedrive,
            sequence(text("sync"),
@@ -3547,7 +3700,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_syncremove,
            sequence(text("sync"),
                     text("remove"),
-                    param("id")));
+                    either(backupID(*client),
+                           sequence(flag("-by-local-path"),
+                                    localFSFolder()),
+                           sequence(flag("-by-remote-path"),
+                                    remoteFSFolder(client, &cwd)))));
 
     p->Add(exec_syncstatus,
            sequence(text("sync"),
@@ -3561,14 +3718,17 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_syncrescan, sequence(text("sync"), text("rescan"), param("id")));
 
-    p->Add(exec_syncoutput, sequence(text("sync"), text("output"),
-        either(text("local_change_detection"),
-            text("remote_change_detection"),
-            text("transfer_activity"),
-            text("folder_sync_state"),
-            text("detail_log"),
-            text("all")),
-        either(text("on"), text("off"))));
+    p->Add(exec_syncoutput,
+           sequence(text("sync"),
+                    text("output"),
+                    either(text("local_change_detection"),
+                           text("remote_change_detection"),
+                           text("transfer_activity"),
+                           text("folder_sync_state"),
+                           text("detail_log"),
+                           text("all")),
+                    either(text("on"),
+                           text("off"))));
 
 #endif
 
@@ -3647,6 +3807,7 @@ autocomplete::ACN autocompleteSyntax()
 #endif
     p->Add(exec_setmaxdownloadspeed, sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
+    p->Add(exec_setmaxloglinesize, sequence(text("setmaxloglinesize"), wholenumber(10000)));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
     p->Add(exec_showattrs, sequence(text("showattrs"), opt(either(text("on"), text("off")))));
@@ -3659,6 +3820,15 @@ autocomplete::ACN autocompleteSyntax()
 #if defined(WIN32) && defined(NO_READLINE)
     p->Add(exec_autocomplete, sequence(text("autocomplete"), opt(either(text("unix"), text("dos")))));
     p->Add(exec_history, sequence(text("history")));
+#elif !defined(NO_READLINE)
+    p->Add(exec_history,
+           sequence(text("history"),
+                    either(text("clear"),
+                           text("list"),
+                           sequence(either(text("read"),
+                                           text("record"),
+                                           text("write")),
+                                    localFSFile("history")))));
 #endif
     p->Add(exec_help, either(text("help"), text("h"), text("?")));
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
@@ -3718,6 +3888,20 @@ autocomplete::ACN autocompleteSyntax()
                     localFSPath("outputPath"),
                     opt(param("lengthKB"))));
 
+    p->Add(exec_setsandelements,
+        sequence(text("setsandelements"),
+                 either(text("list"),
+                        sequence(text("newset"), opt(param("name"))),
+                        sequence(text("updateset"), param("id"), opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-c"), opt(param("cover"))))),
+                        sequence(text("removeset"), param("id")),
+                        sequence(text("fetchset"), param("id")),
+                        sequence(text("newelement"), param("setid"), param("nodehandle"),
+                                 opt(sequence(flag("-n"), param("name"))), opt(sequence(flag("-o"), param("order")))),
+                        sequence(text("updateelement"), param("sid"), param("eid"),
+                                 opt(sequence(flag("-n"), opt(param("name")))), opt(sequence(flag("-o"), param("order")))),
+                        sequence(text("removeelement"), param("sid"), param("eid"))
+                        )));
+
     return autocompleteTemplate = std::move(p);
 }
 
@@ -3727,9 +3911,9 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 {
     if (n->type == FILENODE)
     {
-            if (!folders)
+        if (!folders)
         {
-            DBTableTransactionCommitter committer(client->tctable);
+            TransferDbCommitter committer(client->tctable);
             auto file = ::mega::make_unique<AppFileGet>(n, NodeHandle(), nullptr, -1, 0, nullptr, nullptr, localpath.u8string());
             error result = startxfer(committer, std::move(file), *n);
             queued += result == API_OK ? 1 : 0;
@@ -3771,7 +3955,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
 
         if (n->type == FOLDERNODE || n->type == ROOTNODE)
         {
-            DBTableTransactionCommitter committer(client->tctable);
+            TransferDbCommitter committer(client->tctable);
             for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
             {
                 if ((*it)->type == FILENODE)
@@ -4091,7 +4275,7 @@ void exec_rm(autocomplete::ACState& s)
         {
             if (client->checkaccess(d, FULL))
             {
-                error e = client->unlink(d, false, 0);
+                error e = client->unlink(d, false, 0, false);
 
                 if (e)
                 {
@@ -4151,7 +4335,7 @@ void exec_mv(autocomplete::ACState& s)
                             // rename
                             LocalPath::utf8_normalize(&newname);
 
-                            if ((e = client->setattr(n, attr_map('n', newname), setattr_result)))
+                            if ((e = client->setattr(n, attr_map('n', newname), setattr_result, false)))
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
@@ -4182,7 +4366,7 @@ void exec_mv(autocomplete::ACState& s)
                             }
 
                             // overwrite existing target file: rename source...
-                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), setattr_result);
+                            e = client->setattr(n, attr_map('n', tn->attrs.map['n']), setattr_result, false);
 
                             if (e)
                             {
@@ -4192,7 +4376,7 @@ void exec_mv(autocomplete::ACState& s)
                             if (n != tn)
                             {
                                 // ...delete target...
-                                e = client->unlink(tn, false, 0);
+                                e = client->unlink(tn, false, 0, false);
 
                                 if (e)
                                 {
@@ -4214,7 +4398,7 @@ void exec_mv(autocomplete::ACState& s)
                 {
                     if (e == API_OK)
                     {
-                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, rename_result);
+                        e = client->rename(n, tn, SYNCDEL_NONE, NodeHandle(), nullptr, false, rename_result);
 
                         if (e)
                         {
@@ -4279,7 +4463,7 @@ void exec_cp(autocomplete::ACState& s)
                         }
 
                         // ...delete target...
-                        e = client->unlink(tn, false, 0);
+                        e = client->unlink(tn, false, 0, false);
 
                         if (e)
                         {
@@ -4383,7 +4567,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodeHandle(), vo, move(tc.nn), nullptr, gNextClientTag++);
+                client->putnodes(tn->nodeHandle(), vo, move(tc.nn), nullptr, gNextClientTag++, false);
             }
             else
             {
@@ -4538,7 +4722,7 @@ void exec_get(autocomplete::ACState& s)
                     {
                         cout << "Initiating download..." << endl;
 
-                        DBTableTransactionCommitter committer(client->tctable);
+                        TransferDbCommitter committer(client->tctable);
                         auto file = ::mega::make_unique<AppFileGet>(nullptr, NodeHandle().set6byte(ph), (byte*)key, size, tm, filename, fingerprint);
                         startxfer(committer, std::move(file), *filename);
                     }
@@ -4583,7 +4767,7 @@ void exec_get(autocomplete::ACState& s)
             }
             else
             {
-                DBTableTransactionCommitter committer(client->tctable);
+                TransferDbCommitter committer(client->tctable);
 
                 // queue specified file...
                 if (n->type == FILENODE)
@@ -4651,11 +4835,11 @@ void exec_more(autocomplete::ACState& s)
     }
 }
 
-void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo);
+void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions);
 
 void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localname, Node* parent, const std::string& targetuser,
-    DBTableTransactionCommitter& committer, int& total, bool recursive, VersioningOption vo,
-    std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries)
+    TransferDbCommitter& committer, int& total, bool recursive, VersioningOption vo,
+    std::function<std::function<void()>(LocalPath)> onCompletedGenerator, bool noRetries, bool allowDuplicateVersions)
 {
 
     Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
@@ -4672,7 +4856,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             {
                 if (previousNode->type == FILENODE)
                 {
-                    if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
+                    if (!allowDuplicateVersions && fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
                     {
                         cout << "Identical file already exist. Skipping transfer of " << name << endl;
                         return;
@@ -4713,20 +4897,20 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
             else
             {
                 // upload into existing folder with the same name
-                uploadLocalFolderContent(localname, previousNode, vo);
+                uploadLocalFolderContent(localname, previousNode, vo, true);
             }
         }
         else
         {
             vector<NewNode> nn(1);
-            client->putnodes_prepareOneFolder(&nn[0], name);
+            client->putnodes_prepareOneFolder(&nn[0], name, false);
 
             gOnPutNodeTag[gNextClientTag] = [localname, vo](Node* parent) {
                 auto tmp = localname;
-                uploadLocalFolderContent(tmp, parent, vo);
+                uploadLocalFolderContent(tmp, parent, vo, true);
             };
 
-            client->putnodes(parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
+            client->putnodes(parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
         }
     }
 }
@@ -4734,10 +4918,10 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName().toPath();
+    return itemlocalname.leafName().toPath(true);  // true since it's used for upload
 }
 
-void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo)
+void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, VersioningOption vo, bool allowDuplicateVersions)
 {
 #ifndef DONT_USE_SCAN_SERVICE
 
@@ -4745,7 +4929,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
     fa->fopen(localname);
     if (fa->type != FOLDERNODE)
     {
-        cout << "Path is not a folder: " << localname.toPath();
+        cout << "Path is not a folder: " << localname.toPath(false);
         return;
     }
 
@@ -4758,25 +4942,25 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
     }
     if (r->completionResult() != SCAN_SUCCESS)
     {
-        cout << "Scan failed: " << r->completionResult() << " for path: " << localname.toPath();
+        cout << "Scan failed: " << r->completionResult() << " for path: " << localname.toPath(false);
         return;
     }
 
     std::vector<FSNode> results = r->resultNodes();
 
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
     int total = 0;
 
     for (auto& rr : results)
     {
         auto newpath = localname;
         newpath.appendWithSeparator(rr.localname, true);
-        uploadLocalPath(rr.type, rr.localname.toPath(), newpath, cloudFolder, "", committer, total, true, vo, nullptr, false);
+        uploadLocalPath(rr.type, rr.localname.toPath(false), newpath, cloudFolder, "", committer, total, true, vo, nullptr, false, allowDuplicateVersions);
     }
 
     if (gVerboseMode)
     {
-        cout << "Queued " << total << " more uploads from folder " << localname.toPath() << endl;
+        cout << "Queued " << total << " more uploads from folder " << localname.toPath(false) << endl;
     }
 
 #else
@@ -4786,7 +4970,7 @@ void uploadLocalFolderContent(const LocalPath& localname, Node* cloudFolder, Ver
     LocalPath lp(localname);
     if (da->dopen(&lp, NULL, false))
     {
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
 
         int total = 0;
         nodetype_t type;
@@ -4823,6 +5007,7 @@ void exec_put(autocomplete::ACState& s)
     if (s.extractflag("-noversion")) vo = NoVersioning;
     if (s.extractflag("-version")) vo = ClaimOldVersion;
     if (s.extractflag("-versionreplace")) vo = ReplaceOldVersion;
+    bool allowDuplicateVersions = s.extractflag("-allowduplicateversions");
 
     bool recursive = s.extractflag("-r");
 
@@ -4857,7 +5042,7 @@ void exec_put(autocomplete::ACState& s)
     // search with glob, eg *.txt
     if (da->dopen(&localname, NULL, true))
     {
-        DBTableTransactionCommitter committer(client->tctable);
+        TransferDbCommitter committer(client->tctable);
 
         nodetype_t type;
         LocalPath itemlocalname;
@@ -4869,7 +5054,7 @@ void exec_put(autocomplete::ACState& s)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo, nullptr, false);
+            uploadLocalPath(type, leafNameUtf8, itemlocalname, n, targetuser, committer, total, recursive, vo, nullptr, false, allowDuplicateVersions);
         }
     }
 
@@ -5276,7 +5461,7 @@ void exec_share(autocomplete::ACState& s)
         cout << "Shared folders:" << endl;
 
         client->proctree(client->nodeByHandle(client->rootnodes.files), &listoutshares);
-        client->proctree(client->nodeByHandle(client->rootnodes.inbox), &listoutshares);
+        client->proctree(client->nodeByHandle(client->rootnodes.vault), &listoutshares);
         client->proctree(client->nodeByHandle(client->rootnodes.rubbish), &listoutshares);
 
         for (user_map::iterator uit = client->users.begin();
@@ -5460,8 +5645,8 @@ void exec_mkdir(autocomplete::ACState& s)
             if (newname.size())
             {
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], newname);
-                client->putnodes(n->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
+                client->putnodes_prepareOneFolder(&nn[0], newname, false);
+                client->putnodes(n->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -5470,8 +5655,8 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], leafname);
-                client->putnodes(n->parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++);
+                client->putnodes_prepareOneFolder(&nn[0], leafname, false);
+                client->putnodes(n->parent->nodeHandle(), NoVersioning, move(nn), nullptr, gNextClientTag++, false);
             }
             else
             {
@@ -5743,7 +5928,7 @@ void exec_pause(autocomplete::ACState& s)
         putarg = true;
     }
 
-    DBTableTransactionCommitter committer(client->tctable);
+    TransferDbCommitter committer(client->tctable);
 
     if (getarg)
     {
@@ -7227,7 +7412,7 @@ void exec_mediainfo(autocomplete::ACState& s)
 
             case FOLDERNODE:
             case ROOTNODE:
-            case INCOMINGNODE:
+            case VAULTNODE:
             case RUBBISHNODE:
                 for (node_list::iterator m = n->children.begin(); m != n->children.end(); ++m)
                 {
@@ -7373,6 +7558,14 @@ void exec_setmaxdownloadspeed(autocomplete::ACState& s)
         cout << (done ? "Success. " : "Failed. ");
     }
     cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
+}
+
+void exec_setmaxloglinesize(autocomplete::ACState& s)
+{
+    if (s.words.size() > 1)
+    {
+        SimpleLogger::maxPayloadLogSize = atoi(s.words[1].s.c_str());
+    }
 }
 
 void exec_drivemonitor(autocomplete::ACState& s)
@@ -7934,11 +8127,11 @@ void DemoApp::whyamiblocked_result(int code)
         }
         else if (code == 200)
         {
-            reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
+            reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
         }
         else if (code == 300)
         {
-            reason = "Your account has been suspended due to copyright violations. Please check your email inbox.";
+            reason = "Your account was terminated due to a breach of MEGA's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
         }
         else if (code == 400)
         {
@@ -8162,7 +8355,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, move(nn), nullptr, client->restag);
+        client->putnodes(n->nodeHandle(), UseLocalVersioningFlag, move(nn), nullptr, client->restag, false);
     }
     else
     {
@@ -8385,6 +8578,74 @@ void DemoApp::sequencetag_update(const string& st)
     }
 }
 
+// set addition/update/removal
+void DemoApp::sets_updated(Set** s, int count)
+{
+    cout << (count == 1 ? string("1 Set") : (std::to_string(count) + " Sets")) << " received" << endl;
+
+    if (!s) return;
+
+    for (int i = 0; i < count; i++)
+    {
+        Set* set = s[i];
+        cout << "Set " << toHandle(set->id());
+        if (set->hasChanged(Set::CH_NEW))
+        {
+            cout << " has been added";
+        }
+        else if (set->hasChanged(Set::CH_REMOVED))
+        {
+            cout << " has been removed";
+        }
+        else
+        {
+            if (set->hasChanged(Set::CH_NAME))
+            {
+                cout << endl << "\tchanged name";
+            }
+            if (set->hasChanged(Set::CH_COVER))
+            {
+                cout << endl << "\tchanged cover";
+            }
+        }
+        cout << endl;
+    }
+}
+
+// element addition/update/removal
+void DemoApp::setelements_updated(SetElement** el, int count)
+{
+    cout << (count == 1 ? string("1 Element") : (std::to_string(count) + " Elements")) << " received" << endl;
+
+    if (!el) return;
+
+    for (int i = 0; i < count; i++)
+    {
+        SetElement* elem = el[i];
+        cout << "Element " << toHandle(elem->id());
+        if (elem->hasChanged(SetElement::CH_EL_NEW))
+        {
+            cout << " has been added";
+        }
+        else if (elem->hasChanged(Set::CH_REMOVED))
+        {
+            cout << " has been removed";
+        }
+        else
+        {
+            if (elem->hasChanged(SetElement::CH_EL_NAME))
+            {
+                cout << endl << "\tchanged name";
+            }
+            if (elem->hasChanged(SetElement::CH_EL_ORDER))
+            {
+                cout << endl << "\tchanged order";
+            }
+        }
+        cout << endl;
+    }
+}
+
 void DemoApp::enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, std::unique_ptr<BusinessPlan>)
 {
     // FIXME: implement
@@ -8495,7 +8756,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
         cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
         reportNodeStorage(&ad->storage[client->rootnodes.files.as8byte()], "/");
-        reportNodeStorage(&ad->storage[client->rootnodes.inbox.as8byte()], "//in");
+        reportNodeStorage(&ad->storage[client->rootnodes.vault.as8byte()], "//in");
         reportNodeStorage(&ad->storage[client->rootnodes.rubbish.as8byte()], "//bin");
     }
 
@@ -8724,18 +8985,6 @@ void DemoApp::dismissbanner_result(error e)
     }
 }
 
-void DemoApp::backupremove_result(const Error &e, handle backupId)
-{
-    if (e != API_OK)
-    {
-        cout << "Removal of backup " << toHandle(backupId) << " failed: " << errorstring(e) <<endl;
-    }
-    else
-    {
-        cout << "Backup " << toHandle(backupId) << " removed successfully" << endl;
-    }
-}
-
 #ifndef NO_READLINE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
@@ -8800,6 +9049,9 @@ void megacli()
     rl_attempted_completion_function = my_rl_completion;
 
     rl_save_prompt();
+
+    // Initialize history.
+    using_history();
 
 #elif defined(WIN32) && defined(NO_READLINE)
 
@@ -9378,7 +9630,7 @@ void exec_syncadd(autocomplete::ACState& s)
     // Create a suitable sync config.
     auto config =
       SyncConfig(sourcePath,
-                 named ? syncname : sourcePath.leafName().toPath(),
+                 named ? syncname : sourcePath.leafName().toPath(true),
                  NodeHandle().set6byte(targetNode->nodehandle),
                  targetNode->displaypath(),
                  0,
@@ -9426,7 +9678,7 @@ void exec_syncadd(autocomplete::ACState& s)
 
     // Try and add the new sync.
 	// All validation is performed in this function.
-    client->addsync(config, false, sync_completion, "");
+    client->addsync(move(config), false, sync_completion, "");
 }
 
 void exec_syncrename(autocomplete::ACState& s)
@@ -9618,7 +9870,7 @@ void exec_synclist(autocomplete::ACState& s)
 
         // Display source/target mapping.
         cout << "  Mapping: "
-            << config.mLocalPath.toPath()
+            << config.mLocalPath.toPath(false)
             << " -> "
             << cloudpath
             << (!cloudnode || cloudpath != config.mOriginalPathOfRemoteRootNode ? " (originally " + config.mOriginalPathOfRemoteRootNode + ")" : "")
@@ -9696,10 +9948,10 @@ void exec_synclist(autocomplete::ACState& s)
                 }
                 if (!c.localPath.empty() || !c.clashingLocalNames.empty())
                 {
-                    cout << "  Local Path conflict at " << c.localPath.toPath() << ": ";
+                    cout << "  Local Path conflict at " << c.localPath.toPath(false) << ": ";
                     for (auto& n : c.clashingLocalNames)
                     {
-                        cout << n.toPath() << " ";
+                        cout << n.toPath(false) << " ";
                     }
                     cout << "\n";
                 }
@@ -9976,6 +10228,246 @@ void exec_syncxable(autocomplete::ACState& s)
                 });
         break;
     }
+    }
+}
+
+void printSet(const Set* s)
+{
+    if (!s)
+    {
+        cout << "Set not found" << endl;
+        return;
+    }
+
+    cout << "Set " << toHandle(s->id()) << endl;
+    cout << "\tkey: " << Base64::btoa(s->key()) << endl;
+    cout << "\tuser: " << toHandle(s->user()) << endl;
+    cout << "\tts: " << s->ts() << endl;
+    cout << "\tname: " << s->name() << endl;
+    handle cover = s->cover();
+    cout << "\tcover: " << (cover == UNDEF ? "(no cover)" : toHandle(cover)) << endl;
+    cout << endl;
+}
+void printElements(const map<handle, SetElement>* elems)
+{
+    if (!elems)
+    {
+        cout << "No elements" << endl;
+        return;
+    }
+
+    for (const auto& p : *elems)
+    {
+        const SetElement& el = p.second;
+        cout << "\t\telement " << toHandle(el.id()) << endl;
+        cout << "\t\t\tset " << toHandle(el.set()) << endl;
+        cout << "\t\t\tnode: " << toNodeHandle(el.node()) << endl;
+        cout << "\t\t\tname: " << el.name() << endl;
+        cout << "\t\t\torder: " << el.order() << endl;
+        cout << "\t\t\tkey: " << (el.key().empty() ? "(no key)" : Base64::btoa(el.key())) << endl;
+        cout << "\t\t\tts: " << el.ts() << endl;
+    }
+    cout << endl;
+}
+
+void exec_setsandelements(autocomplete::ACState& s)
+{
+    // Are we logged in?
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to manipulate Sets."
+             << endl;
+        return;
+    }
+
+    const auto command = s.words[1].s;
+
+    if (command == "list")
+    {
+        const auto& sets = client->getSets();
+        for (auto& set : sets)
+        {
+            printSet(&set.second);
+            printElements(client->getSetElements(set.first));
+        }
+    }
+
+    else if (command == "newset")
+    {
+        const char* name = (s.words.size() == 3) ? s.words[2].s.c_str() : nullptr;
+        Set newset;
+        if (name)
+        {
+            newset.setName(name);
+        }
+
+        client->putSet(move(newset), [](Error e, const Set* s)
+            {
+                if (e == API_OK && s)
+                {
+                    cout << "Created Set with id " << toHandle(s->id()) << endl;
+                    printSet(s);
+                }
+                else
+                {
+                    cout << "Error creating new Set " << e << endl;
+                }
+            });
+    }
+
+    else if (command == "updateset")
+    {
+        handle id = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
+
+        Set updset;
+        updset.setId(id);
+        string buf;
+        if (s.extractflagparam("-n", buf) || s.extractflag("-n"))
+        {
+            updset.setName(move(buf));
+        }
+        buf.clear();
+        if (s.extractflagparam("-c", buf) || s.extractflag("-c"))
+        {
+            if (buf.empty())
+            {
+                updset.setCover(UNDEF);
+            }
+            else
+            {
+                handle hc = 0;
+                Base64::atob(buf.c_str(), (byte*)&hc, MegaClient::SETELEMENTHANDLE);
+                updset.setCover(hc);
+            }
+        }
+
+        client->putSet(move(updset), [id](Error e, const Set*)
+            {
+                if (e == API_OK)
+                {
+                    cout << "Updated Set " << toHandle(id) << endl;
+                    printSet(client->getSet(id));
+                    printElements(client->getSetElements(id));
+                }
+                else
+                {
+                    cout << "Error updating Set " << toHandle(id) << ' ' << e << endl;
+                }
+            });
+    }
+
+    else if (command == "removeset")
+    {
+        handle id = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
+
+        client->removeSet(id, [id](Error e)
+            {
+                if (e == API_OK)
+                    cout << "Removed Set " << toHandle(id) << endl;
+                else
+                    cout << "Error removing Set " << toHandle(id) << ' ' << e << endl;
+            });
+    }
+
+    else if (command == "fetchset")
+    {
+        handle id = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&id, MegaClient::SETHANDLE);
+
+        client->fetchSet(id, [id](Error e, Set* s, map<handle, SetElement>* els)
+            {
+                if (e == API_OK)
+                {
+                    cout << "Fetched Set " << toHandle(id) << endl;
+                    printSet(s);
+                    printElements(els);
+                }
+                else
+                {
+                    cout << "Error fetching Set " << toHandle(id) << ' ' << e << endl;
+                }
+            });
+    }
+
+    else if (command == "removeelement")
+    {
+        handle sid = 0, eid = 0; // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&sid, MegaClient::SETHANDLE);
+        Base64::atob(s.words[3].s.c_str(), (byte*)&eid, MegaClient::SETELEMENTHANDLE);
+
+        client->removeSetElement(sid, eid, [sid, eid](Error e)
+            {
+                if (e == API_OK)
+                    cout << "Removed Element " << toHandle(eid) << " from Set " << toHandle(sid) << endl;
+                else
+                    cout << "Error removing Element " << toHandle(eid) << ' ' << e << endl;
+            });
+    }
+
+    else // create or update element
+    {
+        handle setId = 0;   // must have remaining bits set to 0
+        handle node = 0;    // must have remaining bits set to 0
+        handle elemId = 0;  // must have remaining bits set to 0
+        Base64::atob(s.words[2].s.c_str(), (byte*)&setId, MegaClient::SETHANDLE);
+
+        bool createNew = command == "newelement";
+        if (createNew)
+        {
+            Base64::atob(s.words[3].s.c_str(), (byte*)&node, MegaClient::NODEHANDLE);
+            elemId = UNDEF;
+        }
+
+        else // "updateelement"
+        {
+            node = UNDEF;
+            Base64::atob(s.words[3].s.c_str(), (byte*)&elemId, MegaClient::SETELEMENTHANDLE);
+        }
+
+        SetElement el;
+        el.setSet(setId);
+        el.setId(elemId);
+        el.setNode(node);
+
+        string param;
+        if (s.extractflagparam("-n", param) || s.extractflag("-n"))
+        {
+            el.setName(move(param));
+        }
+        param.clear();
+        if (s.extractflagparam("-o", param))
+        {
+            el.setOrder(atoll(param.c_str()));
+            if (el.order() == 0 && param != "0")
+            {
+                cout << "Invalid order: " << param << endl;
+                return;
+            }
+        }
+
+        client->putSetElement(move(el), [createNew, setId, elemId](Error e, const SetElement* el)
+            {
+                if (createNew)
+                {
+                    if (e == API_OK && el)
+                        cout << "Created Element " << toHandle(el->id()) << " in Set " << toHandle(setId) << endl;
+                    else
+                        cout << "Error creating new Element " << e << endl;
+                }
+                else
+                {
+                    if (e == API_OK)
+                    {
+                        cout << "Updated Element " << toHandle(elemId) << " in Set " << toHandle(setId) << endl;
+                    }
+                    else
+                    {
+                        cout << "Error updating Element " << toHandle(elemId) << ' ' << e << endl;
+                    }
+                }
+            });
     }
 }
 

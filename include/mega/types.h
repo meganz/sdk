@@ -162,7 +162,7 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
+typedef enum { REQ_READY, REQ_GET_URL, REQ_PREPARED, REQ_UPLOAD_PREPARED_BUT_WAIT,
                REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED,
                REQ_INFLIGHT,
                REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO,
@@ -344,7 +344,7 @@ typedef enum {
     FILENODE = 0,    // FILE - regular file nodes
     FOLDERNODE,      // FOLDER - regular folder nodes
     ROOTNODE,        // ROOT - the cloud drive root node
-    INCOMINGNODE,    // INCOMING - inbox
+    VAULTNODE,       // VAULT - vault, for "My backups" and other special folders
     RUBBISHNODE      // RUBBISH - rubbish bin
 } nodetype_t;
 
@@ -398,7 +398,7 @@ typedef uint64_t nameid;
 // RDONLY - cannot add, rename or delete
 // RDWR - cannot rename or delete
 // FULL - all operations that do not require ownership permitted
-// OWNER - node is in caller's ROOT, INCOMING or RUBBISH trees
+// OWNER - node is in caller's ROOT, VAULT or RUBBISH trees
 typedef enum { ACCESS_UNKNOWN = -1, RDONLY = 0, RDWR, FULL, OWNER, OWNERPRELOGIN } accesslevel_t;
 
 // operations for outgoing pending contacts
@@ -467,7 +467,7 @@ enum SyncError {
     REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
     VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
     LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
-    ACCOUNT_BLOCKED= 23,                    // Account blocked
+    ACCOUNT_BLOCKED = 23,                   // Account blocked
     UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
@@ -476,16 +476,17 @@ enum SyncError {
     BACKUP_MODIFIED = 29,                   // Backup has been externally modified.
     BACKUP_SOURCE_NOT_BELOW_DRIVE = 30,     // Backup source path not below drive path.
     SYNC_CONFIG_WRITE_FAILURE = 31,         // Unable to write sync config to disk.
-    COULD_NOT_MOVE_CLOUD_NODES = 32,        // rename() failed
-    COULD_NOT_CREATE_IGNORE_FILE = 33,      // Couldn't create a sync's initial ignore file.
-    SYNC_CONFIG_READ_FAILURE = 34,          // Couldn't read sync configs from disk.
-    UNKNOWN_DRIVE_PATH = 35,                // Sync's drive path isn't known.
-    INVALID_SCAN_INTERVAL = 36,             // The user's specified an invalid scan interval.
-    NOTIFICATION_SYSTEM_UNAVAILABLE = 37,   // Filesystem notification subsystem has encountered an unrecoverable error.
-    UNABLE_TO_ADD_WATCH = 38,               // Unable to add a filesystem watch.
-    UNABLE_TO_RETRIEVE_ROOT_FSID = 39,      // Unable to retrieve a sync root's FSID.
-    UNABLE_TO_OPEN_DATABASE = 40,           // Unable to open state cache database.
-    INSUFFICIENT_DISK_SPACE = 41,           // Insufficient space for download.
+    ACTIVE_SYNC_SAME_PATH = 32,             // There's a synced node at the path to be synced
+    COULD_NOT_MOVE_CLOUD_NODES = 33,        // rename() failed
+    COULD_NOT_CREATE_IGNORE_FILE = 34,      // Couldn't create a sync's initial ignore file.
+    SYNC_CONFIG_READ_FAILURE = 35,          // Couldn't read sync configs from disk.
+    UNKNOWN_DRIVE_PATH = 36,                // Sync's drive path isn't known.
+    INVALID_SCAN_INTERVAL = 37,             // The user's specified an invalid scan interval.
+    NOTIFICATION_SYSTEM_UNAVAILABLE = 38,   // Filesystem notification subsystem has encountered an unrecoverable error.
+    UNABLE_TO_ADD_WATCH = 39,               // Unable to add a filesystem watch.
+    UNABLE_TO_RETRIEVE_ROOT_FSID = 40,      // Unable to retrieve a sync root's FSID.
+    UNABLE_TO_OPEN_DATABASE = 41,           // Unable to open state cache database.
+    INSUFFICIENT_DISK_SPACE = 42,           // Insufficient space for download.
 };
 
 enum SyncWarning {
@@ -606,6 +607,18 @@ public:
     void insert(iterator i, T t)                         { applyErase(); mDeque.insert(i, E(t)); }
     T& operator[](size_t n)                              { applyErase(); return mDeque[n]; }
 
+};
+
+template <class T1, class T2> class mapWithLookupExisting : public map<T1, T2>
+{
+    typedef map<T1, T2> base; // helps older gcc
+public:
+    T2* lookupExisting(T1 key)
+    {
+        auto it = base::find(key);
+        if (it == base::end()) return nullptr;
+        return &it->second;
+    }
 };
 
 // map a request tag with pending dbids of transfers and files
@@ -754,65 +767,6 @@ typedef enum {
 } encryptionsetting_t;
 
 typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
-
-#ifdef ENABLE_CHAT
-typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
-typedef pair<handle, privilege_t> userpriv_pair;
-typedef vector< userpriv_pair > userpriv_vector;
-typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cacheable
-{
-    enum {
-        FLAG_OFFSET_ARCHIVE = 0
-    };
-
-    handle id;
-    privilege_t priv;
-    int shard;
-    userpriv_vector *userpriv;
-    bool group;
-    string title;        // byte array
-    string unifiedKey;   // byte array
-    handle ou;
-    m_time_t ts;     // creation time
-    attachments_map attachedNodes;
-    bool publicchat;  // whether the chat is public or private
-    bool meeting;     // chat is meeting room
-
-private:        // use setter to modify these members
-    byte flags;     // currently only used for "archive" flag at first bit
-
-public:
-    int tag;    // source tag, to identify own changes
-
-    TextChat();
-    ~TextChat();
-
-    bool serialize(string *d);
-    static TextChat* unserialize(class MegaClient *client, string *d);
-
-    void setTag(int tag);
-    int getTag();
-    void resetTag();
-
-    struct
-    {
-        bool attachments : 1;
-        bool flags : 1;
-        bool mode : 1;
-    } changed;
-
-    // return false if failed
-    bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
-    bool setFlag(bool value, uint8_t offset = 0xFF);
-    bool setFlags(byte newFlags);
-    bool isFlagSet(uint8_t offset) const;
-    bool setMode(bool publicchat);
-
-};
-typedef vector<TextChat*> textchat_vector;
-typedef map<handle, TextChat*> textchat_map;
-#endif
 
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
 
@@ -1054,6 +1008,51 @@ typedef enum
 }
 BackupType;
 
+typedef mega::byte ChatOptions_t;
+struct ChatOptions
+{
+public:
+    enum: ChatOptions_t
+    {
+        kEmpty         = 0x00,
+        kSpeakRequest  = 0x01,
+        kWaitingRoom   = 0x02,
+        kOpenInvite    = 0x04,
+    };
+
+    // update with new options added, to get the max value allowed, with regard to the existing options
+    static constexpr ChatOptions_t maxValidValue = kSpeakRequest | kWaitingRoom | kOpenInvite;
+
+    ChatOptions(): mChatOptions(ChatOptions::kEmpty){}
+    ChatOptions(ChatOptions_t options): mChatOptions(options){}
+    ChatOptions(bool speakRequest, bool waitingRoom , bool openInvite)
+        : mChatOptions(static_cast<ChatOptions_t>((speakRequest ? kSpeakRequest : 0)
+                                            | (waitingRoom ? kWaitingRoom : 0)
+                                            | (openInvite ? kOpenInvite : 0)))
+    {
+    }
+
+    // setters/modifiers
+    void set(ChatOptions_t val)             { mChatOptions = val; }
+    void add(ChatOptions_t val)             { mChatOptions = mChatOptions | val; }
+    void remove(ChatOptions_t val)          { mChatOptions = mChatOptions & static_cast<ChatOptions_t>(~val); }
+    void updateSpeakRequest(bool enabled)   { enabled ? add(kSpeakRequest)  : remove(kSpeakRequest);}
+    void updateWaitingRoom(bool enabled)    { enabled ? add(kWaitingRoom)   : remove(kWaitingRoom);}
+    void updateOpenInvite(bool enabled)     { enabled ? add(kOpenInvite)    : remove(kOpenInvite);}
+
+    // getters
+    ChatOptions_t value() const             { return mChatOptions; }
+    bool areEqual(ChatOptions_t val)        { return mChatOptions == val; }
+    bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
+    bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
+    bool openInvite() const                 { return mChatOptions & kOpenInvite; }
+    bool isValid()                          { return mChatOptions >= kEmpty && mChatOptions <= maxValidValue; }
+    bool isEmpty()                          { return mChatOptions == kEmpty; }
+
+protected:
+    ChatOptions_t mChatOptions = kEmpty;
+};
+
 enum VersioningOption
 {
     // In the cases where these options are specified for uploads, the `ov` flag will be
@@ -1108,6 +1107,7 @@ enum class PathProblem : unsigned short {
     UndecryptedCloudNode,
     WaitingForScanningToComplete,
     WaitingForAnotherMoveToComplete,
+    SourceWasMovedElsewhere,
 
     PathProblem_LastPlusOne
 };
@@ -1129,11 +1129,20 @@ public:
     // create with a token available to be cancelled
     explicit CancelToken(bool value)
         : flag(std::make_shared<bool>(value))
-    {}
+    {
+        if (value)
+        {
+            ++tokensCancelledCount;
+        }
+    }
 
     void cancel()
     {
-        if (flag) *flag = true;
+        if (flag)
+        {
+            *flag = true;
+            ++tokensCancelledCount;
+        }
     }
 
     bool isCancelled() const
@@ -1144,6 +1153,21 @@ public:
     bool exists()
     {
         return !!flag;
+    }
+
+    static std::atomic<uint32_t> tokensCancelledCount;
+
+    static bool haveAnyCancelsOccurredSince(uint32_t& lastKnownCancelCount)
+    {
+        if (lastKnownCancelCount == tokensCancelledCount.load())
+        {
+            return false;
+        }
+        else
+        {
+            lastKnownCancelCount = tokensCancelledCount.load();
+            return true;
+        }
     }
 };
 

@@ -124,8 +124,27 @@ public:
 class MegaErrorPrivate : public MegaError
 {
 public:
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode = MegaError::API_OK);
+
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
+    MegaErrorPrivate(int errorCode, SyncError syncError);
+
+#ifdef ENABLE_SYNC
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
+    MegaErrorPrivate(int errorCode, MegaSync::Error syncError);
+#endif
+    /**
+     * @param errorCode: API MegaError API_* value or internal ErrorCodes enum
+     */
     MegaErrorPrivate(int errorCode, long long value);
+
     MegaErrorPrivate(const Error &err);
     MegaErrorPrivate(const MegaError &megaError);
     ~MegaErrorPrivate() override;
@@ -166,7 +185,7 @@ public:
         assert(type < FILENAME_ANOMALY_NONE);
 
         mReporter.anomalyDetected(static_cast<MegaAnomalyType>(type),
-                                  localPath.toPath().c_str(),
+                                  localPath.toPath(false).c_str(),
                                   remotePath.c_str());
     }
 
@@ -227,7 +246,7 @@ public:
     }
 };
 
-class MegaRecursiveOperation
+class MegaRecursiveOperation : public MegaTransferListener
 {
 public:
     MegaRecursiveOperation(MegaClient* c) : mMegaapiThreadClient(c) {}
@@ -240,10 +259,17 @@ public:
     // check if user has cancelled recursive operation by using cancelToken of associated transfer
     bool isCancelledByFolderTransferToken();
 
-    bool allSubtransfersResolved()
-    {
-        return  pendingTransfers == 0;
-    }
+    // check if we have received onTransferFinishCallback for every transfersTotalCount
+    bool allSubtransfersResolved()              { return  transfersFinishedCount >= transfersTotalCount; }
+
+    // setter/getter for transfersTotalCount
+    void setTransfersTotalCount (size_t count)  { transfersTotalCount = count; }
+    size_t getTransfersTotalCount ()            { return transfersTotalCount; }
+
+    // ---- MegaTransferListener methods ---
+    void onTransferStart(MegaApi *, MegaTransfer *t) override;
+    void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
+    void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
 
 protected:
     MegaApiImpl *megaApi;
@@ -251,8 +277,22 @@ protected:
     MegaTransferListener *listener;
     int recursive;
     int tag;
-    std::atomic<uint64_t> pendingTransfers{0};
+
+    // number of sub-transfers finished with an error
     uint64_t mIncompleteTransfers = 0;
+
+    // number of sub-transfers expected to be transferred (size of TransferQueue provided to sendPendingTransfers)
+    // in case we detect that user cancelled recursive operation (via cancel token) at sendPendingTransfers,
+    // those sub-transfers not processed yet (startxfer not called) will be discounted from transfersTotalCount
+    size_t transfersTotalCount = 0;
+
+    // number of sub-transfers started, onTransferStart received (startxfer called, and file injected into SDK transfer subsystem)
+    size_t transfersStartedCount = 0;
+
+    // number of sub-transfers finished, onTransferFinish received
+    size_t transfersFinishedCount = 0;
+
+    // flag to notify STAGE_TRANSFERRING_FILES to apps, when all sub-transfers have been queued in SDK core already
     bool startedTransferring = false;
 
     // If the thread was started, it queues a completion before exiting
@@ -270,26 +310,23 @@ protected:
     // it's only safe to use this client ptr when on the MegaApiImpl's thread
     MegaClient* megaapiThreadClient();
 
+    // called from onTransferFinish for the last sub-transfer
+    void complete(Error e, bool cancelledByUser = false);
+
 private:
     // client ptr to only be used from the MegaApiImpl's thread
     MegaClient* mMegaapiThreadClient;
 };
 
 class TransferQueue;
-class MegaFolderUploadController : public MegaTransferListener, public MegaRecursiveOperation, public std::enable_shared_from_this<MegaFolderUploadController>
+class MegaFolderUploadController : public MegaRecursiveOperation, public std::enable_shared_from_this<MegaFolderUploadController>
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
     virtual ~MegaFolderUploadController();
-    void complete(Error e, bool cancelledByUser = false);
 
     // ---- MegaRecursiveOperation methods ---
     void start(MegaNode* node) override;
-
-    // ---- MegaTransferListener methods ---
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
 
 protected:
     unique_ptr<FileSystemAccess> fsaccess;
@@ -320,10 +357,22 @@ protected:
         NewNode newnode;
 
         // files to upload to this folder
-        vector<LocalPath> files;
+        struct FileRecord {
+            LocalPath lp;
+            FileFingerprint fp;
+            FileRecord(const LocalPath& a, const FileFingerprint& b) : lp(a), fp(b) {}
+        };
+        vector<FileRecord> files;
 
         // subfolders
         vector<unique_ptr<Tree>> subtrees;
+
+        void recursiveCountFolders(unsigned& existing, unsigned& total)
+        {
+            total += 1;
+            existing += megaNode ? 1 : 0;
+            for (auto& n : subtrees) { n->recursiveCountFolders(existing, total); }
+        }
     };
     Tree mUploadTree;
 
@@ -333,7 +382,7 @@ protected:
      * This happens on the worker thread.
      */
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
-    scanFolder_result scanFolder(Tree& tree, LocalPath& localPath);
+    scanFolder_result scanFolder(Tree& tree, LocalPath& localPath, uint32_t& foldercount, uint32_t& filecount);
 
     // Gathers up enough (but not too many) newnode records that are all descendants of a single folder
     // and can be created in a single operation.
@@ -342,7 +391,7 @@ protected:
     batchResult createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel);
 
     // Iterate through all pending files of each uploaded folder, and start all upload transfers
-    void genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue);
+    bool genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue);
 };
 
 
@@ -488,20 +537,14 @@ public:
     void setValid(bool value);
 };
 
-class MegaFolderDownloadController : public MegaTransferListener, public MegaRecursiveOperation, public std::enable_shared_from_this<MegaFolderDownloadController>
+class MegaFolderDownloadController : public MegaRecursiveOperation, public std::enable_shared_from_this<MegaFolderDownloadController>
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
     virtual ~MegaFolderDownloadController();
-    void complete(Error e, bool cancelledByUser = false);
 
     // ---- MegaRecursiveOperation methods ---
     void start(MegaNode *node) override;
-
-    // ---- MegaTransferListener methods ---
-    void onTransferStart(MegaApi *, MegaTransfer *t) override;
-    void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
-    void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
 
 protected:
     unique_ptr<FileSystemAccess> fsaccess;
@@ -520,7 +563,7 @@ protected:
 
     // Scan entire tree recursively, and retrieve folder structure and files to be downloaded.
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
-    scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
+    scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType, unsigned& fileAddedCount);
 
     // Create all local directories in one shot. This happens on the worker thread.
     Error createFolder();
@@ -657,6 +700,90 @@ class MegaNodePrivate : public MegaNode, public Cacheable
 };
 
 
+class MegaSetPrivate : public MegaSet
+{
+public:
+    MegaSetPrivate(const Set& s) : mId(s.id()), mUser(s.user()), mTs(s.ts()), mName(s.name()), mCover(s.cover()), mChanges(s.changes()) {}
+
+    MegaHandle id() const override { return mId; }
+    MegaHandle user() const override { return mUser; }
+    int64_t ts() const override { return mTs; }
+    const char* name() const override { return mName.c_str(); }
+    MegaHandle cover() const override { return mCover; }
+
+    bool hasChanged(int changeType) const override;
+
+    MegaSet* copy() const override { return new MegaSetPrivate(*this); }
+
+private:
+    MegaHandle mId;
+    MegaHandle mUser;
+    m_time_t mTs;
+    string mName;
+    MegaHandle mCover;
+    std::bitset<CHANGE_TYPE_SIZE> mChanges;
+};
+
+
+class MegaSetListPrivate : public MegaSetList
+{
+public:
+    MegaSetListPrivate(const Set *const* sets, int count); // ptr --> const ptr --> const Set
+    MegaSetListPrivate(const map<handle, Set>& sets);
+
+    void add(MegaSetPrivate&& s);
+    MegaSetList* copy() const override { return new MegaSetListPrivate(*this); }
+
+    const MegaSet* get(unsigned i) const override { return i < size() ? &mSets[i] : nullptr; }
+    unsigned size() const override { return (unsigned)mSets.size(); }
+
+private:
+    vector<MegaSetPrivate> mSets;
+};
+
+
+class MegaSetElementPrivate : public MegaSetElement
+{
+public:
+    MegaSetElementPrivate(const SetElement& el) : mId(el.id()), mNode(el.node()), mOrder(el.order()), mTs(el.ts()), mName(el.name()) {}
+
+    MegaHandle id() const override { return mId; }
+    MegaHandle node() const override { return mNode; }
+    int64_t order() const override { return mOrder; }
+    int64_t ts() const override { return mTs; }
+    const char* name() const override { return mName.c_str(); }
+
+    bool hasChanged(int changeType) const override;
+
+    virtual MegaSetElement* copy() const override { return new MegaSetElementPrivate(*this); }
+
+private:
+    MegaHandle mId;
+    MegaHandle mNode;
+    int64_t mOrder;
+    m_time_t mTs;
+    string mName;
+    std::bitset<CHANGE_TYPE_ELEM_SIZE> mChanges;
+};
+
+
+class MegaSetElementListPrivate : public MegaSetElementList
+{
+public:
+    MegaSetElementListPrivate(const SetElement *const* elements, int count); // ptr --> const ptr --> const SetElement
+    MegaSetElementListPrivate(const map<handle, SetElement>* elements);
+
+    void add(MegaSetElementPrivate&& el);
+    MegaSetElementList* copy() const override { return new MegaSetElementListPrivate(*this); }
+
+    const MegaSetElement* get(unsigned i) const override { return i < size() ? &mElements[i] : nullptr; }
+    unsigned size() const override { return (unsigned)mElements.size(); }
+
+private:
+    vector<MegaSetElementPrivate> mElements;
+};
+
+
 class MegaUserPrivate : public MegaUser
 {
 	public:
@@ -688,25 +815,26 @@ class MegaUserAlertPrivate : public MegaUserAlert
 public:
     MegaUserAlertPrivate(UserAlert::Base* user, MegaClient* mc);
     //MegaUserAlertPrivate(const MegaUserAlertPrivate&); // default copy works for this type
-    virtual MegaUserAlert* copy() const;
+    MegaUserAlert* copy() const override;
 
-    virtual unsigned getId() const;
-    virtual bool getSeen() const;
-    virtual bool getRelevant() const;
-    virtual int getType() const;
-    virtual const char *getTypeString() const;
-    virtual MegaHandle getUserHandle() const;
-    virtual MegaHandle getNodeHandle() const;
-    virtual const char* getEmail() const;
-    virtual const char* getPath() const;
-    virtual const char* getName() const;
-    virtual const char* getHeading() const;
-    virtual const char* getTitle() const;
-    virtual int64_t getNumber(unsigned index) const;
-    virtual int64_t getTimestamp(unsigned index) const;
-    virtual const char* getString(unsigned index) const;
-    virtual MegaHandle getHandle(unsigned index) const;
-    virtual bool isOwnChange() const;
+    unsigned getId() const override;
+    bool getSeen() const override;
+    bool getRelevant() const override;
+    int getType() const override;
+    const char *getTypeString() const override;
+    MegaHandle getUserHandle() const override;
+    MegaHandle getNodeHandle() const override;
+    const char* getEmail() const override;
+    const char* getPath() const override;
+    const char* getName() const override;
+    const char* getHeading() const override;
+    const char* getTitle() const override;
+    int64_t getNumber(unsigned index) const override;
+    int64_t getTimestamp(unsigned index) const override;
+    const char* getString(unsigned index) const override;
+    MegaHandle getHandle(unsigned index) const override;
+    bool isOwnChange() const override;
+    MegaHandle getPcrHandle() const override;
 
 protected:
     unsigned id;
@@ -719,6 +847,7 @@ protected:
     handle userHandle;
     string email;
     handle nodeHandle;
+    handle mPcrHandle = UNDEF;
     string nodePath;
     string nodeName;
     vector<int64_t> numbers;
@@ -912,11 +1041,14 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         MegaCancelToken* getCancelToken() override;
         bool isRecursive() const { return recursiveOperation.get() != nullptr; }
-        void completeRecursiveOperation(Error e);
-
 
         CancelToken& accessCancelToken() { return mCancelToken.cancelFlag; }
 
+        // for uploads, we fingerprint the file before queueing
+        // as that way, it can be done without the main mutex locked
+        error fingerprint_error = API_OK;
+        nodetype_t fingerprint_filetype = TYPE_UNKNOWN;
+        FileFingerprint fingerprint_onDisk;
 
 protected:
         int type;
@@ -966,11 +1098,13 @@ protected:
         const char* appData;
         uint8_t mStage;
 
+        bool mTargetOverride;
+
+    public:
         // use shared_ptr here so callbacks can use a weak_ptr
         // to protect against the operation being cancelled in the meantime
         shared_ptr<MegaRecursiveOperation> recursiveOperation;
 
-        bool mTargetOverride;
 };
 
 class MegaTransferDataPrivate : public MegaTransferData
@@ -1341,6 +1475,12 @@ class MegaRequestPrivate : public MegaRequest
         MegaRecentActionBucketList *getRecentActions() const override;
         void setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList);
 
+        MegaSet* getMegaSet() const override;
+        void setMegaSet(std::unique_ptr<MegaSet> s);
+
+        MegaSetElementList* getMegaSetElementList() const override;
+        void setMegaSetElementList(std::unique_ptr<MegaSetElementList> els);
+
 protected:
         std::shared_ptr<AccountDetails> accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1391,6 +1531,9 @@ protected:
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
+        unique_ptr<MegaSet> mMegaSet;
+        unique_ptr<MegaSetElementList> mMegaSetElementList;
+
 #ifdef ENABLE_SYNC
         unique_ptr<MegaSyncStallList> mSyncStallList;
 #endif // ENABLE_SYNC
@@ -1695,6 +1838,7 @@ public:
     MegaHandle getOriginatingUser() const override;
     const char *getTitle() const override;
     const char *getUnifiedKey() const override;
+    unsigned char getChatOptions() const override;
     int64_t getCreationTime() const override;
     bool isArchived() const override;
     bool isPublicChat() const override;
@@ -1720,6 +1864,7 @@ private:
     bool publicchat;
     int64_t ts;
     bool meeting;
+    ChatOptions_t chatOptions;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList
@@ -2221,6 +2366,7 @@ class TransferQueue
         MegaTransferPrivate * pop();
         bool empty();
         size_t size();
+        void clear();
 
         /**
          * @brief pops and returns transfer up to the designated one
@@ -2266,8 +2412,8 @@ class MegaSyncStallPrivate : public MegaSyncStall
             {
                 if (lpConverted[0].empty() && lpConverted[1].empty())
                 {
-                    lpConverted[0] = info.localPath1.localPath.toPath();
-                    lpConverted[1] = info.localPath2.localPath.toPath();
+                    lpConverted[0] = info.localPath1.localPath.toPath(false);
+                    lpConverted[1] = info.localPath2.localPath.toPath(false);
                 }
                 if (index == 0) return lpConverted[0].c_str();
                 if (index == 1) return lpConverted[1].c_str();
@@ -2318,6 +2464,19 @@ class MegaSyncStallPrivate : public MegaSyncStall
                 if (index == 1) return int(info.localPath2.problem);
             }
             return -1;
+        }
+
+        bool couldSuggestIgnoreThisPath(bool cloudSide, int index) const override
+        {
+            if (info.reason != SyncWaitReason::FileIssue) return false;
+
+            int problem = pathProblem(cloudSide, index);
+
+            return problem == DetectedHardLink ||
+                   problem == DetectedSymlink ||
+                   problem == DetectedSpecialFile ||
+                   problem == FilesystemErrorListingFolder ||
+                   problem == FilesystemErrorIdentifyingFolderContent;
         }
 
         const char* reasonDebugString() const override
@@ -2379,7 +2538,7 @@ public:
             {
                 LocalPath lp = mConflict.localPath;
                 lp.appendWithSeparator(mConflict.clashingLocalNames[index], true);
-                mCache2[index] = lp.toPath();
+                mCache2[index] = lp.toPath(false);
                 return mCache2[index].c_str();
             }
         }
@@ -2401,6 +2560,11 @@ public:
     int pathProblem(bool, int) const override
     {
         return -1;
+    }
+
+    bool couldSuggestIgnoreThisPath(bool cloudSide, int index) const override
+    {
+        return false;
     }
 
     const char* reasonDebugString() const override
@@ -2450,8 +2614,7 @@ class MegaSyncStallListPrivate : public MegaSyncStallList
 class MegaApiImpl : public MegaApp
 {
     public:
-        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
-        MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
+        MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned workerThreadCount);
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
@@ -2467,9 +2630,6 @@ class MegaApiImpl : public MegaApp
         void removeTransferListener(MegaTransferListener* listener);
         void removeScheduledCopyListener(MegaScheduledCopyListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
-
-        void cancelPendingTransfersByFolderTag(int folderTag);
-
 
         MegaRequest *getCurrentRequest();
         MegaTransfer *getCurrentTransfer();
@@ -2549,6 +2709,7 @@ class MegaApiImpl : public MegaApp
         void resetPassword(const char *email, bool hasMasterKey, MegaRequestListener *listener = NULL);
         void queryRecoveryLink(const char *link, MegaRequestListener *listener = NULL);
         void confirmResetPasswordLink(const char *link, const char *newPwd, const char *masterKey = NULL, MegaRequestListener *listener = NULL);
+        void checkRecoveryKey(const char* link, const char* masterKey, MegaRequestListener* listener = NULL);
         void cancelAccount(MegaRequestListener *listener = NULL);
         void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
         void resendVerificationEmail(MegaRequestListener *listener = NULL);
@@ -2702,10 +2863,9 @@ class MegaApiImpl : public MegaApp
         void startTimer( int64_t period, MegaRequestListener *listener=NULL);
 
         //Transfers
-        void startUploadForChat(const char* localPath, MegaNode* parent, const char* fileName, const char* appData, bool isSourceFileTemporary, MegaTransferListener* listener);
         void startUploadForSupport(const char* localPath, bool isSourceFileTemporary, FileSystemType fsType, MegaTransferListener* listener);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener* listener);
-        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener *listener);
+        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener *listener, const FileFingerprint* preFingerprintedFile = nullptr);
         void startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, MegaTransferListener *listener);
         MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, MegaTransferListener *listener, FileSystemType fsType);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
@@ -2745,6 +2905,18 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getChildTransfers(int transferTag);
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
 
+        //Sets and Elements
+        void putSet(MegaHandle sid, int optionFlags, const char* name, MegaHandle cover, MegaRequestListener* listener = nullptr);
+        void removeSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void fetchSet(MegaHandle sid, MegaRequestListener* listener = nullptr);
+        void putSetElement(MegaHandle sid, MegaHandle eid, MegaHandle node, int optionFlags, int64_t order, const char* name, MegaRequestListener* listener = nullptr);
+        void removeSetElement(MegaHandle sid, MegaHandle eid, MegaRequestListener* listener = nullptr);
+
+        MegaSetList* getSets();
+        MegaSet* getSet(MegaHandle sid);
+        MegaHandle getSetCover(MegaHandle sid);
+        MegaSetElementList* getSetElements(MegaHandle sid);
+        MegaSetElement* getSetElement(MegaHandle sid, MegaHandle eid);
 
 #ifdef ENABLE_SYNC
         //Sync
@@ -2772,6 +2944,7 @@ class MegaApiImpl : public MegaApp
         void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
         long long getNumLocalNodes();
         int isNodeSyncable(MegaNode *megaNode);
+        MegaError *isNodeSyncableWithError(MegaNode* node);
         bool isScanning();
         bool isSyncing();
         bool syncsHaveStalls();
@@ -2876,7 +3049,7 @@ class MegaApiImpl : public MegaApp
 
         bool isFilesystemAvailable();
         MegaNode *getRootNode();
-        MegaNode* getInboxNode();
+        MegaNode* getVaultNode();
         MegaNode *getRubbishNode();
         MegaNode *getRootNode(MegaNode *node);
         bool isInRootnode(MegaNode *node, int index);
@@ -3062,7 +3235,8 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList* peers, const MegaStringMap* userKeyMap = NULL, const char* title = NULL, bool meetingRoom = false, int chatOptions = MegaApi::CHAT_OPTIONS_EMPTY, MegaRequestListener* listener = NULL);
+        void setChatOption(MegaHandle chatid, int option, bool enabled, MegaRequestListener* listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
@@ -3104,8 +3278,7 @@ class MegaApiImpl : public MegaApp
         void setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener = NULL);
         void setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener);
         void getCameraUploadsFolder(bool secondary, MegaRequestListener *listener = NULL);
-        void setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener = nullptr);
-        void getMyBackupsFolder(MegaRequestListener *listener = nullptr);
+        void setMyBackupsFolder(const char *localizedName, MegaRequestListener *listener = nullptr);
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 
@@ -3148,8 +3321,9 @@ class MegaApiImpl : public MegaApp
         bool driveMonitorEnabled();
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
-        void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
+        void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
+        void fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const LocalPath* currentFolder, const LocalPath* currentFileLeafname);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
 
@@ -3190,6 +3364,8 @@ protected:
         void fireOnUserAlertsUpdate(MegaUserAlertList *alerts);
         void fireOnNodesUpdate(MegaNodeList *nodes);
         void fireOnAccountUpdate();
+        void fireOnSetsUpdate(MegaSetList* sets);
+        void fireOnSetElementsUpdate(MegaSetElementList* elements);
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
@@ -3224,12 +3400,17 @@ protected:
         string basePath;
         bool nocache;
 
+        // for fingerprinting off-thread
+        // one at a time is enough
+        mutex fingerprintingFsAccessMutex;
+        MegaFileSystemAccess fingerprintingFsAccess;
+
         mutex mLastRecievedLoggedMeMutex;
         sessiontype_t mLastReceivedLoggedInState = NOTLOGGEDIN;
         handle mLastReceivedLoggedInMeHandle = UNDEF;
 
         unique_ptr<MegaNode> mLastKnownRootNode;
-        unique_ptr<MegaNode> mLastKnownInboxNode;
+        unique_ptr<MegaNode> mLastKnownVaultNode;
         unique_ptr<MegaNode> mLastKnownRubbishNode;
 
 #ifdef HAVE_LIBUV
@@ -3371,6 +3552,8 @@ protected:
         void account_updated() override;
         void pcrs_updated(PendingContactRequest**, int) override;
         void sequencetag_update(const string&) override;
+        void sets_updated(Set**, int) override;
+        void setelements_updated(SetElement**, int) override;
 
         // password change result
         void changepw_result(error) override;
@@ -3547,7 +3730,6 @@ protected:
 #endif
 
         void backupput_result(const Error&, handle backupId) override;
-        void backupremove_result(const Error&, handle) override;
 
 protected:
         // suggest reload due to possible race condition with other clients
@@ -3585,7 +3767,7 @@ protected:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        unsigned sendPendingTransfers(TransferQueue *queue);
+        unsigned sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* = nullptr);
         void updateBackups();
 
         //Internal
@@ -3619,7 +3801,7 @@ private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
         error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 #ifdef ENABLE_SYNC
-        error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
+        void addSyncByRequest(MegaRequestPrivate* request, SyncConfig sc, MegaClient::UndoFunction revertOnError);
 #endif
 };
 
@@ -3653,28 +3835,62 @@ class StreamingBuffer
 public:
     StreamingBuffer();
     ~StreamingBuffer();
+    // Allocate buffer and reset class members
     void init(size_t capacity);
+    // Add data to the buffer. This will mainly come from the Transfer (or from a cache file if it's included someday).
     size_t append(const char *buf, size_t len);
-    size_t availableData();
-    size_t availableSpace();
-    size_t availableCapacity();
+    // Get buffered data size
+    size_t availableData() const;
+    // Get free space available in buffer
+    size_t availableSpace() const;
+    // Get total buffer capacity
+    size_t availableCapacity() const;
+    // Get the uv_buf_t for the consumer with as much buffered data as possible
     uv_buf_t nextBuffer();
+    // Increase the free data counter
     void freeData(size_t len);
+    // Set upper bound limit for capacity
     void setMaxBufferSize(unsigned int bufferSize);
+    // Set upper bound limit for chunk size to write to the consumer
     void setMaxOutputSize(unsigned int outputSize);
+    // Set file size
+    void setFileSize(m_off_t fileSize);
+    // Set media length in seconds
+    void setDuration(int duration);
+    // Rate between file size and its duration (only for media files)
+    m_off_t getBytesPerSecond() const;
+    // Get the actual buffer state for debugging purposes
+    std::string bufferStatus() const;
 
     static const unsigned int MAX_BUFFER_SIZE = 2097152;
     static const unsigned int MAX_OUTPUT_SIZE = MAX_BUFFER_SIZE / 10;
 
+private:
+    // Rate between partial file size and its duration (only for media files)
+    m_off_t partialDuration(m_off_t partialSize) const;
+
 protected:
-    char *buffer;
+    // Circular buffer to store data to feed the consumer
+    char* buffer;
+    // Total buffer size
     size_t capacity;
+    // Buffered data size
     size_t size;
+    // Available free space in buffer
     size_t free;
+    // Index for last buffered data
     size_t inpos;
+    // Index for last written data (to the consumer)
     size_t outpos;
+    // Upper bound limit for capacity
     size_t maxBufferSize;
+    // Upper bound limit for chunk size to write to the consumer
     size_t maxOutputSize;
+
+    // File size
+    m_off_t fileSize;
+    // Media length in seconds (for media files)
+    int duration;
 };
 
 class MegaTCPServer;
@@ -3824,6 +4040,9 @@ public:
     bool isHandleAllowed(handle h);
     void clearAllowedHandles();
     char* getLink(MegaNode *node, std::string protocol = "http");
+    bool isCurrentThread() {
+        return thread->isCurrentThread();
+    }
 
     set<handle> getAllowedHandles();
     void removeAllowedHandle(MegaHandle handle);

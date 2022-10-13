@@ -70,12 +70,12 @@ Node::Node(MegaClient* cclient, node_vector* dp, NodeHandle h, NodeHandle ph,
     client->nodes[h] = this;
 
     if (t == ROOTNODE) client->rootnodes.files = h;
-    if (t == INCOMINGNODE) client->rootnodes.inbox = h;
+    if (t == VAULTNODE) client->rootnodes.vault = h;
     if (t == RUBBISHNODE) client->rootnodes.rubbish = h;
 
     // set parent linkage or queue for delayed parent linkage in case of
     // out-of-order delivery
-    if ((p = client->nodeByHandle(ph, true)))
+    if ((p = client->nodeByHandle(ph)))
     {
         setparent(p);
     }
@@ -135,7 +135,7 @@ Node::~Node()
 
         const Node* fa = firstancestor();
         NodeHandle ancestor = fa->nodeHandle();
-        if (ancestor == client->rootnodes.files || ancestor == client->rootnodes.inbox || ancestor == client->rootnodes.rubbish || fa->inshare)
+        if (client->rootnodes.isRootNode(ancestor) || fa->inshare)
         {
             client->mNodeCounters[firstancestor()->nodeHandle()] -= subnodeCounts();
         }
@@ -184,11 +184,6 @@ bool Node::hasChildWithName(const string& name) const
     }
 
     return false;
-}
-
-void Node::setNodeKeyData(const string& data)
-{
-    nodekeydata = data;
 }
 
 void Node::setkeyfromjson(const char* k)
@@ -482,9 +477,13 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     }
 
     if (ptr == end)
+    {
         return n.release();
-
-    return nullptr;
+    }
+    else
+    {
+        return nullptr;
+    }
 }
 
 // serialize node - nodes with pending or RSA keys are unsupported
@@ -901,7 +900,7 @@ string Node::displaypath() const
             }
             break;
 
-        case INCOMINGNODE:
+        case VAULTNODE:
             path.insert(0, "//in");
             return path;
 
@@ -1064,7 +1063,7 @@ bool Node::setparent(Node* p)
 
     const Node *originalancestor = firstancestor();
     NodeHandle oah = originalancestor->nodeHandle();
-    if (oah == client->rootnodes.files || oah == client->rootnodes.inbox || oah == client->rootnodes.rubbish || originalancestor->inshare)
+    if (client->rootnodes.isRootNode(oah) || originalancestor->inshare)
     {
         nc = subnodeCounts();
         gotnc = true;
@@ -1088,7 +1087,7 @@ bool Node::setparent(Node* p)
 
     const Node* newancestor = firstancestor();
     NodeHandle nah = newancestor->nodeHandle();
-    if (nah == client->rootnodes.files || nah == client->rootnodes.inbox || nah == client->rootnodes.rubbish || newancestor->inshare)
+    if (client->rootnodes.isRootNode(nah) || newancestor->inshare)
     {
         if (!gotnc)
         {
@@ -1254,14 +1253,22 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
         if (parentChange || localnameChange)
         {
             // remove existing child linkage for localname
-            parent->children.erase(&localname);
+            auto it = parent->children.find(localname);
+            if (it != parent->children.end() && it->second == this)
+            {
+                parent->children.erase(it);
+            }
         }
 
         if (slocalname && (
             parentChange || shortnameChange))
         {
             // remove existing child linkage for slocalname
-            parent->schildren.erase(slocalname.get());
+            auto it = parent->schildren.find(*slocalname);
+            if (it != parent->schildren.end() && it->second == this)
+            {
+                parent->schildren.erase(it);
+            }
         }
     }
 
@@ -1303,22 +1310,19 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
     if (parent && (parentChange || localnameChange))
     {
         #ifdef DEBUG
-            auto it = parent->children.find(&localname);
+            auto it = parent->children.find(localname);
             assert(it == parent->children.end());   // check we are not about to orphan the old one at this location... if we do then how did we get a clash in the first place?
         #endif
 
-        parent->children[&localname] = this;
+        parent->children[localname] = this;
     }
 
     // add to parent map by shortname
     if (parent && slocalname && (parentChange || shortnameChange))
     {
-#ifdef DEBUG
-// TODO: enable these checks after we're sure about the localname check above
-//        auto it = parent->schildren.find(&*slocalname);
-//        assert(it == parent->schildren.end());   // check we are not about to orphan the old one at this location... if we do then how did we get a clash in the first place?
-#endif
-        parent->schildren[&*slocalname] = this;
+        // it's quite possible that the new folder still has an older LocalNode with clashing shortname, that represents a file/folder since moved, but which we don't know about yet.
+        // just assign the new one, we forget the old reference.  The other LocalNode will not remove this one since the LocalNode* will not match.
+        parent->schildren[*slocalname] = this;
     }
 
     // reset treestate
@@ -1685,7 +1689,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         }
 
         LOG_verbose << sync->syncname << "Waiting on scan blocked timer, retry in ds: "
-            << rare().scanBlocked->scanBlockedTimer.retryin() << " for " << getLocalPath().toPath();
+            << rare().scanBlocked->scanBlockedTimer.retryin() << " for " << getLocalPath();
 
         // make sure path stays accurate in case this node moves
         rare().scanBlocked->scanBlockedLocalPath = getLocalPath();
@@ -1747,7 +1751,7 @@ void LocalNode::clearRegeneratableFolderScan(SyncPath& fullPath, vector<syncRow>
         if (nChecked == children.size())
         {
             // LocalNodes are now consistent with the last scan.
-            LOG_debug << sync->syncname << "Clearing regeneratable folder scan records (" << lastFolderScan->size() << ") at " << fullPath.localPath_utf8();
+            LOG_debug << sync->syncname << "Clearing regeneratable folder scan records (" << lastFolderScan->size() << ") at " << fullPath.localPath;
             lastFolderScan.reset();
         }
     }
@@ -1868,13 +1872,13 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
                 if (child.scannedFingerprint.isvalid)
                 {
                     // as-scanned by this instance is more accurate if available
-                    priorScanChildren.emplace(*childIt.first, child.getScannedFSDetails());
+                    priorScanChildren.emplace(childIt.first, child.getScannedFSDetails());
                 }
                 else if (useSyncedFP && child.fsid_lastSynced != UNDEF && child.syncedFingerprint.isvalid)
                 {
                     // But otherwise, already-synced syncs on startup should not re-fingerprint
                     // files that match the synced fingerprint by fsid/size/mtime (for quick startup)
-                    priorScanChildren.emplace(*childIt.first, child.getLastSyncedFSDetails());
+                    priorScanChildren.emplace(childIt.first, child.getLastSyncedFSDetails());
                 }
             }
 
@@ -1884,7 +1888,7 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
             rare().scanRequest = ourScanRequest;
             *availableScanSlot = ourScanRequest;
 
-            LOG_verbose << sync->syncname << "Issuing Directory scan request for : " << fullPath.localPath_utf8() << (availableScanSlot == &sync->mActiveScanRequestUnscanned ? " (in unscanned slot)" : "");
+            LOG_verbose << sync->syncname << "Issuing Directory scan request for : " << fullPath.localPath << (availableScanSlot == &sync->mActiveScanRequestUnscanned ? " (in unscanned slot)" : "");
 
             if (neverScanned)
             {
@@ -1904,20 +1908,20 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
         if (SCAN_FSID_MISMATCH == ourScanRequest->completionResult())
         {
-            LOG_verbose << sync->syncname << "Directory scan detected outdated fsid : " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Directory scan detected outdated fsid : " << fullPath.localPath;
             scanObsolete = true;
         }
 
         if (SCAN_SUCCESS == ourScanRequest->completionResult()
             && ourScanRequest->fsidScanned() != row.fsNode->fsid)
         {
-            LOG_verbose << sync->syncname << "Directory scan returned was for now outdated fsid : " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Directory scan returned was for now outdated fsid : " << fullPath.localPath;
             scanObsolete = true;
         }
 
         if (scanObsolete)
         {
-            LOG_verbose << sync->syncname << "Directory scan outdated for : " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Directory scan outdated for : " << fullPath.localPath;
             scanObsolete = false;
 
             // Scan results are out of date but may still be useful.
@@ -1932,14 +1936,14 @@ bool LocalNode::processBackgroundFolderScan(syncRow& row, SyncPath& fullPath)
 
             for (auto& i : *lastFolderScan)
             {
-                if (isDoNotSyncFileName(i.localname.toPath()))
+                if (isDoNotSyncFileName(i.localname.toPath(true)))
                 {
                     // These are special shell-generated files for win & mac, only relevant in the filesystem they were created
                     i.type = TYPE_DONOTSYNC;
                 }
             }
 
-            LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath_utf8();
+            LOG_verbose << sync->syncname << "Received " << lastFolderScan->size() << " directory scan results for: " << fullPath.localPath;
 
             scanDelayUntil = Waiter::ds + 20; // don't scan too frequently
             scanAgain = TREE_RESOLVED;
@@ -2309,12 +2313,24 @@ string LocalNode::getCloudPath(bool guessLeafName) const
     return path;
 }
 
+
+string LocalNode::debugGetParentList()
+{
+    string s;
+
+    for (const LocalNode* l = this; l != nullptr; l = l->parent)
+    {
+        s += l->localname.toPath(false) + "(" + std::to_string((long long)(void*)l) + ") ";
+    }
+    return s;
+}
+
 // locate child by localname or slocalname
 LocalNode* LocalNode::childbyname(LocalPath* localname)
 {
     localnode_map::iterator it;
 
-    if (!localname || ((it = children.find(localname)) == children.end() && (it = schildren.find(localname)) == schildren.end()))
+    if (!localname || ((it = children.find(*localname)) == children.end() && (it = schildren.find(*localname)) == schildren.end()))
     {
         return NULL;
     }
@@ -2367,7 +2383,7 @@ void LocalNode::queueClientUpload(shared_ptr<SyncUpload_inClient> upload, Versio
 {
     resetTransfer(upload);
 
-    sync->syncs.queueClient([upload, vo, queueFirst](MegaClient& mc, DBTableTransactionCommitter& committer)
+    sync->syncs.queueClient([upload, vo, queueFirst](MegaClient& mc, TransferDbCommitter& committer)
         {
             upload->transferTag = mc.nextreqtag();
             upload->selfKeepAlive = upload;
@@ -2380,7 +2396,7 @@ void LocalNode::queueClientDownload(shared_ptr<SyncDownload_inClient> download, 
 {
     resetTransfer(download);
 
-    sync->syncs.queueClient([download, queueFirst](MegaClient& mc, DBTableTransactionCommitter& committer)
+    sync->syncs.queueClient([download, queueFirst](MegaClient& mc, TransferDbCommitter& committer)
         {
             mc.nextreqtag();
             download->selfKeepAlive = download;
@@ -2403,7 +2419,7 @@ void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
 
             // also queue an operation on the client thread to cancel it if it's queued
             auto tsp = transferSP;
-            sync->syncs.queueClient([tsp](MegaClient& mc, DBTableTransactionCommitter& committer)
+            sync->syncs.queueClient([tsp](MegaClient& mc, TransferDbCommitter& committer)
                 {
                     mc.nextreqtag();
                     mc.stopxfer(tsp.get(), &committer);
@@ -2441,11 +2457,11 @@ void LocalNode::transferResetUnlessMatched(direction_t dir, const FileFingerprin
         {
             // checking for a race where we already sent putnodes and it hasn't completed,
             // then we discover something that means we should abandon the transfer
-            LOG_debug << sync->syncname << "Cancelling superceded transfer even though we have an outstanding putnodes request! " << transferSP->getLocalname().toPath();
+            LOG_debug << sync->syncname << "Cancelling superceded transfer even though we have an outstanding putnodes request! " << transferSP->getLocalname();
             assert(false);
         }
 
-        LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname().toPath();
+        LOG_debug << sync->syncname << "Cancelling superceded transfer of " << transferSP->getLocalname();
         resetTransfer(nullptr);
     }
 }
@@ -2534,7 +2550,7 @@ void SyncUpload_inClient::sendPutnodes(MegaClient* client, NodeHandle ovHandle)
                 // but the intermediate layer still needs that in order to call the client app back:
                 client->app->putnodes_result(e, t, nn, targetOverride);
             }
-        }, nullptr);
+        }, nullptr, syncThreadSafeState->mCanChangeVault);
 }
 
 SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
@@ -2628,13 +2644,13 @@ bool LocalNodeCore::write(string& destination, uint32_t parentID)
         if (syncedFingerprint.isvalid)
         {
             w.serializebinary((byte*)syncedFingerprint.crc.data(), sizeof(syncedFingerprint.crc));
-            w.serializecompressed64(syncedFingerprint.mtime);
+            w.serializecompressedi64(syncedFingerprint.mtime);
         }
         else
         {
             static FileFingerprint zeroFingerprint;
             w.serializebinary((byte*)zeroFingerprint.crc.data(), sizeof(zeroFingerprint.crc));
-            w.serializecompressed64(zeroFingerprint.mtime);
+            w.serializecompressedi64(zeroFingerprint.mtime);
         }
     }
 
@@ -2684,7 +2700,8 @@ bool LocalNode::serialize(string* d)
                 // but we can log ERR to try to detect any issues during development.  Occasionally there will be false positives,
                 // but also please do investigate when it's not a test that got shut down while busy.
                 LOG_err << "Shortname mismatch on LocalNode serialize! " <<
-                           "localname: " << localname << " slocalname " << (slocalname?slocalname->toPath():"<null>") << " actual shorname " << (sn?sn->toPath():"<null") << " for path " << localpath;
+                           "localname: " << localname << " slocalname " << (slocalname?*slocalname:LocalPath()) << (slocalname?"":"<null>") <<
+                           " actual shorname " << (sn?*sn:LocalPath()) << (sn?"":"<null>") << " for path " << localpath;
 
             }
         }
@@ -2745,7 +2762,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
     handle fsid;
     handle h = 0;
     string localname, shortname;
-    uint64_t mtime = 0;
+    m_time_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
     byte syncable = 1;
@@ -2757,7 +2774,7 @@ bool LocalNodeCore::read(const string& source, uint32_t& parentID)
         !r.unserializenodehandle(h) ||
         !r.unserializestring(localname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
-        (type == FILENODE && !r.unserializecompressed64(mtime)) ||
+        (type == FILENODE && !r.unserializecompressedi64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
         (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 2)) ||
         (expansionflags[0] && !r.unserializecstr(shortname, false)) ||
@@ -2854,7 +2871,7 @@ WatchResult LocalNode::watch(const LocalPath& path, handle fsid)
     // Do we need to (re)create a watch?
     if (mWatchHandle == fsid)
     {
-        LOG_verbose << "Watch for path: " << path.toPath()
+        LOG_verbose << "Watch for path: " << path
                     << " with mWatchHandle == fsid == " << fsid
                     << " Already in place";
         return WR_SUCCESS;
@@ -3270,45 +3287,6 @@ node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
         nodes->push_back(static_cast<Node*>(*it));
     }
     return nodes;
-}
-
-unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath, FileSystemAccess& fsa)
-{
-    unique_ptr<FSNode> result(new FSNode);
-    result->type = fa.type;
-    result->fsid = fa.fsidvalid ? fa.fsid : UNDEF;
-    result->isSymlink = fa.mIsSymLink;
-    result->fingerprint.mtime = fa.mtime;
-    result->fingerprint.size = fa.size;
-
-    result->localname = fullPath.leafName();
-
-    if (auto sn = fsa.fsShortname(fullPath))
-    {
-        if (*sn != result->localname)
-        {
-            result->shortname = std::move(sn);
-        }
-    }
-    return result;
-}
-
-unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath& path)
-{
-    auto fileAccess = fsAccess.newfileaccess(false);
-
-    if (!fileAccess->fopen(path, true, false))
-        return nullptr;
-
-    auto fsNode = fromFOpened(*fileAccess, path, fsAccess);
-
-    if (fsNode->type != FILENODE)
-        return fsNode;
-
-    if (!fsNode->fingerprint.genfingerprint(fileAccess.get()))
-        return nullptr;
-
-    return fsNode;
 }
 
 CloudNode::CloudNode(const Node& n)

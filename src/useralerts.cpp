@@ -23,6 +23,9 @@
 #include "mega/megaclient.h"
 #include <utility>
 
+using std::to_string;
+using std::make_pair;
+
 namespace mega {
 
 UserAlertRaw::UserAlertRaw()
@@ -222,25 +225,30 @@ void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
 UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    requestWasDeleted = un.getint64(MAKENAMEID3('d', 't', 's'), 0) != 0;
-    requestWasReminded = un.getint64(MAKENAMEID3('r', 't', 's'), 0) != 0;
+    mPcrHandle = un.gethandle('p', MegaClient::PCRHANDLE, UNDEF);
+    userHandle = mPcrHandle;    // for backwards compatibility, due to legacy bug
+
+    m_time_t dts = un.getint64(MAKENAMEID3('d', 't', 's'), 0);
+    m_time_t rts = un.getint64(MAKENAMEID3('r', 't', 's'), 0);
+    initTs(dts, rts);
 }
 
-UserAlert::IncomingPendingContact::IncomingPendingContact(m_time_t dts, m_time_t rts, handle uh, const string& email, m_time_t timestamp, unsigned int id)
-    : Base(UserAlert::type_ipc, uh, email, timestamp, id)
+UserAlert::IncomingPendingContact::IncomingPendingContact(m_time_t dts, m_time_t rts, handle p, const string& email, m_time_t timestamp, unsigned int id)
+    : Base(UserAlert::type_ipc, p, email, timestamp, id)
+    // passing PCR's handle as the user's handle for backwards compatibility, due to legacy bug
+{
+    mPcrHandle = p;
+
+    initTs(dts, rts);
+}
+
+void UserAlert::IncomingPendingContact::initTs(m_time_t dts, m_time_t rts)
 {
     requestWasDeleted = dts != 0;
     requestWasReminded = rts != 0;
 
-    if (requestWasDeleted)
-    {
-        this->timestamp = dts;
-    }
-
-    if (requestWasReminded)
-    {
-        this->timestamp = rts;
-    }
+    if (requestWasDeleted)       timestamp = dts;
+    else if (requestWasReminded) timestamp = rts;
 }
 
 void UserAlert::IncomingPendingContact::text(string& header, string& title, MegaClient* mc)
@@ -446,29 +454,42 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
 }
 
 UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
-    : Base(un, id), fileCount(0), folderCount(0)
+    : Base(un, id)
 {
-    
-    std::vector<UserAlertRaw::handletype> f;
+
+    vector<UserAlertRaw::handletype> f;
     un.gethandletypearray('f', f);
     parentHandle = un.gethandle('n', MegaClient::NODEHANDLE, UNDEF);
 
-    // Count the number of new files and folders
-    for (UserAlertRaw::handletype ht: f)
+    for (size_t n = f.size(); n--; )
     {
-        ++(ht.t > 0 ? folderCount : fileCount);
-        items.push_back(ht.h);
+        if (f[n].t == FOLDERNODE)
+        {
+            folderNodeHandles.push_back(f[n].h);
+        }
+        else if (f[n].t == FILENODE)
+        {
+            fileNodeHandles.push_back(f[n].h);
+        }
+        // else should not be happening, we can add a sanity check
     }
 }
 
-UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, const std::vector<handle> &iitems, handle uh, handle ph, m_time_t timestamp, unsigned int id)
+UserAlert::NewSharedNodes::NewSharedNodes(handle uh, handle ph, m_time_t timestamp, unsigned int id,
+                                          handle_alerttype_map_t alertTypePerFileNode,
+                                          handle_alerttype_map_t alertTypePerFolderNode)
     : Base(UserAlert::type_put, uh, string(), timestamp, id)
-    , items(iitems)
     , parentHandle(ph)
 {
     assert(!ISUNDEF(uh));
-    folderCount = nfolders;
-    fileCount = nfiles;
+    for (auto& item: alertTypePerFileNode)
+    {
+        fileNodeHandles.push_back(item.first);
+    }
+    for (auto& item: alertTypePerFolderNode)
+    {
+        folderNodeHandles.push_back(item.first);
+    }
 }
 
 void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* mc)
@@ -477,6 +498,8 @@ void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* 
     ostringstream notificationText;
 
     // Get wording for the number of files and folders added
+    const auto folderCount = folderNodeHandles.size();
+    const auto fileCount = fileNodeHandles.size();
     if ((folderCount > 1) && (fileCount > 1)) {
         notificationText << folderCount << " folders and " << fileCount << " files";
     }
@@ -523,21 +546,35 @@ void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* 
 UserAlert::RemovedSharedNode::RemovedSharedNode(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    vector<string> handles;
-    un.getstringarray('n', handles);
-    itemsNumber = handles.empty() ? 1 : handles.size();
+    vector<UserAlertRaw::handletype> handlesAndNodeTypes;
+    un.gethandletypearray('f', handlesAndNodeTypes);
+
+    for (const auto& handleAndType: handlesAndNodeTypes)
+    {
+        nodeHandles.push_back(handleAndType.h);
+    }
 }
 
-UserAlert::RemovedSharedNode::RemovedSharedNode(size_t nitems, handle uh, m_time_t timestamp, unsigned int id)
+UserAlert::RemovedSharedNode::RemovedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
+                                                handle_alerttype_map_t alertTypePerFileNode,
+                                                handle_alerttype_map_t alertTypePerFolderNode)
     : Base(UserAlert::type_d, uh, string(), timestamp, id)
 {
-    itemsNumber = nitems;
+    for (auto& item: alertTypePerFileNode)
+    {
+        nodeHandles.push_back(item.first);
+    }
+    for (auto& item: alertTypePerFolderNode)
+    {
+        nodeHandles.push_back(item.first);
+    }
 }
 
 void UserAlert::RemovedSharedNode::text(string& header, string& title, MegaClient* mc)
 {
     updateEmail(mc);
     ostringstream s;
+    const auto itemsNumber = nodeHandles.size();
     if (itemsNumber > 1)
     {
         s << "Removed " << itemsNumber << " items from a share"; // 8913
@@ -548,6 +585,42 @@ void UserAlert::RemovedSharedNode::text(string& header, string& title, MegaClien
     }
     title = s.str();
     header = userEmail;
+}
+
+UserAlert::UpdatedSharedNode::UpdatedSharedNode(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
+{
+    vector<UserAlertRaw::handletype> handlesAndNodeTypes;
+    un.gethandletypearray('f', handlesAndNodeTypes);
+
+    for (const auto& handleAndType: handlesAndNodeTypes)
+    {
+        nodeHandles.push_back(handleAndType.h);
+    }
+}
+
+UserAlert::UpdatedSharedNode::UpdatedSharedNode(handle uh, m_time_t timestamp, unsigned int id,
+                                                handle_alerttype_map_t alertTypePerFileNode,
+                                                handle_alerttype_map_t alertTypePerFolderNode)
+    : Base(UserAlert::type_u, uh, string(), timestamp, id)
+{
+    for (auto& item: alertTypePerFileNode)
+    {
+        nodeHandles.push_back(item.first);
+    }
+    for (auto& item: alertTypePerFolderNode)
+    {
+        nodeHandles.push_back(item.first);
+    }
+}
+
+void UserAlert::UpdatedSharedNode::text(string& header, string& title, MegaClient* mc)
+{
+    updateEmail(mc);
+    header = userEmail;
+    const auto itemsNumber = nodeHandles.size();
+    const string& itemText = (itemsNumber == 1) ? "" : "s";
+    title = "Updated " + to_string(itemsNumber) + " item" + itemText + " in shared folder";
 }
 
 string UserAlert::Payment::getProPlanName()
@@ -787,6 +860,9 @@ void UserAlerts::add(UserAlertRaw& un)
     case type_d:
         unb = new RemovedSharedNode(un, nextId());
         break;
+    case type_u:
+        unb = new UpdatedSharedNode(un, nextId());
+        break;
     case type_psts:
         unb = new Payment(un, nextId());
         break;
@@ -839,9 +915,9 @@ void UserAlerts::add(UserAlert::Base* unb)
             if (np->userHandle == op->userHandle && np->timestamp - op->timestamp < 300 &&
                 np->parentHandle == op->parentHandle && !ISUNDEF(np->parentHandle))
             {
-                op->folderCount += np->folderCount;
-                op->fileCount += np->fileCount;
-                op->items.insert(op->items.end(), np->items.begin(), np->items.end());
+                op->fileNodeHandles.insert(end(op->fileNodeHandles), begin(np->fileNodeHandles), end(np->fileNodeHandles));
+                op->folderNodeHandles.insert(end(op->folderNodeHandles),
+                                             begin(np->folderNodeHandles), end(np->folderNodeHandles));
                 LOG_debug << "Merged user alert, type " << np->type << " ts " << np->timestamp;
 
                 if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
@@ -866,7 +942,32 @@ void UserAlerts::add(UserAlert::Base* unb)
         {
             if (nd->userHandle == od->userHandle && nd->timestamp - od->timestamp < 300)
             {
-                od->itemsNumber += nd->itemsNumber;
+                od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
+                LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->timestamp;
+
+                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
+                {
+                    alerts.back()->seen = false;
+                    alerts.back()->tag = 0;
+                    useralertnotify.push_back(alerts.back());
+                    LOG_debug << "Updated user alert added to notify queue";
+                }
+                delete unb;
+                return;
+            }
+        }
+    }
+
+    if (!alerts.empty() && unb->type == UserAlert::type_u && alerts.back()->type == UserAlert::type_u)
+    {
+        // If it's file/folders updated, and the prior one is for the same user and within 5 mins then we can combine instead
+        UserAlert::UpdatedSharedNode* nd = dynamic_cast<UserAlert::UpdatedSharedNode*>(unb);
+        UserAlert::UpdatedSharedNode* od = dynamic_cast<UserAlert::UpdatedSharedNode*>(alerts.back());
+        if (nd && od)
+        {
+            if (nd->userHandle == od->userHandle && nd->timestamp - od->timestamp < 300)
+            {
+                od->nodeHandles.insert(end(od->nodeHandles), begin(nd->nodeHandles), end(nd->nodeHandles));
                 LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->timestamp;
 
                 if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
@@ -939,13 +1040,13 @@ void UserAlerts::beginNotingSharedNodes()
     notedSharedNodes.clear();
 }
 
-void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n)
+void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n, nameid alertType)
 {
     if (catchupdone && notingSharedNodes && (type == FILENODE || type == FOLDERNODE))
     {
         assert(!ISUNDEF(user));
 
-        if (!ISUNDEF(ignoreNodesUnderShare))
+        if (!ISUNDEF(ignoreNodesUnderShare) && (alertType != UserAlert::type_d))
         {
             // don't make alerts on files/folders already in the new share
             for (Node* p = n; p != NULL; p = p->parent)
@@ -955,14 +1056,17 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n)
             }
         }
 
-        ff& f = notedSharedNodes[std::make_pair(user, n ? n->parenthandle : UNDEF)];
-        // no UNDEFs in items
-        if (n != nullptr)
+        ff& f = notedSharedNodes[make_pair(user, n ? n->parenthandle : UNDEF)];
+        if (n && type == FOLDERNODE)
         {
-            handle h = n->nodehandle;
-            ++(type == FOLDERNODE ? f.folders : f.files);
-            f.items.push_back(h);
+            f.alertTypePerFolderNode[n->nodehandle] = alertType;
         }
+        else if (n && type == FILENODE)
+        {
+            f.alertTypePerFileNode[n->nodehandle] = alertType;
+        }
+        // there shouldn't be any other types
+
         if (!f.timestamp || (ts && ts < f.timestamp))
         {
             f.timestamp = ts;
@@ -970,21 +1074,41 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n)
     }
 }
 
-// make a notification out of the shared nodes noted
-void UserAlerts::convertNotedSharedNodes(bool added, handle originatingUser)
+bool UserAlerts::isConvertReadyToAdd(handle originatingUser) const
 {
-    if (catchupdone && notingSharedNodes && originatingUser != mc.me)
+    return catchupdone && notingSharedNodes && (originatingUser != mc.me);
+}
+
+void UserAlerts::convertNotedSharedNodes(bool added)
+{
+    using namespace UserAlert;
+    for (notedShNodesMap::iterator i = notedSharedNodes.begin(); i != notedSharedNodes.end(); ++i)
     {
-        using namespace UserAlert;
-        for (map<pair<handle, handle>, ff>::iterator i = notedSharedNodes.begin(); i != notedSharedNodes.end(); ++i)
-        {
-            add(added ? (Base*) new NewSharedNodes(i->second.folders, i->second.files, i->second.items, i->first.first, i->first.second, i->second.timestamp, nextId())
-                : (Base*) new RemovedSharedNode(i->second.items.size(), i->first.first, m_time(), nextId()));
-        }
+        add(added ? (Base *) new NewSharedNodes(i->first.first, i->first.second,
+                                                i->second.timestamp, nextId(),
+                                                i->second.alertTypePerFileNode,
+                                                i->second.alertTypePerFolderNode)
+            : (Base *) new RemovedSharedNode(i->first.first, m_time(), nextId(),
+                                             i->second.alertTypePerFileNode,
+                                             i->second.alertTypePerFolderNode));
     }
+}
+
+void UserAlerts::clearNotedSharedMembers()
+{
     notedSharedNodes.clear();
     notingSharedNodes = false;
     ignoreNodesUnderShare = UNDEF;
+}
+
+// make a notification out of the shared nodes noted
+void UserAlerts::convertNotedSharedNodes(bool added, handle originatingUser)
+{
+    if (isConvertReadyToAdd(originatingUser))
+    {
+        convertNotedSharedNodes(added);
+    }
+    clearNotedSharedMembers();
 }
 
 void UserAlerts::ignoreNextSharedNodesUnder(handle h)
@@ -992,6 +1116,364 @@ void UserAlerts::ignoreNextSharedNodesUnder(handle h)
     ignoreNodesUnderShare = h;
 }
 
+pair<bool, UserAlert::handle_alerttype_map_t::difference_type>
+UserAlerts::findNotedSharedNodeIn(handle nodeHandle, const notedShNodesMap& notedSharedNodesMap) const
+{
+    auto it = find_if(begin(notedSharedNodesMap), end(notedSharedNodesMap),
+                        [nodeHandle](const pair<pair<handle, handle>, ff>& element)
+                        {
+                            const auto& fileAlertTypes = element.second.alertTypePerFileNode;
+                            const auto& folderAlertTypes = element.second.alertTypePerFolderNode;
+                            return (std::distance(fileAlertTypes.find(nodeHandle), end(fileAlertTypes))
+                                || std::distance(folderAlertTypes.find(nodeHandle), end(folderAlertTypes)));
+                        });
+
+    return make_pair(it != end(notedSharedNodesMap), std::distance(begin(notedSharedNodesMap), it));
+}
+
+bool UserAlerts::containsRemovedNodeAlert(handle nh, const UserAlert::Base* a) const
+{
+    const UserAlert::RemovedSharedNode* delNodeAlert = dynamic_cast<const UserAlert::RemovedSharedNode*>(a);
+    if (!delNodeAlert) return false;
+
+    return (find(begin(delNodeAlert->nodeHandles), end(delNodeAlert->nodeHandles), nh)
+            != end(delNodeAlert->nodeHandles));
+}
+
+UserAlert::NewSharedNodes* UserAlerts::eraseNewNodeAlert(handle nodeHandleToRemove, UserAlert::Base* alertToCheck)
+{
+    UserAlert::NewSharedNodes* ptrNewNodeAlert = dynamic_cast<UserAlert::NewSharedNodes*>(alertToCheck);
+
+    bool found = false;
+    if (ptrNewNodeAlert)
+    {
+        auto it = find(begin(ptrNewNodeAlert->fileNodeHandles), end(ptrNewNodeAlert->fileNodeHandles),
+                            nodeHandleToRemove);
+        if (it != end(ptrNewNodeAlert->fileNodeHandles))
+        {
+            ptrNewNodeAlert->fileNodeHandles.erase(it);
+            found = true;
+        }
+        else
+        {
+            it = find(begin(ptrNewNodeAlert->folderNodeHandles), end(ptrNewNodeAlert->folderNodeHandles),
+                           nodeHandleToRemove);
+            if (it != end(ptrNewNodeAlert->folderNodeHandles))
+            {
+                ptrNewNodeAlert->folderNodeHandles.erase(it);
+                found = true;
+            }
+        }
+    }
+
+    return found ? ptrNewNodeAlert : nullptr;
+}
+
+UserAlert::RemovedSharedNode* UserAlerts::eraseRemovedNodeAlert(handle nh, UserAlert::Base* a)
+{
+    UserAlert::RemovedSharedNode* ret = dynamic_cast<UserAlert::RemovedSharedNode*>(a);
+
+    if (ret)
+    {
+        auto it = find(begin(ret->nodeHandles), end(ret->nodeHandles), nh);
+        if (it != end(ret->nodeHandles))
+        {
+            ret->nodeHandles.erase(it);
+        }
+    }
+
+    return ret;
+}
+
+bool UserAlerts::isSharedNodeNotedAsRemoved(handle nodeHandleToFind) const
+{
+    // check first in the stash
+    return isSharedNodeNotedAsRemovedFrom(nodeHandleToFind, deletedSharedNodesStash)
+        || isSharedNodeNotedAsRemovedFrom(nodeHandleToFind, notedSharedNodes);
+}
+
+bool UserAlerts::isSharedNodeNotedAsRemovedFrom(handle nodeHandleToFind,
+                                                const notedShNodesMap& notedSharedNodesMap) const
+{
+    using handletoalert_t = UserAlert::handle_alerttype_map_t;
+    if (catchupdone && notingSharedNodes)
+    {
+        auto itToNotedSharedNodes = find_if(begin(notedSharedNodesMap),
+                                                 end(notedSharedNodesMap),
+        [nodeHandleToFind](const pair<pair<handle, handle>, ff>& element)
+        {
+            const handletoalert_t& fileAlertTypes = element.second.alertTypePerFileNode;
+            auto itToFileNodeHandleAndAlertType = fileAlertTypes.find(nodeHandleToFind);
+            const handletoalert_t& folderAlertTypes = element.second.alertTypePerFolderNode;
+            auto itToFolderNodeHandleAndAlertType = folderAlertTypes.find(nodeHandleToFind);
+
+            bool isInFileNodes = ((itToFileNodeHandleAndAlertType != end(fileAlertTypes))
+                                  && (itToFileNodeHandleAndAlertType->second == UserAlert::type_d));
+
+            // shortcircuit in case it was already found
+            bool isInFolderNodes = isInFileNodes ||
+                ((itToFolderNodeHandleAndAlertType != end(folderAlertTypes))
+                  && (itToFolderNodeHandleAndAlertType->second == UserAlert::type_d));
+
+            return (isInFileNodes || isInFolderNodes);
+        });
+
+        return itToNotedSharedNodes != end(notedSharedNodesMap);
+    }
+    return false;
+}
+
+bool UserAlerts::removeNotedSharedNodeFrom(notedShNodesMap::iterator itToStashedNodeToRemove, Node* nodeToRemove, notedShNodesMap& notedSharedNodesMap)
+{
+    if (itToStashedNodeToRemove != end(notedSharedNodesMap))
+    {
+        ff& f = itToStashedNodeToRemove->second;
+        if (nodeToRemove->type == FOLDERNODE)
+        {
+            f.alertTypePerFolderNode.erase(nodeToRemove->nodehandle);
+        }
+        else if (nodeToRemove->type == FILENODE)
+        {
+            f.alertTypePerFileNode.erase(nodeToRemove->nodehandle);
+        }
+        // there shouldn't be any other type
+
+        if (f.alertTypePerFolderNode.empty() && f.alertTypePerFileNode.empty())
+        {
+            notedSharedNodesMap.erase(itToStashedNodeToRemove);
+        }
+        return true;
+    }
+    return false;
+}
+
+bool UserAlerts::removeNotedSharedNodeFrom(Node* n, notedShNodesMap& notedSharedNodesMap)
+{
+    if (catchupdone && notingSharedNodes)
+    {
+        auto found = findNotedSharedNodeIn(n->nodehandle, notedSharedNodesMap);
+        if (found.first)
+        {
+            auto it = notedSharedNodesMap.begin();
+            std::advance(it, found.second);
+            return removeNotedSharedNodeFrom(it, n, notedSharedNodesMap);
+        }
+    }
+    return false;
+}
+
+bool UserAlerts::setNotedSharedNodeToUpdate(Node* nodeToChange)
+{
+    using handletoalert_t = UserAlert::handle_alerttype_map_t;
+    // noted nodes stash contains only deleted noted nodes, thus, we only check noted nodes map
+    if (catchupdone && notingSharedNodes && !notedSharedNodes.empty())
+    {
+        auto found = findNotedSharedNodeIn(nodeToChange->nodehandle, notedSharedNodes);
+        if (!found.first) return false;
+        auto itToNotedSharedNodes = notedSharedNodes.begin();
+        std::advance(itToNotedSharedNodes, found.second);
+        if (itToNotedSharedNodes == end(notedSharedNodes)) return false;
+
+        add(new UserAlert::UpdatedSharedNode(itToNotedSharedNodes->first.first,
+                                             itToNotedSharedNodes->second.timestamp,
+                                             nextId(),
+                                             handletoalert_t{{nodeToChange->nodehandle,
+                                                              UserAlert::type_u}},
+                                             handletoalert_t{}));
+        if (removeNotedSharedNodeFrom(itToNotedSharedNodes, nodeToChange, notedSharedNodes))
+        {
+            LOG_debug << "Node with node handle |" << nodeToChange->nodehandle << "| removed from annotated node add-alerts and update-alert created in its place";
+        }
+        return true;
+    }
+    return false;
+}
+
+bool UserAlerts::isHandleInAlertsAsRemoved(handle nodeHandleToFind) const
+{
+    std::function<bool (UserAlert::Base*)> isAlertWithTypeRemoved =
+        [nodeHandleToFind, this](UserAlert::Base* alertToCheck)
+            {
+                return containsRemovedNodeAlert(nodeHandleToFind, alertToCheck);
+            };
+
+    std::string debug_msg = "Found removal-alert with nodehandle |" + std::to_string(nodeHandleToFind) + "| in ";
+    // check in existing alerts
+    if (find_if(begin(alerts), end(alerts), isAlertWithTypeRemoved) != end(alerts))
+    {
+        LOG_debug << debug_msg << "alerts";
+        return true;
+    }
+
+    // check in existing notifications meant to become alerts
+    if (find_if(begin(useralertnotify), end(useralertnotify), isAlertWithTypeRemoved)
+        != end(useralertnotify))
+    {
+        LOG_debug << debug_msg << "useralertnotify";
+        return true;
+    }
+
+    // check in annotated changes pending to become notifications to become alerts
+    if (isSharedNodeNotedAsRemoved(nodeHandleToFind))
+    {
+        LOG_debug << debug_msg << "stash or noted nodes";
+        return true;
+    }
+
+    return false;
+}
+
+void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
+{
+    if (!nodeToRemoveAlert)
+    {
+        LOG_err << "Unable to remove alerts for node. Empty Node* passed.";
+        return;
+    }
+
+    handle nodeHandleToRemove = nodeToRemoveAlert->nodehandle;
+    std::string debug_msg = "Suppressed alert for node with handle |" + std::to_string(nodeHandleToRemove) + "| found as a ";
+    std::function<bool (UserAlert::Base*)> isAlertToRemove =
+        // context captured as a reference to avoid copying debug_msg string
+        [&](UserAlert::Base* alertToCheck)
+            {
+                bool ret = false; // whether the whole user alert must be deleted or not
+                UserAlert::RemovedSharedNode* ptrDelNodeAlert;
+                UserAlert::NewSharedNodes* ptrNewNodeAlert = eraseNewNodeAlert(nodeHandleToRemove, alertToCheck);
+                if (ptrNewNodeAlert)
+                {
+                    ret = ptrNewNodeAlert->fileNodeHandles.empty()
+                          && ptrNewNodeAlert->folderNodeHandles.empty();
+                    LOG_debug << debug_msg << "new-alert type";
+                }
+                else if ((ptrDelNodeAlert = eraseRemovedNodeAlert(nodeHandleToRemove, alertToCheck)))
+                {
+
+                    ret = ptrDelNodeAlert->nodeHandles.empty();
+                    LOG_debug << debug_msg << "removal-alert type";
+                }
+                return ret;
+            };
+
+    // remove from possible existing alerts
+    alerts.erase(remove_if(begin(alerts), end(alerts), isAlertToRemove), end(alerts));
+
+    // remove from possible notifications meant to become alerts
+    useralertnotify.erase(remove_if(begin(useralertnotify), end(useralertnotify), isAlertToRemove)
+                          , end(useralertnotify));
+
+    // remove from annotated changes pending to become notifications to become alerts
+    if (removeNotedSharedNodeFrom(nodeToRemoveAlert, deletedSharedNodesStash))
+    {
+        LOG_debug << debug_msg << "removal-alert in the stash";
+    }
+    if (removeNotedSharedNodeFrom(nodeToRemoveAlert, notedSharedNodes))
+    {
+        LOG_debug << debug_msg << "new-alert in noted nodes";
+    }
+}
+
+void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
+{
+    if (!nodeToUpdate)
+    {
+        LOG_err << "Unable to set alert new-alert node to update-alert. Empty node* passed";
+        return;
+    }
+
+    handle nodeHandleToUpdate = nodeToUpdate->nodehandle;
+    std::string debug_msg = "New-alert replaced by update-alert for nodehandle |"
+        + std::to_string(nodeHandleToUpdate) + "|";
+
+    vector<UserAlert::NewSharedNodes*> nodesToUpdate;
+    auto isAlertToBeRemoved =
+        // context captured as reference to avoid copying debug_msg string
+        [&nodeHandleToUpdate, &debug_msg, &nodesToUpdate, this](UserAlert::Base* alertToCheck)
+            {
+                bool ret = false;
+                UserAlert::NewSharedNodes* ptrNewNodeAlert = eraseNewNodeAlert(nodeHandleToUpdate, alertToCheck);
+                if (ptrNewNodeAlert)
+                {
+                    nodesToUpdate.push_back(ptrNewNodeAlert);
+                    // if there are no files or folders for this entry in the alerts, we can remove the whole alert
+                    ret = ptrNewNodeAlert->fileNodeHandles.empty()
+                          && ptrNewNodeAlert->folderNodeHandles.empty();
+                    LOG_debug << debug_msg << " there are " << (ret ? "no " : "") << " remaining alters for this folder";
+                }
+                return ret;
+            };
+    auto createUpdateAlerts = [&nodeHandleToUpdate, &nodesToUpdate, this]()
+           {
+               using handletoalert_t = UserAlert::handle_alerttype_map_t;
+
+               for(auto n : nodesToUpdate)
+               {
+                   // for an update alert, it doesn't matter if the node is a file or a folder
+                   add(new UserAlert::UpdatedSharedNode(
+                           n->userHandle, n->timestamp, nextId(),
+                           handletoalert_t {{nodeHandleToUpdate, UserAlert::type_u}},
+                           handletoalert_t {}));
+               }
+               nodesToUpdate.clear();
+           };
+    bool done = false;
+    // remove from existing alerts
+    {
+        auto newEnd = remove_if(begin(alerts), end(alerts), isAlertToBeRemoved);
+        if (end(alerts) != newEnd)
+        {
+            alerts.erase(newEnd, end(alerts));
+            done = true;
+        }
+        createUpdateAlerts();
+        if (done) return;
+    }
+
+    // remove from notifications meant to be alerts
+    {
+        auto newEnd = remove_if(begin(useralertnotify), end(useralertnotify), isAlertToBeRemoved);
+        if (end(useralertnotify) != newEnd)
+        {
+            useralertnotify.erase(newEnd, end(useralertnotify));
+            done = true;
+        }
+        createUpdateAlerts();
+        if (done) return;
+    }
+
+    // remove from noted nodes pending to be notifications meant to be alerts
+    if (setNotedSharedNodeToUpdate(nodeToUpdate))
+    {
+        LOG_debug << debug_msg << " new-alert found in noted nodes";
+    }
+}
+
+void UserAlerts::convertStashedDeletedSharedNodes()
+{
+    notedSharedNodes = deletedSharedNodesStash;
+    deletedSharedNodesStash.clear();
+
+    convertNotedSharedNodes(false);
+
+    clearNotedSharedMembers();
+    LOG_debug << "Removal-alert noted-nodes stashed alert notifications converted to notifications";
+}
+
+bool UserAlerts::isDeletedSharedNodesStashEmpty() const
+{
+    return deletedSharedNodesStash.empty();
+}
+
+void UserAlerts::stashDeletedNotedSharedNodes(handle originatingUser)
+{
+    if (isConvertReadyToAdd(originatingUser))
+    {
+        deletedSharedNodesStash = notedSharedNodes;
+    }
+
+    clearNotedSharedMembers();
+    LOG_debug << "Removal-alert noted-nodes alert notifications stashed";
+}
 
 // process server-client notifications
 bool UserAlerts::procsc_useralert(JSON& jsonsc)

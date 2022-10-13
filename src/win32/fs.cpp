@@ -266,7 +266,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     errorcode = 0;
     if (SimpleLogger::logCurrentLevel >= logDebug && skipattributes(fad.dwFileAttributes))
     {
-        LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << nonblocking_localname.toPath();
+        LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << nonblocking_localname;
     }
 
     if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
@@ -596,7 +596,7 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath, bool read, bool write,
         {
             if (SimpleLogger::logCurrentLevel >= logDebug)
             {
-                LOG_debug << "Excluded: " << namePath.toPath() << "   Attributes: " << fad.dwFileAttributes;
+                LOG_debug << "Excluded: " << namePath << "   Attributes: " << fad.dwFileAttributes;
             }
             retry = false;
             return false;
@@ -701,9 +701,9 @@ bool WinFileSystemAccess::hardLink(const LocalPath& source, const LocalPath& tar
     if (!CreateHardLinkW(target.localpath.c_str(), source.localpath.c_str(), nullptr))
     {
         LOG_warn << "Unable to create hard link from "
-                 << source.toPath()
+                 << source
                  << " to "
-                 << target.toPath()
+                 << target
                  << ". Error code was: "
                  << GetLastError();
 
@@ -759,7 +759,7 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     if (!rr)
     {
         DWORD e = GetLastError();
-        LOG_warn << "Unable to get short path name: " << namePath.toPath().c_str() << ". Error code: " << e;
+        LOG_warn << "Unable to get short path name: " << namePath << ". Error code: " << e;
         sname.clear();
         return false;
     }
@@ -795,8 +795,8 @@ bool WinFileSystemAccess::renamelocal(const LocalPath& oldnamePath, const LocalP
 
         if (!target_exists || !skip_targetexists_errorreport)
         {
-            LOG_warn << "Unable to move file: " << oldnamePath.toPath() <<
-                        " to " << newnamePath.toPath() << ". Error code: " << e;
+            LOG_warn << "Unable to move file: " << oldnamePath <<
+                        " to " << newnamePath << ". Error code: " << e;
         }
     }
 
@@ -961,7 +961,7 @@ bool WinFileSystemAccess::mkdirlocal(const LocalPath& namePath, bool hidden, boo
 
         if (!target_exists || logAlreadyExistsError)
         {
-            LOG_debug << "Unable to create folder. Error code: " << e << " for: " << namePath.toPath();
+            LOG_debug << "Unable to create folder. Error code: " << e << " for: " << namePath;
         }
     }
     else if (hidden)
@@ -1052,9 +1052,9 @@ bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, std::strin
     return false;
 }
 
-bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolutepathArg)
+bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& absolutepathArg)
 {
-    int len = GetFullPathNameW(pathArg.localpath.c_str(), 0, NULL, NULL); 
+    int len = GetFullPathNameW(pathArg.localpath.c_str(), 0, NULL, NULL);
     // just get size including NUL terminator
     if (len <= 0)
     {
@@ -1165,7 +1165,7 @@ void WinFileSystemAccess::statsid(string *id) const
         {
             std::wstring localdata(pszData);
             string utf8data;
-            LocalPath::local2path(&localdata, &utf8data);
+            LocalPath::local2path(&localdata, &utf8data, true);
             id->append(utf8data);
         }
         RegCloseKey(hKey);
@@ -1245,7 +1245,7 @@ void WinDirNotify::process(DWORD dwBytes)
         // trigger it but that is not needed anymore
 
         int errCount = ++mErrorCount;
-        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->localname.toPath().c_str() : "NULL")
+        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->localname.toPath(false).c_str() : "NULL")
                 << " errors: " << errCount;
 
         // reissue request for notifications
@@ -1608,7 +1608,7 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& i
     }
 
     string utf8fsname;
-    LocalPath::local2path(&fsname, &utf8fsname);
+    LocalPath::local2path(&fsname, &utf8fsname, true);
     LOG_debug << "Filesystem type: " << utf8fsname;
 
     return result;
@@ -1894,7 +1894,11 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
         std::wstring name = nameArg->localpath;
         if (!glob)
         {
-            name.append(L"\\*");
+            if (!name.empty() && name.back() != L'\\')
+            {
+                name.append(L"\\");
+            }
+            name.append(L"*");
         }
 
         hFind = FindFirstFileW(name.c_str(), &ffd);
@@ -2032,7 +2036,7 @@ m_off_t WinFileSystemAccess::availableDiskSpace(const LocalPath& drivePath)
         auto result = GetLastError();
 
         LOG_warn << "Unable to retrieve available disk space for: "
-                 << drivePath.toPath()
+                 << drivePath
                  << ". Error code was: "
                  << result;
 

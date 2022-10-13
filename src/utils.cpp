@@ -44,6 +44,8 @@
 
 namespace mega {
 
+std::atomic<uint32_t> CancelToken::tokensCancelledCount{0};
+
 string toNodeHandle(handle nodeHandle)
 {
     char base64Handle[12];
@@ -92,7 +94,8 @@ SimpleLogger& operator<<(SimpleLogger& s, NodeOrUploadHandle h)
 
 SimpleLogger& operator<<(SimpleLogger& s, const LocalPath& lp)
 {
-    return s << lp.toPath();
+    // when logging, do not normalize the string, or we can't diagnose failures to match differently encoded utf8 strings
+    return s << lp.toPath(false);
 }
 
 
@@ -174,7 +177,7 @@ void CacheableWriter::serializestring(const string& field)
     dest.append(field.data(), ll);
 }
 
-void CacheableWriter::serializecompressed64(int64_t field)
+void CacheableWriter::serializecompressedu64(uint64_t field)
 {
     byte buf[sizeof field+1];
     dest.append((const char*)buf, Serialize64::serialize(buf, field));
@@ -420,7 +423,7 @@ m_off_t chunkmac_map::expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t 
 
     for (auto it = mMacMap.find(npos);
         npos < fileSize &&
-        (npos - pos) <= maxReqSize &&
+        (npos - pos) < maxReqSize &&
         (it == mMacMap.end() || it->second.notStarted());
         it = mMacMap.find(npos))
     {
@@ -665,7 +668,7 @@ bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
     return false;
 }
 
-bool CacheableReader::unserializecompressed64(uint64_t& field)
+bool CacheableReader::unserializecompressedu64(uint64_t& field)
 {
     int fieldSize;
     if ((fieldSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &field)) < 0)
@@ -798,419 +801,6 @@ bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned
     fieldnum += 1;
     return true;
 }
-
-#ifdef ENABLE_CHAT
-TextChat::TextChat()
-{
-    id = UNDEF;
-    priv = PRIV_UNKNOWN;
-    shard = -1;
-    userpriv = NULL;
-    group = false;
-    ou = UNDEF;
-    resetTag();
-    ts = 0;
-    flags = 0;
-    publicchat = false;
-
-    memset(&changed, 0, sizeof(changed));
-}
-
-TextChat::~TextChat()
-{
-    delete userpriv;
-}
-
-bool TextChat::serialize(string *d)
-{
-    unsigned short ll;
-
-    d->append((char*)&id, sizeof id);
-    d->append((char*)&priv, sizeof priv);
-    d->append((char*)&shard, sizeof shard);
-
-    ll = (unsigned short)(userpriv ? userpriv->size() : 0);
-    d->append((char*)&ll, sizeof ll);
-    if (userpriv)
-    {
-        userpriv_vector::iterator it = userpriv->begin();
-        while (it != userpriv->end())
-        {
-            handle uh = it->first;
-            d->append((char*)&uh, sizeof uh);
-
-            privilege_t priv = it->second;
-            d->append((char*)&priv, sizeof priv);
-
-            it++;
-        }
-    }
-
-    d->append((char*)&group, sizeof group);
-
-    // title is a binary array
-    ll = (unsigned short)title.size();
-    d->append((char*)&ll, sizeof ll);
-    d->append(title.data(), ll);
-
-    d->append((char*)&ou, sizeof ou);
-    d->append((char*)&ts, sizeof(ts));
-
-    char hasAttachments = attachedNodes.size() != 0;
-    d->append((char*)&hasAttachments, 1);
-
-    d->append((char*)&flags, 1);
-
-    char mode = publicchat ? 1 : 0;
-    d->append((char*)&mode, 1);
-
-    char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
-    d->append((char *)&hasUnifiedKey, 1);
-
-    char meetingRoom = meeting ? 1 : 0;
-    d->append((char*)&meetingRoom, 1);
-
-    d->append("\0\0\0\0\0", 5); // additional bytes for backwards compatibility
-
-    if (hasAttachments)
-    {
-        ll = (unsigned short)attachedNodes.size();  // number of nodes with granted access
-        d->append((char*)&ll, sizeof ll);
-
-        for (attachments_map::iterator it = attachedNodes.begin(); it != attachedNodes.end(); it++)
-        {
-            d->append((char*)&it->first, sizeof it->first); // nodehandle
-
-            ll = (unsigned short)it->second.size(); // number of users with granted access to the node
-            d->append((char*)&ll, sizeof ll);
-            for (set<handle>::iterator ituh = it->second.begin(); ituh != it->second.end(); ituh++)
-            {
-                d->append((char*)&(*ituh), sizeof *ituh);   // userhandle
-            }
-        }
-    }
-
-    if (hasUnifiedKey)
-    {
-        ll = (unsigned short) unifiedKey.size();
-        d->append((char *)&ll, sizeof ll);
-        d->append((char*) unifiedKey.data(), unifiedKey.size());
-    }
-
-    return true;
-}
-
-TextChat* TextChat::unserialize(class MegaClient *client, string *d)
-{
-    handle id;
-    privilege_t priv;
-    int shard;
-    userpriv_vector *userpriv = NULL;
-    bool group;
-    string title;   // byte array
-    handle ou;
-    m_time_t ts;
-    byte flags;
-    char hasAttachments;
-    attachments_map attachedNodes;
-    bool publicchat;
-    string unifiedKey;
-
-    unsigned short ll;
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
-    if (ptr + sizeof(handle) + sizeof(privilege_t) + sizeof(int) + sizeof(short) > end)
-    {
-        return NULL;
-    }
-
-    id = MemAccess::get<handle>(ptr);
-    ptr += sizeof id;
-
-    priv = MemAccess::get<privilege_t>(ptr);
-    ptr += sizeof priv;
-
-    shard = MemAccess::get<int>(ptr);
-    ptr += sizeof shard;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof ll;
-    if (ll)
-    {
-        if (ptr + ll * (sizeof(handle) + sizeof(privilege_t)) > end)
-        {
-            return NULL;
-        }
-
-        userpriv = new userpriv_vector();
-
-        for (unsigned short i = 0; i < ll; i++)
-        {
-            handle uh = MemAccess::get<handle>(ptr);
-            ptr += sizeof uh;
-
-            privilege_t priv = MemAccess::get<privilege_t>(ptr);
-            ptr += sizeof priv;
-
-            userpriv->push_back(userpriv_pair(uh, priv));
-        }
-
-        if (priv == PRIV_RM)    // clear peerlist if removed
-        {
-            delete userpriv;
-            userpriv = NULL;
-        }
-    }
-
-    if (ptr + sizeof(bool) + sizeof(unsigned short) > end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    group = MemAccess::get<bool>(ptr);
-    ptr += sizeof group;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof ll;
-    if (ll)
-    {
-        if (ptr + ll > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-        title.assign(ptr, ll);
-    }
-    ptr += ll;
-
-    if (ptr + sizeof(handle) + sizeof(m_time_t) + sizeof(char) + 9 > end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    ou = MemAccess::get<handle>(ptr);
-    ptr += sizeof ou;
-
-    ts = MemAccess::get<m_time_t>(ptr);
-    ptr += sizeof(m_time_t);
-
-    hasAttachments = MemAccess::get<char>(ptr);
-    ptr += sizeof hasAttachments;
-
-    flags = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    char mode = MemAccess::get<char>(ptr);
-    publicchat = (mode == 1);
-    ptr += sizeof(char);
-
-    char hasUnifiedKey = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    char meetingRoom = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    for (int i = 5; i--;)
-    {
-        if (ptr + MemAccess::get<unsigned char>(ptr) < end)
-        {
-            ptr += MemAccess::get<unsigned char>(ptr) + 1;
-        }
-    }
-
-    if (hasAttachments)
-    {
-        unsigned short numNodes = 0;
-        if (ptr + sizeof numNodes > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        numNodes = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof numNodes;
-
-        for (int i = 0; i < numNodes; i++)
-        {
-            handle h = UNDEF;
-            unsigned short numUsers = 0;
-            if (ptr + sizeof h + sizeof numUsers > end)
-            {
-                delete userpriv;
-                return NULL;
-            }
-
-            h = MemAccess::get<handle>(ptr);
-            ptr += sizeof h;
-
-            numUsers = MemAccess::get<unsigned short>(ptr);
-            ptr += sizeof numUsers;
-
-            handle uh = UNDEF;
-            if (ptr + (numUsers * sizeof(uh)) > end)
-            {
-                delete userpriv;
-                return NULL;
-            }
-
-            for (int j = 0; j < numUsers; j++)
-            {
-                uh = MemAccess::get<handle>(ptr);
-                ptr += sizeof uh;
-
-                attachedNodes[h].insert(uh);
-            }
-        }
-    }
-
-    if (hasUnifiedKey)
-    {
-        unsigned short keylen = 0;
-        if (ptr + sizeof keylen > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        keylen = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof keylen;
-
-        if (ptr + keylen > end)
-        {
-            delete userpriv;
-            return NULL;
-        }
-
-        unifiedKey.assign(ptr, keylen);
-        ptr += keylen;
-    }
-
-    if (ptr < end)
-    {
-        delete userpriv;
-        return NULL;
-    }
-
-    if (client->chats.find(id) == client->chats.end())
-    {
-        client->chats[id] = new TextChat();
-    }
-    else
-    {
-        LOG_warn << "Unserialized a chat already in RAM";
-    }
-    TextChat* chat = client->chats[id];
-    chat->id = id;
-    chat->priv = priv;
-    chat->shard = shard;
-    chat->userpriv = userpriv;
-    chat->group = group;
-    chat->title = title;
-    chat->ou = ou;
-    chat->resetTag();
-    chat->ts = ts;
-    chat->flags = flags;
-    chat->attachedNodes = attachedNodes;
-    chat->publicchat = publicchat;
-    chat->unifiedKey = unifiedKey;
-    chat->meeting = meetingRoom;
-
-    memset(&chat->changed, 0, sizeof(chat->changed));
-
-    return chat;
-}
-
-void TextChat::setTag(int tag)
-{
-    if (this->tag != 0)    // external changes prevail
-    {
-        this->tag = tag;
-    }
-}
-
-int TextChat::getTag()
-{
-    return tag;
-}
-
-void TextChat::resetTag()
-{
-    tag = -1;
-}
-
-bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
-{
-    if (revoke)
-    {
-        attachments_map::iterator uhit = attachedNodes.find(h);
-        if (uhit != attachedNodes.end())
-        {
-            uhit->second.erase(uh);
-            if (uhit->second.empty())
-            {
-                attachedNodes.erase(h);
-                changed.attachments = true;
-            }
-            return true;
-        }
-    }
-    else
-    {
-        attachedNodes[h].insert(uh);
-        changed.attachments = true;
-        return true;
-    }
-
-    return false;
-}
-
-bool TextChat::setFlags(byte newFlags)
-{
-    if (flags == newFlags)
-    {
-        return false;
-    }
-
-    flags = newFlags;
-    changed.flags = true;
-
-    return true;
-}
-
-bool TextChat::isFlagSet(uint8_t offset) const
-{
-    return (flags >> offset) & 1U;
-}
-
-bool TextChat::setMode(bool publicchat)
-{
-    if (this->publicchat == publicchat)
-    {
-        return false;
-    }
-
-    this->publicchat = publicchat;
-    changed.mode = true;
-
-    return true;
-}
-
-bool TextChat::setFlag(bool value, uint8_t offset)
-{
-    if (bool((flags >> offset) & 1U) == value)
-    {
-        return false;
-    }
-
-    flags ^= byte(1U << offset);
-    changed.flags = true;
-
-    return true;
-}
-#endif
 
 /**
  * @brief Encrypts a string after padding it to block length.
@@ -2075,6 +1665,38 @@ int Utils::pcasecmp(const std::wstring& lhs,
 #else // _WIN32
     return lhs.compare(0, length, rhs, 0, length);
 #endif // ! _WIN32
+}
+
+std::string Utils::replace(const std::string& str, char search, char replacement) {
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i-o));
+        r += replacement;
+        o = i + 1;
+    }
+    return r;
+}
+
+std::string Utils::replace(const std::string& str, const std::string& search, const std::string& replacement) {
+    if (search.empty())
+        return str;
+    string r;
+    for (std::string::size_type o = 0;;) {
+        std::string::size_type i = str.find(search, o);
+        if (i == string::npos) {
+            r.append(str.substr(o));
+            break;
+        }
+        r.append(str.substr(o, i - o));
+        r += replacement;
+        o = i + search.length();
+    }
+    return r;
 }
 
 long long abs(long long n)
@@ -2958,6 +2580,7 @@ const char* syncPathProblemDebugString(PathProblem r)
     case PathProblem::UndecryptedCloudNode: return "UndecryptedCloudNode";
     case PathProblem::WaitingForScanningToComplete: return "WaitingForScanningToComplete";
     case PathProblem::WaitingForAnotherMoveToComplete: return "WaitingForAnotherMoveToComplete";
+    case PathProblem::SourceWasMovedElsewhere: return "SourceWasMovedElsewhere";
 
     case PathProblem::PathProblem_LastPlusOne: break;
     }
@@ -3143,6 +2766,18 @@ void debugLogHeapUsage()
 #endif
 }
 
+bool haveDuplicatedValues(const string_map& readableVals, const string_map& b64Vals)
+{
+    return
+        any_of(readableVals.begin(), readableVals.end(), [&b64Vals](const string_map::value_type& p1)
+            {
+                return any_of(b64Vals.begin(), b64Vals.end(), [&p1](const string_map::value_type& p2)
+                    {
+                        return p1.first != p2.first && p1.second == Base64::atob(p2.second);
+                    });
+            });
+}
+
 void SyncTransferCount::operator-=(const SyncTransferCount& rhs)
 {
     mCompleted -= rhs.mCompleted;
@@ -3185,7 +2820,7 @@ double SyncTransferCounts::progress(m_off_t inflightProgress) const
     auto pending = mDownloads.mPendingBytes + mUploads.mPendingBytes;
 
     if (!pending)
-        return 1.0;
+        return 1.0; // 100%
 
     auto completed = mDownloads.mCompletedBytes + mUploads.mCompletedBytes + inflightProgress;
     auto progress = static_cast<double>(completed) / static_cast<double>(pending);
