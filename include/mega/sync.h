@@ -326,7 +326,7 @@ public:
     unique_ptr<DbTable> statecachetable;
 
     // move file or folder to localdebris
-    bool movetolocaldebris(LocalPath& localpath);
+    bool movetolocaldebris(const LocalPath& localpath);
 
     // get progress for heartbeats
     m_off_t getInflightProgress();
@@ -629,13 +629,9 @@ struct Syncs
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
+    void prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
+
     void locallogout(bool removecaches, bool keepSyncsConfigFile);
-
-    // removes all configured backups from cache and API (BackupCenter)
-    void purgeSyncs(std::function<void(Error)> completion);
-
-    // remove all configured backups from cache, not from API
-    void purgeSyncsLocal();
 
     void resetSyncConfigStore();
 
@@ -757,6 +753,7 @@ private:
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
         bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error, SyncError, handle)> completion, std::unique_ptr<FileAccess>& openedLocalFolder, const string& logname, bool notifyApp);
+    void prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion);
