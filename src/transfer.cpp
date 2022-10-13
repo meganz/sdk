@@ -1548,7 +1548,8 @@ bool DirectReadSlot::detectSlowestStartConnection(size_t connectionNum)
                             << "New unused raid connection: " << mUnusedRaidConnection
                             << ", mMinComparableThroughput = " << (mMinComparableThroughput / 1024) << " KB/s"
                             << " [request status of new unused raid connection = " << mReqs[slowestStartConnection]->status << "]";
-                switch(mReqs[slowestStartConnection]->status)
+                reqstatus_t reqStatus = mReqs[slowestStartConnection]->status.load();
+                switch(reqStatus)
                 {
                     case REQ_INFLIGHT:
                     case REQ_SUCCESS:
