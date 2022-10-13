@@ -1343,7 +1343,7 @@ public:
     // sc received seqtags to report to app (not tied to requests in this client)
     string mLastReceivedScSeqTag;
 
-    // records last seqTag, with allowaance for future fields also
+    // records last seqTag, with allowance for future fields also
     ScDbStateRecord mScDbStateRecord;
 
     // Server-MegaClient request JSON and processing state flag ("processing a element")
