@@ -953,6 +953,8 @@ struct Syncs
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
+    void prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
+
     void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
     // get snapshots of the sync configs
@@ -1149,6 +1151,7 @@ private:
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
         bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error, SyncError, handle)> completion, const string& logname);
+    void prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
     void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
     void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent_inThread();
