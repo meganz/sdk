@@ -1368,7 +1368,7 @@ bool DirectReadSlot::processAnyOutputPieces()
         mSlotThroughput.first += static_cast<m_off_t>(len);
         auto lastDataTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - mSlotStartTime).count();
         mSlotThroughput.second = static_cast<m_off_t>(lastDataTime);
-        LOG_verbose << "Delivering assembled part ->"
+        LOG_verbose << "DirectReadSlot -> Delivering assembled part ->"
                     << "len = " << len << ", speed = " << mSpeed << ", meanSpeed = " << (mMeanSpeed / 1024) << " KB/s"
                     << ", slotThroughput = " << ((calcThroughput(mSlotThroughput.first, mSlotThroughput.second) * 1000) / 1024) << " KB/s]";
         continueDirectRead = mDr->drn->client->app->pread_data(outputPiece->buf.datastart(), len, mPos, mSpeed, mMeanSpeed, mDr->appdata);
@@ -1397,6 +1397,10 @@ bool DirectReadSlot::waitForPartsInFlight() const
 unsigned DirectReadSlot::usedConnections() const
 {
     assert(mDr->drbuf.isRaid() || (mReqs.size() > 1));
+    if (!mDr->drbuf.isRaid() || mReqs.size() == 0)
+    {
+        LOG_warn << "DirectReadSlot -> usedConnections() being used when it shouldn't";
+    }
     return static_cast<unsigned>(mReqs.size()) - ((mUnusedRaidConnection != static_cast<unsigned>(mReqs.size())) ? 1 : 0);
 }
 
@@ -1438,20 +1442,27 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
 {
     assert(connectionNum < mReqs.size());
     std::unique_ptr<HttpReq>& req = mReqs[connectionNum];
-    if (req && mDr->drbuf.isRaid() &&
-            mNumSlowConnectionsSwitches < DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES &&
-            connectionNum != mUnusedRaidConnection &&
-            mThroughput[connectionNum].second &&
-            mThroughput[connectionNum].first >= mMinComparableThroughput)
+    if (!req || !mDr->drbuf.isRaid())
+    {
+        return false;
+    }
+    if ((mNumSlowConnectionsSwitches < DirectReadSlot::MAX_SLOW_CONNECTION_SWITCHES) ||
+        (connectionNum == mUnusedRaidConnection))
+    {
+        return false;
+    }
+    bool minComparableThroughputForThisConnection = mThroughput[connectionNum].second &&
+                                                    mThroughput[connectionNum].first >= mMinComparableThroughput;
+    if (minComparableThroughputForThisConnection)
     {
         size_t slowestConnection = connectionNum;
         size_t fastestConnection = connectionNum;
         size_t numReqs = mReqs.size();
-        int otherConnection = static_cast<int>(numReqs);
-        while (otherConnection --> 0)
+        bool minComparableThroughputForOtherConnection = true;
+        for (size_t otherConnection = numReqs - 1; otherConnection > 0 && minComparableThroughputForOtherConnection; --otherConnection)
         {
-            if ((static_cast<size_t>(otherConnection) != connectionNum) &&
-                    (static_cast<size_t>(otherConnection) != mUnusedRaidConnection))
+            if ((otherConnection != connectionNum) &&
+                (otherConnection != mUnusedRaidConnection))
             {
                 if (mThroughput[otherConnection].second && mThroughput[otherConnection].first >= mMinComparableThroughput)
                 {
@@ -1472,7 +1483,7 @@ bool DirectReadSlot::searchAndDisconnectSlowestConnection(size_t connectionNum)
                     // Cannot compare... will need to wait
                     slowestConnection = numReqs;
                     fastestConnection = numReqs;
-                    otherConnection = -1;
+                    minComparableThroughputForOtherConnection = false;
                 }
             }
         }
