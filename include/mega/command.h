@@ -817,14 +817,6 @@ public:
     CommandEnumerateQuotaItems(MegaClient*);
 };
 
-class MEGA_API CommandReportEvent : public Command
-{
-public:
-    bool procresult(Result) override;
-
-    CommandReportEvent(MegaClient*, const char*, const char*);
-};
-
 class MEGA_API CommandSubmitPurchaseReceipt : public Command
 {
 public:
