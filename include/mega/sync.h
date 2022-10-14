@@ -955,7 +955,7 @@ struct Syncs
 
     void prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
 
-    void locallogout(bool removecaches, bool keepSyncsConfigFile);
+    void locallogout(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
 
     // get snapshots of the sync configs
 
@@ -1152,7 +1152,7 @@ private:
         bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error, SyncError, handle)> completion, const string& logname);
     void prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
-    void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
+    void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
     void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent_inThread();
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());

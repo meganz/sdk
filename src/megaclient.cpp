@@ -3694,7 +3694,7 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
 #ifdef ENABLE_SYNC
     syncs.prepareForLogout(keepSyncConfigsFile, [this, keepSyncConfigsFile, sendFinalLogout](){
-        syncs.locallogout(true, keepSyncConfigsFile);
+        syncs.locallogout(true, keepSyncConfigsFile, false);
         sendFinalLogout();
     });
 #else
@@ -3709,7 +3709,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mAsyncQueue.clearDiscardable();
 
 #ifdef ENABLE_SYNC
-    syncs.locallogout(removecaches, keepSyncsConfigFile);
+    syncs.locallogout(removecaches, keepSyncsConfigFile, false);
 
     // Process any lingering client actions.
     if (!syncs.clientThreadActions.empty())

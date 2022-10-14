@@ -5102,13 +5102,13 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
 }
 
 
-void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile)
+void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter)
 {
     assert(!onSyncThread());
-    syncRun([=](){ locallogout_inThread(removecaches, keepSyncsConfigFile); });
+    syncRun([=](){ locallogout_inThread(removecaches, keepSyncsConfigFile, reopenStoreAfter); });
 }
 
-void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
+void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter)
 {
     assert(onSyncThread());
     mExecutingLocallogout = true;
@@ -5150,6 +5150,12 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
 
     clear_inThread();
     mExecutingLocallogout = false;
+
+    if (reopenStoreAfter)
+    {
+        SyncConfigVector configs;
+        syncConfigStoreLoad(configs);
+    }
 }
 
 void Syncs::removeSyncByIndex(size_t index, bool notifyApp, bool unregisterHeartbeat)
