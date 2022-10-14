@@ -15799,7 +15799,7 @@ void MegaClient::setchunkfailed(string* url)
 void MegaClient::reportevent(const char* event, const char* details)
 {
     LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
-    reqs.add(new CommandReportEvent(this, event, details));
+    reqs.add(new CommandSendReport(this, event, details, Base64Str<MegaClient::USERHANDLE>(me)));
 }
 
 void MegaClient::reportevent(const char* event, const char* details, int tag)
@@ -15887,7 +15887,7 @@ void MegaClient::userfeedbackstore(const char *message)
     Base64::btoa((byte *)useragent.data(), int(useragent.size()), (char *)base64userAgent.data());
     type.append(base64userAgent);
 
-    reqs.add(new CommandUserFeedbackStore(this, type.c_str(), message, NULL));
+    reqs.add(new CommandSendReport(this, type.c_str(), message, NULL));
 }
 
 void MegaClient::sendevent(int event, const char *desc)
