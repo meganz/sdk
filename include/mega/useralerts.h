@@ -302,8 +302,10 @@ private:
     void clearNotedSharedMembers();
 
     bool containsRemovedNodeAlert(handle nh, const UserAlert::Base* a) const;
-    UserAlert::NewSharedNodes* eraseNewNodeAlert(handle nodeHandleToRemove, UserAlert::Base* alertToCheck);
-    UserAlert::RemovedSharedNode* eraseRemovedNodeAlert(handle nh, UserAlert::Base* a);
+    // Returns param `a` downcasted if `nh` is found and erased; `nullptr` otherwise
+    UserAlert::NewSharedNodes* eraseNodeHandleFromNewShareNodeAlert(handle nh, UserAlert::Base* a);
+    // Returns param `a` downcasted if `nh` is found and erased; `nullptr` otherwise
+    UserAlert::RemovedSharedNode* eraseNodeHandleFromRemovedSharedNode(handle nh, UserAlert::Base* a);
     pair<bool, UserAlert::handle_alerttype_map_t::difference_type>
         findNotedSharedNodeIn(handle nodeHandle, const notedShNodesMap& notedSharedNodesMap) const;
     bool isSharedNodeNotedAsRemoved(handle nodeHandleToFind) const;
