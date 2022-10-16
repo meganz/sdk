@@ -5153,6 +5153,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
 
     if (reopenStoreAfter)
     {
+        syncKey.setkey(mClient.key.key);
         SyncConfigVector configs;
         syncConfigStoreLoad(configs);
     }

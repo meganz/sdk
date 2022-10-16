@@ -993,6 +993,14 @@ struct Syncs
     /**
      * @brief
      * Removes previously opened backup databases from that drive from memory.
+     *
+     * Note that this function will:
+     * - Flush any pending database changes.
+     * - Remove all contained backup configs from memory.
+     * - Remove the database itself from memory.
+     *
+     * @param drivePath
+     * The drive containing the database to remove.
      */
     void backupCloseDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback);
 
