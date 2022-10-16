@@ -2287,7 +2287,7 @@ bool Sync::updateSyncRemoteLocation(Node* n, bool forceCallback)
     return mUnifiedSync.updateSyncRemoteLocation(n, forceCallback);
 }
 
-bool Sync::movetolocaldebris(LocalPath& localpath)
+bool Sync::movetolocaldebris(const LocalPath& localpath)
 {
     char buf[32];
     struct tm tms;
@@ -4240,49 +4240,6 @@ void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
-void Syncs::purgeSyncs(std::function<void(Error)> completion)
-{
-    if (!mSyncConfigStore)
-    {
-        completion(API_OK);
-        return;
-    }
-
-    // Remove all syncs.
-    removeSelectedSyncs(
-        [](SyncConfig&, Sync*) { return true; },    // selector: all syncs
-        [=](Error e)
-        {
-            if (e != API_OK)
-                LOG_err << "Failed to purge syncs. Error: " << e;
-
-            // finally, remove local syncs config files (internal and external, if any)
-            purgeSyncsLocal();
-            completion(e);
-        },
-        false); // in this case, user is logging out. There's no chance to ask him about
-        // move or delete backup folders, so they will be kept (user can get rid of them in Backup Centre)
-}
-
-void Syncs::purgeSyncsLocal()
-{
-    if (!mSyncConfigStore) return;
-
-    // Truncate internal sync config database.
-    mSyncConfigStore->write(LocalPath(), SyncConfigVector());
-
-    // Remove all drives.
-    for (auto& drive : mSyncConfigStore->knownDrives())
-    {
-        // Never remove internal drive.
-        if (!drive.empty())
-        {
-            // This does not flush.
-            mSyncConfigStore->removeDrive(drive);
-        }
-    }
-}
-
 void Syncs::removeSyncByConfig(const SyncConfig& config,
                                std::function<void(Error)> completion,
                                bool moveOrUnlink,
@@ -4736,10 +4693,62 @@ void Syncs::unloadSyncByIndex(size_t index)
     }
 }
 
+
+void Syncs::prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion)
+{
+    queueSync([=](){ prepareForLogout_inThread(keepSyncsConfigFile, clientCompletion); });
+}
+
+void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion)
+{
+    assert(onSyncThread());
+
+    if (keepSyncsConfigFile)
+    {
+        // Special case backward compatibility for MEGAsync
+        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
+
+        for (auto& us : mSyncVec)
+        {
+            if (us->mConfig.getEnabled())
+            {
+                disableSyncByBackupId_inThread(us->mConfig.mBackupId, true, LOGGED_OUT, false, nullptr);
+            }
+        }
+    }
+
+    // regardless of that, we de-register all syncs/backups in Backup Centre
+    for (auto& us : mSyncVec)
+    {
+        std::function<void()> onFinalDeregister = nullptr;
+        if (us.get() == mSyncVec.back().get())
+        {
+            // this is the last one, so we'll arrange clientCompletion
+            // to run after it completes.  Earlier de-registers must finish first
+            onFinalDeregister = move(clientCompletion);
+            clientCompletion = nullptr;
+        }
+
+        auto backupId = us->mConfig.mBackupId;
+        queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
+            mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){
+                if (onFinalDeregister) onFinalDeregister();
+            }));
+        });
+    }
+
+    if (clientCompletion)
+    {
+        // this case for if we didn't need to deregister anything
+        queueClient([clientCompletion](MegaClient&, TransferDbCommitter&){ clientCompletion(); });
+    }
+}
+
+
 void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
     //assert(!onSyncThread());
-    syncRun([&](){ locallogout_inThread(removecaches, keepSyncsConfigFile); });
+    syncRun([=](){ locallogout_inThread(removecaches, keepSyncsConfigFile); });
 }
 
 void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
@@ -4762,20 +4771,6 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
         }
     }
 
-    if (removecaches && keepSyncsConfigFile)
-    {
-        // Special case backward compatibility for MEGAsync
-        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-
-        for (auto& us : mSyncVec)
-        {
-            if (us->mConfig.getEnabled())
-            {
-                disableSyncByBackupId_inThread(us->mConfig.mBackupId, true, LOGGED_OUT, false, nullptr);
-            }
-        }
-    }
-
     if (mSyncConfigStore)
     {
         if (!keepSyncsConfigFile)
@@ -4791,6 +4786,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
 
     // Remove all syncs from RAM.
     unloadSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+    assert(mSyncVec.empty());
 
     // make sure we didn't resurrect the store, singleton style
     assert(!mSyncConfigStore);
