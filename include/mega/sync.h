@@ -921,6 +921,7 @@ struct Syncs
     SyncConfigVector getConfigs(bool onlyActive, bool excludePaused = false) const;
     bool configById(handle backupId, SyncConfig&) const;
     SyncConfigVector configsForDrive(const LocalPath& drive) const;
+    SyncConfigVector selectedSyncConfigs(std::function<bool(SyncConfig&, Sync*)> selector) const;
 
     // Add new sync setups
     void appendNewSync(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath = string());
@@ -945,7 +946,7 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool notifyApp, bool unregisterHeartbeat);
+    void removeSync(handle backupId, std::function<void(Error)> completion);
 
     // removes the sync from RAM; the config will be flushed to disk
     void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool newEnabledFlag);

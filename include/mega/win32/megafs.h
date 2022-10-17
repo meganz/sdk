@@ -109,8 +109,7 @@ public:
 
     m_off_t availableDiskSpace(const LocalPath& drivePath) override;
 
-private:
-    bool CheckForSymlink(const LocalPath& lp);
+    static bool checkForSymlink(const LocalPath& lp);
 };
 
 #ifdef ENABLE_SYNC

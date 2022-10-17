@@ -2688,20 +2688,8 @@ string StandardClient::exportSyncConfigs()
 
 bool StandardClient::delSync_inthread(handle backupId)
 {
-    const auto handle = syncSet(backupId).h;
-    bool removed = false;
-
-    client.syncs.removeSelectedSyncs(
-        [&](SyncConfig& c, Sync*)
-        {
-            const bool matched = c.mRemoteNode == handle;
-
-            removed |= matched;
-
-            return matched;
-        }, false, true); // in the tests we are going to resume the syncs on session resume
-
-    return removed;
+    client.syncs.removeSync(backupId,
+      [=](Error error) { result->set_value(error == API_OK); });
 }
 
 bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)

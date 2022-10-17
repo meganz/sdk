@@ -21553,64 +21553,72 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; }, true, true );
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            auto configVector = client->syncs.getConfigs(false);
+            if (configVector.empty())
+            {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            }
+            else
+            {
+                for (auto& v : configVector)
+                {
+                    std::function<void(Error)> completion = [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); };
+
+                    if (&v != &configVector.back())
+                    {
+                        // only make the Finish callback for the last one.
+                        completion = nullptr;
+                    }
+
+                    if (v.isBackup())
+                    {
+                        // unlink the backup's Vault nodes after deregistering it
+                        NodeHandle source = v.mRemoteNode;
+                        NodeHandle destination = NodeHandle().set6byte(request->getNodeHandle());
+                        completion = [completion, source, destination, this](Error e){
+                            client->unlinkOrMoveBackupNodes(source, destination, completion);
+                        };
+                    }
+
+                    client->syncs.removeSync(v.mBackupId, completion);
+                }
+            }
             break;
         }
         case MegaRequest::TYPE_REMOVE_SYNC:
         {
-            handle nodehandle = request->getNodeHandle();
             auto backupId = request->getParentHandle();
-
-            if (backupId == INVALID_HANDLE && nodehandle == INVALID_HANDLE)
+            if (backupId == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
             }
 
-            bool found = false;
-            // synchronous call so ok to use &
-            client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync){
-
-                bool matched = (backupId != UNDEF && c.mBackupId == backupId) ||
-                    (!ISUNDEF(nodehandle) && c.mRemoteNode == nodehandle);
-
-                if (matched && sync)
-                {
-                    string path = sync->localroot->localname.toPath(false);
-                    if (!request->getFile())
-                    {
-                        request->setFile(path.c_str());
-                    }
-                }
-                found = found || matched;
-                return matched;
-            }, true, true);
-
-            if (!found)
+            SyncConfig c;
+            if (!client->syncs.syncConfigByBackupId(backupId, c))
             {
+                LOG_err << "Backup id not found: " << Base64Str<MegaClient::BACKUPHANDLE>(backupId);
                 e = API_ENOENT;
+                break;
             }
 
-            if (!e)
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            }
+            request->setFile(c.mLocalPath.toPath(false).c_str());
 
-            break;
-        }
-        case MegaRequest::TYPE_GET_SYNC_STALL_LIST:
-        {
-            auto completion = [this, request](SyncProblems& problems) {
-                auto error = ::mega::make_unique<MegaErrorPrivate>(API_OK);
-                auto stalls = ::mega::make_unique<MegaSyncStallListPrivate>(problems);
-
-                request->setMegaSyncStallList(std::move(stalls));
-
-                fireOnRequestFinish(request, std::move(error));
+            std::function<void(Error)> completion = [request, this](Error e) {
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e)));
             };
 
-            client->syncs.getSyncProblems(std::move(completion), true);
+            if (c.isBackup())
+            {
+                // unlink the backup's Vault nodes after deregistering it
+                NodeHandle source = c.mRemoteNode;
+                NodeHandle destination = NodeHandle().set6byte(request->getNodeHandle());
+                completion = [completion, source, destination, this](Error e){
+                    client->unlinkOrMoveBackupNodes(source, destination, completion);
+                };
+            }
+
+            client->syncs.removeSync(backupId, completion);
             break;
         }
 #endif  // ENABLE_SYNC

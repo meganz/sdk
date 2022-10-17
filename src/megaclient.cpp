@@ -7759,6 +7759,60 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
     }
 }
 
+void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)
+{
+    Node* n = nodeByHandle(backupRootNode);
+    if (!n)
+    {
+        if (destination.isUndef())
+        {
+            // we were going to delete these anyway, so no problem
+            completion(API_OK);
+        }
+        else
+        {
+            // we can't move them if they don't exist
+            completion(API_EARGS);
+        }
+        return;
+    }
+
+    if (n->firstancestor()->nodeHandle() != rootnodes.vault)
+    {
+        // backup nodes are supposed to be in the vault - if not, something is wrong
+        completion(API_EARGS);
+        return;
+    }
+
+    if (destination.isUndef())
+    {
+        error e = unlink(n, false, 0, true, [completion](NodeHandle, Error e){ completion(e); });
+        if (e)
+        {
+            // error before we sent a request so call completion directly
+            completion(e);
+        }
+    }
+    else
+    {
+        // moving to target node
+
+        Node* p = nodeByHandle(destination);
+        if (!p || p->firstancestor()->nodeHandle() != rootnodes.files)
+        {
+            completion(API_EARGS);
+            return;
+        }
+
+        error e = rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, true, [completion](NodeHandle, Error e){ completion(e); });
+        if (e)
+        {
+            // error before we sent a request so call completion directly
+            completion(e);
+        }
+    }
+}
+
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction)
 {
