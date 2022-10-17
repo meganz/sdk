@@ -207,6 +207,97 @@ void Node::detach(const bool recreate)
     }
 }
 
+bool Node::getExtension(std::string& ext) const
+{
+    const char* name = displayname();
+    const size_t size = strlen(name);
+
+    const char* ptr = name + size;
+    char c;
+
+    for (unsigned i = 0; i < size; ++i)
+    {
+        if (*--ptr == '.')
+        {
+            ext.reserve(i+1);
+
+            unsigned j = 0;
+            for (; j <= i; j++)
+            {
+                if (*ptr < '.' || *ptr > 'z') return false;
+
+                c = *(ptr++);
+
+                // tolower()
+                if (c >= 'A' && c <= 'Z') c |= ' ';
+
+                ext.push_back(c);
+            }
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
+const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
+const static string webclient_is_image_raw = ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
+const static string webclient_is_image_thumb = ".psd.svg.tif.tiff.webp.";  // leaving out .pdf
+const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
+const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
+const static string webclient_mime_audio_extensions = ".ac3.ec3.3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
+const static string webclient_mime_document_extensions = ".ans.ascii.doc.docx.dotx.json.log.ods.odt.pages.pdf.ppc.pps.ppt.pptx.rtf.stc.std.stw.sti.sxc.sxd.sxi.sxm.sxw.txt.wpd.wps.xls.xlsx.xlt.xltm.";
+
+bool Node::isPhoto(const std::string& ext, bool checkPreview) const
+{
+    // evaluate according to the webclient rules, so that we get exactly the same bucketing.
+    return webclient_is_image_def.find(ext) != string::npos ||
+        webclient_is_image_raw.find(ext) != string::npos ||
+        (webclient_mime_photo_extensions.find(ext) != string::npos
+            && (!checkPreview || hasfileattribute(GfxProc::PREVIEW)));
+}
+
+bool Node::isVideo(const std::string& ext) const
+{
+    if (hasfileattribute(fa_media) && nodekey().size() == FILENODEKEYLENGTH)
+    {
+#ifdef USE_MEDIAINFO
+        if (client->mediaFileInfo.mediaCodecsReceived)
+        {
+            MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, (uint32_t*)(nodekey().data() + FILENODEKEYLENGTH / 2));
+            unsigned videocodec = mp.videocodecid;
+            if (!videocodec && mp.shortformat)
+            {
+                auto& v = client->mediaFileInfo.mediaCodecs.shortformats;
+                if (mp.shortformat < v.size())
+                {
+                    videocodec = v[mp.shortformat].videocodecid;
+                }
+            }
+            // approximation: the webclient has a lot of logic to determine if a particular codec is playable in that browser.  We'll just base our decision on the presence of a video codec.
+            if (!videocodec)
+            {
+                return false; // otherwise double-check by extension
+            }
+        }
+#endif
+    }
+
+    return webclient_mime_video_extensions.find(ext) != string::npos;
+}
+
+bool Node::isAudio(const std::string& ext) const
+{
+    return webclient_mime_audio_extensions.find(ext) != string::npos;
+}
+
+bool Node::isDocument(const std::string& ext) const
+{
+    return webclient_mime_document_extensions.find(ext) != string::npos;
+}
+
 #endif // ENABLE_SYNC
 
 void Node::setkeyfromjson(const char* k)
@@ -932,6 +1023,40 @@ string Node::displaypath() const
         path.insert(0, "/");
     }
     return path;
+}
+
+MimeType_t Node::getMimetype(bool checkPreview) const
+{
+    if (type != FILENODE)
+    {
+        return MimeType_t::MIME_TYPE_UNKNOWN;
+    }
+
+    std::string extension;
+    if (!getExtension(extension))
+    {
+        return MimeType_t::MIME_TYPE_UNKNOWN;
+    }
+
+    // TODO check preveiw
+    if (isPhoto(extension, checkPreview))
+    {
+        return MimeType_t::MIME_TYPE_PHOTO;
+    }
+    else if (isVideo(extension))
+    {
+        return MimeType_t::MIME_TYPE_VIDEO;
+    }
+    else if (isAudio(extension))
+    {
+        return MimeType_t::MIME_TYPE_AUDIO;
+    }
+    else if (isDocument(extension))
+    {
+        return MimeType_t::MIME_TYPE_DOCUMENT;
+    }
+
+    return MimeType_t::MIME_TYPE_UNKNOWN;
 }
 
 // returns position of file attribute or 0 if not present
