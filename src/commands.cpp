@@ -9300,6 +9300,7 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
         return false;
     }
 
+    TextChat* chat = it->second;
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     error err = client->parseScheduledMeetings(&schedMeetings, true /*parsingOccurrences*/);
     if (err)
@@ -9308,25 +9309,18 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
         return false;
     }
 
-    if (schedMeetings.empty())
-    {
-        LOG_debug << "CommandScheduledMeetingFetchEvents: no scheduled meetings ocurrences returned by API for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(mChatId) << "]";
-    }
-
-    // add received scheduled meetings occurrences
-    TextChat* chat = it->second;
-
-    // if just one scheduled meeting has changed for a chatroom, invalidate all meetings occurrences related for that chatid,
-    // although it's related scheduled meeting has not changed and re-request again [mcsmfo], this approach is an API requirement
+    // if we have requested scheduled meetings occurrences for a chatid, we need to clear current occurrences cache for that chat, and replace by received ones from API
+    // this approach is an API requirement
     LOG_debug << "Invalidating scheduled meetings ocurrences for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(chat->id) << "]";
     chat->clearSchedMeetingOccurrences();
 
-    //add new changed
     for (auto& schedMeeting: schedMeetings)
     {
+        // add received scheduled meetings occurrences
         chat->addSchedMeetingOccurrence(std::move(schedMeeting));
     }
 
+    // just notify once, for all ocurrences received for the same chat
     chat->changed.schedOcurr = true;
     client->notifychat(chat);
 
