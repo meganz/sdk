@@ -33129,6 +33129,8 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
 
     if (chat->changed.schedOcurr)
     {
+        // we do not need a list of changed scheduled occurrences, as we manage (retrieve, update and clear) them
+        // in block (all occurrences for the chat)
         changed |= MegaTextChat::CHANGE_TYPE_SCHED_OCURR;
     }
 }

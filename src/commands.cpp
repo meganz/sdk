@@ -6731,6 +6731,7 @@ bool CommandChatCreate::procresult(Result r)
                         chat->ts = (ts != -1) ? ts : 0;
                         chat->publicchat = mPublicChat;
                         chat->meeting = mMeeting;
+                        // no need to fetch scheduled meetings as we have just created the chat, so it doesn't have any
 
                         if (group) // we are creating a chat, so we need to initialize all chat options enabled/disabled
                         {
@@ -9092,6 +9093,7 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
         arg("f", static_cast<long>(schedMeeting->flags()->getNumericValue()));
     }
 
+    // rules are not mandatory to create a scheduled meeting, but if provided, frequency is required
     if (schedMeeting->rules())
     {
         ScheduledRules* rules = schedMeeting->rules();
@@ -9209,11 +9211,14 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
             return true;
         }
 
+        // remove scheduled meeting and all it's children
         TextChat* chat = it->second;
         if (chat->removeSchedMeeting(mSchedMeetingId))
         {
             chat->removeChildSchedMeetings(mSchedMeetingId);
             client->notifychat(chat);
+
+            // re-fetch scheduled meetings occurrences
             client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, -1,
                                                             [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
         }
@@ -9297,6 +9302,11 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
     {
         mCompletion(err, nullptr);
         return false;
+    }
+
+    if (schedMeetings.empty())
+    {
+        LOG_debug << "CommandScheduledMeetingFetchEvents: no scheduled meetings ocurrences returned by API for chatid [" <<  Base64Str<MegaClient::CHATHANDLE>(mChatId) << "]";
     }
 
     // add received scheduled meetings occurrences

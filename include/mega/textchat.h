@@ -111,7 +111,7 @@ public:
 
     // scheduled meetings
     bool addOrUpdateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
-    bool addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);
+    bool addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm, bool notify = true);
     bool removeSchedMeeting(handle callid);
     unsigned int removeChildSchedMeetings(handle parentCallid);
     bool updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm);

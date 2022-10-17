@@ -481,7 +481,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         std::unique_ptr<ScheduledMeeting> auxMeet(ScheduledMeeting::unserialize(&i));
         if (auxMeet)
         {
-            chat->addSchedMeeting(std::move(auxMeet));
+            chat->addSchedMeeting(std::move(auxMeet), false /*notify*/);
         }
     }
 
@@ -581,7 +581,7 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
     return nullptr;
 }
 
-bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
+bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm, bool notify)
 {
     assert(sm);
     if (mScheduledMeetings.find(sm->callid()) != mScheduledMeetings.end())
@@ -590,8 +590,11 @@ bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
         return false;
     }
 
-    mSchedMeetingsChanged.emplace_back(sm->callid());
-    mScheduledMeetings.emplace(sm->callid(), std::move(sm));
+    if (notify)
+    {
+        mSchedMeetingsChanged.emplace_back(sm->callid());
+        mScheduledMeetings.emplace(sm->callid(), std::move(sm));
+    }
     return true;
 }
 
@@ -600,7 +603,7 @@ bool TextChat::removeSchedMeeting(handle callid)
     assert(callid != UNDEF);
     if (mScheduledMeetings.find(callid) == mScheduledMeetings.end())
     {
-        LOG_err << "removeSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(callid) << " doesn't exists anymore";
+        LOG_err << "removeSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(callid) << " no longer exists";
         return false;
     }
 
@@ -631,7 +634,7 @@ bool TextChat::updateSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm)
     auto it = mScheduledMeetings.find(sm->callid());
     if (it == mScheduledMeetings.end())
     {
-        LOG_err << "updateSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(sm->callid()) << " doesn't exists anymore";
+        LOG_err << "updateSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(sm->callid()) << " no longer exists";
         return false;
     }
 
