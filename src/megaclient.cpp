@@ -4381,7 +4381,7 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
 #ifdef ENABLE_SYNC
     syncs.prepareForLogout(keepSyncConfigsFile, [this, keepSyncConfigsFile, sendFinalLogout](){
-        syncs.locallogout(true, keepSyncConfigsFile);
+        syncs.locallogout(true, keepSyncConfigsFile, false);
         sendFinalLogout();
     });
 #else
@@ -4396,7 +4396,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mAsyncQueue.clearDiscardable();
 
 #ifdef ENABLE_SYNC
-    syncs.locallogout(removecaches, keepSyncsConfigFile);
+    syncs.locallogout(removecaches, keepSyncsConfigFile, false);
 #endif
 
     if (removecaches)
@@ -7566,10 +7566,8 @@ void MegaClient::notifypurge(void)
                 };
 
                 // Try and remove the sync.
-                syncs.removeSyncByConfig(us.mConfig,
-                                         std::move(completion),
-                                         false,
-                                         NodeHandle());
+                syncs.removeSync(us.mConfig.mBackupId,
+                                 move(completion));
             }
 
             //update sync root node location and trigger failing cases
@@ -8497,6 +8495,60 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
     for (auto& c : n->children)
     {
         removeOutSharesFromSubtree(c, tag);
+    }
+}
+
+void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion)
+{
+    Node* n = nodeByHandle(backupRootNode);
+    if (!n)
+    {
+        if (destination.isUndef())
+        {
+            // we were going to delete these anyway, so no problem
+            completion(API_OK);
+        }
+        else
+        {
+            // we can't move them if they don't exist
+            completion(API_EARGS);
+        }
+        return;
+    }
+
+    if (n->firstancestor()->nodeHandle() != rootnodes.vault)
+    {
+        // backup nodes are supposed to be in the vault - if not, something is wrong
+        completion(API_EARGS);
+        return;
+    }
+
+    if (destination.isUndef())
+    {
+        error e = unlink(n, false, 0, true, [completion](NodeHandle, Error e){ completion(e); });
+        if (e)
+        {
+            // error before we sent a request so call completion directly
+            completion(e);
+        }
+    }
+    else
+    {
+        // moving to target node
+
+        Node* p = nodeByHandle(destination);
+        if (!p || p->firstancestor()->nodeHandle() != rootnodes.files)
+        {
+            completion(API_EARGS);
+            return;
+        }
+
+        error e = rename(n, p, SYNCDEL_NONE, NodeHandle(), nullptr, true, [completion](NodeHandle, Error e){ completion(e); });
+        if (e)
+        {
+            // error before we sent a request so call completion directly
+            completion(e);
+        }
     }
 }
 
@@ -14225,7 +14277,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     {
         if (openedLocalFolder->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();;
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();
 
             // Note localpath is stored as utf8 in syncconfig as passed from the apps!
             // Note: we might want to have it expansed to store the full canonical path.

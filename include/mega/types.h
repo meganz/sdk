@@ -1032,7 +1032,7 @@ public:
     bool speakRequest() const               { return mChatOptions & kSpeakRequest; }
     bool waitingRoom() const                { return mChatOptions & kWaitingRoom; }
     bool openInvite() const                 { return mChatOptions & kOpenInvite; }
-    bool isValid()                          { return mChatOptions >= kEmpty && mChatOptions <= maxValidValue; }
+    bool isValid()                          { return unsigned(mChatOptions) <= unsigned(maxValidValue); }
     bool isEmpty()                          { return mChatOptions == kEmpty; }
 
 protected:
