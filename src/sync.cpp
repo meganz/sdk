@@ -5050,13 +5050,65 @@ void Syncs::unloadSyncByIndex(size_t index, bool newEnabledFlag)
     }
 }
 
-void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile)
+
+void Syncs::prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion)
 {
-    assert(!onSyncThread());
-    syncRun([&](){ locallogout_inThread(removecaches, keepSyncsConfigFile); });
+    queueSync([=](){ prepareForLogout_inThread(keepSyncsConfigFile, clientCompletion); });
 }
 
-void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
+void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion)
+{
+    assert(onSyncThread());
+
+    if (keepSyncsConfigFile)
+    {
+        // Special case backward compatibility for MEGAsync
+        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
+
+        for (auto& us : mSyncVec)
+        {
+            if (us->mConfig.getEnabled())
+            {
+                disableSyncByBackupId_inThread(us->mConfig.mBackupId, LOGGED_OUT, false, false, nullptr);
+            }
+        }
+    }
+
+    // regardless of that, we de-register all syncs/backups in Backup Centre
+    for (auto& us : mSyncVec)
+    {
+        std::function<void()> onFinalDeregister = nullptr;
+        if (us.get() == mSyncVec.back().get())
+        {
+            // this is the last one, so we'll arrange clientCompletion
+            // to run after it completes.  Earlier de-registers must finish first
+            onFinalDeregister = move(clientCompletion);
+            clientCompletion = nullptr;
+        }
+
+        auto backupId = us->mConfig.mBackupId;
+        queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
+            mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){
+                if (onFinalDeregister) onFinalDeregister();
+            }));
+        });
+    }
+
+    if (clientCompletion)
+    {
+        // this case for if we didn't need to deregister anything
+        queueClient([clientCompletion](MegaClient&, TransferDbCommitter&){ clientCompletion(); });
+    }
+}
+
+
+void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter)
+{
+    assert(!onSyncThread());
+    syncRun([=](){ locallogout_inThread(removecaches, keepSyncsConfigFile, reopenStoreAfter); });
+}
+
+void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter)
 {
     assert(onSyncThread());
     mExecutingLocallogout = true;
@@ -5076,20 +5128,6 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
         }
     }
 
-    if (removecaches && keepSyncsConfigFile)
-    {
-        // Special case backward compatibility for MEGAsync
-        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-
-        for (auto& us : mSyncVec)
-        {
-            if (us->mConfig.getEnabled())
-            {
-                disableSyncByBackupId_inThread(us->mConfig.mBackupId, LOGGED_OUT, false, false, nullptr);
-            }
-        }
-    }
-
     if (mSyncConfigStore)
     {
         if (!keepSyncsConfigFile)
@@ -5105,12 +5143,20 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile)
 
     // Remove all syncs from RAM.
     unloadSelectedSyncs([](SyncConfig&, Sync*) { return true; }, true);
+    assert(mSyncVec.empty());
 
     // make sure we didn't resurrect the store, singleton style
     assert(!mSyncConfigStore);
 
     clear_inThread();
     mExecutingLocallogout = false;
+
+    if (reopenStoreAfter)
+    {
+        syncKey.setkey(mClient.key.key);
+        SyncConfigVector configs;
+        syncConfigStoreLoad(configs);
+    }
 }
 
 void Syncs::removeSyncByIndex(size_t index, bool notifyApp, bool unregisterHeartbeat)

@@ -3688,15 +3688,18 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
     loggingout++;
 
-#ifdef ENABLE_SYNC
-    // if logging out and syncs won't be kept...
-    if (!keepSyncConfigsFile)
-    {
-        syncs.locallogout(true, keepSyncConfigsFile);  // unregister from API and clean up backup-names
-    }
-#endif
+    auto sendFinalLogout = [keepSyncConfigsFile, completion, this](){
+        reqs.add(new CommandLogout(this, std::move(completion), keepSyncConfigsFile));
+    };
 
-    reqs.add(new CommandLogout(this, std::move(completion), keepSyncConfigsFile));
+#ifdef ENABLE_SYNC
+    syncs.prepareForLogout(keepSyncConfigsFile, [this, keepSyncConfigsFile, sendFinalLogout](){
+        syncs.locallogout(true, keepSyncConfigsFile, false);
+        sendFinalLogout();
+    });
+#else
+    sendFinalLogout();
+#endif
 }
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
@@ -3706,7 +3709,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mAsyncQueue.clearDiscardable();
 
 #ifdef ENABLE_SYNC
-    syncs.locallogout(removecaches, keepSyncsConfigFile);
+    syncs.locallogout(removecaches, keepSyncsConfigFile, false);
 
     // Process any lingering client actions.
     if (!syncs.clientThreadActions.empty())

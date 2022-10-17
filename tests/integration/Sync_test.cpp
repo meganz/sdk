@@ -3740,12 +3740,12 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     future<bool> p1;
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
 
-        // currently synchronous
-        sc.client.syncs.removeSelectedSyncs(
-            [](SyncConfig&, Sync*){ return true; },
-            false, true);
-
-        pb->set_value(true);
+        sc.client.syncs.prepareForLogout(false, [this, pb](){
+            
+            // 3rd param true to "load" (zero) syncs again so store is ready for the test
+            client.syncs.locallogout(true, false, true);
+            pb->set_value(true);
+        });
     }, __FILE__, __LINE__);
     if (!waitonresults(&p1))
     {

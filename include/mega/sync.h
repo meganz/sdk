@@ -953,7 +953,9 @@ struct Syncs
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
 
-    void locallogout(bool removecaches, bool keepSyncsConfigFile);
+    void prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
+
+    void locallogout(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
 
     // get snapshots of the sync configs
 
@@ -991,6 +993,14 @@ struct Syncs
     /**
      * @brief
      * Removes previously opened backup databases from that drive from memory.
+     *
+     * Note that this function will:
+     * - Flush any pending database changes.
+     * - Remove all contained backup configs from memory.
+     * - Remove the database itself from memory.
+     *
+     * @param drivePath
+     * The drive containing the database to remove.
      */
     void backupCloseDrive(const LocalPath& drivePath, std::function<void(Error)> clientCallback);
 
@@ -1149,7 +1159,8 @@ private:
     void startSync_inThread(UnifiedSync& us, const string& debris, const LocalPath& localdebris,
         bool inshare, bool isNetwork, const LocalPath& rootpath,
         std::function<void(error, SyncError, handle)> completion, const string& logname);
-    void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile);
+    void prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion);
+    void locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter);
     void loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigStore);
     void resumeSyncsOnStateCurrent_inThread();
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
