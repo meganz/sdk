@@ -2305,10 +2305,8 @@ string StandardClient::exportSyncConfigs()
 
 void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
 {
-    client.syncs.removeSelectedSyncs(
-      [=](SyncConfig& config, Sync*) { return config.mBackupId == backupId; },
-      [=](Error error) { result->set_value(error == API_OK); },
-      false);
+    client.syncs.removeSync(backupId,
+      [=](Error error) { result->set_value(error == API_OK); });
 }
 
 bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported, bool expectFail, bool skipIgnoreFile)
@@ -3307,11 +3305,9 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
 
         sc.client.syncs.prepareForLogout(false, [this, pb](){
-            client.syncs.locallogout(true, false);
             
-            // "load" (zero) syncs again so store is ready for the test
-            SyncConfigVector configs;
-            client.syncs.syncConfigStoreLoad(configs);
+            // 3rd param true to "load" (zero) syncs again so store is ready for the test
+            client.syncs.locallogout(true, false, true);
             pb->set_value(true);
         });
     }, __FILE__, __LINE__);
