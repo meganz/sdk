@@ -477,7 +477,6 @@ HttpReq::HttpReq(bool b)
     buflen = 0;
     protect = false;
     minspeed = false;
-    expectredirect = false;
 
     init();
 }
@@ -505,7 +504,7 @@ void HttpReq::init()
     outpos = 0;
     in.clear();
     contenttype.clear();
-    redirecturl.clear();
+    mRedirectURL.clear();
 }
 
 const char *HttpReq::getMethodString()

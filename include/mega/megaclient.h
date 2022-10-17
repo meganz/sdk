@@ -965,8 +965,13 @@ public:
     // flag to request an extra loop of the SDK to finish something pending
     bool looprequested;
 
+private:
     // flag to start / stop the request status monitor
-    bool reqstatenabled;
+    bool mReqStatEnabled = false;
+public:
+    bool requestStatusMonitorEnabled() { return mReqStatEnabled; }
+    void startRequestStatusMonitor() { mReqStatEnabled = true; }
+    void stopRequestStatusMonitor() { mReqStatEnabled = false; }
 
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
@@ -1097,9 +1102,11 @@ private:
     // Working lock
     unique_ptr<HttpReq> workinglockcs;
 
+private:
     // Request status monitor
-    unique_ptr<HttpReq> reqstatcs;
+    unique_ptr<HttpReq> mReqStatCS;
 
+public:
     // notify URL for new server-client commands
     string scnotifyurl;
 

@@ -23764,13 +23764,13 @@ bool MegaApiImpl::driveMonitorEnabled()
 void MegaApiImpl::enableRequestStatusMonitor(bool enable)
 {
     SdkMutexGuard g(sdkMutex);
-    client->reqstatenabled = enable;
+    enable ? client->startRequestStatusMonitor() : client->stopRequestStatusMonitor();
 }
 
 bool MegaApiImpl::requestStatusMonitorEnabled()
 {
     SdkMutexGuard g(sdkMutex);
-    return client->reqstatenabled;
+    return client->requestStatusMonitorEnabled();
 }
 
 #ifdef USE_DRIVE_NOTIFICATIONS

@@ -55,7 +55,7 @@ const string MegaClient::SUPPORT_USER_HANDLE = "pGTOqu7_Fek";
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::SFUSTATSURL = "https://stats.sfu.mega.co.nz";
 
-// root URL for chat stats
+// root URL for request status monitoring
 // MegaClient statics must be const or we get threading problems
 const string MegaClient::REQSTATURL = "https://reqstat.api.mega.co.nz";
 
@@ -1292,7 +1292,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, unique_ptr<FileSystemAc
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
-    reqstatenabled = false;
     scpaused = false;
     asyncfopens = 0;
     achievements_enabled = false;
@@ -2526,44 +2525,44 @@ void MegaClient::exec()
             }
         }
 
-        if (reqstatcs)
+        if (mReqStatCS)
         {
-            if (reqstatcs->status == REQ_SUCCESS)
+            if (mReqStatCS->status == REQ_SUCCESS)
             {
-                if ((reqstatcs->httpstatus / 100) == 3 && reqstatcs->redirecturl.size())
+                if (mReqStatCS->isRedirection() && mReqStatCS->mRedirectURL.size())
                 {
-                    std::string reqstaturl = reqstatcs->redirecturl;
+                    std::string reqstaturl = mReqStatCS->mRedirectURL;
                     LOG_debug << "Accessing reqstat URL: " << reqstaturl;
-                    reqstatcs.reset(new HttpReq());
-                    reqstatcs->logname = clientname + "reqstat ";
-                    reqstatcs->posturl = reqstaturl;
-                    reqstatcs->type = REQ_BINARY;
-                    reqstatcs->binary = true;
-                    reqstatcs->protect = true;
-                    reqstatcs->get(this);
+                    mReqStatCS.reset(new HttpReq());
+                    mReqStatCS->logname = clientname + "reqstat ";
+                    mReqStatCS->posturl = reqstaturl;
+                    mReqStatCS->type = REQ_BINARY;
+                    mReqStatCS->binary = true;
+                    mReqStatCS->protect = true;
+                    mReqStatCS->get(this);
                 }
                 else
                 {
                     LOG_debug << "Successful reqstat request";
                     btreqstat.reset();
-                    reqstatcs.reset();
+                    mReqStatCS.reset();
                 }
             }
-            else if (reqstatcs->status == REQ_FAILURE)
+            else if (mReqStatCS->status == REQ_FAILURE)
             {
                 LOG_err << "Failed reqstat request. Retrying";
                 btreqstat.backoff();
-                reqstatcs.reset();
+                mReqStatCS.reset();
             }
-            else if (reqstatcs->status == REQ_INFLIGHT)
+            else if (mReqStatCS->status == REQ_INFLIGHT)
             {
-                if (reqstatcs->in.size())
+                if (mReqStatCS->in.size())
                 {
                     size_t bytesConsumed = procreqstat();
                     if (bytesConsumed)
                     {
                         btreqstat.reset();
-                        reqstatcs->in.erase(0, bytesConsumed);
+                        mReqStatCS->in.erase(0, bytesConsumed);
                     }
                 }
             }
@@ -3255,19 +3254,19 @@ void MegaClient::exec()
             }
         }
 
-        if (!reqstatcs && reqstatenabled && sid.size() && btreqstat.armed())
+        if (!mReqStatCS && mReqStatEnabled && sid.size() && btreqstat.armed())
         {
             LOG_debug << clientname << "Sending reqstat request";
-            reqstatcs.reset(new HttpReq());
-            reqstatcs->logname = clientname + "reqstat ";
-            reqstatcs->expectredirect = true;
-            reqstatcs->posturl = httpio->APIURL;
-            reqstatcs->posturl.append("cs/rs?sid=");
-            reqstatcs->posturl.append(Base64::btoa(sid));
-            reqstatcs->type = REQ_BINARY;
-            reqstatcs->protect = true;
-            reqstatcs->binary = true;
-            reqstatcs->post(this);
+            mReqStatCS.reset(new HttpReq());
+            mReqStatCS->logname = clientname + "reqstat ";
+            mReqStatCS->mExpectRedirect = true;
+            mReqStatCS->posturl = httpio->APIURL;
+            mReqStatCS->posturl.append("cs/rs?sid=");
+            mReqStatCS->posturl.append(Base64::btoa(sid));
+            mReqStatCS->type = REQ_BINARY;
+            mReqStatCS->protect = true;
+            mReqStatCS->binary = true;
+            mReqStatCS->post(this);
         }
 
 #ifdef ENABLE_SYNC
@@ -3426,7 +3425,7 @@ int MegaClient::preparewait()
             btworkinglock.update(&nds);
         }
 
-        if (!reqstatcs && reqstatenabled && sid.size())
+        if (!mReqStatCS && mReqStatEnabled && sid.size())
         {
             btreqstat.update(&nds);
         }
@@ -4399,9 +4398,9 @@ void MegaClient::disconnect()
         badhostcs->disconnect();
     }
 
-    if (reqstatcs)
+    if (mReqStatCS)
     {
-        reqstatcs->disconnect();
+        mReqStatCS->disconnect();
     }
 
     httpio->lastdata = NEVER;

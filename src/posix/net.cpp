@@ -2273,14 +2273,14 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                           << (req->httpiohandle ? (((CurlHttpContext*)req->httpiohandle)->hostname + " - " + ((CurlHttpContext*)req->httpiohandle)->hostip) : "(unknown) ");
                 if (req->httpstatus)
                 {
-                    if (req->expectredirect && (req->httpstatus / 100) == 3) // HTTP 3xx response
+                    if (req->mExpectRedirect && req->isRedirection()) // HTTP 3xx response
                     {
                         char *url = NULL;
                         curl_easy_getinfo(msg->easy_handle, CURLINFO_REDIRECT_URL, &url);
                         if (url)
                         {
-                            req->redirecturl = url;
-                            LOG_debug << req->logname << "Redirected to " << req->redirecturl;
+                            req->mRedirectURL = url;
+                            LOG_debug << req->logname << "Redirected to " << req->mRedirectURL;
                         }
                     }
 
@@ -2322,7 +2322,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
 
                 // check httpstatus, redirecturl and response length
-                req->status = ((req->httpstatus == 200 || (req->expectredirect && (req->httpstatus / 100) == 3 && req->redirecturl.size()))
+                req->status = ((req->httpstatus == 200 || (req->mExpectRedirect && req->isRedirection() && req->mRedirectURL.size()))
                                && errorCode != CURLE_PARTIAL_FILE
                                && (req->contentlength < 0
                                    || req->contentlength == (req->buf ? req->bufpos : (int)req->in.size())))
