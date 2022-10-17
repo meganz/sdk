@@ -9484,6 +9484,21 @@ class MegaApi
         char *getSequenceNumber();
 
         /**
+         * @brief Returns the current sequence tag
+         *
+         * The sequence tag indicates the state of a MEGA account known by the SDK.
+         * When external changes (*) are received via actionpackets, the sequence tag is
+         * updated and changes are commited to the local cache.
+         * Contrary to sequence numbers, sequence tags can be compared.
+         * (*) external changes occurred in v3 enabled clients.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return The current sequence tag
+         */
+        char *getSequenceTag();
+
+        /**
          * @brief Get an authentication token that can be used to identify the user account
          *
          * If this MegaApi object is not logged into an account, this function will return NULL

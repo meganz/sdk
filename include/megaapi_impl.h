@@ -2681,6 +2681,7 @@ class MegaApiImpl : public MegaApp
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
         char *getSequenceNumber();
+        char *getSequenceTag();
         char *getAccountAuth();
         void setAccountAuth(const char* auth);
 

@@ -6181,6 +6181,14 @@ char *MegaApiImpl::getSequenceNumber()
     return MegaApi::strdup(client->scsn.text());
 }
 
+char *MegaApiImpl::getSequenceTag()
+{
+    SdkMutexGuard g(sdkMutex);
+
+    //Note: we rely on mScDbStateRecord.seqTag, since mLastReceivedScSeqTag is cleared after notified
+    return MegaApi::strdup(client->mScDbStateRecord.seqTag.c_str());
+}
+
 char *MegaApiImpl::getAccountAuth()
 {
     SdkMutexGuard g(sdkMutex);

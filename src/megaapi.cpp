@@ -2249,6 +2249,11 @@ char *MegaApi::getSequenceNumber()
     return pImpl->getSequenceNumber();
 }
 
+char *MegaApi::getSequenceTag()
+{
+    return pImpl->getSequenceTag();
+}
+
 char *MegaApi::getAccountAuth()
 {
     return pImpl->getAccountAuth();
