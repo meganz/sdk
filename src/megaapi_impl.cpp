@@ -5252,11 +5252,6 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* pro
     init(api, appKey, processor, basePath, userAgent, workerThreadCount);
 }
 
-MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
-{
-    init(api, appKey, NULL, basePath, userAgent, workerThreadCount);
-}
-
 void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, unsigned clientWorkerThreadCount)
 {
     this->api = api;
@@ -5630,6 +5625,14 @@ char *MegaApiImpl::getMyRSAPrivateKey()
     }
 
     return MegaApi::strdup(client->mPrivKey.c_str());
+}
+
+void MegaApiImpl::setLogExtraForModules(bool networking, bool syncs)
+{
+    g_netLoggingOn = networking;
+#ifdef ENABLE_SYNC
+    client->syncs.mDetailedSyncLogging = syncs;
+#endif
 }
 
 void MegaApiImpl::setLogLevel(int logLevel)
@@ -8842,16 +8845,6 @@ const char* MegaApiImpl::exportSyncConfigs()
     }
 
     return MegaApi::strdup(configs.c_str());
-}
-
-void MegaApiImpl::removeSync(handle nodehandle, MegaHandle backupDestination, MegaRequestListener* listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
-    request->setNodeHandle(nodehandle);
-    request->setFlag(true);
-    request->setNodeHandle(backupDestination);
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 void MegaApiImpl::removeSyncById(handle backupId, MegaHandle backupDestination, MegaRequestListener *listener)
@@ -16572,6 +16565,7 @@ void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 {
     assert(sync->getBackupId() != INVALID_HANDLE);
+    assert(client->syncs.onSyncThread());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncStateChanged(api, sync);
@@ -18995,7 +18989,7 @@ void MegaApiImpl::sendPendingRequests()
             if (request->getParamType() & MegaApi::OPTION_ELEMENT_NAME)
             {
                 el.setName(request->getText() ? request->getText() : string());
-            }    
+            }
             client->putSetElement(move(el),
                 [this, request](Error e, const SetElement* el)
                 {
@@ -21661,17 +21655,14 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
             auto backupId = request->getParentHandle();
-            UnifiedSync* us = nullptr;
 
-            e = client->syncs.enableSyncByBackupId(backupId, true, us, "");
+            client->syncs.enableSyncByBackupId(backupId, false, true, true, true, [request, this](error e, SyncError se, handle h){
 
-            request->setNumDetails(us ? us->mConfig.mError : UNKNOWN_ERROR);
+                request->setNumDetails(se);
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 
-            if (!e) //sync added (enabled) fine
-            {
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-                break;
-            }
+            }, true, "");
+
 
             break;
         }
@@ -23254,7 +23245,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_BACKUP_REMOVE:
         {
             client->reqs.add(new CommandBackupRemove(client, request->getParentHandle(),
-                [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(error(e))); }));
+                [request, this](Error e) { fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e)); }));
             break;
         }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:

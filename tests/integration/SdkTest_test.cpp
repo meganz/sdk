@@ -1361,7 +1361,9 @@ TEST_F(SdkTest, SdkTestCreateAccount)
     const string realEmail(bufRealEmail); // user@host.domain
     auto pos = realEmail.find('@');
     const string realAccount = realEmail.substr(0, pos); // user
-    const string newTestAcc = realAccount + '+' + getUniqueAlias() + realEmail.substr(pos); // user+rand20210919@host.domain
+    const string newTestAcc = realAccount + '+' +
+                              mApi[0].email.substr(0, mApi[0].email.find("@")) + '+' +
+                              getUniqueAlias() + realEmail.substr(pos); // user+testUser+rand20210919@host.domain
     LOG_info << "Using Mega account " << newTestAcc;
     const char* newTestPwd = "TestPswd!@#$"; // maybe this should be logged too
 
@@ -1866,14 +1868,13 @@ TEST_F(SdkTest, SdkTestExerciseOtherCommands)
     bool CommandSendSignupLink2::procresult(Result r)
     bool CommandConfirmSignupLink2::procresult(Result r)
     bool CommandSetKeyPair::procresult(Result r)
-    bool CommandReportEvent::procresult(Result r)
     bool CommandSubmitPurchaseReceipt::procresult(Result r)
     bool CommandCreditCardStore::procresult(Result r)
     bool CommandCreditCardQuerySubscriptions::procresult(Result r)
     bool CommandCreditCardCancelSubscriptions::procresult(Result r)
     bool CommandCopySession::procresult(Result r)
     bool CommandGetPaymentMethods::procresult(Result r)
-    bool CommandUserFeedbackStore::procresult(Result r)
+    bool CommandSendReport::procresult(Result r)
     bool CommandSupportTicket::procresult(Result r)
     bool CommandCleanRubbishBin::procresult(Result r)
     bool CommandGetRecoveryLink::procresult(Result r)
@@ -6535,7 +6536,7 @@ TEST_F(SdkTest, SyncBasicOperations)
 
         ASSERT_EQ(API_ENOENT, synchronousEnableSync(0, 999999)); // Hope it doesn't exist.
         ASSERT_EQ(MegaSync::UNKNOWN_ERROR, mApi[0].lastSyncError); // MegaApi.h specifies that this contains the error code (not the tag)
-        ASSERT_EQ(API_EEXIST, synchronousEnableSync(0, sync2.get())); // Currently enabled.
+        ASSERT_EQ(API_OK, synchronousEnableSync(0, sync2.get())); // Currently enabled, already running.
         ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);  // since the sync is active, we should see its real state, and it should not have had any error code stored in it
     }
 

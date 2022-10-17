@@ -1214,8 +1214,6 @@ void MegaClient::init()
         app->syncupdate_scanning(false);
         syncscanstate = false;
     }
-
-    syncs.clear();
 #endif
 
     rootnodes.files = NodeHandle();
@@ -4377,19 +4375,18 @@ void MegaClient::logout(bool keepSyncConfigsFile, CommandLogout::Completion comp
 
     loggingout++;
 
-    auto request = new CommandLogout(this, std::move(completion), keepSyncConfigsFile);
+    auto sendFinalLogout = [keepSyncConfigsFile, completion, this](){
+        reqs.add(new CommandLogout(this, std::move(completion), keepSyncConfigsFile));
+    };
 
 #ifdef ENABLE_SYNC
-    // if logging out and syncs won't be kept...
-    if (!keepSyncConfigsFile)
-    {
-        // Unregister from API
-        syncs.purgeSyncs([=](Error) { reqs.add(request); });
-        return;
-    }
+    syncs.prepareForLogout(keepSyncConfigsFile, [this, keepSyncConfigsFile, sendFinalLogout](){
+        syncs.locallogout(true, keepSyncConfigsFile);
+        sendFinalLogout();
+    });
+#else
+    sendFinalLogout();
 #endif
-
-    reqs.add(request);
 }
 
 void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
@@ -4398,9 +4395,13 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 
     mAsyncQueue.clearDiscardable();
 
+#ifdef ENABLE_SYNC
+    syncs.locallogout(removecaches, keepSyncsConfigFile);
+#endif
+
     if (removecaches)
     {
-        removeCaches(keepSyncsConfigFile);
+        removeCaches();
     }
 
     sctable.reset();
@@ -4561,7 +4562,7 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mMyAccount = MyAccountData{};
 }
 
-void MegaClient::removeCaches(bool keepSyncsConfigFile)
+void MegaClient::removeCaches()
 {
     if (sctable)
     {
@@ -4575,34 +4576,6 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
         statusTable->remove();
         statusTable.reset();
     }
-
-#ifdef ENABLE_SYNC
-
-    // remove the LocalNode cache databases first, otherwise disable would cause this to be skipped
-    syncs.forEachRunningSync([&](Sync* sync){
-
-        if (sync->statecachetable)
-        {
-            sync->statecachetable->remove();
-            sync->statecachetable.reset();
-        }
-    });
-
-    if (keepSyncsConfigFile)
-    {
-        // Special case backward compatibility for MEGAsync
-        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
-        syncs.disableSyncs(false, LOGGED_OUT, false, nullptr);
-    }
-    else
-    {
-        // this call cannot wait for network ops, it must complete immediately, since
-        // it's called from locallogout(). In consequence, heartbeat records won't be
-        // unregistered from API, backup folders will stay in Vault... but it should
-        // still remove syncs config file(s)
-        syncs.purgeSyncsLocal();
-    }
-#endif
 
     disabletransferresumption();
 }
@@ -14175,7 +14148,7 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, string& rootNodeName, bool& inshare, bool& isnetwork)
+error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, bool& inshare, bool& isnetwork)
 {
     // Checking for conditions where we would not even add the sync config
     // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
@@ -14197,8 +14170,6 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         syncConfig.mEnabled = false;
         return API_ENOENT;
     }
-
-    rootNodeName = remotenode->displayname();
 
     if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
@@ -14461,7 +14432,7 @@ void MegaClient::importSyncConfigs(const char* configs, std::function<void(error
     ensureSyncUserAttributes(std::move(onUserAttributesCompleted));
 }
 
-void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname)
+void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath)
 {
     assert(completion);
     assert(config.mExternalDrivePath.empty() || config.mExternalDrivePath.isAbsolute());
@@ -14469,9 +14440,8 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
 
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
-    string remotenodename;
     bool inshare, isnetwork;
-    error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenodename, inshare, isnetwork);
+    error e = checkSyncConfig(config, rootpath, openedLocalFolder, inshare, isnetwork);
 
     if (e)
     {
@@ -14499,30 +14469,31 @@ void MegaClient::addsync(SyncConfig&& config, bool notifyApp, std::function<void
     BackupInfoSync info(config, deviceIdHash, driveId, BackupInfoSync::getSyncState(config, xferpaused[GET], xferpaused[PUT]));
 
     reqs.add(new CommandBackupPut(this, info,
-                                  [this, config, completion, notifyApp, logname](Error e, handle backupId) mutable {
-            if (ISUNDEF(backupId) && !e)
-            {
-                e = API_EFAILED;
-            }
+        [this, config, completion, notifyApp, logname, excludedPath](Error e, handle backupId) mutable {
+        if (ISUNDEF(backupId) && !e)
+        {
+            LOG_debug << "Request for backupId failed for sync add";
+            e = API_EFAILED;
+        }
 
-            if (e)
-            {
-                completion(e, config.mError, backupId);
-            }
-            else
-            {
-                // if we got this far, the syncConfig is kept (in db and in memory)
-                config.mBackupId = backupId;
+        if (e)
+        {
+            LOG_warn << "Failed to register heartbeat record for new sync. Error: " << int(e);
+            completion(e, config.mError, backupId);
+        }
+        else
+        {
+            // if we got this far, the syncConfig is kept (in db and in memory)
+            config.mBackupId = backupId;
 
-                UnifiedSync* unifiedSync = syncs.appendNewSync(config, *this);
-
-                e = unifiedSync->enableSync(false, notifyApp, logname);
-
+            auto modifedCompletion = [this, completion](error e, SyncError se, handle h){
+                completion(e, se, h);
                 syncactivity = true;
+            };
 
-                completion(e, unifiedSync->mConfig.mError, backupId);
-            }
-        }));
+            syncs.appendNewSync(config, true, notifyApp, modifedCompletion, true, logname, excludedPath);
+        }
+    }));
 }
 
 
@@ -16981,14 +16952,38 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
-    bool getExtensionDotted(const Node* n, std::string& ext, const MegaClient& mc)
+    bool getExtensionDotted(const Node* n, std::string& ext)
     {
-        auto localname = LocalPath::fromRelativePath(n->displayname());
-        if (mc.fsaccess->getextension(localname, ext))
+        const char* name = n->displayname();
+        const size_t size = strlen(name);
+
+        const char* ptr = name + size;
+        char c;
+
+        for (unsigned i = 0; i < size; ++i)
         {
-            ext.push_back('.');
-            return true;
+            if (*--ptr == '.')
+            {
+                ext.reserve(i+1);
+
+                unsigned j = 0;
+                for (; j <= i; j++)
+                {
+                    if (*ptr < '.' || *ptr > 'z') return false;
+
+                    c = *(ptr++);
+
+                    // tolower()
+                    if (c >= 'A' && c <= 'Z') c |= ' ';
+
+                    ext.push_back(c);
+                }
+
+                ext.push_back('.');
+                return true;
+            }
         }
+
         return false;
     }
 
@@ -16998,7 +16993,7 @@ namespace action_bucket_compare
 bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         bool a = action_bucket_compare::nodeIsPhoto(n, ext, true);
         if (isphoto)
@@ -17022,7 +17017,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 bool MegaClient::nodeIsVideo(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsVideo(n, ext, *this);
     }
@@ -17032,7 +17027,7 @@ bool MegaClient::nodeIsVideo(const Node *n) const
 bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsPhoto(n, ext, checkPreview);
     }
@@ -17042,7 +17037,7 @@ bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 bool MegaClient::nodeIsAudio(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsAudio(n, ext);
     }
@@ -17052,7 +17047,7 @@ bool MegaClient::nodeIsAudio(const Node *n) const
 bool MegaClient::nodeIsDocument(const Node *n) const
 {
     string ext;
-    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext))
     {
         return action_bucket_compare::nodeIsDocument(n, ext);
     }
@@ -17176,7 +17171,7 @@ void MegaClient::setchunkfailed(string* url)
 void MegaClient::reportevent(const char* event, const char* details)
 {
     LOG_err << "SERVER REPORT: " << event << " DETAILS: " << details;
-    reqs.add(new CommandReportEvent(this, event, details));
+    reqs.add(new CommandSendReport(this, event, details, Base64Str<MegaClient::USERHANDLE>(me)));
 }
 
 void MegaClient::reportevent(const char* event, const char* details, int tag)
@@ -17264,7 +17259,7 @@ void MegaClient::userfeedbackstore(const char *message)
     Base64::btoa((byte *)useragent.data(), int(useragent.size()), (char *)base64userAgent.data());
     type.append(base64userAgent);
 
-    reqs.add(new CommandUserFeedbackStore(this, type.c_str(), message, NULL));
+    reqs.add(new CommandSendReport(this, type.c_str(), message, NULL));
 }
 
 void MegaClient::sendevent(int event, const char *desc)
