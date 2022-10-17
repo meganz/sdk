@@ -590,10 +590,11 @@ bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm, bool noti
         return false;
     }
 
+    mScheduledMeetings.emplace(sm->callid(), std::move(sm));
+
     if (notify)
     {
         mSchedMeetingsChanged.emplace_back(sm->callid());
-        mScheduledMeetings.emplace(sm->callid(), std::move(sm));
     }
     return true;
 }
