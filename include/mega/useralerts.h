@@ -269,7 +269,7 @@ public:
     typedef deque<UserAlert::Base*> Alerts;
     Alerts alerts;
 
-    // collect new/updated alerts to notify the app with
+    // collect new/updated alerts to notify the app with; non-owning container of pointers owned by `alerts`
     useralert_vector useralertnotify;
 
     // set true after our initial query to MEGA to get the last 50 alerts on startup
@@ -343,6 +343,16 @@ public:
 
     // update node alerts management
     bool isHandleInAlertsAsRemoved(handle nodeHandleToFind) const;
+    template <typename T>
+    void eraseAlertsFromContainer(T& container, const set<UserAlert::Base*>& toErase)
+    {
+        container.erase(
+            remove_if(begin(container), end(container),
+                      [&toErase](UserAlert::Base* a) { return toErase.find(a) != end(toErase);})
+            , end(container));
+    }
+    // remove from `alerts` and `useralertnotify`, and releases memory
+    void eraseAlerts(const set<UserAlert::Base*>& alertsToRemove);
     void removeNodeAlerts(Node* n);
     void setNewNodeAlertToUpdateNodeAlert(Node* n);
 

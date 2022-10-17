@@ -1313,6 +1313,14 @@ bool UserAlerts::isHandleInAlertsAsRemoved(handle nodeHandleToFind) const
     return false;
 }
 
+void UserAlerts::eraseAlerts(const set<UserAlert::Base*>& alertsToRelease)
+{
+    eraseAlertsFromContainer(useralertnotify, alertsToRelease);
+    eraseAlertsFromContainer(alerts, alertsToRelease);
+
+    for_each(begin(alertsToRelease), end(alertsToRelease), [](UserAlert::Base* a) {delete a;});
+}
+
 void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
 {
     if (!nodeToRemoveAlert)
@@ -1321,36 +1329,34 @@ void UserAlerts::removeNodeAlerts(Node* nodeToRemoveAlert)
         return;
     }
 
+    // Remove nodehandle for NewShareNodes and/or RemovedSharedNodes, releasing the alert if gets empty
+    set<UserAlert::Base*> alertsToRelease;
     handle nodeHandleToRemove = nodeToRemoveAlert->nodehandle;
-    std::string debug_msg = "Suppressed alert for node with handle |" + std::to_string(nodeHandleToRemove) + "| found as a ";
-    std::function<bool (UserAlert::Base*)> isAlertToRemove =
-        // context captured as a reference to avoid copying debug_msg string
-        [&](UserAlert::Base* alertToCheck)
+    std::string debug_msg = "Suppressed alert for node with handle |"
+        + std::to_string(nodeHandleToRemove) + "| found as a ";
+    for (UserAlert::Base* alertToCheck : alerts)
+    {
+        UserAlert::RemovedSharedNode* pRemovedSN;
+        UserAlert::NewSharedNodes* pNewSN = eraseNodeHandleFromNewShareNodeAlert(nodeHandleToRemove, alertToCheck);
+        if (pNewSN)
+        {
+            LOG_debug << debug_msg << "new-alert type";
+            if (pNewSN->fileNodeHandles.empty() && pNewSN->folderNodeHandles.empty())
             {
-                bool ret = false; // whether the whole user alert must be deleted or not
-                UserAlert::RemovedSharedNode* ptrDelNodeAlert;
-                UserAlert::NewSharedNodes* ptrNewNodeAlert = eraseNodeHandleFromNewShareNodeAlert(nodeHandleToRemove, alertToCheck);
-                if (ptrNewNodeAlert)
-                {
-                    ret = ptrNewNodeAlert->fileNodeHandles.empty()
-                          && ptrNewNodeAlert->folderNodeHandles.empty();
-                    LOG_debug << debug_msg << "new-alert type";
-                }
-                else if ((ptrDelNodeAlert = eraseNodeHandleFromRemovedSharedNode(nodeHandleToRemove, alertToCheck)))
-                {
+                alertsToRelease.emplace(pNewSN);
+            }
+        }
+        else if ((pRemovedSN = eraseNodeHandleFromRemovedSharedNode(nodeHandleToRemove, alertToCheck)))
+        {
+            LOG_debug << debug_msg << "removal-alert type";
+            if (pRemovedSN->nodeHandles.empty())
+            {
+                alertsToRelease.emplace(pRemovedSN);
+            }
+        }
+    }
 
-                    ret = ptrDelNodeAlert->nodeHandles.empty();
-                    LOG_debug << debug_msg << "removal-alert type";
-                }
-                return ret;
-            };
-
-    // remove from possible existing alerts
-    alerts.erase(remove_if(begin(alerts), end(alerts), isAlertToRemove), end(alerts));
-
-    // remove from possible notifications meant to become alerts
-    useralertnotify.erase(remove_if(begin(useralertnotify), end(useralertnotify), isAlertToRemove)
-                          , end(useralertnotify));
+    eraseAlerts(alertsToRelease);
 
     // remove from annotated changes pending to become notifications to become alerts
     if (removeNotedSharedNodeFrom(nodeToRemoveAlert, deletedSharedNodesStash))
@@ -1371,67 +1377,42 @@ void UserAlerts::setNewNodeAlertToUpdateNodeAlert(Node* nodeToUpdate)
         return;
     }
 
+    // Remove nodehandle for NewShareNodes that are an update; if the alert is empty after the
+    // removal, it must be released
     handle nodeHandleToUpdate = nodeToUpdate->nodehandle;
     std::string debug_msg = "New-alert replaced by update-alert for nodehandle |"
         + std::to_string(nodeHandleToUpdate) + "|";
-
-    vector<UserAlert::NewSharedNodes*> nodesToUpdate;
-    auto isAlertToBeRemoved =
-        // context captured as reference to avoid copying debug_msg string
-        [&nodeHandleToUpdate, &debug_msg, &nodesToUpdate, this](UserAlert::Base* alertToCheck)
-            {
-                bool ret = false;
-                UserAlert::NewSharedNodes* ptrNewNodeAlert = eraseNodeHandleFromNewShareNodeAlert(nodeHandleToUpdate, alertToCheck);
-                if (ptrNewNodeAlert)
-                {
-                    nodesToUpdate.push_back(ptrNewNodeAlert);
-                    // if there are no files or folders for this entry in the alerts, we can remove the whole alert
-                    ret = ptrNewNodeAlert->fileNodeHandles.empty()
-                          && ptrNewNodeAlert->folderNodeHandles.empty();
-                    LOG_debug << debug_msg << " there are " << (ret ? "no " : "") << " remaining alters for this folder";
-                }
-                return ret;
-            };
-    auto createUpdateAlerts = [&nodeHandleToUpdate, &nodesToUpdate, this]()
-           {
-               using handletoalert_t = UserAlert::handle_alerttype_map_t;
-
-               for(auto n : nodesToUpdate)
-               {
-                   // for an update alert, it doesn't matter if the node is a file or a folder
-                   add(new UserAlert::UpdatedSharedNode(
-                           n->userHandle, n->timestamp, nextId(),
-                           handletoalert_t {{nodeHandleToUpdate, UserAlert::type_u}},
-                           handletoalert_t {}));
-               }
-               nodesToUpdate.clear();
-           };
-    bool done = false;
-    // remove from existing alerts
+    vector<UserAlert::NewSharedNodes*> newSNToConvertToUpdatedSN;
+    set<UserAlert::Base*> alertsToRelease;
+    for (UserAlert::Base* alertToCheck : alerts)
     {
-        auto newEnd = remove_if(begin(alerts), end(alerts), isAlertToBeRemoved);
-        if (end(alerts) != newEnd)
+        bool ret = false;
+        auto pNewSN = eraseNodeHandleFromNewShareNodeAlert(nodeHandleToUpdate, alertToCheck);
+        if (pNewSN)
         {
-            alerts.erase(newEnd, end(alerts));
-            done = true;
+            bool emptyAlert = pNewSN->fileNodeHandles.empty() && pNewSN->folderNodeHandles.empty();
+            LOG_debug << debug_msg << " there are " << (ret ? "no " : "") << " remaining alters for this folder";
+
+            if (emptyAlert) alertsToRelease.emplace(pNewSN);
+            newSNToConvertToUpdatedSN.push_back(pNewSN);
         }
-        createUpdateAlerts();
-        if (done) return;
     }
 
-    // remove from notifications meant to be alerts
+    // Create proper UpdateSharedNodes
+    using handletoalert_t = UserAlert::handle_alerttype_map_t;
+    for(auto n : newSNToConvertToUpdatedSN)
     {
-        auto newEnd = remove_if(begin(useralertnotify), end(useralertnotify), isAlertToBeRemoved);
-        if (end(useralertnotify) != newEnd)
-        {
-            useralertnotify.erase(newEnd, end(useralertnotify));
-            done = true;
-        }
-        createUpdateAlerts();
-        if (done) return;
+        // for an update alert, only files are relevant because folders are not versioned
+        add(new UserAlert::UpdatedSharedNode(
+                n->userHandle, n->timestamp, nextId(),
+                handletoalert_t {{nodeHandleToUpdate, UserAlert::type_u}},
+                handletoalert_t {}));
     }
+    newSNToConvertToUpdatedSN.clear();
 
-    // remove from noted nodes pending to be notifications meant to be alerts
+    eraseAlerts(alertsToRelease);
+
+    // Remove NewSharedNode alert from noted node alerts
     if (setNotedSharedNodeToUpdate(nodeToUpdate))
     {
         LOG_debug << debug_msg << " new-alert found in noted nodes";
