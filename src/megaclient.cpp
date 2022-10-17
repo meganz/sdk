@@ -5238,62 +5238,69 @@ bool MegaClient::procsc()
 
 size_t MegaClient::procreqstat()
 {
-    if (!reqstatcs || reqstatcs->in.size() < 2)
+    // <num_users.2>[<userhandle.8>]<num_ops.2>[<ops.1>]<start.4><current.4><end.8>
+
+
+    // data input enough for reading 2 bytes (number of users)?
+    if (!mReqStatCS || mReqStatCS->in.size() < sizeof(uint16_t))
     {
         return 0;
     }
 
-    uint16_t numUsers = MemAccess::get<uint16_t>(reqstatcs->in.data());
+    uint16_t numUsers = MemAccess::get<uint16_t>(mReqStatCS->in.data());
     if (!numUsers)
     {
         LOG_debug << "reqstat: No operation in progress";
         app->reqstat_progress(-1);
         return 2;
     }
+    size_t startPosUsers = sizeof(uint16_t);
+    size_t pos = startPosUsers + USERHANDLE * numUsers; // will read them later
 
-    size_t pos = 2 + 8 * numUsers;
-
-    // Incomplete?
-    if (reqstatcs->in.size() < pos + 2)
+    // data input enough for reading users + 2 bytes (number of operations)?
+    if (mReqStatCS->in.size() < pos + sizeof(uint16_t)) // is there data for users + numOps?
     {
         return 0;
     }
 
-    uint16_t numOps = MemAccess::get<uint16_t>(reqstatcs->in.data() + pos);
+    uint16_t numOps = MemAccess::get<uint16_t>(mReqStatCS->in.data() + pos);
+    pos += sizeof(uint16_t);   // will read them later
 
-    // Incomplete?
-    if (reqstatcs->in.size() < pos + 2 + numOps + 3 * 4)
+    // data input enough for reading number of operations + 12 bytes (start + current + end)?
+    if (mReqStatCS->in.size() < pos + numOps + 3 * sizeof(uint32_t))
     {
         return 0;
     }
 
+    // read users
     std::ostringstream oss;
-    oss << "reqstat: User " << Base64::btoa(reqstatcs->in.substr(2, 8));
+    oss << "reqstat: User " << Base64::btoa(mReqStatCS->in.substr(startPosUsers, USERHANDLE));
     if (numUsers > 1)
     {
         oss << ", affecting ";
-        for (unsigned i = 1; i < numUsers; i++)
+        for (unsigned i = 1; i < numUsers; ++i)
         {
             if (i > 1)
             {
                 oss << ",";
             }
-            oss << Base64::btoa(reqstatcs->in.substr(2 + 8 * i, 8));
+            oss << Base64::btoa(mReqStatCS->in.substr(startPosUsers + USERHANDLE * i, USERHANDLE));
         }
         oss << ",";
     }
 
+    // read operations
     if (numOps > 0)
     {
         oss << " is executing a ";
-        for (unsigned i = 0; i < numOps; i++)
+        for (unsigned i = 0; i < numOps; ++i)
         {
             if (i)
             {
                 oss << "/";
             }
 
-            if (reqstatcs->in[pos + 2 + i] == 'p')
+            if (mReqStatCS->in[pos + i] == 'p')
             {
                 oss << "file or folder creation";
             }
@@ -5303,11 +5310,11 @@ size_t MegaClient::procreqstat()
             }
         }
     }
-    pos += 2 + numOps;
+    pos += numOps;
 
-    uint32_t start = MemAccess::get<uint32_t>(reqstatcs->in.data() + pos);
-    uint32_t curr = MemAccess::get<uint32_t>(reqstatcs->in.data() + pos + 4);
-    uint32_t end = MemAccess::get<uint32_t>(reqstatcs->in.data() + pos + 8);
+    uint32_t start = MemAccess::get<uint32_t>(mReqStatCS->in.data() + pos); pos += sizeof(uint32_t);
+    uint32_t curr = MemAccess::get<uint32_t>(mReqStatCS->in.data() + pos);  pos += sizeof(uint32_t);
+    uint32_t end = MemAccess::get<uint32_t>(mReqStatCS->in.data() + pos);   pos += sizeof(uint32_t);
     float progress = 100.0f * static_cast<float>(curr) / static_cast<float>(end);
 
     oss << " since " << start << ", " << progress << "%";
@@ -5316,7 +5323,7 @@ size_t MegaClient::procreqstat()
 
     app->reqstat_progress(1000 * curr / end);
 
-    return pos + 3 * 4;
+    return pos;
 }
 
 // update the user's local state cache, on completion of the fetchnodes command
