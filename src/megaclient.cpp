@@ -14277,7 +14277,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     {
         if (openedLocalFolder->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();;
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();
 
             // Note localpath is stored as utf8 in syncconfig as passed from the apps!
             // Note: we might want to have it expansed to store the full canonical path.

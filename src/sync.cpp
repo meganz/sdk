@@ -4067,7 +4067,7 @@ void Syncs::removeSync(handle backupId, std::function<void(Error)> completion)
             e = API_EEXIST;
         }
 
-        completion(e);
+        if (completion) completion(e);
     };
 
     // Try and deregister this sync's backup ID first.
