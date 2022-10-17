@@ -14986,7 +14986,6 @@ void MegaApiImpl::getua_result(error e)
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                   || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
-                  || request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
                   || request->getParamType() == MegaApi::USER_ATTR_DRIVE_NAMES)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
@@ -20099,6 +20098,12 @@ void MegaApiImpl::sendPendingRequests()
                     type == ATTR_SIG_CU255_PUBK     ||
                     type == ATTR_SIG_RSA_PUBK)
             {
+                e = API_EACCESS;
+                break;
+            }
+            else if (type == ATTR_MY_BACKUPS_FOLDER)
+            {
+                LOG_err << "Cannot set 'My backups' folder attribute directly. Please, use MegaApi::setMyBackupsFolder";
                 e = API_EACCESS;
                 break;
             }
