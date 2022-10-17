@@ -9074,18 +9074,18 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
 
     // required params
     arg("cid", (byte*)& chatid, MegaClient::CHATHANDLE); // chatroom handle
-    arg("tz", schedMeeting->timezone());
+    arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
     arg("s", schedMeeting->startDateTime());
     arg("e", schedMeeting->endDateTime());
-    arg("t", schedMeeting->title());
-    arg("d", schedMeeting->description());
+    arg("t", Base64::btoa(schedMeeting->title()).c_str());
+    arg("d", Base64::btoa(schedMeeting->description()).c_str());
 
     // optional params
     if (!ISUNDEF(callid))                           { arg("id", (byte*)&callid, MegaClient::CHATHANDLE); } // scheduled meeting ID
     if (!ISUNDEF(parentCallid))                     { arg("p", (byte*)&parentCallid, MegaClient::CHATHANDLE); } // parent meeting ID
     if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
     if (schedMeeting->overrides())                  { arg("o", schedMeeting->overrides()); }
-    if (schedMeeting->attributes())                 { arg("at", schedMeeting->attributes()); }
+    if (schedMeeting->attributes())                 { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
 
     if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
     {

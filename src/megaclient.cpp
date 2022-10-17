@@ -9720,7 +9720,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 {
                     string tz;
                     auxJson->storeobject(&tz);
-                    auxMeet->setTimezone(tz.c_str());
+                    auxMeet->setTimezone(Base64::atob(tz).c_str());
                     break;
                 }
                 case MAKENAMEID1('s'): // start date time
@@ -9741,14 +9741,14 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 {
                     string title;
                     auxJson->storeobject(&title);
-                    auxMeet->setTitle(title.c_str());
+                    auxMeet->setTitle(Base64::atob(title).c_str());
                     break;
                 }
                 case MAKENAMEID1('d'): // description
                 {
                     string description;
                     auxJson->storeobject(&description);
-                    auxMeet->setDescription(description.c_str());
+                    auxMeet->setDescription(Base64::atob(description).c_str());
                     break;
                 }
                 case MAKENAMEID1('i'):
@@ -9760,7 +9760,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 {
                     string attributes;
                     auxJson->storeobject(&attributes);
-                    auxMeet->setAttributes(attributes.c_str());
+                    auxMeet->setAttributes(Base64::atob(attributes).c_str());
                     break;
                 }
                 case MAKENAMEID1('o'): // override
