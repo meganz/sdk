@@ -9156,16 +9156,16 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
 {
     if (r.wasErrorOrOK()) // if succeded, mError is API_OK but mOutcome is CmdItem (containing ScheduledMeetingHandle)
     {
-        mCompletion(r.errorOrOK());
-        return true;
+        if (mCompletion) { mCompletion(r.errorOrOK()); }
+        return false;
     }
 
     assert(mScheduledMeeting);
     auto it = client->chats.find(mScheduledMeeting->chatid());
     if (it == client->chats.end() || !r.hasJsonItem())
     {
-        mCompletion(API_EINTERNAL);
-        return true;
+        if (mCompletion) { mCompletion(API_EINTERNAL); }
+        return false;
     }
 
     TextChat* chat = it->second;
@@ -9187,8 +9187,8 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
         client->notifychat(chat);
     }
 
-    mCompletion(res ? API_OK : API_EINTERNAL);
-    return true;
+    if (mCompletion) { mCompletion(res ? API_OK : API_EINTERNAL); }
+    return res;
 }
 
 CommandScheduledMeetingRemove::CommandScheduledMeetingRemove(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingRemoveCompletion completion)
@@ -9202,13 +9202,19 @@ CommandScheduledMeetingRemove::CommandScheduledMeetingRemove(MegaClient* client,
 
 bool CommandScheduledMeetingRemove::procresult(Command::Result r)
 {
+    if (!r.wasErrorOrOK())
+    {
+        if (mCompletion) { mCompletion(r.errorOrOK()); }
+        return false;
+    }
+
     if (r.wasError(API_OK))
     {
         auto it = client->chats.find(mChatId);
         if (it == client->chats.end())
         {
-            mCompletion(API_EINTERNAL);
-            return true;
+            if (mCompletion) { mCompletion(API_EINTERNAL); }
+            return false;
         }
 
         // remove scheduled meeting and all it's children
@@ -9222,12 +9228,10 @@ bool CommandScheduledMeetingRemove::procresult(Command::Result r)
             client->reqs.add(new CommandScheduledMeetingFetchEvents(client, chat->id, nullptr, nullptr, -1,
                                                             [](Error, const std::vector<std::unique_ptr<ScheduledMeeting>>*){}));
         }
-        mCompletion(API_OK);
-        return true;
     }
 
-    mCompletion(r.errorOrOK());
-    return r.wasErrorOrOK();
+    if (mCompletion) { mCompletion(r.errorOrOK()); }
+    return true;
 }
 
 CommandScheduledMeetingFetch::CommandScheduledMeetingFetch(MegaClient* client, handle chatid, handle schedMeeting, CommandScheduledMeetingFetchCompletion completion)
@@ -9243,26 +9247,26 @@ bool CommandScheduledMeetingFetch::procresult(Command::Result r)
 {
     if (r.wasErrorOrOK())
     {
-        mCompletion(r.errorOrOK(), nullptr);
-        return true;
+        if (mCompletion) { mCompletion(r.errorOrOK(), nullptr); }
+        return false;
     }
 
     auto it = client->chats.find(mChatId);
     if (it == client->chats.end() || !r.hasJsonArray())
     {
-        mCompletion(API_EINTERNAL, nullptr);
-        return true;
+        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
+        return false;
     }
 
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     error err = client->parseScheduledMeetings(&schedMeetings, false /*parsingOccurrences*/);
     if (err)
     {
-        mCompletion(err, nullptr);
+        if (mCompletion) { mCompletion(err, nullptr); }
         return false;
     }
 
-    mCompletion(API_OK, &schedMeetings);
+    if (mCompletion) { mCompletion(API_OK, &schedMeetings); }
     return true;
 }
 
@@ -9285,22 +9289,22 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
 {
     if (r.wasErrorOrOK())
     {
-        mCompletion(r.errorOrOK(), nullptr);
-        return true;
+        if (mCompletion) { mCompletion(r.errorOrOK(), nullptr); }
+        return false;
     }
 
     auto it = client->chats.find(mChatId);
     if (it == client->chats.end() || !r.hasJsonArray())
     {
-        mCompletion(API_EINTERNAL, nullptr);
-        return true;
+        if (mCompletion) { mCompletion(API_EINTERNAL, nullptr); }
+        return false;
     }
 
     std::vector<std::unique_ptr<ScheduledMeeting>> schedMeetings;
     error err = client->parseScheduledMeetings(&schedMeetings, true /*parsingOccurrences*/);
     if (err)
     {
-        mCompletion(err, nullptr);
+        if (mCompletion) { mCompletion(err, nullptr); }
         return false;
     }
 
@@ -9324,8 +9328,9 @@ bool CommandScheduledMeetingFetchEvents::procresult(Command::Result r)
     }
 
     chat->changed.schedOcurr = true;
-    mCompletion(API_OK, &schedMeetings);
     client->notifychat(chat);
+
+    if (mCompletion) { mCompletion(API_OK, &schedMeetings); }
     return true;
 }
 
