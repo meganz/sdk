@@ -2686,7 +2686,7 @@ string StandardClient::exportSyncConfigs()
     return result.get();
 }
 
-bool StandardClient::delSync_inthread(handle backupId)
+void StandardClient::delSync_inthread(handle backupId, PromiseBoolSP result)
 {
     client.syncs.removeSync(backupId,
       [=](Error error) { result->set_value(error == API_OK); });
@@ -3920,7 +3920,6 @@ bool StandardClient::login_fetchnodes(const string& user, const string& pw, bool
     p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
 
-    received_user_alerts = false;
     EXPECT_TRUE(waitForUserAlertsUpdated(30));
 
     p2 = thread_do<bool>([makeBaseFolder](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); }, __FILE__, __LINE__);
@@ -3938,7 +3937,6 @@ bool StandardClient::login_fetchnodes(const string& session)
     p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, pb); }, __FILE__, __LINE__);
     if (!waitonresults(&p2)) return false;
 
-    received_user_alerts = false;
     EXPECT_TRUE(waitForUserAlertsUpdated(30));
 
     p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); }, __FILE__, __LINE__);
@@ -3948,7 +3946,7 @@ bool StandardClient::login_fetchnodes(const string& session)
 
 bool StandardClient::delSync_mainthread(handle backupId)
 {
-    future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId)); }, __FILE__, __LINE__);
+    future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { mc.delSync_inthread(backupId, pb); }, __FILE__, __LINE__);
     return fb.get();
 }
 

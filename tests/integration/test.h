@@ -594,7 +594,7 @@ struct StandardClient : public MegaApp
     void importSyncConfigs(string configs, PromiseBoolSP result);
     bool importSyncConfigs(string configs);
     string exportSyncConfigs();
-    bool delSync_inthread(handle backupId);
+    void delSync_inthread(handle backupId, PromiseBoolSP result);
 
     struct CloudNameLess
     {

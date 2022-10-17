@@ -946,10 +946,7 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void removeSync(handle backupId, std::function<void(Error)> completion);
-
-    // removes the sync from RAM; the config will be flushed to disk
-    void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, bool newEnabledFlag);
+    void removeSync(handle backupId, std::function<void(Error)> clientCompletion);
 
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
@@ -1144,9 +1141,6 @@ private:
     // remove the Sync and its config from memory - optionally also other aspects
     void removeSyncByIndex(size_t index, bool notifyApp, bool unresg);
 
-    // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
-    void unloadSyncByIndex(size_t index, bool newEnabledFlag);
-
     void proclocaltree(LocalNode* n, LocalTreeProc* tp);
 
     bool mightAnySyncsHaveMoves(bool includePausedSyncs);
@@ -1167,9 +1161,9 @@ private:
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
+    void removeSync_inThread(handle backupId, std::function<void(Error)> clientCompletion);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
-    void removeSelectedSyncs_inThread(std::function<bool(SyncConfig&, Sync*)> selector, bool notifyApp, bool unregisterHeartbeat);
     void purgeRunningSyncs_inThread();
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
     error backupOpenDrive_inThread(const LocalPath& drivePath);
@@ -1339,6 +1333,9 @@ private:
     // Sometimes the Client needs a list of the sync configs, we provide it by copy (mutex for thread safety of course)
     mutable mutex mSyncVecMutex;
     vector<unique_ptr<UnifiedSync>> mSyncVec;
+
+    // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
+    bool unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig&);
 
     // used to asynchronously perform scans.
     unique_ptr<ScanService> mScanService;
