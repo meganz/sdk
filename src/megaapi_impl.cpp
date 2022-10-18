@@ -33548,13 +33548,13 @@ MegaScheduledMeetingPrivate::MegaScheduledMeetingPrivate(mega::ScheduledMeeting*
       mCallid(scheduledMeeting->callid()),
       mParentCallid(scheduledMeeting->parentCallid()),
       mOrganizerUserId(scheduledMeeting->organizerUserid()),
-      mTimezone(scheduledMeeting->timezone() ? scheduledMeeting->timezone() : std::string()),
-      mStartDateTime(scheduledMeeting->startDateTime() ? scheduledMeeting->startDateTime() : std::string()),
-      mEndDateTime(scheduledMeeting->endDateTime() ? scheduledMeeting->endDateTime() : std::string()),
-      mTitle(scheduledMeeting->title() ? scheduledMeeting->title() : std::string()),
-      mDescription(scheduledMeeting->description() ? scheduledMeeting->description() : std::string()),
-      mAttributes(scheduledMeeting->attributes() ? scheduledMeeting->attributes() : std::string()),
-      mOverrides(scheduledMeeting->overrides() ? scheduledMeeting->overrides() : std::string()),
+      mTimezone(scheduledMeeting->timezone()),
+      mStartDateTime(scheduledMeeting->startDateTime()),
+      mEndDateTime(scheduledMeeting->endDateTime()),
+      mTitle(scheduledMeeting->title()),
+      mDescription(scheduledMeeting->description()),
+      mAttributes(scheduledMeeting->attributes()),
+      mOverrides(scheduledMeeting->overrides()),
       mCancelled(scheduledMeeting->cancelled()),
       mFlags(scheduledMeeting->flags() ? new MegaScheduledFlagsPrivate (scheduledMeeting->flags()->copy()) : nullptr),
       mRules(scheduledMeeting->rules() ? new MegaScheduledRulesPrivate (scheduledMeeting->rules()->copy()) : nullptr)
@@ -33618,9 +33618,9 @@ ScheduledMeeting* MegaScheduledMeetingPrivate::getSdkScheduledMeeting() const
     {
         rules.reset(static_cast<MegaScheduledRulesPrivate*>(mRules.get())->getSdkScheduledRules());
     }
-    return new ScheduledMeeting(mChatid, mTimezone.c_str(), mStartDateTime.c_str(), mEndDateTime.c_str(),
-                     mTitle.c_str(), mDescription.c_str(), INVALID_HANDLE /*organizerUserId*/, mCallid,
-                     mParentCallid, mCancelled, mAttributes.c_str(), mOverrides.c_str(), flags.get(), rules.get());
+    return new ScheduledMeeting(mChatid, mTimezone, mStartDateTime, mEndDateTime,
+                     mTitle, mDescription, INVALID_HANDLE /*organizerUserId*/, mCallid,
+                     mParentCallid, mCancelled, mAttributes, mOverrides, flags.get(), rules.get());
 }
 
 MegaScheduledMeetingListPrivate::MegaScheduledMeetingListPrivate()

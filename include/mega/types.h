@@ -843,10 +843,10 @@ class ScheduledMeeting
 {
 public:
     ScheduledMeeting();
-    ScheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
-                     const char* title, const char* description, handle organizerUserId, handle callid = UNDEF,
-                     handle parentCallid = UNDEF, int cancelled = -1, const char* attributes = nullptr,
-                     const char* overrides = nullptr, ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
+    ScheduledMeeting(handle chatid, const string& timezone, const string& startDateTime, const string& endDateTime,
+                     const string& title, const string& description, handle organizerUserId, handle callid = UNDEF,
+                     handle parentCallid = UNDEF, int cancelled = -1, const string& attributes = std::string(),
+                     const string& overrides = std::string(), ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
 
     ScheduledMeeting(ScheduledMeeting* scheduledMeeting);
     ScheduledMeeting* copy();
@@ -873,13 +873,13 @@ public:
     handle organizerUserid() const;
     handle callid() const;
     handle parentCallid() const;
-    const char* timezone() const;
-    const char* startDateTime() const;
-    const char* endDateTime() const;
-    const char* title() const;
-    const char* description() const;
-    const char* attributes() const;
-    const char* overrides() const;
+    const std::string &timezone() const;
+    const std::string &startDateTime() const;
+    const std::string &endDateTime() const;
+    const std::string &title() const;
+    const std::string &description() const;
+    const std::string &attributes() const;
+    const std::string &overrides() const;
     int cancelled() const;
     ScheduledFlags* flags() const;
     ScheduledRules* rules() const;

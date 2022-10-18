@@ -1145,21 +1145,21 @@ ScheduledMeeting::ScheduledMeeting()
 {
 }
 
-ScheduledMeeting::ScheduledMeeting(handle chatid, const char* timezone, const char* startDateTime, const char* endDateTime,
-                                const char* title, const char* description, handle organizerUserId, handle callid,
-                                handle parentCallid, int cancelled, const char* attributes,
-                                const char* overrides, ScheduledFlags* flags, ScheduledRules* rules)
+ScheduledMeeting::ScheduledMeeting(handle chatid, const std::string &timezone, const std::string &startDateTime, const std::string &endDateTime,
+                                const std::string &title, const std::string &description, handle organizerUserId, handle callid,
+                                handle parentCallid, int cancelled, const std::string &attributes,
+                                const std::string &overrides, ScheduledFlags* flags, ScheduledRules* rules)
     : mChatid(chatid),
       mOrganizerUserId(organizerUserId),
       mCallid(callid),
       mParentCallid(parentCallid),
-      mTimezone(timezone ? timezone : std::string()),
-      mStartDateTime(startDateTime ? startDateTime : std::string()),
-      mEndDateTime(endDateTime ? endDateTime : std::string()),
-      mTitle(title ? title : std::string()),
-      mDescription(description ? description : std::string()),
-      mAttributes(attributes ? attributes : std::string()),
-      mOverrides(overrides ? overrides : std::string()),
+      mTimezone(timezone),
+      mStartDateTime(startDateTime ),
+      mEndDateTime(endDateTime),
+      mTitle(title),
+      mDescription(description),
+      mAttributes(attributes),
+      mOverrides(overrides),
       mCancelled(cancelled),
       mFlags(flags ? flags->copy() : nullptr),
       mRules(rules ? rules->copy() : nullptr)
@@ -1171,13 +1171,13 @@ ScheduledMeeting::ScheduledMeeting(ScheduledMeeting* scheduledMeeting)
       mOrganizerUserId(scheduledMeeting->organizerUserid()),
       mCallid(scheduledMeeting->callid()),
       mParentCallid(scheduledMeeting->parentCallid()),
-      mTimezone(scheduledMeeting->timezone() ? scheduledMeeting->timezone() : std::string()),
-      mStartDateTime(scheduledMeeting->startDateTime() ? scheduledMeeting->startDateTime() : std::string()),
-      mEndDateTime(scheduledMeeting->endDateTime() ? scheduledMeeting->endDateTime() : std::string()),
-      mTitle(scheduledMeeting->title() ? scheduledMeeting->title() : std::string()),
-      mDescription(scheduledMeeting->description() ? scheduledMeeting->description() : std::string()),
-      mAttributes(scheduledMeeting->attributes() ? scheduledMeeting->attributes() : std::string()),
-      mOverrides(scheduledMeeting->overrides() ? scheduledMeeting->overrides() : std::string()),
+      mTimezone(scheduledMeeting->timezone()),
+      mStartDateTime(scheduledMeeting->startDateTime()),
+      mEndDateTime(scheduledMeeting->endDateTime()),
+      mTitle(scheduledMeeting->title()),
+      mDescription(scheduledMeeting->description()),
+      mAttributes(scheduledMeeting->attributes()),
+      mOverrides(scheduledMeeting->overrides()),
       mCancelled(scheduledMeeting->cancelled()),
       mFlags(scheduledMeeting->flags() ? scheduledMeeting->flags()->copy() : nullptr),
       mRules(scheduledMeeting->rules() ? scheduledMeeting->rules()->copy() : nullptr)
@@ -1218,20 +1218,20 @@ void ScheduledMeeting::setAttributes(const string& attributes)          { mAttri
 void ScheduledMeeting::setOverrides(const string& overrides)            { mOverrides = overrides; }
 void ScheduledMeeting::setCancelled(int cancelled)                      { mCancelled = cancelled; }
 
-handle ScheduledMeeting::chatid() const                             { return mChatid; }
-handle ScheduledMeeting::organizerUserid() const                    { return mOrganizerUserId; }
-handle ScheduledMeeting::callid() const                             { return mCallid; }
-handle ScheduledMeeting::parentCallid() const                       { return mParentCallid; }
-const char* ScheduledMeeting::timezone() const                      { return !mTimezone.empty() ? mTimezone.c_str() : nullptr; }
-const char* ScheduledMeeting::startDateTime() const                 { return !mStartDateTime.empty() ? mStartDateTime.c_str() : nullptr; }
-const char* ScheduledMeeting::endDateTime() const                   { return !mEndDateTime.empty() ? mEndDateTime.c_str() : nullptr; }
-const char* ScheduledMeeting::title() const                         { return !mTitle.empty() ? mTitle.c_str() : nullptr; }
-const char* ScheduledMeeting::description() const                   { return !mDescription.empty() ? mDescription.c_str() : nullptr; }
-const char* ScheduledMeeting::attributes() const                    { return !mAttributes.empty() ? mAttributes.c_str() : nullptr; }
-const char* ScheduledMeeting::overrides() const                     { return !mOverrides.empty() ? mOverrides.c_str() : nullptr; }
-int ScheduledMeeting::cancelled() const                             { return mCancelled; }
-ScheduledFlags* ScheduledMeeting::flags() const                     { return mFlags.get(); }
-ScheduledRules* ScheduledMeeting::rules() const                     { return mRules.get(); }
+handle ScheduledMeeting::chatid() const                                 { return mChatid; }
+handle ScheduledMeeting::organizerUserid() const                        { return mOrganizerUserId; }
+handle ScheduledMeeting::callid() const                                 { return mCallid; }
+handle ScheduledMeeting::parentCallid() const                           { return mParentCallid; }
+const string& ScheduledMeeting::timezone() const                        { return mTimezone; }
+const string& ScheduledMeeting::startDateTime() const                   { return mStartDateTime; }
+const string& ScheduledMeeting::endDateTime() const                     { return mEndDateTime; }
+const string& ScheduledMeeting::title() const                           { return mTitle; }
+const string& ScheduledMeeting::description() const                     { return mDescription; }
+const string& ScheduledMeeting::attributes() const                      { return mAttributes; }
+const string& ScheduledMeeting::overrides() const                       { return mOverrides; }
+int ScheduledMeeting::cancelled() const                                 { return mCancelled; }
+ScheduledFlags* ScheduledMeeting::flags() const                         { return mFlags.get(); }
+ScheduledRules* ScheduledMeeting::rules() const                         { return mRules.get(); }
 
 bool ScheduledMeeting::isValid() const
 {
@@ -1268,8 +1268,8 @@ bool ScheduledMeeting::serialize(string* out)
     if (!out) { return false; }
     bool hasCallid = callid() != UNDEF;
     bool hasParentCallid = parentCallid() != UNDEF;
-    bool hasAttributes = attributes();
-    bool hasOverrides = overrides();
+    bool hasAttributes = !attributes().empty();
+    bool hasOverrides = !overrides().empty();
     bool hasCancelled = cancelled() >= 0;
     bool hasflags = flags();
     bool hasRules = rules();
@@ -1362,13 +1362,13 @@ ScheduledMeeting* ScheduledMeeting::unserialize(string* in)
         }
     }
 
-    return new ScheduledMeeting(chatid, timezone.c_str(), startDateTime.c_str(), endDateTime.c_str(),
-                                title.c_str(), description.c_str(), organizerUserid,
+    return new ScheduledMeeting(chatid, timezone, startDateTime, endDateTime,
+                                title, description, organizerUserid,
                                 hasCallid ? callid : UNDEF,
                                 hasParentCallid ? parentCallid : UNDEF,
                                 hasCancelled ? cancelled : -1,
-                                hasAttributes ? attributes.c_str() : nullptr,
-                                hasOverrides ? overrides.c_str() : nullptr,
+                                attributes,
+                                overrides,
                                 flags.get(), rules.get());
 }
 #endif

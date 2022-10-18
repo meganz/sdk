@@ -9076,8 +9076,8 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     // required params
     arg("cid", (byte*)& chatid, MegaClient::CHATHANDLE); // chatroom handle
     arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
-    arg("s", schedMeeting->startDateTime());
-    arg("e", schedMeeting->endDateTime());
+    arg("s", schedMeeting->startDateTime().c_str());
+    arg("e", schedMeeting->endDateTime().c_str());
     arg("t", Base64::btoa(schedMeeting->title()).c_str());
     arg("d", Base64::btoa(schedMeeting->description()).c_str());
 
@@ -9085,8 +9085,8 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
     if (!ISUNDEF(callid))                           { arg("id", (byte*)&callid, MegaClient::CHATHANDLE); } // scheduled meeting ID
     if (!ISUNDEF(parentCallid))                     { arg("p", (byte*)&parentCallid, MegaClient::CHATHANDLE); } // parent meeting ID
     if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
-    if (schedMeeting->overrides())                  { arg("o", schedMeeting->overrides()); }
-    if (schedMeeting->attributes())                 { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
+    if (!schedMeeting->overrides().empty())         { arg("o", schedMeeting->overrides().c_str()); }
+    if (!schedMeeting->attributes().empty())        { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
 
     if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
     {
@@ -9172,7 +9172,7 @@ bool CommandScheduledMeetingAddOrUpdate::procresult(Command::Result r)
     handle schedMeetingId = client->json.gethandle(MegaClient::CHATHANDLE);
     mScheduledMeeting->setCallid(schedMeetingId);
 
-    if ((mScheduledMeeting->parentCallid() == UNDEF || !mScheduledMeeting->overrides())
+    if ((mScheduledMeeting->parentCallid() == UNDEF || mScheduledMeeting->overrides().empty())
             && chat->getSchedMeetingById(mScheduledMeeting->callid()))
     {
         // if we are not overwritting an existing scheduled meeting, it should not exist
