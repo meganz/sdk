@@ -9720,35 +9720,35 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 {
                     string tz;
                     auxJson->storeobject(&tz);
-                    auxMeet->setTimezone(Base64::atob(tz).c_str());
+                    auxMeet->setTimezone(Base64::atob(tz));
                     break;
                 }
                 case MAKENAMEID1('s'): // start date time
                 {
                     string startDateTime;
                     auxJson->storeobject(&startDateTime);
-                    auxMeet->setStartDateTime(startDateTime.c_str());
+                    auxMeet->setStartDateTime(startDateTime);
                     break;
                 }
                 case MAKENAMEID1('e'): // end date time
                 {
                     string endDateTime;
                     auxJson->storeobject(&endDateTime);
-                    auxMeet->setEndDateTime(endDateTime.c_str());
+                    auxMeet->setEndDateTime(endDateTime);
                     break;
                 }
                 case MAKENAMEID1('t'):  // title
                 {
                     string title;
                     auxJson->storeobject(&title);
-                    auxMeet->setTitle(Base64::atob(title).c_str());
+                    auxMeet->setTitle(Base64::atob(title));
                     break;
                 }
                 case MAKENAMEID1('d'): // description
                 {
                     string description;
                     auxJson->storeobject(&description);
-                    auxMeet->setDescription(Base64::atob(description).c_str());
+                    auxMeet->setDescription(Base64::atob(description));
                     break;
                 }
                 case MAKENAMEID1('i'):
@@ -9760,14 +9760,14 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                 {
                     string attributes;
                     auxJson->storeobject(&attributes);
-                    auxMeet->setAttributes(Base64::atob(attributes).c_str());
+                    auxMeet->setAttributes(Base64::atob(attributes));
                     break;
                 }
                 case MAKENAMEID1('o'): // override
                 {
                     string overrides;
                     auxJson->storeobject(&overrides);
-                    auxMeet->setOverrides(overrides.c_str());
+                    auxMeet->setOverrides(overrides);
                     break;
                 }
                 case MAKENAMEID1('c'): // cancelled

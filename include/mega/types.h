@@ -848,12 +848,6 @@ public:
                      handle parentCallid = UNDEF, int cancelled = -1, const char* attributes = nullptr,
                      const char* overrides = nullptr, ScheduledFlags* flags = nullptr, ScheduledRules* rules = nullptr);
 
-    ScheduledMeeting(handle chatid, const char* timezone, const char* startDate, const char* endDate, const char* title,
-                                    const char* description, int freq, handle organizerUserId, handle callid, handle parentCallid,
-                                    int cancelled, bool emailsDisabled, const char* attributes, const char* overrides, int interval,
-                                    const char* until, const ScheduledRules::rules_vector* byWeekDay, const ScheduledRules::rules_vector* byMonthDay,
-                                    const ScheduledRules::rules_map* byMonthWeekDay);
-
     ScheduledMeeting(ScheduledMeeting* scheduledMeeting);
     ScheduledMeeting* copy();
     ~ScheduledMeeting();
@@ -862,13 +856,13 @@ public:
     void setRules(ScheduledRules* rules);
     void setFlags(ScheduledFlags* flags);
     void setCancelled(int cancelled);
-    void setOverrides(const char* overrides);
-    void setAttributes(const char* attributes);
-    void setDescription(const char* description);
-    void setTitle(const char* title);
-    void setEndDateTime(const char* endDateTime);
-    void setStartDateTime(const char* startDateTime);
-    void setTimezone(const char* timezone);
+    void setOverrides(const string& overrides);
+    void setAttributes(const string& attributes);
+    void setDescription(const string& description);
+    void setTitle(const string& title);
+    void setEndDateTime(const string& endDateTime);
+    void setStartDateTime(const string& startDateTime);
+    void setTimezone(const string& timezone);
     void setParentCallid(handle parentCallid);
     void setCallid(handle callid);
     void setChatid(handle chatid);
