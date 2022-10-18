@@ -3464,28 +3464,6 @@ void Syncs::getSyncStatusInfoInThread(handle backupID,
     completion(std::move(info));
 }
 
-void Syncs::getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> completionClosure,
-        bool completionInClient)
-{
-    using MC = MegaClient;
-    using DBTC = TransferDbCommitter;
-
-    if (completionInClient)
-    {
-        completionClosure = [this, completionClosure](SyncStallInfo& syncStallInfo) {
-            queueClient([completionClosure, syncStallInfo](MC&, DBTC&) mutable {
-                completionClosure(syncStallInfo);
-            });
-        };
-    }
-
-    queueSync([this, completionClosure]() mutable {
-        SyncStallInfo syncStallInfo;
-        syncStallDetected(syncStallInfo); // Collect sync stalls
-        completionClosure(syncStallInfo);
-    });
-}
-
 SyncConfigVector Syncs::configsForDrive(const LocalPath& drive) const
 {
     assert(onSyncThread() || !onSyncThread());

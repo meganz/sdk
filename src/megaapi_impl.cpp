@@ -21621,6 +21621,20 @@ void MegaApiImpl::sendPendingRequests()
             client->deregisterThenRemoveSync(backupId, completion);
             break;
         }
+        case MegaRequest::TYPE_GET_SYNC_STALL_LIST:
+        {
+            auto completion = [this, request](SyncProblems& problems) {
+                auto error = ::mega::make_unique<MegaErrorPrivate>(API_OK);
+                auto stalls = ::mega::make_unique<MegaSyncStallListPrivate>(problems);
+
+                request->setMegaSyncStallList(std::move(stalls));
+
+                fireOnRequestFinish(request, std::move(error));
+            };
+
+            client->syncs.getSyncProblems(std::move(completion), true);
+            break;
+        }
 #endif  // ENABLE_SYNC
         case MegaRequest::TYPE_REPORT_EVENT:
         {

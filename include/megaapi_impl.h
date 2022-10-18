@@ -2588,9 +2588,6 @@ protected:
     mutable map<int, string> mCache1, mCache2;
 };
 
-/**
- * A thin wrapper to make them look like a List
- */
 class MegaSyncStallListPrivate : public MegaSyncStallList
 {
     public:

@@ -969,8 +969,6 @@ struct Syncs
     void getSyncProblems(std::function<void(SyncProblems&)> completion,
                          bool completionInClient);
 
-    void getSyncProblems_inThread(SyncProblems& problems);
-
     // Retrieve status information about sync(s).
     using SyncStatusInfoCompletion =
       std::function<void(vector<SyncStatusInfo>)>;
@@ -981,12 +979,6 @@ struct Syncs
 
     void getSyncStatusInfoInThread(handle backupID,
                                    SyncStatusInfoCompletion completion);
-
-    /**
-     * @brief route the request to the sync thread for fulfillment.
-     */
-    void getSyncStalls(std::function<void(SyncStallInfo& syncStallInfo)> completionClosure,
-            bool completionInClient);
 
     /**
      * @brief
@@ -1164,6 +1156,8 @@ private:
     void renameSync_inThread(handle backupId, const string& newname, std::function<void(Error e)> result);
     error backupOpenDrive_inThread(const LocalPath& drivePath);
     error backupCloseDrive_inThread(LocalPath drivePath);
+    void getSyncProblems_inThread(SyncProblems& problems);
+
 
     void syncLoop();
 
