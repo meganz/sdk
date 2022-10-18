@@ -4115,6 +4115,8 @@ bool CommandGetUserData::procresult(Result r)
             break;
 #endif
 
+        case MAKENAMEID2('p', 'f'):  // Pro Flexi plan (similar to business)
+            [[fallthrough]];
         case 'b':   // business account's info
             assert(!b);
             b = true;
@@ -4563,7 +4565,7 @@ bool CommandGetUserData::procresult(Result r)
             {
                 // integrity checks
                 if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
-                        || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
+                        || (m == BIZ_MODE_UNKNOWN && !client->isProFlexi()))  // master flag not received or invalid (or Pro Flexi, not business)
                 {
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;

@@ -10172,6 +10172,8 @@ class MegaApi
         /**
          * @brief Check if the account is a business account.
          *
+         * For accounts under Pro Flexi plans, this method also returns true.
+         *
          * @return returns true if it's a business account, otherwise false
          */
         bool isBusinessAccount();
