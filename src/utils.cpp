@@ -940,43 +940,6 @@ ScheduledRules::~ScheduledRules()
 {
 }
 
-void ScheduledRules::setByWeekDay(const rules_vector* byWeekDay)
-{
-    mByWeekDay.reset();
-    if (byWeekDay) { mByWeekDay.reset(new rules_vector(*byWeekDay)); }
-}
-
-void ScheduledRules::setByMonthDay(const rules_vector* byMonthDay)
-{
-    mByMonthDay.reset();
-    if (byMonthDay) { mByMonthDay.reset(new rules_vector(*byMonthDay)); }
-}
-
-void ScheduledRules::setByMonthWeekDay(const rules_map* byMonthWeekDay)
-{
-    mByMonthWeekDay.reset();
-    if (byMonthWeekDay) { mByMonthWeekDay.reset(new rules_map(byMonthWeekDay->begin(), byMonthWeekDay->end())); }
-}
-
-void ScheduledRules::setFreq(int newFreq)
-{
-    mFreq = isValidFreq(newFreq)
-            ? newFreq
-            : FREQ_INVALID;
-}
-
-void ScheduledRules::setInterval(int interval)
-{
-    mInterval = isValidInterval(interval)
-            ? interval
-            : INTERVAL_INVALID;
-}
-
-void ScheduledRules::setUntil(const char* until)
-{
-    mUntil.assign(until ? until : std::string());
-}
-
 int ScheduledRules::freq() const                                     { return mFreq; }
 int ScheduledRules::interval() const                                 { return mInterval; }
 const char* ScheduledRules::until() const                            { return !mUntil.empty() ? mUntil.c_str() : nullptr; }

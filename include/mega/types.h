@@ -801,14 +801,6 @@ class ScheduledRules
         ScheduledRules* copy();
         ~ScheduledRules();
 
-        // setters
-        void setFreq(int newFreq);
-        void setInterval(int interval);
-        void setUntil(const char* until);
-        void setByWeekDay(const rules_vector* byWeekDay);
-        void setByMonthDay(const rules_vector* byMonthDay);
-        void setByMonthWeekDay(const rules_map* byMonthWeekDay);
-
         // getters
         int freq() const;
         int interval() const;
