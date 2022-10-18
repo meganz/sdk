@@ -583,18 +583,23 @@ ScheduledMeeting* TextChat::getSchedMeetingById(handle id)
 
 bool TextChat::addSchedMeeting(std::unique_ptr<ScheduledMeeting>&& sm, bool notify)
 {
-    assert(sm);
-    if (mScheduledMeetings.find(sm->callid()) != mScheduledMeetings.end())
+    if (!sm)
     {
-        LOG_err << "addSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(sm->callid()) << " already exits";
+        assert(false);
         return false;
     }
 
-    mScheduledMeetings.emplace(sm->callid(), std::move(sm));
+    handle h = sm->callid();
+    if (mScheduledMeetings.find(h) != mScheduledMeetings.end())
+    {
+        LOG_err << "addSchedMeeting: scheduled meeting with id: " << Base64Str<MegaClient::CHATHANDLE>(h) << " already exits";
+        return false;
+    }
 
+    mScheduledMeetings.emplace(h, std::move(sm));
     if (notify)
     {
-        mSchedMeetingsChanged.emplace_back(sm->callid());
+        mSchedMeetingsChanged.emplace_back(h);
     }
     return true;
 }
