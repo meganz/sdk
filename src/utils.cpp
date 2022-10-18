@@ -962,14 +962,41 @@ const char* ScheduledRules::freqToString () const
     }
 }
 
-bool ScheduledRules::equalTo(mega::ScheduledRules *r)
+bool ScheduledRules::equalTo(mega::ScheduledRules *r) const
 {
-    return mFreq == r->freq()
-            && mInterval == r->interval()
-            && !mUntil.compare(r->until())
-            && std::equal(mByWeekDay->begin(), mByWeekDay->end(), r->byWeekDay()->begin())
-            && std::equal(mByMonthDay->begin(), mByMonthDay->end(), r->byMonthDay()->begin())
-            && std::equal(mByMonthWeekDay->begin(), mByMonthWeekDay->end(), r->byMonthWeekDay()->begin());
+    if (!r)                            { return false; }
+    if (mFreq != r->freq())            { return false; }
+    if (mInterval != r->interval())    { return false; }
+    if (mUntil.compare(r->until()))    { return false; }
+
+    if (mByWeekDay || r->byWeekDay())
+    {
+        if (!mByWeekDay || !r->byWeekDay())
+        {
+            return false;
+        }
+        return (*mByWeekDay == *r->byWeekDay());
+    }
+
+    if (mByMonthDay || r->byMonthDay())
+    {
+        if (!mByMonthDay || !r->byMonthDay())
+        {
+            return false;
+        }
+        return (*mByMonthDay == *r->byMonthDay());
+    }
+
+    if (mByMonthWeekDay || r->byMonthWeekDay())
+    {
+        if (!mByMonthWeekDay || !r->byMonthWeekDay())
+        {
+            return false;
+        }
+        return (*mByMonthWeekDay == *r->byMonthWeekDay());
+    }
+
+    return true;
 }
 
 int ScheduledRules::stringToFreq (const char* freq)

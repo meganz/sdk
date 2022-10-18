@@ -810,7 +810,7 @@ class ScheduledRules
         const rules_map* byMonthWeekDay();
         bool isValid() const;
         const char* freqToString() const;
-        bool equalTo(ScheduledRules*);
+        bool equalTo(ScheduledRules*) const;
         static int stringToFreq (const char* freq);
         static bool isValidFreq(int freq)         { return (freq >= FREQ_DAILY && freq <= FREQ_MONTHLY); }
         static bool isValidInterval(int interval) { return interval > INTERVAL_INVALID; }
