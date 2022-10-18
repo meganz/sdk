@@ -804,7 +804,7 @@ class ScheduledRules
         // getters
         int freq() const;
         int interval() const;
-        const char* until() const;
+        const std::string &until() const;
         const rules_vector* byWeekDay();
         const rules_vector* byMonthDay();
         const rules_map* byMonthWeekDay();

@@ -9109,9 +9109,9 @@ CommandScheduledMeetingAddOrUpdate::CommandScheduledMeetingAddOrUpdate(MegaClien
             arg("INTERVAL", rules->interval());
         }
 
-        if (rules->until())
+        if (!rules->until().empty())
         {
-            arg("UNTIL", rules->until());
+            arg("UNTIL", rules->until().c_str());
         }
 
         if (rules->byWeekDay() && !rules->byWeekDay()->empty())
