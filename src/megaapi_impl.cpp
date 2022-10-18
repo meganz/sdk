@@ -21580,7 +21580,7 @@ void MegaApiImpl::sendPendingRequests()
                         };
                     }
 
-                    client->syncs.removeSync(v.mBackupId, completion);
+                    client->deregisterThenRemoveSync(v.mBackupId, completion);
                 }
             }
             break;
@@ -21618,7 +21618,7 @@ void MegaApiImpl::sendPendingRequests()
                 };
             }
 
-            client->syncs.removeSync(backupId, completion);
+            client->deregisterThenRemoveSync(backupId, completion);
             break;
         }
 #endif  // ENABLE_SYNC

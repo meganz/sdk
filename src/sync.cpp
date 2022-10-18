@@ -5014,52 +5014,34 @@ SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync
     return selected;
 }
 
-void Syncs::removeSync(handle backupId, std::function<void(Error)> clientCompletion)
+void Syncs::removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion)
 {
     assert(!onSyncThread());
 
-    queueSync([=](){ removeSync_inThread(backupId, move(clientCompletion)); });
+    queueSync([=](){ removeSyncAfterDeregistration_inThread(backupId, move(clientCompletion)); });
 }
 
-void Syncs::removeSync_inThread(handle backupId, std::function<void(Error)> clientCompletion)
+void Syncs::removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion)
 {
     assert(onSyncThread());
 
-    LOG_debug << "Attempting to deregister backup ID: "
-                << toHandle(backupId);
+    Error e = API_OK;
+    SyncConfig configCopy;
+    if (unloadSyncByBackupID(backupId, false, configCopy))
+    {
+        mClient.app->sync_removed(configCopy);
+        mSyncConfigStore->markDriveDirty(configCopy.mExternalDrivePath);
+    }
+    else
+    {
+        e = API_EEXIST;
+    }
 
-    auto removeAfterDeregister = [backupId, clientCompletion, this](Error e){
-
-        // Try and remove the sync from memory.
-        SyncConfig configCopy;
-        if (unloadSyncByBackupID(backupId, false, configCopy))
-        {
-            // Let the app know we've removed a sync.
-            mClient.app->sync_removed(configCopy);
-            e = API_OK;
-
-            // Make sure any config changes are flushed to disk.
-            mSyncConfigStore->markDriveDirty(configCopy.mExternalDrivePath);
-        }
-        else
-        {
-            e = API_EEXIST;
-        }
-
-        if (clientCompletion)
-        {
-            // this case for if we didn't need to deregister anything
-            queueClient([clientCompletion, e](MegaClient&, TransferDbCommitter&){ clientCompletion(e); });
-        }
-
-    };
-
-    // Try and deregister this sync's backup ID first.
-    // If we fail later on, the heartbeat record will auto-restore
-    mClient.reqs.add(
-        new CommandBackupRemove(&mClient,
-                                backupId,
-                                std::move(removeAfterDeregister)));
+    if (clientCompletion)
+    {
+        // this case for if we didn't need to deregister anything
+        queueClient([clientCompletion, e](MegaClient&, TransferDbCommitter&){ clientCompletion(e); });
+    }
 }
 
 bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& configCopy)
@@ -5187,7 +5169,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
     mSyncConfigStore.reset();
 
     // Remove all syncs from RAM.
-    for (auto& sc : getConfigs(true))
+    for (auto& sc : getConfigs(false, false))
     {
         SyncConfig removed;
         unloadSyncByBackupID(sc.mBackupId, false, removed);
@@ -5205,55 +5187,6 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
         syncKey.setkey(mClient.key.key);
         SyncConfigVector configs;
         syncConfigStoreLoad(configs);
-    }
-}
-
-void Syncs::removeSyncByIndex(size_t index, bool notifyApp, bool unregisterHeartbeat)
-{
-    assert(onSyncThread());
-
-    if (index < mSyncVec.size())
-    {
-        bool canChangeVault = false;
-        if (auto& syncPtr = mSyncVec[index]->mSync)
-        {
-            canChangeVault = syncPtr->threadSafeState->mCanChangeVault;
-            syncPtr->changestate(DECONFIGURING_SYNC, false, false, false);
-            assert(!syncPtr->statecachetable);
-            syncPtr.reset(); // deletes sync
-        }
-
-        if (mSyncConfigStore) mSyncConfigStore->markDriveDirty(mSyncVec[index]->mConfig.mExternalDrivePath);
-
-        SyncConfig configCopy = mSyncVec[index]->mConfig;
-
-        // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
-        if (notifyApp)
-        {
-            assert(onSyncThread());
-            mClient.app->sync_removed(configCopy);
-        }
-
-        if (unregisterHeartbeat)
-        {
-            // unregister this sync/backup from API (backup center)
-            queueClient([configCopy, canChangeVault](MegaClient& mc, TransferDbCommitter& committer)
-                {
-                    mc.reqs.add(new CommandBackupRemove(&mc, configCopy.mBackupId, nullptr));
-
-                    if (auto n = mc.nodeByHandle(configCopy.mRemoteNode))
-                    {
-                        attr_map m;
-                        m[AttrMap::string2nameid("dev-id")] = "";
-                        m[AttrMap::string2nameid("drv-id")] = "";
-                        mc.setattr(n, move(m), nullptr, canChangeVault);
-                    }
-                });
-        }
-
-        lock_guard<mutex> g(mSyncVecMutex);
-        mSyncVec.erase(mSyncVec.begin() + index);
-        mSyncVecIsEmpty = mSyncVec.empty();
     }
 }
 

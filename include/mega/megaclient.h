@@ -526,6 +526,8 @@ public:
 
     void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
 
+    void deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion);
+
     // delete all versions
     void unlinkversions();
 

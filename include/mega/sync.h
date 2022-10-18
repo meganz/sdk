@@ -946,7 +946,7 @@ struct Syncs
     void disableSyncs(SyncError syncError, bool newEnabledFlag, bool keepSyncDb);
 
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered.  Synchronous (for now)
-    void removeSync(handle backupId, std::function<void(Error)> clientCompletion);
+    void removeSyncAfterDeregistration(handle backupId, std::function<void(Error)> clientCompletion);
 
     // async, callback on client thread
     void renameSync(handle backupId, const string& newname, std::function<void(Error e)> result);
@@ -1137,10 +1137,6 @@ private:
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();
 
-
-    // remove the Sync and its config from memory - optionally also other aspects
-    void removeSyncByIndex(size_t index, bool notifyApp, bool unresg);
-
     void proclocaltree(LocalNode* n, LocalTreeProc* tp);
 
     bool mightAnySyncsHaveMoves(bool includePausedSyncs);
@@ -1161,7 +1157,7 @@ private:
     void enableSyncByBackupId_inThread(handle backupId, bool paused, bool resetFingerprint, bool notifyApp, bool setOriginalPath, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
     void disableSyncByBackupId_inThread(handle backupId, SyncError syncError, bool newEnabledFlag, bool keepSyncDb, std::function<void()> completion);
     void appendNewSync_inThread(const SyncConfig&, bool startSync, bool notifyApp, std::function<void(error, SyncError, handle)> completion, const string& logname, const string& excludedPath = string());
-    void removeSync_inThread(handle backupId, std::function<void(Error)> clientCompletion);
+    void removeSyncAfterDeregistration_inThread(handle backupId, std::function<void(Error)> clientCompletion);
     void syncConfigStoreAdd_inThread(const SyncConfig& config, std::function<void(error)> completion);
     void clear_inThread();
     void purgeRunningSyncs_inThread();
