@@ -8558,12 +8558,12 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "IncomingPendingContact  --  request created";
     ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "IncomingPendingContact  --  request created";
     const auto* a = B1dtls.userAlertList->get(0);
-    ASSERT_STREQ(a->getEmail(), A1dtls.email.c_str()) << "IncomingPendingContact  --  request created";
-    ASSERT_STREQ(a->getTitle(), "Sent you a contact request") << "IncomingPendingContact  --  request created";
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "IncomingPendingContact  --  request created";
+    ASSERT_STRCASEEQ(a->getTitle(), "Sent you a contact request") << "IncomingPendingContact  --  request created";
     ASSERT_GT(a->getId(), 0u) << "IncomingPendingContact  --  request created";
     ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_INCOMINGPENDINGCONTACT_REQUEST) << "IncomingPendingContact  --  request created";
     ASSERT_STREQ(a->getTypeString(), "NEW_CONTACT_REQUEST") << "IncomingPendingContact  --  request created";
-    ASSERT_STREQ(a->getHeading(), A1dtls.email.c_str()) << "IncomingPendingContact  --  request created";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "IncomingPendingContact  --  request created";
     ASSERT_NE(a->getTimestamp(0), 0) << "IncomingPendingContact  --  request created";
     ASSERT_FALSE(a->isOwnChange()) << "IncomingPendingContact  --  request created";
     ASSERT_EQ(a->getPcrHandle(), B1dtls.cr->getHandle()) << "IncomingPendingContact  --  request created";
@@ -8592,12 +8592,12 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(A1dtls.userAlertList, nullptr) << "ContactChange  --  contact request accepted";
     ASSERT_EQ(A1dtls.userAlertList->size(), 1) << "ContactChange  --  contact request accepted";
     a = A1dtls.userAlertList->get(0);
-    ASSERT_STREQ(a->getEmail(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
-    ASSERT_STREQ(a->getTitle(), "Contact relationship established") << "ContactChange  --  contact request accepted";
+    ASSERT_STRCASEEQ(a->getEmail(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
+    ASSERT_STRCASEEQ(a->getTitle(), "Contact relationship established") << "ContactChange  --  contact request accepted";
     ASSERT_GT(a->getId(), 0u) << "ContactChange  --  contact request accepted";
     ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_CONTACTCHANGE_CONTACTESTABLISHED) << "ContactChange  --  contact request accepted";
     ASSERT_STREQ(a->getTypeString(), "CONTACT_ESTABLISHED") << "ContactChange  --  contact request accepted";
-    ASSERT_STREQ(a->getHeading(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
+    ASSERT_STRCASEEQ(a->getHeading(), B1dtls.email.c_str()) << "ContactChange  --  contact request accepted";
     ASSERT_NE(a->getTimestamp(0), 0) << "ContactChange  --  contact request accepted";
     ASSERT_FALSE(a->isOwnChange()) << "ContactChange  --  contact request accepted";
     ASSERT_EQ(a->getUserHandle(), B1.getMyUserHandleBinary()) << "ContactChange  --  contact request accepted";
@@ -8677,19 +8677,19 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "NewShare";
     ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "NewShare";
     a = B1dtls.userAlertList->get(0);
-    ASSERT_STREQ(a->getEmail(), A1dtls.email.c_str()) << "NewShare";
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "NewShare";
     string title = "New shared folder from " + A1dtls.email;
-    ASSERT_STREQ(a->getTitle(), title.c_str()) << "NewShare";
+    ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "NewShare";
     ASSERT_GT(a->getId(), 0u) << "NewShare";
     ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_NEWSHARE) << "NewShare";
     ASSERT_STREQ(a->getTypeString(), "NEW_SHARE") << "NewShare";
-    ASSERT_STREQ(a->getHeading(), A1dtls.email.c_str()) << "NewShare";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "NewShare";
     ASSERT_NE(a->getTimestamp(0), 0) << "NewShare";
     ASSERT_FALSE(a->isOwnChange()) << "NewShare";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "NewShare";
     ASSERT_EQ(a->getNodeHandle(), nSharedFolder->getHandle()) << "NewShare";
     string path = A1dtls.email + ':' + sharedFolder;
-    ASSERT_STREQ(a->getPath(), path.c_str()) << "NewShare";
+    ASSERT_STRCASEEQ(a->getPath(), path.c_str()) << "NewShare";
     ASSERT_STREQ(a->getName(), sharedFolder) << "NewShare";
     bkpList.emplace_back(a->copy());
 
@@ -8710,13 +8710,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "RemovedSharedNode";
     ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "RemovedSharedNode";
     a = B1dtls.userAlertList->get(0);
-    ASSERT_STREQ(a->getEmail(), A1dtls.email.c_str()) << "RemovedSharedNode";
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "RemovedSharedNode";
     title = "Removed item from shared folder";
-    ASSERT_STREQ(a->getTitle(), title.c_str()) << "RemovedSharedNode";
+    ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "RemovedSharedNode";
     ASSERT_GT(a->getId(), 0u) << "RemovedSharedNode";
     ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_REMOVEDSHAREDNODES) << "RemovedSharedNode";
     ASSERT_STREQ(a->getTypeString(), "NODES_IN_SHARE_REMOVED") << "RemovedSharedNode";
-    ASSERT_STREQ(a->getHeading(), A1dtls.email.c_str()) << "RemovedSharedNode";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "RemovedSharedNode";
     ASSERT_NE(a->getTimestamp(0), 0) << "RemovedSharedNode";
     ASSERT_FALSE(a->isOwnChange()) << "RemovedSharedNode";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "RemovedSharedNode";
@@ -8748,13 +8748,13 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "NewSharedNodes";
     ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "NewSharedNodes";
     a = B1dtls.userAlertList->get(0);
-    ASSERT_STREQ(a->getEmail(), A1dtls.email.c_str()) << "NewSharedNodes";
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "NewSharedNodes";
     title = A1dtls.email + " added 1 file";
-    ASSERT_STREQ(a->getTitle(), title.c_str()) << "NewSharedNodes";
+    ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "NewSharedNodes";
     ASSERT_GT(a->getId(), 0u) << "NewSharedNodes";
     ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_NEWSHAREDNODES) << "NewSharedNodes";
     ASSERT_STREQ(a->getTypeString(), "NEW_NODES_IN_SHARE") << "NewSharedNodes";
-    ASSERT_STREQ(a->getHeading(), A1dtls.email.c_str()) << "NewSharedNodes";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "NewSharedNodes";
     ASSERT_NE(a->getTimestamp(0), 0) << "NewSharedNodes";
     ASSERT_FALSE(a->isOwnChange()) << "NewSharedNodes";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "NewSharedNodes";
@@ -8792,12 +8792,12 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "UpdatedSharedNode";
     ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "UpdatedSharedNode";
     a = B1dtls.userAlertList->get(0);
-    ASSERT_STREQ(a->getEmail(), A1dtls.email.c_str()) << "UpdatedSharedNode";
-    ASSERT_STREQ(a->getTitle(), "Updated 1 item in shared folder") << "UpdatedSharedNode";
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "UpdatedSharedNode";
+    ASSERT_STRCASEEQ(a->getTitle(), "Updated 1 item in shared folder") << "UpdatedSharedNode";
     ASSERT_GT(a->getId(), 0u) << "UpdatedSharedNode";
     ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_UPDATEDSHAREDNODES) << "UpdatedSharedNode";
     ASSERT_STREQ(a->getTypeString(), "NODES_IN_SHARE_UPDATED") << "UpdatedSharedNode";
-    ASSERT_STREQ(a->getHeading(), A1dtls.email.c_str()) << "UpdatedSharedNode";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "UpdatedSharedNode";
     ASSERT_NE(a->getTimestamp(0), 0) << "UpdatedSharedNode";
     ASSERT_FALSE(a->isOwnChange()) << "UpdatedSharedNode";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "UpdatedSharedNode";
@@ -8832,12 +8832,12 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "UpdatedSharedNode (combined)";
     ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "UpdatedSharedNode (combined)";
     a = B1dtls.userAlertList->get(0);
-    ASSERT_STREQ(a->getEmail(), A1dtls.email.c_str()) << "UpdatedSharedNode (combined)";
-    ASSERT_STREQ(a->getTitle(), "Updated 2 items in shared folder") << "UpdatedSharedNode (combined)";
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "UpdatedSharedNode (combined)";
+    ASSERT_STRCASEEQ(a->getTitle(), "Updated 2 items in shared folder") << "UpdatedSharedNode (combined)";
     ASSERT_GT(a->getId(), 0u) << "UpdatedSharedNode (combined)";
     ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_UPDATEDSHAREDNODES) << "UpdatedSharedNode (combined)";
     ASSERT_STREQ(a->getTypeString(), "NODES_IN_SHARE_UPDATED") << "UpdatedSharedNode (combined)";
-    ASSERT_STREQ(a->getHeading(), A1dtls.email.c_str()) << "UpdatedSharedNode (combined)";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "UpdatedSharedNode (combined)";
     ASSERT_NE(a->getTimestamp(0), 0) << "UpdatedSharedNode (combined)";
     ASSERT_FALSE(a->isOwnChange()) << "UpdatedSharedNode (combined)";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "UpdatedSharedNode (combined)";
@@ -8870,19 +8870,19 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "DeletedShare";
     ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "DeletedShare";
     a = B1dtls.userAlertList->get(0);
-    ASSERT_STREQ(a->getEmail(), A1dtls.email.c_str()) << "DeletedShare";
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "DeletedShare";
     title = "Access to folders shared by " + A1dtls.email + " was removed";
-    ASSERT_STREQ(a->getTitle(), title.c_str()) << "DeletedShare";
+    ASSERT_STRCASEEQ(a->getTitle(), title.c_str()) << "DeletedShare";
     ASSERT_GT(a->getId(), 0u) << "DeletedShare";
     ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_DELETEDSHARE) << "DeletedShare";
     ASSERT_STREQ(a->getTypeString(), "SHARE_UNSHARED") << "DeletedShare";
-    ASSERT_STREQ(a->getHeading(), A1dtls.email.c_str()) << "DeletedShare";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "DeletedShare";
     ASSERT_NE(a->getTimestamp(0), 0) << "DeletedShare";
     ASSERT_FALSE(a->isOwnChange()) << "DeletedShare";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "DeletedShare";
     ASSERT_EQ(a->getNodeHandle(), nSharedFolder->getHandle()) << "DeletedShare";
     path = A1dtls.email + ':' + sharedFolder;
-    ASSERT_STREQ(a->getPath(), path.c_str()) << "DeletedShare";
+    ASSERT_STRCASEEQ(a->getPath(), path.c_str()) << "DeletedShare";
     ASSERT_STREQ(a->getName(), sharedFolder) << "DeletedShare";
     ASSERT_EQ(a->getNumber(0), 1) << "DeletedShare";
     bkpList.emplace_back(a->copy());
@@ -8907,12 +8907,12 @@ TEST_F(SdkTest, SdkUserAlerts)
     ASSERT_NE(B1dtls.userAlertList, nullptr) << "ContactChange  --  contact deleted";
     ASSERT_EQ(B1dtls.userAlertList->size(), 1) << "ContactChange  --  contact deleted";
     a = B1dtls.userAlertList->get(0);
-    ASSERT_STREQ(a->getEmail(), A1dtls.email.c_str()) << "ContactChange  --  contact deleted";
-    ASSERT_STREQ(a->getTitle(), "Deleted you as a contact") << "ContactChange  --  contact deleted";
+    ASSERT_STRCASEEQ(a->getEmail(), A1dtls.email.c_str()) << "ContactChange  --  contact deleted";
+    ASSERT_STRCASEEQ(a->getTitle(), "Deleted you as a contact") << "ContactChange  --  contact deleted";
     ASSERT_GT(a->getId(), 0u) << "ContactChange  --  contact deleted";
     ASSERT_EQ(a->getType(), MegaUserAlert::TYPE_CONTACTCHANGE_DELETEDYOU) << "ContactChange  --  contact deleted";
     ASSERT_STREQ(a->getTypeString(), "CONTACT_DISCONNECTED") << "ContactChange  --  contact deleted";
-    ASSERT_STREQ(a->getHeading(), A1dtls.email.c_str()) << "ContactChange  --  contact deleted";
+    ASSERT_STRCASEEQ(a->getHeading(), A1dtls.email.c_str()) << "ContactChange  --  contact deleted";
     ASSERT_NE(a->getTimestamp(0), 0) << "ContactChange  --  contact deleted";
     ASSERT_FALSE(a->isOwnChange()) << "ContactChange  --  contact deleted";
     ASSERT_EQ(a->getUserHandle(), A1.getMyUserHandleBinary()) << "ContactChange  --  contact deleted";
@@ -8963,21 +8963,21 @@ TEST_F(SdkTest, SdkUserAlerts)
         ASSERT_EQ(bkp->getUserHandle(), sc50a->getUserHandle()) << "sc50";
         ASSERT_EQ(bkp->getNodeHandle(), sc50a->getNodeHandle()) << "sc50";
         ASSERT_EQ(bkp->getPcrHandle(), sc50a->getPcrHandle()) << "sc50";
-        ASSERT_STREQ(bkp->getEmail(), sc50a->getEmail()) << "sc50";
+        ASSERT_STRCASEEQ(bkp->getEmail(), sc50a->getEmail()) << "sc50";
         if (sc50a->getPath()) // the node might not be there when sc50 alerts arrive
         {
-            ASSERT_STREQ(bkp->getPath(), sc50a->getPath()) << "sc50";
+            ASSERT_STRCASEEQ(bkp->getPath(), sc50a->getPath()) << "sc50";
         }
         if (sc50a->getName()) // the node might not be there when sc50 alerts arrive
         {
             ASSERT_STREQ(bkp->getName(), sc50a->getName()) << "sc50";
         }
-        ASSERT_STREQ(bkp->getHeading(), sc50a->getHeading()) << "sc50";
-        ASSERT_STREQ(bkp->getTitle(), sc50a->getTitle()) << "sc50";
+        ASSERT_STRCASEEQ(bkp->getHeading(), sc50a->getHeading()) << "sc50";
+        ASSERT_STRCASEEQ(bkp->getTitle(), sc50a->getTitle()) << "sc50";
         ASSERT_EQ(bkp->getNumber(0), sc50a->getNumber(0)) << "sc50";
         ASSERT_EQ(bkp->getNumber(1), sc50a->getNumber(1)) << "sc50";
         // ASSERT_EQ(bkp->getTimestamp(0), sc50a->getTimestamp(0)) << "sc50"; // timestamp will differ, because for sc50 alerts it gets calculated
-        ASSERT_STREQ(bkp->getString(0), sc50a->getString(0)) << "sc50";
+        ASSERT_STRCASEEQ(bkp->getString(0), sc50a->getString(0)) << "sc50";
         ASSERT_EQ(bkp->getHandle(0), sc50a->getHandle(0)) << "sc50";
         ASSERT_EQ(bkp->getHandle(1), sc50a->getHandle(1)) << "sc50";
 
