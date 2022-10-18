@@ -820,22 +820,22 @@ class ScheduledRules
         static ScheduledRules* unserialize(string* in);
 
     private:
-        // [required]: scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
+        // scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval to allow for a repeatable skips in the event timeline
         int mFreq;
 
-        // [optional]: repetition interval in relation to the frequency
+        // repetition interval in relation to the frequency
         int mInterval = 0;
 
-        // [optional]: specifies when the repetitions should end
+        // specifies when the repetitions should end
         std::string mUntil;
 
-        // [optional]: allows us to specify that an event will only occur on given week day/s
+        // allows us to specify that an event will only occur on given week day/s
         std::unique_ptr<rules_vector> mByWeekDay;
 
-        // [optional]: allows us to specify that an event will only occur on a given day/s of the month
+        // allows us to specify that an event will only occur on a given day/s of the month
         std::unique_ptr<rules_vector> mByMonthDay;
 
-        // [optional]: allows us to specify that an event will only occurs on a specific weekday offset of the month. For example, every 2nd Sunday of each month
+        // allows us to specify that an event will only occurs on a specific weekday offset of the month. For example, every 2nd Sunday of each month
         std::unique_ptr<rules_map> mByMonthWeekDay;
 };
 
@@ -893,46 +893,46 @@ public:
     static ScheduledMeeting* unserialize(string* in);
 
 private:
-    // [required]: chat handle
+    // chat handle
     handle mChatid;
 
-    // [Optional]: organizer user handle
+    // organizer user handle
     handle mOrganizerUserId;
 
-    // [optional]: scheduled meeting handle
+    // scheduled meeting handle
     handle mCallid;
 
-    // [optional]: parent scheduled meeting handle
+    // parent scheduled meeting handle
     handle mParentCallid;
 
-    // [required]: timeZone (B64 encoded)
+    // timeZone (B64 encoded)
     std::string mTimezone;
 
-    // [required]: start dateTime (format: 20220726T133000)
+    // start dateTime (format: 20220726T133000)
     std::string mStartDateTime;
 
-    // [required]: end dateTime (format: 20220726T133000)
+    // end dateTime (format: 20220726T133000)
     std::string mEndDateTime;
 
-    // [required]: meeting title
+    // meeting title
     std::string mTitle;
 
-    // [required]: meeting description
+    // meeting description
     std::string mDescription;
 
-    // [optional]: attributes to store any additional data (B64 encoded)
+    // attributes to store any additional data (B64 encoded)
     std::string mAttributes;
 
-    // [optional]: start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+    // start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
     std::string mOverrides;
 
-    // [optional]: cancelled flag
+    // cancelled flag
     int mCancelled;
 
-    // [optional]: flags bitmask (used to store additional boolean settings as a bitmask)
+    // flags bitmask (used to store additional boolean settings as a bitmask)
     std::unique_ptr<ScheduledFlags> mFlags;
 
-    // [optional]: scheduled meetings rules
+    // scheduled meetings rules
     std::unique_ptr<ScheduledRules> mRules;
 };
 #endif

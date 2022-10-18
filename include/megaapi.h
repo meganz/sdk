@@ -2376,19 +2376,19 @@ public:
     /**
      * @brief Creates a new instance of MegaScheduledMeeting
      *
-     * @param chatid        [required]: chat handle
-     * @param callid        [optional]: scheduled meeting handle
-     * @param parentCallid  [optional]: parent scheduled meeting handle
-     * @param cancelled     [optional]: cancelled flag
-     * @param timezone      [required]: timeZone
-     * @param startDateTime [required]: start dateTime (format: 20220726T133000)
-     * @param endDateTime   [required]: end dateTime (format: 20220726T133000)
-     * @param title         [required]: meeting title
-     * @param description   [required]: meeting description
-     * @param attributes    [optional]: attributes to store any additional data
-     * @param overrides     [optional]: start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
-     * @param flags         [optional]: flags bitmask (used to store additional boolean settings as a bitmask)
-     * @param rules         [optional]: scheduled meetings rules
+     * @param chatid        : chat handle
+     * @param callid        : scheduled meeting handle
+     * @param parentCallid  : parent scheduled meeting handle
+     * @param cancelled     : cancelled flag
+     * @param timezone      : timeZone
+     * @param startDateTime : start dateTime (format: 20220726T133000)
+     * @param endDateTime   : end dateTime (format: 20220726T133000)
+     * @param title         : meeting title
+     * @param description   : meeting description
+     * @param attributes    : attributes to store any additional data
+     * @param overrides     : start dateTime of the original meeting series event to be replaced (format: 20220726T133000)
+     * @param flags         : flags bitmask (used to store additional boolean settings as a bitmask)
+     * @param rules         : scheduled meetings rules
      *
      * @return A pointer to the superclass of the private object
      */
@@ -2608,12 +2608,12 @@ public:
     /**
      * @brief Creates a new instance of MegaScheduledRules
      *
-     * @param freq           [required]: scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval
-     * @param interval       [optional]: repetition interval in relation to the frequency
-     * @param until          [optional]: specifies when the repetitions should end
-     * @param byWeekDay      [optional]: allows us to specify that an event will only occur on given week day/s
-     * @param byMonthDay     [optional]: allows us to specify that an event will only occur on a given day/s of the month
-     * @param byMonthWeekDay [optional]: allows us to specify that an event will only occurs on a specific weekday offset of the month. (i.e every 2nd Sunday of each month)
+     * @param freq           : scheduled meeting frequency (DAILY | WEEKLY | MONTHLY), this is used in conjunction with interval
+     * @param interval       : repetition interval in relation to the frequency
+     * @param until          : specifies when the repetitions should end
+     * @param byWeekDay      : allows us to specify that an event will only occur on given week day/s
+     * @param byMonthDay     : allows us to specify that an event will only occur on a given day/s of the month
+     * @param byMonthWeekDay : allows us to specify that an event will only occurs on a specific weekday offset of the month. (i.e every 2nd Sunday of each month)
      *
      * @return A pointer to the superclass of the private object
      */
