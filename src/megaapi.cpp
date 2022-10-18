@@ -7031,7 +7031,6 @@ unsigned long MegaScheduledMeetingList::size() const                            
 MegaScheduledMeeting* MegaScheduledMeetingList::at(unsigned long) const                 { return NULL; }
 MegaScheduledMeeting* MegaScheduledMeetingList::getBySchedMeetingId(MegaHandle) const   { return NULL; }
 void MegaScheduledMeetingList::insert(MegaScheduledMeeting*)                            {}
-void MegaScheduledMeetingList::remove(MegaHandle)                                       {}
 void MegaScheduledMeetingList::clear()                                                  {}
 
 MegaFolderInfo::~MegaFolderInfo()

@@ -33638,20 +33638,6 @@ void MegaScheduledMeetingListPrivate::insert(MegaScheduledMeeting* sm)
     mList.emplace_back(sm);
 }
 
-void MegaScheduledMeetingListPrivate::remove(MegaHandle h)
-{
-    auto it = std::find_if(mList.begin(), mList.end(),
-                           [h](std::unique_ptr<MegaScheduledMeeting>& sm) -> bool
-                           {
-                             return h == sm ->callid();
-                           });
-
-    if (it != mList.end())
-    {
-        mList.erase(it);
-    }
-}
-
 void MegaScheduledMeetingListPrivate::clear()
 {
      mList.clear();

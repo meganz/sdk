@@ -2707,7 +2707,6 @@ public:
 
     // setters
     virtual void insert(MegaScheduledMeeting* sm);
-    virtual void remove(MegaHandle h);
     virtual void clear();
 };
 
