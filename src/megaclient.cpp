@@ -5252,6 +5252,10 @@ size_t MegaClient::procreqstat()
     {
         LOG_debug << "reqstat: No operation in progress";
         app->reqstat_progress(-1);
+
+        // resetting cs backoff here, because the account should be unlocked
+        // and there should be connectivity with MEGA servers
+        btcs.arm();
         return 2;
     }
     size_t startPosUsers = sizeof(uint16_t);
