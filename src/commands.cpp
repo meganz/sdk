@@ -2391,7 +2391,8 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
 {
     cmd("utqa");
     arg("nf", 3);
-    arg("b", 1);
+    arg("b", 1);    // support for Business accounts
+    arg("p", 1);    // support for Pro Flexi
     tag = client->reqtag;
 }
 
@@ -2488,6 +2489,11 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
                 case MAKENAMEID2('i', 't'): // 0 -> for all Pro level plans; 1 -> for Business plan
                     type = static_cast<int>(client->json.getint());
                     break;
+//                case MAKENAMEID2('i', 'b'): // for "it":1 (business plans), 0 -> Pro Flexi; 1 -> Business plan
+//                    {
+//                        bool isProFlexi = client->json.getbool();
+//                    }
+//                    break;
                 case MAKENAMEID2('i', 'd'):
                     product = client->json.gethandle(8);
                     break;
@@ -4276,6 +4282,11 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(cookieSettings, versionCookieSettings);
             break;
 
+//        case MAKENAMEID1('p'):  // plan: 101 for Pro Flexi
+//            {
+//                int proPlan = client->json.getint32();
+//            }
+//            break;
         case EOO:
         {
             assert(me == client->me);

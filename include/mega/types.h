@@ -810,6 +810,7 @@ typedef enum {
     ACCOUNT_TYPE_PROIII = 3,
     ACCOUNT_TYPE_LITE = 4,
     ACCOUNT_TYPE_BUSINESS = 100,
+    ACCOUNT_TYPE_PRO_FLEXI = 101
 } AccountType;
 
 typedef enum
