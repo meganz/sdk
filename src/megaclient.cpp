@@ -7566,7 +7566,7 @@ void MegaClient::notifypurge(void)
                 };
 
                 // Try and remove the sync.
-                syncs.removeSync(us.mConfig.mBackupId,
+                deregisterThenRemoveSync(us.mConfig.mBackupId,
                                  move(completion));
             }
 
@@ -8495,6 +8495,35 @@ void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
     for (auto& c : n->children)
     {
         removeOutSharesFromSubtree(c, tag);
+    }
+}
+
+void MegaClient::deregisterThenRemoveSync(handle backupId, std::function<void(Error)> completion)
+{
+    // Try and deregister this sync's backup ID first.
+    // If later removal operations fail, the heartbeat record will be resurrected
+
+    LOG_debug << "Deregistering backup ID: " << toHandle(backupId);
+
+    reqs.add(new CommandBackupRemove(this, backupId,
+            [backupId, completion, this](Error){
+                syncs.removeSyncAfterDeregistration(backupId, completion);
+            }));
+
+    // while we are on the client thread, also tidy up dev-id, drv-id
+    SyncConfig sc;
+    if (syncs.configById(backupId, sc) &&
+        sc.isBackup())
+    {
+        if (auto n = nodeByHandle(sc.mRemoteNode))
+        {
+            LOG_debug << "removing dev-id/drv-id from: " << n->displaypath();
+
+            attr_map m;
+            m[AttrMap::string2nameid("dev-id")] = "";
+            m[AttrMap::string2nameid("drv-id")] = "";
+            setattr(n, move(m), 0, nullptr, nullptr, true);
+        }
     }
 }
 
