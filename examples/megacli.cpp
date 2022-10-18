@@ -10325,8 +10325,15 @@ void exec_syncremove(autocomplete::ACState& s)
         };
     }
 
-    client->syncs.removeSelectedSyncs(std::move(predicate),
-        [=](Error e)
+    auto v = client->syncs.selectedSyncConfigs(predicate);
+
+    if (v.size() != 1)
+    {
+        cerr << "Found " << v.size() << " matching syncs." << endl;
+        return;
+    }
+
+    std::function<void(Error e)> completion = [=](Error e)
         {
             if (e == API_OK)
             {
@@ -10341,29 +10348,19 @@ void exec_syncremove(autocomplete::ACState& s)
             {
                 cout << "Sync - Failed to remove (" << error(e) << ": " << errorstring(e) << ')' << endl;
             }
-        }, isBackup, NodeHandle().set6byte(bkpDest));
+        };
 
-    if (!found)
+    if (v[0].isBackup())
     {
-        ostringstream ostream;
-
-        ostream << "No sync config found with the ";
-
-        if (byLocal)
-        {
-            ostream << "local path: " << localPath;
-        }
-        else if (byRemote)
-        {
-            ostream << "remote path: " << remotePath;
-        }
-        else
-        {
-            ostream << "backup ID: " << s.words[2].s;
-        }
-
-        cerr << ostream.str() << endl;
+        // unlink the backup's Vault nodes after deregistering it
+        NodeHandle source = v[0].mRemoteNode;
+        NodeHandle destination = NodeHandle().set6byte(bkpDest);
+        completion = [completion, source, destination](Error e){
+            client->unlinkOrMoveBackupNodes(source, destination, completion);
+        };
     }
+
+    client->syncs.removeSync(v[0].mBackupId, completion);
 }
 
 void exec_syncxable(autocomplete::ACState& s)

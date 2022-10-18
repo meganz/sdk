@@ -521,6 +521,8 @@ public:
     // delete node
     error unlink(Node*, bool keepversions, int tag, bool canChangeVault, std::function<void(NodeHandle, Error)>&& resultFunction = nullptr);
 
+    void unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle destination, std::function<void(Error)> completion);
+
     // delete all versions
     void unlinkversions();
 
@@ -1209,7 +1211,7 @@ public:
     void init();
 
     // remove caches
-    void removeCaches(bool keepSyncsConfigFile);
+    void removeCaches();
 
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;

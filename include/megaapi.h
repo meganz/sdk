@@ -2005,6 +2005,7 @@ public:
     *                        value 0 if someone left the folder)
     *   TYPE_NEWSHAREDNODES (0: folder count 1: file count)
     *   TYPE_REMOVEDSHAREDNODES (0: item count)
+    *   TYPE_UPDATEDSHAREDNODES (0: item count)
     *
     * @return Number related to this request, or -1 if the index is invalid
     */
@@ -10357,6 +10358,19 @@ class MegaApi
          * - MegaApi::LOG_LEVEL_MAX = 5
          */
         static void setLogLevel(int logLevel);
+
+        /**
+        * @brief Turn on extra detailed logging for some modules
+        *
+        * Sometimes we need super detailed logging to investigate complicated issues
+        * However for log size under normal conditions it's not practical to turn that on
+        * This function allows that super detailed logging to be enabled just for
+        * the module in question.
+        *
+        * @param networking Enable detailed extra logging for networking
+        * @param syncs Enable detailed extra logging for syncs
+        */
+        void setLogExtraForModules(bool networking, bool syncs);
 
         /**
          * @brief Set the limit of size to requests payload

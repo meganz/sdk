@@ -1809,7 +1809,7 @@ MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *ba
 
 MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, unsigned workerThreadCount)
 {
-    pImpl = new MegaApiImpl(this, appKey, basePath, userAgent, workerThreadCount);
+    pImpl = new MegaApiImpl(this, appKey, nullptr, basePath, userAgent, workerThreadCount);
 }
 
 #ifdef HAVE_MEGAAPI_RPC
@@ -1963,6 +1963,11 @@ char *MegaApi::getMyRSAPrivateKey()
 void MegaApi::setLogLevel(int logLevel)
 {
     MegaApiImpl::setLogLevel(logLevel);
+}
+
+void MegaApi::setLogExtraForModules(bool networking, bool syncs)
+{
+    return pImpl->setLogExtraForModules(networking, syncs);
 }
 
 void MegaApi::setMaxPayloadLogSize(long long maxSize)

@@ -39,6 +39,10 @@ extern JavaVM *MEGAjvm;
 
 namespace mega {
 
+bool g_netLoggingOn = false;
+#define NET_verbose if (g_netLoggingOn) LOG_verbose
+#define NET_debug if (g_netLoggingOn) LOG_debug
+
 
 #if defined(_WIN32)
 
@@ -739,6 +743,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
         bool read, write;
         if (info.checkEvent(read, write)) // if checkEvent returns true, both `read` and `write` have been set.
         {
+            //LOG_verbose << "Calling curl for socket " << info.fd << (read && write ? " both" : (read ? " read" : " write"));
             curl_multi_socket_action(curlm[d], info.fd,
                                      (read ? CURL_CSELECT_IN : 0)
                                    | (write ? CURL_CSELECT_OUT : 0), &dummy);
@@ -757,7 +762,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
     if (curltimeoutreset[d] >= 0 && curltimeoutreset[d] <= Waiter::ds)
     {
         curltimeoutreset[d] = -1;
-        LOG_debug << "Informing cURL of timeout reached for " << d << " at " << Waiter::ds;
+        NET_debug << "Informing cURL of timeout reached for " << d << " at " << Waiter::ds;
         curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
 
@@ -1457,7 +1462,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     {
         if (req->out->size() < size_t(SimpleLogger::maxPayloadLogSize))
         {
-            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size());
+            LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size())
+                      << " (at ds: " << Waiter::ds << ")";
         }
         else
         {
@@ -1474,11 +1480,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 #ifdef MEGA_USE_C_ARES
     if(httpio->proxyip.size())
     {
-        LOG_debug << "Using the hostname instead of the IP";
+        NET_debug << "Using the hostname instead of the IP";
     }
     else if(httpctx->hostip.size())
     {
-        LOG_debug << "Using the IP of the hostname: " << httpctx->hostip;
+        NET_debug << "Using the IP of the hostname: " << httpctx->hostip;
         httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
@@ -1690,11 +1696,11 @@ void CurlHttpIO::request_proxy_ip()
     if (ipv6proxyenabled)
     {
         httpctx->ares_pending++;
-        LOG_debug << "Resolving IPv6 address for proxy: " << proxyhost;
+        NET_debug << "Resolving IPv6 address for proxy: " << proxyhost;
         ares_gethostbyname(ares, proxyhost.c_str(), PF_INET6, proxy_ready_callback, httpctx);
     }
 
-    LOG_debug << "Resolving IPv4 address for proxy: " << proxyhost;
+    NET_debug << "Resolving IPv4 address for proxy: " << proxyhost;
     ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, httpctx);
 #endif
 }
@@ -1849,7 +1855,7 @@ int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t siz
 #endif
                         ")";
         }
-        LOG_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data << errnoInfo;
+        NET_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data << errnoInfo;
     }
 
     return 0;
@@ -2000,7 +2006,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         if (dnsEntry && dnsEntry->ipv6.size() && !dnsEntry->isIPv6Expired())
         {
-            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv6) " << dnsEntry->ipv6;
+            NET_debug << "DNS cache hit for " << httpctx->hostname << " (IPv6) " << dnsEntry->ipv6;
             std::ostringstream oss;
             httpctx->isIPv6 = true;
             httpctx->isCachedIp = true;
@@ -2016,7 +2022,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
     {
-        LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
+        NET_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
         httpctx->isIPv6 = false;
         httpctx->isCachedIp = true;
         httpctx->hostip = dnsEntry->ipv4;
@@ -2033,11 +2039,11 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     if (ipv6requestsenabled)
     {
         httpctx->ares_pending++;
-        LOG_debug << "Resolving IPv6 address for " << httpctx->hostname;
+        NET_debug << "Resolving IPv6 address for " << httpctx->hostname;
         ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
     }
 
-    LOG_debug << "Resolving IPv4 address for " << httpctx->hostname;
+    NET_debug << "Resolving IPv4 address for " << httpctx->hostname;
     ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
 #endif
 }
@@ -2309,7 +2315,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     {
                         if (req->in.size() < size_t(SimpleLogger::maxPayloadLogSize))
                         {
-                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size());
+                            LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size())
+                                      << " (at ds: " << Waiter::ds << ")";
                         }
                         else
                         {
@@ -2610,7 +2617,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     size_t len = size * nmemb;
     if (len > 2)
     {
-        LOG_verbose << req->logname << "Header: " << string((const char *)ptr, len - 2);
+        NET_verbose << req->logname << "Header: " << string((const char *)ptr, len - 2);
     }
 
     if (len > 5 && !memcmp(ptr, "HTTP/", 5))

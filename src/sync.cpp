@@ -2287,7 +2287,7 @@ bool Sync::updateSyncRemoteLocation(Node* n, bool forceCallback)
     return mUnifiedSync.updateSyncRemoteLocation(n, forceCallback);
 }
 
-bool Sync::movetolocaldebris(LocalPath& localpath)
+bool Sync::movetolocaldebris(const LocalPath& localpath)
 {
     char buf[32];
     struct tm tms;
@@ -3660,13 +3660,18 @@ SyncConfigIOContext* Syncs::syncConfigIOContext()
     return mSyncConfigIOContext.get();
 }
 
-void Syncs::clear()
+void Syncs::clear_inThread()
 {
-    syncConfigStoreFlush();
+    assert(onSyncThread());
+
+    assert(!mSyncConfigStore);
 
     mSyncConfigStore.reset();
     mSyncConfigIOContext.reset();
-    mSyncVec.clear();
+    {
+        lock_guard<mutex> g(mSyncVecMutex);
+        mSyncVec.clear();
+    }
     mSyncVecIsEmpty = true;
 }
 
@@ -3886,21 +3891,6 @@ bool Syncs::hasRunningSyncs()
     return false;
 }
 
-unsigned Syncs::numRunningSyncs()
-{
-    unsigned n = 0;
-    for (auto& s : mSyncVec)
-    {
-        if (s->mSync) ++n;
-    }
-    return n;
-}
-
-unsigned Syncs::numSyncs()
-{
-    return unsigned(mSyncVec.size());
-}
-
 Sync* Syncs::firstRunningSync()
 {
     for (auto& s : mSyncVec)
@@ -3997,6 +3987,17 @@ void Syncs::disableSyncs(bool disableIsFail, SyncError syncError, bool newEnable
 
 void Syncs::disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion)
 {
+    //assert(!onSyncThread());
+    queueSync([this, backupId, syncError, newEnabledFlag, disableIsFail, completion]()
+    {
+            disableSyncByBackupId_inThread(backupId, disableIsFail, syncError, newEnabledFlag, completion);
+    });
+}
+
+void Syncs::disableSyncByBackupId_inThread(handle backupId, bool disableIsFail, SyncError syncError, bool newEnabledFlag, std::function<void()> completion)
+{
+    assert(onSyncThread());
+
     for (auto i = mSyncVec.size(); i--; )
     {
         auto& us = *mSyncVec[i];
@@ -4012,214 +4013,17 @@ void Syncs::disableSyncByBackupId(handle backupId, bool disableIsFail, SyncError
     if (completion) completion();
 }
 
-void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector,
-                                std::function<void(Error)> completion,
-                                bool moveOrUnlink,
-                                NodeHandle moveTarget)
+SyncConfigVector Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync*)> selector) const
 {
-    // Sanity.
-    assert(completion);
-    assert(selector);
+    SyncConfigVector selected;
 
-    // Convenience.
-    class Remover;
-
-    using RemoverPtr = shared_ptr<Remover>;
-
-    // Context tracking the state of the removal process.
-    class Remover
-    {
-    public:
-        Remover(std::function<void(Error)> &&completion,
-                bool moveOrUnlink,
-                NodeHandle moveTarget,
-                vector<SyncConfig> &&pending,
-                Syncs& syncs)
-          : mCompletion(std::move(completion))
-          , mMoveOrUnlink(moveOrUnlink)
-          , mMoveTarget(moveTarget)
-          , mNumProcessed(0u)
-          , mPending(std::move(pending))
-          , mResult(API_OK)
-          , mSyncs(syncs)
-        {
-        }
-
-        void remove(RemoverPtr remover)
-        {
-            // Sanity.
-            assert(remover);
-
-            // Are there any syncs left to remove?
-            if (mPending.empty())
-            {
-                // Nope so tell our continuation that we're done.
-                return mCompletion(mResult);
-            }
-
-            // What config describes the sync we're about to remove?
-            const auto& config = mPending.back();
-
-            // Leave a trail for debuggers.
-            LOG_debug << "Attempting to remove sync: "
-                      << toHandle(config.mBackupId);
-
-            using std::bind;
-            using std::placeholders::_1;
-
-            // Make ourselves look like a continuation.
-            auto completion = std::bind(&Remover::removed,
-                                        this,
-                                        config.mBackupId,
-                                        remover,
-                                        _1);
-
-            // Try and remove the sync.
-            mSyncs.removeSyncByConfig(config,
-                                      std::move(completion),
-                                      config.isBackup() && mMoveOrUnlink,
-                                      mMoveTarget);
-        }
-
-    private:
-        void removed(handle id,
-                     RemoverPtr remover,
-                     Error result)
-        {
-            // Sanity.
-            assert(id != UNDEF);
-            assert(remover);
-
-            // Keep track of how many syncs we've processed.
-            ++mNumProcessed;
-
-            // Were we able to remove the sync?
-            if (result == API_OK)
-            {
-                // Yep but leave a trail for debuggers anyway.
-                LOG_debug << "Sync removed: "
-                          << toHandle(id);
-            }
-            else
-            {
-                // Nope so complain loudly.
-                LOG_err << "Unable to remove sync: "
-                        << toHandle(id)
-                        << ". Error was: "
-                        << result;
-
-                // Why couldn't we remove the sync?
-                mResult = result;
-            }
-
-            // Translate result to general form if necessary.
-            if (mNumProcessed > 1 && mResult != API_OK)
-                mResult = API_EINCOMPLETE;
-
-            // Queue the next pending sync for removal.
-            mPending.pop_back();
-
-            // Remove that sync.
-            remove(std::move(remover));
-        }
-
-        // Who should we call when we're done?
-        std::function<void(Error)> mCompletion;
-
-        // Whether we should move (or unlink) the backup's content
-        // (it only applies to backups, not to regular syncs)
-        bool mMoveOrUnlink;
-
-        // Where should we move a backup's content?
-        NodeHandle mMoveTarget;
-
-        // How many syncs have we attempted to remove?
-        unsigned mNumProcessed;
-
-        // What syncs need to be removed?
-        vector<SyncConfig> mPending;
-
-        // What's the overall result of the removal process?
-        Error mResult;
-
-        // Who owns the syncs we are removing?
-        Syncs& mSyncs;
-    }; // Remover
-
-    // Create a context to track the removal process.
-    auto remover = std::make_shared<Remover>(
-                     std::move(completion),
-                     moveOrUnlink,
-                     moveTarget,
-                     selectedSyncConfigs(std::move(selector)),
-                     *this);
-
-    // Kick off the removal process.
-    remover->remove(remover);
-}
-
-void Syncs::removeSelectedSync(std::function<bool(SyncConfig&, Sync*)> selector,
-                               std::function<void(Error)> completion,
-                               bool moveOrUnlink,
-                               NodeHandle moveTarget)
-{
-    // Sanity.
-    assert(completion);
-    assert(selector);
-
-    // Is any sync elligible for removal?
-    auto selected = selectedSyncConfigs(std::move(selector), 1);
-
-    // Was any sync actually elligble?
-    if (selected.empty())
-        return completion(API_ENOENT);
-
-    // What's the ID of the sync we are going to remove?
-    auto id = selected.back().mBackupId;
-
-    // Wrap the completion function.
-    completion = [completion, id](Error result) {
-        // Were we able to remove the sync?
-        if (result == API_OK)
-        {
-            // Yep but leave a trail anyway.
-            LOG_debug << "Sync removed: "
-                      << toHandle(id);
-        }
-        else
-        {
-            // Nope so let's complain loudly.
-            LOG_err << "Unable to remove sync: "
-                    << toHandle(id)
-                    << ". Error was: "
-                    << result;
-        }
-
-        // Pass the result to our continuation.
-        completion(result);
-    };
-
-    // Remove the sync.
-    removeSyncByConfig(selected.back(),
-                       std::move(completion),
-                       moveOrUnlink,
-                       moveTarget);
-}
-
-vector<SyncConfig> Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sync*)> selector, size_t maxCount) const
-{
-    vector<SyncConfig> selected;
+    lock_guard<mutex> g(mSyncVecMutex);
 
     for (size_t i = 0; i < mSyncVec.size(); ++i)
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
             selected.emplace_back(mSyncVec[i]->mConfig);
-
-            if (maxCount && maxCount == mSyncVec.size())
-            {
-                break;
-            }
         }
     }
 
@@ -4228,6 +4032,8 @@ vector<SyncConfig> Syncs::selectedSyncConfigs(std::function<bool(SyncConfig&, Sy
 
 void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
 {
+    assert(onSyncThread());
+
     for (auto i = mSyncVec.size(); i--; )
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
@@ -4237,467 +4043,50 @@ void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
-void Syncs::purgeSyncs(std::function<void(Error)> completion)
+void Syncs::removeSync(handle backupId, std::function<void(Error)> completion)
 {
-    if (!mSyncConfigStore)
-    {
-        completion(API_OK);
-        return;
-    }
+    LOG_debug << "Attempting to deregister backup ID: "
+                << toHandle(backupId);
 
-    // Remove all syncs.
-    removeSelectedSyncs(
-        [](SyncConfig&, Sync*) { return true; },    // selector: all syncs
-        [=](Error e)
+
+    auto removeAfterDeregister = [backupId, completion, this](Error e){
+
+        // Try and remove the sync from memory.
+        SyncConfig configCopy;
+        if (unloadSyncByBackupID(backupId, configCopy))
         {
-            if (e != API_OK)
-                LOG_err << "Failed to purge syncs. Error: " << e;
+            // Let the app know we've removed a sync.
+            mClient.app->sync_removed(configCopy);
+            e = API_OK;
 
-            // finally, remove local syncs config files (internal and external, if any)
-            purgeSyncsLocal();
-            completion(e);
-        },
-        false); // in this case, user is logging out. There's no chance to ask him about
-        // move or delete backup folders, so they will be kept (user can get rid of them in Backup Centre)
+            // Make sure any config changes are flushed to disk.
+            mSyncConfigStore->markDriveDirty(configCopy.mExternalDrivePath);
+        }
+        else
+        {
+            e = API_EEXIST;
+        }
+
+        if (completion) completion(e);
+    };
+
+    // Try and deregister this sync's backup ID first.
+    // If we fail later on, the heartbeat record will auto-restore
+    mClient.reqs.add(
+        new CommandBackupRemove(&mClient,
+                                backupId,
+                                std::move(removeAfterDeregister)));
 }
 
-void Syncs::purgeSyncsLocal()
+bool Syncs::unloadSyncByBackupID(handle id, SyncConfig& configCopy)
 {
-    if (!mSyncConfigStore) return;
+    LOG_debug << "Unloading sync: " << toHandle(id);
 
-    // Truncate internal sync config database.
-    mSyncConfigStore->write(LocalPath(), SyncConfigVector());
-
-    // Remove all drives.
-    for (auto& drive : mSyncConfigStore->knownDrives())
-    {
-        // Never remove internal drive.
-        if (!drive.empty())
-        {
-            // This does not flush.
-            mSyncConfigStore->removeDrive(drive);
-        }
-    }
-}
-
-void Syncs::removeSyncByConfig(const SyncConfig& config,
-                               std::function<void(Error)> completion,
-                               bool moveOrUnlink,
-                               NodeHandle moveTarget)
-{
-    // Sanity.
-    assert(completion);
-
-    // Convenience.
-    class Remover;
-
-    using RemoverPtr = shared_ptr<Remover>;
-
-    // Tracks state necessary for the removal process.
-    class Remover
-    {
-    public:
-        Remover(std::function<void(Error)>&& completion,
-                bool moveOrUnlink,
-                const SyncConfig& config,
-                NodeHandle moveTarget,
-                Syncs& syncs)
-          : mClient(syncs.mClient)
-          , mCompletion(std::move(completion))
-          , mConfig(config)
-          , mMoveOrUnlink(moveOrUnlink)
-          , mMoveTarget(moveTarget)
-          , mSyncs(syncs)
-        {
-        }
-
-        void remove(RemoverPtr remover)
-        {
-            // Make sure have a valid move target before doing anything.
-            if (willMove() && !validMoveTarget())
-                return mCompletion(API_EARGS);
-
-            // Leave a trail for debuggers.
-            LOG_debug << "Attempting to deregister backup ID: "
-                      << toHandle(mConfig.mBackupId);
-
-            // Make ourselves look like a continuation.
-            using std::bind;
-            using std::placeholders::_1;
-
-            auto completion = std::bind(&Remover::removed,
-                                        this,
-                                        std::move(remover),
-                                        _1);
-
-            // Try and deregister this sync's backup ID.
-            mClient.reqs.add(
-              new CommandBackupRemove(&mClient,
-                                      mConfig.mBackupId,
-                                      std::move(completion)));
-        }
-
-    private:
-        bool isUnique(Node& p, const string& n) const
-        {
-            return !mClient.childnodebynametype(&p, n.c_str(), FOLDERNODE);
-        }
-
-        string makeUnique(Node& parent, const string& name) const
-        {
-            for (auto i = 0u; ; ++i)
-            {
-                auto computed = name + " (" + std::to_string(i) + ")";
-
-                if (i == UINT_MAX || isUnique(parent, computed))
-                    return computed;
-            }
-        }
-
-        void move(RemoverPtr remover)
-        {
-            // DRY.
-            std::ostringstream ostream;
-
-            ostream << toHandle(mConfig.mBackupId)
-                    << ": "
-                    << toHandle(mConfig.mRemoteNode.as8byte());
-
-            // Leave a trail for debugging.
-            LOG_debug << "Attempting to move backup folder: "
-                      << ostream.str();
-
-            // Try and locate the sync's remote node.
-            auto* remoteNode = mClient.nodeByHandle(mConfig.mRemoteNode);
-
-            // Does the remote still exist?
-            if (!remoteNode)
-                return moved({}, std::move(remover), API_ENOENT, "Client");
-
-            // Check that the move target exists and is valid.
-            auto* moveTarget = validMoveTarget();
-
-            // Is the move target valid?
-            if (!moveTarget)
-                return moved({}, std::move(remover), API_ENOENT, "Client");
-
-            string storage;
-            const char* name = nullptr;
-
-            // Generate a unique name if necessary.
-            if (!isUnique(*moveTarget, mConfig.mName))
-            {
-                auto previousName = mConfig.mName;
-
-                storage = makeUnique(*moveTarget, previousName);
-                name = storage.c_str();
-
-                LOG_warn << "Backup folder "
-                         << previousName
-                         << " already exists at the move target: "
-                         << moveTarget->displaypath();
-
-                LOG_warn << "Will rename "
-                         << previousName
-                         << " to "
-                         << name;
-            }
-
-            using std::bind;
-            using std::placeholders::_1;
-            using std::placeholders::_2;
-
-            // Make ourselves look like a continuation.
-            auto completion = std::bind(&Remover::moved,
-                                        this,
-                                        _1,
-                                        remover,
-                                        _2,
-                                        "API");
-
-            // Try and move the node.
-            auto result = mClient.rename(remoteNode,
-                                         moveTarget,
-                                         SYNCDEL_NONE,
-                                         remoteNode->parent->nodeHandle(),
-                                         name,
-                                         true,
-                                         std::move(completion));
-
-            // Was the client unable to perform the move?
-            if (result == API_OK)
-                return;
-
-            // Yep so we need to call the continuation explicitly.
-            moved({}, std::move(remover), result, "Client");
-        }
-
-        void moved(NodeHandle,
-                   RemoverPtr remover,
-                   Error result,
-                   const char* where)
-        {
-            // DRY.
-            std::ostringstream ostream;
-
-            ostream << toHandle(mConfig.mBackupId)
-                    << ": "
-                    << toHandle(mConfig.mRemoteNode.as8byte());
-
-            // Were we able to move the node?
-            if (result == API_OK)
-            {
-                // Yep but leave a trail anyway.
-                LOG_debug << where
-                          << ": Moved "
-                          << ostream.str();
-            }
-            else if (result == API_ENOENT)
-            {
-                LOG_warn << where
-                         << ": Backup folder's already been moved: "
-                         << ostream.str();
-            }
-            else
-            {
-                LOG_err << where
-                        << ": Unable to move backup folder: "
-                        << ostream.str()
-                        << ". Error was: "
-                        << result;
-            }
-
-            // Let the continuation know what happened.
-            mCompletion(result);
-        }
-
-        void removed(RemoverPtr remover, Error result)
-        {
-            // Is it safe to unload the sync from memory?
-            if (result == API_OK || result == API_ENOENT)
-            {
-                LOG_debug << "Attempting to unload sync "
-                          << toHandle(mConfig.mBackupId)
-                          << " from memory...";
-
-                // Try and remove the sync from memory.
-                if (mSyncs.unloadSyncByBackupID(mConfig.mBackupId))
-                {
-                    LOG_debug << "Sync unloaded: "
-                              << toHandle(mConfig.mBackupId);
-
-                    // Let the app know we've removed a sync.
-                    mClient.app->sync_removed(mConfig);
-
-                    // Make sure any config changes are flushed to disk.
-                    mSyncs.mSyncConfigStore->markDriveDirty(mConfig.mExternalDrivePath);
-                }
-                else
-                {
-                    LOG_warn << "Sync was already unloaded: "
-                             << toHandle(mConfig.mBackupId);
-                }
-            }
-
-            // Was the ID already deregistered?
-            if (result == API_ENOENT)
-            {
-                LOG_warn << "Backup ID was already deregistered: "
-                         << toHandle(mConfig.mBackupId);
-
-                // backup was already deregistered, so better to not touch the backup folder
-                // (it could have been moved to the cloud or deleted by the backup center already)
-                return mCompletion(API_OK);
-            }
-
-            // Did we encounter some error removing the ID?
-            if (result != API_OK)
-            {
-                LOG_err << "Unable to deregister backup ID: "
-                        << toHandle(mConfig.mBackupId)
-                        << ". Error was: "
-                        << result;
-
-                return mCompletion(result);
-            }
-
-            // Do we need to perform a move (or unlink)?
-            if (!mSyncs.mBackupRestrictionsEnabled || !mMoveOrUnlink)
-                return mCompletion(API_OK);
-
-            // Are we going to unlink the sync's content?
-            if (mMoveTarget.isUndef())
-                return unlink(std::move(remover));
-
-            // We're going to move the sync's content.
-            move(std::move(remover));
-        }
-
-        void unlink(RemoverPtr remover)
-        {
-            // DRY.
-            std::ostringstream ostream;
-
-            ostream << toHandle(mConfig.mBackupId)
-                    << ": "
-                    << toHandle(mConfig.mRemoteNode.as8byte());
-
-            // Leave a trail.
-            LOG_debug << "Attempting to unlink backup folder: "
-                      << ostream.str();
-
-            // Make sure the node still exists.
-            auto* remoteNode = mClient.nodeByHandle(mConfig.mRemoteNode);
-
-            // Does the node still exist?
-            if (!remoteNode)
-            {
-                LOG_warn << "Backup folder has already been removed: "
-                         << ostream.str();
-
-                return mCompletion(API_OK);
-            }
-
-            // Make ourselves look like a continuation.
-            using std::bind;
-            using std::placeholders::_1;
-            using std::placeholders::_2;
-
-            auto completion = std::bind(&Remover::unlinked,
-                                        this,
-                                        _1,
-                                        std::move(remover),
-                                        _2,
-                                        "API");
-
-            // Try and unlink the node.
-            auto result = mClient.unlink(remoteNode,
-                                         false,
-                                         0,
-                                         true,
-                                         std::move(completion));
-
-            // Did the client encounter any errors?
-            if (result == API_OK)
-                return;
-
-            // Then we need to call the continuation directly.
-            unlinked({}, std::move(remover), result, "Client");
-        }
-
-        void unlinked(NodeHandle,
-                      RemoverPtr remover,
-                      Error result,
-                      const char* where)
-        {
-            // DRY.
-            std::ostringstream ostream;
-
-            ostream << toHandle(mConfig.mBackupId)
-                    << ": "
-                    << toHandle(mConfig.mRemoteNode.as8byte());
-
-            // Were we able to unlink the sync's remote node?
-            if (result == API_OK)
-            {
-                // Yep so leave a trail.
-                LOG_debug << "Unlinked remote node: "
-                          << ostream.str();
-            }
-            else if (result == API_ENOENT)
-            {
-                // Node was already unlinked.
-                LOG_warn << where
-                         << ": Backup folder was already unlinked: "
-                         << ostream.str();
-            }
-            else
-            {
-                // Encountered some other error.
-                LOG_err << where
-                        << ": Unable to unlink backup folder: "
-                        << ostream.str()
-                        << ". Error was: "
-                        << result;
-            }
-
-            // Tell our continuation what the deal is.
-            mCompletion(result);
-        }
-
-        Node* validMoveTarget() const
-        {
-            // Try and locate the move target.
-            auto* moveTarget = mClient.nodeByHandle(mMoveTarget);
-
-            // Could we find the move target?
-            if (!moveTarget)
-            {
-                LOG_err << "Backup destination folder does not exist: "
-                        << toHandle(mMoveTarget.as8byte());
-
-                return nullptr;
-            }
-
-            // Which tree owns the move target?
-            auto* ancestor = moveTarget->firstancestor();
-
-            // Is the move target under the user's cloud drive?
-            if (ancestor->nodeHandle() != mClient.rootnodes.files)
-            {
-                LOG_err << "Backup destination folder is not in the cloud: "
-                        << toHandle(mMoveTarget.as8byte());
-
-                return nullptr;
-            }
-
-            // Move target's valid.
-            return moveTarget;
-        }
-
-        bool willMove() const
-        {
-            return mSyncs.mBackupRestrictionsEnabled
-                   && mMoveOrUnlink
-                   && !mMoveTarget.isUndef();
-        }
-
-        // Which client will service our requests?
-        MegaClient& mClient;
-
-        // Who we should call when we've completed our work.
-        std::function<void(Error)> mCompletion;
-
-        // The config describing the sync we want to remove.
-        const SyncConfig mConfig;
-
-        // Whether we should move (or unlink) the backup's content
-        bool mMoveOrUnlink;
-
-        // Where we are going to move the sync's content.
-        NodeHandle mMoveTarget;
-
-        // Who owns the sync we're removing.
-        Syncs& mSyncs;
-    }; // Remover
-
-    // Create context for removal.
-    auto remover = std::make_shared<Remover>(std::move(completion),
-                                             moveOrUnlink,
-                                             config,
-                                             moveTarget,
-                                             *this);
-
-    // Kick off the removal process.
-    remover->remove(remover);
-}
-
-bool Syncs::unloadSyncByBackupID(handle id)
-{
     for (auto i = mSyncVec.size(); i--; )
     {
         if (mSyncVec[i]->mConfig.mBackupId == id)
         {
+            configCopy = mSyncVec[i]->mConfig;
             unloadSyncByIndex(i);
             return true;
         }
@@ -4730,6 +4119,114 @@ void Syncs::unloadSyncByIndex(size_t index)
         lock_guard<mutex> g(mSyncVecMutex);
         mSyncVec.erase(mSyncVec.begin() + index);
         mSyncVecIsEmpty = mSyncVec.empty();
+    }
+}
+
+
+void Syncs::prepareForLogout(bool keepSyncsConfigFile, std::function<void()> clientCompletion)
+{
+    queueSync([=](){ prepareForLogout_inThread(keepSyncsConfigFile, clientCompletion); });
+}
+
+void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<void()> clientCompletion)
+{
+    assert(onSyncThread());
+
+    if (keepSyncsConfigFile)
+    {
+        // Special case backward compatibility for MEGAsync
+        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
+
+        for (auto& us : mSyncVec)
+        {
+            if (us->mConfig.getEnabled())
+            {
+                disableSyncByBackupId_inThread(us->mConfig.mBackupId, true, LOGGED_OUT, false, nullptr);
+            }
+        }
+    }
+
+    // regardless of that, we de-register all syncs/backups in Backup Centre
+    for (auto& us : mSyncVec)
+    {
+        std::function<void()> onFinalDeregister = nullptr;
+        if (us.get() == mSyncVec.back().get())
+        {
+            // this is the last one, so we'll arrange clientCompletion
+            // to run after it completes.  Earlier de-registers must finish first
+            onFinalDeregister = move(clientCompletion);
+            clientCompletion = nullptr;
+        }
+
+        auto backupId = us->mConfig.mBackupId;
+        queueClient([backupId, onFinalDeregister](MegaClient& mc, TransferDbCommitter& tc){
+            mc.reqs.add(new CommandBackupRemove(&mc, backupId, [onFinalDeregister](Error){
+                if (onFinalDeregister) onFinalDeregister();
+            }));
+        });
+    }
+
+    if (clientCompletion)
+    {
+        // this case for if we didn't need to deregister anything
+        queueClient([clientCompletion](MegaClient&, TransferDbCommitter&){ clientCompletion(); });
+    }
+}
+
+
+void Syncs::locallogout(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter)
+{
+    //assert(!onSyncThread());
+    syncRun([=](){ locallogout_inThread(removecaches, keepSyncsConfigFile, reopenStoreAfter); });
+}
+
+void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bool reopenStoreAfter)
+{
+    assert(onSyncThread());
+    mExecutingLocallogout = true;
+
+    // NULL the statecachetable databases for Syncs first, then Sync destruction won't remove LocalNodes from them
+    // If we are deleting syncs then just remove() the database direct
+
+    for (auto i = mSyncVec.size(); i--; )
+    {
+        if (Sync* sync = mSyncVec[i]->mSync.get())
+        {
+            if (sync->statecachetable)
+            {
+                if (removecaches) sync->statecachetable->remove();
+                sync->statecachetable.reset();
+            }
+        }
+    }
+
+    if (mSyncConfigStore)
+    {
+        if (!keepSyncsConfigFile)
+        {
+            mSyncConfigStore->write(LocalPath(), SyncConfigVector());
+        }
+        else
+        {
+            syncConfigStoreFlush();
+        }
+    }
+    mSyncConfigStore.reset();
+
+    // Remove all syncs from RAM.
+    unloadSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+    assert(mSyncVec.empty());
+
+    // make sure we didn't resurrect the store, singleton style
+    assert(!mSyncConfigStore);
+
+    clear_inThread();
+    mExecutingLocallogout = false;
+
+    if (reopenStoreAfter)
+    {
+        SyncConfigVector configs;
+        syncConfigStoreLoad(configs);
     }
 }
 
