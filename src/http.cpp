@@ -507,7 +507,7 @@ void HttpReq::init()
     mRedirectURL.clear();
 }
 
-const char *HttpReq::getMethodString()
+const char* HttpReq::getMethodString()
 {
     switch(method)
     {

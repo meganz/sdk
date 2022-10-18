@@ -15975,7 +15975,7 @@ void MegaApiImpl::dismissbanner_result(error e)
 
 void MegaApiImpl::reqstat_progress(int permilprogress)
 {
-    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_REQSTAT_PROGRESS);
+    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_REQSTAT_PROGRESS);
     event->setNumber(permilprogress);
     fireOnEvent(event);
 }

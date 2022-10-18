@@ -426,7 +426,7 @@ struct MEGA_API HttpReq
     void init();
 
     // get HTTP method as a static string
-    const char *getMethodString();
+    const char* getMethodString();
 
     // true if HTTP response status code is 3xx redirection
     bool isRedirection() const { return (httpstatus / 100) == 3; }
