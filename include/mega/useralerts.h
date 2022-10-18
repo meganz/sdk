@@ -348,7 +348,7 @@ public:
     {
         container.erase(
             remove_if(begin(container), end(container),
-                      [&toErase](UserAlert::Base* a) { return toErase.find(a) != end(toErase);})
+                      [&toErase](UserAlert::Base* a) { return toErase.find(a) != end(toErase); })
             , end(container));
     }
     // remove from `alerts` and `useralertnotify`, and releases memory
