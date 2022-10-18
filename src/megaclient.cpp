@@ -9886,7 +9886,7 @@ error MegaClient::parseScheduledMeetings(std::vector<std::unique_ptr<ScheduledMe
                     }
 
                     std::unique_ptr<ScheduledRules>rules(new ScheduledRules(ScheduledRules::stringToFreq(freq.c_str()), interval,
-                                                                            until.c_str(), &vWeek, &vMonth, &mMonth));
+                                                                            until, &vWeek, &vMonth, &mMonth));
                     auxMeet->setRules(rules.get());
                     break;
                 }

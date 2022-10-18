@@ -908,13 +908,13 @@ ScheduledFlags* ScheduledFlags::unserialize(string* in)
 /* class scheduledRules */
 ScheduledRules::ScheduledRules(int freq,
                               int interval,
-                              const char* until,
+                              const string& until,
                               const rules_vector* byWeekDay,
                               const rules_vector* byMonthDay,
                               const rules_map* byMonthWeekDay)
     : mFreq(isValidFreq(freq) ? freq : FREQ_INVALID),
       mInterval(isValidInterval(interval) ? interval : INTERVAL_INVALID),
-      mUntil(until ? until : std::string()),
+      mUntil(until),
       mByWeekDay(byWeekDay ? new rules_vector(*byWeekDay) : nullptr),
       mByMonthDay(byMonthDay ? new rules_vector(*byMonthDay) : nullptr),
       mByMonthWeekDay(byMonthWeekDay ? new rules_map(byMonthWeekDay->begin(), byMonthWeekDay->end()) : nullptr)
@@ -1120,7 +1120,7 @@ ScheduledRules* ScheduledRules::unserialize(string* in)
 
     return new ScheduledRules(freq,
                               hasInterval ? interval : -1,
-                              hasUntil ? until.c_str() : nullptr,
+                              until,
                               hasByWeekDay ? &byWeekDay : nullptr,
                               hasByMonthDay ? &byMonthDay: nullptr,
                               hasByMonthWeekDay ? &byMonthWeekDay: nullptr);

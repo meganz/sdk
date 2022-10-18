@@ -33500,7 +33500,7 @@ ScheduledRules* MegaScheduledRulesPrivate::getSdkScheduledRules() const
         auxByMonthWeekDay->insert(inaux->begin(), inaux->end());
     }
 
-    return new ScheduledRules(mFreq, mInterval, mUntil.c_str(), auxByWeekDay, auxByMonthDay, auxByMonthWeekDay);
+    return new ScheduledRules(mFreq, mInterval, mUntil, auxByWeekDay, auxByMonthDay, auxByMonthWeekDay);
 }
 
 /* Class MegaScheduledMeetingPrivate */

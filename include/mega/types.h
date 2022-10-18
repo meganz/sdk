@@ -792,7 +792,7 @@ class ScheduledRules
 
         ScheduledRules(int freq,
                        int interval = INTERVAL_INVALID,
-                       const char* until = nullptr,
+                       const string& until = std::string(),
                        const rules_vector* byWeekDay = nullptr,
                        const rules_vector* byMonthDay = nullptr,
                        const rules_map* byMonthWeekDay = nullptr);
